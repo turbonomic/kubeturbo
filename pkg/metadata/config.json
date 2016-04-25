@@ -1,0 +1,13 @@
+{
+		"serveraddress":	"<server address>:<port number>",
+		"targettype":"Kubernetes",
+		"nameoraddress":  "<target name>",
+		"username":"kubernetes_user",
+		"targetidentifier": "my_k8s",
+		"password":"fake_password",
+		"localaddress":"http://<local address>/",
+		"websocketusername": "vmtRemoteMediation",
+		"websocketpassword": "vmtRemoteMediation",
+		"opsmanagerusername": "<username>",
+		"opsmanagerpassword": "<password>"
+}
