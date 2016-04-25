@@ -3,6 +3,7 @@ package kubeturbo
 import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/cache"
+	"k8s.io/kubernetes/pkg/client/record"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/fields"
 
@@ -20,6 +21,10 @@ type Config struct {
 	NodeQueue     *vmtcache.HashedFIFO
 	PodQueue      *vmtcache.HashedFIFO
 	VMTEventQueue *vmtcache.HashedFIFO
+
+	// Recorder is the EventRecorder to use
+	Recorder record.EventRecorder
+
 	// Close this to stop all reflectors
 	StopEverything chan struct{}
 }

@@ -22,9 +22,13 @@ import (
 	// "net/http"
 	"os"
 
+	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/client/leaderelection"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
 	// "k8s.io/kubernetes/pkg/healthz"
+	"k8s.io/kubernetes/pkg/apis/componentconfig"
+	"k8s.io/kubernetes/pkg/client/record"
 	_ "k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
 
 	kubeturbo "github.com/vmturbo/kubeturbo/pkg"
@@ -61,6 +65,8 @@ type VMTServer struct {
 	EtcdClientKey         string
 	EtcdConfigFile        string
 	EtcdPathPrefix        string
+
+	LeaderElection componentconfig.LeaderElectionConfiguration
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -82,6 +88,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.EtcdCA, "cacert", s.EtcdCA, "Path to etcd ca.")
 	fs.StringVar(&s.EtcdClientCertificate, "client-cert", s.EtcdClientCertificate, "Path to etcd client certificate")
 	fs.StringVar(&s.EtcdClientKey, "client-key", s.EtcdClientKey, "Path to etcd client key")
+	leaderelection.BindFlags(&s.LeaderElection, fs)
 }
 
 // Run runs the specified VMTServer.  This should never exit.
@@ -163,11 +170,51 @@ func (s *VMTServer) Run(_ []string) error {
 
 	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, etcdStorage, vmtMeta)
 
+	eventBroadcaster := record.NewBroadcaster()
+	vmtConfig.Recorder = eventBroadcaster.NewRecorder(api.EventSource{Component: "kubeturbo"})
+	eventBroadcaster.StartLogging(glog.Infof)
+	eventBroadcaster.StartRecordingToSink(kubeClient.Events(""))
+
 	vmtService := kubeturbo.NewVMTurboService(vmtConfig)
 
-	vmtService.Run()
+	run := func(_ <-chan struct{}) {
+		vmtService.Run()
+		select {}
+	}
 
-	select {}
+	if !s.LeaderElection.LeaderElect {
+		glog.Infof("No leader election")
+		run(nil)
+		glog.Fatal("this statement is unreachable")
+		panic("unreachable")
+	}
+
+	id, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+
+	leaderelection.RunOrDie(leaderelection.LeaderElectionConfig{
+		EndpointsMeta: api.ObjectMeta{
+			Namespace: "kube-system",
+			Name:      "kubeturbo",
+		},
+		Client:        kubeClient,
+		Identity:      id,
+		EventRecorder: vmtConfig.Recorder,
+		LeaseDuration: s.LeaderElection.LeaseDuration.Duration,
+		RenewDeadline: s.LeaderElection.RenewDeadline.Duration,
+		RetryPeriod:   s.LeaderElection.RetryPeriod.Duration,
+		Callbacks: leaderelection.LeaderCallbacks{
+			OnStartedLeading: run,
+			OnStoppedLeading: func() {
+				glog.Fatalf("lost master")
+			},
+		},
+	})
+
+	glog.Fatal("this statement is unreachable")
+	panic("unreachable")
 }
 
 func newEtcd(client etcdclient.Client, pathPrefix string) (etcdStorage storage.Storage, err error) {
