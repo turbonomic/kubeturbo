@@ -183,10 +183,10 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 
 	// list, err := r.listerWatcher.List()
 	// if err != nil {
-	// 	glog.Errorf("%s: Failed to list %v: %v", r.name, r.expectedType, err)
+	// 	glog.Errorf("Failed to list %v: %v", r.expectedType, err)
 	// 	return fmt.Errorf("%s: Failed to list %v: %v", r.name, r.expectedType, err)
 	// }
-	// glog.Infof("The list from listerWatcher is %v", list)
+	// glog.V(4).Infof("The list from listerWatcher is %v", list)
 	// meta, err := meta.Accessor(list)
 	// if err != nil {
 	// 	glog.Errorf("%s: Unable to understand list result %#v", r.name, list)
@@ -210,9 +210,7 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 	resourceVersion = "0"
 
 	for {
-		// glog.Info("in for")
 		w, err := r.listerWatcher.Watch(resourceVersion)
-		// glog.Infof("error from listerWather is %v", err)
 
 		if err != nil {
 			if etcdError, ok := err.(*etcderr.Error); ok && etcdError != nil && etcdError.ErrorCode == etcderr.EcodeKeyNotFound {
@@ -248,9 +246,9 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 
 		if err := r.watchHandler(w, &resourceVersion, resyncCh, stopCh); err != nil {
 			if err != errorResyncRequested && err != errorStopRequested {
-				// glog.Warningf("%s: watch of %v ended with: %v", r.name, r.expectedType, err)
+				glog.Warningf("%s: watch of %v ended with: %v", r.name, r.expectedType, err)
 			}
-			// glog.Error("Error calling watchHandler: %s. Return from for loop in ListAndWatch.", err)
+			glog.Error("Error calling watchHandler: %s. Return from for loop in ListAndWatch.", err)
 			return nil
 		}
 		glog.V(4).Info("End of for loop in ListAndWatch.")
@@ -264,10 +262,6 @@ func (r *Reflector) syncWith(items []interface{}, resourceVersion string) error 
 		found = append(found, item)
 	}
 
-	// myStore, ok := r.store.(*cache.WatchCache)
-	// if ok {
-	// 	return myStore.ReplaceWithVersion(found, resourceVersion)
-	// }
 	return r.store.Replace(found, resourceVersion)
 }
 
@@ -282,20 +276,18 @@ func (r *Reflector) watchHandler(w watch.Interface, resourceVersion *string, res
 
 loop:
 	for {
-		// glog.Info("Inside for loop of watchHandler")
 		select {
 		case <-stopCh:
 			return errorStopRequested
 		case <-resyncCh:
 			return errorResyncRequested
 		case event, ok := <-w.ResultChan():
-			// glog.V(4).Infof("%v Result Event in reflector is: %v", ok, event)
+			glog.V(5).Infof("%v Result Event in reflector is: %v", ok, event)
 			if !ok {
 				break loop
 			}
 			if event.Type == watch.Error {
-				// return apierrs.FromObject(event.Object)
-				return fmt.Errorf("Error during watching")
+				return fmt.Errorf("Error during watching: %++v", event)
 			}
 			if e, a := r.expectedType, reflect.TypeOf(event.Object); e != a {
 				utilruntime.HandleError(fmt.Errorf("%s: expected type %v, but watch event object had type %v", r.name, e, a))
@@ -313,9 +305,6 @@ loop:
 			case watch.Modified:
 				r.store.Update(event.Object)
 			case watch.Deleted:
-				// TODO: Will any consumers need access to the "last known
-				// state", which is passed in event.Object? If so, may need
-				// to change this.
 				r.store.Delete(event.Object)
 			default:
 				utilruntime.HandleError(fmt.Errorf("%s: unable to understand watch event %#v", r.name, event))
@@ -352,7 +341,7 @@ func (r *Reflector) setLastSyncResourceVersion(v string) {
 // ExtractList returns obj's Items element as an array of runtime.Objects.
 // Returns an error if obj is not a List type (does not have an Items member).
 // TODO: move me to pkg/api/meta
-func ExtractList(obj interface{}) ([]interface{}, error) {
+func ExtractList(obj vmtruntime.VMTObject) ([]vmtruntime.VMTObject, error) {
 	itemsPtr, err := GetItemsPtr(obj)
 	if err != nil {
 		return nil, err
@@ -361,15 +350,15 @@ func ExtractList(obj interface{}) ([]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	list := make([]interface{}, items.Len())
+	list := make([]vmtruntime.VMTObject, items.Len())
 	for i := range list {
 		raw := items.Index(i)
 		var found bool
 		switch raw.Kind() {
 		case reflect.Interface, reflect.Ptr:
-			list[i], found = raw.Interface().(interface{})
+			list[i], found = raw.Interface().(vmtruntime.VMTObject)
 		default:
-			list[i], found = raw.Addr().Interface().(interface{})
+			list[i], found = raw.Addr().Interface().(vmtruntime.VMTObject)
 		}
 		if !found {
 			return nil, fmt.Errorf("item[%v]: Expected object, got %#v(%s)", i, raw.Interface(), raw.Kind())
@@ -378,7 +367,7 @@ func ExtractList(obj interface{}) ([]interface{}, error) {
 	return list, nil
 }
 
-func GetItemsPtr(list interface{}) (interface{}, error) {
+func GetItemsPtr(list vmtruntime.VMTObject) (interface{}, error) {
 	v, err := conversion.EnforcePtr(list)
 	if err != nil {
 		return nil, err

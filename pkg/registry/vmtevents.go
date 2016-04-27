@@ -8,6 +8,7 @@ import (
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 
 	"github.com/vmturbo/kubeturbo/pkg/storage"
+	"github.com/vmturbo/kubeturbo/pkg/storage/vmtruntime"
 	"github.com/vmturbo/kubeturbo/pkg/storage/watch"
 
 	"github.com/golang/glog"
@@ -49,7 +50,7 @@ func (e *vmtevents) Create(event *VMTEvent) (*VMTEvent, error) {
 }
 
 // Create inserts a new item according to the unique key from the object.
-func (e *vmtevents) create(obj interface{}) (interface{}, error) {
+func (e *vmtevents) create(obj vmtruntime.VMTObject) (vmtruntime.VMTObject, error) {
 	name := obj.(*VMTEvent).Name
 	key := VMTEVENT_KEY_PREFIX + name
 	ttl := uint64(10000)
@@ -64,7 +65,7 @@ func (e *vmtevents) create(obj interface{}) (interface{}, error) {
 }
 
 // Get retrieves the item from etcd.
-func (e *vmtevents) Get() (interface{}, error) {
+func (e *vmtevents) Get() (vmtruntime.VMTObject, error) {
 	obj := &VMTEvent{}
 	key := VMTEVENT_KEY_PREFIX
 	glog.Infof("Get %s", key)
@@ -140,7 +141,6 @@ func (e *vmtevents) DeleteAll() error {
 func GenerateVMTEvent(actionType, namespace, targetSE, destination string, messageId int) *VMTEvent {
 
 	event := makeVMTEvent(actionType, namespace, targetSE, destination, messageId)
-	// event.Source = recorder.source
 
 	return event
 }

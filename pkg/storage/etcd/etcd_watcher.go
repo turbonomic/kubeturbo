@@ -22,18 +22,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	// "k8s.io/kubernetes/pkg/api"
-	// "k8s.io/kubernetes/pkg/tools"
 	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
-	// "k8s.io/kubernetes/pkg/watch"
 
 	"github.com/vmturbo/kubeturbo/pkg/conversion"
-	"github.com/vmturbo/kubeturbo/pkg/storage"
 	"github.com/vmturbo/kubeturbo/pkg/storage/watch"
 
 	etcd "github.com/coreos/etcd/client"
-	// etcderr "github.com/coreos/etcd/error"
-	// "github.com/coreos/go-etcd/etcd"
 	"github.com/golang/glog"
 
 	"golang.org/x/net/context"
@@ -83,14 +77,10 @@ func exceptKey(except string) includeFunc {
 
 // etcdWatcher converts a native etcd watch to a watch.Interface.
 type etcdWatcher struct {
-	encoding  conversion.Codec // TODO, dongyi changed this
-	transform TransformFunc
+	encoding conversion.Codec // TODO, dongyi changed this
 
 	list   bool // If we're doing a recursive watch, should be true.
 	quorum bool // If we enable quorum, shoule be true
-
-	include includeFunc
-	filter  storage.FilterFunc
 
 	etcdIncoming  chan *etcd.Response
 	etcdError     chan error
@@ -115,15 +105,11 @@ const watchWaitDuration = 100 * time.Millisecond
 
 // newEtcdWatcher returns a new etcdWatcher; if list is true, watch sub-nodes.
 func newEtcdWatcher(
-	list bool, quorum bool, include includeFunc, filter storage.FilterFunc,
-	encoding conversion.Codec, transform TransformFunc) *etcdWatcher {
+	list bool, quorum bool, encoding conversion.Codec) *etcdWatcher {
 	w := &etcdWatcher{
-		encoding:  encoding,
-		transform: transform,
-		list:      list,
-		quorum:    quorum,
-		include:   include,
-		filter:    filter,
+		encoding: encoding,
+		list:     list,
+		quorum:   quorum,
 		// Buffer this channel, so that the etcd client is not forced
 		// to context switch with every object it gets, and so that a
 		// long time spent decoding an object won't block the *next*
@@ -148,34 +134,6 @@ func newEtcdWatcher(
 	go w.translate()
 	return w
 }
-
-// etcdWatch calls etcd's Watch function, and handles any errors. Meant to be called
-// as a goroutine.
-// func (w *etcdWatcher) etcdWatch_bkp(ctx context.Context, client etcd.KeysAPI, key string, resourceVersion uint64) {
-// 	// glog.Infof("Watching")
-// 	defer utilruntime.HandleCrash()
-// 	defer close(w.etcdError)
-// 	if resourceVersion == 0 {
-// 		latest, err := etcdGetInitialWatchState(ctx, client, key, w.list, false, w.etcdIncoming)
-// 		if err != nil {
-// 			if etcdError, ok := err.(*etcderr.EtcdError); ok && etcdError != nil && etcdError.ErrorCode == etcderr.EcodeKeyNotFound {
-// 				// glog.Errorf("Error getting initial watch, key not found: %v", err)
-
-// 				return
-// 			}
-// 			glog.Errorf("Error getting initial watch: %v", err)
-// 			w.etcdError <- err
-// 			return
-// 		}
-// 		resourceVersion = latest + 1
-// 	}
-// 	response, err := client.Watch(key, resourceVersion, w.list, w.etcdIncoming, w.etcdStop)
-// 	glog.Infof("response is %v", response)
-// 	if err != nil && err != etcd.ErrWatchStoppedByUser {
-// 		glog.Errorf("Error watch: %v", err)
-// 		w.etcdError <- err
-// 	}
-// }
 
 // etcdWatch calls etcd's Watch function, and handles any errors. Meant to be called
 // as a goroutine.
@@ -257,6 +215,7 @@ func etcdGetInitialWatchState(ctx context.Context, client etcd.KeysAPI, key stri
 		return resourceVersion, nil
 	}
 	resourceVersion = resp.Index
+	glog.V(5).Infof("resourceVersion in etcdGetInitialWatchState is %d", resourceVersion)
 	convertRecursiveResponse(resp.Node, resp, incoming)
 	return
 }
@@ -273,8 +232,7 @@ func convertRecursiveResponse(node *etcd.Node, response *etcd.Response, incoming
 	copied := *response
 	copied.Action = "get"
 	copied.Node = node
-	// glog.Infof("Node is %v", node)
-	// glog.Infof("Type of the node is %v", reflect.TypeOf(node))
+
 	incoming <- &copied
 }
 
@@ -292,18 +250,18 @@ func (w *etcdWatcher) translate() {
 		select {
 		case err := <-w.etcdError:
 			if err != nil {
-				// w.emit(watch.Event{
-				// 	Type: watch.Error,
-				// 	Object: &api.Status{
-				// 		Status:  api.StatusFailure,
-				// 		Message: err.Error(),
-				// 	},
-				// })
+				w.emit(watch.Event{
+					Type: watch.Error,
+					Object: &watch.WatchStatus{
+						Status:  watch.StatusFailure,
+						Message: err.Error(),
+					},
+				})
 				glog.Errorf("Error translate: %v", err)
 			}
 			return
 		case <-w.userStop:
-			// w.etcdStop <- true
+			w.etcdStop <- true
 			return
 		case res, ok := <-w.etcdIncoming:
 			if ok {
@@ -325,16 +283,6 @@ func (w *etcdWatcher) decodeObject(node *etcd.Node) (interface{}, error) {
 		return nil, err
 	}
 
-	// perform any necessary transformation
-	if w.transform != nil {
-		obj, err = w.transform(obj)
-		if err != nil {
-			utilruntime.HandleError(fmt.Errorf("failure to transform api object %#v: %v", obj, err))
-			glog.Errorf("failure to transform api object %#v: %v", obj, err)
-			return nil, err
-		}
-	}
-
 	return obj, nil
 }
 
@@ -344,25 +292,15 @@ func (w *etcdWatcher) sendAdd(res *etcd.Response) {
 		glog.Errorf("unexpected nil node: %#v", res)
 		return
 	}
-	if w.include != nil && !w.include(res.Node.Key) {
-		return
-	}
+
 	obj, err := w.decodeObject(res.Node)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("failure to decode api object: %v\n'%v' from %#v %#v", err, string(res.Node.Value), res, res.Node))
 		glog.Errorf("failure to decode api object: '%v' from %#v %#v", string(res.Node.Value), res, res.Node)
-		// TODO: expose an error through watch.Interface?
-		// Ignore this value. If we stop the watch on a bad value, a client that uses
-		// the resourceVersion to resume will never be able to get past a bad value.
 		return
 	}
 	glog.V(4).Infof("Obj is decoded as %v", obj)
 
-	// if !w.filter(obj) {
-	// 	glog.Infof("Failed during filter")
-	// 	return
-	// }
-	glog.V(4).Info("About to emit")
 	action := watch.Added
 	if res.Node.ModifiedIndex != res.Node.CreatedIndex {
 		action = watch.Modified
@@ -378,9 +316,7 @@ func (w *etcdWatcher) sendAdd(res *etcd.Response) {
 // 		glog.Errorf("unexpected nil node: %#v", res)
 // 		return
 // 	}
-// 	if w.include != nil && !w.include(res.Node.Key) {
-// 		return
-// 	}
+
 // 	curObj, err := w.decodeObject(res.Node)
 // 	if err != nil {
 // 		glog.Errorf("failure to decode api object: '%v' from %#v %#v", string(res.Node.Value), res, res.Node)
@@ -427,9 +363,7 @@ func (w *etcdWatcher) sendDelete(res *etcd.Response) {
 		glog.Errorf("unexpected nil prev node: %#v", res)
 		return
 	}
-	if w.include != nil && !w.include(res.PrevNode.Key) {
-		return
-	}
+
 	node := *res.PrevNode
 	if res.Node != nil {
 		// Note that this sends the *old* object with the etcd index for the time at
@@ -445,9 +379,7 @@ func (w *etcdWatcher) sendDelete(res *etcd.Response) {
 		// the resourceVersion to resume will never be able to get past a bad value.
 		return
 	}
-	// if !w.filter(obj) {
-	// 	return
-	// }
+
 	w.emit(watch.Event{
 		Type:   watch.Deleted,
 		Object: obj,
@@ -469,20 +401,8 @@ func (w *etcdWatcher) sendResult(res *etcd.Response) {
 
 // ResultChan implements watch.Interface.
 func (w *etcdWatcher) ResultChan() <-chan watch.Event {
-	// glog.Info("Call ResultChan()")
 	return w.outgoing
 }
-
-// // Stop implements watch.Interface.
-// func (w *etcdWatcher) Stop() {
-// 	w.stopLock.Lock()
-// 	defer w.stopLock.Unlock()
-// 	// Prevent double channel closes.
-// 	if !w.stopped {
-// 		w.stopped = true
-// 		close(w.userStop)
-// 	}
-// }
 
 // Stop implements watch.Interface.
 func (w *etcdWatcher) Stop() {

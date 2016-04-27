@@ -3,14 +3,11 @@ package etcd
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
 	clienttransport "k8s.io/kubernetes/pkg/client/transport"
-	// client "k8s.io/kubernetes/pkg/client/unversioned"
-	// "k8s.io/kubernetes/pkg/tools"
-
-	forked "k8s.io/kubernetes/third_party/forked/coreos/go-etcd/etcd"
 
 	etcdclient "github.com/coreos/etcd/client"
 	"github.com/golang/glog"
@@ -50,7 +47,10 @@ func (this *EtcdClientBuilder) SetTransport(ca, certfile, keyfile string) *EtcdC
 func generateTransport(ca, certfile, keyfile string) (*http.Transport, error) {
 	if ca == "" || certfile == "" || keyfile == "" {
 		return &http.Transport{
-			Dial: forked.Dial,
+			Dial: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).Dial,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},
@@ -71,7 +71,10 @@ func generateTransport(ca, certfile, keyfile string) (*http.Transport, error) {
 
 		return setTransportDefaults(&http.Transport{
 			TLSClientConfig: tlsConfig,
-			Dial:            forked.Dial,
+			Dial: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).Dial,
 			// Because watches are very bursty, defends against long delays in watch reconnections.
 			MaxIdleConnsPerHost: 500,
 		}), nil

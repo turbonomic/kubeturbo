@@ -50,6 +50,16 @@ type Event struct {
 	Object interface{}
 }
 
+type WatchStatus struct {
+	Status  string
+	Message string
+}
+
+const (
+	StatusSuccess = "Success"
+	StatusFailure = "Failure"
+)
+
 type emptyWatch chan Event
 
 // NewEmptyWatch returns a watch interface that returns no results and is closed.

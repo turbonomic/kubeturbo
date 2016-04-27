@@ -17,32 +17,19 @@ limitations under the License.
 package etcd
 
 import (
-	// "errors"
 	"fmt"
 	"path"
 	"reflect"
 	"strings"
 	"time"
 
-	"k8s.io/kubernetes/pkg/api"
-	// "k8s.io/kubernetes/pkg/conversion"
-	"k8s.io/kubernetes/pkg/runtime"
-	// "k8s.io/kubernetes/pkg/storage"
-	// "k8s.io/kubernetes/pkg/tools"
-	// "k8s.io/kubernetes/pkg/tools/metrics"
-	"k8s.io/kubernetes/pkg/util"
-	// "k8s.io/kubernetes/pkg/watch"
-
 	"github.com/vmturbo/kubeturbo/pkg/conversion"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 	"github.com/vmturbo/kubeturbo/pkg/storage/vmtruntime"
 	"github.com/vmturbo/kubeturbo/pkg/storage/watch"
 
-	// "k8s.io/kubernetes/plugin/pkg/vmturbo/vmt/registry"
-
 	etcdclient "github.com/coreos/etcd/client"
 	etcderr "github.com/coreos/etcd/error"
-	// "github.com/coreos/go-etcd/etcd"
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
 )
@@ -51,7 +38,6 @@ func NewEtcdStorage(client etcdclient.Client, codec conversion.Codec, prefix str
 	return &etcdHelper{
 		client:     client,
 		codec:      codec,
-		copier:     api.Scheme,
 		pathPrefix: prefix,
 	}
 }
@@ -60,24 +46,9 @@ func NewEtcdStorage(client etcdclient.Client, codec conversion.Codec, prefix str
 type etcdHelper struct {
 	client etcdclient.Client
 	codec  conversion.Codec
-	copier runtime.ObjectCopier
-	// optional, has to be set to perform any atomic operations
-	// versioner storage.Versioner
+
 	// prefix for all etcd keys
 	pathPrefix string
-
-	// We cache objects stored in etcd. For keys we use Node.ModifiedIndex which is equivalent
-	// to resourceVersion.
-	// This depends on etcd's indexes being globally unique across all objects/types. This will
-	// have to revisited if we decide to do things like multiple etcd clusters, or etcd will
-	// support multi-object transaction that will result in many objects with the same index.
-	// Number of entries stored in the cache is controlled by maxEtcdCacheEntries constant.
-	// TODO: Measure how much this cache helps after the conversion code is optimized.
-	cache util.Cache
-}
-
-func init() {
-	// metrics.Register()
 }
 
 var ctx = context.Background()
@@ -87,18 +58,8 @@ func (h *etcdHelper) Codec() conversion.Codec {
 	return h.codec
 }
 
-// // Implements storage.Interface.
-// func (h *etcdHelper) Backends() []string {
-// 	return h.client.GetCluster()
-// }
-
-// // Implements storage.Interface.
-// func (h *etcdHelper) Versioner() storage.Versioner {
-// 	return h.versioner
-// }
-
 // Implements storage.Interface.
-func (h *etcdHelper) Create(key string, obj, out interface{}, ttl uint64) error {
+func (h *etcdHelper) Create(key string, obj, out vmtruntime.VMTObject, ttl uint64) error {
 
 	key = h.prefixEtcdKey(key)
 	data, err := h.codec.Encode(obj)
@@ -174,7 +135,7 @@ func (h *etcdHelper) Create(key string, obj, out interface{}, ttl uint64) error 
 // }
 
 // Implements storage.Interface.
-func (h *etcdHelper) Delete(key string, out interface{}) error {
+func (h *etcdHelper) Delete(key string, out vmtruntime.VMTObject) error {
 	key = h.prefixEtcdKey(key)
 	if _, err := conversion.EnforcePtr(out); err != nil {
 		panic("unable to convert output object to pointer")
@@ -195,16 +156,14 @@ func (h *etcdHelper) Delete(key string, out interface{}) error {
 
 // Implements storage.Interface.
 func (h *etcdHelper) Watch(key string, resourceVersion uint64, filter storage.FilterFunc) (watch.Interface, error) {
-	// glog.Info("Watch is called")
 	etcdKeysAPI := etcdclient.NewKeysAPI(h.client)
 
 	key = h.prefixEtcdKey(key)
-	w := newEtcdWatcher(true, false, nil, filter, h.codec, nil)
+	w := newEtcdWatcher(true, false, h.codec)
 	exist, err := h.isKeyExist(key)
 	if exist {
 		go w.etcdWatch(ctx, etcdKeysAPI, key, resourceVersion)
 	} else {
-		// glog.Infof("Key %s does not exist.", key)
 		return nil, err
 	}
 	return w, nil
@@ -357,6 +316,7 @@ func (h *etcdHelper) decodeNodeList(nodes []*etcdclient.Node, slicePtr interface
 func (h *etcdHelper) List(key string, listObj vmtruntime.VMTObject) error {
 	listPtr, err := GetItemsPtr(listObj)
 	if err != nil {
+		glog.Errorf("Error in Etcd List after GetItemPtr %s", err)
 		return err
 	}
 	key = h.prefixEtcdKey(key)
@@ -366,9 +326,11 @@ func (h *etcdHelper) List(key string, listObj vmtruntime.VMTObject) error {
 	glog.V(4).Infof("Nodes length is %d", len(nodes))
 
 	if err != nil {
+		glog.Errorf("Error in Etcd List after listEtcdNode %s", err)
 		return err
 	}
 	if err := h.decodeNodeList(nodes, listPtr); err != nil {
+		glog.Errorf("Error in Etcd List after decodeNodeList %s", err)
 		return err
 	}
 	return nil
@@ -384,16 +346,6 @@ func (h *etcdHelper) listEtcdNode(ctx context.Context, key string) ([]*etcdclien
 
 	result, err := etcdKeysAPI.Get(ctx, key, &opts)
 	if err != nil {
-		// index, ok := etcdErrorIndex(err)
-		// if !ok {
-		// 	index = 0
-		// }
-		// nodes := make([]*etcd.Node, 0)
-		// if IsEtcdNotFound(err) {
-		// 	return nodes, index, nil
-		// } else {
-		// 	return nodes, index, err
-		// }
 		return nil, 0, err
 	}
 	return result.Node.Nodes, result.Index, nil
@@ -482,57 +434,6 @@ func (h *etcdHelper) prefixEtcdKey(key string) string {
 	}
 	return path.Join("/", h.pathPrefix, key)
 }
-
-// // etcdCache defines interface used for caching objects stored in etcd. Objects are keyed by
-// // their Node.ModifiedIndex, which is unique across all types.
-// // All implementations must be thread-safe.
-// type etcdCache interface {
-// 	getFromCache(index uint64) (runtime.Object, bool)
-// 	addToCache(index uint64, obj runtime.Object)
-// }
-
-// const maxEtcdCacheEntries int = 50000
-
-// func getTypeName(obj interface{}) string {
-// 	return reflect.TypeOf(obj).String()
-// }
-
-// func (h *etcdHelper) getFromCache(index uint64) (runtime.Object, bool) {
-// 	startTime := time.Now()
-// 	defer func() {
-// 		metrics.ObserveGetCache(startTime)
-// 	}()
-// 	obj, found := h.cache.Get(index)
-// 	if found {
-// 		// We should not return the object itself to avoid polluting the cache if someone
-// 		// modifies returned values.
-// 		objCopy, err := h.copier.Copy(obj.(runtime.Object))
-// 		if err != nil {
-// 			glog.Errorf("Error during DeepCopy of cached object: %q", err)
-// 			return nil, false
-// 		}
-// 		metrics.ObserveCacheHit()
-// 		return objCopy.(runtime.Object), true
-// 	}
-// 	metrics.ObserveCacheMiss()
-// 	return nil, false
-// }
-
-// func (h *etcdHelper) addToCache(index uint64, obj runtime.Object) {
-// 	startTime := time.Now()
-// 	defer func() {
-// 		metrics.ObserveAddCache(startTime)
-// 	}()
-// 	objCopy, err := h.copier.Copy(obj)
-// 	if err != nil {
-// 		glog.Errorf("Error during DeepCopy of cached object: %q", err)
-// 		return
-// 	}
-// 	isOverwrite := h.cache.Add(index, objCopy)
-// 	if !isOverwrite {
-// 		metrics.ObserveNewEntry()
-// 	}
-// }
 
 func GetItemsPtr(list vmtruntime.VMTObject) (interface{}, error) {
 	v, err := conversion.EnforcePtr(list)

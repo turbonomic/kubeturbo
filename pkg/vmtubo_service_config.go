@@ -11,6 +11,8 @@ import (
 	vmtmeta "github.com/vmturbo/kubeturbo/pkg/metadata"
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
+
+	"github.com/golang/glog"
 )
 
 // Meta stores VMT Metadata.
@@ -39,6 +41,14 @@ func NewVMTConfig(client *client.Client, etcdStorage storage.Storage, meta *vmtm
 		PodQueue:       vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
 		VMTEventQueue:  vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
 		StopEverything: make(chan struct{}),
+	}
+
+	vmtEvents := registry.NewVMTEvents(config.Client, "", config.EtcdStorage)
+
+	//delete all the vmt events
+	errorDelete := vmtEvents.DeleteAll()
+	if errorDelete != nil {
+		glog.V(3).Infof("Error deleting all vmt events: %s", errorDelete)
 	}
 
 	// Watch minions.

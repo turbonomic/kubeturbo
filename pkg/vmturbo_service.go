@@ -45,14 +45,6 @@ func (v *VMTurboService) Run() {
 	// register and validates to vmturbo server
 	go v.vmtcomm.Run()
 
-	vmtEvents := registry.NewVMTEvents(v.config.Client, "", v.config.EtcdStorage)
-
-	//delete all the vmt events
-	errorDelete := vmtEvents.DeleteAll()
-	if errorDelete != nil {
-		glog.V(3).Infof("Error deleting all vmt events: %s", errorDelete)
-	}
-
 	// These three go routine is responsible for watching corresponding watchable resource.
 	go wait.Until(v.getNextNode, 0, v.config.StopEverything)
 	go wait.Until(v.getNextPod, 0, v.config.StopEverything)
