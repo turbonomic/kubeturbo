@@ -118,8 +118,9 @@ func (v *VMTurboService) getNextPod() {
 		if hasError {
 			// Send back action failed. Then simply deploy the pod using scheduler.
 			glog.V(2).Infof("Action failed")
-			v.vmtcomm.SendActionReponse(sdk.ActionResponseState_FAILED, int32(0), int32(vmtEventFromEtcd.VMTMessageID), "Failed")
-
+			if vmtEventFromEtcd.VMTMessageID > -1 {
+				v.vmtcomm.SendActionReponse(sdk.ActionResponseState_FAILED, int32(0), int32(vmtEventFromEtcd.VMTMessageID), "Failed")
+			}
 			break
 		} else {
 			// TODO, at this point, we really do not know if the assignment of the pod succeeds or not.
@@ -147,19 +148,21 @@ func validatePodToBeMoved(pod *api.Pod, vmtEvent *registry.VMTEvent) bool {
 	// TODO. Now based on name.
 	eventPodNamespace := vmtEvent.Namespace
 	eventPodName := vmtEvent.TargetSE
+	validEventPodName := eventPodName
 	eventPodNamePartials := strings.Split(eventPodName, "-")
-	if len(eventPodNamePartials) < 2 {
-		return false
+	if len(eventPodNamePartials) > 1 {
+		validEventPodName = eventPodNamePartials[0]
 	}
-	eventPodPrefix := eventPodNamespace + "/" + eventPodNamePartials[0]
+	eventPodPrefix := eventPodNamespace + "/" + validEventPodName
 
 	podNamespace := pod.Namespace
 	podName := pod.Name
+	validPodName := podName
 	podNamePartials := strings.Split(podName, "-")
-	if len(podNamePartials) < 2 {
-		return false
+	if len(podNamePartials) > 1 {
+		validPodName = podNamePartials[0]
 	}
-	podPrefix := podNamespace + "/" + podNamePartials[0]
+	podPrefix := podNamespace + "/" + validPodName
 
 	if eventPodPrefix == podPrefix {
 		return true

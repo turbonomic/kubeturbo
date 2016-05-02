@@ -2,12 +2,18 @@ package action
 
 import (
 	"fmt"
+	// "reflect"
 	"strings"
+	"time"
 
 	"k8s.io/kubernetes/pkg/api"
+	// "k8s.io/kubernetes/pkg/apimachinery/registered"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/fields"
+	// "k8s.io/kubernetes/pkg/kubectl"
+	// cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/labels"
+	// "k8s.io/kubernetes/pkg/runtime"
 
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
@@ -155,8 +161,23 @@ func (this *KubernetesActionExecutor) MovePod(podIdentifier, targetNodeIdentifie
 
 	glog.V(3).Infof("Now Moving Pod %s in namespace %s.", podName, podNamespace)
 
+	hasRC, err := this.isCreatedByRC(podName, podNamespace)
+	if err != nil {
+		glog.Errorf("Error creating Pod for move: %s\n", err)
+	}
+	var currentPod *api.Pod
+	if !hasRC {
+		currentPod, err = this.KubeClient.Pods(podNamespace).Get(podName)
+		if err != nil {
+			glog.Errorf("Error getting pod %s: %s.", podName, err)
+			return err
+		} else {
+			glog.V(3).Infof("Successfully got pod %s.", podName)
+		}
+	}
+
 	// Delete pod
-	err := this.KubeClient.Pods(podNamespace).Delete(podName, nil)
+	err = this.KubeClient.Pods(podNamespace).Delete(podName, nil)
 	if err != nil {
 		glog.Errorf("Error deleting pod %s: %s.\n", podName, err)
 		return fmt.Errorf("Error deleting pod %s: %s.\n", podName, err)
@@ -165,10 +186,6 @@ func (this *KubernetesActionExecutor) MovePod(podIdentifier, targetNodeIdentifie
 	}
 
 	action := "move"
-
-	// TODO! For now the move aciton is accomplished by the MoveSimulator.
-	// moveSimulator := &MoveSimulator{}
-	// moveSimulator.SimulateMove(action, podName, targetNodeIdentifier, msgID)
 
 	// Create VMTEvent and post onto etcd.
 	vmtEvents := registry.NewVMTEvents(this.KubeClient, "", this.EtcdStorage)
@@ -179,7 +196,78 @@ func (this *KubernetesActionExecutor) MovePod(podIdentifier, targetNodeIdentifie
 		glog.Errorf("Error posting vmtevent: %s\n", errorPost)
 		fmt.Errorf("Error posting vmtevent: %s\n", errorPost)
 	}
+
+	if !hasRC {
+		time.Sleep(time.Second * 3)
+
+		pod := &api.Pod{}
+		pod.Name = currentPod.Name
+		pod.GenerateName = currentPod.GenerateName
+		pod.Namespace = currentPod.Namespace
+		pod.Labels = currentPod.Labels
+		pod.Annotations = currentPod.Annotations
+		pod.Spec = currentPod.Spec
+		pod.Spec.NodeName = ""
+		glog.Infof("Pod is: %++v", pod)
+		_, err = this.KubeClient.Pods(podNamespace).Create(pod)
+		if err != nil {
+			glog.Errorf("Error creating pod: %s", err)
+			return err
+		}
+		glog.V(3).Infof("Successfully create pod %s.\n", podName)
+	}
 	return nil
+}
+
+func checkRCList(rcList []api.ReplicationController, labels map[string]string) bool {
+	for _, rc := range rcList {
+		// use function to check if a given RC will take care of this pod
+		hasRC := findMatchingLabels(rc.Spec.Selector, labels)
+		if hasRC {
+			return true
+		}
+	}
+	return false
+}
+
+func (this *KubernetesActionExecutor) isCreatedByRC(podName, podNamespace string) (bool, error) {
+	// loop through all the labels in the pod and get List of RCs with selector that match at least one label
+	hasRC := false
+	currentPod, err := this.KubeClient.Pods(podNamespace).Get(podName)
+	if err != nil {
+		glog.Errorf("Error getting pod name %s: %s.\n", podName, err)
+		return hasRC, err
+	}
+	podLabels := currentPod.Labels
+	if podLabels != nil {
+		currentRCs, err := this.GetAllRC(podNamespace) // pod label is passed to list
+		if err != nil {
+			glog.Errorf("Error getting RCs")
+			return hasRC, fmt.Errorf("Error  getting RC list")
+		}
+		rcList := currentRCs
+		hasRC = checkRCList(rcList, podLabels)
+	}
+	glog.V(4).Infof("HasRC is %v", hasRC)
+	return hasRC, nil
+}
+
+func findMatchingLabels(selectors map[string]string, labels map[string]string) bool {
+	for key, val := range selectors {
+		if labels[key] == val {
+			return true
+		}
+	}
+	return false
+}
+
+// this function is Pam's change to make the movepod
+func listOfImages(spec *api.PodSpec) []string {
+	var images []string
+	for _, container := range spec.Containers {
+		images = append(images, container.Image)
+	}
+	return images
 }
 
 // TODO. Thoughts. This is used to scale up and down. So we need the pod namespace and label here.
