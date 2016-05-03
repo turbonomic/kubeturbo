@@ -23,5 +23,5 @@ spec:
   volumes:
   - name: vmt-config
     hostPath:
-      path: /home/dongyiyang/Sandbox/Go/src/k8s.io/kubernetes/vmt_testing/kubeturbo/Configuration
+      path: /home/dongyiyang/Sandbox/Go/src/github.com/vmturbo/kubeturbo/examples/kubeturbo/Configuration
   restartPolicy: Always

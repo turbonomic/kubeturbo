@@ -2,18 +2,13 @@ package action
 
 import (
 	"fmt"
-	// "reflect"
 	"strings"
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
-	// "k8s.io/kubernetes/pkg/apimachinery/registered"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/fields"
-	// "k8s.io/kubernetes/pkg/kubectl"
-	// cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/labels"
-	// "k8s.io/kubernetes/pkg/runtime"
 
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
@@ -172,7 +167,7 @@ func (this *KubernetesActionExecutor) MovePod(podIdentifier, targetNodeIdentifie
 			glog.Errorf("Error getting pod %s: %s.", podName, err)
 			return err
 		} else {
-			glog.V(3).Infof("Successfully got pod %s.", podName)
+			glog.V(4).Infof("Successfully got pod %s.", podName)
 		}
 	}
 
@@ -190,7 +185,7 @@ func (this *KubernetesActionExecutor) MovePod(podIdentifier, targetNodeIdentifie
 	// Create VMTEvent and post onto etcd.
 	vmtEvents := registry.NewVMTEvents(this.KubeClient, "", this.EtcdStorage)
 	event := registry.GenerateVMTEvent(action, podNamespace, podName, targetNodeIdentifier, int(msgID))
-	glog.V(3).Infof("vmt event is %++v, with msgId %d", event, msgID)
+	glog.V(4).Infof("vmt event is %++v, with msgId %d", event, msgID)
 	_, errorPost := vmtEvents.Create(event)
 	if errorPost != nil {
 		glog.Errorf("Error posting vmtevent: %s\n", errorPost)
@@ -199,35 +194,17 @@ func (this *KubernetesActionExecutor) MovePod(podIdentifier, targetNodeIdentifie
 
 	if !hasRC {
 		time.Sleep(time.Second * 3)
+		getPod, err := this.KubeClient.Pods(podNamespace).Get(podName)
+		glog.Infof("getPod %++v, with error %s", getPod, err)
 
-		pod := &api.Pod{}
-		pod.Name = currentPod.Name
-		pod.GenerateName = currentPod.GenerateName
-		pod.Namespace = currentPod.Namespace
-		pod.Labels = currentPod.Labels
-		pod.Annotations = currentPod.Annotations
-		pod.Spec = currentPod.Spec
-		pod.Spec.NodeName = ""
-		glog.Infof("Pod is: %++v", pod)
+		pod := copyPod(currentPod)
 		_, err = this.KubeClient.Pods(podNamespace).Create(pod)
 		if err != nil {
 			glog.Errorf("Error creating pod: %s", err)
 			return err
 		}
-		glog.V(3).Infof("Successfully create pod %s.\n", podName)
 	}
 	return nil
-}
-
-func checkRCList(rcList []api.ReplicationController, labels map[string]string) bool {
-	for _, rc := range rcList {
-		// use function to check if a given RC will take care of this pod
-		hasRC := findMatchingLabels(rc.Spec.Selector, labels)
-		if hasRC {
-			return true
-		}
-	}
-	return false
 }
 
 func (this *KubernetesActionExecutor) isCreatedByRC(podName, podNamespace string) (bool, error) {
@@ -247,30 +224,41 @@ func (this *KubernetesActionExecutor) isCreatedByRC(podName, podNamespace string
 		}
 		rcList := currentRCs
 		hasRC = checkRCList(rcList, podLabels)
+		if hasRC {
+			return true, nil
+		}
 	}
 	glog.V(4).Infof("HasRC is %v", hasRC)
 	return hasRC, nil
 }
 
-func findMatchingLabels(selectors map[string]string, labels map[string]string) bool {
-	for key, val := range selectors {
-		if labels[key] == val {
-			return true
+func checkRCList(rcList []api.ReplicationController, labels map[string]string) bool {
+	for _, rc := range rcList {
+		// use function to check if a given RC will take care of this pod
+		for key, val := range rc.Spec.Selector {
+			if labels[key] == val {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-// this function is Pam's change to make the movepod
-func listOfImages(spec *api.PodSpec) []string {
-	var images []string
-	for _, container := range spec.Containers {
-		images = append(images, container.Image)
-	}
-	return images
+func copyPod(podToCopy *api.Pod) *api.Pod {
+	pod := &api.Pod{}
+	pod.Name = podToCopy.Name
+	pod.GenerateName = podToCopy.GenerateName
+	pod.Namespace = podToCopy.Namespace
+	pod.Labels = podToCopy.Labels
+	pod.Annotations = podToCopy.Annotations
+	pod.Spec = podToCopy.Spec
+	pod.Spec.NodeName = ""
+	glog.V(4).Infof("Copied pod is: %++v", pod)
+
+	return pod
 }
 
-// TODO. Thoughts. This is used to scale up and down. So we need the pod namespace and label here.
+// This is used to scale up and down. So we need the pod namespace and label here.
 func (this *KubernetesActionExecutor) UpdateReplicas(podLabel, namespace string, newReplicas int) (err error) {
 	targetRC, err := this.getReplicationController(podLabel, namespace)
 	if err != nil {
@@ -294,12 +282,12 @@ func (this *KubernetesActionExecutor) ProvisionPods(targetReplicationController 
 	if err != nil {
 		return fmt.Errorf("Error updating replication controller %s: %s", targetReplicationController.Name, err)
 	}
-	glog.V(3).Infof("New replicas of %s is %d", newRC.Name, newRC.Spec.Replicas)
+	glog.V(4).Infof("New replicas of %s is %d", newRC.Name, newRC.Spec.Replicas)
 
 	action := "provision"
 	vmtEvents := registry.NewVMTEvents(this.KubeClient, "", this.EtcdStorage)
 	event := registry.GenerateVMTEvent(action, namespace, newRC.Name, "not specified", int(msgID))
-	glog.V(3).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
+	glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
 	_, errorPost := vmtEvents.Create(event)
 	if errorPost != nil {
 		glog.Errorf("Error posting vmtevent: %s\n", errorPost)

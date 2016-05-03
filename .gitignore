@@ -2,3 +2,5 @@ kubeturbo
 actionexecutionsimulator
 
 ./examples/vmt_testing_config.json
+
+./examples/kubeturbo/kubeturbo
