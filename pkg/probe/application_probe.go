@@ -25,7 +25,7 @@ func NewApplicationProbe() *ApplicationProbe {
 
 // Parse processes those are defined in namespace.
 func (appProbe *ApplicationProbe) ParseApplication(namespace string) (result []*sdk.EntityDTO, err error) {
-	glog.Infof("Has %d hosts", len(hostSet))
+	glog.V(4).Infof("Has %d hosts", len(hostSet))
 
 	transactionCountMap, err := appProbe.calculateTransactionValuePerPod()
 	if err != nil {
@@ -37,7 +37,7 @@ func (appProbe *ApplicationProbe) ParseApplication(namespace string) (result []*
 
 	for nodeName, host := range hostSet {
 
-		glog.V(3).Infof("Now get process in host %s", nodeName)
+		glog.V(4).Infof("Now get process in host %s", nodeName)
 		pod2ApplicationMap, err := appProbe.getApplicaitonPerPod(host)
 		if err != nil {
 			glog.Error(err)
@@ -189,7 +189,7 @@ func (this *ApplicationProbe) getApplicationResourceStat(app vmtAdvisor.Applicat
 
 	if count, ok := podTransactionCountMap[podName]; ok {
 		transactionUsed = float64(count)
-		glog.V(3).Infof("Get transactions value of pod %s, is %f", podName, transactionUsed)
+		glog.V(4).Infof("Get transactions value of pod %s, is %f", podName, transactionUsed)
 
 	}
 
@@ -323,10 +323,10 @@ func (this *ApplicationProbe) getTransactionFromAllNodes() (transactionInfo []vm
 			continue
 		}
 		if len(transactions) < 1 {
-			glog.Warningf("No transaction data in %s.", nodeName)
+			glog.V(3).Infof("No transaction data in %s.", nodeName)
 			continue
 		}
-		glog.V(3).Infof("Transactions from %s are: %v", nodeName, transactions)
+		glog.V(4).Infof("Transactions from %s are: %v", nodeName, transactions)
 
 		transactionInfo = append(transactionInfo, transactions...)
 	}

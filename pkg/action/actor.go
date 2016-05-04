@@ -194,8 +194,10 @@ func (this *KubernetesActionExecutor) MovePod(podIdentifier, targetNodeIdentifie
 
 	if !hasRC {
 		time.Sleep(time.Second * 3)
-		getPod, err := this.KubeClient.Pods(podNamespace).Get(podName)
-		glog.Infof("getPod %++v, with error %s", getPod, err)
+		_, err := this.KubeClient.Pods(podNamespace).Get(podName)
+		if err != nil {
+			glog.V(3).Infof("Get deleted standalone Pos with error %s. This is expected.", err)
+		}
 
 		pod := copyPod(currentPod)
 		_, err = this.KubeClient.Pods(podNamespace).Create(pod)

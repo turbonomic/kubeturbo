@@ -147,6 +147,6 @@ func testEtcdClient(etcdClient etcdclient.Client) error {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	glog.V(3).Infof("Etcd client test passed")
+	glog.V(4).Infof("Etcd client test passed")
 	return nil
 }

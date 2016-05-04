@@ -52,10 +52,10 @@ func NewTurboScheduler(kubeClient *client.Client, vmturboMeta *vmtmeta.VMTMeta) 
 	eventBroadcaster.StartRecordingToSink(kubeClient.Events(""))
 
 	vmtSched := vmtscheduler.NewVMTScheduler(kubeClient, vmturboMeta)
-	glog.V(3).Infof("VMTScheduler is set: %++v", vmtSched)
+	glog.V(4).Infof("VMTScheduler is set: %++v", vmtSched)
 
 	defaultSched := defaultscheduler.NewDefaultScheduler(kubeClient)
-	glog.V(3).Infof("DefaultScheduler is set: %++v", defaultSched)
+	glog.V(4).Infof("DefaultScheduler is set: %++v", defaultSched)
 
 	return &TurboScheduler{
 		config:           config,

@@ -53,7 +53,7 @@ func NewVMTMeta(metaConfigFilePath string) (*VMTMeta, error) {
 
 	if metaConfig.ServerAddress != "" {
 		meta.ServerAddress = metaConfig.ServerAddress
-		glog.V(3).Infof("VMTurbo Server Address is %s", meta.ServerAddress)
+		glog.V(2).Infof("VMTurbo Server Address is %s", meta.ServerAddress)
 
 	} else {
 		return nil, fmt.Errorf("Error getting VMTurbo server address.")
@@ -89,14 +89,12 @@ func NewVMTMeta(metaConfigFilePath string) (*VMTMeta, error) {
 
 	if metaConfig.OpsManagerUsername != "" {
 		meta.OpsManagerUsername = metaConfig.OpsManagerUsername
-		glog.V(3).Infof("OpsManagerUsername is %s", meta.OpsManagerUsername)
 	} else {
 		return nil, fmt.Errorf("Error getting VMTurbo Ops Manager Username.")
 	}
 
 	if metaConfig.OpsManagerPassword != "" {
 		meta.OpsManagerPassword = metaConfig.OpsManagerPassword
-		glog.V(3).Infof("OpsManagerPassword is %s", meta.OpsManagerPassword)
 	} else {
 		return nil, fmt.Errorf("Error getting VMTurbo Ops Manager Password.")
 	}

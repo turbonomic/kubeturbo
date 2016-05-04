@@ -3,7 +3,6 @@ package probe
 import (
 	"fmt"
 	"strconv"
-	// "strings"
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
@@ -65,11 +64,15 @@ func (this *VMTPodGetter) GetPods(namespace string, label labels.Selector, field
 	var podItems []*api.Pod
 	for _, pod := range podList.Items {
 		p := pod
+		if pod.Status.Phase != api.PodRunning {
+			// Skip pods those are not running.
+			continue
+		}
 		hostIP := p.Status.PodIP
 		podIP2PodMap[hostIP] = &p
 		podItems = append(podItems, &p)
 	}
-	glog.V(3).Infof("Discovering Pods, now the cluster has " + strconv.Itoa(len(podItems)) + " pods")
+	glog.V(2).Infof("Discovering Pods, now the cluster has " + strconv.Itoa(len(podItems)) + " pods")
 
 	return podItems, nil
 }
@@ -81,7 +84,6 @@ func (podProbe *PodProbe) parsePodFromK8s(pods []*api.Pod) (result []*sdk.Entity
 		return nil, err
 	}
 
-	glog.V(3).Infof("Now parse Pods")
 	for _, pod := range pods {
 
 		podResourceStat, err := podProbe.getPodResourceStat(pod, podContainers)
@@ -96,10 +98,6 @@ func (podProbe *PodProbe) parsePodFromK8s(pods []*api.Pod) (result []*sdk.Entity
 		entityDto, _ := podProbe.buildPodEntityDTO(pod, commoditiesSold, commoditiesBought)
 
 		result = append(result, entityDto)
-	}
-
-	for _, entityDto := range result {
-		glog.V(3).Infof("Pod EntityDTO: " + entityDto.GetDisplayName())
 	}
 
 	return
@@ -185,7 +183,7 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 			containerStats := container.Stats
 			if len(containerStats) < 2 {
 				//TODO, maybe a warning is enough?
-				glog.Warningf("Not enough data for %s", podNameWithNamespace)
+				glog.Warningf("Not enough data for %s. Skip.", podNameWithNamespace)
 				continue
 				// return nil, fmt.Errorf("Not enough data for %s", podNameWithNamespace)
 			}
@@ -290,7 +288,7 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 
 	ipAddress := podProbe.getIPForStitching(pod)
 	entityDTOBuilder = entityDTOBuilder.SetProperty("ipAddress", ipAddress)
-	glog.V(3).Infof("Pod %s will be stitched to VM with IP %s", dispName, ipAddress)
+	glog.V(4).Infof("Pod %s will be stitched to VM with IP %s", dispName, ipAddress)
 
 	entityDto := entityDTOBuilder.Create()
 	return entityDto, nil

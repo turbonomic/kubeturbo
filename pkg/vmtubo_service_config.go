@@ -48,7 +48,7 @@ func NewVMTConfig(client *client.Client, etcdStorage storage.Storage, meta *vmtm
 	//delete all the vmt events
 	errorDelete := vmtEvents.DeleteAll()
 	if errorDelete != nil {
-		glog.V(3).Infof("Error deleting all vmt events: %s", errorDelete)
+		glog.Errorf("Error deleting all vmt events: %s", errorDelete)
 	}
 
 	// Watch minions.

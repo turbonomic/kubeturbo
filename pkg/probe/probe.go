@@ -5,7 +5,6 @@ import (
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 
-	vmtAdvisor "github.com/vmturbo/kubeturbo/pkg/cadvisor"
 	"github.com/vmturbo/kubeturbo/pkg/helper"
 
 	"github.com/golang/glog"
@@ -86,14 +85,4 @@ func (kubeProbe *KubeProbe) ParseService(namespace string, selector labels.Selec
 	}
 	endpointList, err := svcProbe.GetEndpoints(namespace, labels.Everything())
 	return svcProbe.ParseService(serviceList, endpointList)
-}
-
-// Show container stats for each container. For debug and troubleshooting purpose.
-func showContainerStats(container *vmtAdvisor.Container) {
-	glog.V(3).Infof("Host name %s", container.Hostname)
-	glog.V(3).Infof("Container name is %s", container.Name)
-	containerStats := container.Stats
-	currentStat := containerStats[len(containerStats)-1]
-	glog.V(3).Infof("CPU usage is %d", currentStat.Cpu.Usage.Total)
-	glog.V(3).Infof("MEM usage is %d", currentStat.Memory.Usage)
 }

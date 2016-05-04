@@ -2,6 +2,7 @@ package probe
 
 import (
 	"fmt"
+	"strconv"
 
 	"k8s.io/kubernetes/pkg/api"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
@@ -53,6 +54,8 @@ func (this *VMTServiceGetter) GetService(namespace string, selector labels.Selec
 		s := service
 		serviceItems = append(serviceItems, &s)
 	}
+
+	glog.V(2).Infof("Discovering Services, now the cluster has " + strconv.Itoa(len(serviceItems)) + " services")
 
 	return serviceItems, nil
 }
@@ -114,7 +117,7 @@ func (this *ServiceProbe) ParseService(serviceList []*api.Service, endpointList 
 
 		// Now build entityDTO
 		for serviceID, podIDList := range serviceEndpointMap {
-			glog.V(3).Infof("service %s has the following pod as endpoints %s", serviceID, podIDList)
+			glog.V(4).Infof("service %s has the following pod as endpoints %s", serviceID, podIDList)
 
 			if len(podIDList) < 1 {
 				continue

@@ -22,7 +22,7 @@ const (
 // example : http://localhost:8400/vmturbo/api/externaltargets?
 //                     type=Kubernetes&nameOrAddress=10.10.150.2&username=AAA&targetIdentifier=A&password=Sysdreamworks123
 func (vmtApi *VmtApi) AddK8sTarget(targetType, nameOrAddress, username, targetIdentifier, password string) error {
-	glog.V(3).Infof("Calling VMTurbo REST API to added current %s target.", targetType)
+	glog.V(2).Infof("Calling VMTurbo REST API to added current %s target.", targetType)
 
 	requestData := make(map[string]string)
 
@@ -66,7 +66,7 @@ func (vmtApi *VmtApi) AddK8sTarget(targetType, nameOrAddress, username, targetId
 // Discover a target using api
 // http://localhost:8400/vmturbo/api/targets/k8s_vmt
 func (vmtApi *VmtApi) DiscoverTarget(nameOrAddress string) error {
-	glog.V(3).Info("Calling VMTurbo REST API to initiate a new discovery.")
+	glog.V(2).Info("Calling VMTurbo REST API to initiate a new discovery.")
 
 	respMsg, err := vmtApi.apiPost("/targets/"+nameOrAddress, "")
 	if err != nil {
@@ -96,7 +96,6 @@ func (vmtApi *VmtApi) apiPost(postUrl, requestDataString string) (string, error)
 	req, err := http.NewRequest("POST", fullUrl, nil)
 
 	req.SetBasicAuth(vmtApi.extConfig["Username"], vmtApi.extConfig["Password"])
-	glog.V(4).Info(req)
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -118,11 +117,10 @@ func (vmtApi *VmtApi) apiPost(postUrl, requestDataString string) (string, error)
 // Call vmturbo api. return response
 func (vmtApi *VmtApi) apiGet(getUrl string) (string, error) {
 	fullUrl := "http://" + vmtApi.vmtUrl + "/vmturbo/api" + getUrl
-	glog.V(4).Info("The full Url is ", fullUrl)
+	glog.V(4).Infof("The full Url is %s", fullUrl)
 	req, err := http.NewRequest("GET", fullUrl, nil)
 
 	req.SetBasicAuth(vmtApi.extConfig["Username"], vmtApi.extConfig["Password"])
-	glog.V(4).Info(req)
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -142,11 +140,10 @@ func (vmtApi *VmtApi) apiGet(getUrl string) (string, error) {
 // Delete API call
 func (vmtApi *VmtApi) apiDelete(getUrl string) (string, error) {
 	fullUrl := "http://" + vmtApi.vmtUrl + "/vmturbo/api" + getUrl
-	glog.V(4).Info("The full Url is ", fullUrl)
+	glog.V(4).Infof("The full Url is ", fullUrl)
 	req, err := http.NewRequest("DELETE", fullUrl, nil)
 
 	req.SetBasicAuth(vmtApi.extConfig["Username"], vmtApi.extConfig["Password"])
-	glog.V(4).Info(req)
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {

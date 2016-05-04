@@ -2,6 +2,7 @@ package kubeturbo
 
 import (
 	"strings"
+	"time"
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/util/wait"
@@ -40,7 +41,7 @@ func NewVMTurboService(c *Config) *VMTurboService {
 
 // Run begins watching and scheduling. It starts a goroutine and returns immediately.
 func (v *VMTurboService) Run() {
-	glog.V(3).Infof("********** Start runnning VMT service **********")
+	glog.V(2).Infof("********** Start runnning VMT service **********")
 
 	// register and validates to vmturbo server
 	go v.vmtcomm.Run()
@@ -64,14 +65,14 @@ func (v *VMTurboService) getNextVMTEvent() {
 // When a new node is added in, this function is called. Otherwise, it is blocked.
 func (v *VMTurboService) getNextNode() {
 	node := v.config.NodeQueue.Pop().(*api.Node)
-	glog.V(2).Infof("Get a new Node %v", node.Name)
+	glog.V(3).Infof("Get a new Node %v", node.Name)
 }
 
 // Whenever there is a new pod created and post to etcd, this method will be used to deal with
 // unhandled pod. Otherwise it will block at Pop()
 func (v *VMTurboService) getNextPod() {
 	pod := v.config.PodQueue.Pop().(*api.Pod)
-	glog.V(2).Infof("Get a new Pod %v", pod.Name)
+	glog.V(3).Infof("Get a new Pod %v", pod.Name)
 
 	// If we want to track new Pod, create a VMTEvent and post it to etcd.
 	vmtEvents := registry.NewVMTEvents(v.config.Client, "", v.config.EtcdStorage)
@@ -83,7 +84,7 @@ func (v *VMTurboService) getNextPod() {
 
 	select {
 	case vmtEventFromEtcd := <-v.vmtEventChan:
-		glog.V(3).Infof("Receive VMTEvent")
+		glog.V(4).Infof("Receive VMTEvent")
 
 		hasError := false
 		switch vmtEventFromEtcd.ActionType {
@@ -127,10 +128,11 @@ func (v *VMTurboService) getNextPod() {
 			// The right place of sending move reponse is after the event.
 			// Here for test purpose, send the move success action response.
 			if vmtEventFromEtcd.VMTMessageID > -1 {
-				glog.V(3).Infof("Send action response to VMTurbo server.")
+				glog.V(2).Infof("Action Succeeded.")
 				progress := int32(100)
 				v.vmtcomm.SendActionReponse(sdk.ActionResponseState_SUCCEEDED, progress, int32(vmtEventFromEtcd.VMTMessageID), "Success")
 			}
+			time.Sleep(time.Millisecond * 500)
 			v.vmtcomm.DiscoverTarget()
 		}
 		return

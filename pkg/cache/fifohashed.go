@@ -128,11 +128,9 @@ func (f *HashedFIFO) Delete(obj interface{}) error {
 
 // List returns a list of all the items.
 func (f *HashedFIFO) List() []interface{} {
-	//glog.V(3).Infof("HashedFIFO.List is called")
 
 	f.lock.RLock()
 	defer f.lock.RUnlock()
-	//glog.V(3).Infof("HashedFIFO items length is " + strconv.Itoa(len(f.items)))
 
 	list := make([]interface{}, 0, len(f.items))
 	for _, item := range f.items {

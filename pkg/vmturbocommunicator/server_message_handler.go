@@ -71,7 +71,7 @@ func (handler *KubernetesServerMessageHandler) Validate(serverMsg *comm.Mediatio
 
 	// TODO: Need to sleep some time, waiting validated. Or we should add reponse msg from server.
 	time.Sleep(100 * time.Millisecond)
-	glog.V(3).Infof("Discovery Target after validation")
+	glog.V(2).Infof("Discovery Target after validation")
 
 	handler.DiscoverTarget()
 }
@@ -100,7 +100,7 @@ func (handler *KubernetesServerMessageHandler) DiscoverTopology(serverMsg *comm.
 	// 2. Build discoverResponse
 	// must have kubeClient to do ParseNode and ParsePod
 	if handler.kubeClient == nil {
-		glog.V(3).Infof("kubenetes client is nil, error")
+		glog.Errorf("kubenetes client is nil, error")
 		return
 	}
 
@@ -154,7 +154,7 @@ func (handler *KubernetesServerMessageHandler) HandleAction(serverMsg *comm.Medi
 	// In the kubernetes case, ProbeType and AccountValue check is not necessary here since
 	// the mediation client (vmturbo service) is embeded inside kubernetes.
 	actionItemDTO := actionRequest.GetActionItemDTO()
-	glog.V(3).Infof("The received ActionItemDTO is %v", actionItemDTO)
+	glog.V(4).Infof("The received ActionItemDTO is %v", actionItemDTO)
 	actionExecutor := &vmtaction.KubernetesActionExecutor{
 		KubeClient:  handler.kubeClient,
 		EtcdStorage: handler.etcdStorage,

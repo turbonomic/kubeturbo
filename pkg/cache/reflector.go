@@ -251,7 +251,6 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 			glog.Error("Error calling watchHandler: %s. Return from for loop in ListAndWatch.", err)
 			return nil
 		}
-		glog.V(4).Info("End of for loop in ListAndWatch.")
 	}
 }
 

@@ -16,7 +16,7 @@ type TestingFlag struct {
 func LoadTestingFlag(path string) (*TestingFlag, error) {
 	file, err := ioutil.ReadFile(path)
 	if err != nil {
-		glog.V(3).Infof("File error: %v\n", err)
+		glog.Errorf("File error: %v\n", err)
 		return nil, err
 	}
 	var flags TestingFlag

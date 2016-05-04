@@ -65,7 +65,7 @@ func (this *VMTNodeGetter) GetNodes(label labels.Selector, field fields.Selector
 		n := node
 		nodeItems = append(nodeItems, &n)
 	}
-	glog.V(3).Infof("Discovering Nodes.. The cluster has " + strconv.Itoa(len(nodeItems)) + " nodes")
+	glog.V(2).Infof("Discovering Nodes.. The cluster has " + strconv.Itoa(len(nodeItems)) + " nodes")
 	return nodeItems
 }
 
@@ -79,8 +79,6 @@ func (nodeProbe *NodeProbe) GetNodes(label labels.Selector, field fields.Selecto
 
 // Parse each node inside K8s. Get the resources usage of each node and build the entityDTO.
 func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node) (result []*sdk.EntityDTO, err error) {
-	glog.V(3).Infof("---------- Now parse Node ----------")
-
 	for _, node := range nodes {
 		if !nodeIsReady(node) {
 			continue

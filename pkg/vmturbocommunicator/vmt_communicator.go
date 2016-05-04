@@ -65,7 +65,7 @@ func (vmtcomm *VMTCommunicator) RegisterKubernetes() {
 
 	// 2. Build supply chain.
 	templateDtos := createSupplyChain()
-	glog.V(3).Infof("Supply chain for Kubernetes is created.")
+	glog.V(2).Infof("Supply chain for Kubernetes is created.")
 
 	// 3. construct the kubernetesProbe, the only probe supported.
 	probeType := vmtcomm.meta.TargetType
@@ -111,7 +111,6 @@ func createAccountDefKubernetes() []*comm.AccountDefEntry {
 
 // also include kubernetes supply chain explanation
 func createSupplyChain() []*sdk.TemplateDTO {
-	glog.V(3).Infof(".......... Now use builder to create a supply chain ..........")
 
 	fakeKey := "fake"
 
@@ -124,8 +123,6 @@ func createSupplyChain() []*sdk.TemplateDTO {
 		Selling(sdk.CommodityDTO_VCPU, fakeKey).
 		Selling(sdk.CommodityDTO_VMEM, fakeKey).
 		Selling(sdk.CommodityDTO_APPLICATION, fakeKey)
-
-	glog.V(3).Infof(".......... minion supply chain node builder is created ..........")
 
 	// Pod Supplychain builder
 	podSupplyChainNodeBuilder := sdk.NewSupplyChainNodeBuilder()
@@ -144,18 +141,11 @@ func createSupplyChain() []*sdk.TemplateDTO {
 		Key:           &fakeKey,
 		CommodityType: &memAllocationType,
 	}
-	vmpmaccessType := sdk.CommodityDTO_VMPM_ACCESS
-	// vmpmaccessTemplateComm := &sdk.TemplateCommodity{
-	// 	Key:           &fakeKey,
-	// 	CommodityType: &vmpmaccessType,
-	// }
 
 	podSupplyChainNodeBuilder = podSupplyChainNodeBuilder.
 		Provider(sdk.EntityDTO_VIRTUAL_MACHINE, sdk.Provider_LAYERED_OVER).
 		Buys(*cpuAllocationTemplateComm).
 		Buys(*memAllocationTemplateComm)
-	// Buys(*vmpmaccessTemplateComm)
-	glog.V(3).Infof(".......... pod supply chain node builder is created ..........")
 
 	// Application supplychain builder
 	appSupplyChainNodeBuilder := sdk.NewSupplyChainNodeBuilder()
@@ -204,6 +194,7 @@ func createSupplyChain() []*sdk.TemplateDTO {
 	}
 	vAppSupplyChainNodeBuilder = vAppSupplyChainNodeBuilder.Provider(sdk.EntityDTO_APPLICATION, sdk.Provider_LAYERED_OVER).Buys(*transactionTemplateComm)
 
+	vmpmaccessType := sdk.CommodityDTO_VMPM_ACCESS
 	// Link from Pod to VM
 	vmPodExtLinkBuilder := sdk.NewExternalEntityLinkBuilder()
 	vmPodExtLinkBuilder.Link(sdk.EntityDTO_CONTAINER_POD, sdk.EntityDTO_VIRTUAL_MACHINE, sdk.Provider_LAYERED_OVER).
@@ -262,8 +253,8 @@ func (vmtcomm *VMTCommunicator) DiscoverTarget() {
 	vmtUrl := vmtcomm.wsComm.VmtServerAddress
 
 	extCongfix := make(map[string]string)
-	extCongfix["Username"] = "administrator"
-	extCongfix["Password"] = "a"
+	extCongfix["Username"] = vmtcomm.meta.OpsManagerUsername
+	extCongfix["Password"] = vmtcomm.meta.OpsManagerPassword
 	vmturboApi := vmtapi.NewVmtApi(vmtUrl, extCongfix)
 
 	// Discover Kubernetes target.
