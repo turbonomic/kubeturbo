@@ -5,31 +5,8 @@ import (
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 
-	"github.com/vmturbo/kubeturbo/pkg/helper"
-
-	"github.com/golang/glog"
 	"github.com/vmturbo/vmturbo-go-sdk/sdk"
 )
-
-var localTestingFlag bool = false
-
-var actionTestingFlag bool = false
-
-var localTestStitchingIP string = ""
-
-func init() {
-	flag, err := helper.LoadTestingFlag("./pkg/helper/testing_flag.json")
-	if err != nil {
-		glog.Errorf("Error initialize probe package: %s", err)
-		return
-	}
-	localTestingFlag = flag.LocalTestingFlag
-	actionTestingFlag = flag.ActionTestingFlag
-	localTestStitchingIP = flag.LocalTestStitchingIP
-
-	glog.V(4).Infof("Local %s", localTestingFlag)
-	glog.V(4).Infof("Stitching IP %s", localTestStitchingIP)
-}
 
 type KubeProbe struct {
 	KubeClient *client.Client

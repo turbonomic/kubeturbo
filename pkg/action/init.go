@@ -15,7 +15,7 @@ var (
 )
 
 func init() {
-	flag, err := helper.LoadTestingFlag("./pkg/helper/testing_flag.json")
+	flag, err := helper.LoadTestingFlag()
 	if err != nil {
 		glog.Errorf("Error initialize vmturbo package: %s", err)
 		return

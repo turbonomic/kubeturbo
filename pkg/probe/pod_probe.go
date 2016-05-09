@@ -11,6 +11,7 @@ import (
 	"k8s.io/kubernetes/pkg/labels"
 
 	vmtAdvisor "github.com/vmturbo/kubeturbo/pkg/cadvisor"
+	"github.com/vmturbo/kubeturbo/pkg/helper"
 
 	"github.com/golang/glog"
 	"github.com/vmturbo/vmturbo-go-sdk/sdk"
@@ -149,16 +150,27 @@ func (podProbe *PodProbe) groupContainerByPod() (map[string][]*vmtAdvisor.Contai
 
 // Get the current pod resource capacity and usage.
 func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[string][]*vmtAdvisor.Container) (*PodResourceStat, error) {
-	cpuCapacity := int64(0)
+	cpuCapacity := float64(0)
 	memCapacity := int64(0)
 
 	// TODO! Here we assume when user defines a pod, resource requirements are also specified.
 	// The metrics we care about now are Cpu and Mem.
 	for _, container := range pod.Spec.Containers {
-		requests := container.Resources.Limits
-		memCapacity += requests.Memory().Value()
-		cpuCapacity += requests.Cpu().MilliValue()
+		limits := container.Resources.Limits
+		request := container.Resources.Requests
+
+		memCap := limits.Memory().Value()
+		if memCap == 0 {
+			memCap = request.Memory().Value()
+		}
+		cpuCap := float64(limits.Cpu().MilliValue()) / float64(1000)
+		if cpuCap == 0 {
+			cpuCap = float64(request.Cpu().MilliValue()) / float64(1000)
+		}
+		memCapacity += memCap
+		cpuCapacity += cpuCap
 	}
+	glog.V(4).Infof("Cpu cap of Pod %s in k8s format is %f", pod.Name, cpuCapacity)
 
 	podNameWithNamespace := pod.Namespace + "/" + pod.Name
 
@@ -169,8 +181,8 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	}
 	cpuFrequency := machineInfo.CpuFrequency / 1000
 
-	// the cpu return value is in core*1000, so here should divide 1000
-	podCpuCapacity := float64(cpuCapacity) / 1000 * float64(cpuFrequency)
+	// the cpu return value is in KHz. VMTurbo uses MHz. So here should divide 1000
+	podCpuCapacity := float64(cpuCapacity) * float64(cpuFrequency)
 	podMemCapacity := float64(memCapacity) / 1024 // Mem is in bytes, convert to Kb
 	glog.V(4).Infof("Cpu cap of Pod %s is %f", pod.Name, podCpuCapacity)
 	glog.V(4).Infof("Mem cap of Pod %s is %f", pod.Name, podMemCapacity)
@@ -191,13 +203,18 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 			prevStat := containerStats[len(containerStats)-2]
 			rawUsage := int64(currentStat.Cpu.Usage.Total - prevStat.Cpu.Usage.Total)
 			intervalInNs := currentStat.Timestamp.Sub(prevStat.Timestamp).Nanoseconds()
-			podCpuUsed += float64(rawUsage) * 1.0 / float64(intervalInNs)
+			glog.V(4).Infof("%d - %d = rawUsage is %f", currentStat.Cpu.Usage.Total,
+				prevStat.Cpu.Usage.Total, rawUsage)
+			glog.V(4).Infof("intervalInNs is %f", intervalInNs)
+
+			podCpuUsed += float64(rawUsage) / float64(intervalInNs)
 			podMemUsed += float64(currentStat.Memory.Usage)
 		}
 	} else {
 		glog.Warningf("Cannot find pod %s", podNameWithNamespace)
 		return nil, fmt.Errorf("Cannot find pod %s", podNameWithNamespace)
 	}
+	glog.V(4).Infof("used is %f", podCpuUsed)
 
 	// convert num of core to frequecy in MHz
 	podCpuUsed = podCpuUsed * float64(cpuFrequency)
@@ -206,9 +223,12 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	glog.V(4).Infof("The actual Cpu used value of %s is %f", podNameWithNamespace, podCpuUsed)
 	glog.V(4).Infof("The actual Mem used value of %s is %f", podNameWithNamespace, podMemUsed)
 
-	if actionTestingFlag {
-		podCpuUsed = podCpuCapacity
-		podMemUsed = podMemCapacity
+	flag, err := helper.IsActionTesting()
+	if err == nil {
+		if flag {
+			podCpuUsed = podCpuCapacity * 0.8
+			podMemUsed = podMemCapacity * 0.8
+		}
 	}
 
 	glog.V(3).Infof(" Discovered pod is " + pod.Name)

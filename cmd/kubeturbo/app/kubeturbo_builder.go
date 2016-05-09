@@ -33,6 +33,7 @@ import (
 
 	kubeturbo "github.com/vmturbo/kubeturbo/pkg"
 	"github.com/vmturbo/kubeturbo/pkg/conversion"
+	"github.com/vmturbo/kubeturbo/pkg/helper"
 	"github.com/vmturbo/kubeturbo/pkg/metadata"
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
@@ -56,6 +57,7 @@ type VMTServer struct {
 	Address               net.IP
 	Master                string
 	MetaConfigPath        string
+	TestingFlagPath       string
 	Kubeconfig            string
 	BindPodsQPS           float32
 	BindPodsBurst         int
@@ -83,6 +85,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.Port, "port", s.Port, "The port that the scheduler's http service runs on")
 	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
 	fs.StringVar(&s.MetaConfigPath, "config-path", s.MetaConfigPath, "The path to the vmt config file.")
+	fs.StringVar(&s.TestingFlagPath, "flag-path", s.TestingFlagPath, "The path to the testing flag.")
 	fs.StringVar(&s.Kubeconfig, "kubeconfig", s.Kubeconfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.StringSliceVar(&s.EtcdServerList, "etcd-servers", s.EtcdServerList, "List of etcd servers to watch (http://ip:port), comma separated. Mutually exclusive with -etcd-config")
 	fs.StringVar(&s.EtcdCA, "cacert", s.EtcdCA, "Path to etcd ca.")
@@ -102,6 +105,10 @@ func (s *VMTServer) Run(_ []string) error {
 	if s.MetaConfigPath == "" {
 		glog.Fatalf("The path to the VMT config file is not provided.Exiting...")
 		os.Exit(1)
+	}
+
+	if s.TestingFlagPath != "" {
+		helper.SetPath(s.TestingFlagPath)
 	}
 
 	if (s.EtcdConfigFile != "" && len(s.EtcdServerList) != 0) || (s.EtcdConfigFile == "" && len(s.EtcdServerList) == 0) {

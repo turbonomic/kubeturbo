@@ -8,6 +8,8 @@ import (
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/labels"
 
+	"github.com/vmturbo/kubeturbo/pkg/helper"
+
 	"github.com/golang/glog"
 	"github.com/vmturbo/vmturbo-go-sdk/sdk"
 )
@@ -218,8 +220,11 @@ func getServiceResourceStat(transactionCountMap map[string]int, podID string) *S
 		glog.V(4).Infof("No transaction value for applications on pod %s", podID)
 	}
 
-	if actionTestingFlag {
-		transactionBought = float64(9999)
+	flag, err := helper.IsActionTesting()
+	if err == nil {
+		if flag {
+			transactionBought = float64(9999)
+		}
 	}
 
 	return &ServiceResourceStat{

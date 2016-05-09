@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	vmtAdvisor "github.com/vmturbo/kubeturbo/pkg/cadvisor"
+	"github.com/vmturbo/kubeturbo/pkg/helper"
 	vmtmonitor "github.com/vmturbo/kubeturbo/pkg/monitor"
 	vmtproxy "github.com/vmturbo/kubeturbo/pkg/monitor"
 
@@ -193,9 +194,12 @@ func (this *ApplicationProbe) getApplicationResourceStat(app vmtAdvisor.Applicat
 
 	}
 
-	if actionTestingFlag {
-		transactionCapacity = float64(10000)
-		transactionUsed = float64(9999)
+	flag, err := helper.IsActionTesting()
+	if err == nil {
+		if flag {
+			transactionCapacity = float64(10000)
+			transactionUsed = float64(9999)
+		}
 	}
 
 	return &ApplicationResourceStat{
