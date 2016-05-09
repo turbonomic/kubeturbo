@@ -93,9 +93,21 @@ func (this *KubernetesActionExecutor) ExcuteAction(actionItem *sdk.ActionItemDTO
 
 	} else if actionItem.GetActionType() == sdk.ActionItemDTO_PROVISION {
 		glog.V(4).Infof("Now Provision Pods")
-		if actionItem.GetTargetSE().GetEntityType() == sdk.EntityDTO_CONTAINER_POD {
-			targetPod := actionItem.GetTargetSE()
-			podIdentifier := targetPod.GetId()
+		targetEntityType := actionItem.GetTargetSE().GetEntityType()
+		if targetEntityType == sdk.EntityDTO_CONTAINER_POD ||
+			targetEntityType == sdk.EntityDTO_APPLICATION {
+
+			var podIdentifier string
+			if targetEntityType == sdk.EntityDTO_CONTAINER_POD {
+				targetPod := actionItem.GetTargetSE()
+				podIdentifier = targetPod.GetId()
+			} else if targetEntityType == sdk.EntityDTO_APPLICATION {
+				foundPodId, err := this.findApplicationPodProvider(actionItem)
+				if err != nil {
+					return err
+				}
+				podIdentifier = foundPodId
+			}
 
 			// find related replication controller through identifier.
 			podIds := strings.Split(string(podIdentifier), "/")
@@ -104,11 +116,20 @@ func (this *KubernetesActionExecutor) ExcuteAction(actionItem *sdk.ActionItemDTO
 			}
 
 			podNamespace := podIds[0]
-			podNames := strings.Split(string(podIds[1]), "-")
-			if len(podNames) != 2 {
-				return fmt.Errorf("Cannot parse pod with name: %s", podIds[1])
+
+			podName := podIds[1]
+			pod, err := this.KubeClient.Pods(podNamespace).Get(podName)
+			if err != nil {
+				glog.Errorf("Error getting the pod %s: %s", podIdentifier, err)
 			}
-			replicationControllerName := podNames[0]
+			generateName := pod.GenerateName
+			// TODO, pod created by RC should have the generateName
+			if generateName == "" || len(generateName) < 2 {
+				return fmt.Errorf("Pod %s is not created by RC. Cannot provision", podIdentifier)
+			}
+
+			// delete the tailing '-'
+			replicationControllerName := generateName[0 : len(generateName)-1]
 			targetReplicationController, err := this.getReplicationController(replicationControllerName, podNamespace)
 			if err != nil {
 				return fmt.Errorf("Error getting replication controller related to pod %s: %s", podIdentifier, err)
@@ -376,4 +397,52 @@ func (this *KubernetesActionExecutor) getNodeNameFromIP(machineIPs []string) (st
 	}
 
 	return "", fmt.Errorf("Cannot find node with IPs %s", machineIPs)
+}
+
+// Find which pod is the app running based on the received action request.
+func (this *KubernetesActionExecutor) findApplicationPodProvider(action *sdk.ActionItemDTO) (string, error) {
+	providers := action.GetProviders()
+	if providers == nil || len(providers) < 1 {
+		return "", fmt.Errorf("Don't find provider in actionItemDTO for provision Application %s", action.GetTargetSE().GetId())
+	}
+
+	for _, providerInfo := range providers {
+		if providerInfo == nil {
+			continue
+		}
+		if providerInfo.GetEntityType() == sdk.EntityDTO_CONTAINER_POD {
+			providerIDs := providerInfo.GetIds()
+			for _, id := range providerIDs {
+				isTrue, err := this.isPodIdentifier(id)
+				if err != nil {
+					return "", err
+				}
+				if isTrue {
+					return id, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("Cannot find Pod Provider for for provision Application %s", action.GetTargetSE().GetId())
+}
+
+// Check is an ID is a pod identifier.
+func (this *KubernetesActionExecutor) isPodIdentifier(id string) (bool, error) {
+	// A valid podIdentifier is defined as foo/bar
+	podIds := strings.Split(id, "/")
+	if len(podIds) != 2 {
+		return false, nil
+	}
+
+	podNamespace := podIds[0]
+	podName := podIds[1]
+	pod, err := this.KubeClient.Pods(podNamespace).Get(podName)
+	if err != nil {
+		return false, err
+	} else if pod.Name != podName && pod.Namespace != podNamespace {
+		return false, fmt.Errorf("Got wrong pod, want to find %s/%s, but found %s/%s", podNamespace, podName, pod.Namespace, pod.Name)
+	}
+	return true, nil
+
 }
