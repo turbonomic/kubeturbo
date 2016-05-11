@@ -1,5 +1,5 @@
 {
 	"localtestingflag":     true,
-	"actiontestingflag":    true,
+	"deprovisiontestingflag": false,
 	"localteststitchingip": "10.10.173.131"
 }

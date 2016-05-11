@@ -19,7 +19,6 @@ func init() {
 		return
 	}
 	localTestingFlag = flag.LocalTestingFlag
-	actionTestingFlag = flag.ActionTestingFlag
 	localTestStitchingIP = flag.LocalTestStitchingIP
 
 	glog.V(4).Infof("Local %s", localTestingFlag)

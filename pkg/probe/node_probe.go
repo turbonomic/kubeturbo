@@ -13,6 +13,7 @@ import (
 
 	cadvisor "github.com/google/cadvisor/info/v1"
 	vmtAdvisor "github.com/vmturbo/kubeturbo/pkg/cadvisor"
+	"github.com/vmturbo/kubeturbo/pkg/helper"
 
 	"github.com/golang/glog"
 	"github.com/vmturbo/vmturbo-go-sdk/sdk"
@@ -313,8 +314,16 @@ func (this *NodeProbe) getNodeResourceStat(node *api.Node) (*NodeResourceStat, e
 	memUsed := float64(rootCurMem)
 
 	// this flag is defined at package level, in probe.go
-	if localTestingFlag {
-		cpuUsed = float64(10000)
+	flag, err := helper.LoadTestingFlag()
+	if err == nil {
+		if flag.DeprovisionTestingFlag {
+			if fakeUtil := flag.FakeNodeComputeResourceUtil; fakeUtil != 0 {
+
+				cpuUsed = 9600 * fakeUtil
+				memUsed = 4194304 * fakeUtil
+				glog.Infof("fakeUtil is %f, cpuUsed is %f, cpuCapacity is %f", fakeUtil, cpuUsed, nodeCpuCapacity)
+			}
+		}
 	}
 
 	return &NodeResourceStat{

@@ -147,6 +147,9 @@ func (this *ServiceProbe) findBackendPodPerService(service *api.Service, endpoin
 
 	serviceNameWithNamespace := service.Namespace + "/" + service.Name
 	serviceEndpoint := endpointMap[serviceNameWithNamespace]
+	if serviceEndpoint == nil {
+		return nil
+	}
 	subsets := serviceEndpoint.Subsets
 	for _, endpointSubset := range subsets {
 		addresses := endpointSubset.Addresses
@@ -220,10 +223,12 @@ func getServiceResourceStat(transactionCountMap map[string]int, podID string) *S
 		glog.V(4).Infof("No transaction value for applications on pod %s", podID)
 	}
 
-	flag, err := helper.IsActionTesting()
+	flag, err := helper.LoadTestingFlag()
 	if err == nil {
-		if flag {
-			transactionBought = float64(9999)
+		if flag.ProvisionTestingFlag {
+			if fakeUtil := flag.FakeTransactionUtil; fakeUtil != 0 {
+				transactionBought = fakeUtil * 1000
+			}
 		}
 	}
 

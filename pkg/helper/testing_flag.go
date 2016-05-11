@@ -14,9 +14,16 @@ var (
 )
 
 type TestingFlag struct {
-	LocalTestingFlag     bool
-	ActionTestingFlag    bool
-	LocalTestStitchingIP string
+	LocalTestingFlag       bool
+	ProvisionTestingFlag   bool
+	DeprovisionTestingFlag bool
+	LocalTestStitchingIP   string
+
+	FakeTransactionUtil         float64
+	FakeNodeComputeResourceUtil float64
+	FakePodComputeResourceUtil  float64
+	FakeApplicationCpuUsed      float64
+	FakeApplicationMemUsed      float64
 }
 
 func SetPath(path string) {
@@ -45,5 +52,13 @@ func IsActionTesting() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return flag.ActionTestingFlag, nil
+	return flag.ProvisionTestingFlag, nil
+}
+
+func IsDeprovisionTesting() (bool, error) {
+	flag, err := LoadTestingFlag()
+	if err != nil {
+		return false, err
+	}
+	return flag.DeprovisionTestingFlag, nil
 }

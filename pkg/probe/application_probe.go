@@ -194,11 +194,19 @@ func (this *ApplicationProbe) getApplicationResourceStat(app vmtAdvisor.Applicat
 
 	}
 
-	flag, err := helper.IsActionTesting()
+	flag, err := helper.LoadTestingFlag()
 	if err == nil {
-		if flag {
-			transactionCapacity = float64(10000)
-			transactionUsed = float64(9999)
+		if flag.ProvisionTestingFlag {
+			if fakeUtil := flag.FakeTransactionUtil; fakeUtil != 0 {
+				transactionUsed = fakeUtil * transactionCapacity
+			}
+		} else if flag.DeprovisionTestingFlag {
+			if fakeCpuUsed := flag.FakeApplicationCpuUsed; fakeCpuUsed != 0 {
+				cpuUsage = fakeCpuUsed
+			}
+			if fakeMemUsed := flag.FakeApplicationMemUsed; fakeMemUsed != 0 {
+				memUsage = fakeMemUsed
+			}
 		}
 	}
 

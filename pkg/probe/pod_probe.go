@@ -223,11 +223,20 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	glog.V(4).Infof("The actual Cpu used value of %s is %f", podNameWithNamespace, podCpuUsed)
 	glog.V(4).Infof("The actual Mem used value of %s is %f", podNameWithNamespace, podMemUsed)
 
-	flag, err := helper.IsActionTesting()
+	flag, err := helper.LoadTestingFlag()
 	if err == nil {
-		if flag {
+		if flag.ProvisionTestingFlag {
 			podCpuUsed = podCpuCapacity * 0.8
 			podMemUsed = podMemCapacity * 0.8
+		} else if flag.DeprovisionTestingFlag {
+			if fakeUtil := flag.FakePodComputeResourceUtil; fakeUtil != 0 {
+				if podCpuUsed < podCpuCapacity*fakeUtil {
+					podCpuUsed = podCpuCapacity * fakeUtil
+				}
+				if podMemUsed < podMemCapacity*fakeUtil {
+					podMemUsed = podMemCapacity * fakeUtil
+				}
+			}
 		}
 	}
 
