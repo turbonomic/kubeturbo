@@ -87,8 +87,10 @@ func (this *KubernetesActionExecutor) ExcuteAction(actionItem *sdk.ActionItemDTO
 			} else {
 				return fmt.Errorf("The target service entity for move destiantion is neither a VM nor a PM.")
 			}
+		} else if actionItem.GetTargetSE().GetEntityType() == sdk.EntityDTO_VIRTUAL_APPLICATION {
+			return this.UnBind(actionItem, msgID)
 		} else {
-			return fmt.Errorf("The service entity to be moved is not a Pod")
+			return fmt.Errorf("The service entity to be moved is not a Pod. Got %s", actionItem.GetTargetSE().GetEntityType())
 		}
 
 	} else if actionItem.GetActionType() == sdk.ActionItemDTO_PROVISION {
@@ -267,6 +269,49 @@ func checkRCList(rcList []api.ReplicationController, labels map[string]string) b
 	return false
 }
 
+func (this *KubernetesActionExecutor) findRC(podName, podNamespace string) (*api.ReplicationController, error) {
+	// loop through all the labels in the pod and get List of RCs with selector that match at least one label
+	currentPod, err := this.KubeClient.Pods(podNamespace).Get(podName)
+	if err != nil {
+		glog.Errorf("Error getting pod name %s: %s.\n", podName, err)
+		return nil, err
+	}
+	podLabels := currentPod.Labels
+	if podLabels != nil {
+		currentRCs, err := this.GetAllRC(podNamespace) // pod label is passed to list
+		if err != nil {
+			glog.Errorf("Error getting RCs")
+			return nil, fmt.Errorf("Error  getting RC list")
+		}
+		rc, err := findRCBasedOnLabel(currentRCs, podLabels)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to find RC for Pod %s/%s: %s", podNamespace, podName, err)
+		}
+		return rc, nil
+
+	} else {
+		glog.Warningf("Pod %s/%s has no label. There is no RC for the Pod.", podNamespace, podName)
+	}
+	return nil, nil
+}
+
+func findRCBasedOnLabel(rcList []api.ReplicationController, labels map[string]string) (*api.ReplicationController, error) {
+	for _, rc := range rcList {
+		findRC := true
+		// use function to check if a given RC will take care of this pod
+		for key, val := range rc.Spec.Selector {
+			if labels[key] == "" || labels[key] != val {
+				findRC = false
+				break
+			}
+		}
+		if findRC {
+			return &rc, nil
+		}
+	}
+	return nil, fmt.Errorf("No RC has selectors match Pod labels.")
+}
+
 func copyPod(podToCopy *api.Pod) *api.Pod {
 	pod := &api.Pod{}
 	pod.Name = podToCopy.Name
@@ -279,6 +324,50 @@ func copyPod(podToCopy *api.Pod) *api.Pod {
 	glog.V(4).Infof("Copied pod is: %++v", pod)
 
 	return pod
+}
+
+func (this *KubernetesActionExecutor) UnBind(actionItem *sdk.ActionItemDTO, msgID int32) error {
+	// TODO, currently UNBIND action is sent in as MOVE. Need to change in the future.
+	if currentSE := actionItem.GetCurrentSE(); currentSE.GetEntityType() == sdk.EntityDTO_APPLICATION {
+		// TODO find the pod name based on application ID. App id is in the following format.
+		// !!
+		// ProcessName::PodNamespace/PodName
+		// NOT GOOD. Will change Later!
+		appName := currentSE.GetId()
+		ids := strings.Split(appName, "::")
+		if len(ids) < 2 {
+			return fmt.Errorf("%s is not a valid Application ID. Unbind failed.", appName)
+		}
+
+		podIdentifier := ids[1]
+		// Pod identifier in vmt server passed from VMTurbo server is in "namespace/podname"
+		idArray := strings.Split(string(podIdentifier), "/")
+		if len(idArray) < 2 {
+			return fmt.Errorf("Invalid Pod identifier: %s", podIdentifier)
+		}
+		podNamespace := idArray[0]
+		podName := idArray[1]
+
+		targetReplicationController, err := this.findRC(podName, podNamespace)
+		if err != nil {
+			return err
+		}
+		currentReplica := targetReplicationController.Spec.Replicas
+		if currentReplica < 1 {
+			return fmt.Errorf("Replica of %s is already 0. Cannot scale in anymore.", targetReplicationController.Name)
+		}
+		err = this.updateReplicasValue(*targetReplicationController, currentReplica-1)
+		action := "unbind"
+		vmtEvents := registry.NewVMTEvents(this.KubeClient, "", this.EtcdStorage)
+		event := registry.GenerateVMTEvent(action, podNamespace, targetReplicationController.Name, "not specified", int(msgID))
+		glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
+		_, errorPost := vmtEvents.Create(event)
+		if errorPost != nil {
+			return fmt.Errorf("Error posting vmtevent: %s\n", errorPost)
+		}
+		return nil
+	}
+	return fmt.Errorf("Wrong type for CurrentSE in AcitonItemDTO")
 }
 
 // This is used to scale up and down. So we need the pod namespace and label here.
@@ -298,6 +387,22 @@ func (this *KubernetesActionExecutor) UpdateReplicas(podLabel, namespace string,
 
 // Update replica of the target replication controller.
 func (this *KubernetesActionExecutor) ProvisionPods(targetReplicationController api.ReplicationController, newReplicas int, msgID int32) (err error) {
+	err = this.updateReplicasValue(targetReplicationController, newReplicas)
+	if err != nil {
+		return err
+	}
+	action := "provision"
+	vmtEvents := registry.NewVMTEvents(this.KubeClient, "", this.EtcdStorage)
+	event := registry.GenerateVMTEvent(action, targetReplicationController.Namespace, targetReplicationController.Name, "not specified", int(msgID))
+	glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
+	_, errorPost := vmtEvents.Create(event)
+	if errorPost != nil {
+		glog.Errorf("Error posting vmtevent: %s\n", errorPost)
+	}
+	return
+}
+
+func (this *KubernetesActionExecutor) updateReplicasValue(targetReplicationController api.ReplicationController, newReplicas int) error {
 	targetReplicationController.Spec.Replicas = newReplicas
 	namespace := targetReplicationController.Namespace
 	KubeClient := this.KubeClient
@@ -306,16 +411,7 @@ func (this *KubernetesActionExecutor) ProvisionPods(targetReplicationController 
 		return fmt.Errorf("Error updating replication controller %s: %s", targetReplicationController.Name, err)
 	}
 	glog.V(4).Infof("New replicas of %s is %d", newRC.Name, newRC.Spec.Replicas)
-
-	action := "provision"
-	vmtEvents := registry.NewVMTEvents(this.KubeClient, "", this.EtcdStorage)
-	event := registry.GenerateVMTEvent(action, namespace, newRC.Name, "not specified", int(msgID))
-	glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
-	_, errorPost := vmtEvents.Create(event)
-	if errorPost != nil {
-		glog.Errorf("Error posting vmtevent: %s\n", errorPost)
-	}
-	return
+	return nil
 }
 
 // Get the replication controller instance according to the name and namespace.

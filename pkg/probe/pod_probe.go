@@ -225,10 +225,8 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 
 	flag, err := helper.LoadTestingFlag()
 	if err == nil {
-		if flag.ProvisionTestingFlag {
-			podCpuUsed = podCpuCapacity * 0.8
-			podMemUsed = podMemCapacity * 0.8
-		} else if flag.DeprovisionTestingFlag {
+
+		if flag.ProvisionTestingFlag || flag.DeprovisionTestingFlag {
 			if fakeUtil := flag.FakePodComputeResourceUtil; fakeUtil != 0 {
 				if podCpuUsed < podCpuCapacity*fakeUtil {
 					podCpuUsed = podCpuCapacity * fakeUtil

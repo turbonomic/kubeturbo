@@ -165,12 +165,12 @@ func createSupplyChain() []*sdk.TemplateDTO {
 	// Buys VCpu and VMem from VM
 	vCpuType := sdk.CommodityDTO_VCPU
 	appVCpu := &sdk.TemplateCommodity{
-		Key:           &fakeKey,
+		// Key:           &fakeKey,
 		CommodityType: &vCpuType,
 	}
 	vMemType := sdk.CommodityDTO_VMEM
 	appVMem := &sdk.TemplateCommodity{
-		Key:           &fakeKey,
+		// Key:           &fakeKey,
 		CommodityType: &vMemType,
 	}
 	appCommType := sdk.CommodityDTO_APPLICATION
@@ -209,8 +209,8 @@ func createSupplyChain() []*sdk.TemplateDTO {
 	// Link from Application to VM
 	vmAppExtLinkBuilder := sdk.NewExternalEntityLinkBuilder()
 	vmAppExtLinkBuilder.Link(sdk.EntityDTO_APPLICATION, sdk.EntityDTO_VIRTUAL_MACHINE, sdk.Provider_HOSTING).
-		Commodity(vCpuType, true).
-		Commodity(vMemType, true).
+		Commodity(vCpuType, false).
+		Commodity(vMemType, false).
 		Commodity(appCommType, true).
 		ProbeEntityPropertyDef(sdk.SUPPLYCHAIN_CONSTANT_IP_ADDRESS, "IP Address where the Application is running").
 		ExternalEntityPropertyDef(sdk.VM_IP)

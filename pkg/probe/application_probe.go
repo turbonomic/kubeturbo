@@ -255,13 +255,11 @@ func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, app
 	nodeProvider := sdk.CreateProvider(sdk.EntityDTO_VIRTUAL_MACHINE, nodeUID)
 	var commoditiesBoughtFromNode []*sdk.CommodityDTO
 	vCpuCommBought := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_VCPU).
-		Key(nodeUID).
 		Used(appResourceStat.vCpuUsed).
 		Create()
 	commoditiesBoughtFromNode = append(commoditiesBoughtFromNode, vCpuCommBought)
 
 	vMemCommBought := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_VMEM).
-		Key(nodeUID).
 		Used(appResourceStat.vMemUsed).
 		Create()
 	commoditiesBoughtFromNode = append(commoditiesBoughtFromNode, vMemCommBought)

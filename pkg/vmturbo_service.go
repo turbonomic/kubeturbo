@@ -59,6 +59,16 @@ func (v *VMTurboService) getNextVMTEvent() {
 		glog.V(2).Infof("VMTEvent must be handled.")
 		// Send VMTEvent to channel.
 		v.vmtEventChan <- event
+	} else if event.ActionType == "unbind" {
+		glog.V(3).Infof("Decrease the replicas of %s.", event.TargetSE)
+		// TODO. Need to find a way to verify the replicas has been updated
+		if event.VMTMessageID > -1 {
+			glog.V(2).Infof("Action Succeeded.")
+			progress := int32(100)
+			v.vmtcomm.SendActionReponse(sdk.ActionResponseState_SUCCEEDED, progress, int32(event.VMTMessageID), "Success")
+		}
+		time.Sleep(time.Millisecond * 500)
+		v.vmtcomm.DiscoverTarget()
 	}
 }
 
@@ -84,7 +94,7 @@ func (v *VMTurboService) getNextPod() {
 
 	select {
 	case vmtEventFromEtcd := <-v.vmtEventChan:
-		glog.V(4).Infof("Receive VMTEvent")
+		glog.V(3).Infof("Receive VMTEvent type %s", vmtEventFromEtcd.ActionType)
 
 		hasError := false
 		switch vmtEventFromEtcd.ActionType {
@@ -101,7 +111,7 @@ func (v *VMTurboService) getNextPod() {
 
 			break
 		case "provision":
-			glog.V(3).Infof("Change replicas of %s.", vmtEventFromEtcd.TargetSE)
+			glog.V(3).Infof("Increase the replicas of %s.", vmtEventFromEtcd.TargetSE)
 
 			// double check if the pod is created as the result of provision
 			hasPrefix := strings.HasPrefix(pod.Name, vmtEventFromEtcd.TargetSE)
@@ -114,6 +124,7 @@ func (v *VMTurboService) getNextPod() {
 				hasError = true
 				glog.Errorf("Scheduling failed: %s", err)
 			}
+			break
 		}
 
 		if hasError {

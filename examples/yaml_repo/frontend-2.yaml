@@ -7,13 +7,12 @@ metadata:
 spec:
   replicas: 4
   selector:
-    name: frontend
-    app: fff2
+    app: guestbook
   template:
     metadata:
       labels:
         name: frontend
-        app: fff2
+        app: guestbook
     spec:
       containers:
       - name: php-redis

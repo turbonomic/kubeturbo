@@ -3,9 +3,9 @@
 	"provisiontestingflag":    true,
 	"deprovisiontestingflag": true,
 	"faketransactionutil":0.01,
-	"fakenodecomputeresourceutil": 0.8,	
-	"fakepodcomputeresourceutil": 0.2,
-	"fakeapplicationcpuused": 6000,
-	"fakeapplicationmemused": 200000,
-	"localteststitchingip": "10.10.150.151"
+	"fakenodecomputeresourceutil": 0,	
+	"fakepodcomputeresourceutil": 0.99,
+	"fakeapplicationcpuused": 0,
+	"fakeapplicationmemused": 0,
+	"localteststitchingip": "10.10.150.152"
 }
