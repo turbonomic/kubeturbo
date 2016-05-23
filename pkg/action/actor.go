@@ -461,7 +461,8 @@ func (this *KubernetesActionExecutor) GetAllNodes() ([]*api.Node, error) {
 	}
 	var nodeItems []*api.Node
 	for _, node := range nodeList.Items {
-		nodeItems = append(nodeItems, &node)
+		n := node
+		nodeItems = append(nodeItems, &n)
 	}
 	return nodeItems, nil
 }

@@ -225,7 +225,7 @@ func getServiceResourceStat(transactionCountMap map[string]int, podID string) *S
 
 	flag, err := helper.LoadTestingFlag()
 	if err == nil {
-		if flag.ProvisionTestingFlag {
+		if flag.ProvisionTestingFlag || flag.DeprovisionTestingFlag {
 			if fakeUtil := flag.FakeTransactionUtil; fakeUtil != 0 {
 				transactionBought = fakeUtil * 1000
 			}

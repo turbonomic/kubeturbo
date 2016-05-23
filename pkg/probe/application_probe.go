@@ -201,6 +201,9 @@ func (this *ApplicationProbe) getApplicationResourceStat(app vmtAdvisor.Applicat
 				transactionUsed = fakeUtil * transactionCapacity
 			}
 		} else if flag.DeprovisionTestingFlag {
+			if fakeUtil := flag.FakeTransactionUtil; fakeUtil != 0 {
+				transactionUsed = fakeUtil * transactionCapacity
+			}
 			if fakeCpuUsed := flag.FakeApplicationCpuUsed; fakeCpuUsed != 0 {
 				cpuUsage = fakeCpuUsed
 			}
