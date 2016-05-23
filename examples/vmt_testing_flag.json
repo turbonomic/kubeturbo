@@ -1,11 +1,11 @@
 {
 	"localtestingflag":     true,
-	"provisiontestingflag":    false,
+	"provisiontestingflag":    true,
 	"deprovisiontestingflag": true,
-	"faketransactionutil":0.999,
+	"faketransactionutil":0.01,
 	"fakenodecomputeresourceutil": 0.8,	
 	"fakepodcomputeresourceutil": 0.2,
 	"fakeapplicationcpuused": 6000,
 	"fakeapplicationmemused": 200000,
-	"localteststitchingip": "10.10.150.152"
+	"localteststitchingip": "10.10.150.151"
 }

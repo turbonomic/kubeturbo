@@ -145,13 +145,13 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node) ([]*sdk.Commodit
 		Create()
 	commoditiesSold = append(commoditiesSold, cpuAllocationComm)
 	vMemComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_VMEM).
-		Key(nodeID).
+		// Key(nodeID).
 		Capacity(nodeResourceStat.vMemCapacity).
 		Used(nodeResourceStat.vMemUsed).
 		Create()
 	commoditiesSold = append(commoditiesSold, vMemComm)
 	vCpuComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_VCPU).
-		Key(nodeID).
+		// Key(nodeID).
 		Capacity(float64(nodeResourceStat.vCpuCapacity)).
 		Used(nodeResourceStat.vCpuUsed).
 		Create()
