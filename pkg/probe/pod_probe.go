@@ -170,7 +170,6 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 		memCapacity += memCap
 		cpuCapacity += cpuCap
 	}
-	glog.V(4).Infof("Cpu cap of Pod %s in k8s format is %f", pod.Name, cpuCapacity)
 
 	podNameWithNamespace := pod.Namespace + "/" + pod.Name
 
@@ -180,6 +179,12 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 		return nil, fmt.Errorf("Cannot get machine information for %s", pod.Spec.NodeName)
 	}
 	cpuFrequency := machineInfo.CpuFrequency / 1000
+
+	if cpuCapacity == 0 || memCapacity == 0 {
+		cpuCapacity = float64(machineInfo.NumCores)
+		memCapacity = int64(machineInfo.MemoryCapacity)
+	}
+	glog.V(4).Infof("Cpu cap of Pod %s in k8s format is %f", pod.Name, cpuCapacity)
 
 	// the cpu return value is in KHz. VMTurbo uses MHz. So here should divide 1000
 	podCpuCapacity := float64(cpuCapacity) * float64(cpuFrequency)
