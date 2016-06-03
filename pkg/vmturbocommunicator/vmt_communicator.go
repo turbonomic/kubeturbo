@@ -113,6 +113,7 @@ func createAccountDefKubernetes() []*comm.AccountDefEntry {
 func createSupplyChain() []*sdk.TemplateDTO {
 
 	fakeKey := "fake"
+	emptyKey := ""
 
 	minionSupplyChainNodeBuilder := sdk.NewSupplyChainNodeBuilder()
 	minionSupplyChainNodeBuilder = minionSupplyChainNodeBuilder.
@@ -120,8 +121,8 @@ func createSupplyChain() []*sdk.TemplateDTO {
 		Selling(sdk.CommodityDTO_CPU_ALLOCATION, fakeKey).
 		Selling(sdk.CommodityDTO_MEM_ALLOCATION, fakeKey).
 		Selling(sdk.CommodityDTO_VMPM_ACCESS, fakeKey).
-		Selling(sdk.CommodityDTO_VCPU, fakeKey).
-		Selling(sdk.CommodityDTO_VMEM, fakeKey).
+		Selling(sdk.CommodityDTO_VCPU, emptyKey).
+		Selling(sdk.CommodityDTO_VMEM, emptyKey).
 		Selling(sdk.CommodityDTO_APPLICATION, fakeKey)
 
 	// Pod Supplychain builder
