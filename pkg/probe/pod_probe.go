@@ -295,6 +295,11 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 			commoditiesBought = append(commoditiesBought, accessComm)
 		}
 	}
+
+	//cluster commodity
+	clusterCommodityKey := ClusterID
+	clusterComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_CLUSTER).Key(clusterCommodityKey).Create()
+	commoditiesBought = append(commoditiesBought, clusterComm)
 	return commoditiesBought
 }
 

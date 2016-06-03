@@ -5,7 +5,15 @@ import (
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 
+	"github.com/vmturbo/kubeturbo/pkg/helper"
+
 	"github.com/vmturbo/vmturbo-go-sdk/sdk"
+
+	"github.com/golang/glog"
+)
+
+var (
+	ClusterID string
 )
 
 type KubeProbe struct {
@@ -14,9 +22,30 @@ type KubeProbe struct {
 
 // Create a new Kubernetes probe with the given kube client.
 func NewKubeProbe(kubeClient *client.Client) *KubeProbe {
+	flag, err := helper.LoadTestingFlag()
+	if err == nil && flag.LocalTestStitchingIP != "" {
+		localTestStitchingIP = flag.LocalTestStitchingIP
+	}
+	if ClusterID == "" {
+		id, err := getClusterID(kubeClient)
+		if err != nil {
+			glog.Errorf("Error trying to get cluster ID:%s", err)
+		} else {
+			ClusterID = id
+		}
+
+	}
 	return &KubeProbe{
 		KubeClient: kubeClient,
 	}
+}
+
+func getClusterID(kubeClient *client.Client) (string, error) {
+	svc, err := kubeClient.Services("default").Get("kubernetes")
+	if err != nil {
+		return "", err
+	}
+	return string(svc.UID), nil
 }
 
 func (this *KubeProbe) ParseNode() (result []*sdk.EntityDTO, err error) {

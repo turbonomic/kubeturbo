@@ -169,6 +169,11 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node) ([]*sdk.Commodit
 			commoditiesSold = append(commoditiesSold, accessComm)
 		}
 	}
+	// Use Kubernetes service UID as the key for cluster commodity
+	clusterCommodityKey := ClusterID
+	clusterComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_CLUSTER).Key(clusterCommodityKey).Create()
+	commoditiesSold = append(commoditiesSold, clusterComm)
+
 	return commoditiesSold, nil
 }
 

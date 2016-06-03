@@ -123,7 +123,8 @@ func createSupplyChain() []*sdk.TemplateDTO {
 		Selling(sdk.CommodityDTO_VMPM_ACCESS, fakeKey).
 		Selling(sdk.CommodityDTO_VCPU, emptyKey).
 		Selling(sdk.CommodityDTO_VMEM, emptyKey).
-		Selling(sdk.CommodityDTO_APPLICATION, fakeKey)
+		Selling(sdk.CommodityDTO_APPLICATION, fakeKey).
+		Selling(sdk.CommodityDTO_CLUSTER, fakeKey)
 
 	// Pod Supplychain builder
 	podSupplyChainNodeBuilder := sdk.NewSupplyChainNodeBuilder()
@@ -142,11 +143,17 @@ func createSupplyChain() []*sdk.TemplateDTO {
 		Key:           &fakeKey,
 		CommodityType: &memAllocationType,
 	}
+	clusterType := sdk.CommodityDTO_CLUSTER
+	clusterTemplateComm := &sdk.TemplateCommodity{
+		Key:           &fakeKey,
+		CommodityType: &clusterType,
+	}
 
 	podSupplyChainNodeBuilder = podSupplyChainNodeBuilder.
 		Provider(sdk.EntityDTO_VIRTUAL_MACHINE, sdk.Provider_LAYERED_OVER).
 		Buys(*cpuAllocationTemplateComm).
-		Buys(*memAllocationTemplateComm)
+		Buys(*memAllocationTemplateComm).
+		Buys(*clusterTemplateComm)
 
 	// Application supplychain builder
 	appSupplyChainNodeBuilder := sdk.NewSupplyChainNodeBuilder()
@@ -202,6 +209,7 @@ func createSupplyChain() []*sdk.TemplateDTO {
 		Commodity(cpuAllocationType, true).
 		Commodity(memAllocationType, true).
 		Commodity(vmpmaccessType, true).
+		Commodity(clusterType, true).
 		ProbeEntityPropertyDef(sdk.SUPPLYCHAIN_CONSTANT_IP_ADDRESS, "IP Address where the Pod is running").
 		ExternalEntityPropertyDef(sdk.VM_IP)
 
