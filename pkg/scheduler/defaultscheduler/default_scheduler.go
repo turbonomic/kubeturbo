@@ -34,8 +34,8 @@ func NewDefaultScheduler(kubeClient *client.Client) *DefaultScheduler {
 func (s *DefaultScheduler) FindDestination(pod *api.Pod) (string, error) {
 	dest, err := s.config.Algorithm.Schedule(pod, s.config.NodeLister)
 	if err != nil {
-		glog.Errorf("Error Scheduling pod %+v", pod)
-		return "", fmt.Errorf("Error Scheduling pod %+v", pod)
+		glog.Errorf("Error Scheduling pod %s/%s: %s", pod.Namespace, pod.Name, err)
+		return "", fmt.Errorf("Error Scheduling pod %s/%s: %s", pod.Namespace, pod.Name, err)
 	}
 	return dest, nil
 }
