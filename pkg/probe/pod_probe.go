@@ -150,29 +150,7 @@ func (podProbe *PodProbe) groupContainerByPod() (map[string][]*vmtAdvisor.Contai
 
 // Get the current pod resource capacity and usage.
 func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[string][]*vmtAdvisor.Container) (*PodResourceStat, error) {
-	cpuCapacity := float64(0)
-	memCapacity := int64(0)
-
-	// TODO! Here we assume when user defines a pod, resource requirements are also specified.
-	// The metrics we care about now are Cpu and Mem.
-	for _, container := range pod.Spec.Containers {
-		limits := container.Resources.Limits
-		request := container.Resources.Requests
-
-		memCap := limits.Memory().Value()
-		if memCap == 0 {
-			memCap = request.Memory().Value()
-		}
-		cpuCap := float64(limits.Cpu().MilliValue()) / float64(1000)
-		if cpuCap == 0 {
-			cpuCap = float64(request.Cpu().MilliValue()) / float64(1000)
-		}
-		memCapacity += memCap
-		cpuCapacity += cpuCap
-	}
-
 	podNameWithNamespace := pod.Namespace + "/" + pod.Name
-
 	// get cpu frequency
 	machineInfo, ok := nodeMachineInfoMap[pod.Spec.NodeName]
 	if !ok {
@@ -180,15 +158,19 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	}
 	cpuFrequency := machineInfo.CpuFrequency / 1000
 
+	cpuCapacity, memCapacity, err := GetResourceLimits(pod)
+	if err != nil {
+		return nil, err
+	}
 	if cpuCapacity == 0 || memCapacity == 0 {
 		cpuCapacity = float64(machineInfo.NumCores)
-		memCapacity = int64(machineInfo.MemoryCapacity)
+		memCapacity = float64(machineInfo.MemoryCapacity) / 1024
 	}
 	glog.V(4).Infof("Cpu cap of Pod %s in k8s format is %f", pod.Name, cpuCapacity)
 
 	// the cpu return value is in KHz. VMTurbo uses MHz. So here should divide 1000
-	podCpuCapacity := float64(cpuCapacity) * float64(cpuFrequency)
-	podMemCapacity := float64(memCapacity) / 1024 // Mem is in bytes, convert to Kb
+	podCpuCapacity := cpuCapacity * float64(cpuFrequency)
+	podMemCapacity := memCapacity // Mem is in bytes, convert to Kb
 	glog.V(4).Infof("Cpu cap of Pod %s is %f", pod.Name, podCpuCapacity)
 	glog.V(4).Infof("Mem cap of Pod %s is %f", pod.Name, podMemCapacity)
 

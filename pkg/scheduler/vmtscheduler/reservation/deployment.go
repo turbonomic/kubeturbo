@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
+	utilrand "k8s.io/kubernetes/pkg/util/rand"
 
 	vmtapi "github.com/vmturbo/kubeturbo/pkg/api"
 	"github.com/vmturbo/kubeturbo/pkg/helper"
@@ -47,7 +48,11 @@ func NewDeployment(meta *vmtmeta.VMTMeta) *Reservation {
 // But the result is a map. Will change later when deploy works.
 func (this *Reservation) GetDestinationFromVmturbo(pod *api.Pod) (map[*api.Pod]string, error) {
 
-	requestSpec := getRequestSpec(pod)
+	requestSpec, err := getRequestSpec(pod)
+
+	if err != nil {
+		return nil, err
+	}
 
 	// reservationResult is map[string]string -- [podName]nodeName
 	// TODO !!!!!!! Now only support a single pod.
@@ -75,15 +80,19 @@ func (this *Reservation) GetDestinationFromVmturbo(pod *api.Pod) (map[*api.Pod]s
 }
 
 // Get the request specification, basically the pamameters that should be sent with post
-func getRequestSpec(pod *api.Pod) map[string]string {
+func getRequestSpec(pod *api.Pod) (map[string]string, error) {
 	requestSpec := make(map[string]string)
-	requestSpec["reservation_name"] = "kubernetesReservationTest"
+	requestSpec["reservation_name"] = "K8sReservation" + utilrand.String(3)
 	requestSpec["num_instances"] = "1"
 	// TODO, choose template name and template uuid based on pod resource limits.
-	requestSpec["template_name"] = "DC5_1CxZMJkEEeCaJOYu5"
-	requestSpec["templateUuids[]"] = "DC5_1CxZMJkEEeCaJOYu5"
+	templateUUID, err := SelectTemplateForPod(pod)
+	if err != nil {
+		return nil, err
+	}
+	requestSpec["template_name"] = templateUUID
+	requestSpec["templateUuids[]"] = templateUUID
 
-	return requestSpec
+	return requestSpec, nil
 }
 
 // this method takes in a http get response for reservation and should return the reservation uuid, if there is any
