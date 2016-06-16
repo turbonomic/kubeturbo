@@ -135,7 +135,7 @@ func (this *Reservation) RequestPlacement(podName string, requestSpec, filterPro
 	glog.V(3).Infof("Reservation UUID is %s", string(reservationUUID))
 
 	// TODO, do we want to wait for a predefined time or send send API requests multiple times.
-	time.Sleep(2 * time.Second)
+	time.Sleep(200 * time.Millisecond)
 	getResponse, getRevErr := vmturboApi.Get("/reservations/" + reservationUUID)
 	// After getting the destination, delete the reservation.
 	deleteResponse, err := vmturboApi.Delete("/reservations/" + reservationUUID)

@@ -1,7 +1,7 @@
 sudo -E  "./actionexecutionsimulator" \
-	--v=3 \
+	--v=4 \
 	--master="http://127.0.0.1:8080" \
 	--etcd-servers="http://127.0.0.1:4001" \
-	--label="frontend" \
+	--pod="frontend-57ytg" \
 	--action="provision" \
-	--replica="6" > /tmp/kube-vmturbo.log 2>&1
+	--replica="3" > /tmp/kubeactionsimulator.log 2>&1

@@ -155,10 +155,7 @@ func (handler *KubernetesServerMessageHandler) HandleAction(serverMsg *comm.Medi
 	// the mediation client (vmturbo service) is embeded inside kubernetes.
 	actionItemDTO := actionRequest.GetActionItemDTO()
 	glog.V(4).Infof("The received ActionItemDTO is %v", actionItemDTO)
-	actionExecutor := &vmtaction.KubernetesActionExecutor{
-		KubeClient:  handler.kubeClient,
-		EtcdStorage: handler.etcdStorage,
-	}
+	actionExecutor := vmtaction.NewVMTActionExecutor(handler.kubeClient, handler.etcdStorage)
 	err := actionExecutor.ExcuteAction(actionItemDTO, messageID)
 	if err != nil {
 		glog.Errorf("Error execute action: %s", err)

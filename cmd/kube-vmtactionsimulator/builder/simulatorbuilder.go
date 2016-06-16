@@ -23,14 +23,16 @@ const (
 )
 
 type ActionSimulator struct {
-	kubeClient  *client.Client
-	etcdStorage storage.Storage
-	action      string
-	destination string
-	namespace   string
-	podToMove   string
-	label       string
-	newReplica  string
+	kubeClient         *client.Client
+	etcdStorage        storage.Storage
+	action             string
+	destination        string
+	namespace          string
+	pod                string
+	application        string
+	virtualApplication string
+	label              string
+	newReplica         string
 }
 
 func (as *ActionSimulator) KubeClient() *client.Client {
@@ -53,8 +55,8 @@ func (as *ActionSimulator) Namespace() string {
 	return as.namespace
 }
 
-func (as *ActionSimulator) PodToMove() string {
-	return as.podToMove
+func (as *ActionSimulator) Pod() string {
+	return as.pod
 }
 
 func (as *ActionSimulator) Label() string {
@@ -65,6 +67,14 @@ func (as *ActionSimulator) NewReplica() string {
 	return as.newReplica
 }
 
+func (as *ActionSimulator) Application() string {
+	return as.application
+}
+
+func (as *ActionSimulator) VirtualApplication() string {
+	return as.virtualApplication
+}
+
 // VMTServer has all the context and params needed to run a Scheduler
 type SimulatorBuilder struct {
 	KubeClient            *client.Client
@@ -73,7 +83,9 @@ type SimulatorBuilder struct {
 	Master                string
 	Kubeconfig            string
 	Namespace             string
-	PodToMove             string
+	Pod                   string
+	Application           string
+	VirtualApplication    string
 	Label                 string
 	NewReplica            string
 	Action                string
@@ -122,16 +134,20 @@ func (s *SimulatorBuilder) Build() (*ActionSimulator, error) {
 
 	if s.Destination != "" {
 		simulator.destination = s.Destination
-	} else {
-		glog.Warningf("--destination was not specified.")
-
 	}
 
-	if s.PodToMove != "" {
-		simulator.podToMove = s.PodToMove
+	if s.Pod != "" {
+		simulator.pod = s.Pod
 	} else {
 		glog.Warningf("--pod was not specified.")
 
+	}
+	if s.Application != "" {
+		simulator.application = s.Application
+	}
+
+	if s.VirtualApplication != "" {
+		simulator.virtualApplication = s.VirtualApplication
 	}
 
 	if s.Namespace != "" {
@@ -144,16 +160,10 @@ func (s *SimulatorBuilder) Build() (*ActionSimulator, error) {
 
 	if s.Label != "" {
 		simulator.label = s.Label
-	} else {
-		glog.Warningf("--label was not specified.")
-
 	}
 
 	if s.NewReplica != "" {
 		simulator.newReplica = s.NewReplica
-	} else {
-		glog.Warningf("--new replica was not specified.")
-
 	}
 
 	return simulator, nil
@@ -165,7 +175,9 @@ func (s *SimulatorBuilder) AddFlags(fs *pflag.FlagSet) *SimulatorBuilder {
 	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
 	fs.StringVar(&s.Kubeconfig, "kubeconfig", s.Kubeconfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.StringVar(&s.Namespace, "namespace", s.Namespace, "Namespace of the pod to be moved")
-	fs.StringVar(&s.PodToMove, "pod", s.PodToMove, "Pod to be moved")
+	fs.StringVar(&s.Pod, "pod", s.Pod, "Pod to be moved")
+	fs.StringVar(&s.Application, "application", s.Application, "Applicaton to unbind")
+	fs.StringVar(&s.VirtualApplication, "vapp", s.VirtualApplication, "VIrtual application to unbind")
 	fs.StringVar(&s.Label, "label", s.Label, "The label of replication controller")
 	fs.StringVar(&s.NewReplica, "replica", s.NewReplica, "New replica")
 	fs.StringVar(&s.Action, "action", s.Action, "The action to take")
