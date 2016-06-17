@@ -101,32 +101,49 @@ type ObjectMeta struct {
 }
 
 // VMTEvent defines all kinds of events those related to VMT service.
-// TODO. Current VMTEvent is only for Move action. The same struct is also define in v1->type.go
 type VMTEvent struct {
 	TypeMeta   `json:",inline"`
 	ObjectMeta `json:"metadata,omitempty"`
 
-	// The type of the action
-	ActionType string `json:"actionType,omitempty"`
-
-	// The name of the related SE
-	TargetSE string `json:"targetSE,omitempty"`
-
-	// the destination of the move action. Should be the name of the node.
-	Destination string `json:"destination,omitempty"`
-
-	// This field to store the messageID of the incoming server request.
-	// The same message ID should be used to create a valid response.
-	VMTMessageID int `json:"messageId,omitempty"`
+	Content VMTEventContent `json:"content,omitempty"`
 
 	// The time at which the event was first recorded. (Time of server receipt is in TypeMeta.)
 	FirstTimestamp unversioned.Time `json:"firstTimestamp,omitempty"`
 
 	// The time at which the most recent occurrence of this event was recorded.
 	LastTimestamp unversioned.Time `json:"lastTimestamp,omitempty"`
+}
 
-	// The number of times this event has occurred.
-	Count int `json:"count,omitempty"`
+type VMTEventContent struct {
+	// The type of the action
+	ActionType string `json:"actionType,omitempty"`
+
+	// The name of the related SE
+	TargetSE string `json:"targetSE,omitempty"`
+
+	MoveSpec MoveEventSpec `json:"moveSpec,omitempty"`
+
+	ScaleSpec ScaleEventSpec `json:"scaleSpec,omitempty"`
+
+	// This field to store the messageID of the incoming server request.
+	// The same message ID should be used to create a valid response.
+	VMTMessageID int `json:"messageId,omitempty"`
+}
+
+type MoveEventSpec struct {
+	// the origin of the move action. Should be the name of the original node.
+	Source string `json:"source,omitempty"`
+
+	// the destination of the move action. Should be the name of the new node.
+	Destination string `json:"destination,omitempty"`
+}
+
+type ScaleEventSpec struct {
+	// the origin of the move action. Should be the name of the original node.
+	OriginalReplicas int `json:"originalReplicas,omitempty"`
+
+	// the destination of the move action. Should be the name of the new node.
+	NewReplicas int `json:"newReplicas,omitempty"`
 }
 
 // ListMeta describes metadata that synthetic resources must have, including lists and

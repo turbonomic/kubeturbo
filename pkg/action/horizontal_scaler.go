@@ -45,19 +45,22 @@ func (this *HorizontalScaler) ScaleOut(actionItem *sdk.ActionItemDTO, msgID int3
 		podName := providerPod.Name
 		podIdentifier := podNamespace + "/" + podName
 
-		targetReplicationController, err := FindReplicationControllerForPod(this.kubeClient, providerPod)
+		rc, err := FindReplicationControllerForPod(this.kubeClient, providerPod)
 		if err != nil {
 			return fmt.Errorf("Error getting replication controller related to pod %s: %s", podIdentifier, err)
 		}
-		err = this.ProvisionPods(targetReplicationController)
+		err = this.ProvisionPods(rc)
 		if err != nil {
 			return fmt.Errorf("Error provision pod %s: %s", podIdentifier, err)
 		}
 
-		vmtEvents := registry.NewVMTEvents(this.kubeClient, "", this.etcdStorage)
-		event := registry.GenerateVMTEvent(ActionProvision, targetReplicationController.Namespace, targetReplicationController.Name, "not specified", int(msgID))
+		content := registry.NewVMTEventContentBuilder(ActionProvision, rc.Name, int(msgID)).
+			ScaleSpec(rc.Spec.Replicas, rc.Spec.Replicas+1).Build()
+		event := registry.NewVMTEventBuilder(rc.Namespace).Content(content).Create()
 		glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
-		_, errorPost := vmtEvents.Create(event)
+
+		vmtEvents := registry.NewVMTEvents(this.kubeClient, "", this.etcdStorage)
+		_, errorPost := vmtEvents.Create(&event)
 		if errorPost != nil {
 			return fmt.Errorf("Error creating VMTEvent for provisioning Pod %s: %s\n", podIdentifier, errorPost)
 		}
@@ -115,32 +118,29 @@ func (this *HorizontalScaler) ScaleIn(actionItem *sdk.ActionItemDTO, msgID int32
 		if len(ids) < 2 {
 			return fmt.Errorf("%s is not a valid Application ID. Unbind failed.", appName)
 		}
-
 		podIdentifier := ids[1]
-
-		podNamespace, _, err := ProcessPodIdentifier(podIdentifier)
-		if err != nil {
-			return err
-		}
 
 		providerPod, err := GetPodFromIdentifier(this.kubeClient, podIdentifier)
 		if err != nil {
 			return err
 		}
 
-		targetReplicationController, err := FindReplicationControllerForPod(this.kubeClient, providerPod)
+		rc, err := FindReplicationControllerForPod(this.kubeClient, providerPod)
 		if err != nil {
 			return err
 		}
-		err = this.UnbindPods(targetReplicationController)
+		err = this.UnbindPods(rc)
 		if err != nil {
 			return err
 		}
 
-		vmtEvents := registry.NewVMTEvents(this.kubeClient, "", this.etcdStorage)
-		event := registry.GenerateVMTEvent(ActionUnbind, podNamespace, targetReplicationController.Name, "not specified", int(msgID))
+		content := registry.NewVMTEventContentBuilder(ActionUnbind, rc.Name, int(msgID)).
+			ScaleSpec(rc.Spec.Replicas, rc.Spec.Replicas-1).Build()
+		event := registry.NewVMTEventBuilder(rc.Namespace).Content(content).Create()
 		glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
-		_, errorPost := vmtEvents.Create(event)
+
+		vmtEvents := registry.NewVMTEvents(this.kubeClient, "", this.etcdStorage)
+		_, errorPost := vmtEvents.Create(&event)
 		if errorPost != nil {
 			return fmt.Errorf("Error posting vmtevent: %s\n", errorPost)
 		}

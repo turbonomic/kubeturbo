@@ -55,17 +55,18 @@ func (v *VMTurboService) Run() {
 func (v *VMTurboService) getNextVMTEvent() {
 	event := v.config.VMTEventQueue.Pop().(*registry.VMTEvent)
 	glog.V(2).Infof("Get a new VMTEvent from etcd: %v", event)
-	if event.ActionType == "move" || event.ActionType == "provision" {
+	content := event.Content
+	if content.ActionType == "move" || content.ActionType == "provision" {
 		glog.V(2).Infof("VMTEvent must be handled.")
 		// Send VMTEvent to channel.
 		v.vmtEventChan <- event
-	} else if event.ActionType == "unbind" {
-		glog.V(3).Infof("Decrease the replicas of %s.", event.TargetSE)
+	} else if content.ActionType == "unbind" {
+		glog.V(3).Infof("Decrease the replicas of %s.", content.TargetSE)
 		// TODO. Need to find a way to verify the replicas has been updated
-		if event.VMTMessageID > -1 {
+		if content.VMTMessageID > -1 {
 			glog.V(2).Infof("Action Succeeded.")
 			progress := int32(100)
-			v.vmtcomm.SendActionReponse(sdk.ActionResponseState_SUCCEEDED, progress, int32(event.VMTMessageID), "Success")
+			v.vmtcomm.SendActionReponse(sdk.ActionResponseState_SUCCEEDED, progress, int32(content.VMTMessageID), "Success")
 		}
 		time.Sleep(time.Millisecond * 500)
 		v.vmtcomm.DiscoverTarget()
@@ -84,37 +85,38 @@ func (v *VMTurboService) getNextPod() {
 	pod := v.config.PodQueue.Pop().(*api.Pod)
 	glog.V(3).Infof("Get a new Pod %v", pod.Name)
 
-	// If we want to track new Pod, create a VMTEvent and post it to etcd.
-	vmtEvents := registry.NewVMTEvents(v.config.Client, "", v.config.EtcdStorage)
-	event := registry.GenerateVMTEvent("create", pod.Namespace, pod.Name, "", 1)
-	_, errorPost := vmtEvents.Create(event)
-	if errorPost != nil {
-		glog.Errorf("Error posting vmtevent: %s\n", errorPost)
-	}
+	// // If we want to track new Pod, create a VMTEvent and post it to etcd.
+	// vmtEvents := registry.NewVMTEvents(v.config.Client, "", v.config.EtcdStorage)
+	// event := registry.GenerateVMTEvent("create", pod.Namespace, pod.Name, "", 1)
+	// _, errorPost := vmtEvents.Create(event)
+	// if errorPost != nil {
+	// 	glog.Errorf("Error posting vmtevent: %s\n", errorPost)
+	// }
 
 	select {
 	case vmtEventFromEtcd := <-v.vmtEventChan:
-		glog.V(3).Infof("Receive VMTEvent type %s", vmtEventFromEtcd.ActionType)
+		content := vmtEventFromEtcd.Content
+		glog.V(3).Infof("Receive VMTEvent type %s", content.ActionType)
 
 		hasError := false
-		switch vmtEventFromEtcd.ActionType {
+		switch content.ActionType {
 		case "move":
 
 			if validatePodToBeMoved(pod, vmtEventFromEtcd) {
 				glog.V(2).Infof("Pod %s/%s is to be scheduled to %s as a result of MOVE action",
-					pod.Namespace, pod.Name, vmtEventFromEtcd.Destination)
+					pod.Namespace, pod.Name, content.MoveSpec.Destination)
 
-				v.TurboScheduler.ScheduleTo(pod, vmtEventFromEtcd.Destination)
+				v.TurboScheduler.ScheduleTo(pod, content.MoveSpec.Destination)
 			} else {
 				hasError = true
 			}
 
 			break
 		case "provision":
-			glog.V(3).Infof("Increase the replicas of %s.", vmtEventFromEtcd.TargetSE)
+			glog.V(3).Infof("Increase the replicas of %s.", content.TargetSE)
 
 			// double check if the pod is created as the result of provision
-			hasPrefix := strings.HasPrefix(pod.Name, vmtEventFromEtcd.TargetSE)
+			hasPrefix := strings.HasPrefix(pod.Name, content.TargetSE)
 			if !hasPrefix {
 				hasError = true
 				break
@@ -130,18 +132,18 @@ func (v *VMTurboService) getNextPod() {
 		if hasError {
 			// Send back action failed. Then simply deploy the pod using scheduler.
 			glog.V(2).Infof("Action failed")
-			if vmtEventFromEtcd.VMTMessageID > -1 {
-				v.vmtcomm.SendActionReponse(sdk.ActionResponseState_FAILED, int32(0), int32(vmtEventFromEtcd.VMTMessageID), "Failed")
+			if content.VMTMessageID > -1 {
+				v.vmtcomm.SendActionReponse(sdk.ActionResponseState_FAILED, int32(0), int32(content.VMTMessageID), "Failed")
 			}
 			break
 		} else {
 			// TODO, at this point, we really do not know if the assignment of the pod succeeds or not.
 			// The right place of sending move reponse is after the event.
 			// Here for test purpose, send the move success action response.
-			if vmtEventFromEtcd.VMTMessageID > -1 {
+			if content.VMTMessageID > -1 {
 				glog.V(2).Infof("Action Succeeded.")
 				progress := int32(100)
-				v.vmtcomm.SendActionReponse(sdk.ActionResponseState_SUCCEEDED, progress, int32(vmtEventFromEtcd.VMTMessageID), "Success")
+				v.vmtcomm.SendActionReponse(sdk.ActionResponseState_SUCCEEDED, progress, int32(content.VMTMessageID), "Success")
 			}
 			time.Sleep(time.Millisecond * 500)
 			v.vmtcomm.DiscoverTarget()
@@ -160,7 +162,7 @@ func (v *VMTurboService) getNextPod() {
 func validatePodToBeMoved(pod *api.Pod, vmtEvent *registry.VMTEvent) bool {
 	// TODO. Now based on name.
 	eventPodNamespace := vmtEvent.Namespace
-	eventPodName := vmtEvent.TargetSE
+	eventPodName := vmtEvent.Content.TargetSE
 	validEventPodName := eventPodName
 	eventPodNamePartials := strings.Split(eventPodName, "-")
 	if len(eventPodNamePartials) > 1 {

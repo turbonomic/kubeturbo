@@ -3,8 +3,6 @@ package registry
 import (
 	"fmt"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 
 	"github.com/vmturbo/kubeturbo/pkg/storage"
@@ -135,36 +133,4 @@ func (e *vmtevents) DeleteAll() error {
 		}
 	}
 	return nil
-}
-
-// Build a new VMTEvent.
-func GenerateVMTEvent(actionType, namespace, targetSE, destination string, messageId int) *VMTEvent {
-
-	event := makeVMTEvent(actionType, namespace, targetSE, destination, messageId)
-
-	return event
-}
-
-// Make a new VMTEvent instance.
-func makeVMTEvent(actionType, namespace, targetSE, destination string, messageId int) *VMTEvent {
-	t := unversioned.Now()
-	if namespace == "" {
-		namespace = api.NamespaceDefault
-	}
-	return &VMTEvent{
-		TypeMeta: TypeMeta{
-			Kind: "VMTEvent",
-		},
-		ObjectMeta: ObjectMeta{
-			Name:      fmt.Sprintf("%v.%x", targetSE, t.UnixNano()),
-			Namespace: namespace,
-		},
-		ActionType:     actionType,
-		TargetSE:       targetSE,
-		Destination:    destination,
-		VMTMessageID:   messageId,
-		FirstTimestamp: t,
-		LastTimestamp:  t,
-		Count:          messageId,
-	}
 }

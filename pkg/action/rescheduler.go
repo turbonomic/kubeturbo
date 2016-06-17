@@ -121,11 +121,17 @@ func (this *Rescheduler) ReschedulePod(podIdentifier, targetNodeIdentifier strin
 		glog.V(3).Infof("Successfully delete pod %s.\n", podIdentifier)
 	}
 
+	// event := registry.GenerateVMTEvent(ActionMove, podNamespace, podName, targetNodeIdentifier, int(msgID))
+	// glog.V(4).Infof("vmt event is %++v, with msgId %d", event, msgID)
+
+	content := registry.NewVMTEventContentBuilder(ActionUnbind, podName, int(msgID)).
+		MoveSpec(originalPod.Spec.NodeName, targetNodeIdentifier).Build()
+	event := registry.NewVMTEventBuilder(podNamespace).Content(content).Create()
+	glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
+
 	// Create VMTEvent and post onto etcd.
 	vmtEvents := registry.NewVMTEvents(this.kubeClient, "", this.etcdStorage)
-	event := registry.GenerateVMTEvent(ActionMove, podNamespace, podName, targetNodeIdentifier, int(msgID))
-	glog.V(4).Infof("vmt event is %++v, with msgId %d", event, msgID)
-	_, errorPost := vmtEvents.Create(event)
+	_, errorPost := vmtEvents.Create(&event)
 	if errorPost != nil {
 		glog.Errorf("Error posting vmtevent: %s\n", errorPost)
 		return fmt.Errorf("Error creating VMTEvents for moving Pod %s to Node %s: %s\n",
