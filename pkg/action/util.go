@@ -33,6 +33,21 @@ func ProcessPodIdentifier(podIdentifier string) (string, string, error) {
 	return podNamespace, podName, nil
 }
 
+func GetPodFromCluster(kubeClient *client.Client, podIdentifier string) (*api.Pod, error) {
+	podNamespace, podName, err := ProcessPodIdentifier(podIdentifier)
+	if err != nil {
+		return nil, err
+	}
+
+	pod, err := kubeClient.Pods(podNamespace).Get(podName)
+	if err != nil {
+		glog.Errorf("Error getting pod %s: %s.", podIdentifier, err)
+		return nil, err
+	}
+	glog.V(4).Infof("Successfully got pod %s.", podIdentifier)
+	return pod, nil
+}
+
 func FindReplicationControllerForPod(kubeClient *client.Client, currentPod *api.Pod) (*api.ReplicationController, error) {
 	// loop through all the labels in the pod and get List of RCs with selector that match at least one label
 	podNamespace := currentPod.Namespace

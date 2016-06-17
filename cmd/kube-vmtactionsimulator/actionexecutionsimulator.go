@@ -59,7 +59,7 @@ func main() {
 			NewSE:      newSE,
 		}
 
-		err := actor.ExcuteAction(actionItemDTO, -1)
+		_, err := actor.ExcuteAction(actionItemDTO, -1)
 		if err != nil {
 			glog.Errorf("Error executing move: %v", err)
 		}
@@ -78,7 +78,7 @@ func main() {
 			NewSE:      newSE,
 		}
 
-		err := actor.ExcuteAction(actionItemDTO, -1)
+		_, err := actor.ExcuteAction(actionItemDTO, -1)
 		if err != nil {
 			glog.Errorf("Error executing provision: %v", err)
 		}
@@ -96,7 +96,7 @@ func main() {
 			TargetSE:   targetSE,
 			CurrentSE:  currentSE,
 		}
-		err := actor.ExcuteAction(actionItemDTO, -1)
+		_, err := actor.ExcuteAction(actionItemDTO, -1)
 		if err != nil {
 			glog.Errorf("Error executing provision: %v", err)
 		}

@@ -8,7 +8,6 @@ import (
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 
 	"github.com/vmturbo/kubeturbo/pkg/registry"
-	"github.com/vmturbo/kubeturbo/pkg/storage"
 
 	"github.com/vmturbo/vmturbo-go-sdk/sdk"
 
@@ -17,21 +16,21 @@ import (
 
 // KubernetesActionExecutor is responsilbe for executing different kinds of actions requested by vmt server.
 type Rescheduler struct {
-	kubeClient  *client.Client
-	etcdStorage storage.Storage
+	kubeClient       *client.Client
+	vmtEventRegistry *registry.VMTEventRegistry
 }
 
 // Create new VMT Actor. Must specify the kubernetes client.
-func NewRescheduler(client *client.Client, etcdStorage storage.Storage) *Rescheduler {
+func NewRescheduler(client *client.Client, vmtEventRegistry *registry.VMTEventRegistry) *Rescheduler {
 	return &Rescheduler{
-		kubeClient:  client,
-		etcdStorage: etcdStorage,
+		kubeClient:       client,
+		vmtEventRegistry: vmtEventRegistry,
 	}
 }
 
-func (this *Rescheduler) MovePod(actionItem *sdk.ActionItemDTO, msgID int32) error {
+func (this *Rescheduler) MovePod(actionItem *sdk.ActionItemDTO, msgID int32) (*registry.VMTEvent, error) {
 	if actionItem == nil {
-		return fmt.Errorf("ActionItem passed in is nil")
+		return nil, fmt.Errorf("ActionItem passed in is nil")
 	}
 	newSEType := actionItem.GetNewSE().GetEntityType()
 	if newSEType == sdk.EntityDTO_VIRTUAL_MACHINE || newSEType == sdk.EntityDTO_PHYSICAL_MACHINE {
@@ -46,7 +45,7 @@ func (this *Rescheduler) MovePod(actionItem *sdk.ActionItemDTO, msgID int32) err
 			// targetNode entityDTO.
 			vmData := targetNode.GetVirtualMachineData()
 			if vmData == nil {
-				return fmt.Errorf("Missing VirtualMachineData in ActionItemDTO from server")
+				return nil, fmt.Errorf("Missing VirtualMachineData in ActionItemDTO from server")
 			}
 			machineIPs = vmData.GetIpAddress()
 			break
@@ -58,25 +57,41 @@ func (this *Rescheduler) MovePod(actionItem *sdk.ActionItemDTO, msgID int32) err
 
 		glog.V(3).Infof("The IPs of targetNode is %v", machineIPs)
 		if machineIPs == nil {
-			return fmt.Errorf("Miss IP addresses in ActionItemDTO.")
+			return nil, fmt.Errorf("Miss IP addresses in ActionItemDTO.")
 		}
 
 		// Get the actual node name from Kubernetes cluster based on IP address.
 		nodeIdentifier, err := GetNodeNameFromIP(this.kubeClient, machineIPs)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		targetPod := actionItem.GetTargetSE()
 		podIdentifier := targetPod.GetId() // podIdentifier must have format as "Namespace/Name"
 
-		err = this.ReschedulePod(podIdentifier, nodeIdentifier, msgID)
+		originalPod, err := GetPodFromCluster(this.kubeClient, podIdentifier)
 		if err != nil {
-			return fmt.Errorf("Error move Pod %s: %s", podIdentifier, err)
+			return nil, err
 		}
-		return nil
+
+		content := registry.NewVMTEventContentBuilder(ActionMove, originalPod.Name, int(msgID)).
+			MoveSpec(originalPod.Spec.NodeName, nodeIdentifier).Build()
+		event := registry.NewVMTEventBuilder(originalPod.Namespace).Content(content).Create()
+		glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
+
+		// Create VMTEvent and post onto etcd.
+		_, errorPost := this.vmtEventRegistry.Create(&event)
+		if errorPost != nil {
+			return nil, fmt.Errorf("Error posting VMTEvent %s for %s", content.ActionType, content.TargetSE)
+		}
+		err = this.ReschedulePod(originalPod, podIdentifier, nodeIdentifier, msgID)
+		if err != nil {
+			return nil, fmt.Errorf("Error moving Pod %s: %s", podIdentifier, err)
+		}
+
+		return &event, nil
 	} else {
-		return fmt.Errorf("The target service entity for move destiantion is neither a VM nor a PM.")
+		return nil, fmt.Errorf("The target service entity for move destiantion is neither a VM nor a PM.")
 	}
 }
 
@@ -87,25 +102,16 @@ func (this *Rescheduler) MovePod(actionItem *sdk.ActionItemDTO, msgID int32) err
 // 4. Pod watcher in the vmturbo-service find the new Pod and the new VMTEvent.
 // 5. Schedule Pod according to move action.
 // This method delete the pod and create a VMTEvent.
-func (this *Rescheduler) ReschedulePod(podIdentifier, targetNodeIdentifier string, msgID int32) error {
-	podNamespace, podName, err := ProcessPodIdentifier(podIdentifier)
-	if err != nil {
-		return err
-	}
+func (this *Rescheduler) ReschedulePod(originalPod *api.Pod, podIdentifier, targetNodeIdentifier string, msgID int32) error {
 
 	if targetNodeIdentifier == "" {
 		return fmt.Errorf("Target node identifier should not be empty.\n")
 	}
 
-	glog.V(3).Infof("Now Moving Pod %s.", podIdentifier)
+	podNamespace := originalPod.Namespace
+	podName := originalPod.Name
 
-	originalPod, err := this.kubeClient.Pods(podNamespace).Get(podName)
-	if err != nil {
-		glog.Errorf("Error getting pod %s: %s.", podIdentifier, err)
-		return err
-	} else {
-		glog.V(4).Infof("Successfully got pod %s.", podIdentifier)
-	}
+	glog.V(3).Infof("Now Move Pod %s.", podIdentifier)
 
 	rcForPod, err := FindReplicationControllerForPod(this.kubeClient, originalPod)
 	if err != nil {
@@ -119,23 +125,6 @@ func (this *Rescheduler) ReschedulePod(podIdentifier, targetNodeIdentifier strin
 		return fmt.Errorf("Error deleting pod %s: %s.\n", podIdentifier, err)
 	} else {
 		glog.V(3).Infof("Successfully delete pod %s.\n", podIdentifier)
-	}
-
-	// event := registry.GenerateVMTEvent(ActionMove, podNamespace, podName, targetNodeIdentifier, int(msgID))
-	// glog.V(4).Infof("vmt event is %++v, with msgId %d", event, msgID)
-
-	content := registry.NewVMTEventContentBuilder(ActionUnbind, podName, int(msgID)).
-		MoveSpec(originalPod.Spec.NodeName, targetNodeIdentifier).Build()
-	event := registry.NewVMTEventBuilder(podNamespace).Content(content).Create()
-	glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
-
-	// Create VMTEvent and post onto etcd.
-	vmtEvents := registry.NewVMTEvents(this.kubeClient, "", this.etcdStorage)
-	_, errorPost := vmtEvents.Create(&event)
-	if errorPost != nil {
-		glog.Errorf("Error posting vmtevent: %s\n", errorPost)
-		return fmt.Errorf("Error creating VMTEvents for moving Pod %s to Node %s: %s\n",
-			podIdentifier, targetNodeIdentifier, errorPost)
 	}
 
 	// This is a standalone pod. Need to clone manually.

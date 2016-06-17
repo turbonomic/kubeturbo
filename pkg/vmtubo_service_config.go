@@ -43,10 +43,10 @@ func NewVMTConfig(client *client.Client, etcdStorage storage.Storage, meta *vmtm
 		StopEverything: make(chan struct{}),
 	}
 
-	vmtEvents := registry.NewVMTEvents(config.Client, "", config.EtcdStorage)
+	vmtEventRegistry := registry.NewVMTEventRegistry(config.EtcdStorage)
 
 	//delete all the vmt events
-	errorDelete := vmtEvents.DeleteAll()
+	errorDelete := vmtEventRegistry.DeleteAll()
 	if errorDelete != nil {
 		glog.Errorf("Error deleting all vmt events: %s", errorDelete)
 	}

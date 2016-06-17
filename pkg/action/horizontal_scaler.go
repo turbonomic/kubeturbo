@@ -8,7 +8,6 @@ import (
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 
 	"github.com/vmturbo/kubeturbo/pkg/registry"
-	"github.com/vmturbo/kubeturbo/pkg/storage"
 
 	"github.com/vmturbo/vmturbo-go-sdk/sdk"
 
@@ -16,21 +15,21 @@ import (
 )
 
 type HorizontalScaler struct {
-	kubeClient  *client.Client
-	etcdStorage storage.Storage
+	kubeClient       *client.Client
+	vmtEventRegistry *registry.VMTEventRegistry
 }
 
 // Create new VMT Actor. Must specify the kubernetes client.
-func NewHorizontalScaler(client *client.Client, etcdStorage storage.Storage) *HorizontalScaler {
+func NewHorizontalScaler(client *client.Client, vmtEventRegistry *registry.VMTEventRegistry) *HorizontalScaler {
 	return &HorizontalScaler{
-		kubeClient:  client,
-		etcdStorage: etcdStorage,
+		kubeClient:       client,
+		vmtEventRegistry: vmtEventRegistry,
 	}
 }
 
-func (this *HorizontalScaler) ScaleOut(actionItem *sdk.ActionItemDTO, msgID int32) error {
+func (this *HorizontalScaler) ScaleOut(actionItem *sdk.ActionItemDTO, msgID int32) (*registry.VMTEvent, error) {
 	if actionItem == nil {
-		return fmt.Errorf("ActionItem passed in is nil")
+		return nil, fmt.Errorf("ActionItem passed in is nil")
 	}
 	targetEntityType := actionItem.GetTargetSE().GetEntityType()
 	if targetEntityType == sdk.EntityDTO_CONTAINER_POD ||
@@ -38,7 +37,7 @@ func (this *HorizontalScaler) ScaleOut(actionItem *sdk.ActionItemDTO, msgID int3
 
 		providerPod, err := this.getProviderPod(actionItem)
 		if err != nil {
-			return fmt.Errorf("Cannot find provider pod: %s", err)
+			return nil, fmt.Errorf("Cannot find provider pod: %s", err)
 		}
 
 		podNamespace := providerPod.Namespace
@@ -47,11 +46,7 @@ func (this *HorizontalScaler) ScaleOut(actionItem *sdk.ActionItemDTO, msgID int3
 
 		rc, err := FindReplicationControllerForPod(this.kubeClient, providerPod)
 		if err != nil {
-			return fmt.Errorf("Error getting replication controller related to pod %s: %s", podIdentifier, err)
-		}
-		err = this.ProvisionPods(rc)
-		if err != nil {
-			return fmt.Errorf("Error provision pod %s: %s", podIdentifier, err)
+			return nil, fmt.Errorf("Error getting replication controller related to pod %s: %s", podIdentifier, err)
 		}
 
 		content := registry.NewVMTEventContentBuilder(ActionProvision, rc.Name, int(msgID)).
@@ -59,14 +54,19 @@ func (this *HorizontalScaler) ScaleOut(actionItem *sdk.ActionItemDTO, msgID int3
 		event := registry.NewVMTEventBuilder(rc.Namespace).Content(content).Create()
 		glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
 
-		vmtEvents := registry.NewVMTEvents(this.kubeClient, "", this.etcdStorage)
-		_, errorPost := vmtEvents.Create(&event)
+		_, errorPost := this.vmtEventRegistry.Create(&event)
 		if errorPost != nil {
-			return fmt.Errorf("Error creating VMTEvent for provisioning Pod %s: %s\n", podIdentifier, errorPost)
+			return nil, fmt.Errorf("Error posting VMTEvent %s for %s", content.ActionType, content.TargetSE)
 		}
-		return nil
+
+		err = this.ProvisionPods(rc)
+		if err != nil {
+			return nil, fmt.Errorf("Error provision pod %s: %s", podIdentifier, err)
+		}
+
+		return &event, nil
 	}
-	return fmt.Errorf("Entity type %v is not supported for horizontal scaling out", targetEntityType)
+	return nil, fmt.Errorf("Entity type %v is not supported for horizontal scaling out", targetEntityType)
 }
 
 func (this *HorizontalScaler) getProviderPod(actionItem *sdk.ActionItemDTO) (*api.Pod, error) {
@@ -103,7 +103,7 @@ func (this *HorizontalScaler) ProvisionPods(targetReplicationController *api.Rep
 	return nil
 }
 
-func (this *HorizontalScaler) ScaleIn(actionItem *sdk.ActionItemDTO, msgID int32) error {
+func (this *HorizontalScaler) ScaleIn(actionItem *sdk.ActionItemDTO, msgID int32) (*registry.VMTEvent, error) {
 	currentSE := actionItem.GetCurrentSE()
 	targetEntityType := currentSE.GetEntityType()
 
@@ -116,22 +116,18 @@ func (this *HorizontalScaler) ScaleIn(actionItem *sdk.ActionItemDTO, msgID int32
 		appName := currentSE.GetId()
 		ids := strings.Split(appName, "::")
 		if len(ids) < 2 {
-			return fmt.Errorf("%s is not a valid Application ID. Unbind failed.", appName)
+			return nil, fmt.Errorf("%s is not a valid Application ID. Unbind failed.", appName)
 		}
 		podIdentifier := ids[1]
 
 		providerPod, err := GetPodFromIdentifier(this.kubeClient, podIdentifier)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		rc, err := FindReplicationControllerForPod(this.kubeClient, providerPod)
 		if err != nil {
-			return err
-		}
-		err = this.UnbindPods(rc)
-		if err != nil {
-			return err
+			return nil, err
 		}
 
 		content := registry.NewVMTEventContentBuilder(ActionUnbind, rc.Name, int(msgID)).
@@ -139,14 +135,19 @@ func (this *HorizontalScaler) ScaleIn(actionItem *sdk.ActionItemDTO, msgID int32
 		event := registry.NewVMTEventBuilder(rc.Namespace).Content(content).Create()
 		glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
 
-		vmtEvents := registry.NewVMTEvents(this.kubeClient, "", this.etcdStorage)
-		_, errorPost := vmtEvents.Create(&event)
+		_, errorPost := this.vmtEventRegistry.Create(&event)
 		if errorPost != nil {
-			return fmt.Errorf("Error posting vmtevent: %s\n", errorPost)
+			return nil, fmt.Errorf("Error posting VMTEvent %s for %s", content.ActionType, content.TargetSE)
 		}
-		return nil
+
+		err = this.UnbindPods(rc)
+		if err != nil {
+			return nil, err
+		}
+
+		return &event, nil
 	}
-	return fmt.Errorf("Entity type %v is not supported for horizontal scaling in", targetEntityType)
+	return nil, fmt.Errorf("Entity type %v is not supported for horizontal scaling in", targetEntityType)
 }
 
 // Update replica of the target replication controller.

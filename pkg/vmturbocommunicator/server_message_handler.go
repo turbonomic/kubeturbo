@@ -157,7 +157,7 @@ func (handler *KubernetesServerMessageHandler) HandleAction(serverMsg *comm.Medi
 	actionItemDTO := actionRequest.GetActionItemDTO()
 	glog.V(4).Infof("The received ActionItemDTO is %v", actionItemDTO)
 	actionExecutor := vmtaction.NewVMTActionExecutor(handler.kubeClient, handler.etcdStorage)
-	err := actionExecutor.ExcuteAction(actionItemDTO, messageID)
+	_, err := actionExecutor.ExcuteAction(actionItemDTO, messageID)
 	if err != nil {
 		glog.Errorf("Error execute action: %s", err)
 		handler.SendActionReponse(sdk.ActionResponseState_FAILED, int32(0), messageID, "Failed")

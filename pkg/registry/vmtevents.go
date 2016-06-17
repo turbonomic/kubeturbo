@@ -3,8 +3,6 @@ package registry
 import (
 	"fmt"
 
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 	"github.com/vmturbo/kubeturbo/pkg/storage/vmtruntime"
 	"github.com/vmturbo/kubeturbo/pkg/storage/watch"
@@ -17,28 +15,20 @@ const (
 )
 
 // events implements Events interface
-type vmtevents struct {
-	client      *client.Client
-	namespace   string
+type VMTEventRegistry struct {
 	etcdStorage storage.Storage
 }
 
 // newEvents returns a new events object.
-func NewVMTEvents(c *client.Client, ns string, etcd storage.Storage) *vmtevents {
-	return &vmtevents{
-		client:      c,
-		namespace:   ns,
+func NewVMTEventRegistry(etcd storage.Storage) *VMTEventRegistry {
+	return &VMTEventRegistry{
 		etcdStorage: etcd,
 	}
 }
 
 // Create makes a new vmtevent. Returns the copy of the vmtevent the server returns,
 // or an error.
-func (e *vmtevents) Create(event *VMTEvent) (*VMTEvent, error) {
-	if e.namespace != "" && event.Namespace != e.namespace {
-		return nil, fmt.Errorf("can't create an event with namespace '%v' in namespace '%v'", event.Namespace, e.namespace)
-	}
-	// api.Scheme.AddKnownTypes("", &VMTEvent{})
+func (e *VMTEventRegistry) Create(event *VMTEvent) (*VMTEvent, error) {
 	out, err := e.create(event)
 	if err != nil {
 		return nil, err
@@ -48,7 +38,7 @@ func (e *vmtevents) Create(event *VMTEvent) (*VMTEvent, error) {
 }
 
 // Create inserts a new item according to the unique key from the object.
-func (e *vmtevents) create(obj vmtruntime.VMTObject) (vmtruntime.VMTObject, error) {
+func (e *VMTEventRegistry) create(obj vmtruntime.VMTObject) (vmtruntime.VMTObject, error) {
 	name := obj.(*VMTEvent).Name
 	key := VMTEVENT_KEY_PREFIX + name
 	ttl := uint64(10000)
@@ -63,7 +53,7 @@ func (e *vmtevents) create(obj vmtruntime.VMTObject) (vmtruntime.VMTObject, erro
 }
 
 // Get retrieves the item from etcd.
-func (e *vmtevents) Get() (vmtruntime.VMTObject, error) {
+func (e *VMTEventRegistry) Get() (vmtruntime.VMTObject, error) {
 	obj := &VMTEvent{}
 	key := VMTEVENT_KEY_PREFIX
 	glog.Infof("Get %s", key)
@@ -77,7 +67,7 @@ func (e *vmtevents) Get() (vmtruntime.VMTObject, error) {
 }
 
 // List returns a list of events matching the selectors.
-func (e *vmtevents) List() (*VMTEventList, error) {
+func (e *VMTEventRegistry) List() (*VMTEventList, error) {
 	result := &VMTEventList{}
 	r, err := e.ListPredicate()
 	if err != nil {
@@ -90,7 +80,7 @@ func (e *vmtevents) List() (*VMTEventList, error) {
 }
 
 // ListPredicate returns a list of all the items matching m.
-func (e *vmtevents) ListPredicate() (interface{}, error) {
+func (e *VMTEventRegistry) ListPredicate() (interface{}, error) {
 	list := &VMTEventList{}
 	rootKey := VMTEVENT_KEY_PREFIX
 	err := e.etcdStorage.List(rootKey, list)
@@ -101,7 +91,7 @@ func (e *vmtevents) ListPredicate() (interface{}, error) {
 }
 
 // Watch starts watching for vmtevents matching the given selectors.
-func (e *vmtevents) Watch(resourceVersion uint64) (watch.Interface, error) {
+func (e *VMTEventRegistry) Watch(resourceVersion uint64) (watch.Interface, error) {
 	rootKey := VMTEVENT_KEY_PREFIX
 	watch, err := e.etcdStorage.Watch(rootKey, resourceVersion, nil)
 	if err != nil {
@@ -111,7 +101,7 @@ func (e *vmtevents) Watch(resourceVersion uint64) (watch.Interface, error) {
 }
 
 // Delete deletes an existing event.
-func (e *vmtevents) Delete(name string) error {
+func (e *VMTEventRegistry) Delete(name string) error {
 	key := VMTEVENT_KEY_PREFIX + name
 	res := &VMTEvent{}
 	err := e.etcdStorage.Delete(key, res)
@@ -121,7 +111,7 @@ func (e *vmtevents) Delete(name string) error {
 	return err
 }
 
-func (e *vmtevents) DeleteAll() error {
+func (e *VMTEventRegistry) DeleteAll() error {
 	events, err := e.List()
 	if err != nil {
 		return fmt.Errorf("Error listing all vmt events: %s", err)
