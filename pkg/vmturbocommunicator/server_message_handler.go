@@ -15,6 +15,7 @@ import (
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 
 	comm "github.com/vmturbo/vmturbo-go-sdk/communicator"
+	"github.com/vmturbo/vmturbo-go-sdk/sdk"
 
 	"github.com/golang/glog"
 )
@@ -159,5 +160,26 @@ func (handler *KubernetesServerMessageHandler) HandleAction(serverMsg *comm.Medi
 	err := actionExecutor.ExcuteAction(actionItemDTO, messageID)
 	if err != nil {
 		glog.Errorf("Error execute action: %s", err)
+		handler.SendActionReponse(sdk.ActionResponseState_FAILED, int32(0), messageID, "Failed")
 	}
+}
+
+// Send action response to vmt server.
+func (handler *KubernetesServerMessageHandler) SendActionReponse(state sdk.ActionResponseState, progress, messageID int32, description string) {
+	// 1. build response
+	response := &comm.ActionResponse{
+		ActionResponseState: &state,
+		Progress:            &progress,
+		ResponseDescription: &description,
+	}
+
+	// 2. built action result.
+	result := &comm.ActionResult{
+		Response: response,
+	}
+
+	// 3. Build Client message
+	clientMsg := comm.NewClientMessageBuilder(messageID).SetActionResponse(result).Create()
+
+	handler.wsComm.SendClientMessage(clientMsg)
 }
