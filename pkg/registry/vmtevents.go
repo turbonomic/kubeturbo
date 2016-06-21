@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 	"github.com/vmturbo/kubeturbo/pkg/storage/vmtruntime"
@@ -50,6 +51,33 @@ func (e *VMTEventRegistry) create(obj vmtruntime.VMTObject) (vmtruntime.VMTObjec
 		return nil, err
 	}
 	return out, nil
+}
+
+// Create inserts a new item according to the unique key from the object.
+func (e *VMTEventRegistry) Update(newObj vmtruntime.VMTObject) error {
+	name := newObj.(*VMTEvent).Name
+	key := VMTEVENT_KEY_PREFIX + name
+
+	glog.V(5).Infof("Update vmtevent object")
+
+	if err := e.etcdStorage.Update(key, newObj, false); err != nil {
+		glog.Errorf("Error during updating VMTEvent: %s", err)
+		return err
+	}
+	return nil
+}
+
+// Update event status and set the LastTimestamp up-to-now.
+func (e *VMTEventRegistry) UpdateStatus(event *VMTEvent, newStatus VMTEventStatus) error {
+	event.Status = newStatus
+	event.LastTimestamp = time.Now()
+	return e.Update(event)
+}
+
+// Update the LastTimestamp to now.
+func (e *VMTEventRegistry) UpdateTimestamp(event *VMTEvent) error {
+	event.LastTimestamp = time.Now()
+	return e.Update(event)
 }
 
 // Get retrieves the item from etcd.

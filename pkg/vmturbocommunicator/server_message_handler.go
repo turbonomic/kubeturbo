@@ -15,7 +15,6 @@ import (
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 
 	comm "github.com/vmturbo/vmturbo-go-sdk/communicator"
-	"github.com/vmturbo/vmturbo-go-sdk/sdk"
 
 	"github.com/golang/glog"
 )
@@ -26,11 +25,33 @@ type KubernetesServerMessageHandler struct {
 	meta        *vmtmeta.VMTMeta
 	wsComm      *comm.WebSocketCommunicator
 	etcdStorage storage.Storage
+
+	actionHandler *vmtaction.ActionHandler
+}
+
+func NewKubernetesServerMessageHandler(kubeClient *client.Client, meta *vmtmeta.VMTMeta,
+	wsCommunicator *comm.WebSocketCommunicator, etcdStorage storage.Storage) *KubernetesServerMessageHandler {
+
+	actionHandlerConfig := vmtaction.NewActionHandlerConfig(kubeClient, etcdStorage, wsCommunicator)
+	actionHandler := vmtaction.NewActionHandler(actionHandlerConfig)
+
+	return &KubernetesServerMessageHandler{
+		kubeClient:  kubeClient,
+		meta:        meta,
+		wsComm:      wsCommunicator,
+		etcdStorage: etcdStorage,
+
+		actionHandler: actionHandler,
+	}
+}
+
+func (handler *KubernetesServerMessageHandler) StartActionHandler() {
+	handler.actionHandler.Start()
 }
 
 // Use the vmt restAPI to add a Kubernetes target.
 func (handler *KubernetesServerMessageHandler) AddTarget() {
-	vmtUrl := handler.wsComm.VmtServerAddress
+	vmtUrl := handler.meta.ServerAddress
 
 	extCongfix := make(map[string]string)
 	extCongfix["Username"] = handler.meta.OpsManagerUsername
@@ -44,7 +65,7 @@ func (handler *KubernetesServerMessageHandler) AddTarget() {
 
 // Send an API request to make server start a discovery process on current k8s.
 func (handler *KubernetesServerMessageHandler) DiscoverTarget() {
-	vmtUrl := handler.wsComm.VmtServerAddress
+	vmtUrl := handler.meta.ServerAddress
 
 	extCongfix := make(map[string]string)
 	extCongfix["Username"] = handler.meta.OpsManagerUsername
@@ -152,34 +173,17 @@ func (handler *KubernetesServerMessageHandler) DiscoverTopology(serverMsg *comm.
 func (handler *KubernetesServerMessageHandler) HandleAction(serverMsg *comm.MediationServerMessage) {
 	messageID := serverMsg.GetMessageID()
 	actionRequest := serverMsg.GetActionRequest()
-	// In the kubernetes case, ProbeType and AccountValue check is not necessary here since
-	// the mediation client (vmturbo service) is embeded inside kubernetes.
 	actionItemDTO := actionRequest.GetActionItemDTO()
 	glog.V(4).Infof("The received ActionItemDTO is %v", actionItemDTO)
-	actionExecutor := vmtaction.NewVMTActionExecutor(handler.kubeClient, handler.etcdStorage)
-	_, err := actionExecutor.ExcuteAction(actionItemDTO, messageID)
-	if err != nil {
-		glog.Errorf("Error execute action: %s", err)
-		handler.SendActionReponse(sdk.ActionResponseState_FAILED, int32(0), messageID, "Failed")
-	}
-}
 
-// Send action response to vmt server.
-func (handler *KubernetesServerMessageHandler) SendActionReponse(state sdk.ActionResponseState, progress, messageID int32, description string) {
-	// 1. build response
-	response := &comm.ActionResponse{
-		ActionResponseState: &state,
-		Progress:            &progress,
-		ResponseDescription: &description,
-	}
+	handler.actionHandler.Execute(actionItemDTO, messageID)
 
-	// 2. built action result.
-	result := &comm.ActionResult{
-		Response: response,
-	}
+	result := handler.actionHandler.ResultChan()
 
-	// 3. Build Client message
 	clientMsg := comm.NewClientMessageBuilder(messageID).SetActionResponse(result).Create()
 
 	handler.wsComm.SendClientMessage(clientMsg)
+
+	time.Sleep(time.Millisecond * 500)
+	handler.DiscoverTarget()
 }

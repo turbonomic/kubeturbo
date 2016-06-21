@@ -1,6 +1,8 @@
 package kubeturbo
 
 import (
+	"reflect"
+
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/cache"
 	"k8s.io/kubernetes/pkg/client/record"
@@ -53,7 +55,7 @@ func NewVMTConfig(client *client.Client, etcdStorage storage.Storage, meta *vmtm
 
 	// Watch minions.
 	// Minions may be listed frequently, so provide a local up-to-date cache.
-	cache.NewReflector(config.createMinionLW(), &api.Node{}, config.NodeQueue, 0).RunUntil(config.StopEverything)
+	// cache.NewReflector(config.createMinionLW(), &api.Node{}, config.NodeQueue, 0).RunUntil(config.StopEverything)
 
 	// monitor unassigned pod
 	cache.NewReflector(config.createUnassignedPodLW(), &api.Pod{}, config.PodQueue, 0).RunUntil(config.StopEverything)
@@ -89,7 +91,18 @@ func (c *Config) createUnassignedPodLW() *cache.ListWatch {
 
 // VMTEvent ListWatch
 func (c *Config) createVMTEventLW() *vmtcache.ListWatch {
-	return vmtcache.NewListWatchFromStorage(c.EtcdStorage, "vmtevents", api.NamespaceAll, nil)
+	return vmtcache.NewListWatchFromStorage(c.EtcdStorage, "vmtevents", api.NamespaceAll,
+		func(obj interface{}) bool {
+			vmtEvent, ok := obj.(*registry.VMTEvent)
+			if !ok {
+				glog.Infof("----------------Wrong Type: %v---------", reflect.TypeOf(obj))
+				return false
+			}
+			if vmtEvent.Status == registry.Pending {
+				return true
+			}
+			return false
+		})
 }
 
 func parseSelectorOrDie(s string) fields.Selector {

@@ -43,12 +43,10 @@ func (vmtcomm *VMTCommunicator) Init() {
 	vmtcomm.wsComm = wsCommunicator
 
 	// First create the message handler for kubernetes
-	kubeMsgHandler := &KubernetesServerMessageHandler{
-		kubeClient:  vmtcomm.kubeClient,
-		meta:        vmtcomm.meta,
-		wsComm:      wsCommunicator,
-		etcdStorage: vmtcomm.etcdStorage,
-	}
+	kubeMsgHandler := NewKubernetesServerMessageHandler(vmtcomm.kubeClient,
+		vmtcomm.meta, wsCommunicator, vmtcomm.etcdStorage)
+	kubeMsgHandler.StartActionHandler()
+
 	wsCommunicator.ServerMsgHandler = kubeMsgHandler
 	return
 }

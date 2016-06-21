@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"k8s.io/kubernetes/pkg/fields"
-
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 	"github.com/vmturbo/kubeturbo/pkg/storage/vmtruntime"
@@ -45,7 +43,7 @@ type ListWatch struct {
 }
 
 // NewListWatchFromClient creates a new ListWatch from the specified client, resource, namespace and field selector.
-func NewListWatchFromStorage(s storage.Storage, resource string, namespace string, fieldSelector fields.Selector) *ListWatch {
+func NewListWatchFromStorage(s storage.Storage, resource string, namespace string, filter storage.FilterFunc) *ListWatch {
 	listFunc := func() (vmtruntime.VMTObject, error) {
 
 		list := registry.GetList(resource)
@@ -61,7 +59,7 @@ func NewListWatchFromStorage(s storage.Storage, resource string, namespace strin
 		if err != nil {
 			return nil, fmt.Errorf("Error parse resourceVersion %s: %s", resourceVersion, err)
 		}
-		return s.Watch(resource, rv, nil)
+		return s.Watch(resource, rv, filter)
 	}
 	return &ListWatch{ListFunc: listFunc, WatchFunc: watchFunc}
 }

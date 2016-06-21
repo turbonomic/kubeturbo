@@ -2,9 +2,9 @@ package registry
 
 import (
 	"fmt"
+	"time"
 
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
 )
 
 type VMTEventContentBuilder struct {
@@ -53,6 +53,7 @@ func (this *VMTEventContentBuilder) ScaleSpec(oldReplicas, newReplicas int) *VMT
 
 type VMTEventBuilder struct {
 	namespace string
+	status    VMTEventStatus
 	content   VMTEventContent
 }
 
@@ -63,6 +64,7 @@ func NewVMTEventBuilder(namespace string) *VMTEventBuilder {
 	}
 	return &VMTEventBuilder{
 		namespace: ns,
+		status:    Pending,
 	}
 }
 
@@ -71,8 +73,13 @@ func (this *VMTEventBuilder) Content(content VMTEventContent) *VMTEventBuilder {
 	return this
 }
 
+func (this *VMTEventBuilder) Status(status VMTEventStatus) *VMTEventBuilder {
+	this.status = status
+	return this
+}
+
 func (this *VMTEventBuilder) Create() VMTEvent {
-	t := unversioned.Now()
+	t := time.Now()
 
 	return VMTEvent{
 		TypeMeta: TypeMeta{
@@ -82,6 +89,7 @@ func (this *VMTEventBuilder) Create() VMTEvent {
 			Name:      fmt.Sprintf("%v.%x", this.content.TargetSE, t.UnixNano()),
 			Namespace: this.namespace,
 		},
+		Status:  this.status,
 		Content: this.content,
 
 		FirstTimestamp: t,

@@ -25,6 +25,7 @@ import (
 	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
 
 	"github.com/vmturbo/kubeturbo/pkg/conversion"
+	"github.com/vmturbo/kubeturbo/pkg/storage"
 	"github.com/vmturbo/kubeturbo/pkg/storage/watch"
 
 	etcd "github.com/coreos/etcd/client"
@@ -98,6 +99,8 @@ type etcdWatcher struct {
 
 	// Injectable for testing. Send the event down the outgoing channel.
 	emit func(watch.Event)
+
+	filter storage.FilterFunc
 }
 
 // watchWaitDuration is the amount of time to wait for an error from watch.
@@ -105,7 +108,7 @@ const watchWaitDuration = 100 * time.Millisecond
 
 // newEtcdWatcher returns a new etcdWatcher; if list is true, watch sub-nodes.
 func newEtcdWatcher(
-	list bool, quorum bool, encoding conversion.Codec) *etcdWatcher {
+	list bool, quorum bool, encoding conversion.Codec, filter storage.FilterFunc) *etcdWatcher {
 	w := &etcdWatcher{
 		encoding: encoding,
 		list:     list,
@@ -130,6 +133,16 @@ func newEtcdWatcher(
 		ctx:          nil,
 		cancel:       nil,
 	}
+	if filter == nil {
+		// if filter not specified, disable filter
+		w.filter = func(obj interface{}) bool {
+			return true
+		}
+
+	} else {
+		w.filter = filter
+	}
+
 	w.emit = func(e watch.Event) { w.outgoing <- e }
 	go w.translate()
 	return w
@@ -301,6 +314,10 @@ func (w *etcdWatcher) sendAdd(res *etcd.Response) {
 	}
 	glog.V(4).Infof("Obj is decoded as %v", obj)
 
+	if pass := w.filter(obj); !pass {
+		return
+	}
+
 	action := watch.Added
 	if res.Node.ModifiedIndex != res.Node.CreatedIndex {
 		action = watch.Modified
@@ -311,51 +328,51 @@ func (w *etcdWatcher) sendAdd(res *etcd.Response) {
 	})
 }
 
-// func (w *etcdWatcher) sendModify(res *etcd.Response) {
-// 	if res.Node == nil {
-// 		glog.Errorf("unexpected nil node: %#v", res)
-// 		return
-// 	}
+func (w *etcdWatcher) sendModify(res *etcd.Response) {
+	if res.Node == nil {
+		glog.Errorf("unexpected nil node: %#v", res)
+		return
+	}
 
-// 	curObj, err := w.decodeObject(res.Node)
-// 	if err != nil {
-// 		glog.Errorf("failure to decode api object: '%v' from %#v %#v", string(res.Node.Value), res, res.Node)
-// 		// TODO: expose an error through watch.Interface?
-// 		// Ignore this value. If we stop the watch on a bad value, a client that uses
-// 		// the resourceVersion to resume will never be able to get past a bad value.
-// 		return
-// 	}
-// 	curObjPasses := w.filter(curObj)
-// 	oldObjPasses := false
-// 	var oldObj interface{}
-// 	if res.PrevNode != nil && res.PrevNode.Value != "" {
-// 		// Ignore problems reading the old object.
-// 		if oldObj, err = w.decodeObject(res.PrevNode); err == nil {
-// 			oldObjPasses = w.filter(oldObj)
-// 		}
-// 	}
-// 	// Some changes to an object may cause it to start or stop matching a filter.
-// 	// We need to report those as adds/deletes. So we have to check both the previous
-// 	// and current value of the object.
-// 	switch {
-// 	case curObjPasses && oldObjPasses:
-// 		w.emit(watch.Event{
-// 			Type:   watch.Modified,
-// 			Object: curObj,
-// 		})
-// 	case curObjPasses && !oldObjPasses:
-// 		w.emit(watch.Event{
-// 			Type:   watch.Added,
-// 			Object: curObj,
-// 		})
-// 	case !curObjPasses && oldObjPasses:
-// 		w.emit(watch.Event{
-// 			Type:   watch.Deleted,
-// 			Object: oldObj,
-// 		})
-// 	}
-// 	// Do nothing if neither new nor old object passed the filter.
-// }
+	curObj, err := w.decodeObject(res.Node)
+	if err != nil {
+		glog.Errorf("Fail to decode api object: '%v' from %#v %#v", string(res.Node.Value), res, res.Node)
+		// TODO: expose an error through watch.Interface?
+		// Ignore this value. If we stop the watch on a bad value, a client that uses
+		// the resourceVersion to resume will never be able to get past a bad value.
+		return
+	}
+	curObjPasses := w.filter(curObj)
+	oldObjPasses := false
+	var oldObj interface{}
+	if res.PrevNode != nil && res.PrevNode.Value != "" {
+		// Ignore problems reading the old object.
+		if oldObj, err = w.decodeObject(res.PrevNode); err == nil {
+			oldObjPasses = w.filter(oldObj)
+		}
+	}
+	// Some changes to an object may cause it to start or stop matching a filter.
+	// We need to report those as adds/deletes. So we have to check both the previous
+	// and current value of the object.
+	switch {
+	case curObjPasses && oldObjPasses:
+		w.emit(watch.Event{
+			Type:   watch.Modified,
+			Object: curObj,
+		})
+	case curObjPasses && !oldObjPasses:
+		w.emit(watch.Event{
+			Type:   watch.Added,
+			Object: curObj,
+		})
+	case !curObjPasses && oldObjPasses:
+		w.emit(watch.Event{
+			Type:   watch.Deleted,
+			Object: oldObj,
+		})
+	}
+	// Do nothing if neither new nor old object passed the filter.
+}
 
 func (w *etcdWatcher) sendDelete(res *etcd.Response) {
 	if res.PrevNode == nil {
@@ -390,8 +407,8 @@ func (w *etcdWatcher) sendResult(res *etcd.Response) {
 	switch res.Action {
 	case EtcdCreate, EtcdGet:
 		w.sendAdd(res)
-	// case EtcdSet, EtcdCAS:
-	// 	w.sendModify(res)
+	case EtcdSet, EtcdCAS:
+		w.sendModify(res)
 	case EtcdDelete:
 		w.sendDelete(res)
 	default:

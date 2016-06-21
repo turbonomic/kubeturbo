@@ -48,7 +48,7 @@ type DeployTemplate struct {
 }
 
 func SelectTemplate(cpuLimit float64, memLimit float64) (string, error) {
-	glog.V(3).Infof("Try to find template to match %f cpu and %d mem", cpuLimit, memLimit)
+	glog.V(4).Infof("Try to find template to match %f cpu and %f mem", cpuLimit, memLimit)
 	for _, t := range availableTemplates {
 		if t.CpuSize > cpuLimit && t.MemSize > memLimit {
 			return t.UUID, nil

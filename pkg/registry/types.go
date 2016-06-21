@@ -1,8 +1,16 @@
 package registry
 
 import (
-	"k8s.io/kubernetes/pkg/api/unversioned"
+	"time"
+
 	"k8s.io/kubernetes/pkg/types"
+)
+
+const (
+	Pending  VMTEventStatus = "pending"
+	Executed VMTEventStatus = "executed"
+	Success  VMTEventStatus = "success"
+	Fail     VMTEventStatus = "fail"
 )
 
 // TypeMeta describes an individual object in an API response or request
@@ -68,7 +76,7 @@ type ObjectMeta struct {
 	// CreationTimestamp is a timestamp representing the server time when this object was
 	// created. It is not guaranteed to be set in happens-before order across separate operations.
 	// Clients may not set this value. It is represented in RFC3339 form and is in UTC.
-	CreationTimestamp unversioned.Time `json:"creationTimestamp,omitempty"`
+	CreationTimestamp time.Time `json:"creationTimestamp,omitempty"`
 
 	// DeletionTimestamp is the time after which this resource will be deleted. This
 	// field is set by the server when a graceful deletion is requested by the user, and is not
@@ -79,7 +87,7 @@ type ObjectMeta struct {
 	// a pod is deleted in 30 seconds. The Kubelet will react by sending a graceful termination
 	// signal to the containers in the pod. Once the resource is deleted in the API, the Kubelet
 	// will send a hard termination signal to the container.
-	DeletionTimestamp *unversioned.Time `json:"deletionTimestamp,omitempty"`
+	DeletionTimestamp *time.Time `json:"deletionTimestamp,omitempty"`
 
 	// Labels are key value pairs that may be used to scope and select individual resources.
 	// Label keys are of the form:
@@ -100,6 +108,8 @@ type ObjectMeta struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
+type VMTEventStatus string
+
 // VMTEvent defines all kinds of events those related to VMT service.
 type VMTEvent struct {
 	TypeMeta   `json:",inline"`
@@ -107,11 +117,13 @@ type VMTEvent struct {
 
 	Content VMTEventContent `json:"content,omitempty"`
 
+	Status VMTEventStatus `json:"status,omitempty"`
+
 	// The time at which the event was first recorded. (Time of server receipt is in TypeMeta.)
-	FirstTimestamp unversioned.Time `json:"firstTimestamp,omitempty"`
+	FirstTimestamp time.Time `json:"firstTimestamp,omitempty"`
 
 	// The time at which the most recent occurrence of this event was recorded.
-	LastTimestamp unversioned.Time `json:"lastTimestamp,omitempty"`
+	LastTimestamp time.Time `json:"lastTimestamp,omitempty"`
 }
 
 type VMTEventContent struct {

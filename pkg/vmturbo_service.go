@@ -1,6 +1,7 @@
 package kubeturbo
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -11,15 +12,14 @@ import (
 	turboscheduler "github.com/vmturbo/kubeturbo/pkg/scheduler"
 	comm "github.com/vmturbo/kubeturbo/pkg/vmturbocommunicator"
 
-	"github.com/vmturbo/vmturbo-go-sdk/sdk"
-
 	"github.com/golang/glog"
 )
 
 type VMTurboService struct {
-	config       *Config
-	vmtcomm      *comm.VMTCommunicator
-	vmtEventChan chan *registry.VMTEvent
+	config           *Config
+	vmtEventRegistry *registry.VMTEventRegistry
+	vmtcomm          *comm.VMTCommunicator
+	vmtEventChan     chan *registry.VMTEvent
 	// VMTurbo Scheduler
 	TurboScheduler *turboscheduler.TurboScheduler
 }
@@ -28,14 +28,15 @@ func NewVMTurboService(c *Config) *VMTurboService {
 	turboSched := turboscheduler.NewTurboScheduler(c.Client, c.Meta)
 
 	vmtEventChannel := make(chan *registry.VMTEvent)
-
+	vmtEventRegistry := registry.NewVMTEventRegistry(c.EtcdStorage)
 	vmtCommunicator := comm.NewVMTCommunicator(c.Client, c.Meta, c.EtcdStorage)
 
 	return &VMTurboService{
-		config:         c,
-		vmtcomm:        vmtCommunicator,
-		vmtEventChan:   vmtEventChannel,
-		TurboScheduler: turboSched,
+		config:           c,
+		vmtEventRegistry: vmtEventRegistry,
+		vmtcomm:          vmtCommunicator,
+		vmtEventChan:     vmtEventChannel,
+		TurboScheduler:   turboSched,
 	}
 }
 
@@ -54,22 +55,18 @@ func (v *VMTurboService) Run() {
 
 func (v *VMTurboService) getNextVMTEvent() {
 	event := v.config.VMTEventQueue.Pop().(*registry.VMTEvent)
-	glog.V(2).Infof("Get a new VMTEvent from etcd: %v", event)
+	glog.V(2).Infof("Get a new pending VMTEvent from etcd: %v", event)
 	content := event.Content
 	if content.ActionType == "move" || content.ActionType == "provision" {
-		glog.V(2).Infof("VMTEvent must be handled.")
+		glog.V(2).Infof("VMTEvent %s on %s must be handled.", content.ActionType, content.TargetSE)
 		// Send VMTEvent to channel.
 		v.vmtEventChan <- event
 	} else if content.ActionType == "unbind" {
 		glog.V(3).Infof("Decrease the replicas of %s.", content.TargetSE)
-		// TODO. Need to find a way to verify the replicas has been updated
-		if content.VMTMessageID > -1 {
-			glog.V(2).Infof("Action Succeeded.")
-			progress := int32(100)
-			v.vmtcomm.SendActionReponse(sdk.ActionResponseState_SUCCEEDED, progress, int32(content.VMTMessageID), "Success")
+
+		if err := v.vmtEventRegistry.UpdateStatus(event, registry.Executed); err != nil {
+			glog.Errorf("Failed to update event status: %s", err)
 		}
-		time.Sleep(time.Millisecond * 500)
-		v.vmtcomm.DiscoverTarget()
 	}
 }
 
@@ -79,26 +76,16 @@ func (v *VMTurboService) getNextNode() {
 	glog.V(3).Infof("Get a new Node %v", node.Name)
 }
 
-// Whenever there is a new pod created and post to etcd, this method will be used to deal with
-// unhandled pod. Otherwise it will block at Pop()
 func (v *VMTurboService) getNextPod() {
 	pod := v.config.PodQueue.Pop().(*api.Pod)
 	glog.V(3).Infof("Get a new Pod %v", pod.Name)
-
-	// // If we want to track new Pod, create a VMTEvent and post it to etcd.
-	// vmtEvents := registry.NewVMTEvents(v.config.Client, "", v.config.EtcdStorage)
-	// event := registry.GenerateVMTEvent("create", pod.Namespace, pod.Name, "", 1)
-	// _, errorPost := vmtEvents.Create(event)
-	// if errorPost != nil {
-	// 	glog.Errorf("Error posting vmtevent: %s\n", errorPost)
-	// }
 
 	select {
 	case vmtEventFromEtcd := <-v.vmtEventChan:
 		content := vmtEventFromEtcd.Content
 		glog.V(3).Infof("Receive VMTEvent type %s", content.ActionType)
 
-		hasError := false
+		var actionExecutionError error
 		switch content.ActionType {
 		case "move":
 
@@ -108,9 +95,11 @@ func (v *VMTurboService) getNextPod() {
 
 				v.TurboScheduler.ScheduleTo(pod, content.MoveSpec.Destination)
 			} else {
-				hasError = true
+				time.Sleep(time.Second * 1)
+				actionExecutionError = v.reprocessEvent(vmtEventFromEtcd)
+				// pod is not created as a result of move, schedule it regularly
+				v.regularSchedulePod(pod)
 			}
-
 			break
 		case "provision":
 			glog.V(3).Infof("Increase the replicas of %s.", content.TargetSE)
@@ -118,45 +107,57 @@ func (v *VMTurboService) getNextPod() {
 			// double check if the pod is created as the result of provision
 			hasPrefix := strings.HasPrefix(pod.Name, content.TargetSE)
 			if !hasPrefix {
-				hasError = true
+				actionExecutionError = v.reprocessEvent(vmtEventFromEtcd)
+				// pod is not created as a result of provision, schedule it regularly
+				v.regularSchedulePod(pod)
 				break
 			}
 			err := v.TurboScheduler.Schedule(pod)
 			if err != nil {
-				hasError = true
 				glog.Errorf("Scheduling failed: %s", err)
+				actionExecutionError = fmt.Errorf("Error scheduling the new provisioned pod: %s", err)
 			}
 			break
 		}
 
-		if hasError {
-			// Send back action failed. Then simply deploy the pod using scheduler.
-			glog.V(2).Infof("Action failed")
-			if content.VMTMessageID > -1 {
-				v.vmtcomm.SendActionReponse(sdk.ActionResponseState_FAILED, int32(0), int32(content.VMTMessageID), "Failed")
+		if actionExecutionError != nil {
+			if err := v.vmtEventRegistry.UpdateStatus(vmtEventFromEtcd, registry.Fail); err != nil {
+				glog.Errorf("Failed to update event status: %s", err)
 			}
 			break
 		} else {
-			// TODO, at this point, we really do not know if the assignment of the pod succeeds or not.
-			// The right place of sending move reponse is after the event.
-			// Here for test purpose, send the move success action response.
-			if content.VMTMessageID > -1 {
-				glog.V(2).Infof("Action Succeeded.")
-				progress := int32(100)
-				v.vmtcomm.SendActionReponse(sdk.ActionResponseState_SUCCEEDED, progress, int32(content.VMTMessageID), "Success")
+			if err := v.vmtEventRegistry.UpdateStatus(vmtEventFromEtcd, registry.Executed); err != nil {
+				glog.Errorf("Failed to update event status: %s", err)
 			}
-			time.Sleep(time.Millisecond * 500)
-			v.vmtcomm.DiscoverTarget()
+			return
 		}
-		return
 	default:
 		glog.V(3).Infof("No VMTEvent from ETCD. Simply schedule the pod.")
 	}
-	err := v.TurboScheduler.Schedule(pod)
 
-	if err != nil {
+	v.regularSchedulePod(pod)
+}
+
+func (v *VMTurboService) regularSchedulePod(pod *api.Pod) {
+	if err := v.TurboScheduler.Schedule(pod); err != nil {
 		glog.Errorf("Scheduling failed: %s", err)
 	}
+}
+
+// If the event has not expired (within 10s since it is created), then update
+// the event and put it back to queue. Otherwise return an error.
+func (v *VMTurboService) reprocessEvent(event *registry.VMTEvent) error {
+	now := time.Now()
+	duration := now.Sub(event.LastTimestamp)
+	if duration > time.Duration(10)*time.Second {
+		return fmt.Errorf("Timeout processing %s event on %s",
+			event.Content.ActionType, event.Content.TargetSE)
+	} else {
+		if err := v.vmtEventRegistry.UpdateTimestamp(event); err != nil {
+			glog.Errorf("Failed to update timestamp of event %s", event.Name, err)
+		}
+	}
+	return nil
 }
 
 func validatePodToBeMoved(pod *api.Pod, vmtEvent *registry.VMTEvent) bool {

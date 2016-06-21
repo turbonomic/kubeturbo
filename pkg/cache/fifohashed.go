@@ -193,7 +193,7 @@ func (f *HashedFIFO) Pop() interface{} {
 			continue
 		}
 		// TODO, Dongyi changed this
-		//delete(f.items, id)
+		delete(f.items, id)
 		return item
 	}
 }

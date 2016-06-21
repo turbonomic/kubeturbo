@@ -93,6 +93,67 @@ func (h *etcdHelper) Create(key string, obj, out vmtruntime.VMTObject, ttl uint6
 	return err
 }
 
+// Implements storage.Interface.
+func (h *etcdHelper) Update(key string, newObj vmtruntime.VMTObject, ignoreNotFound bool) error {
+	key = h.prefixEtcdKey(key)
+
+	v, err := conversion.EnforcePtr(newObj)
+	if err != nil {
+		// Panic is appropriate, because this is a programming error.
+		panic("need ptr to type")
+	}
+
+	obj := reflect.New(v.Type()).Interface().(vmtruntime.VMTObject)
+	origBody, node, res, err := h.bodyAndExtractObj(key, obj, ignoreNotFound)
+	if err != nil {
+		return fmt.Errorf("Error getting original object from etcd: %s", err)
+	}
+
+	index := uint64(0)
+	ttl := uint64(0)
+	if node != nil {
+		index = node.ModifiedIndex
+		if node.TTL != 0 {
+			ttl = uint64(node.TTL)
+		}
+		if node.Expiration != nil && ttl == 0 {
+			ttl = 1
+		}
+	} else if res != nil {
+		index = res.Index
+	}
+
+	// Swap origBody with data, if origBody is the latest etcd data.
+	opts := etcdclient.SetOptions{
+		PrevValue: origBody,
+		PrevIndex: index,
+		TTL:       time.Duration(ttl) * time.Second,
+	}
+
+	data, err := h.codec.Encode(newObj)
+	if err != nil {
+		glog.Errorf("Error Encode: %s", err)
+		return err
+	}
+
+	etcdKeysAPI := etcdclient.NewKeysAPI(h.client)
+	response, err := etcdKeysAPI.Set(ctx, key, string(data), &opts)
+	// metrics.RecordEtcdRequestLatency("create", getTypeName(obj), startTime)
+	if err != nil {
+		glog.Errorf("Error updating: %s", err)
+		return err
+	}
+
+	// if _, err := conversion.EnforcePtr(newObj); err != nil {
+	// 	panic("unable to convert output object to pointer")
+	// }
+	_, _, err = h.extractObj(response, err, newObj, false, false)
+	if err != nil {
+		glog.Errorf("Error extract obj: %s", err)
+	}
+	return err
+}
+
 // // Implements storage.Interface.
 // func (h *etcdHelper) Set(key string, obj, out runtime.Object, ttl uint64) error {
 // 	var response *etcd.Response
@@ -159,7 +220,7 @@ func (h *etcdHelper) Watch(key string, resourceVersion uint64, filter storage.Fi
 	etcdKeysAPI := etcdclient.NewKeysAPI(h.client)
 
 	key = h.prefixEtcdKey(key)
-	w := newEtcdWatcher(true, false, h.codec)
+	w := newEtcdWatcher(true, false, h.codec, filter)
 	exist, err := h.isKeyExist(key)
 	if exist {
 		go w.etcdWatch(ctx, etcdKeysAPI, key, resourceVersion)
