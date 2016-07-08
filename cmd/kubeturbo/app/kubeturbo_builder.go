@@ -35,6 +35,7 @@ import (
 	"github.com/vmturbo/kubeturbo/pkg/conversion"
 	"github.com/vmturbo/kubeturbo/pkg/helper"
 	"github.com/vmturbo/kubeturbo/pkg/metadata"
+	"github.com/vmturbo/kubeturbo/pkg/probe"
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 	etcdhelper "github.com/vmturbo/kubeturbo/pkg/storage/etcd"
@@ -61,6 +62,7 @@ type VMTServer struct {
 	Kubeconfig            string
 	BindPodsQPS           float32
 	BindPodsBurst         int
+	CadvisorPort          int
 	EtcdServerList        []string
 	EtcdCA                string
 	EtcdClientCertificate string
@@ -82,7 +84,8 @@ func NewVMTServer() *VMTServer {
 
 // AddFlags adds flags for a specific VMTServer to the specified FlagSet
 func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
-	fs.IntVar(&s.Port, "port", s.Port, "The port that the scheduler's http service runs on")
+	fs.IntVar(&s.Port, "port", s.Port, "The port that the kubeturbo's http service runs on")
+	fs.IntVar(&s.CadvisorPort, "cadvisor-port", 4194, "The port of the cadvisor service runs on")
 	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
 	fs.StringVar(&s.MetaConfigPath, "config-path", s.MetaConfigPath, "The path to the vmt config file.")
 	fs.StringVar(&s.TestingFlagPath, "flag-path", s.TestingFlagPath, "The path to the testing flag.")
@@ -115,6 +118,13 @@ func (s *VMTServer) Run(_ []string) error {
 		glog.Fatalf("specify either --etcd-servers or --etcd-config")
 	}
 
+	if s.CadvisorPort == 0 {
+		s.CadvisorPort = 4194
+	}
+
+	probeConfig := &probe.ProbeConfig{
+		CadvisorPort: s.CadvisorPort,
+	}
 	// This creates a client, first loading any specified kubeconfig
 	// file, and then overriding the Master flag, if non-empty.
 	// kubeconfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
@@ -175,7 +185,7 @@ func (s *VMTServer) Run(_ []string) error {
 		return err
 	}
 
-	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, etcdStorage, vmtMeta)
+	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, etcdStorage, vmtMeta, probeConfig)
 
 	eventBroadcaster := record.NewBroadcaster()
 	vmtConfig.Recorder = eventBroadcaster.NewRecorder(api.EventSource{Component: "kubeturbo"})

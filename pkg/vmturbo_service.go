@@ -29,7 +29,7 @@ func NewVMTurboService(c *Config) *VMTurboService {
 
 	vmtEventChannel := make(chan *registry.VMTEvent)
 	vmtEventRegistry := registry.NewVMTEventRegistry(c.EtcdStorage)
-	vmtCommunicator := comm.NewVMTCommunicator(c.Client, c.Meta, c.EtcdStorage)
+	vmtCommunicator := comm.NewVMTCommunicator(c.Client, c.Meta, c.EtcdStorage, c.ProbeConfig)
 
 	return &VMTurboService{
 		config:           c,

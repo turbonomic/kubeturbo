@@ -11,6 +11,7 @@ import (
 
 	vmtcache "github.com/vmturbo/kubeturbo/pkg/cache"
 	vmtmeta "github.com/vmturbo/kubeturbo/pkg/metadata"
+	"github.com/vmturbo/kubeturbo/pkg/probe"
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 
@@ -26,6 +27,9 @@ type Config struct {
 	PodQueue      *vmtcache.HashedFIFO
 	VMTEventQueue *vmtcache.HashedFIFO
 
+	// Configuration for creating Kubernetes probe
+	ProbeConfig *probe.ProbeConfig
+
 	// Recorder is the EventRecorder to use
 	Recorder record.EventRecorder
 
@@ -34,7 +38,7 @@ type Config struct {
 }
 
 // Create a vmturbo config
-func NewVMTConfig(client *client.Client, etcdStorage storage.Storage, meta *vmtmeta.VMTMeta) *Config {
+func NewVMTConfig(client *client.Client, etcdStorage storage.Storage, meta *vmtmeta.VMTMeta, probeConfig *probe.ProbeConfig) *Config {
 	config := &Config{
 		Client:         client,
 		Meta:           meta,
@@ -42,6 +46,7 @@ func NewVMTConfig(client *client.Client, etcdStorage storage.Storage, meta *vmtm
 		NodeQueue:      vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
 		PodQueue:       vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
 		VMTEventQueue:  vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
+		ProbeConfig:    probeConfig,
 		StopEverything: make(chan struct{}),
 	}
 

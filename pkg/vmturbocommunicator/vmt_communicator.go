@@ -5,6 +5,7 @@ import (
 
 	vmtapi "github.com/vmturbo/kubeturbo/pkg/api"
 	vmtmeta "github.com/vmturbo/kubeturbo/pkg/metadata"
+	"github.com/vmturbo/kubeturbo/pkg/probe"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 	external "github.com/vmturbo/kubeturbo/pkg/vmturbocommunicator/externalprobebuilder"
 
@@ -17,13 +18,15 @@ type VMTCommunicator struct {
 	meta        *vmtmeta.VMTMeta
 	wsComm      *comm.WebSocketCommunicator
 	etcdStorage storage.Storage
+	probeConifg *probe.ProbeConfig
 }
 
-func NewVMTCommunicator(client *client.Client, vmtMetadata *vmtmeta.VMTMeta, storage storage.Storage) *VMTCommunicator {
+func NewVMTCommunicator(client *client.Client, vmtMetadata *vmtmeta.VMTMeta, storage storage.Storage, pConfig *probe.ProbeConfig) *VMTCommunicator {
 	return &VMTCommunicator{
 		kubeClient:  client,
 		meta:        vmtMetadata,
 		etcdStorage: storage,
+		probeConifg: pConfig,
 	}
 }
 
@@ -44,7 +47,7 @@ func (vmtcomm *VMTCommunicator) Init() {
 
 	// First create the message handler for kubernetes
 	kubeMsgHandler := NewKubernetesServerMessageHandler(vmtcomm.kubeClient,
-		vmtcomm.meta, wsCommunicator, vmtcomm.etcdStorage)
+		vmtcomm.meta, wsCommunicator, vmtcomm.etcdStorage, vmtcomm.probeConifg)
 	kubeMsgHandler.StartActionHandler()
 
 	wsCommunicator.ServerMsgHandler = kubeMsgHandler

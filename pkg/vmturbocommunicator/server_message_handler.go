@@ -25,12 +25,14 @@ type KubernetesServerMessageHandler struct {
 	meta        *vmtmeta.VMTMeta
 	wsComm      *comm.WebSocketCommunicator
 	etcdStorage storage.Storage
+	probeConfig *probe.ProbeConfig
 
 	actionHandler *vmtaction.ActionHandler
 }
 
 func NewKubernetesServerMessageHandler(kubeClient *client.Client, meta *vmtmeta.VMTMeta,
-	wsCommunicator *comm.WebSocketCommunicator, etcdStorage storage.Storage) *KubernetesServerMessageHandler {
+	wsCommunicator *comm.WebSocketCommunicator, etcdStorage storage.Storage,
+	pConfig *probe.ProbeConfig) *KubernetesServerMessageHandler {
 
 	actionHandlerConfig := vmtaction.NewActionHandlerConfig(kubeClient, etcdStorage, wsCommunicator)
 	actionHandler := vmtaction.NewActionHandler(actionHandlerConfig)
@@ -40,6 +42,7 @@ func NewKubernetesServerMessageHandler(kubeClient *client.Client, meta *vmtmeta.
 		meta:        meta,
 		wsComm:      wsCommunicator,
 		etcdStorage: etcdStorage,
+		probeConfig: pConfig,
 
 		actionHandler: actionHandler,
 	}
@@ -126,7 +129,7 @@ func (handler *KubernetesServerMessageHandler) DiscoverTopology(serverMsg *comm.
 		return
 	}
 
-	kubeProbe := probe.NewKubeProbe(handler.kubeClient)
+	kubeProbe := probe.NewKubeProbe(handler.kubeClient, handler.probeConfig)
 
 	nodeEntityDtos, err := kubeProbe.ParseNode()
 	if err != nil {

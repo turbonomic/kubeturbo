@@ -30,13 +30,15 @@ var nodeMachineInfoMap map[string]*cadvisor.MachineInfo = make(map[string]*cadvi
 
 type NodeProbe struct {
 	nodesGetter NodesGetter
+	config      *ProbeConfig
 	nodeIPMap   map[string]map[api.NodeAddressType]string
 }
 
 // Since this is only used in probe package, do not expose it.
-func NewNodeProbe(getter NodesGetter) *NodeProbe {
+func NewNodeProbe(getter NodesGetter, config *ProbeConfig) *NodeProbe {
 	return &NodeProbe{
 		nodesGetter: getter,
+		config:      config,
 	}
 }
 
@@ -186,7 +188,7 @@ func (nodeProbe *NodeProbe) getHost(nodeName string) *vmtAdvisor.Host {
 	// Use NodeLegacyHostIP to build the host to interact with cAdvisor.
 	host := &vmtAdvisor.Host{
 		IP:       nodeIP,
-		Port:     4194,
+		Port:     nodeProbe.config.CadvisorPort,
 		Resource: "",
 	}
 	return host

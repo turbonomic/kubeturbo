@@ -18,10 +18,11 @@ var (
 
 type KubeProbe struct {
 	KubeClient *client.Client
+	config     *ProbeConfig
 }
 
 // Create a new Kubernetes probe with the given kube client.
-func NewKubeProbe(kubeClient *client.Client) *KubeProbe {
+func NewKubeProbe(kubeClient *client.Client, config *ProbeConfig) *KubeProbe {
 	flag, err := helper.LoadTestingFlag()
 	if err == nil && flag.LocalTestStitchingIP != "" {
 		localTestStitchingIP = flag.LocalTestStitchingIP
@@ -37,6 +38,7 @@ func NewKubeProbe(kubeClient *client.Client) *KubeProbe {
 	}
 	return &KubeProbe{
 		KubeClient: kubeClient,
+		config:     config,
 	}
 }
 
@@ -50,7 +52,7 @@ func getClusterID(kubeClient *client.Client) (string, error) {
 
 func (this *KubeProbe) ParseNode() (result []*sdk.EntityDTO, err error) {
 	vmtNodeGetter := NewVMTNodeGetter(this.KubeClient)
-	nodeProbe := NewNodeProbe(vmtNodeGetter.GetNodes)
+	nodeProbe := NewNodeProbe(vmtNodeGetter.GetNodes, this.config)
 
 	k8sNodes := nodeProbe.GetNodes(labels.Everything(), fields.Everything())
 
