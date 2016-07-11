@@ -252,8 +252,6 @@ func (nodeProbe *NodeProbe) generateReconcilationMetaData() *sdk.EntityDTO_Repla
 	replacementEntityMetaDataBuilder.Matching("IP")
 	replacementEntityMetaDataBuilder.PatchSelling(sdk.CommodityDTO_CPU_ALLOCATION)
 	replacementEntityMetaDataBuilder.PatchSelling(sdk.CommodityDTO_MEM_ALLOCATION)
-	replacementEntityMetaDataBuilder.PatchSelling(sdk.CommodityDTO_VCPU)
-	replacementEntityMetaDataBuilder.PatchSelling(sdk.CommodityDTO_VMEM)
 	replacementEntityMetaDataBuilder.PatchSelling(sdk.CommodityDTO_APPLICATION)
 	replacementEntityMetaDataBuilder.PatchSelling(sdk.CommodityDTO_VMPM_ACCESS)
 
