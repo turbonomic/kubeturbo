@@ -93,6 +93,9 @@ func (v *VMTurboService) getNextPod() {
 				glog.V(2).Infof("Pod %s/%s is to be scheduled to %s as a result of MOVE action",
 					pod.Namespace, pod.Name, content.MoveSpec.Destination)
 
+				// Since here new pod is created as a result of move action, it needs to change
+				// the TargetSE in VMTEvent content.
+				vmtEventFromEtcd.Content.TargetSE = pod.Name
 				v.TurboScheduler.ScheduleTo(pod, content.MoveSpec.Destination)
 			} else {
 				time.Sleep(time.Second * 1)
