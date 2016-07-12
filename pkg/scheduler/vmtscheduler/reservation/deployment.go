@@ -48,7 +48,7 @@ func NewDeployment(meta *vmtmeta.VMTMeta) *Reservation {
 // But the result is a map. Will change later when deploy works.
 func (this *Reservation) GetDestinationFromVmturbo(pod *api.Pod) (map[*api.Pod]string, error) {
 
-	requestSpec, err := getRequestSpec(pod)
+	requestSpec, constraintsList, err := getRequestSpec(pod)
 
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func (this *Reservation) GetDestinationFromVmturbo(pod *api.Pod) (map[*api.Pod]s
 
 	// reservationResult is map[string]string -- [podName]nodeName
 	// TODO !!!!!!! Now only support a single pod.
-	reservationResult, err := this.RequestPlacement(pod.Name, requestSpec, nil)
+	reservationResult, err := this.RequestPlacement(pod.Name, requestSpec, nil, constraintsList)
 
 	//-----------------The following is for the test purpose-----------------
 	// After deploy framework works, it will get destination from vmt reservation api.
@@ -79,20 +79,31 @@ func (this *Reservation) GetDestinationFromVmturbo(pod *api.Pod) (map[*api.Pod]s
 	return placementMap, nil
 }
 
-// Get the request specification, basically the pamameters that should be sent with post
-func getRequestSpec(pod *api.Pod) (map[string]string, error) {
+// Get the request specification and constrains list, basically the pamameters that should be sent with post
+func getRequestSpec(pod *api.Pod) (map[string]string, []string, error) {
 	requestSpec := make(map[string]string)
 	requestSpec["reservation_name"] = "K8sReservation" + utilrand.String(3)
 	requestSpec["num_instances"] = "1"
 	// TODO, choose template name and template uuid based on pod resource limits.
 	templateUUID, err := SelectTemplateForPod(pod)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	requestSpec["template_name"] = templateUUID
 	requestSpec["templateUuids[]"] = templateUUID
 
-	return requestSpec, nil
+	var constrainsList []string
+
+	selectormap := pod.Spec.NodeSelector
+	if len(selectormap) > 0 {
+		for key, value := range selectormap {
+			selectorPair := key + "=" + value
+			constraint := "VMPMAccessCommodity:" + selectorPair
+			constrainsList = append(constrainsList, constraint)
+		}
+	}
+
+	return requestSpec, constrainsList, nil
 }
 
 // this method takes in a http get response for reservation and should return the reservation uuid, if there is any
@@ -114,7 +125,9 @@ func parseGetReservationResponse(podName, content string) (map[string]string, er
 
 // Create the reservation specification and
 // return map which has pod name as key and node name as value
-func (this *Reservation) RequestPlacement(podName string, requestSpec, filterProperties map[string]string) (map[string]string, error) {
+func (this *Reservation) RequestPlacement(podName string, requestSpec, filterProperties map[string]string,
+	constrantsList []string) (map[string]string, error) {
+
 	extCongfix := make(map[string]string)
 	extCongfix["Username"] = this.Meta.OpsManagerUsername
 	extCongfix["Password"] = this.Meta.OpsManagerPassword
@@ -122,7 +135,7 @@ func (this *Reservation) RequestPlacement(podName string, requestSpec, filterPro
 
 	glog.V(4).Info("Inside RequestPlacement")
 
-	parameterString, err := buildReservationParameterString(requestSpec)
+	parameterString, err := buildReservationParameterString(requestSpec, constrantsList)
 	if err != nil {
 		return nil, err
 	}
@@ -135,15 +148,15 @@ func (this *Reservation) RequestPlacement(podName string, requestSpec, filterPro
 	glog.V(3).Infof("Reservation UUID is %s", string(reservationUUID))
 
 	// TODO, do we want to wait for a predefined time or send send API requests multiple times.
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 	getResponse, getRevErr := vmturboApi.Get("/reservations/" + reservationUUID)
 	// After getting the destination, delete the reservation.
-	deleteResponse, err := vmturboApi.Delete("/reservations/" + reservationUUID)
-	if err != nil {
-		// TODO, Should we return without placement?
-		return nil, fmt.Errorf("Error deleting reservations destinations: %s", err)
-	}
-	glog.V(4).Infof("delete response of reservation %s is %s", reservationUUID, deleteResponse)
+	// deleteResponse, err := vmturboApi.Delete("/reservations/" + reservationUUID)
+	// if err != nil {
+	// 	// TODO, Should we return without placement?
+	// 	return nil, fmt.Errorf("Error deleting reservations destinations: %s", err)
+	// }
+	// glog.V(4).Infof("delete response of reservation %s is %s", reservationUUID, deleteResponse)
 	if getRevErr != nil {
 		return nil, fmt.Errorf("Error getting reservations destinations: %s", err)
 	}
@@ -155,7 +168,7 @@ func (this *Reservation) RequestPlacement(podName string, requestSpec, filterPro
 	return pod2nodeMap, nil
 }
 
-func buildReservationParameterString(requestSpec map[string]string) (string, error) {
+func buildReservationParameterString(requestSpec map[string]string, constraintsList []string) (string, error) {
 	requestData := make(map[string]string)
 
 	var requestDataBuffer bytes.Buffer
@@ -166,7 +179,7 @@ func buildReservationParameterString(requestSpec map[string]string) (string, err
 	} else {
 		requestData["reservationName"] = reservation_name
 		requestDataBuffer.WriteString("?reservationName=")
-		requestDataBuffer.WriteString(reservation_name)
+		requestDataBuffer.WriteString(reservation_name + "deploytest")
 		requestDataBuffer.WriteString("&")
 	}
 
@@ -187,6 +200,12 @@ func buildReservationParameterString(requestSpec map[string]string) (string, err
 		requestData["templateName"] = template_name
 		requestDataBuffer.WriteString("templateName=")
 		requestDataBuffer.WriteString(template_name)
+		requestDataBuffer.WriteString("&")
+	}
+
+	for _, constraint := range constraintsList {
+		requestDataBuffer.WriteString("segmentationUuid[]=")
+		requestDataBuffer.WriteString(constraint)
 		requestDataBuffer.WriteString("&")
 	}
 
