@@ -151,12 +151,12 @@ func (this *Reservation) RequestPlacement(podName string, requestSpec, filterPro
 	time.Sleep(2000 * time.Millisecond)
 	getResponse, getRevErr := vmturboApi.Get("/reservations/" + reservationUUID)
 	// After getting the destination, delete the reservation.
-	// deleteResponse, err := vmturboApi.Delete("/reservations/" + reservationUUID)
-	// if err != nil {
-	// 	// TODO, Should we return without placement?
-	// 	return nil, fmt.Errorf("Error deleting reservations destinations: %s", err)
-	// }
-	// glog.V(4).Infof("delete response of reservation %s is %s", reservationUUID, deleteResponse)
+	deleteResponse, err := vmturboApi.Delete("/reservations/" + reservationUUID)
+	if err != nil {
+		// TODO, Should we return without placement?
+		return nil, fmt.Errorf("Error deleting reservations destinations: %s", err)
+	}
+	glog.V(4).Infof("delete response of reservation %s is %s", reservationUUID, deleteResponse)
 	if getRevErr != nil {
 		return nil, fmt.Errorf("Error getting reservations destinations: %s", err)
 	}

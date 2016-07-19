@@ -125,16 +125,30 @@ func (this *VMTActionSupervisor) checkUnbindAction(event *registry.VMTEvent) (bo
 }
 
 func (this *VMTActionSupervisor) checkScaleAction(event *registry.VMTEvent) (bool, error) {
-	rcName := event.Content.TargetSE
-	rcNamespace := event.Namespace
-	rcIdentifier := rcNamespace + "/" + rcName
+	name := event.Content.TargetSE
+	namespace := event.Namespace
+	identifier := namespace + "/" + name
 
-	targetRC, err := this.config.kubeClient.ReplicationControllers(rcNamespace).Get(rcName)
-	if err != nil {
-		return false, fmt.Errorf("Cannot find replication controller %s in cluster", rcIdentifier)
+	targetRC, _ := this.config.kubeClient.ReplicationControllers(namespace).Get(name)
+	targetDeployment, _ := this.config.kubeClient.Deployments(namespace).Get(name)
+
+	if (targetDeployment == nil && targetRC == nil) ||
+		(targetDeployment.Name == "" && targetRC.Name == "") {
+		return false, fmt.Errorf("Cannot find replication controller or deployment %s in cluster", identifier)
 	}
+
+	glog.Infof("currentRC is %v, current Deployment is %v", targetRC, targetDeployment)
+
 	targetReplicas := event.Content.ScaleSpec.NewReplicas
-	currentReplicas := targetRC.Spec.Replicas
+	currentReplicas := 0
+	if targetRC != nil && targetRC.Name != "" {
+		currentReplicas = targetRC.Spec.Replicas
+		glog.Infof("currentReplicas from RC is %d", currentReplicas)
+	} else if targetDeployment != nil && targetDeployment.Name != "" {
+		currentReplicas = targetDeployment.Spec.Replicas
+		glog.Infof("currentReplicas from Deployment is %d", currentReplicas)
+	}
+	glog.Infof("replica want %d, is %s", targetReplicas, currentReplicas)
 	if targetReplicas == currentReplicas {
 		return true, nil
 	}
@@ -153,9 +167,11 @@ func (this *VMTActionSupervisor) updateVMTEvent(event *registry.VMTEvent, checkF
 		}
 		return
 	}
+	glog.Infof("checkFunc result %v", successful)
 	// Check if the event has expired. If true, update the status to fail and return;
 	// Otherwise, only update the LastTimestamp.
 	expired := checkExpired(event)
+	glog.Infof("checkExpired result %v", expired)
 	if expired {
 		glog.Errorf("Timeout processing %s event on %s",
 			event.Content.ActionType, event.Content.TargetSE)
@@ -171,20 +187,10 @@ func (this *VMTActionSupervisor) updateVMTEvent(event *registry.VMTEvent, checkF
 	return
 }
 
-// func (this *VMTActionSupervisor) updateVMTEventStatus(event *registry.VMTEvent, newStatus registry.VMTEventStatus) {
-// 	event.Status = newStatus
-// 	event.LastTimestamp = time.Now()
-// 	this.vmtEventRegistry.Update(event)
-// }
-
-// func (this *VMTActionSupervisor) updateTimestamp(event *registry.VMTEvent) {
-// 	event.LastTimestamp = time.Now()
-// 	this.vmtEventRegistry.Update(event)
-// }
-
 func checkExpired(event *registry.VMTEvent) bool {
 	now := time.Now()
 	duration := now.Sub(event.LastTimestamp)
+	glog.Infof("Duration is %v", duration)
 	if duration > time.Duration(10)*time.Second {
 		return true
 	}

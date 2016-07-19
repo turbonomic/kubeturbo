@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/apis/extensions"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
@@ -68,6 +69,59 @@ func FindReplicationControllerForPod(kubeClient *client.Client, currentPod *api.
 
 	} else {
 		glog.Warningf("Pod %s/%s has no label. There is no RC for the Pod.", podNamespace, podName)
+	}
+	return nil, nil
+}
+
+// Get all replication controllers defined in the specified namespace.
+func GetAllDeployments(kubeClient *client.Client, namespace string) ([]extensions.Deployment, error) {
+	listOption := &api.ListOptions{
+		LabelSelector: labels.Everything(),
+	}
+	deploymentList, err := kubeClient.Deployments(namespace).List(*listOption)
+	if err != nil {
+		return nil, fmt.Errorf("Error when getting all the deployments: %s", err)
+	}
+	return deploymentList.Items, nil
+}
+
+func findDeploymentBasedOnPodLabel(deploymentsList []extensions.Deployment, labels map[string]string) (*extensions.Deployment, error) {
+	for _, deployment := range deploymentsList {
+		findDeployment := true
+		// check if a Deployment controlls pods with given labels
+		for key, val := range deployment.Spec.Selector.MatchLabels {
+			if labels[key] == "" || labels[key] != val {
+				findDeployment = false
+				break
+			}
+		}
+		if findDeployment {
+			return &deployment, nil
+		}
+	}
+	return nil, fmt.Errorf("No Deployment has selectors match Pod labels.")
+}
+
+func FindDeploymentForPod(kubeClient *client.Client, currentPod *api.Pod) (*extensions.Deployment, error) {
+	// loop through all the labels in the pod and get List of RCs with selector that match at least one label
+	podNamespace := currentPod.Namespace
+	podName := currentPod.Name
+	podLabels := currentPod.Labels
+
+	if podLabels != nil {
+		allDeployments, err := GetAllDeployments(kubeClient, podNamespace) // pod label is passed to list
+		if err != nil {
+			glog.Errorf("Error getting RCs")
+			return nil, fmt.Errorf("Error  getting Deployment list")
+		}
+		rc, err := findDeploymentBasedOnPodLabel(allDeployments, podLabels)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to find Deployment for Pod %s/%s: %s", podNamespace, podName, err)
+		}
+		return rc, nil
+
+	} else {
+		glog.Warningf("Pod %s/%s has no label. There is no Deployment for the Pod.", podNamespace, podName)
 	}
 	return nil, nil
 }

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/apis/extensions"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 
 	"github.com/vmturbo/kubeturbo/pkg/registry"
@@ -32,6 +33,7 @@ func (this *HorizontalScaler) ScaleOut(actionItem *sdk.ActionItemDTO, msgID int3
 		return nil, fmt.Errorf("ActionItem passed in is nil")
 	}
 	targetEntityType := actionItem.GetTargetSE().GetEntityType()
+	fmt.Printf("is containerPod: %v; want %s, got %s\n", targetEntityType == sdk.EntityDTO_CONTAINER_POD, targetEntityType, sdk.EntityDTO_CONTAINER_POD)
 	if targetEntityType == sdk.EntityDTO_CONTAINER_POD ||
 		targetEntityType == sdk.EntityDTO_APPLICATION {
 
@@ -44,29 +46,52 @@ func (this *HorizontalScaler) ScaleOut(actionItem *sdk.ActionItemDTO, msgID int3
 		podName := providerPod.Name
 		podIdentifier := podNamespace + "/" + podName
 
-		rc, err := FindReplicationControllerForPod(this.kubeClient, providerPod)
-		if err != nil {
-			return nil, fmt.Errorf("Error getting replication controller related to pod %s: %s", podIdentifier, err)
+		rc, _ := FindReplicationControllerForPod(this.kubeClient, providerPod)
+		deployment, _ := FindDeploymentForPod(this.kubeClient, providerPod)
+		if rc == nil && deployment == nil {
+			return nil, fmt.Errorf("Cannot find replication controller or deployment related to the pod")
 		}
 
-		content := registry.NewVMTEventContentBuilder(ActionProvision, rc.Name, int(msgID)).
-			ScaleSpec(rc.Spec.Replicas, rc.Spec.Replicas+1).Build()
-		event := registry.NewVMTEventBuilder(rc.Namespace).Content(content).Create()
-		glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
+		if rc != nil {
+			content := registry.NewVMTEventContentBuilder(ActionProvision, rc.Name, int(msgID)).
+				ScaleSpec(rc.Spec.Replicas, rc.Spec.Replicas+1).Build()
+			event := registry.NewVMTEventBuilder(rc.Namespace).Content(content).Create()
+			glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
 
-		_, errorPost := this.vmtEventRegistry.Create(&event)
-		if errorPost != nil {
-			return nil, fmt.Errorf("Error posting VMTEvent %s for %s", content.ActionType, content.TargetSE)
+			_, errorPost := this.vmtEventRegistry.Create(&event)
+			if errorPost != nil {
+				return nil, fmt.Errorf("Error posting VMTEvent %s for %s", content.ActionType, content.TargetSE)
+			}
+
+			err = this.ProvisionPods(rc)
+			if err != nil {
+				return nil, fmt.Errorf("Error provision pod %s: %s", podIdentifier, err)
+			}
+
+			return &event, nil
 		}
 
-		err = this.ProvisionPods(rc)
-		if err != nil {
-			return nil, fmt.Errorf("Error provision pod %s: %s", podIdentifier, err)
-		}
+		if deployment != nil {
+			content := registry.NewVMTEventContentBuilder(ActionProvision, deployment.Name, int(msgID)).
+				ScaleSpec(deployment.Spec.Replicas, deployment.Spec.Replicas+1).Build()
+			event := registry.NewVMTEventBuilder(deployment.Namespace).Content(content).Create()
+			glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
 
-		return &event, nil
+			_, errorPost := this.vmtEventRegistry.Create(&event)
+			if errorPost != nil {
+				return nil, fmt.Errorf("Error posting VMTEvent %s for %s", content.ActionType, content.TargetSE)
+			}
+
+			err = this.ProvisionPodsWithDeployments(deployment)
+			if err != nil {
+				return nil, fmt.Errorf("Error provision pod %s: %s", podIdentifier, err)
+			}
+
+			return &event, nil
+		}
 	}
 	return nil, fmt.Errorf("Entity type %v is not supported for horizontal scaling out", targetEntityType)
+
 }
 
 func (this *HorizontalScaler) getProviderPod(actionItem *sdk.ActionItemDTO) (*api.Pod, error) {
@@ -103,6 +128,17 @@ func (this *HorizontalScaler) ProvisionPods(targetReplicationController *api.Rep
 	return nil
 }
 
+// Update replica of the target replication controller.
+func (this *HorizontalScaler) ProvisionPodsWithDeployments(targetDeployment *extensions.Deployment) error {
+	newReplicas := targetDeployment.Spec.Replicas + 1
+
+	err := this.updateDeploymentReplicas(targetDeployment, newReplicas)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (this *HorizontalScaler) ScaleIn(actionItem *sdk.ActionItemDTO, msgID int32) (*registry.VMTEvent, error) {
 	currentSE := actionItem.GetCurrentSE()
 	targetEntityType := currentSE.GetEntityType()
@@ -125,27 +161,49 @@ func (this *HorizontalScaler) ScaleIn(actionItem *sdk.ActionItemDTO, msgID int32
 			return nil, err
 		}
 
-		rc, err := FindReplicationControllerForPod(this.kubeClient, providerPod)
-		if err != nil {
-			return nil, err
+		rc, _ := FindReplicationControllerForPod(this.kubeClient, providerPod)
+
+		deployment, _ := FindDeploymentForPod(this.kubeClient, providerPod)
+		if rc == nil && deployment == nil {
+			return nil, fmt.Errorf("Error getting replication controller and deployment for pod")
 		}
 
-		content := registry.NewVMTEventContentBuilder(ActionUnbind, rc.Name, int(msgID)).
-			ScaleSpec(rc.Spec.Replicas, rc.Spec.Replicas-1).Build()
-		event := registry.NewVMTEventBuilder(rc.Namespace).Content(content).Create()
-		glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
+		if rc != nil {
+			content := registry.NewVMTEventContentBuilder(ActionUnbind, rc.Name, int(msgID)).
+				ScaleSpec(rc.Spec.Replicas, rc.Spec.Replicas-1).Build()
+			event := registry.NewVMTEventBuilder(rc.Namespace).Content(content).Create()
+			glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
 
-		_, errorPost := this.vmtEventRegistry.Create(&event)
-		if errorPost != nil {
-			return nil, fmt.Errorf("Error posting VMTEvent %s for %s", content.ActionType, content.TargetSE)
+			_, errorPost := this.vmtEventRegistry.Create(&event)
+			if errorPost != nil {
+				return nil, fmt.Errorf("Error posting VMTEvent %s for %s", content.ActionType, content.TargetSE)
+			}
+
+			err = this.UnbindPods(rc)
+			if err != nil {
+				return nil, err
+			}
+
+			return &event, nil
 		}
+		if deployment != nil {
+			content := registry.NewVMTEventContentBuilder(ActionUnbind, deployment.Name, int(msgID)).
+				ScaleSpec(deployment.Spec.Replicas, deployment.Spec.Replicas-1).Build()
+			event := registry.NewVMTEventBuilder(deployment.Namespace).Content(content).Create()
+			glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
 
-		err = this.UnbindPods(rc)
-		if err != nil {
-			return nil, err
+			_, errorPost := this.vmtEventRegistry.Create(&event)
+			if errorPost != nil {
+				return nil, fmt.Errorf("Error posting VMTEvent %s for %s", content.ActionType, content.TargetSE)
+			}
+
+			err = this.UnbindPodsWithDeployment(deployment)
+			if err != nil {
+				return nil, err
+			}
+
+			return &event, nil
 		}
-
-		return &event, nil
 	}
 	return nil, fmt.Errorf("Entity type %v is not supported for horizontal scaling in", targetEntityType)
 }
@@ -172,5 +230,30 @@ func (this *HorizontalScaler) updateReplicationControllerReplicas(rc *api.Replic
 		return fmt.Errorf("Error updating replication controller %s/%s: %s", rc.Namespace, rc.Name, err)
 	}
 	glog.V(4).Infof("New replicas of %s/%s is %d", newRC.Namespace, newRC.Name, newRC.Spec.Replicas)
+	return nil
+}
+
+// Update replica of the target replication controller.
+func (this *HorizontalScaler) UnbindPodsWithDeployment(deployment *extensions.Deployment) error {
+	newReplicas := deployment.Spec.Replicas - 1
+	if newReplicas < 0 {
+		return fmt.Errorf("Replica of %s/%s is already 0. Cannot scale in anymore.", deployment.Namespace, deployment.Name)
+	}
+
+	err := this.updateDeploymentReplicas(deployment, newReplicas)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (this *HorizontalScaler) updateDeploymentReplicas(deployment *extensions.Deployment, newReplicas int) error {
+	deployment.Spec.Replicas = newReplicas
+	namespace := deployment.Namespace
+	newDeployment, err := this.kubeClient.Deployments(namespace).Update(deployment)
+	if err != nil {
+		return fmt.Errorf("Error updating replication controller %s/%s: %s", deployment.Namespace, deployment.Name, err)
+	}
+	glog.V(4).Infof("New replicas of %s/%s is %d", newDeployment.Namespace, newDeployment.Name, newDeployment.Spec.Replicas)
 	return nil
 }
