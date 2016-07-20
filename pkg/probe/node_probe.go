@@ -167,7 +167,7 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node) ([]*sdk.Commodit
 		for key, value := range labelsmap {
 			str1 := key + "=" + value
 			glog.V(4).Infof("label for this Node is : %s", str1)
-			accessComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_VMPM_ACCESS).Key(str1).Create()
+			accessComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_VMPM_ACCESS).Key(str1).Capacity(1E10).Create()
 			commoditiesSold = append(commoditiesSold, accessComm)
 		}
 	}
