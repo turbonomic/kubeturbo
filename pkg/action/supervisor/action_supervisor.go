@@ -137,18 +137,16 @@ func (this *VMTActionSupervisor) checkScaleAction(event *registry.VMTEvent) (boo
 		return false, fmt.Errorf("Cannot find replication controller or deployment %s in cluster", identifier)
 	}
 
-	glog.Infof("currentRC is %v, current Deployment is %v", targetRC, targetDeployment)
-
 	targetReplicas := event.Content.ScaleSpec.NewReplicas
 	currentReplicas := 0
 	if targetRC != nil && targetRC.Name != "" {
 		currentReplicas = targetRC.Spec.Replicas
-		glog.Infof("currentReplicas from RC is %d", currentReplicas)
+		glog.V(4).Infof("currentReplicas from RC is %d", currentReplicas)
 	} else if targetDeployment != nil && targetDeployment.Name != "" {
 		currentReplicas = targetDeployment.Spec.Replicas
-		glog.Infof("currentReplicas from Deployment is %d", currentReplicas)
+		glog.V(4).Infof("currentReplicas from Deployment is %d", currentReplicas)
 	}
-	glog.Infof("replica want %d, is %s", targetReplicas, currentReplicas)
+	glog.V(4).Infof("replica want %d, is %s", targetReplicas, currentReplicas)
 	if targetReplicas == currentReplicas {
 		return true, nil
 	}
@@ -167,7 +165,6 @@ func (this *VMTActionSupervisor) updateVMTEvent(event *registry.VMTEvent, checkF
 		}
 		return
 	}
-	glog.Infof("checkFunc result %v", successful)
 	// Check if the event has expired. If true, update the status to fail and return;
 	// Otherwise, only update the LastTimestamp.
 	expired := checkExpired(event)

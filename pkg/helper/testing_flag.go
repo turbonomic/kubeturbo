@@ -31,14 +31,14 @@ func SetPath(path string) {
 		flagPath = path
 		glog.V(2).Infof("VMT testing flag is load from file %s", path)
 	} else {
-		glog.Errorf("%s does not exist.", path)
+		glog.V(3).Infof("%s does not exist.", path)
 	}
 }
 
 func LoadTestingFlag() (*TestingFlag, error) {
 	file, err := ioutil.ReadFile(flagPath)
 	if err != nil {
-		glog.Errorf("File error: %v\n", err)
+		glog.V(3).Infof("ERROR! : %v\n", err)
 		return nil, err
 	}
 	var flags TestingFlag
