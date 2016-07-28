@@ -168,6 +168,7 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node) ([]*sdk.Commodit
 	commoditiesSold = append(commoditiesSold, vCpuComm)
 	appComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_APPLICATION).
 		Key(nodeID).
+		Capacity(1E10).
 		Create()
 	commoditiesSold = append(commoditiesSold, appComm)
 	labelsmap := node.ObjectMeta.Labels
@@ -181,7 +182,7 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node) ([]*sdk.Commodit
 	}
 	// Use Kubernetes service UID as the key for cluster commodity
 	clusterCommodityKey := ClusterID
-	clusterComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_CLUSTER).Key(clusterCommodityKey).Create()
+	clusterComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_CLUSTER).Key(clusterCommodityKey).Capacity(1E10).Create()
 	commoditiesSold = append(commoditiesSold, clusterComm)
 
 	return commoditiesSold, nil
