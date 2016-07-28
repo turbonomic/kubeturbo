@@ -89,7 +89,7 @@ func (podProbe *PodProbe) parsePodFromK8s(pods []*api.Pod) (result []*sdk.Entity
 
 		podResourceStat, err := podProbe.getPodResourceStat(pod, podContainers)
 		if err != nil {
-			glog.Warningf("Error getting resource consumption for pod %s: %s", pod.Namespace+"/"+pod.Name, err)
+			glog.Warningf("Cannot get resource consumption for pod %s: %s", pod.Namespace+"/"+pod.Name, err)
 			continue
 		}
 

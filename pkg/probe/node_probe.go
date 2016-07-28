@@ -83,7 +83,9 @@ func (nodeProbe *NodeProbe) GetNodes(label labels.Selector, field fields.Selecto
 // Parse each node inside K8s. Get the resources usage of each node and build the entityDTO.
 func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node) (result []*sdk.EntityDTO, err error) {
 	for _, node := range nodes {
-		if !nodeIsReady(node) {
+		// We do not parse node that is not ready or unschedulable.
+		if !nodeIsReady(node) || !nodeIsSchedulable(node) {
+			glog.V(3).Infof("Node %s is either not ready or unschedulable. Skip", node.Name)
 			continue
 		}
 		// use cAdvisor to get node info
@@ -115,6 +117,7 @@ func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node) (result []*sdk.E
 	return
 }
 
+// Check is a node is ready.
 func nodeIsReady(node *api.Node) bool {
 	for _, condition := range node.Status.Conditions {
 		if condition.Type == api.NodeReady {
@@ -123,6 +126,11 @@ func nodeIsReady(node *api.Node) bool {
 	}
 	glog.Errorf("Node %s does not have Ready status.", node.Name)
 	return false
+}
+
+// Check if a node is schedulable.
+func nodeIsSchedulable(node *api.Node) bool {
+	return !node.Spec.Unschedulable
 }
 
 func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node) ([]*sdk.CommodityDTO, error) {
