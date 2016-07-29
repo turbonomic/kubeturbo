@@ -1,0 +1,57 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: kubeturbo
+  labels:
+    name: kubeturbo
+spec:
+  template:
+    metadata:
+      labels:
+        name: kubeturbo
+    spec:
+      nodeSelector:
+        role: master
+      containers:
+      - name: kubeturbo
+        image: vmturbo/kubeturbo:1.0
+        command:
+          - /bin/kubeturbo
+        args:
+          - --v=3
+          - --kubeconfig=/etc/kubeturbo/kubeconfig
+          - --etcd-servers=http://127.0.0.1:2379
+          - --config-path=/etc/kubeturbo/config
+          - --flag-path=/etc/kubeturbo/flag
+        volumeMounts:
+        - name: vmt-config
+          mountPath: /etc/kubeturbo
+          readOnly: true
+      - name: etcd
+        image: gcr.io/google_containers/etcd:2.0.9
+        resources:
+          limits:
+            cpu: 100m
+            memory: 50Mi
+        command:
+        - /usr/local/bin/etcd
+        - -data-dir
+        - /var/etcd/data
+        - -listen-client-urls
+        - http://127.0.0.1:2379,http://127.0.0.1:4001
+        - -advertise-client-urls
+        - http://127.0.0.1:2379,http://127.0.0.1:4001
+        - -initial-cluster-token
+        - etcd-kubeturbo
+        volumeMounts:
+        - name: etcd-storage
+          mountPath: /var/etcd/data
+      serviceAccount: turbo-user
+      restartPolicy: Always
+      volumes:
+      - name: etcd-storage
+        emptyDir: {}
+      - name: vmt-config
+        hostPath:
+          path: /etc/kubeturbo
+      restartPolicy: Always
