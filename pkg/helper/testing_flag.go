@@ -38,7 +38,7 @@ func SetPath(path string) {
 func LoadTestingFlag() (*TestingFlag, error) {
 	file, err := ioutil.ReadFile(flagPath)
 	if err != nil {
-		glog.V(3).Infof("ERROR! : %v\n", err)
+		glog.V(4).Infof("ERROR! : %v\n", err)
 		return nil, err
 	}
 	var flags TestingFlag

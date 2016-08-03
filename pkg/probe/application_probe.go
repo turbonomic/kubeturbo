@@ -13,6 +13,11 @@ import (
 	"github.com/vmturbo/vmturbo-go-sdk/sdk"
 )
 
+var excludedApps map[string]struct{} = map[string]struct{}{
+	"pause": struct{}{},
+	"pod":   struct{}{},
+}
+
 var pod2AppMap map[string]map[string]vmtAdvisor.Application = make(map[string]map[string]vmtAdvisor.Application)
 
 var podTransactionCountMap map[string]int = make(map[string]int)
@@ -154,6 +159,7 @@ func (this *ApplicationProbe) getApplicaitonPerPod(host *vmtAdvisor.Host) (map[s
 	// The same processes should represent the same application
 	// key:podName, value: a map (key:process.Cmd, value: Application)
 	for podName, processList := range pod2ProcessesMap {
+		processList = processFilter(processList)
 		if _, exists := pod2ApplicationMap[podName]; !exists {
 			apps := make(map[string]vmtAdvisor.Application)
 			pod2ApplicationMap[podName] = apps
@@ -173,6 +179,16 @@ func (this *ApplicationProbe) getApplicaitonPerPod(host *vmtAdvisor.Host) (map[s
 	glog.V(4).Infof("pod2ApplicationMap is %++v", pod2ApplicationMap)
 
 	return pod2ApplicationMap, nil
+}
+
+func processFilter(processes []info.ProcessInfo) []info.ProcessInfo {
+	var filteredProcess []info.ProcessInfo
+	for _, p := range processes {
+		if _, exist := excludedApps[p.Cmd]; !exist {
+			filteredProcess = append(filteredProcess, p)
+		}
+	}
+	return filteredProcess
 }
 
 // Get resource usage status for a single application.
