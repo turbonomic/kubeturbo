@@ -149,13 +149,6 @@ func (this *ApplicationProbe) getApplicaitonPerPod(host *vmtAdvisor.Host) (map[s
 		}
 	}
 
-	// TODO, if only for defug purpose, there is no need to iterate when not debugging.
-	for podN, processList := range pod2ProcessesMap {
-		for _, process := range processList {
-			glog.V(4).Infof("pod %s has the following process %s", podN, process.Cmd)
-		}
-	}
-
 	// The same processes should represent the same application
 	// key:podName, value: a map (key:process.Cmd, value: Application)
 	for podName, processList := range pod2ProcessesMap {
