@@ -21,6 +21,9 @@ var container2PodMap map[string]string = make(map[string]string)
 
 var podIP2PodMap map[string]*api.Pod = make(map[string]*api.Pod)
 
+// This map keep records of pods whose states are set to inactive in VMT server side. The key is the pod identifier (podNamespace/podName)
+var inactivePods map[string]struct{} = make(map[string]struct{})
+
 // Pods Getter is such func that gets all the pods match the provided namespace, labels and fiels.
 type PodsGetter func(namespace string, label labels.Selector, field fields.Selector) ([]*api.Pod, error)
 
@@ -29,6 +32,8 @@ type PodProbe struct {
 }
 
 func NewPodProbe(getter PodsGetter) *PodProbe {
+	inactivePods = make(map[string]struct{})
+
 	return &PodProbe{
 		podGetter: getter,
 	}
@@ -310,6 +315,13 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 	glog.V(4).Infof("Pod %s will be stitched to VM with IP %s", dispName, ipAddress)
 
 	entityDto := entityDTOBuilder.Create()
+
+	// TODO: should change sdk to change the monitored state
+	if monitored := monitored(pod); !monitored {
+		entityDto.Monitored = &monitored
+		inactivePods[podNameWithNamespace] = struct{}{}
+	}
+
 	return entityDto, nil
 }
 

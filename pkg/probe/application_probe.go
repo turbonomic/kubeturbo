@@ -310,6 +310,11 @@ func (this *ApplicationProbe) buildApplicationEntityDTOs(app vmtAdvisor.Applicat
 		IpAddress: &ipAddress,
 	}
 	entityDto.ApplicationData = appData
+
+	if _, exist := inactivePods[podName]; exist {
+		monitored := false
+		entityDto.Monitored = &monitored
+	}
 	return entityDto
 }
 
