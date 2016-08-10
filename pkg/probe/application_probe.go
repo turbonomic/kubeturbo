@@ -9,16 +9,10 @@ import (
 	vmtproxy "github.com/vmturbo/kubeturbo/pkg/monitor"
 
 	"github.com/golang/glog"
-	info "github.com/google/cadvisor/info/v2"
 	"github.com/vmturbo/vmturbo-go-sdk/sdk"
 )
 
-var excludedApps map[string]struct{} = map[string]struct{}{
-	"pause": struct{}{},
-	"pod":   struct{}{},
-}
-
-var pod2AppMap map[string]map[string]vmtAdvisor.Application = make(map[string]map[string]vmtAdvisor.Application)
+const appPrefix string = "App-"
 
 var podTransactionCountMap map[string]int = make(map[string]int)
 
@@ -43,17 +37,6 @@ func (appProbe *ApplicationProbe) ParseApplication(namespace string) (result []*
 
 	for nodeName, host := range hostSet {
 
-		glog.V(4).Infof("Now get process in host %s", nodeName)
-		pod2ApplicationMap, err := appProbe.getApplicaitonPerPod(host)
-		if err != nil {
-			glog.Error(err)
-			continue
-		}
-
-		for podName, appMap := range pod2ApplicationMap {
-			pod2AppMap[podName] = appMap
-		}
-
 		// In order to get the actual usage for each process, the CPU/Mem capacity
 		// for the machine must be retrieved.
 		machineInfo, exist := nodeMachineInfoMap[nodeName]
@@ -68,18 +51,14 @@ func (appProbe *ApplicationProbe) ParseApplication(namespace string) (result []*
 		nodeCpuCapacity := float64(machineInfo.NumCores) * float64(cpuFrequency)
 		nodeMemCapacity := float64(machineInfo.MemoryCapacity) / 1024 // Mem is returned in B
 
-		for podName, appMap := range pod2ApplicationMap {
-			for _, app := range appMap {
-				glog.V(4).Infof("pod %s has the following application %s", podName, app.Cmd)
+		for podName, _ := range podResourceConsumptionMap {
+			appResourceStat := appProbe.getApplicationResourceStatFromPod(podName, nodeCpuCapacity, nodeMemCapacity, transactionCountMap)
 
-				appResourceStat := appProbe.getApplicationResourceStat(app, podName, nodeCpuCapacity, nodeMemCapacity, transactionCountMap)
+			commoditiesSold := appProbe.getCommoditiesSold(podName, appResourceStat)
+			commoditiesBoughtMap := appProbe.getCommoditiesBought(podName, nodeName, appResourceStat)
 
-				commoditiesSold := appProbe.getCommoditiesSold(app, appResourceStat)
-				commoditiesBoughtMap := appProbe.getCommoditiesBought(podName, nodeName, appResourceStat)
-
-				entityDto := appProbe.buildApplicationEntityDTOs(app, host, podName, nodeName, commoditiesSold, commoditiesBoughtMap)
-				result = append(result, entityDto)
-			}
+			entityDto := appProbe.buildApplicationEntityDTOs(podName, host, podName, nodeName, commoditiesSold, commoditiesBoughtMap)
+			result = append(result, entityDto)
 		}
 	}
 	return
@@ -114,85 +93,12 @@ func (this *ApplicationProbe) calculateTransactionValuePerPod() (map[string]int,
 	return transactionCountMap, nil
 }
 
-// Find application running on each pod. Returned value is a map in the following format: {PodName, {ApplicationName, Applicaiton}}
-func (this *ApplicationProbe) getApplicaitonPerPod(host *vmtAdvisor.Host) (map[string]map[string]vmtAdvisor.Application, error) {
-	// use cadvisor to get all process on that host
-	cadvisor := &vmtAdvisor.CadvisorSource{}
-	psInfors, err := cadvisor.GetProcessInfo(*host)
-	if err != nil {
-		glog.Errorf("Error getting process from node with IP %s:%s", host.IP, err)
-		return nil, err
-	}
-
-	pod2ApplicationMap := make(map[string]map[string]vmtAdvisor.Application)
-
-	// If there is no process found, return an empty map
-	if len(psInfors) < 1 {
-		glog.Warningf("No process find")
-		return pod2ApplicationMap, nil
-	}
-
-	// Now all process info have been got. Group processes to pods
-	pod2ProcessesMap := make(map[string][]info.ProcessInfo)
-
-	for _, process := range psInfors {
-		// Here cgroupPath for a process is the same with the container name
-		cgroupPath := process.CgroupPath
-		if podName, exist := container2PodMap[cgroupPath]; exist {
-			glog.V(5).Infof("%s is in pod %s", process.Cmd, podName)
-			var processList []info.ProcessInfo
-			if processes, hasList := pod2ProcessesMap[podName]; hasList {
-				processList = processes
-			}
-			processList = append(processList, process)
-			pod2ProcessesMap[podName] = processList
-		}
-	}
-
-	// The same processes should represent the same application
-	// key:podName, value: a map (key:process.Cmd, value: Application)
-	for podName, processList := range pod2ProcessesMap {
-		processList = processFilter(processList)
-		if _, exists := pod2ApplicationMap[podName]; !exists {
-			apps := make(map[string]vmtAdvisor.Application)
-			pod2ApplicationMap[podName] = apps
-		}
-		applications := pod2ApplicationMap[podName]
-		for _, process := range processList {
-			if _, hasApp := applications[process.Cmd]; !hasApp {
-				applications[process.Cmd] = vmtAdvisor.Application(process)
-			} else {
-				app := applications[process.Cmd]
-				app.PercentCpu = app.PercentCpu + process.PercentCpu
-				app.PercentMemory = app.PercentMemory + process.PercentMemory
-				applications[process.Cmd] = app
-			}
-		}
-	}
-	glog.V(4).Infof("pod2ApplicationMap is %++v", pod2ApplicationMap)
-
-	return pod2ApplicationMap, nil
-}
-
-func processFilter(processes []info.ProcessInfo) []info.ProcessInfo {
-	var filteredProcess []info.ProcessInfo
-	for _, p := range processes {
-		if _, exist := excludedApps[p.Cmd]; !exist {
-			filteredProcess = append(filteredProcess, p)
-		}
-	}
-	return filteredProcess
-}
-
 // Get resource usage status for a single application.
-func (this *ApplicationProbe) getApplicationResourceStat(app vmtAdvisor.Application, podName string, nodeCpuCapacity, nodeMemCapacity float64, podTransactionCountMap map[string]int) *ApplicationResourceStat {
-	cpuUsage := nodeCpuCapacity * float64(app.PercentCpu/100)
-	memUsage := nodeMemCapacity * float64(app.PercentMemory/100)
+func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, nodeCpuCapacity, nodeMemCapacity float64, podTransactionCountMap map[string]int) *ApplicationResourceStat {
+	podResourceStat := podResourceConsumptionMap[podName]
 
-	dispName := app.Cmd + "::" + podName
-
-	glog.V(5).Infof("Percent Cpu for %s is %f, usage is %f", dispName, app.PercentCpu, cpuUsage)
-	glog.V(5).Infof("Percent Mem for %s is %f, usage is %f", dispName, app.PercentMemory, memUsage)
+	cpuUsage := podResourceStat.cpuAllocationUsed
+	memUsage := podResourceStat.memAllocationUsed
 
 	transactionCapacity := float64(1000)
 	transactionUsed := float64(0)
@@ -233,10 +139,10 @@ func (this *ApplicationProbe) getApplicationResourceStat(app vmtAdvisor.Applicat
 }
 
 // Build commodities sold for each application. An application sells transaction, which a virtual application buys.
-func (this *ApplicationProbe) getCommoditiesSold(app vmtAdvisor.Application, appResourceStat *ApplicationResourceStat) []*sdk.CommodityDTO {
+func (this *ApplicationProbe) getCommoditiesSold(appName string, appResourceStat *ApplicationResourceStat) []*sdk.CommodityDTO {
 	var commoditiesSold []*sdk.CommodityDTO
 	transactionComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_TRANSACTION).
-		Key(app.Cmd).
+		Key(appName).
 		Capacity(appResourceStat.transactionCapacity).
 		Used(appResourceStat.transactionUsed).
 		Create()
@@ -285,10 +191,10 @@ func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, app
 }
 
 // Build entityDTOs for Applications.
-func (this *ApplicationProbe) buildApplicationEntityDTOs(app vmtAdvisor.Application, host *vmtAdvisor.Host, podName, nodeName string, commoditiesSold []*sdk.CommodityDTO, commoditiesBoughtMap map[*sdk.ProviderDTO][]*sdk.CommodityDTO) *sdk.EntityDTO {
+func (this *ApplicationProbe) buildApplicationEntityDTOs(appName string, host *vmtAdvisor.Host, podName, nodeName string, commoditiesSold []*sdk.CommodityDTO, commoditiesBoughtMap map[*sdk.ProviderDTO][]*sdk.CommodityDTO) *sdk.EntityDTO {
 	appEntityType := sdk.EntityDTO_APPLICATION
-	id := app.Cmd + "::" + podName
-	dispName := app.Cmd + "::" + podName
+	id := appPrefix + appName
+	dispName := appName
 	entityDTOBuilder := sdk.NewEntityDTOBuilder(appEntityType, id)
 	entityDTOBuilder = entityDTOBuilder.DisplayName(dispName)
 
@@ -301,7 +207,7 @@ func (this *ApplicationProbe) buildApplicationEntityDTOs(app vmtAdvisor.Applicat
 
 	entityDto := entityDTOBuilder.Create()
 
-	appType := app.Cmd
+	appType := podAppTypeMap[podName]
 
 	ipAddress := this.getIPAddress(host, nodeName)
 

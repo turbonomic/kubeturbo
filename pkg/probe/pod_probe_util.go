@@ -3,11 +3,18 @@ package probe
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"k8s.io/kubernetes/pkg/api"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 
 	"github.com/golang/glog"
+)
+
+const (
+	Kind_DaemonSet             string = "DaemonSet"
+	Kind_ReplicationController string = "ReplicationController"
+	Kind_ReplicaSet            string = "ReplicaSet"
 )
 
 // CPU returned is in KHz; Mem is in Kb
@@ -35,22 +42,14 @@ func GetResourceLimits(pod *api.Pod) (cpuCapacity float64, memCapacity float64, 
 }
 
 func monitored(pod *api.Pod) bool {
-	if isMirrorPod(pod) {
-		return false
-	}
-	kind, err := findParentObjectKind(pod)
-	if err != nil {
-		glog.Errorf("Cannot determine due to error: %s", err)
-		return false
-	}
-	glog.V(4).Infof("The kind is %s", kind)
-	if kind == "DaemonSet" {
+	// Do not monitor mirror pods and pods created by daemonsets.
+	if isMirrorPod(pod) || isPodCreatedBy(pod, Kind_DaemonSet) {
 		return false
 	}
 	return true
 }
 
-// Determine if a pod is a mirror pod.
+// Check if a pod is a mirror pod.
 func isMirrorPod(pod *api.Pod) bool {
 	annotations := pod.Annotations
 	if annotations == nil {
@@ -63,23 +62,43 @@ func isMirrorPod(pod *api.Pod) bool {
 	return false
 }
 
-// Find the kind of the parent object that creates the pod, from the annotations of pod.
-func findParentObjectKind(pod *api.Pod) (string, error) {
+// Check is a pod is created by the given type of entity.
+func isPodCreatedBy(pod *api.Pod, kind string) bool {
+	parentKind, err := findParentObjectKind(pod)
+	if err != nil {
+		glog.Errorf("%++v", err)
+	}
+	return parentKind == kind
+}
+
+// Find the reference object of the parent entity, which created the gived pod.
+func findParentReferenceObject(pod *api.Pod) (*api.ObjectReference, error) {
+
 	annotations := pod.Annotations
 	if annotations == nil {
-		return "", nil
+		return nil, nil
 	}
 	createdByRef, exist := annotations["kubernetes.io/created-by"]
 	if !exist {
 		glog.Warningf("Cannot find createdBy reference for Pod %s/%s", pod.Namespace, pod.Name)
-		return "", nil
+		return nil, nil
 	}
 
-	parentRef, err := GetCreatedByRef(createdByRef)
+	return GetCreatedByRef(createdByRef)
+}
+
+// Find the kind of the parent object that creates the pod, from the annotations of pod.
+func findParentObjectKind(pod *api.Pod) (string, error) {
+	parentObject, err := findParentReferenceObject(pod)
 	if err != nil {
 		return "", err
 	}
-	return parentRef.Kind, nil
+	if parentObject == nil {
+		return "", nil
+	}
+	kind := parentObject.Kind
+	glog.V(4).Infof("The kind is %s", kind)
+	return kind, nil
 }
 
 func GetCreatedByRef(refData string) (*api.ObjectReference, error) {
@@ -98,4 +117,29 @@ func DecodeJSON(ref interface{}, data string) error {
 		return err
 	}
 	return nil
+}
+
+// Find the appType (TODO the name is TBD) of the given pod.
+// NOTE This function is highly depend on the name of differetn kinds of pod.
+// 	If a pod is created by a kubelet, then the name is like name-nodeName
+//	If a pod is created by a replication controller, then the name is like name-random
+//	if a pod is created by a deployment, then the name is like name-generated-random
+func GetAppType(pod *api.Pod) string {
+	if isMirrorPod(pod) {
+		nodeName := pod.Spec.NodeName
+		na := strings.Split(pod.Name, nodeName)
+		return na[0][:len(na[0])-1]
+	} else if isPodCreatedBy(pod, Kind_DaemonSet) || isPodCreatedBy(pod, Kind_ReplicationController) {
+		generatedName := pod.GenerateName
+		return generatedName[:len(generatedName)-1]
+	} else if isPodCreatedBy(pod, Kind_ReplicaSet) {
+		generatedName := pod.GenerateName
+		na := strings.Split(generatedName, "-")
+		res := ""
+		for i := 0; i < len(na)-2; i++ {
+			res = res + na[i]
+		}
+		return res
+	}
+	return pod.Name
 }

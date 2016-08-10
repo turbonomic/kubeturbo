@@ -125,16 +125,14 @@ func (this *ServiceProbe) ParseService(serviceList []*api.Service, endpointList 
 				continue
 			}
 
-			processMap := pod2AppMap[podIDList[0]]
+			// processMap := pod2AppMap[podIDList[0]]
 
-			for appName := range processMap {
+			commoditiesBoughtMap := this.getCommoditiesBought(podIDList)
 
-				commoditiesBoughtMap := this.getCommoditiesBought(appName, podIDList)
+			entityDto := this.buildEntityDTO(serviceID, commoditiesBoughtMap)
 
-				entityDto := this.buildEntityDTO(appName, commoditiesBoughtMap)
+			result = append(result, entityDto)
 
-				result = append(result, entityDto)
-			}
 		}
 	}
 
@@ -173,9 +171,9 @@ func (this *ServiceProbe) findBackendPodPerService(service *api.Service, endpoin
 	return serviceEndpointMap
 }
 
-func (this *ServiceProbe) buildEntityDTO(appName string, commoditiesBoughtMap map[*sdk.ProviderDTO][]*sdk.CommodityDTO) *sdk.EntityDTO {
+func (this *ServiceProbe) buildEntityDTO(serviceName string, commoditiesBoughtMap map[*sdk.ProviderDTO][]*sdk.CommodityDTO) *sdk.EntityDTO {
 	serviceEntityType := sdk.EntityDTO_VIRTUAL_APPLICATION
-	id := "vApp-" + appName
+	id := "vApp-" + serviceName + "-" + ClusterID
 	dispName := id
 	entityDTOBuilder := sdk.NewEntityDTOBuilder(serviceEntityType, id)
 
@@ -190,13 +188,13 @@ func (this *ServiceProbe) buildEntityDTO(appName string, commoditiesBoughtMap ma
 	return entityDto
 }
 
-func (this *ServiceProbe) getCommoditiesBought(appName string, podIDList []string) map[*sdk.ProviderDTO][]*sdk.CommodityDTO {
+func (this *ServiceProbe) getCommoditiesBought(podIDList []string) map[*sdk.ProviderDTO][]*sdk.CommodityDTO {
 	commoditiesBoughtMap := make(map[*sdk.ProviderDTO][]*sdk.CommodityDTO)
 
 	for _, podID := range podIDList {
 		serviceResourceStat := getServiceResourceStat(podTransactionCountMap, podID)
-
-		appID := appName + "::" + podID
+		appName := podID
+		appID := appPrefix + appName
 		// We might want to check here if the appID exist.
 		appProvider := sdk.CreateProvider(sdk.EntityDTO_APPLICATION, appID)
 		var commoditiesBoughtFromApp []*sdk.CommodityDTO

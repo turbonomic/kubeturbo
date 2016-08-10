@@ -24,6 +24,11 @@ var podIP2PodMap map[string]*api.Pod = make(map[string]*api.Pod)
 // This map keep records of pods whose states are set to inactive in VMT server side. The key is the pod identifier (podNamespace/podName)
 var inactivePods map[string]struct{} = make(map[string]struct{})
 
+// TODO, this is a quick fix
+var podResourceConsumptionMap map[string]*PodResourceStat
+var nodePodMap map[string][]string
+var podAppTypeMap map[string]string
+
 // Pods Getter is such func that gets all the pods match the provided namespace, labels and fiels.
 type PodsGetter func(namespace string, label labels.Selector, field fields.Selector) ([]*api.Pod, error)
 
@@ -33,6 +38,9 @@ type PodProbe struct {
 
 func NewPodProbe(getter PodsGetter) *PodProbe {
 	inactivePods = make(map[string]struct{})
+	podResourceConsumptionMap = make(map[string]*PodResourceStat)
+	nodePodMap = make(map[string][]string)
+	podAppTypeMap = make(map[string]string)
 
 	return &PodProbe{
 		podGetter: getter,
@@ -234,12 +242,16 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	glog.V(4).Infof(" Pod %s CPU request is %f", pod.Name, podCpuUsed)
 	glog.V(4).Infof(" Pod %s Mem request is %f", pod.Name, podMemUsed)
 
-	return &PodResourceStat{
+	resourceStat := &PodResourceStat{
 		cpuAllocationCapacity: podCpuCapacity,
 		cpuAllocationUsed:     podCpuUsed,
 		memAllocationCapacity: podMemCapacity,
 		memAllocationUsed:     podMemUsed,
-	}, nil
+	}
+
+	podResourceConsumptionMap[podNameWithNamespace] = resourceStat
+
+	return resourceStat, nil
 }
 
 // Build commodityDTOs for commodity sold by the pod
@@ -305,6 +317,9 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 	}
 	glog.V(4).Infof("Pod %s is hosted on %s", dispName, minionId)
 
+	// TODO, temp solution.
+	updateNodePodMap(minionId, id)
+
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
 	providerUid := nodeUidTranslationMap[minionId]
 	entityDTOBuilder = entityDTOBuilder.SetProviderWithTypeAndID(sdk.EntityDTO_VIRTUAL_MACHINE, providerUid)
@@ -322,7 +337,19 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 		inactivePods[podNameWithNamespace] = struct{}{}
 	}
 
+	// Get the app type of the pod.
+	podAppTypeMap[podNameWithNamespace] = GetAppType(pod)
+
 	return entityDto, nil
+}
+
+func updateNodePodMap(nodeName, podID string) {
+	var podIDs []string
+	if ids, exist := nodePodMap[nodeName]; exist {
+		podIDs = ids
+	}
+	podIDs = append(podIDs, podID)
+	nodePodMap[nodeName] = podIDs
 }
 
 // Get the IP address that will be used for stitching process.
