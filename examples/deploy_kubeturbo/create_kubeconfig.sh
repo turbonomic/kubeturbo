@@ -34,7 +34,7 @@ while true; do
     case $1 in 
       --server) 
   shift
-  if [[ -z "$1" ]; then
+  if [[ -z "$1" ]]; then
           >&2 echo "empty argument to --server flag"
           exit 1
         fi
