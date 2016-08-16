@@ -1,5 +1,5 @@
 {
-		"serveraddress":	"10.10.192.90:8080",
+		"serveraddress":	"10.10.192.87:8080",
 		"targettype":"Kubernetes",
 		"nameoraddress":  "k8s_vmt",
 		"username":"kubernetes_user",

@@ -263,12 +263,15 @@ func (podProbe *PodProbe) getCommoditiesSold(pod *api.Pod, podResourceStat *PodR
 		Capacity(float64(podResourceStat.memAllocationCapacity)).
 		Used(podResourceStat.memAllocationUsed).
 		Create()
+	enableResize := true
+	memAllocationComm.Resizable = &enableResize
 	commoditiesSold = append(commoditiesSold, memAllocationComm)
 	cpuAllocationComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_CPU_ALLOCATION).
 		Key(podNameWithNamespace).
 		Capacity(float64(podResourceStat.cpuAllocationCapacity)).
 		Used(podResourceStat.cpuAllocationUsed).
 		Create()
+	cpuAllocationComm.Resizable = &enableResize
 	commoditiesSold = append(commoditiesSold, cpuAllocationComm)
 	return commoditiesSold
 }

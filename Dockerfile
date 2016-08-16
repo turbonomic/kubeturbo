@@ -4,7 +4,7 @@ FROM ubuntu
 # Set the file maintainer
 MAINTAINER Dongyi Yang <dongyi.yang@vmturbo.com>
 
-ADD kubeturbo /bin/kubeturbo
+ADD _output/kubeturbo /bin/kubeturbo
 
 ENTRYPOINT ["/bin/kubeturbo"]
 
