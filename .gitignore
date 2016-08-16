@@ -6,3 +6,5 @@ actionexecutionsimulator
 ./examples/kubeturbo/kubeturbo
 
 .*swp
+
+_output/
