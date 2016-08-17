@@ -20,7 +20,7 @@ if [[ ! -d $KUBETURBO_CONFIG_PATH ]]; then
   mkdir -p $KUBETURBO_CONFIG_PATH
 fi
 
-KUBECONFIG_PATH=$KUBETURBO_CONFIG_PATH/kubeconfig-aws
+KUBECONFIG_PATH=$KUBETURBO_CONFIG_PATH/kubeconfig
 
 args=$(getopt -o '' -l server:,ca:,cert:,key: -- "$@")
 if [[ $? -ne 0 ]]; then
