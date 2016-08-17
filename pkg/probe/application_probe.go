@@ -141,7 +141,7 @@ func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, 
 // Build commodities sold for each application. An application sells transaction, which a virtual application buys.
 func (this *ApplicationProbe) getCommoditiesSold(appName string, appResourceStat *ApplicationResourceStat) []*sdk.CommodityDTO {
 	var commoditiesSold []*sdk.CommodityDTO
-	transactionComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_TRANSACTION).
+	transactionComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_TRANSACTION).
 		Key(appName).
 		Capacity(appResourceStat.transactionCapacity).
 		Used(appResourceStat.transactionUsed).
@@ -157,12 +157,12 @@ func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, app
 
 	podProvider := sdk.CreateProvider(sdk.EntityDTO_CONTAINER_POD, podName)
 	var commoditiesBoughtFromPod []*sdk.CommodityDTO
-	cpuAllocationCommBought := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_CPU_ALLOCATION).
+	cpuAllocationCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_CPU_ALLOCATION).
 		Key(podName).
 		Used(appResourceStat.cpuAllocationUsed).
 		Create()
 	commoditiesBoughtFromPod = append(commoditiesBoughtFromPod, cpuAllocationCommBought)
-	memAllocationCommBought := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_MEM_ALLOCATION).
+	memAllocationCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_MEM_ALLOCATION).
 		Key(podName).
 		Used(appResourceStat.memAllocationUsed).
 		Create()
@@ -172,16 +172,16 @@ func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, app
 	nodeUID := nodeUidTranslationMap[nodeName]
 	nodeProvider := sdk.CreateProvider(sdk.EntityDTO_VIRTUAL_MACHINE, nodeUID)
 	var commoditiesBoughtFromNode []*sdk.CommodityDTO
-	vCpuCommBought := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_VCPU).
+	vCpuCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_VCPU).
 		Used(appResourceStat.vCpuUsed).
 		Create()
 	commoditiesBoughtFromNode = append(commoditiesBoughtFromNode, vCpuCommBought)
 
-	vMemCommBought := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_VMEM).
+	vMemCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_VMEM).
 		Used(appResourceStat.vMemUsed).
 		Create()
 	commoditiesBoughtFromNode = append(commoditiesBoughtFromNode, vMemCommBought)
-	appCommBought := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_APPLICATION).
+	appCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_APPLICATION).
 		Key(nodeUID).
 		Create()
 	commoditiesBoughtFromNode = append(commoditiesBoughtFromNode, appCommBought)

@@ -187,11 +187,11 @@
 		},
 		{
 			"ImportPath": "github.com/vmturbo/vmturbo-go-sdk/communicator",
-			"Rev": "48be989e457dc606ddfbb322acf53824d9c644da"
+			"Rev": "2243b24cb36d5f2d03903c6ff368269fc8c91383"
 		},
 		{
 			"ImportPath": "github.com/vmturbo/vmturbo-go-sdk/sdk",
-			"Rev": "48be989e457dc606ddfbb322acf53824d9c644da"
+			"Rev": "2243b24cb36d5f2d03903c6ff368269fc8c91383"
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",

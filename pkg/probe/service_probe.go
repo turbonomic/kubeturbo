@@ -198,7 +198,7 @@ func (this *ServiceProbe) getCommoditiesBought(podIDList []string) map[*sdk.Prov
 		// We might want to check here if the appID exist.
 		appProvider := sdk.CreateProvider(sdk.EntityDTO_APPLICATION, appID)
 		var commoditiesBoughtFromApp []*sdk.CommodityDTO
-		transactionCommBought := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_TRANSACTION).
+		transactionCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_TRANSACTION).
 			Key(appName).
 			Used(serviceResourceStat.transactionBought).
 			Create()

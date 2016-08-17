@@ -258,7 +258,7 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 func (podProbe *PodProbe) getCommoditiesSold(pod *api.Pod, podResourceStat *PodResourceStat) []*sdk.CommodityDTO {
 	podNameWithNamespace := pod.Namespace + "/" + pod.Name
 	var commoditiesSold []*sdk.CommodityDTO
-	memAllocationComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_MEM_ALLOCATION).
+	memAllocationComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_MEM_ALLOCATION).
 		Key(podNameWithNamespace).
 		Capacity(float64(podResourceStat.memAllocationCapacity)).
 		Used(podResourceStat.memAllocationUsed).
@@ -266,7 +266,7 @@ func (podProbe *PodProbe) getCommoditiesSold(pod *api.Pod, podResourceStat *PodR
 	enableResize := true
 	memAllocationComm.Resizable = &enableResize
 	commoditiesSold = append(commoditiesSold, memAllocationComm)
-	cpuAllocationComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_CPU_ALLOCATION).
+	cpuAllocationComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_CPU_ALLOCATION).
 		Key(podNameWithNamespace).
 		Capacity(float64(podResourceStat.cpuAllocationCapacity)).
 		Used(podResourceStat.cpuAllocationUsed).
@@ -279,12 +279,12 @@ func (podProbe *PodProbe) getCommoditiesSold(pod *api.Pod, podResourceStat *PodR
 // Build commodityDTOs for commodity sold by the pod
 func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *PodResourceStat) []*sdk.CommodityDTO {
 	var commoditiesBought []*sdk.CommodityDTO
-	cpuAllocationCommBought := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_CPU_ALLOCATION).
+	cpuAllocationCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_CPU_ALLOCATION).
 		Key("Container").
 		Used(podResourceStat.cpuAllocationUsed).
 		Create()
 	commoditiesBought = append(commoditiesBought, cpuAllocationCommBought)
-	memAllocationCommBought := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_MEM_ALLOCATION).
+	memAllocationCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_MEM_ALLOCATION).
 		Key("Container").
 		Used(podResourceStat.memAllocationUsed).
 		Create()
@@ -293,14 +293,14 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 	if len(selectormap) > 0 {
 		for key, value := range selectormap {
 			str1 := key + "=" + value
-			accessComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_VMPM_ACCESS).Key(str1).Create()
+			accessComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_VMPM_ACCESS).Key(str1).Create()
 			commoditiesBought = append(commoditiesBought, accessComm)
 		}
 	}
 
 	//cluster commodity
 	clusterCommodityKey := ClusterID
-	clusterComm := sdk.NewCommodtiyDTOBuilder(sdk.CommodityDTO_CLUSTER).Key(clusterCommodityKey).Create()
+	clusterComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_CLUSTER).Key(clusterCommodityKey).Create()
 	commoditiesBought = append(commoditiesBought, clusterComm)
 	return commoditiesBought
 }
