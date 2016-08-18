@@ -46,7 +46,6 @@ spec:
         volumeMounts:
         - name: etcd-storage
           mountPath: /var/etcd/data
-      serviceAccount: turbo-user
       restartPolicy: Always
       volumes:
       - name: etcd-storage
