@@ -176,7 +176,9 @@ func (handler *KubernetesServerMessageHandler) DiscoverTopology(serverMsg *comm.
 func (handler *KubernetesServerMessageHandler) HandleAction(serverMsg *comm.MediationServerMessage) {
 	messageID := serverMsg.GetMessageID()
 	actionRequest := serverMsg.GetActionRequest()
-	actionItemDTO := actionRequest.GetActionItemDTO()
+	actionExectionDTO := actionRequest.GetActionExecutionDTO()
+	actionItems := actionExectionDTO.GetActionItem()
+	actionItemDTO := actionItems[0]
 	glog.V(4).Infof("The received ActionItemDTO is %v", actionItemDTO)
 
 	handler.actionHandler.Execute(actionItemDTO, messageID)
