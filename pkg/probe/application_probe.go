@@ -14,7 +14,7 @@ import (
 
 const appPrefix string = "App-"
 
-var podTransactionCountMap map[string]int = make(map[string]int)
+var podTransactionCountMap map[string]float64 = make(map[string]float64)
 
 type ApplicationProbe struct {
 }
@@ -65,21 +65,16 @@ func (appProbe *ApplicationProbe) ParseApplication(namespace string) (result []*
 }
 
 // Get transaction value for each pod. Returned map contains transaction values for all the pods in the cluster.
-func (this *ApplicationProbe) calculateTransactionValuePerPod() (map[string]int, error) {
+func (this *ApplicationProbe) calculateTransactionValuePerPod() (map[string]float64, error) {
 	transactionsCount, err := this.retrieveTransactions()
 	if err != nil {
 		return nil, err
 	}
 
-	var transactionCountMap map[string]int = make(map[string]int)
+	var transactionCountMap map[string]float64 = make(map[string]float64)
 
 	for podIPAndPort, count := range transactionsCount {
-		tempArray := strings.Split(podIPAndPort, ":")
-		if len(tempArray) < 2 {
-			glog.Errorf("Cannot get transaction count for endpoint %s", podIPAndPort)
-			continue
-		}
-		podIP := tempArray[0]
+		podIP := podIPAndPort
 		pod, ok := podIP2PodMap[podIP]
 		if !ok {
 			glog.Errorf("Cannot link pod with IP %s in the podSet", podIP)
@@ -94,7 +89,7 @@ func (this *ApplicationProbe) calculateTransactionValuePerPod() (map[string]int,
 }
 
 // Get resource usage status for a single application.
-func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, nodeCpuCapacity, nodeMemCapacity float64, podTransactionCountMap map[string]int) *ApplicationResourceStat {
+func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, nodeCpuCapacity, nodeMemCapacity float64, podTransactionCountMap map[string]float64) *ApplicationResourceStat {
 	podResourceStat := podResourceConsumptionMap[podName]
 
 	cpuUsage := podResourceStat.cpuAllocationUsed
@@ -104,9 +99,8 @@ func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, 
 	transactionUsed := float64(0)
 
 	if count, ok := podTransactionCountMap[podName]; ok {
-		transactionUsed = float64(count)
+		transactionUsed = count
 		glog.V(4).Infof("Get transactions value of pod %s, is %f", podName, transactionUsed)
-
 	}
 
 	flag, err := helper.LoadTestingFlag()
@@ -226,13 +220,13 @@ func (this *ApplicationProbe) buildApplicationEntityDTOs(appName string, host *v
 }
 
 // Get transaction values for each endpoint. Return a map, {endpointIP, transactionCount}
-func (this *ApplicationProbe) retrieveTransactions() (map[string]int, error) {
+func (this *ApplicationProbe) retrieveTransactions() (map[string]float64, error) {
 	servicesTransactions, err := this.getTransactionFromAllNodes()
 	if err != nil {
 		return nil, err
 	}
 
-	ep2TransactionCountMap := make(map[string]int)
+	ep2TransactionCountMap := make(map[string]float64)
 	for _, transaction := range servicesTransactions {
 		epCounterMap := transaction.GetEndpointsCounterMap()
 		for ep, count := range epCounterMap {

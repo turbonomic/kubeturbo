@@ -210,12 +210,12 @@ func (this *ServiceProbe) getCommoditiesBought(podIDList []string) map[*sdk.Prov
 	return commoditiesBoughtMap
 }
 
-func getServiceResourceStat(transactionCountMap map[string]int, podID string) *ServiceResourceStat {
+func getServiceResourceStat(transactionCountMap map[string]float64, podID string) *ServiceResourceStat {
 	transactionBought := float64(0)
 
 	count, ok := transactionCountMap[podID]
 	if ok {
-		transactionBought = float64(count)
+		transactionBought = count
 		glog.V(4).Infof("Transaction bought from pod %s is %d", podID, count)
 	} else {
 		glog.V(4).Infof("No transaction value for applications on pod %s", podID)

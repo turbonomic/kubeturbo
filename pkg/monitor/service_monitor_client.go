@@ -38,6 +38,7 @@ func (self *ServiceMonitorClient) TransactionInfo() (transactionInfo []Transacti
 	}
 	transactionInfo = make([]Transaction, 0, len(ret))
 	for _, cont := range ret {
+		glog.V(4).Infof("transaction is %++v", cont)
 		transactionInfo = append(transactionInfo, cont)
 	}
 	return
