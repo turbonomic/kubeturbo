@@ -73,7 +73,6 @@ func (this *SupplyChainFactory) nodeSupplyBuilder() *sdk.SupplyChainNodeBuilder 
 		Entity(sdk.EntityDTO_VIRTUAL_MACHINE).
 		Selling(sdk.CommodityDTO_CPU_ALLOCATION, fakeKey).
 		Selling(sdk.CommodityDTO_MEM_ALLOCATION, fakeKey).
-		Selling(sdk.CommodityDTO_VMPM_ACCESS, fakeKey).
 		Selling(sdk.CommodityDTO_VCPU, emptyKey).
 		Selling(sdk.CommodityDTO_VMEM, emptyKey).
 		Selling(sdk.CommodityDTO_APPLICATION, fakeKey).
