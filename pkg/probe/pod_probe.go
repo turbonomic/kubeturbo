@@ -3,6 +3,7 @@ package probe
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
@@ -308,10 +309,12 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 // Build entityDTO that contains all the necessary info of a pod.
 func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commoditiesBought []*sdk.CommodityDTO) (*sdk.EntityDTO, error) {
 	podNameWithNamespace := pod.Namespace + "/" + pod.Name
+
 	id := podNameWithNamespace
 	dispName := podNameWithNamespace
 
-	entityDTOBuilder := sdk.NewEntityDTOBuilder(sdk.EntityDTO_CONTAINER_POD, id)
+	// NOTE: quick fix, podName are now show as namespace:name, which is namespace/name before. So we need to replace "/" with ":".
+	entityDTOBuilder := sdk.NewEntityDTOBuilder(sdk.EntityDTO_CONTAINER_POD, strings.Replace(podNameWithNamespace, "/", ":", -1))
 	entityDTOBuilder.DisplayName(dispName)
 
 	minionId := pod.Spec.NodeName

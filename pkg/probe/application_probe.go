@@ -155,7 +155,8 @@ func (this *ApplicationProbe) getCommoditiesSold(appName string, appResourceStat
 func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, appResourceStat *ApplicationResourceStat) map[*sdk.ProviderDTO][]*sdk.CommodityDTO {
 	commoditiesBoughtMap := make(map[*sdk.ProviderDTO][]*sdk.CommodityDTO)
 
-	podProvider := sdk.CreateProvider(sdk.EntityDTO_CONTAINER_POD, podName)
+	// NOTE: quick fix, podName are now show as namespace:name, which is namespace/name before. So we need to replace "/" with ":".
+	podProvider := sdk.CreateProvider(sdk.EntityDTO_CONTAINER_POD, strings.Replace(podName, "/", ":", -1))
 	var commoditiesBoughtFromPod []*sdk.CommodityDTO
 	cpuAllocationCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_CPU_ALLOCATION).
 		Key(podName).
@@ -195,7 +196,7 @@ func (this *ApplicationProbe) buildApplicationEntityDTOs(appName string, host *v
 	appEntityType := sdk.EntityDTO_APPLICATION
 	id := appPrefix + appName
 	dispName := appName
-	entityDTOBuilder := sdk.NewEntityDTOBuilder(appEntityType, id)
+	entityDTOBuilder := sdk.NewEntityDTOBuilder(appEntityType, strings.Replace(id, "/", "-", -1))
 	entityDTOBuilder = entityDTOBuilder.DisplayName(dispName)
 
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
