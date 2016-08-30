@@ -54,7 +54,7 @@ func (this *FakeNodeGetter) GetNodes(label labels.Selector, field fields.Selecto
 func TestGetNodes(t *testing.T) {
 	fakeGetter := &FakeNodeGetter{}
 
-	nodeProbe := NewNodeProbe(fakeGetter.GetNodes)
+	nodeProbe := NewNodeProbe(fakeGetter.GetNodes, nil)
 
 	nodes := nodeProbe.GetNodes(nil, nil)
 
