@@ -190,7 +190,7 @@ func (this *ApplicationProbe) buildApplicationEntityDTOs(appName string, host *v
 	appEntityType := sdk.EntityDTO_APPLICATION
 	id := appPrefix + appName
 	dispName := appName
-	entityDTOBuilder := sdk.NewEntityDTOBuilder(appEntityType, strings.Replace(id, "/", "-", -1))
+	entityDTOBuilder := sdk.NewEntityDTOBuilder(appEntityType, strings.Replace(id, "/", ":", -1))
 	entityDTOBuilder = entityDTOBuilder.DisplayName(dispName)
 
 	entityDTOBuilder.SellsCommodities(commoditiesSold)

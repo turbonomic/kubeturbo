@@ -3,6 +3,7 @@ package probe
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"k8s.io/kubernetes/pkg/api"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
@@ -175,7 +176,7 @@ func (this *ServiceProbe) buildEntityDTO(serviceName string, commoditiesBoughtMa
 	serviceEntityType := sdk.EntityDTO_VIRTUAL_APPLICATION
 	id := "vApp-" + serviceName + "-" + ClusterID
 	dispName := id
-	entityDTOBuilder := sdk.NewEntityDTOBuilder(serviceEntityType, id)
+	entityDTOBuilder := sdk.NewEntityDTOBuilder(serviceEntityType, strings.Replace(id, "/", ":", -1))
 
 	entityDTOBuilder = entityDTOBuilder.DisplayName(dispName)
 	for provider, commodities := range commoditiesBoughtMap {
@@ -196,7 +197,7 @@ func (this *ServiceProbe) getCommoditiesBought(podIDList []string) map[*sdk.Prov
 		appName := podID
 		appID := appPrefix + appName
 		// We might want to check here if the appID exist.
-		appProvider := sdk.CreateProvider(sdk.EntityDTO_APPLICATION, appID)
+		appProvider := sdk.CreateProvider(sdk.EntityDTO_APPLICATION, strings.Replace(appID, "/", ":", -1))
 		var commoditiesBoughtFromApp []*sdk.CommodityDTO
 		transactionCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_TRANSACTION).
 			Key(appName).
