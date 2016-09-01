@@ -11,8 +11,8 @@ import (
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 
-	comm "github.com/vmturbo/vmturbo-go-sdk/communicator"
-	"github.com/vmturbo/vmturbo-go-sdk/sdk"
+	comm "github.com/vmturbo/vmturbo-go-sdk/pkg/communication"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 )
@@ -72,7 +72,7 @@ type ActionHandler struct {
 	actionExecutor   *VMTActionExecutor
 	actionSupervisor *supervisor.VMTActionSupervisor
 
-	resultChan chan *comm.ActionResult
+	resultChan chan *proto.ActionResult
 }
 
 func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
@@ -86,7 +86,7 @@ func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 		actionExecutor:   executor,
 		actionSupervisor: supervisor,
 
-		resultChan: make(chan *comm.ActionResult),
+		resultChan: make(chan *proto.ActionResult),
 	}
 }
 
@@ -107,7 +107,7 @@ func (this *ActionHandler) getNextSucceededVMTEvent() {
 	if msgID > -1 {
 		glog.V(2).Infof("Action %s for %s succeeded.", content.ActionType, content.TargetSE)
 		progress := int32(100)
-		this.sendActionResult(sdk.ActionResponseState_SUCCEEDED, progress, msgID, "Success")
+		this.sendActionResult(proto.ActionResponseState_SUCCEEDED, progress, msgID, "Success")
 	}
 	// TODO init discovery
 }
@@ -121,33 +121,33 @@ func (this *ActionHandler) getNextFailedVMTEvent() {
 	if msgID > -1 {
 		glog.V(2).Infof("Action %s for %s failed.", content.ActionType, content.TargetSE)
 		progress := int32(0)
-		this.sendActionResult(sdk.ActionResponseState_FAILED, progress, msgID, "Failed")
+		this.sendActionResult(proto.ActionResponseState_FAILED, progress, msgID, "Failed")
 	}
 	// TODO init discovery
 }
 
-func (this *ActionHandler) Execute(actionItem *sdk.ActionItemDTO, msgID int32) {
+func (this *ActionHandler) Execute(actionItem *proto.ActionItemDTO, msgID int32) {
 	_, err := this.actionExecutor.ExcuteAction(actionItem, msgID)
 	if err != nil {
 		glog.Errorf("Error execute action: %s", err)
-		this.sendActionResult(sdk.ActionResponseState_FAILED, int32(0), msgID, "Failed")
+		this.sendActionResult(proto.ActionResponseState_FAILED, int32(0), msgID, "Failed")
 	}
 }
 
-func (handler *ActionHandler) ResultChan() *comm.ActionResult {
+func (handler *ActionHandler) ResultChan() *proto.ActionResult {
 	return <-handler.resultChan
 }
 
 // Send action response to vmt server.
-func (handler *ActionHandler) sendActionResult(state sdk.ActionResponseState, progress, messageID int32, description string) {
+func (handler *ActionHandler) sendActionResult(state proto.ActionResponseState, progress, messageID int32, description string) {
 	// 1. build response
-	response := &comm.ActionResponse{
+	response := &proto.ActionResponse{
 		ActionResponseState: &state,
 		Progress:            &progress,
 		ResponseDescription: &description,
 	}
 	// 2. built action result.
-	result := &comm.ActionResult{
+	result := &proto.ActionResult{
 		Response: response,
 	}
 

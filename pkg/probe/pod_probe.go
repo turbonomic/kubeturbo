@@ -14,8 +14,10 @@ import (
 	vmtAdvisor "github.com/vmturbo/kubeturbo/pkg/cadvisor"
 	"github.com/vmturbo/kubeturbo/pkg/helper"
 
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/builder"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
+
 	"github.com/golang/glog"
-	"github.com/vmturbo/vmturbo-go-sdk/sdk"
 )
 
 var container2PodMap map[string]string = make(map[string]string)
@@ -93,7 +95,7 @@ func (this *VMTPodGetter) GetPods(namespace string, label labels.Selector, field
 }
 
 // Get pod resource usage from Kubernetes cluster and return a list of entityDTOs.
-func (podProbe *PodProbe) parsePodFromK8s(pods []*api.Pod) (result []*sdk.EntityDTO, err error) {
+func (podProbe *PodProbe) parsePodFromK8s(pods []*api.Pod) (result []*proto.EntityDTO, err error) {
 	podContainers, err := podProbe.groupContainerByPod()
 	if err != nil {
 		return nil, err
@@ -256,10 +258,10 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 }
 
 // Build commodityDTOs for commodity sold by the pod
-func (podProbe *PodProbe) getCommoditiesSold(pod *api.Pod, podResourceStat *PodResourceStat) []*sdk.CommodityDTO {
+func (podProbe *PodProbe) getCommoditiesSold(pod *api.Pod, podResourceStat *PodResourceStat) []*proto.CommodityDTO {
 	podNameWithNamespace := pod.Namespace + "/" + pod.Name
-	var commoditiesSold []*sdk.CommodityDTO
-	memAllocationComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_MEM_ALLOCATION).
+	var commoditiesSold []*proto.CommodityDTO
+	memAllocationComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_ALLOCATION).
 		Key(podNameWithNamespace).
 		Capacity(float64(podResourceStat.memAllocationCapacity)).
 		Used(podResourceStat.memAllocationUsed).
@@ -267,7 +269,7 @@ func (podProbe *PodProbe) getCommoditiesSold(pod *api.Pod, podResourceStat *PodR
 	enableResize := true
 	memAllocationComm.Resizable = &enableResize
 	commoditiesSold = append(commoditiesSold, memAllocationComm)
-	cpuAllocationComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_CPU_ALLOCATION).
+	cpuAllocationComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_ALLOCATION).
 		Key(podNameWithNamespace).
 		Capacity(float64(podResourceStat.cpuAllocationCapacity)).
 		Used(podResourceStat.cpuAllocationUsed).
@@ -278,14 +280,14 @@ func (podProbe *PodProbe) getCommoditiesSold(pod *api.Pod, podResourceStat *PodR
 }
 
 // Build commodityDTOs for commodity sold by the pod
-func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *PodResourceStat) []*sdk.CommodityDTO {
-	var commoditiesBought []*sdk.CommodityDTO
-	cpuAllocationCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_CPU_ALLOCATION).
+func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *PodResourceStat) []*proto.CommodityDTO {
+	var commoditiesBought []*proto.CommodityDTO
+	cpuAllocationCommBought := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_ALLOCATION).
 		Key("Container").
 		Used(podResourceStat.cpuAllocationUsed).
 		Create()
 	commoditiesBought = append(commoditiesBought, cpuAllocationCommBought)
-	memAllocationCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_MEM_ALLOCATION).
+	memAllocationCommBought := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_ALLOCATION).
 		Key("Container").
 		Used(podResourceStat.memAllocationUsed).
 		Create()
@@ -294,27 +296,27 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 	if len(selectormap) > 0 {
 		for key, value := range selectormap {
 			str1 := key + "=" + value
-			accessComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_VMPM_ACCESS).Key(str1).Create()
+			accessComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).Key(str1).Create()
 			commoditiesBought = append(commoditiesBought, accessComm)
 		}
 	}
 
 	//cluster commodity
 	clusterCommodityKey := ClusterID
-	clusterComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_CLUSTER).Key(clusterCommodityKey).Create()
+	clusterComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).Key(clusterCommodityKey).Create()
 	commoditiesBought = append(commoditiesBought, clusterComm)
 	return commoditiesBought
 }
 
 // Build entityDTO that contains all the necessary info of a pod.
-func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commoditiesBought []*sdk.CommodityDTO) (*sdk.EntityDTO, error) {
+func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commoditiesBought []*proto.CommodityDTO) (*proto.EntityDTO, error) {
 	podNameWithNamespace := pod.Namespace + "/" + pod.Name
 
 	id := podNameWithNamespace
 	dispName := podNameWithNamespace
 
 	// NOTE: quick fix, podName are now show as namespace:name, which is namespace/name before. So we need to replace "/" with ":".
-	entityDTOBuilder := sdk.NewEntityDTOBuilder(sdk.EntityDTO_CONTAINER_POD, strings.Replace(podNameWithNamespace, "/", ":", -1))
+	entityDTOBuilder := builder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, strings.Replace(podNameWithNamespace, "/", ":", -1))
 	entityDTOBuilder.DisplayName(dispName)
 
 	minionId := pod.Spec.NodeName
@@ -328,16 +330,19 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
 	providerUid := nodeUidTranslationMap[minionId]
-	entityDTOBuilder = entityDTOBuilder.SetProviderWithTypeAndID(sdk.EntityDTO_VIRTUAL_MACHINE, providerUid)
+	entityDTOBuilder = entityDTOBuilder.SetProviderWithTypeAndID(proto.EntityDTO_VIRTUAL_MACHINE, providerUid)
 	entityDTOBuilder.BuysCommodities(commoditiesBought)
 
 	ipAddress := podProbe.getIPForStitching(pod)
 	entityDTOBuilder = entityDTOBuilder.SetProperty("ipAddress", ipAddress)
 	glog.V(4).Infof("Pod %s will be stitched to VM with IP %s", dispName, ipAddress)
 
-	entityDto := entityDTOBuilder.Create()
+	entityDto, err := entityDTOBuilder.Create()
+	if err != nil {
+		return nil, err
+	}
 
-	// TODO: should change sdk to change the monitored state
+	// TODO: should change builder to change the monitored state
 	if monitored := monitored(pod); !monitored {
 		entityDto.Monitored = &monitored
 		inactivePods[podNameWithNamespace] = struct{}{}

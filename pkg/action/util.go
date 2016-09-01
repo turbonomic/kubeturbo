@@ -10,7 +10,7 @@ import (
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 
-	"github.com/vmturbo/vmturbo-go-sdk/sdk"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 )
@@ -198,7 +198,7 @@ func GetNodeNameFromIP(kubeClient *client.Client, machineIPs []string) (string, 
 }
 
 // Find which pod is the app running based on the received action request.
-func FindApplicationPodProvider(kubeClient *client.Client, providers []*sdk.ActionItemDTO_ProviderInfo) (*api.Pod, error) {
+func FindApplicationPodProvider(kubeClient *client.Client, providers []*proto.ActionItemDTO_ProviderInfo) (*api.Pod, error) {
 	if providers == nil || len(providers) < 1 {
 		return nil, fmt.Errorf("Cannot find any provider.")
 	}
@@ -207,7 +207,7 @@ func FindApplicationPodProvider(kubeClient *client.Client, providers []*sdk.Acti
 		if providerInfo == nil {
 			continue
 		}
-		if providerInfo.GetEntityType() == sdk.EntityDTO_CONTAINER_POD {
+		if providerInfo.GetEntityType() == proto.EntityDTO_CONTAINER_POD {
 			providerIDs := providerInfo.GetIds()
 			for _, id := range providerIDs {
 				podProvider, err := GetPodFromIdentifier(kubeClient, id)

@@ -9,8 +9,8 @@ import (
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 	external "github.com/vmturbo/kubeturbo/pkg/vmturbocommunicator/externalprobebuilder"
 
-	comm "github.com/vmturbo/vmturbo-go-sdk/communicator"
-	"github.com/vmturbo/vmturbo-go-sdk/sdk"
+	comm "github.com/vmturbo/vmturbo-go-sdk/pkg/communication"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
 )
 
 type VMTCommunicator struct {
@@ -55,29 +55,34 @@ func (vmtcomm *VMTCommunicator) Init() {
 }
 
 // Register Kubernetes target onto server and start listen to websocket.
-func (vmtcomm *VMTCommunicator) RegisterKubernetes() {
+func (vmtcomm *VMTCommunicator) RegisterKubernetes() error {
 	externalProbeBuilder := &external.ExternalProbeBuilder{}
-	probes := externalProbeBuilder.BuildProbes(vmtcomm.meta.TargetType)
+	probes, err := externalProbeBuilder.BuildProbes(vmtcomm.meta.TargetType)
+	if err != nil {
+		return err
+	}
 
 	// Create mediation container
-	containerInfo := &comm.ContainerInfo{
+	containerInfo := &proto.ContainerInfo{
 		Probes: probes,
 	}
 
 	vmtcomm.wsComm.RegisterAndListen(containerInfo)
+
+	return nil
 }
 
 // Send action response to vmt server.
-func (vmtcomm *VMTCommunicator) SendActionReponse(state sdk.ActionResponseState, progress, messageID int32, description string) {
+func (vmtcomm *VMTCommunicator) SendActionReponse(state proto.ActionResponseState, progress, messageID int32, description string) {
 	// 1. build response
-	response := &comm.ActionResponse{
+	response := &proto.ActionResponse{
 		ActionResponseState: &state,
 		Progress:            &progress,
 		ResponseDescription: &description,
 	}
 
 	// 2. built action result.
-	result := &comm.ActionResult{
+	result := &proto.ActionResult{
 		Response: response,
 	}
 

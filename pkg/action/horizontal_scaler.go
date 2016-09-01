@@ -10,7 +10,7 @@ import (
 
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 
-	"github.com/vmturbo/vmturbo-go-sdk/sdk"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 )
@@ -28,14 +28,14 @@ func NewHorizontalScaler(client *client.Client, vmtEventRegistry *registry.VMTEv
 	}
 }
 
-func (this *HorizontalScaler) ScaleOut(actionItem *sdk.ActionItemDTO, msgID int32) (*registry.VMTEvent, error) {
+func (this *HorizontalScaler) ScaleOut(actionItem *proto.ActionItemDTO, msgID int32) (*registry.VMTEvent, error) {
 	if actionItem == nil {
 		return nil, fmt.Errorf("ActionItem passed in is nil")
 	}
 	targetEntityType := actionItem.GetTargetSE().GetEntityType()
-	fmt.Printf("is containerPod: %v; want %s, got %s\n", targetEntityType == sdk.EntityDTO_CONTAINER_POD, targetEntityType, sdk.EntityDTO_CONTAINER_POD)
-	if targetEntityType == sdk.EntityDTO_CONTAINER_POD ||
-		targetEntityType == sdk.EntityDTO_APPLICATION {
+	fmt.Printf("is containerPod: %v; want %s, got %s\n", targetEntityType == proto.EntityDTO_CONTAINER_POD, targetEntityType, proto.EntityDTO_CONTAINER_POD)
+	if targetEntityType == proto.EntityDTO_CONTAINER_POD ||
+		targetEntityType == proto.EntityDTO_APPLICATION {
 
 		providerPod, err := this.getProviderPod(actionItem)
 		if err != nil {
@@ -94,10 +94,10 @@ func (this *HorizontalScaler) ScaleOut(actionItem *sdk.ActionItemDTO, msgID int3
 
 }
 
-func (this *HorizontalScaler) getProviderPod(actionItem *sdk.ActionItemDTO) (*api.Pod, error) {
+func (this *HorizontalScaler) getProviderPod(actionItem *proto.ActionItemDTO) (*api.Pod, error) {
 	targetEntityType := actionItem.GetTargetSE().GetEntityType()
 	var providerPod *api.Pod
-	if targetEntityType == sdk.EntityDTO_CONTAINER_POD {
+	if targetEntityType == proto.EntityDTO_CONTAINER_POD {
 		targetPod := actionItem.GetTargetSE()
 		id := targetPod.GetId()
 		foundPod, err := GetPodFromIdentifier(this.kubeClient, id)
@@ -105,7 +105,7 @@ func (this *HorizontalScaler) getProviderPod(actionItem *sdk.ActionItemDTO) (*ap
 			return nil, err
 		}
 		providerPod = foundPod
-	} else if targetEntityType == sdk.EntityDTO_APPLICATION {
+	} else if targetEntityType == proto.EntityDTO_APPLICATION {
 		providers := actionItem.GetProviders()
 
 		foundPod, err := FindApplicationPodProvider(this.kubeClient, providers)
@@ -139,12 +139,12 @@ func (this *HorizontalScaler) ProvisionPodsWithDeployments(targetDeployment *ext
 	return nil
 }
 
-func (this *HorizontalScaler) ScaleIn(actionItem *sdk.ActionItemDTO, msgID int32) (*registry.VMTEvent, error) {
+func (this *HorizontalScaler) ScaleIn(actionItem *proto.ActionItemDTO, msgID int32) (*registry.VMTEvent, error) {
 	currentSE := actionItem.GetCurrentSE()
 	targetEntityType := currentSE.GetEntityType()
 
 	// TODO, currently UNBIND action is sent in as MOVE. Need to change in the future.
-	if targetEntityType == sdk.EntityDTO_APPLICATION {
+	if targetEntityType == proto.EntityDTO_APPLICATION {
 		// TODO find the pod name based on application ID. App id is in the following format.
 		// !!
 		// ProcessName::PodNamespace/PodName

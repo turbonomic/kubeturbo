@@ -9,7 +9,8 @@ import (
 	"github.com/vmturbo/kubeturbo/cmd/kube-vmtactionsimulator/builder"
 	vmtaction "github.com/vmturbo/kubeturbo/pkg/action"
 
-	"github.com/vmturbo/vmturbo-go-sdk/sdk"
+	sdkbuilder "github.com/vmturbo/vmturbo-go-sdk/pkg/builder"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
@@ -43,17 +44,17 @@ func main() {
 		destinationNode := simulator.Destination()
 		podIdentifier := namespace + "/" + podName
 
-		targetSE := sdk.NewEntityDTOBuilder(sdk.EntityDTO_CONTAINER_POD, podIdentifier).Create()
-		newSE := sdk.NewEntityDTOBuilder(sdk.EntityDTO_VIRTUAL_MACHINE, destinationNode).Create()
+		targetSE, _ := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, podIdentifier).Create()
+		newSE, _ := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_MACHINE, destinationNode).Create()
 		var ips []string
 		ips = append(ips, destinationNode)
-		vmData := &sdk.EntityDTO_VirtualMachineData{
+		vmData := &proto.EntityDTO_VirtualMachineData{
 			IpAddress: ips,
 		}
 		newSE.VirtualMachineData = vmData
 
-		actionType := sdk.ActionItemDTO_MOVE
-		actionItemDTO := &sdk.ActionItemDTO{
+		actionType := proto.ActionItemDTO_MOVE
+		actionItemDTO := &proto.ActionItemDTO{
 			ActionType: &actionType,
 			TargetSE:   targetSE,
 			NewSE:      newSE,
@@ -68,11 +69,11 @@ func main() {
 		podName := simulator.Pod()
 		podIdentifier := namespace + "/" + podName
 
-		targetSE := sdk.NewEntityDTOBuilder(sdk.EntityDTO_CONTAINER_POD, podIdentifier).Create()
+		targetSE, _ := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, podIdentifier).Create()
 		newSE := targetSE
 
-		actionType := sdk.ActionItemDTO_PROVISION
-		actionItemDTO := &sdk.ActionItemDTO{
+		actionType := proto.ActionItemDTO_PROVISION
+		actionItemDTO := &proto.ActionItemDTO{
 			ActionType: &actionType,
 			TargetSE:   targetSE,
 			NewSE:      newSE,
@@ -87,11 +88,11 @@ func main() {
 		app := simulator.Application()
 		vApp := simulator.VirtualApplication()
 
-		targetSE := sdk.NewEntityDTOBuilder(sdk.EntityDTO_VIRTUAL_APPLICATION, vApp).Create()
-		currentSE := sdk.NewEntityDTOBuilder(sdk.EntityDTO_APPLICATION, app).Create()
+		targetSE, _ := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_APPLICATION, vApp).Create()
+		currentSE, _ := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_APPLICATION, app).Create()
 
-		actionType := sdk.ActionItemDTO_MOVE
-		actionItemDTO := &sdk.ActionItemDTO{
+		actionType := proto.ActionItemDTO_MOVE
+		actionItemDTO := &proto.ActionItemDTO{
 			ActionType: &actionType,
 			TargetSE:   targetSE,
 			CurrentSE:  currentSE,

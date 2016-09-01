@@ -14,7 +14,8 @@ import (
 	"github.com/vmturbo/kubeturbo/pkg/probe"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 
-	comm "github.com/vmturbo/vmturbo-go-sdk/communicator"
+	comm "github.com/vmturbo/vmturbo-go-sdk/pkg/communication"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 )
@@ -52,6 +53,10 @@ func (handler *KubernetesServerMessageHandler) StartActionHandler() {
 	handler.actionHandler.Start()
 }
 
+func (handler *KubernetesServerMessageHandler) Callback() <-chan *proto.MediationClientMessage {
+	return nil
+}
+
 // Use the vmt restAPI to add a Kubernetes target.
 func (handler *KubernetesServerMessageHandler) AddTarget() {
 	vmtUrl := handler.meta.ServerAddress
@@ -82,14 +87,14 @@ func (handler *KubernetesServerMessageHandler) DiscoverTarget() {
 // If server sends a validation request, validate the request.
 // TODO, for now k8s validate all the request. aka, no matter what usr/passwd is provided, always pass validation.
 // The correct bahavior is to set ErrorDTO when validation fails.
-func (handler *KubernetesServerMessageHandler) Validate(serverMsg *comm.MediationServerMessage) {
+func (handler *KubernetesServerMessageHandler) Validate(serverMsg *proto.MediationServerMessage) {
 	//Always send Validated for now
 	glog.V(3).Infof("Kubernetes validation request from Server")
 
 	// 1. Get message ID.
 	messageID := serverMsg.GetMessageID()
 	// 2. Build validationResponse.
-	validationResponse := new(comm.ValidationResponse)
+	validationResponse := new(proto.ValidationResponse)
 	// 3. Create client message with ClientMessageBuilder.
 	clientMsg := comm.NewClientMessageBuilder(messageID).SetValidationResponse(validationResponse).Create()
 	handler.wsComm.SendClientMessage(clientMsg)
@@ -105,14 +110,14 @@ func (handler *KubernetesServerMessageHandler) keepDiscoverAlive(messageID int32
 	//
 	glog.V(3).Infof("Keep Alive")
 
-	keepAliveMsg := &comm.KeepAlive{}
+	keepAliveMsg := &proto.KeepAlive{}
 	clientMsg := comm.NewClientMessageBuilder(messageID).SetKeepAlive(keepAliveMsg).Create()
 
 	handler.wsComm.SendClientMessage(clientMsg)
 }
 
 // DiscoverTopology receives a discovery request from server and start probing the k8s.
-func (handler *KubernetesServerMessageHandler) DiscoverTopology(serverMsg *comm.MediationServerMessage) {
+func (handler *KubernetesServerMessageHandler) DiscoverTopology(serverMsg *proto.MediationServerMessage) {
 	//Discover the kubernetes topology
 	glog.V(3).Infof("Discover topology request from server.")
 
@@ -162,7 +167,7 @@ func (handler *KubernetesServerMessageHandler) DiscoverTopology(serverMsg *comm.
 	entityDtos = append(entityDtos, podEntityDtos...)
 	entityDtos = append(entityDtos, appEntityDtos...)
 	entityDtos = append(entityDtos, serviceEntityDtos...)
-	discoveryResponse := &comm.DiscoveryResponse{
+	discoveryResponse := &proto.DiscoveryResponse{
 		EntityDTO: entityDtos,
 	}
 
@@ -173,7 +178,7 @@ func (handler *KubernetesServerMessageHandler) DiscoverTopology(serverMsg *comm.
 }
 
 // Receives an action request from server and call ActionExecutor to execute action.
-func (handler *KubernetesServerMessageHandler) HandleAction(serverMsg *comm.MediationServerMessage) {
+func (handler *KubernetesServerMessageHandler) HandleAction(serverMsg *proto.MediationServerMessage) {
 	messageID := serverMsg.GetMessageID()
 	actionRequest := serverMsg.GetActionRequest()
 	actionExectionDTO := actionRequest.GetActionExecutionDTO()

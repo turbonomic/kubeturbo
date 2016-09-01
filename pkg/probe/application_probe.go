@@ -8,8 +8,11 @@ import (
 	vmtmonitor "github.com/vmturbo/kubeturbo/pkg/monitor"
 	vmtproxy "github.com/vmturbo/kubeturbo/pkg/monitor"
 
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/builder"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/common"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
+
 	"github.com/golang/glog"
-	"github.com/vmturbo/vmturbo-go-sdk/sdk"
 )
 
 const appPrefix string = "App-"
@@ -24,7 +27,7 @@ func NewApplicationProbe() *ApplicationProbe {
 }
 
 // Parse processes those are defined in namespace.
-func (appProbe *ApplicationProbe) ParseApplication(namespace string) (result []*sdk.EntityDTO, err error) {
+func (appProbe *ApplicationProbe) ParseApplication(namespace string) (result []*proto.EntityDTO, err error) {
 	glog.V(4).Infof("Has %d hosts", len(hostSet))
 
 	transactionCountMap, err := appProbe.calculateTransactionValuePerPod()
@@ -57,7 +60,10 @@ func (appProbe *ApplicationProbe) ParseApplication(namespace string) (result []*
 			commoditiesSold := appProbe.getCommoditiesSold(podName, appResourceStat)
 			commoditiesBoughtMap := appProbe.getCommoditiesBought(podName, nodeName, appResourceStat)
 
-			entityDto := appProbe.buildApplicationEntityDTOs(podName, host, podName, nodeName, commoditiesSold, commoditiesBoughtMap)
+			entityDto, err := appProbe.buildApplicationEntityDTOs(podName, host, podName, nodeName, commoditiesSold, commoditiesBoughtMap)
+			if err != nil {
+				return nil, err
+			}
 			result = append(result, entityDto)
 		}
 	}
@@ -133,9 +139,9 @@ func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, 
 }
 
 // Build commodities sold for each application. An application sells transaction, which a virtual application buys.
-func (this *ApplicationProbe) getCommoditiesSold(appName string, appResourceStat *ApplicationResourceStat) []*sdk.CommodityDTO {
-	var commoditiesSold []*sdk.CommodityDTO
-	transactionComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_TRANSACTION).
+func (this *ApplicationProbe) getCommoditiesSold(appName string, appResourceStat *ApplicationResourceStat) []*proto.CommodityDTO {
+	var commoditiesSold []*proto.CommodityDTO
+	transactionComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).
 		Key(appName).
 		Capacity(appResourceStat.transactionCapacity).
 		Used(appResourceStat.transactionUsed).
@@ -146,18 +152,18 @@ func (this *ApplicationProbe) getCommoditiesSold(appName string, appResourceStat
 
 // Build commodities bought by an applicaiton.
 // An application buys vCpu and vMem from a VM, cpuAllocation and memAllocation from a containerPod.
-func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, appResourceStat *ApplicationResourceStat) map[*sdk.ProviderDTO][]*sdk.CommodityDTO {
-	commoditiesBoughtMap := make(map[*sdk.ProviderDTO][]*sdk.CommodityDTO)
+func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, appResourceStat *ApplicationResourceStat) map[*common.ProviderDTO][]*proto.CommodityDTO {
+	commoditiesBoughtMap := make(map[*common.ProviderDTO][]*proto.CommodityDTO)
 
 	// NOTE: quick fix, podName are now show as namespace:name, which is namespace/name before. So we need to replace "/" with ":".
-	podProvider := sdk.CreateProvider(sdk.EntityDTO_CONTAINER_POD, strings.Replace(podName, "/", ":", -1))
-	var commoditiesBoughtFromPod []*sdk.CommodityDTO
-	cpuAllocationCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_CPU_ALLOCATION).
+	podProvider := common.CreateProvider(proto.EntityDTO_CONTAINER_POD, strings.Replace(podName, "/", ":", -1))
+	var commoditiesBoughtFromPod []*proto.CommodityDTO
+	cpuAllocationCommBought := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_ALLOCATION).
 		Key(podName).
 		Used(appResourceStat.cpuAllocationUsed).
 		Create()
 	commoditiesBoughtFromPod = append(commoditiesBoughtFromPod, cpuAllocationCommBought)
-	memAllocationCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_MEM_ALLOCATION).
+	memAllocationCommBought := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_ALLOCATION).
 		Key(podName).
 		Used(appResourceStat.memAllocationUsed).
 		Create()
@@ -165,18 +171,18 @@ func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, app
 	commoditiesBoughtMap[podProvider] = commoditiesBoughtFromPod
 
 	nodeUID := nodeUidTranslationMap[nodeName]
-	nodeProvider := sdk.CreateProvider(sdk.EntityDTO_VIRTUAL_MACHINE, nodeUID)
-	var commoditiesBoughtFromNode []*sdk.CommodityDTO
-	vCpuCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_VCPU).
+	nodeProvider := common.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, nodeUID)
+	var commoditiesBoughtFromNode []*proto.CommodityDTO
+	vCpuCommBought := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VCPU).
 		Used(appResourceStat.vCpuUsed).
 		Create()
 	commoditiesBoughtFromNode = append(commoditiesBoughtFromNode, vCpuCommBought)
 
-	vMemCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_VMEM).
+	vMemCommBought := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMEM).
 		Used(appResourceStat.vMemUsed).
 		Create()
 	commoditiesBoughtFromNode = append(commoditiesBoughtFromNode, vMemCommBought)
-	appCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_APPLICATION).
+	appCommBought := builder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
 		Key(nodeUID).
 		Create()
 	commoditiesBoughtFromNode = append(commoditiesBoughtFromNode, appCommBought)
@@ -186,11 +192,11 @@ func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, app
 }
 
 // Build entityDTOs for Applications.
-func (this *ApplicationProbe) buildApplicationEntityDTOs(appName string, host *vmtAdvisor.Host, podName, nodeName string, commoditiesSold []*sdk.CommodityDTO, commoditiesBoughtMap map[*sdk.ProviderDTO][]*sdk.CommodityDTO) *sdk.EntityDTO {
-	appEntityType := sdk.EntityDTO_APPLICATION
+func (this *ApplicationProbe) buildApplicationEntityDTOs(appName string, host *vmtAdvisor.Host, podName, nodeName string, commoditiesSold []*proto.CommodityDTO, commoditiesBoughtMap map[*common.ProviderDTO][]*proto.CommodityDTO) (*proto.EntityDTO, error) {
+	appEntityType := proto.EntityDTO_APPLICATION
 	id := appPrefix + appName
 	dispName := appName
-	entityDTOBuilder := sdk.NewEntityDTOBuilder(appEntityType, strings.Replace(id, "/", ":", -1))
+	entityDTOBuilder := builder.NewEntityDTOBuilder(appEntityType, strings.Replace(id, "/", ":", -1))
 	entityDTOBuilder = entityDTOBuilder.DisplayName(dispName)
 
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
@@ -200,13 +206,16 @@ func (this *ApplicationProbe) buildApplicationEntityDTOs(appName string, host *v
 		entityDTOBuilder.BuysCommodities(commodities)
 	}
 
-	entityDto := entityDTOBuilder.Create()
+	entityDto, err := entityDTOBuilder.Create()
+	if err != nil {
+		return nil, err
+	}
 
 	appType := podAppTypeMap[podName]
 
 	ipAddress := this.getIPAddress(host, nodeName)
 
-	appData := &sdk.EntityDTO_ApplicationData{
+	appData := &proto.EntityDTO_ApplicationData{
 		Type:      &appType,
 		IpAddress: &ipAddress,
 	}
@@ -216,7 +225,7 @@ func (this *ApplicationProbe) buildApplicationEntityDTOs(appName string, host *v
 		monitored := false
 		entityDto.Monitored = &monitored
 	}
-	return entityDto
+	return entityDto, nil
 }
 
 // Get transaction values for each endpoint. Return a map, {endpointIP, transactionCount}

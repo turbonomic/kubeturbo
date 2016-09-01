@@ -7,7 +7,7 @@ import (
 
 	"github.com/vmturbo/kubeturbo/pkg/helper"
 
-	"github.com/vmturbo/vmturbo-go-sdk/sdk"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 )
@@ -50,7 +50,7 @@ func getClusterID(kubeClient *client.Client) (string, error) {
 	return string(svc.UID), nil
 }
 
-func (this *KubeProbe) ParseNode() (result []*sdk.EntityDTO, err error) {
+func (this *KubeProbe) ParseNode() (result []*proto.EntityDTO, err error) {
 	vmtNodeGetter := NewVMTNodeGetter(this.KubeClient)
 	nodeProbe := NewNodeProbe(vmtNodeGetter.GetNodes, this.config)
 
@@ -61,7 +61,7 @@ func (this *KubeProbe) ParseNode() (result []*sdk.EntityDTO, err error) {
 }
 
 // Parse pods those are defined in namespace.
-func (this *KubeProbe) ParsePod(namespace string) (result []*sdk.EntityDTO, err error) {
+func (this *KubeProbe) ParsePod(namespace string) (result []*proto.EntityDTO, err error) {
 	vmtPodGetter := NewVMTPodGetter(this.KubeClient)
 	podProbe := NewPodProbe(vmtPodGetter.GetPods)
 
@@ -77,12 +77,12 @@ func (this *KubeProbe) ParsePod(namespace string) (result []*sdk.EntityDTO, err 
 	return result, nil
 }
 
-func (this *KubeProbe) ParseApplication(namespace string) (result []*sdk.EntityDTO, err error) {
+func (this *KubeProbe) ParseApplication(namespace string) (result []*proto.EntityDTO, err error) {
 	applicationProbe := NewApplicationProbe()
 	return applicationProbe.ParseApplication(namespace)
 }
 
-func (kubeProbe *KubeProbe) ParseService(namespace string, selector labels.Selector) (result []*sdk.EntityDTO, err error) {
+func (kubeProbe *KubeProbe) ParseService(namespace string, selector labels.Selector) (result []*proto.EntityDTO, err error) {
 	vmtServiceGetter := NewVMTServiceGetter(kubeProbe.KubeClient)
 	vmtEndpointGetter := NewVMTEndpointGetter(kubeProbe.KubeClient)
 	svcProbe := NewServiceProbe(vmtServiceGetter.GetService, vmtEndpointGetter.GetEndpoints)

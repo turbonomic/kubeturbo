@@ -15,8 +15,10 @@ import (
 	vmtAdvisor "github.com/vmturbo/kubeturbo/pkg/cadvisor"
 	"github.com/vmturbo/kubeturbo/pkg/helper"
 
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/builder"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
+
 	"github.com/golang/glog"
-	"github.com/vmturbo/vmturbo-go-sdk/sdk"
 )
 
 var hostSet map[string]*vmtAdvisor.Host = make(map[string]*vmtAdvisor.Host)
@@ -81,7 +83,7 @@ func (nodeProbe *NodeProbe) GetNodes(label labels.Selector, field fields.Selecto
 }
 
 // Parse each node inside K8s. Get the resources usage of each node and build the entityDTO.
-func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node) (result []*sdk.EntityDTO, err error) {
+func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node) (result []*proto.EntityDTO, err error) {
 	for _, node := range nodes {
 		// We do not parse node that is not ready or unschedulable.
 		if !nodeIsReady(node) || !nodeIsSchedulable(node) {
@@ -102,7 +104,10 @@ func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node) (result []*sdk.E
 			glog.Errorf("Error when create commoditiesSold for %s: %s", node.Name, err)
 			continue
 		}
-		entityDto := nodeProbe.buildVMEntityDTO(nodeID, dispName, commoditiesSold)
+		entityDto, err := nodeProbe.buildVMEntityDTO(nodeID, dispName, commoditiesSold)
+		if err != nil {
+			return nil, err
+		}
 
 		result = append(result, entityDto)
 	}
@@ -133,8 +138,8 @@ func nodeIsSchedulable(node *api.Node) bool {
 	return !node.Spec.Unschedulable
 }
 
-func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node) ([]*sdk.CommodityDTO, error) {
-	var commoditiesSold []*sdk.CommodityDTO
+func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node) ([]*proto.CommodityDTO, error) {
+	var commoditiesSold []*proto.CommodityDTO
 	nodeResourceStat, err := nodeProbe.getNodeResourceStat(node)
 	if err != nil {
 		return commoditiesSold, err
@@ -142,31 +147,31 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node) ([]*sdk.Commodit
 	nodeID := string(node.UID)
 
 	//TODO: create const value for keys
-	memAllocationComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_MEM_ALLOCATION).
+	memAllocationComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_ALLOCATION).
 		Key("Container").
 		Capacity(float64(nodeResourceStat.memAllocationCapacity)).
 		Used(nodeResourceStat.memAllocationUsed).
 		Create()
 	commoditiesSold = append(commoditiesSold, memAllocationComm)
-	cpuAllocationComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_CPU_ALLOCATION).
+	cpuAllocationComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_ALLOCATION).
 		Key("Container").
 		Capacity(float64(nodeResourceStat.cpuAllocationCapacity)).
 		Used(nodeResourceStat.cpuAllocationUsed).
 		Create()
 	commoditiesSold = append(commoditiesSold, cpuAllocationComm)
-	vMemComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_VMEM).
+	vMemComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMEM).
 		// Key(nodeID).
 		Capacity(nodeResourceStat.vMemCapacity).
 		Used(nodeResourceStat.vMemUsed).
 		Create()
 	commoditiesSold = append(commoditiesSold, vMemComm)
-	vCpuComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_VCPU).
+	vCpuComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VCPU).
 		// Key(nodeID).
 		Capacity(float64(nodeResourceStat.vCpuCapacity)).
 		Used(nodeResourceStat.vCpuUsed).
 		Create()
 	commoditiesSold = append(commoditiesSold, vCpuComm)
-	appComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_APPLICATION).
+	appComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
 		Key(nodeID).
 		Capacity(1E10).
 		Create()
@@ -176,13 +181,13 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node) ([]*sdk.Commodit
 		for key, value := range labelsmap {
 			str1 := key + "=" + value
 			glog.V(4).Infof("label for this Node is : %s", str1)
-			accessComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_VMPM_ACCESS).Key(str1).Capacity(1E10).Create()
+			accessComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).Key(str1).Capacity(1E10).Create()
 			commoditiesSold = append(commoditiesSold, accessComm)
 		}
 	}
 	// Use Kubernetes service UID as the key for cluster commodity
 	clusterCommodityKey := ClusterID
-	clusterComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_CLUSTER).Key(clusterCommodityKey).Capacity(1E10).Create()
+	clusterComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).Key(clusterCommodityKey).Capacity(1E10).Create()
 	commoditiesSold = append(commoditiesSold, clusterComm)
 
 	return commoditiesSold, nil
@@ -237,8 +242,8 @@ func (this *NodeProbe) getNodeIPWithType(nodeName string, ipType api.NodeAddress
 	return nodeIP, nil
 }
 
-func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeID, displayName string, commoditiesSold []*sdk.CommodityDTO) *sdk.EntityDTO {
-	entityDTOBuilder := sdk.NewEntityDTOBuilder(sdk.EntityDTO_VIRTUAL_MACHINE, nodeID)
+func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeID, displayName string, commoditiesSold []*proto.CommodityDTO) (*proto.EntityDTO, error) {
+	entityDTOBuilder := builder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_MACHINE, nodeID)
 	entityDTOBuilder.DisplayName(displayName)
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
 
@@ -250,19 +255,18 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeID, displayName string, commodi
 
 	entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
 
-	entityDto := entityDTOBuilder.Create()
+	return entityDTOBuilder.Create()
 
-	return entityDto
 }
 
 // Create the meta data that will be used during the reconcilation process.
-func (nodeProbe *NodeProbe) generateReconcilationMetaData() *sdk.EntityDTO_ReplacementEntityMetaData {
-	replacementEntityMetaDataBuilder := sdk.NewReplacementEntityMetaDataBuilder()
+func (nodeProbe *NodeProbe) generateReconcilationMetaData() *proto.EntityDTO_ReplacementEntityMetaData {
+	replacementEntityMetaDataBuilder := builder.NewReplacementEntityMetaDataBuilder()
 	replacementEntityMetaDataBuilder.Matching("IP")
-	replacementEntityMetaDataBuilder.PatchSelling(sdk.CommodityDTO_CPU_ALLOCATION)
-	replacementEntityMetaDataBuilder.PatchSelling(sdk.CommodityDTO_MEM_ALLOCATION)
-	replacementEntityMetaDataBuilder.PatchSelling(sdk.CommodityDTO_APPLICATION)
-	replacementEntityMetaDataBuilder.PatchSelling(sdk.CommodityDTO_VMPM_ACCESS)
+	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_CPU_ALLOCATION)
+	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_MEM_ALLOCATION)
+	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_APPLICATION)
+	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_VMPM_ACCESS)
 
 	metaData := replacementEntityMetaDataBuilder.Build()
 	return metaData
@@ -353,11 +357,11 @@ func (this *NodeProbe) getNodeResourceStat(node *api.Node) (*NodeResourceStat, e
 }
 
 // For testing purpose, create fake vm entityDTO
-func (this *NodeProbe) buildFakeVMEntityDTO() *sdk.EntityDTO {
-	nodeEntityType := sdk.EntityDTO_VIRTUAL_MACHINE
+func (this *NodeProbe) buildFakeVMEntityDTO() *proto.EntityDTO {
+	nodeEntityType := proto.EntityDTO_VIRTUAL_MACHINE
 
 	// create a fake VM
-	entityDTOBuilder2 := sdk.NewEntityDTOBuilder(nodeEntityType, "1.1.1.1")
+	entityDTOBuilder2 := builder.NewEntityDTOBuilder(nodeEntityType, "1.1.1.1")
 	// Find out the used value for each commodity
 	cpuUsed := float64(0)
 	memUsed := float64(0)
@@ -365,27 +369,27 @@ func (this *NodeProbe) buildFakeVMEntityDTO() *sdk.EntityDTO {
 	nodeCpuCapacity := float64(1000)
 	// Build the entityDTO.
 	entityDTOBuilder2 = entityDTOBuilder2.DisplayName("1.1.1.1")
-	var commodityDTOs []*sdk.CommodityDTO
-	memAllocationComm := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_MEM_ALLOCATION).
+	var commodityDTOs []*proto.CommodityDTO
+	memAllocationComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_ALLOCATION).
 		Key("Container").
 		Capacity(float64(nodeMemCapacity)).
 		Used(memUsed).
 		Create()
 	commodityDTOs = append(commodityDTOs, memAllocationComm)
-	entityDTOBuilder2 = entityDTOBuilder2.Sells(sdk.CommodityDTO_MEM_ALLOCATION, "Container").
+	entityDTOBuilder2 = entityDTOBuilder2.Sells(proto.CommodityDTO_MEM_ALLOCATION, "Container").
 		Capacity(float64(nodeMemCapacity)).Used(memUsed)
-	entityDTOBuilder2 = entityDTOBuilder2.Sells(sdk.CommodityDTO_CPU_ALLOCATION, "Container").
+	entityDTOBuilder2 = entityDTOBuilder2.Sells(proto.CommodityDTO_CPU_ALLOCATION, "Container").
 		Capacity(float64(nodeCpuCapacity)).Used(cpuUsed)
-	entityDTOBuilder2 = entityDTOBuilder2.Sells(sdk.CommodityDTO_VMEM, "1.1.1.1").
+	entityDTOBuilder2 = entityDTOBuilder2.Sells(proto.CommodityDTO_VMEM, "1.1.1.1").
 		Capacity(float64(nodeMemCapacity)).Used(memUsed)
-	entityDTOBuilder2 = entityDTOBuilder2.Sells(sdk.CommodityDTO_VCPU, "1.1.1.1").
+	entityDTOBuilder2 = entityDTOBuilder2.Sells(proto.CommodityDTO_VCPU, "1.1.1.1").
 		Capacity(float64(nodeCpuCapacity)).Used(cpuUsed)
 	entityDTOBuilder2 = entityDTOBuilder2.SetProperty("IP", localTestStitchingIP)
 
 	metaData2 := this.generateReconcilationMetaData()
 
 	entityDTOBuilder2 = entityDTOBuilder2.ReplacedBy(metaData2)
-	entityDto2 := entityDTOBuilder2.Create()
+	entityDto2, _ := entityDTOBuilder2.Create()
 
 	return entityDto2
 }

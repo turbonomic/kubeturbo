@@ -11,8 +11,11 @@ import (
 
 	"github.com/vmturbo/kubeturbo/pkg/helper"
 
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/builder"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/common"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
+
 	"github.com/golang/glog"
-	"github.com/vmturbo/vmturbo-go-sdk/sdk"
 )
 
 // Pods Getter is such func that gets all the pods match the provided namespace, labels and fiels.
@@ -107,7 +110,7 @@ func (this *ServiceProbe) GetEndpoints(namespace string, selector labels.Selecto
 }
 
 // Parse Services inside Kubernetes and build entityDTO as VApp.
-func (this *ServiceProbe) ParseService(serviceList []*api.Service, endpointList []*api.Endpoints) (result []*sdk.EntityDTO, err error) {
+func (this *ServiceProbe) ParseService(serviceList []*api.Service, endpointList []*api.Endpoints) (result []*proto.EntityDTO, err error) {
 	// first make a endpoint map, key is endpoints label, value is endoint object
 	endpointMap := make(map[string]*api.Endpoints)
 	for _, endpoint := range endpointList {
@@ -130,7 +133,10 @@ func (this *ServiceProbe) ParseService(serviceList []*api.Service, endpointList 
 
 			commoditiesBoughtMap := this.getCommoditiesBought(podIDList)
 
-			entityDto := this.buildEntityDTO(serviceID, commoditiesBoughtMap)
+			entityDto, err := this.buildEntityDTO(serviceID, commoditiesBoughtMap)
+			if err != nil {
+				return nil, err
+			}
 
 			result = append(result, entityDto)
 
@@ -172,34 +178,37 @@ func (this *ServiceProbe) findBackendPodPerService(service *api.Service, endpoin
 	return serviceEndpointMap
 }
 
-func (this *ServiceProbe) buildEntityDTO(serviceName string, commoditiesBoughtMap map[*sdk.ProviderDTO][]*sdk.CommodityDTO) *sdk.EntityDTO {
-	serviceEntityType := sdk.EntityDTO_VIRTUAL_APPLICATION
+func (this *ServiceProbe) buildEntityDTO(serviceName string, commoditiesBoughtMap map[*common.ProviderDTO][]*proto.CommodityDTO) (*proto.EntityDTO, error) {
+	serviceEntityType := proto.EntityDTO_VIRTUAL_APPLICATION
 	id := "vApp-" + serviceName + "-" + ClusterID
 	dispName := id
-	entityDTOBuilder := sdk.NewEntityDTOBuilder(serviceEntityType, strings.Replace(id, "/", ":", -1))
+	entityDTOBuilder := builder.NewEntityDTOBuilder(serviceEntityType, strings.Replace(id, "/", ":", -1))
 
 	entityDTOBuilder = entityDTOBuilder.DisplayName(dispName)
 	for provider, commodities := range commoditiesBoughtMap {
 		entityDTOBuilder.SetProvider(provider)
 		entityDTOBuilder.BuysCommodities(commodities)
 	}
-	entityDto := entityDTOBuilder.Create()
+	entityDto, err := entityDTOBuilder.Create()
+	if err != nil {
+		return nil, err
+	}
 
 	glog.V(4).Infof("created a service entityDTO %v", entityDto)
-	return entityDto
+	return entityDto, nil
 }
 
-func (this *ServiceProbe) getCommoditiesBought(podIDList []string) map[*sdk.ProviderDTO][]*sdk.CommodityDTO {
-	commoditiesBoughtMap := make(map[*sdk.ProviderDTO][]*sdk.CommodityDTO)
+func (this *ServiceProbe) getCommoditiesBought(podIDList []string) map[*common.ProviderDTO][]*proto.CommodityDTO {
+	commoditiesBoughtMap := make(map[*common.ProviderDTO][]*proto.CommodityDTO)
 
 	for _, podID := range podIDList {
 		serviceResourceStat := getServiceResourceStat(podTransactionCountMap, podID)
 		appName := podID
 		appID := appPrefix + appName
 		// We might want to check here if the appID exist.
-		appProvider := sdk.CreateProvider(sdk.EntityDTO_APPLICATION, strings.Replace(appID, "/", ":", -1))
-		var commoditiesBoughtFromApp []*sdk.CommodityDTO
-		transactionCommBought := sdk.NewCommodityDTOBuilder(sdk.CommodityDTO_TRANSACTION).
+		appProvider := common.CreateProvider(proto.EntityDTO_APPLICATION, strings.Replace(appID, "/", ":", -1))
+		var commoditiesBoughtFromApp []*proto.CommodityDTO
+		transactionCommBought := builder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).
 			Key(appName).
 			Used(serviceResourceStat.transactionBought).
 			Create()

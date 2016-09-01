@@ -9,7 +9,7 @@ import (
 
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 
-	"github.com/vmturbo/vmturbo-go-sdk/sdk"
+	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 )
@@ -28,18 +28,18 @@ func NewRescheduler(client *client.Client, vmtEventRegistry *registry.VMTEventRe
 	}
 }
 
-func (this *Rescheduler) MovePod(actionItem *sdk.ActionItemDTO, msgID int32) (*registry.VMTEvent, error) {
+func (this *Rescheduler) MovePod(actionItem *proto.ActionItemDTO, msgID int32) (*registry.VMTEvent, error) {
 	if actionItem == nil {
 		return nil, fmt.Errorf("ActionItem passed in is nil")
 	}
 	newSEType := actionItem.GetNewSE().GetEntityType()
-	if newSEType == sdk.EntityDTO_VIRTUAL_MACHINE || newSEType == sdk.EntityDTO_PHYSICAL_MACHINE {
+	if newSEType == proto.EntityDTO_VIRTUAL_MACHINE || newSEType == proto.EntityDTO_PHYSICAL_MACHINE {
 		targetNode := actionItem.GetNewSE()
 
 		var machineIPs []string
 
 		switch newSEType {
-		case sdk.EntityDTO_VIRTUAL_MACHINE:
+		case proto.EntityDTO_VIRTUAL_MACHINE:
 			// K8s uses Ip address as the Identifier. The VM name passed by actionItem is the display name
 			// that discovered by hypervisor. So here we must get the ip address from virtualMachineData in
 			// targetNode entityDTO.
@@ -49,7 +49,7 @@ func (this *Rescheduler) MovePod(actionItem *sdk.ActionItemDTO, msgID int32) (*r
 			}
 			machineIPs = vmData.GetIpAddress()
 			break
-		case sdk.EntityDTO_PHYSICAL_MACHINE:
+		case proto.EntityDTO_PHYSICAL_MACHINE:
 			//TODO
 			// machineIPS = <valid physical machine IP>
 			break
