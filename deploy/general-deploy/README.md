@@ -115,4 +115,4 @@ kube-system   kube-proxy-10.10.174.119                1/1       Running       0 
 
 With previous steps, Kubeturbo service is running and starting to collect resource comsuption metrics from each node, pod and applications. Those metrics are continuously sent back to Turbonomic server. If you want Kubeturbo to collect network related metrics, such as service transaction counts and network flow information between pods inside current Kubernetes cluster, you need to deploy K8sconntrack monitoring service.
 
-K8sconntrack monitoring service should be running on each node inside cluster. A detailed guide about how to deploy K8sconnection onto a Kuberentes cluster can be found [here](https://github.com/DongyiYang/k8sconnection/blob/master/examples/deploy_k8sconntrack/general_deploy/README.md).
+K8sconntrack monitoring service should be running on each node inside cluster. A detailed guide about how to deploy K8sconnection onto a Kuberentes cluster can be found [here](https://github.com/DongyiYang/k8sconnection/blob/master/deploy/general_deploy/README.md).
