@@ -128,4 +128,4 @@ kube-system   kubeturbo-ip-10-0-0-50.ec2.internal                 2/2       Runn
 
 With previous steps, Kubeturbo service is running and starting to collect resource comsuption metrics from each node, pod and applications. Those metrics are continuously sent back to Turbonomic server. If you want Kubeturbo to collect network related metrics, such as service transaction counts and network flow information between pods inside current Kubernetes cluster, you need to deploy K8sconntrack monitoring service.
 
-K8sconntrack monitoring service should be running on each node inside cluster. A detailed guide about how to deploy K8sconnection onto a Kuberentes cluster running on AWS can be found [here](https://github.com/DongyiYang/k8sconnection/blob/master/examples/deploy_k8sconntrack/aws_deploy/README.md).
+K8sconntrack monitoring service should be running on each node inside cluster. A detailed guide about how to deploy K8sconnection onto a Kuberentes cluster running on AWS can be found [here](https://github.com/DongyiYang/k8sconnection/blob/master/deploy/aws_deploy/README.md).
