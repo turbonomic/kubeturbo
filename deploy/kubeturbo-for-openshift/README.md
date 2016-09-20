@@ -57,7 +57,7 @@ users:
 - system:serviceaccount:management-infra:inspector-admin
 - system:serviceaccount:default:router
 - system:serviceaccount:default:registry
-- system:serviceaccount:osproj1:turbo-user
+- system:serviceaccount:default:turbo-user
 - admin
 - system
 - root
@@ -190,6 +190,7 @@ metadata:
   name: kubeturbo
   labels:
     name: kubeturbo
+    namespace: default
 spec:
   nodeSelector:
     role: master
