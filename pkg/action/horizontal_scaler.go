@@ -222,7 +222,7 @@ func (this *HorizontalScaler) UnbindPods(targetReplicationController *api.Replic
 	return nil
 }
 
-func (this *HorizontalScaler) updateReplicationControllerReplicas(rc *api.ReplicationController, newReplicas int) error {
+func (this *HorizontalScaler) updateReplicationControllerReplicas(rc *api.ReplicationController, newReplicas int32) error {
 	rc.Spec.Replicas = newReplicas
 	namespace := rc.Namespace
 	newRC, err := this.kubeClient.ReplicationControllers(namespace).Update(rc)
@@ -247,7 +247,7 @@ func (this *HorizontalScaler) UnbindPodsWithDeployment(deployment *extensions.De
 	return nil
 }
 
-func (this *HorizontalScaler) updateDeploymentReplicas(deployment *extensions.Deployment, newReplicas int) error {
+func (this *HorizontalScaler) updateDeploymentReplicas(deployment *extensions.Deployment, newReplicas int32) error {
 	deployment.Spec.Replicas = newReplicas
 	namespace := deployment.Namespace
 	newDeployment, err := this.kubeClient.Deployments(namespace).Update(deployment)

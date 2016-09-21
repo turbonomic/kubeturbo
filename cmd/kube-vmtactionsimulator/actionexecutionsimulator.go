@@ -3,7 +3,8 @@ package main
 import (
 	"runtime"
 
-	"k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/flag"
+	"k8s.io/kubernetes/pkg/util/logs"
 	"k8s.io/kubernetes/pkg/version/verflag"
 
 	"github.com/vmturbo/kubeturbo/cmd/kube-vmtactionsimulator/builder"
@@ -21,9 +22,9 @@ func main() {
 	builder := builder.NewSimulatorBuilder()
 	builder.AddFlags(pflag.CommandLine)
 
-	util.InitFlags()
-	util.InitLogs()
-	defer util.FlushLogs()
+	flag.InitFlags()
+	logs.InitLogs()
+	defer logs.FlushLogs()
 
 	verflag.PrintAndExitIfRequested()
 

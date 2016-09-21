@@ -24,7 +24,7 @@ func createConfigFromDefaultProvider(configFactory *factory.ConfigFactory) (*sch
 }
 
 func CreateConfig(kubeClient *client.Client) *scheduler.Config {
-	configFactory := factory.NewConfigFactory(kubeClient, api.DefaultSchedulerName)
+	configFactory := factory.NewConfigFactory(kubeClient, api.DefaultSchedulerName, api.DefaultHardPodAffinitySymmetricWeight, api.DefaultFailureDomains)
 	config, err := createConfigFromDefaultProvider(configFactory)
 	if err != nil {
 		glog.Fatalf("Failed to create scheduler configuration: %v", err)

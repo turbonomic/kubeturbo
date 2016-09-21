@@ -54,7 +54,11 @@ func (v *VMTurboService) Run() {
 }
 
 func (v *VMTurboService) getNextVMTEvent() {
-	event := v.config.VMTEventQueue.Pop().(*registry.VMTEvent)
+	e, err := v.config.VMTEventQueue.Pop(nil)
+	if err != nil {
+		// TODO
+	}
+	event := e.(*registry.VMTEvent)
 	glog.V(2).Infof("Get a new pending VMTEvent from etcd: %v", event)
 	content := event.Content
 	if content.ActionType == "move" || content.ActionType == "provision" {
@@ -72,12 +76,20 @@ func (v *VMTurboService) getNextVMTEvent() {
 
 // When a new node is added in, this function is called. Otherwise, it is blocked.
 func (v *VMTurboService) getNextNode() {
-	node := v.config.NodeQueue.Pop().(*api.Node)
+	n, err := v.config.NodeQueue.Pop(nil)
+	if err != nil {
+		// TODO
+	}
+	node := n.(*api.Node)
 	glog.V(3).Infof("Get a new Node %v", node.Name)
 }
 
 func (v *VMTurboService) getNextPod() {
-	pod := v.config.PodQueue.Pop().(*api.Pod)
+	p, err := v.config.PodQueue.Pop(nil)
+	if err != nil {
+		// TODO
+	}
+	pod := p.(*api.Pod)
 	glog.V(3).Infof("Get a new Pod %v", pod.Name)
 
 	select {
