@@ -5,10 +5,8 @@ import (
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
 	"k8s.io/kubernetes/pkg/client/record"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
-	// "k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/plugin/pkg/scheduler"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/metrics"
 
@@ -20,10 +18,7 @@ import (
 )
 
 type Config struct {
-	// It is expected that changes made via modeler will be observed
-	// by MinionLister and Algorithm.
-	Modeler scheduler.SystemModeler
-	Binder  scheduler.Binder
+	Binder scheduler.Binder
 
 	// Recorder is the EventRecorder to use
 	Recorder record.EventRecorder
@@ -37,14 +32,8 @@ type TurboScheduler struct {
 }
 
 func NewTurboScheduler(kubeClient *client.Client, vmturboMeta *vmtmeta.VMTMeta) *TurboScheduler {
-	scheduledPodLister := &cache.StoreToPodLister{}
-	podQueue := cache.NewFIFO(cache.MetaNamespaceKeyFunc)
-
-	modeler := scheduler.NewSimpleModeler(&cache.StoreToPodLister{Store: podQueue}, scheduledPodLister)
-
 	config := &Config{
-		Modeler: modeler,
-		Binder:  &binder{kubeClient},
+		Binder: &binder{kubeClient},
 	}
 	eventBroadcaster := record.NewBroadcaster()
 	config.Recorder = eventBroadcaster.NewRecorder(api.EventSource{Component: "turboscheduler"})
@@ -114,25 +103,16 @@ func (s *TurboScheduler) ScheduleTo(pod *api.Pod, dest string) {
 		},
 	}
 
-	// We want to add the pod to the model iff the bind succeeds, but we don't want to race
-	// with any deletions, which happen asynchronously.
-	s.config.Modeler.LockedAction(func() {
-		bindingStart := time.Now()
-		err := s.config.Binder.Bind(b)
-		metrics.BindingLatency.Observe(metrics.SinceInMicroseconds(bindingStart))
-		if err != nil {
-			glog.V(1).Infof("Failed to bind pod: %+v", err)
-			s.config.Recorder.Eventf(pod, api.EventTypeNormal, "FailedScheduling", "Binding rejected: %v", err)
-			// s.config.Error(pod, err)
-			return
-		}
-		s.config.Recorder.Eventf(pod, "Scheduled", "Successfully assigned %v to %v", pod.Name, dest)
-		// tell the model to assume that this binding took effect.
-		assumed := *pod
-		assumed.Spec.NodeName = dest
-		s.config.Modeler.AssumePod(&assumed)
+	bindingStart := time.Now()
+	err := s.config.Binder.Bind(b)
 
-	})
+	if err != nil {
+		glog.V(1).Infof("Failed to bind pod: %+v", err)
+		s.config.Recorder.Eventf(pod, api.EventTypeNormal, "FailedScheduling", "Binding rejected: %v", err)
+		return
+	}
+	metrics.BindingLatency.Observe(metrics.SinceInMicroseconds(bindingStart))
+	s.config.Recorder.Eventf(pod, "Scheduled", "Successfully assigned %v to %v", pod.Name, dest)
 }
 
 type binder struct {

@@ -100,7 +100,11 @@ func (this *ActionHandler) Start() {
 }
 
 func (this *ActionHandler) getNextSucceededVMTEvent() {
-	event := this.config.SucceededVMTEventQueue.Pop().(*registry.VMTEvent)
+	e, err := this.config.SucceededVMTEventQueue.Pop(nil)
+	if err != nil {
+		//TODO
+	}
+	event := e.(*registry.VMTEvent)
 	glog.V(3).Infof("Succeeded event is %v", event)
 	content := event.Content
 	msgID := int32(content.VMTMessageID)
@@ -113,7 +117,12 @@ func (this *ActionHandler) getNextSucceededVMTEvent() {
 }
 
 func (this *ActionHandler) getNextFailedVMTEvent() {
-	event := this.config.FailedVMTEventQueue.Pop().(*registry.VMTEvent)
+	e, err := this.config.SucceededVMTEventQueue.Pop(nil)
+	if err != nil {
+		//TODO
+	}
+	event := e.(*registry.VMTEvent)
+
 	glog.V(3).Infof("Failed event is %v", event)
 	// TODO, send back action failed
 	content := event.Content

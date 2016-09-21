@@ -77,7 +77,12 @@ func (this *VMTActionSupervisor) Start() {
 }
 
 func (this *VMTActionSupervisor) getNextVMTEvent() {
-	event := this.config.VMTEventQueue.Pop().(*registry.VMTEvent)
+	e, err := this.config.VMTEventQueue.Pop(nil)
+	if err != nil {
+		// TODO
+	}
+	event := e.(*registry.VMTEvent)
+
 	glog.V(3).Infof("Executed event is %v", event)
 	// TODO use agent to verify if the event secceeds
 	switch {
@@ -146,7 +151,7 @@ func (this *VMTActionSupervisor) checkScaleAction(event *registry.VMTEvent) (boo
 		currentReplicas = targetDeployment.Spec.Replicas
 		glog.V(4).Infof("currentReplicas from Deployment is %d", currentReplicas)
 	}
-	glog.V(4).Infof("replica want %d, is %s", targetReplicas, currentReplicas)
+	glog.V(4).Infof("replica want %d, is %d", targetReplicas, currentReplicas)
 	if targetReplicas == currentReplicas {
 		return true, nil
 	}

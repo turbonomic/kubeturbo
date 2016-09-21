@@ -42,7 +42,7 @@ func (this *VMTEventContentBuilder) MoveSpec(source, destination string) *VMTEve
 	return this
 }
 
-func (this *VMTEventContentBuilder) ScaleSpec(oldReplicas, newReplicas int) *VMTEventContentBuilder {
+func (this *VMTEventContentBuilder) ScaleSpec(oldReplicas, newReplicas int32) *VMTEventContentBuilder {
 	scaleSpec := ScaleEventSpec{
 		OriginalReplicas: oldReplicas,
 		NewReplicas:      newReplicas,

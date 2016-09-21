@@ -152,10 +152,10 @@ type MoveEventSpec struct {
 
 type ScaleEventSpec struct {
 	// the origin of the move action. Should be the name of the original node.
-	OriginalReplicas int `json:"originalReplicas,omitempty"`
+	OriginalReplicas int32 `json:"originalReplicas,omitempty"`
 
 	// the destination of the move action. Should be the name of the new node.
-	NewReplicas int `json:"newReplicas,omitempty"`
+	NewReplicas int32 `json:"newReplicas,omitempty"`
 }
 
 // ListMeta describes metadata that synthetic resources must have, including lists and

@@ -173,7 +173,7 @@ func (f *HashedFIFO) GetByKey(key string) (item interface{}, exists bool, err er
 // The item is removed from the queue (and the store) before it is returned,
 // so if you don't successfully process it, you need to add it back with
 // AddIfNotPresent().
-func (f *HashedFIFO) Pop() interface{} {
+func (f *HashedFIFO) Pop(ppf cache.PopProcessFunc) (interface{}, error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	for {
@@ -194,7 +194,7 @@ func (f *HashedFIFO) Pop() interface{} {
 		}
 		// TODO, Dongyi changed this
 		delete(f.items, id)
-		return item
+		return item, nil
 	}
 }
 
@@ -228,6 +228,11 @@ func (f *HashedFIFO) Replace(list []interface{}, resourceVersion string) error {
 	if len(f.queue) > 0 {
 		f.cond.Broadcast()
 	}
+	return nil
+}
+
+func (f *HashedFIFO) Resync() error {
+	// TODO
 	return nil
 }
 
