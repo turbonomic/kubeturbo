@@ -143,7 +143,7 @@ func (this *VMTActionSupervisor) checkScaleAction(event *registry.VMTEvent) (boo
 	}
 
 	targetReplicas := event.Content.ScaleSpec.NewReplicas
-	currentReplicas := 0
+	currentReplicas := int32(0)
 	if targetRC != nil && targetRC.Name != "" {
 		currentReplicas = targetRC.Spec.Replicas
 		glog.V(4).Infof("currentReplicas from RC is %d", currentReplicas)
