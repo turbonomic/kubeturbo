@@ -13,10 +13,9 @@ spec:
       - /bin/kubeturbo
     args:
       - --v=2
-      - --kubeconfig=/etc/kubeturbo/kubeconfig
+      - --master=<Kubernetes_API_Server_Address>
       - --etcd-servers=http://127.0.0.1:2379
       - --config-path=/etc/kubeturbo/config
-      - --flag-path=/etc/kubeturbo/flag
     volumeMounts:
     - name: vmt-config
       mountPath: /etc/kubeturbo
