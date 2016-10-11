@@ -19,7 +19,7 @@ You can copy the existing kubeconfig generated when you deploy your Kubernetes c
 
 #### Option 2: Generate From Certificate
 
-You can also generate a kubeconfig file from your certificates. The [create_kubeconfig.sh](https://raw.githubusercontent.com/vmturbo/kubeturbo/master/examples/deploy_kubeturbo/create_kubeconfig.sh) can help you quick generated it with all necessary certicates embeded.
+You can also generate a kubeconfig file from your certificates. The [create_kubeconfig.sh](https://raw.githubusercontent.com/vmturbo/kubeturbo/master/deploy/create_kubeconfig.sh) can help you quick generated it with all necessary certicates embeded.
 
 In order to run create_kubeconfig.sh, you need to provide api-server address and correct certicates. For example:
 
@@ -111,7 +111,7 @@ spec:
 #### Create Kubeturbo pod
 
 As mirror pods are created by Kubelet, you can simply copy kubeturbo yaml definition to your config path you specified when you starts kubelet on master nodes. Usually, the path is /etc/kubernetes/manifests/.
-At the same time, you need to stop the default scheduler by removing kube-scheduler from both /etc/kubernetes/manifests and the source path you specified for pod-master pod, which is usually /srv/kubernetes/manifests by default. 
+At the same time, you need to stop the default scheduler by removing kube-scheduler from both /etc/kubernetes/manifests and the source path you specified for pod-master pod, which is usually /srv/kubernetes/manifests by default.
 
 After several seconds, you will be able to see Kubeturbo mirror pod is running.
 
