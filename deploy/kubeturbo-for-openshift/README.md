@@ -159,9 +159,10 @@ A kubeconfig with proper permission is required for Kubeturbo service to interac
 
 #### Step Three: Create Kubeturbo config
 
-A Kubeturbo config is required for Kubeturbo service to connect to Ops Manager server remotely. You need to specify correct Turbonomic Server address, username and password.
+A Kubeturbo config is required for Kubeturbo service to connect to Ops Manager server remotely. You need to specify correct **Turbonomic Server address**, **username** and **password**.
+**NOTE**: Turbonomic server address is "**<IP address of your ops manger>:80**".
 
-The config should be placed under /etc/kubeturbo/
+The config should be placed under */etc/kubeturbo/*.
 
 ```json
 {
