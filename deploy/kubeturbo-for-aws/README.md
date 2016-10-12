@@ -36,22 +36,18 @@ The created config should be placed under /etc/kubeturbo/
 ```json
 {
 	"serveraddress":	"<SERVER_ADDRESS>",
-	"targettype":		"Kubernetes",
-	"nameoraddress":  	"k8s_vmt",
-	"username":		"kubernetes_user",
-	"targetidentifier": 	"my_k8s",
-	"password":		"fake_password",
 	"localaddress":		"http://127.0.0.1/",
-	"websocketusername": 	"vmtRemoteMediation",
-	"websocketpassword": 	"vmtRemoteMediation",
 	"opsmanagerusername": 	"<USER_NAME>",
 	"opsmanagerpassword": 	"<PASSWORD>"
 }
 ```
+you can find an example [here](https://raw.githubusercontent.com/vmturbo/kubeturbo/master/deploy/config)
 
 ### Step Three: Create Kubeturbo Mirror Pod
 
 #### Define Kubeturbo pod
+
+Make sure you have **kubeconfig** and **config** under */etc/kubeturbo* and you specify the correct **ETCD_Servers**.
 
 ```yaml
 apiVersion: v1
@@ -72,7 +68,6 @@ spec:
       - --kubeconfig=/etc/kubeturbo/kubeconfig
       - --etcd-servers=http://127.0.0.1:2379
       - --config-path=/etc/kubeturbo/config
-      - --flag-path=/etc/kubeturbo/flag
     volumeMounts:
     - name: vmt-config
       mountPath: /etc/kubeturbo
