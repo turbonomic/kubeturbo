@@ -64,7 +64,7 @@ metadata:
 spec:
   containers:
   - name: kubeturbo
-    image: vmturbo/kubeturbo:1.0
+    image: vmturbo/kubeturbo:1.1
     command:
       - /bin/kubeturbo
     args:
