@@ -70,6 +70,11 @@ type VMTServer struct {
 	EtcdConfigFile        string
 	EtcdPathPrefix        string
 
+	TurboServerAddress string
+	TurboServerPort    string
+	OpsManagerUsername string
+	OpsManagerPassword string
+
 	LeaderElection componentconfig.LeaderElectionConfiguration
 }
 
@@ -94,6 +99,10 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.EtcdCA, "cacert", s.EtcdCA, "Path to etcd ca.")
 	fs.StringVar(&s.EtcdClientCertificate, "client-cert", s.EtcdClientCertificate, "Path to etcd client certificate")
 	fs.StringVar(&s.EtcdClientKey, "client-key", s.EtcdClientKey, "Path to etcd client key")
+	fs.StringVar(&s.TurboServerAddress, "serveraddress", s.TurboServerAddress, "Address of Turbo Server")
+	fs.StringVar(&s.TurboServerPort, "serverport", "80", "Port of Turbo Server")
+	fs.StringVar(&s.OpsManagerUsername, "opsmanagerusername", s.OpsManagerUsername, "Username for Ops Manager")
+	fs.StringVar(&s.OpsManagerPassword, "opsmanagerpassword", s.OpsManagerPassword, "Password for Ops Manager")
 	leaderelection.BindFlags(&s.LeaderElection, fs)
 }
 
@@ -104,11 +113,6 @@ func (s *VMTServer) Run(_ []string) error {
 	}
 
 	glog.V(3).Infof("Master is %s", s.Master)
-
-	if s.MetaConfigPath == "" {
-		glog.Fatalf("The path to the VMT config file is not provided.Exiting...")
-		os.Exit(1)
-	}
 
 	if s.TestingFlagPath != "" {
 		helper.SetPath(s.TestingFlagPath)
@@ -145,30 +149,18 @@ func (s *VMTServer) Run(_ []string) error {
 		glog.Fatalf("Invalid API configuration: %v", err)
 	}
 
-	// TODO not clear
-	// go func() {
-	// 	mux := http.NewServeMux()
-	// 	healthz.InstallHandler(mux)
-	// 	if s.EnableProfiling {
-	// 		mux.HandleFunc("/debug/pprof/", pprof.Index)
-	// 		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	// 		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	// 	}
-	// 	mux.Handle("/metrics", prometheus.Handler())
-
-	// 	server := &http.Server{
-	// 		Addr:    net.JoinHostPort(s.Address.String(), strconv.Itoa(s.Port)),
-	// 		Handler: mux,
-	// 	}
-	// 	glog.Fatal(server.ListenAndServe())
-	// }()
-
 	// serverAddr, targetType, nameOrAddress, targetIdentifier, password
-	vmtMeta, err := metadata.NewVMTMeta(s.MetaConfigPath)
+	var vmtMeta *metadata.VMTMeta
+	if s.TurboServerAddress != "" && s.OpsManagerUsername != "" && s.OpsManagerPassword != "" {
+		vmtMeta, err = metadata.NewVMTMeta(s.TurboServerAddress, s.TurboServerPort, s.OpsManagerUsername, s.OpsManagerPassword)
+	} else if s.MetaConfigPath != "" {
+		vmtMeta, err = metadata.NewVMTMetaFromFile(s.MetaConfigPath)
+	}
 	if err != nil {
-		glog.Errorf("Get error when loading configurations: %s", err)
+		glog.Errorf("Get error when generating turbo config: %s", err)
 		os.Exit(1)
 	}
+
 	glog.V(3).Infof("Finished loading configuration from %s", s.MetaConfigPath)
 
 	etcdclientBuilder := etcdhelper.NewEtcdClientBuilder().ServerList(s.EtcdServerList).SetTransport(s.EtcdCA, s.EtcdClientCertificate, s.EtcdClientKey)

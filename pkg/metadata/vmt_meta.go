@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 
 	"github.com/golang/glog"
@@ -35,9 +36,25 @@ type VMTMeta struct {
 	OpsManagerPassword string
 }
 
+func NewVMTMeta(serverAdddress, portNumber, opsManUserName, opsManPassword string) (*VMTMeta, error) {
+	return &VMTMeta{
+		ServerAddress:      net.JoinHostPort(serverAdddress, portNumber),
+		TargetType:         TARGET_TYPE + "-" + serverAdddress,
+		NameOrAddress:      "kubernetes_cluster",
+		Username:           USERNAME,
+		TargetIdentifier:   TARGET_IDENTIFIER,
+		Password:           PASSWORD,
+		LocalAddress:       LOCAL_ADDRESS,
+		WebSocketUsername:  WS_SERVER_USRN,
+		WebSocketPassword:  WS_SERVER_PASSWD,
+		OpsManagerUsername: opsManUserName,
+		OpsManagerPassword: opsManPassword,
+	}, nil
+}
+
 // Create a new VMTMeta from file. ServerAddress, NameOrAddress of Kubernetes target, Ops Manager Username and
 // Ops Manager Password should be set by user. Other fields have default values and can be overrided.
-func NewVMTMeta(metaConfigFilePath string) (*VMTMeta, error) {
+func NewVMTMetaFromFile(metaConfigFilePath string) (*VMTMeta, error) {
 	meta := &VMTMeta{
 		TargetType:        TARGET_TYPE,
 		Username:          USERNAME,
