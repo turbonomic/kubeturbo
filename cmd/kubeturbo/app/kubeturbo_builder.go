@@ -155,13 +155,16 @@ func (s *VMTServer) Run(_ []string) error {
 		vmtMeta, err = metadata.NewVMTMeta(s.TurboServerAddress, s.TurboServerPort, s.OpsManagerUsername, s.OpsManagerPassword)
 	} else if s.MetaConfigPath != "" {
 		vmtMeta, err = metadata.NewVMTMetaFromFile(s.MetaConfigPath)
+	} else {
+		glog.Errorf("Failed to build turbo config.")
+		os.Exit(1)
 	}
 	if err != nil {
 		glog.Errorf("Get error when generating turbo config: %s", err)
 		os.Exit(1)
 	}
 
-	glog.V(3).Infof("Finished loading configuration from %s", s.MetaConfigPath)
+	glog.V(3).Infof("Finished creating turbo configuration: %++v", vmtMeta)
 
 	etcdclientBuilder := etcdhelper.NewEtcdClientBuilder().ServerList(s.EtcdServerList).SetTransport(s.EtcdCA, s.EtcdClientCertificate, s.EtcdClientKey)
 	etcdClient, err := etcdclientBuilder.CreateAndTest()

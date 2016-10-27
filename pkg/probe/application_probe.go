@@ -55,6 +55,9 @@ func (appProbe *ApplicationProbe) ParseApplication(namespace string) (result []*
 		nodeMemCapacity := float64(machineInfo.MemoryCapacity) / 1024 // Mem is returned in B
 
 		for podName, _ := range podResourceConsumptionMap {
+			if podNodeMap[podName] != nodeName {
+				continue
+			}
 			appResourceStat := appProbe.getApplicationResourceStatFromPod(podName, nodeCpuCapacity, nodeMemCapacity, transactionCountMap)
 
 			commoditiesSold := appProbe.getCommoditiesSold(podName, appResourceStat)
@@ -65,6 +68,7 @@ func (appProbe *ApplicationProbe) ParseApplication(namespace string) (result []*
 				return nil, err
 			}
 			result = append(result, entityDto)
+			glog.V(4).Infof("Build Application based on pod %s", podName)
 		}
 	}
 	return
@@ -101,7 +105,7 @@ func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, 
 	cpuUsage := podResourceStat.cpuAllocationUsed
 	memUsage := podResourceStat.memAllocationUsed
 
-	transactionCapacity := float64(1000)
+	transactionCapacity := float64(50)
 	transactionUsed := float64(0)
 
 	if count, ok := podTransactionCountMap[podName]; ok {
@@ -197,7 +201,7 @@ func (this *ApplicationProbe) buildApplicationEntityDTOs(appName string, host *v
 	id := appPrefix + appName
 	dispName := appName
 	entityDTOBuilder := builder.NewEntityDTOBuilder(appEntityType, strings.Replace(id, "/", ":", -1))
-	entityDTOBuilder = entityDTOBuilder.DisplayName(dispName)
+	entityDTOBuilder = entityDTOBuilder.DisplayName("App-" + dispName)
 
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
 

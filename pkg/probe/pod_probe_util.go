@@ -15,6 +15,7 @@ const (
 	Kind_DaemonSet             string = "DaemonSet"
 	Kind_ReplicationController string = "ReplicationController"
 	Kind_ReplicaSet            string = "ReplicaSet"
+	Kind_Job                   string = "Job"
 )
 
 // CPU returned is in KHz; Mem is in Kb
@@ -32,9 +33,6 @@ func GetResourceLimits(pod *api.Pod) (cpuCapacity float64, memCapacity float64, 
 			memCap = request.Memory().Value()
 		}
 		cpuCap := limits.Cpu().MilliValue()
-		if cpuCap == 0 {
-			cpuCap = request.Cpu().MilliValue()
-		}
 		memCapacity += float64(memCap) / 1024
 		cpuCapacity += float64(cpuCap) / 1000
 	}
@@ -129,7 +127,7 @@ func GetAppType(pod *api.Pod) string {
 		nodeName := pod.Spec.NodeName
 		na := strings.Split(pod.Name, nodeName)
 		return na[0][:len(na[0])-1]
-	} else if isPodCreatedBy(pod, Kind_DaemonSet) || isPodCreatedBy(pod, Kind_ReplicationController) {
+	} else if isPodCreatedBy(pod, Kind_DaemonSet) || isPodCreatedBy(pod, Kind_ReplicationController) || isPodCreatedBy(pod, Kind_Job) {
 		generatedName := pod.GenerateName
 		return generatedName[:len(generatedName)-1]
 	} else if isPodCreatedBy(pod, Kind_ReplicaSet) {
