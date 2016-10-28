@@ -152,9 +152,9 @@ func (s *VMTServer) Run(_ []string) error {
 	// serverAddr, targetType, nameOrAddress, targetIdentifier, password
 	var vmtMeta *metadata.VMTMeta
 	if s.TurboServerAddress != "" && s.OpsManagerUsername != "" && s.OpsManagerPassword != "" {
-		vmtMeta, err = metadata.NewVMTMeta(s.TurboServerAddress, s.TurboServerPort, s.OpsManagerUsername, s.OpsManagerPassword)
+		vmtMeta, err = metadata.NewVMTMeta(s.TurboServerAddress, s.TurboServerPort, s.OpsManagerUsername, s.OpsManagerPassword, kubeconfig.Host)
 	} else if s.MetaConfigPath != "" {
-		vmtMeta, err = metadata.NewVMTMetaFromFile(s.MetaConfigPath)
+		vmtMeta, err = metadata.NewVMTMetaFromFile(s.MetaConfigPath, kubeconfig.Host)
 	} else {
 		glog.Errorf("Failed to build turbo config.")
 		os.Exit(1)

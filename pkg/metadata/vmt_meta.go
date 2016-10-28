@@ -37,11 +37,11 @@ type VMTMeta struct {
 	OpsManagerPassword string
 }
 
-func NewVMTMeta(serverAdddress, portNumber, opsManUserName, opsManPassword string) (*VMTMeta, error) {
+func NewVMTMeta(serverAdddress, portNumber, opsManUserName, opsManPassword, kubeMasterHost string) (*VMTMeta, error) {
 	return &VMTMeta{
 		ServerAddress:      net.JoinHostPort(serverAdddress, portNumber),
-		TargetType:         TARGET_TYPE + "-" + serverAdddress,
-		NameOrAddress:      NAME_OR_ADDRESS,
+		TargetType:         TARGET_TYPE + "-" + kubeMasterHost,
+		NameOrAddress:      kubeMasterHost,
 		Username:           USERNAME,
 		TargetIdentifier:   TARGET_IDENTIFIER,
 		Password:           PASSWORD,
@@ -55,10 +55,10 @@ func NewVMTMeta(serverAdddress, portNumber, opsManUserName, opsManPassword strin
 
 // Create a new VMTMeta from file. ServerAddress, NameOrAddress of Kubernetes target, Ops Manager Username and
 // Ops Manager Password should be set by user. Other fields have default values and can be overrided.
-func NewVMTMetaFromFile(metaConfigFilePath string) (*VMTMeta, error) {
+func NewVMTMetaFromFile(metaConfigFilePath, kubeMasterHost string) (*VMTMeta, error) {
 	meta := &VMTMeta{
-		TargetType:        TARGET_TYPE,
-		NameOrAddress:     NAME_OR_ADDRESS,
+		TargetType:        TARGET_TYPE + "-" + kubeMasterHost,
+		NameOrAddress:     kubeMasterHost,
 		Username:          USERNAME,
 		TargetIdentifier:  TARGET_IDENTIFIER,
 		Password:          PASSWORD,
