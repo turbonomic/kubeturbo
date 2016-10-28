@@ -222,7 +222,7 @@ func (nodeProbe *NodeProbe) parseNodeIP(node *api.Node) {
 	nodeAddresses := node.Status.Addresses
 	for _, nodeAddress := range nodeAddresses {
 		if nodeAddress.Type == api.NodeExternalIP {
-			//			nodeName2ExternalIPMap[node.Name] = nodeAddress.Address
+			nodeName2ExternalIPMap[node.Name] = nodeAddress.Address
 		}
 		currentNodeIPMap[nodeAddress.Type] = nodeAddress.Address
 	}
