@@ -17,8 +17,8 @@ import (
 
 // Takes in a podIdentifier(podNamespace/podName), and extract namespace and name of the pod.
 func ProcessPodIdentifier(podIdentifier string) (string, string, error) {
-	// Pod identifier in vmt server passed from VMTurbo server is in "namespace/podname"
-	idArray := strings.Split(podIdentifier, "/")
+	// Pod identifier in vmt server passed from VMTurbo server is in "namespace:podname"
+	idArray := strings.Split(podIdentifier, ":")
 	if len(idArray) < 2 {
 		return "", "", fmt.Errorf("Invalid Pod identifier: %s", podIdentifier)
 	}
