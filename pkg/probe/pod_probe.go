@@ -30,6 +30,7 @@ var inactivePods map[string]struct{} = make(map[string]struct{})
 // TODO, this is a quick fix
 var podResourceConsumptionMap map[string]*PodResourceStat
 var nodePodMap map[string][]string
+var podNodeMap map[string]string
 var podAppTypeMap map[string]string
 
 // Pods Getter is such func that gets all the pods match the provided namespace, labels and fiels.
@@ -43,6 +44,7 @@ func NewPodProbe(getter PodsGetter) *PodProbe {
 	inactivePods = make(map[string]struct{})
 	podResourceConsumptionMap = make(map[string]*PodResourceStat)
 	nodePodMap = make(map[string][]string)
+	podNodeMap = make(map[string]string)
 	podAppTypeMap = make(map[string]string)
 
 	return &PodProbe{
@@ -178,8 +180,12 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	if err != nil {
 		return nil, err
 	}
-	if cpuCapacity == 0 || memCapacity == 0 {
+	if cpuCapacity == 0 {
 		cpuCapacity = float64(machineInfo.NumCores)
+	} else {
+		glog.Infof("Get cpu limit for Pod %s, is %d", pod.Name, cpuCapacity)
+	}
+	if memCapacity == 0 {
 		memCapacity = float64(machineInfo.MemoryCapacity) / 1024
 	}
 	glog.V(4).Infof("Cpu cap of Pod %s in k8s format is %f", pod.Name, cpuCapacity)
@@ -361,6 +367,7 @@ func updateNodePodMap(nodeName, podID string) {
 	}
 	podIDs = append(podIDs, podID)
 	nodePodMap[nodeName] = podIDs
+	podNodeMap[podID] = nodeName
 }
 
 // Get the IP address that will be used for stitching process.

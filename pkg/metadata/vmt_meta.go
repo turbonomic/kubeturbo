@@ -15,6 +15,7 @@ const (
 	USERNAME          string = "kubernetes_user"
 	TARGET_IDENTIFIER string = "my_k8s"
 	PASSWORD          string = "fake_password"
+	NAME_OR_ADDRESS   string = "kubernetes_cluster"
 
 	//WebSocket related
 	LOCAL_ADDRESS    string = "http://172.16.201.167/"
@@ -36,11 +37,11 @@ type VMTMeta struct {
 	OpsManagerPassword string
 }
 
-func NewVMTMeta(serverAdddress, portNumber, opsManUserName, opsManPassword string) (*VMTMeta, error) {
+func NewVMTMeta(serverAdddress, portNumber, opsManUserName, opsManPassword, kubeMasterHost string) (*VMTMeta, error) {
 	return &VMTMeta{
 		ServerAddress:      net.JoinHostPort(serverAdddress, portNumber),
-		TargetType:         TARGET_TYPE + "-" + serverAdddress,
-		NameOrAddress:      "kubernetes_cluster",
+		TargetType:         TARGET_TYPE + "-" + kubeMasterHost,
+		NameOrAddress:      kubeMasterHost,
 		Username:           USERNAME,
 		TargetIdentifier:   TARGET_IDENTIFIER,
 		Password:           PASSWORD,
@@ -54,9 +55,10 @@ func NewVMTMeta(serverAdddress, portNumber, opsManUserName, opsManPassword strin
 
 // Create a new VMTMeta from file. ServerAddress, NameOrAddress of Kubernetes target, Ops Manager Username and
 // Ops Manager Password should be set by user. Other fields have default values and can be overrided.
-func NewVMTMetaFromFile(metaConfigFilePath string) (*VMTMeta, error) {
+func NewVMTMetaFromFile(metaConfigFilePath, kubeMasterHost string) (*VMTMeta, error) {
 	meta := &VMTMeta{
-		TargetType:        TARGET_TYPE,
+		TargetType:        TARGET_TYPE + "-" + kubeMasterHost,
+		NameOrAddress:     kubeMasterHost,
 		Username:          USERNAME,
 		TargetIdentifier:  TARGET_IDENTIFIER,
 		Password:          PASSWORD,
@@ -84,8 +86,6 @@ func NewVMTMetaFromFile(metaConfigFilePath string) (*VMTMeta, error) {
 	if metaConfig.NameOrAddress != "" {
 		meta.NameOrAddress = metaConfig.NameOrAddress
 		glog.V(3).Infof("NameOrAddress is %s", meta.NameOrAddress)
-	} else {
-		return nil, fmt.Errorf("Error getting NameorAddress for Kubernetes Probe.")
 	}
 
 	if metaConfig.Username != "" {
