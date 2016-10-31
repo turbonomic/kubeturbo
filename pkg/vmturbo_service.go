@@ -57,6 +57,7 @@ func (v *VMTurboService) getNextVMTEvent() {
 	e, err := v.config.VMTEventQueue.Pop(nil)
 	if err != nil {
 		// TODO
+		glog.Errorf("Error pop from event queue: %v", err)
 	}
 	event := e.(*registry.VMTEvent)
 	glog.V(2).Infof("Get a new pending VMTEvent from etcd: %v", event)

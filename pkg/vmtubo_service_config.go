@@ -45,7 +45,7 @@ func NewVMTConfig(client *client.Client, etcdStorage storage.Storage, meta *vmtm
 		EtcdStorage:    etcdStorage,
 		NodeQueue:      vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
 		PodQueue:       vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
-		VMTEventQueue:  vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
+		VMTEventQueue:  vmtcache.NewHashedFIFO(registry.VMTEventKeyFunc),
 		ProbeConfig:    probeConfig,
 		StopEverything: make(chan struct{}),
 	}

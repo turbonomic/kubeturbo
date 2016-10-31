@@ -43,7 +43,7 @@ func main() {
 	if action == "move" || action == "Move " {
 		podName := simulator.Pod()
 		destinationNode := simulator.Destination()
-		podIdentifier := namespace + "/" + podName
+		podIdentifier := namespace + ":" + podName
 
 		targetSE, _ := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, podIdentifier).Create()
 		newSE, _ := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_MACHINE, destinationNode).Create()
@@ -68,7 +68,7 @@ func main() {
 		return
 	} else if action == "provision" {
 		podName := simulator.Pod()
-		podIdentifier := namespace + "/" + podName
+		podIdentifier := namespace + ":" + podName
 
 		targetSE, _ := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, podIdentifier).Create()
 		newSE := targetSE
