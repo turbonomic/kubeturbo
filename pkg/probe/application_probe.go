@@ -145,8 +145,9 @@ func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, 
 // Build commodities sold for each application. An application sells transaction, which a virtual application buys.
 func (this *ApplicationProbe) getCommoditiesSold(appName string, appResourceStat *ApplicationResourceStat) []*proto.CommodityDTO {
 	var commoditiesSold []*proto.CommodityDTO
+	appType := podAppTypeMap[appName]
 	transactionComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).
-		Key(appName).
+		Key(appType + "-" + ClusterID).
 		Capacity(appResourceStat.transactionCapacity).
 		Used(appResourceStat.transactionUsed).
 		Create()
