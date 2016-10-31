@@ -204,12 +204,13 @@ func (this *ServiceProbe) getCommoditiesBought(podIDList []string) map[*common.P
 	for _, podID := range podIDList {
 		serviceResourceStat := getServiceResourceStat(podTransactionCountMap, podID)
 		appName := podID
+		appType := podAppTypeMap[podID]
 		appID := appPrefix + appName
 		// We might want to check here if the appID exist.
 		appProvider := common.CreateProvider(proto.EntityDTO_APPLICATION, strings.Replace(appID, "/", ":", -1))
 		var commoditiesBoughtFromApp []*proto.CommodityDTO
 		transactionCommBought := builder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).
-			Key(appName).
+			Key(appType + "-" + ClusterID).
 			Used(serviceResourceStat.transactionBought).
 			Create()
 		commoditiesBoughtFromApp = append(commoditiesBoughtFromApp, transactionCommBought)
