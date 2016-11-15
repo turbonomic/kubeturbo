@@ -234,7 +234,6 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 
 	flag, err := helper.LoadTestingFlag()
 	if err == nil {
-
 		if flag.ProvisionTestingFlag || flag.DeprovisionTestingFlag {
 			if fakeUtil := flag.FakePodComputeResourceUtil; fakeUtil != 0 {
 				if podCpuUsed < podCpuCapacity*fakeUtil {
@@ -247,15 +246,25 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 		}
 	}
 
+	cpuProvisionedUsed, memProvisionedUsed, err := GetResourceRequest(pod)
+	if err != nil {
+		return nil, fmt.Errorf("Error getting provisioned resource consumption: %s", err)
+	}
+	cpuProvisionedUsed *= float64(cpuFrequency)
+
 	glog.V(3).Infof(" Discovered pod is " + pod.Name)
 	glog.V(4).Infof(" Pod %s CPU request is %f", pod.Name, podCpuUsed)
 	glog.V(4).Infof(" Pod %s Mem request is %f", pod.Name, podMemUsed)
 
 	resourceStat := &PodResourceStat{
-		cpuAllocationCapacity: podCpuCapacity,
-		cpuAllocationUsed:     podCpuUsed,
-		memAllocationCapacity: podMemCapacity,
-		memAllocationUsed:     podMemUsed,
+		cpuAllocationCapacity:  podCpuCapacity,
+		cpuAllocationUsed:      podCpuUsed,
+		memAllocationCapacity:  podMemCapacity,
+		memAllocationUsed:      podMemUsed,
+		cpuProvisionedCapacity: podCpuCapacity,
+		cpuProvisionedUsed:     cpuProvisionedUsed,
+		memProvisionedCapacity: podMemCapacity,
+		memProvisionedUsed:     memProvisionedUsed,
 	}
 
 	podResourceConsumptionMap[podNameWithNamespace] = resourceStat
@@ -298,6 +307,16 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 		Used(podResourceStat.memAllocationUsed).
 		Create()
 	commoditiesBought = append(commoditiesBought, memAllocationCommBought)
+	cpuProvisionedCommBought := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_PROVISIONED).
+		Key("Container").
+		Used(podResourceStat.cpuProvisionedUsed).
+		Create()
+	commoditiesBought = append(commoditiesBought, cpuProvisionedCommBought)
+	memProvisionedCommBought := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_PROVISIONED).
+		Key("Container").
+		Used(podResourceStat.memProvisionedUsed).
+		Create()
+	commoditiesBought = append(commoditiesBought, memProvisionedCommBought)
 	selectormap := pod.Spec.NodeSelector
 	if len(selectormap) > 0 {
 		for key, value := range selectormap {

@@ -1,6 +1,7 @@
 package probe
 
 import (
+	"k8s.io/kubernetes/pkg/api"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
@@ -56,7 +57,15 @@ func (this *KubeProbe) ParseNode() (result []*proto.EntityDTO, err error) {
 
 	k8sNodes := nodeProbe.GetNodes(labels.Everything(), fields.Everything())
 
-	result, err = nodeProbe.parseNodeFromK8s(k8sNodes)
+	vmtPodGetter := NewVMTPodGetter(this.KubeClient)
+	podProbe := NewPodProbe(vmtPodGetter.GetPods)
+
+	k8sPods, err := podProbe.GetPods(api.NamespaceAll, labels.Everything(), fields.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	result, err = nodeProbe.parseNodeFromK8s(k8sNodes, k8sPods)
 	return
 }
 
