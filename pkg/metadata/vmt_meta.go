@@ -104,6 +104,13 @@ func NewVMTMetaFromFile(metaConfigFilePath, kubeMasterHost string) (*VMTMeta, er
 		meta.LocalAddress = metaConfig.LocalAddress
 	}
 
+	if metaConfig.WebSocketUsername != "" {
+		meta.WebSocketUsername = metaConfig.WebSocketUsername
+	}
+	if metaConfig.WebSocketPassword != "" {
+		meta.WebSocketPassword = metaConfig.WebSocketPassword
+	}
+
 	if metaConfig.OpsManagerUsername != "" {
 		meta.OpsManagerUsername = metaConfig.OpsManagerUsername
 	} else {
