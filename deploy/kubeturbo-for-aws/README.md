@@ -9,28 +9,34 @@ This example requires a running Kubernetes cluster. First check the current clus
 $ kubectl cluster-info
 ```
 
-Also, make sure you have all the cluster authentication files ready, including certificate authority file, admin certificate and admin key.
+Also, make sure you have all the cluster authentication files ready, including the certificate authority file, admin certificate and admin key.
 
 ### Step One: Create Kubeconfig
 
+Connect to your Kubernetes master via SSH.  Create a directory called kubeturbo in the /etc directory.  This is the directory where you will store your Kubeturbo configuration files.
+
+```console
+$ mkdir /etc/kubeturbo
+```
+
 #### Option 1: Copy the existing one
 
-You can copy the existing kubeconfig generated when you deploy your Kubernetes cluster on AWS. So make sure you copy kubeconfig as well as the whole credentials folder into /etc/kubeturbo dir. In credentials dir, make sure there are admin-key.pem, admin.pem and ca.pem.
+You can copy the existing kubeconfig that was generated when you deployed your Kubernetes cluster on AWS. The file should be named kubeconfig and be placed into the /etc/kubeturbo dirctory which was created in the previous step. Also, make sure you copy the whole credentials folder into the /etc/kubeturbo directory. In the credentials directory, make sure there is an admin-key.pem, an admin.pem and a ca.pem.
 
 #### Option 2: Generate From Certificate
 
-You can also generate a kubeconfig file from your certificates. The [create_kubeconfig.sh](https://raw.githubusercontent.com/vmturbo/kubeturbo/master/deploy/create_kubeconfig.sh) can help you quick generated it with all necessary certicates embeded.
+You can also generate a kubeconfig file from your certificates. The [create_kubeconfig.sh](https://raw.githubusercontent.com/vmturbo/kubeturbo/master/deploy/create_kubeconfig.sh) can help you generated it quickly with all the necessary certicates embeded.
 
-In order to run create_kubeconfig.sh, you need to provide api-server address and correct certicates. For example:
+In order to run create_kubeconfig.sh, you need to provide the api-server address and correct certicates. For example:
 
 ```console
 $ ./create_kubeconfig --server=<SERVER_ADDRESS> --ca=<PATH_TO_YOUR_CA_FILE> --cert=<PATH_TO_YOUR_CERTIFICATE_FILE> --key=<PATH_TO_YOUR_KEY_FILE>
 ```
-Then a new config file named kubeconfig is generated and placed under /etc/kubeturbo/.
+A new config file named kubeconfig will then be generated and placed under /etc/kubeturbo/.
 
 ### Step Two: Create Kubeturbo config
 
-A Kubeturbo config is required for Kubeturbo service to connect to Ops Manager server remotely. You need to specify correct **Turbonomic Server address**, **username** and **password**.
+A Kubeturbo config is required for the Kubeturbo service to connect to the Turbonomic server remotely. You need to specify correct **Turbonomic Server address**, **username** and **password**.
 **NOTE**: Turbonomic server address is "**IP address of your ops manger:80**".
 
 Create a file called **"config"** and put it under */etc/kubeturbo/*.
@@ -108,7 +114,7 @@ spec:
 #### Create Kubeturbo pod
 
 As mirror pods are created by Kubelet, you can simply copy kubeturbo yaml definition to your config path you specified when you starts kubelet on master nodes. Usually, the path is /etc/kubernetes/manifests/.
-At the same time, you need to stop the default scheduler by removing kube-scheduler from both /etc/kubernetes/manifests and the source path you specified for pod-master pod, which is usually /srv/kubernetes/manifests by default.
+Next, you need to stop the default scheduler by removing kube-scheduler from both /etc/kubernetes/manifests and the source path you specified for pod-master pod, which is usually /srv/kubernetes/manifests by default.
 
 After several seconds, you will be able to see Kubeturbo mirror pod is running.
 
@@ -125,4 +131,4 @@ kube-system   kubeturbo-ip-10-0-0-50.ec2.internal                 2/2       Runn
 
 With previous steps, Kubeturbo service is running and starting to collect resource comsuption metrics from each node, pod and applications. Those metrics are continuously sent back to Turbonomic server. If you want Kubeturbo to collect network related metrics, such as service transaction counts and network flow information between pods inside current Kubernetes cluster, you need to deploy K8sconntrack monitoring service.
 
-K8sconntrack monitoring service should be running on each node inside cluster. A detailed guide about how to deploy K8sconnection onto a Kuberentes cluster running on AWS can be found [here](https://github.com/DongyiYang/k8sconnection/blob/master/deploy/aws_deploy/README.md).
+K8sconntrack monitoring service should be running on each node inside cluster. A detailed guide about how to deploy K8sconnection onto a Kuberentes cluster running on AWS can be found [here](https://github.com/DongyiYang/k8sconnection/blob/master/deploy/aws_deploy/README.md). Since you already created a Kubeconfig, you can skip to step 2.
