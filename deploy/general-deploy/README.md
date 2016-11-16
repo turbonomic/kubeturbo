@@ -14,7 +14,7 @@ NOTE: this tutorial assumes there is no authentication for kube-apiserver. If th
 ### Step One: Create Kubeturbo config
 
 A Kubeturbo config is required for Kubeturbo service to connect to Ops Manager server remotely. You need to specify correct **Turbonomic Server address**, **username** and **password**.
-**NOTE**: Turbonomic server address is "**IP address of your ops manger:80**".
+**NOTE**: Turbonomic server address is "**IP address of your ops manger**".
 
 Create a file called **"config"** and put it under */etc/kubeturbo/*.
 
@@ -46,7 +46,7 @@ metadata:
 spec:
   containers:
   - name: kubeturbo
-    image: vmturbo/kubeturbo:1.1
+    image: vmturbo/kubeturbo:latest
     command:
       - /bin/kubeturbo
     args:
