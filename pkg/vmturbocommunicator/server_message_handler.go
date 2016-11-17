@@ -1,6 +1,7 @@
 package vmturbocommunicator
 
 import (
+	"net"
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
@@ -59,7 +60,7 @@ func (handler *KubernetesServerMessageHandler) Callback() <-chan *proto.Mediatio
 
 // Use the vmt restAPI to add a Kubernetes target.
 func (handler *KubernetesServerMessageHandler) AddTarget() {
-	vmtUrl := handler.meta.ServerAddress
+	vmtUrl := net.JoinHostPort(handler.meta.ServerAddress, handler.meta.ServerAPIPort)
 
 	extCongfix := make(map[string]string)
 	extCongfix["Username"] = handler.meta.OpsManagerUsername
@@ -73,7 +74,7 @@ func (handler *KubernetesServerMessageHandler) AddTarget() {
 
 // Send an API request to make server start a discovery process on current k8s.
 func (handler *KubernetesServerMessageHandler) DiscoverTarget() {
-	vmtUrl := handler.meta.ServerAddress
+	vmtUrl := net.JoinHostPort(handler.meta.ServerAddress, handler.meta.ServerAPIPort)
 
 	extCongfix := make(map[string]string)
 	extCongfix["Username"] = handler.meta.OpsManagerUsername

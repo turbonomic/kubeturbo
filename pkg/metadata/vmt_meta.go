@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"os"
 
 	"github.com/golang/glog"
@@ -16,6 +15,7 @@ const (
 	TARGET_IDENTIFIER string = "my_k8s"
 	PASSWORD          string = "fake_password"
 	NAME_OR_ADDRESS   string = "kubernetes_cluster"
+	API_PORT          string = "80"
 
 	//WebSocket related
 	LOCAL_ADDRESS    string = "http://172.16.201.167/"
@@ -25,6 +25,8 @@ const (
 
 type VMTMeta struct {
 	ServerAddress      string
+	ServerAPIPort      string
+	WebSocketPort      string
 	TargetType         string
 	NameOrAddress      string
 	Username           string
@@ -39,7 +41,8 @@ type VMTMeta struct {
 
 func NewVMTMeta(serverAdddress, portNumber, opsManUserName, opsManPassword, kubeMasterHost string) (*VMTMeta, error) {
 	return &VMTMeta{
-		ServerAddress:      net.JoinHostPort(serverAdddress, portNumber),
+		ServerAddress:      serverAdddress,
+		ServerAPIPort:      portNumber,
 		TargetType:         TARGET_TYPE + "-" + kubeMasterHost,
 		NameOrAddress:      kubeMasterHost,
 		Username:           USERNAME,
@@ -57,6 +60,7 @@ func NewVMTMeta(serverAdddress, portNumber, opsManUserName, opsManPassword, kube
 // Ops Manager Password should be set by user. Other fields have default values and can be overrided.
 func NewVMTMetaFromFile(metaConfigFilePath, kubeMasterHost string) (*VMTMeta, error) {
 	meta := &VMTMeta{
+		ServerAPIPort:     API_PORT,
 		TargetType:        TARGET_TYPE + "-" + kubeMasterHost,
 		NameOrAddress:     kubeMasterHost,
 		Username:          USERNAME,
@@ -77,6 +81,15 @@ func NewVMTMetaFromFile(metaConfigFilePath, kubeMasterHost string) (*VMTMeta, er
 	} else {
 		return nil, fmt.Errorf("Error getting VMTurbo server address.")
 	}
+
+	if metaConfig.ServerAPIPort != "" {
+		meta.ServerAPIPort = metaConfig.ServerAPIPort
+	}
+
+	if metaConfig.WebSocketPort != "" {
+		meta.WebSocketPort = metaConfig.WebSocketPort
+	}
+	glog.Info("WebSocketPort is %s", meta.WebSocketPort)
 
 	if metaConfig.TargetIdentifier != "" {
 		meta.TargetIdentifier = metaConfig.TargetIdentifier

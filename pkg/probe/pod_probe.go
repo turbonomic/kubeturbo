@@ -183,7 +183,7 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	if cpuCapacity == 0 {
 		cpuCapacity = float64(machineInfo.NumCores)
 	} else {
-		glog.Infof("Get cpu limit for Pod %s, is %d", pod.Name, cpuCapacity)
+		glog.V(4).Infof("Get cpu limit for Pod %s, is %f", pod.Name, cpuCapacity)
 	}
 	if memCapacity == 0 {
 		memCapacity = float64(machineInfo.MemoryCapacity) / 1024
