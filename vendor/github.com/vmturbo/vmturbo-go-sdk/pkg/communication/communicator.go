@@ -1,6 +1,7 @@
 package communication
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"net/http"
 	"time"
@@ -99,7 +100,7 @@ func (wsc *WebSocketCommunicator) CloseAndRegisterAgain(containerInfo *proto.Con
 // Register target type on vmt server and start to listen for server message
 func (wsc *WebSocketCommunicator) RegisterAndListen(containerInfo *proto.ContainerInfo) {
 	// vmtServerUrl := "ws://10.10.173.154:8080/vmturbo/remoteMediation"
-	vmtServerUrl := "ws://" + wsc.VmtServerAddress + "/vmturbo/remoteMediation"
+	vmtServerUrl := "wss://" + wsc.VmtServerAddress + "/vmturbo/remoteMediation"
 	localAddr := wsc.LocalAddress
 
 	glog.V(3).Infof("Dial Server: %s", vmtServerUrl)
@@ -113,6 +114,7 @@ func (wsc *WebSocketCommunicator) RegisterAndListen(containerInfo *proto.Contain
 	config.Header = http.Header{
 		"Authorization": {"Basic " + base64.StdEncoding.EncodeToString(usrpasswd)},
 	}
+	config.TlsConfig = &tls.Config{InsecureSkipVerify: true}
 	webs, err := websocket.DialConfig(config)
 
 	// webs, err := websocket.Dial(vmtServerUrl, "", localAddr)
