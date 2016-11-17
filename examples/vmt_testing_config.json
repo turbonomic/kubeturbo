@@ -1,6 +1,6 @@
 {
 		"serveraddress":	"10.10.192.87",
-		"serverapiport": "8080",
+		"serverapiport": "9400",
 		"websocketport": "9400",
 		"localaddress":"http://127.0.0.1/",
 		"opsmanagerusername": "administrator",

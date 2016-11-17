@@ -15,7 +15,7 @@ const (
 	TARGET_IDENTIFIER string = "my_k8s"
 	PASSWORD          string = "fake_password"
 	NAME_OR_ADDRESS   string = "kubernetes_cluster"
-	API_PORT          string = "80"
+	API_PORT          string = ""
 
 	//WebSocket related
 	LOCAL_ADDRESS    string = "http://172.16.201.167/"
