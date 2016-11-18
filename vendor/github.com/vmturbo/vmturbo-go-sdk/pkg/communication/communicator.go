@@ -99,7 +99,6 @@ func (wsc *WebSocketCommunicator) CloseAndRegisterAgain(containerInfo *proto.Con
 
 // Register target type on vmt server and start to listen for server message
 func (wsc *WebSocketCommunicator) RegisterAndListen(containerInfo *proto.ContainerInfo) {
-	// vmtServerUrl := "ws://10.10.173.154:8080/vmturbo/remoteMediation"
 	vmtServerUrl := "wss://" + wsc.VmtServerAddress + "/vmturbo/remoteMediation"
 	localAddr := wsc.LocalAddress
 
