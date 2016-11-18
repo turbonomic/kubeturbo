@@ -3,6 +3,7 @@ package reservation
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -131,7 +132,9 @@ func (this *Reservation) RequestPlacement(podName string, requestSpec, filterPro
 	extCongfix := make(map[string]string)
 	extCongfix["Username"] = this.Meta.OpsManagerUsername
 	extCongfix["Password"] = this.Meta.OpsManagerPassword
-	vmturboApi := vmtapi.NewVmtApi(this.Meta.ServerAddress, extCongfix)
+
+	vmtUrl := net.JoinHostPort(this.Meta.ServerAddress, this.Meta.ServerAPIPort)
+	vmturboApi := vmtapi.NewVmtApi(vmtUrl, extCongfix)
 
 	glog.V(4).Info("Inside RequestPlacement")
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -91,12 +92,15 @@ func (vmtApi *VmtApi) Delete(getUrl string) (string, error) {
 
 // Call vmturbo api. return response
 func (vmtApi *VmtApi) apiPost(postUrl, requestDataString string) (string, error) {
-	fullUrl := "http://" + vmtApi.vmtUrl + "/vmturbo/api" + postUrl + requestDataString
+	fullUrl := "https://" + vmtApi.vmtUrl + "/vmturbo/api" + postUrl + requestDataString
 	glog.V(4).Info("The full Url is ", fullUrl)
 	req, err := http.NewRequest("POST", fullUrl, nil)
 
 	req.SetBasicAuth(vmtApi.extConfig["Username"], vmtApi.extConfig["Password"])
-	client := &http.Client{}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
 	resp, err := client.Do(req)
 	if err != nil {
 		glog.Errorf("Error getting response: %s", err)
@@ -116,12 +120,16 @@ func (vmtApi *VmtApi) apiPost(postUrl, requestDataString string) (string, error)
 
 // Call vmturbo api. return response
 func (vmtApi *VmtApi) apiGet(getUrl string) (string, error) {
-	fullUrl := "http://" + vmtApi.vmtUrl + "/vmturbo/api" + getUrl
+	fullUrl := "https://" + vmtApi.vmtUrl + "/vmturbo/api" + getUrl
 	glog.V(4).Infof("The full Url is %s", fullUrl)
 	req, err := http.NewRequest("GET", fullUrl, nil)
 
 	req.SetBasicAuth(vmtApi.extConfig["Username"], vmtApi.extConfig["Password"])
-	client := &http.Client{}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		glog.Errorf("Error getting response: %s", err)
@@ -139,12 +147,15 @@ func (vmtApi *VmtApi) apiGet(getUrl string) (string, error) {
 
 // Delete API call
 func (vmtApi *VmtApi) apiDelete(getUrl string) (string, error) {
-	fullUrl := "http://" + vmtApi.vmtUrl + "/vmturbo/api" + getUrl
+	fullUrl := "https://" + vmtApi.vmtUrl + "/vmturbo/api" + getUrl
 	glog.V(4).Infof("The full Url is ", fullUrl)
 	req, err := http.NewRequest("DELETE", fullUrl, nil)
 
 	req.SetBasicAuth(vmtApi.extConfig["Username"], vmtApi.extConfig["Password"])
-	client := &http.Client{}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
 	resp, err := client.Do(req)
 	if err != nil {
 		glog.Errorf("Error getting response: %s", err)

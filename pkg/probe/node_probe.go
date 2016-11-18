@@ -83,7 +83,16 @@ func (nodeProbe *NodeProbe) GetNodes(label labels.Selector, field fields.Selecto
 }
 
 // Parse each node inside K8s. Get the resources usage of each node and build the entityDTO.
-func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node) (result []*proto.EntityDTO, err error) {
+func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node, pods []*api.Pod) (result []*proto.EntityDTO, err error) {
+	nodePodsMap := make(map[string][]*api.Pod)
+	for _, pod := range pods {
+		var podList []*api.Pod
+		if l, exist := nodePodsMap[pod.Spec.NodeName]; exist {
+			podList = l
+		}
+		podList = append(podList, pod)
+		nodePodsMap[pod.Spec.NodeName] = podList
+	}
 	for _, node := range nodes {
 		// We do not parse node that is not ready or unschedulable.
 		if !nodeIsReady(node) || !nodeIsSchedulable(node) {
@@ -99,7 +108,7 @@ func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node) (result []*proto
 		dispName := node.Name
 		nodeUidTranslationMap[node.Name] = nodeID
 
-		commoditiesSold, err := nodeProbe.createCommoditySold(node)
+		commoditiesSold, err := nodeProbe.createCommoditySold(node, nodePodsMap)
 		if err != nil {
 			glog.Errorf("Error when create commoditiesSold for %s: %s", node.Name, err)
 			continue
@@ -138,9 +147,9 @@ func nodeIsSchedulable(node *api.Node) bool {
 	return !node.Spec.Unschedulable
 }
 
-func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node) ([]*proto.CommodityDTO, error) {
+func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node, nodePodsMap map[string][]*api.Pod) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
-	nodeResourceStat, err := nodeProbe.getNodeResourceStat(node)
+	nodeResourceStat, err := nodeProbe.getNodeResourceStat(node, nodePodsMap)
 	if err != nil {
 		return commoditiesSold, err
 	}
@@ -171,6 +180,19 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node) ([]*proto.Commod
 		Used(nodeResourceStat.vCpuUsed).
 		Create()
 	commoditiesSold = append(commoditiesSold, vCpuComm)
+	memProvisionedComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_PROVISIONED).
+		Key("Container").
+		Capacity(float64(nodeResourceStat.memProvisionedCapacity)).
+		Used(nodeResourceStat.memProvisionedUsed).
+		Create()
+	commoditiesSold = append(commoditiesSold, memProvisionedComm)
+	cpuProvisionedComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_PROVISIONED).
+		Key("Container").
+		Capacity(float64(nodeResourceStat.cpuProvisionedCapacity)).
+		Used(nodeResourceStat.cpuProvisionedUsed).
+		Create()
+	commoditiesSold = append(commoditiesSold, cpuProvisionedComm)
+
 	appComm := builder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
 		Key(nodeID).
 		Capacity(1E10).
@@ -289,7 +311,7 @@ func (nodeProbe *NodeProbe) getIPForStitching(nodeName string) string {
 }
 
 // Get current stat of node resources, such as capacity and used values.
-func (this *NodeProbe) getNodeResourceStat(node *api.Node) (*NodeResourceStat, error) {
+func (this *NodeProbe) getNodeResourceStat(node *api.Node, nodePodsMap map[string][]*api.Pod) (*NodeResourceStat, error) {
 	cadvisor := &vmtAdvisor.CadvisorSource{}
 
 	host := this.getHost(node.Name)
@@ -331,6 +353,21 @@ func (this *NodeProbe) getNodeResourceStat(node *api.Node) (*NodeResourceStat, e
 	cpuUsed := float64(rootCurCpu) * float64(cpuFrequency)
 	memUsed := float64(rootCurMem)
 
+	cpuProvisionedUsed := float64(0)
+	memProvisionedUsed := float64(0)
+
+	if podList, exist := nodePodsMap[node.Name]; exist {
+		for _, pod := range podList {
+			cpuRequest, memRequest, err := GetResourceRequest(pod)
+			if err != nil {
+				return nil, fmt.Errorf("Error getting provisioned resource consumption: %s", err)
+			}
+			cpuProvisionedUsed += cpuRequest
+			memProvisionedUsed += memRequest
+		}
+	}
+	cpuProvisionedUsed *= float64(cpuFrequency)
+
 	// this flag is defined at package level, in probe.go
 	flag, err := helper.LoadTestingFlag()
 	if err == nil {
@@ -345,14 +382,18 @@ func (this *NodeProbe) getNodeResourceStat(node *api.Node) (*NodeResourceStat, e
 	}
 
 	return &NodeResourceStat{
-		cpuAllocationCapacity: nodeCpuCapacity,
-		cpuAllocationUsed:     cpuUsed,
-		memAllocationCapacity: nodeMemCapacity,
-		memAllocationUsed:     memUsed,
-		vCpuCapacity:          nodeCpuCapacity,
-		vCpuUsed:              cpuUsed,
-		vMemCapacity:          nodeMemCapacity,
-		vMemUsed:              memUsed,
+		cpuAllocationCapacity:  nodeCpuCapacity,
+		cpuAllocationUsed:      cpuUsed,
+		memAllocationCapacity:  nodeMemCapacity,
+		memAllocationUsed:      memUsed,
+		vCpuCapacity:           nodeCpuCapacity,
+		vCpuUsed:               cpuUsed,
+		vMemCapacity:           nodeMemCapacity,
+		vMemUsed:               memUsed,
+		cpuProvisionedCapacity: nodeCpuCapacity,
+		cpuProvisionedUsed:     cpuProvisionedUsed,
+		memProvisionedCapacity: nodeMemCapacity,
+		memProvisionedUsed:     memProvisionedUsed,
 	}, nil
 }
 

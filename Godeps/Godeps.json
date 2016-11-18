@@ -452,19 +452,19 @@
 		},
 		{
 			"ImportPath": "github.com/vmturbo/vmturbo-go-sdk/pkg/builder",
-			"Rev": "0a530594af37d966894dad66e202554a029f8a09"
+			"Rev": "dae934c265bc446931e507faa3d6c759128b58ef"
 		},
 		{
 			"ImportPath": "github.com/vmturbo/vmturbo-go-sdk/pkg/common",
-			"Rev": "0a530594af37d966894dad66e202554a029f8a09"
+			"Rev": "dae934c265bc446931e507faa3d6c759128b58ef"
 		},
 		{
 			"ImportPath": "github.com/vmturbo/vmturbo-go-sdk/pkg/communication",
-			"Rev": "0a530594af37d966894dad66e202554a029f8a09"
+			"Rev": "dae934c265bc446931e507faa3d6c759128b58ef"
 		},
 		{
 			"ImportPath": "github.com/vmturbo/vmturbo-go-sdk/pkg/proto",
-			"Rev": "0a530594af37d966894dad66e202554a029f8a09"
+			"Rev": "dae934c265bc446931e507faa3d6c759128b58ef"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/ssh/terminal",
@@ -1632,6 +1632,18 @@
 			"ImportPath": "k8s.io/kubernetes/third_party/forked/golang/reflect",
 			"Comment": "v1.5.0-alpha.0-788-gfc46674",
 			"Rev": "fc466743a81692f7ccd7662a3d7e435d5a74471f"
+		},
+		{
+			"ImportPath": "github.com/vmturbo/vmturbo-go-sdk/vendor/github.com/golang/glog",
+			"Rev": "dae934c265bc446931e507faa3d6c759128b58ef"
+		},
+		{
+			"ImportPath": "github.com/vmturbo/vmturbo-go-sdk/vendor/github.com/golang/protobuf/proto",
+			"Rev": "dae934c265bc446931e507faa3d6c759128b58ef"
+		},
+		{
+			"ImportPath": "github.com/vmturbo/vmturbo-go-sdk/vendor/golang.org/x/net/websocket",
+			"Rev": "dae934c265bc446931e507faa3d6c759128b58ef"
 		}
 	]
 }
