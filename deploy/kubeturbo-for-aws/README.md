@@ -116,7 +116,7 @@ spec:
 As mirror pods are created by Kubelet, you can simply copy kubeturbo yaml definition to your config path you specified when you starts kubelet on master nodes. Usually, the path is /etc/kubernetes/manifests/.
 Next, you need to stop the default scheduler by removing kube-scheduler from both /etc/kubernetes/manifests and the source path you specified for pod-master pod, which is usually /srv/kubernetes/manifests by default.
 
-After several seconds, you will be able to see Kubeturbo mirror pod is running.
+After several seconds, you will be able to see Kubeturbo mirror pod is running. (For some versions of kubernetes, you may not see mirror pod from the command below, please use docker ps to check if kubeturbo is running)
 
 ```console
 $kubectl get pods --all-namespaces
