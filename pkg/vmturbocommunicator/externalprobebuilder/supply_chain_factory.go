@@ -8,11 +8,13 @@ import (
 )
 
 var (
-	vCpuType          proto.CommodityDTO_CommodityType = proto.CommodityDTO_VCPU
-	vMemType          proto.CommodityDTO_CommodityType = proto.CommodityDTO_VMEM
-	cpuAllocationType proto.CommodityDTO_CommodityType = proto.CommodityDTO_CPU_ALLOCATION
-	memAllocationType proto.CommodityDTO_CommodityType = proto.CommodityDTO_MEM_ALLOCATION
-	transactionType   proto.CommodityDTO_CommodityType = proto.CommodityDTO_TRANSACTION
+	vCpuType           proto.CommodityDTO_CommodityType = proto.CommodityDTO_VCPU
+	vMemType           proto.CommodityDTO_CommodityType = proto.CommodityDTO_VMEM
+	cpuProvisionedType proto.CommodityDTO_CommodityType = proto.CommodityDTO_CPU_PROVISIONED
+	memProvisionedType proto.CommodityDTO_CommodityType = proto.CommodityDTO_MEM_PROVISIONED
+	cpuAllocationType  proto.CommodityDTO_CommodityType = proto.CommodityDTO_CPU_ALLOCATION
+	memAllocationType  proto.CommodityDTO_CommodityType = proto.CommodityDTO_MEM_ALLOCATION
+	transactionType    proto.CommodityDTO_CommodityType = proto.CommodityDTO_TRANSACTION
 
 	clusterType    proto.CommodityDTO_CommodityType = proto.CommodityDTO_CLUSTER
 	appCommType    proto.CommodityDTO_CommodityType = proto.CommodityDTO_APPLICATION
@@ -21,13 +23,15 @@ var (
 	fakeKey  string = "fake"
 	emptyKey string = ""
 
-	vCpuTemplateComm          proto.TemplateCommodity = proto.TemplateCommodity{CommodityType: &vCpuType}
-	vMemTemplateComm          proto.TemplateCommodity = proto.TemplateCommodity{CommodityType: &vMemType}
-	cpuAllocationTemplateComm proto.TemplateCommodity = proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuAllocationType}
-	memAllocationTemplateComm proto.TemplateCommodity = proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memAllocationType}
-	applicationTemplateComm   proto.TemplateCommodity = proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
-	clusterTemplateComm       proto.TemplateCommodity = proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
-	transactionTemplateComm   proto.TemplateCommodity = proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
+	vCpuTemplateComm           proto.TemplateCommodity = proto.TemplateCommodity{CommodityType: &vCpuType}
+	vMemTemplateComm           proto.TemplateCommodity = proto.TemplateCommodity{CommodityType: &vMemType}
+	cpuAllocationTemplateComm  proto.TemplateCommodity = proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuAllocationType}
+	memAllocationTemplateComm  proto.TemplateCommodity = proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memAllocationType}
+	cpuProvisionedTemplateComm proto.TemplateCommodity = proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuProvisionedType}
+	memProvisionedTemplateComm proto.TemplateCommodity = proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memProvisionedType}
+	applicationTemplateComm    proto.TemplateCommodity = proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
+	clusterTemplateComm        proto.TemplateCommodity = proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
+	transactionTemplateComm    proto.TemplateCommodity = proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
 )
 
 type SupplyChainFactory struct{}
@@ -50,6 +54,8 @@ func (this *SupplyChainFactory) CreateSupplyChain() ([]*proto.TemplateDTO, error
 	vmPodExtLinkBuilder.Link(proto.EntityDTO_CONTAINER_POD, proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
 		Commodity(cpuAllocationType, true).
 		Commodity(memAllocationType, true).
+		Commodity(cpuProvisionedType, true).
+		Commodity(memProvisionedType, true).
 		Commodity(vmpmaccessType, true).
 		Commodity(clusterType, true).
 		ProbeEntityPropertyDef(common.SUPPLYCHAIN_CONSTANT_IP_ADDRESS, "IP Address where the Pod is running").
@@ -83,6 +89,8 @@ func (this *SupplyChainFactory) nodeSupplyBuilder() *builder.SupplyChainNodeBuil
 		Entity(proto.EntityDTO_VIRTUAL_MACHINE).
 		Sells(vCpuTemplateComm).
 		Sells(vMemTemplateComm).
+		Sells(cpuProvisionedTemplateComm).
+		Sells(memProvisionedTemplateComm).
 		Sells(cpuAllocationTemplateComm).
 		Sells(memAllocationTemplateComm).
 		Sells(applicationTemplateComm).
@@ -99,6 +107,8 @@ func (this *SupplyChainFactory) podSupplyBuilder() *builder.SupplyChainNodeBuild
 		Sells(cpuAllocationTemplateComm).
 		Sells(memAllocationTemplateComm).
 		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
+		Buys(cpuProvisionedTemplateComm).
+		Buys(memProvisionedTemplateComm).
 		Buys(cpuAllocationTemplateComm).
 		Buys(memAllocationTemplateComm).
 		Buys(clusterTemplateComm)

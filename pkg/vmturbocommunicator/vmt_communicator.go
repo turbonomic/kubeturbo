@@ -1,6 +1,8 @@
 package vmturbocommunicator
 
 import (
+	"net"
+
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 
 	vmtapi "github.com/vmturbo/kubeturbo/pkg/api"
@@ -11,6 +13,8 @@ import (
 
 	comm "github.com/vmturbo/vmturbo-go-sdk/pkg/communication"
 	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
+
+	"github.com/golang/glog"
 )
 
 type VMTCommunicator struct {
@@ -37,8 +41,13 @@ func (vmtcomm *VMTCommunicator) Run() {
 
 // Init() intialize the VMTCommunicator, creating websocket communicator and server message handler.
 func (vmtcomm *VMTCommunicator) Init() {
+	serverWebSocketAddress := vmtcomm.meta.ServerAddress
+	glog.Info("Websocket Port is %s", vmtcomm.meta.WebSocketPort)
+	if vmtcomm.meta.WebSocketPort != "" {
+		serverWebSocketAddress = net.JoinHostPort(serverWebSocketAddress, vmtcomm.meta.WebSocketPort)
+	}
 	wsCommunicator := &comm.WebSocketCommunicator{
-		VmtServerAddress: vmtcomm.meta.ServerAddress,
+		VmtServerAddress: serverWebSocketAddress,
 		LocalAddress:     vmtcomm.meta.LocalAddress,
 		ServerUsername:   vmtcomm.meta.WebSocketUsername,
 		ServerPassword:   vmtcomm.meta.WebSocketPassword,
@@ -94,7 +103,7 @@ func (vmtcomm *VMTCommunicator) SendActionReponse(state proto.ActionResponseStat
 
 // Call VMTurbo REST API to initialize a discovery.
 func (vmtcomm *VMTCommunicator) DiscoverTarget() {
-	vmtUrl := vmtcomm.wsComm.VmtServerAddress
+	vmtUrl := net.JoinHostPort(vmtcomm.meta.ServerAddress, vmtcomm.meta.ServerAPIPort)
 
 	extCongfix := make(map[string]string)
 	extCongfix["Username"] = vmtcomm.meta.OpsManagerUsername

@@ -39,6 +39,23 @@ func GetResourceLimits(pod *api.Pod) (cpuCapacity float64, memCapacity float64, 
 	return
 }
 
+// CPU returned is in KHz; Mem is in Kb
+func GetResourceRequest(pod *api.Pod) (cpuRequest float64, memRequest float64, err error) {
+	if pod == nil {
+		return 0, 0, fmt.Errorf("pod passed in is nil.")
+	}
+
+	for _, container := range pod.Spec.Containers {
+		request := container.Resources.Requests
+
+		mem := request.Memory().Value()
+		cpu := request.Cpu().MilliValue()
+		memRequest += float64(mem) / 1024
+		cpuRequest += float64(cpu) / 1000
+	}
+	return
+}
+
 func monitored(pod *api.Pod) bool {
 	// Do not monitor mirror pods and pods created by daemonsets.
 	if isMirrorPod(pod) || isPodCreatedBy(pod, Kind_DaemonSet) {
