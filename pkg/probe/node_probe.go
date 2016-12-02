@@ -277,8 +277,15 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeID, displayName string, commodi
 
 	entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
 
-	return entityDTOBuilder.Create()
+	entityDto, err := entityDTOBuilder.Create()
+	if err != nil {
+		return nil, err
+	}
 
+	powerOn := proto.EntityDTO_POWERED_ON
+	entityDto.PowerState = &powerOn
+
+	return entityDto, nil
 }
 
 // Create the meta data that will be used during the reconcilation process.
