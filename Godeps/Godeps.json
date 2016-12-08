@@ -929,6 +929,11 @@
 			"Rev": "a698d490b93a4829d9af76bed7556a446eef7238"
 		},
 		{
+			"ImportPath": "k8s.io/kubernetes/pkg/client/leaderelection",
+			"Comment": "v1.5.0-alpha.0-1738-ga698d49",
+			"Rev": "a698d490b93a4829d9af76bed7556a446eef7238"
+		},
+		{
 			"ImportPath": "k8s.io/kubernetes/pkg/client/metrics",
 			"Comment": "v1.5.0-alpha.0-1738-ga698d49",
 			"Rev": "a698d490b93a4829d9af76bed7556a446eef7238"
