@@ -23,7 +23,7 @@ import (
 	"os"
 
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/leaderelection"
+	//	"k8s.io/kubernetes/pkg/client/leaderelection"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
 	// "k8s.io/kubernetes/pkg/healthz"
@@ -103,7 +103,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.TurboServerPort, "serverport", "", "Port of Turbo Server")
 	fs.StringVar(&s.OpsManagerUsername, "opsmanagerusername", s.OpsManagerUsername, "Username for Ops Manager")
 	fs.StringVar(&s.OpsManagerPassword, "opsmanagerpassword", s.OpsManagerPassword, "Password for Ops Manager")
-	leaderelection.BindFlags(&s.LeaderElection, fs)
+	//leaderelection.BindFlags(&s.LeaderElection, fs)
 }
 
 // Run runs the specified VMTServer.  This should never exit.
@@ -201,29 +201,29 @@ func (s *VMTServer) Run(_ []string) error {
 		panic("unreachable")
 	}
 
-	id, err := os.Hostname()
-	if err != nil {
-		return err
-	}
+	//id, err := os.Hostname()
+	//if err != nil {
+	//	return err
+	//}
 
-	leaderelection.RunOrDie(leaderelection.LeaderElectionConfig{
-		EndpointsMeta: api.ObjectMeta{
-			Namespace: "kube-system",
-			Name:      "kubeturbo",
-		},
-		Client:        kubeClient,
-		Identity:      id,
-		EventRecorder: vmtConfig.Recorder,
-		LeaseDuration: s.LeaderElection.LeaseDuration.Duration,
-		RenewDeadline: s.LeaderElection.RenewDeadline.Duration,
-		RetryPeriod:   s.LeaderElection.RetryPeriod.Duration,
-		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: run,
-			OnStoppedLeading: func() {
-				glog.Fatalf("lost master")
-			},
-		},
-	})
+	//	leaderelection.runordie(leaderelection.leaderelectionconfig{
+	//		endpointsmeta: api.objectmeta{
+	//			namespace: "kube-system",
+	//			name:      "kubeturbo",
+	//		},
+	//		client:        kubeclient,
+	//		identity:      id,
+	//		eventrecorder: vmtconfig.recorder,
+	//		leaseduration: s.leaderelection.leaseduration.duration,
+	//		RenewDeadline: s.LeaderElection.RenewDeadline.Duration,
+	//		RetryPeriod:   s.LeaderElection.RetryPeriod.Duration,
+	//		Callbacks: leaderelection.LeaderCallbacks{
+	//			OnStartedLeading: run,
+	//			OnStoppedLeading: func() {
+	//				glog.Fatalf("lost master")
+	//			},
+	//		},
+	//	})
 
 	glog.Fatal("this statement is unreachable")
 	panic("unreachable")
