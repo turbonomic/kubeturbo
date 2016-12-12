@@ -23,7 +23,9 @@ import (
 	"os"
 
 	"k8s.io/kubernetes/pkg/api"
+	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/client/leaderelection"
+	"k8s.io/kubernetes/pkg/client/restclient"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
 	// "k8s.io/kubernetes/pkg/healthz"
@@ -149,6 +151,11 @@ func (s *VMTServer) Run(_ []string) error {
 		glog.Fatalf("Invalid API configuration: %v", err)
 	}
 
+	leaderElectionClient, err := clientset.NewForConfig(restclient.AddUserAgent(kubeconfig, "leader-election"))
+	if err != nil {
+		glog.Fatalf("Invalid API configuration: %v", err)
+	}
+
 	// serverAddr, targetType, nameOrAddress, targetIdentifier, password
 	var vmtMeta *metadata.VMTMeta
 	if s.TurboServerAddress != "" && s.OpsManagerUsername != "" && s.OpsManagerPassword != "" {
@@ -211,7 +218,7 @@ func (s *VMTServer) Run(_ []string) error {
 			Namespace: "kube-system",
 			Name:      "kubeturbo",
 		},
-		Client:        kubeClient,
+		Client:        leaderElectionClient,
 		Identity:      id,
 		EventRecorder: vmtConfig.Recorder,
 		LeaseDuration: s.LeaderElection.LeaseDuration.Duration,
