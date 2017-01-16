@@ -7,3 +7,5 @@ actionexecutionsimulator
 .*swp
 
 _output/
+.idea/
+kubeturbo.iml

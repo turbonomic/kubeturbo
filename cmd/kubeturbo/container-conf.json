@@ -1,0 +1,12 @@
+{
+  "VmtServerAddress": "10.10.192.87:9400",
+  "VmtUserName": "vmtRemoteMediation",
+  "VmtPassword": "vmtRemoteMediation",
+  "IsSecure": true,
+  "ApplicationBase": "/vmturbo/remoteMediation",
+  "VmtRestServerAddress": "10.10.192.87:8080",
+  "VmtRestUser": "administrator",
+  "VmtRestPassword": "a"
+}
+
+

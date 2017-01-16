@@ -11,7 +11,7 @@ import (
 
 	vmtcache "github.com/vmturbo/kubeturbo/pkg/cache"
 	vmtmeta "github.com/vmturbo/kubeturbo/pkg/metadata"
-	"github.com/vmturbo/kubeturbo/pkg/probe"
+	"github.com/vmturbo/kubeturbo/pkg/discovery/probe"
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 

@@ -19,9 +19,6 @@ const (
 	logger = "VMTurbo API"
 )
 
-// Add a Kuberenets target to vmt ops manager
-// example : http://localhost:8400/vmturbo/api/externaltargets?
-//                     type=Kubernetes&nameOrAddress=10.10.150.2&username=AAA&targetIdentifier=A&password=Sysdreamworks123
 func (vmtApi *VmtApi) AddK8sTarget(targetType, nameOrAddress, username, targetIdentifier, password string) error {
 	glog.V(2).Infof("Calling VMTurbo REST API to added current %s target.", targetType)
 

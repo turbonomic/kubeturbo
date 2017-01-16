@@ -8,52 +8,70 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/util/wait"
 
+	"github.com/vmturbo/kubeturbo/pkg/discovery"
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	turboscheduler "github.com/vmturbo/kubeturbo/pkg/scheduler"
-	comm "github.com/vmturbo/kubeturbo/pkg/vmturbocommunicator"
 
 	"github.com/golang/glog"
 )
 
-type VMTurboService struct {
-	config           *Config
+type KubeturboService struct {
+	config *Config
+
 	vmtEventRegistry *registry.VMTEventRegistry
-	vmtcomm          *comm.VMTCommunicator
 	vmtEventChan     chan *registry.VMTEvent
-	// VMTurbo Scheduler
+	// Turbonomic scheduler
 	TurboScheduler *turboscheduler.TurboScheduler
+
+	// TAP Service
+	k8sTapService *K8sTAPService
 }
 
-func NewVMTurboService(c *Config) *VMTurboService {
-	turboSched := turboscheduler.NewTurboScheduler(c.Client, c.Meta)
+func NewKubeturboService(c *Config) *KubeturboService {
 
+	probeCategory := "CloudNative"
+	targetType := "Kubernetes"
+	turboCommConf := "cmd/kubeturbo/container-conf.json"
+	targetID := c.Meta.TargetIdentifier
+
+	targetConfig := discovery.NewK8sTargetConfig(c.Meta.TargetIdentifier, c.Meta.Username, c.Meta.Password)
+
+	discoveryConfig := discovery.NewDiscoveryConfig(c.Client, c.ProbeConfig, targetConfig)
+
+	k8sTAPServiceConfig := NewK8sTAPServiceConfig(turboCommConf, probeCategory,
+		targetType, targetID, discoveryConfig)
+
+	k8sTAPService, err := NewKubernetesTAPService(k8sTAPServiceConfig)
+	if err != nil {
+		glog.Fatal("Unexpected error while creating Kuberntes TAP service: %s", err)
+	}
+
+	turboScheduler := turboscheduler.NewTurboScheduler(c.Client, c.Meta)
 	vmtEventChannel := make(chan *registry.VMTEvent)
 	vmtEventRegistry := registry.NewVMTEventRegistry(c.EtcdStorage)
-	vmtCommunicator := comm.NewVMTCommunicator(c.Client, c.Meta, c.EtcdStorage, c.ProbeConfig)
 
-	return &VMTurboService{
+	return &KubeturboService{
 		config:           c,
 		vmtEventRegistry: vmtEventRegistry,
-		vmtcomm:          vmtCommunicator,
 		vmtEventChan:     vmtEventChannel,
-		TurboScheduler:   turboSched,
+		TurboScheduler:   turboScheduler,
+
+		k8sTapService: k8sTAPService,
 	}
 }
 
 // Run begins watching and scheduling. It starts a goroutine and returns immediately.
-func (v *VMTurboService) Run() {
-	glog.V(2).Infof("********** Start runnning VMT service **********")
-
-	// register and validates to vmturbo server
-	go v.vmtcomm.Run()
+func (v *KubeturboService) Run() {
+	glog.V(2).Infof("********** Start runnning Kubeturbo Service **********")
 
 	// These three go routine is responsible for watching corresponding watchable resource.
-	go wait.Until(v.getNextNode, 0, v.config.StopEverything)
 	go wait.Until(v.getNextPod, 0, v.config.StopEverything)
 	go wait.Until(v.getNextVMTEvent, 0, v.config.StopEverything)
+
+	go v.k8sTapService.ConnectToTurbo()
 }
 
-func (v *VMTurboService) getNextVMTEvent() {
+func (v *KubeturboService) getNextVMTEvent() {
 	e, err := v.config.VMTEventQueue.Pop(nil)
 	if err != nil {
 		// TODO
@@ -75,17 +93,7 @@ func (v *VMTurboService) getNextVMTEvent() {
 	}
 }
 
-// When a new node is added in, this function is called. Otherwise, it is blocked.
-func (v *VMTurboService) getNextNode() {
-	n, err := v.config.NodeQueue.Pop(nil)
-	if err != nil {
-		// TODO
-	}
-	node := n.(*api.Node)
-	glog.V(3).Infof("Get a new Node %v", node.Name)
-}
-
-func (v *VMTurboService) getNextPod() {
+func (v *KubeturboService) getNextPod() {
 	p, err := v.config.PodQueue.Pop(nil)
 	if err != nil {
 		// TODO
@@ -101,7 +109,6 @@ func (v *VMTurboService) getNextPod() {
 		var actionExecutionError error
 		switch content.ActionType {
 		case "move":
-
 			if validatePodToBeMoved(pod, vmtEventFromEtcd) {
 				glog.V(2).Infof("Pod %s/%s is to be scheduled to %s as a result of MOVE action",
 					pod.Namespace, pod.Name, content.MoveSpec.Destination)
@@ -154,7 +161,7 @@ func (v *VMTurboService) getNextPod() {
 	v.regularSchedulePod(pod)
 }
 
-func (v *VMTurboService) regularSchedulePod(pod *api.Pod) {
+func (v *KubeturboService) regularSchedulePod(pod *api.Pod) {
 	if err := v.TurboScheduler.Schedule(pod); err != nil {
 		glog.Errorf("Scheduling failed: %s", err)
 	}
@@ -162,7 +169,7 @@ func (v *VMTurboService) regularSchedulePod(pod *api.Pod) {
 
 // If the event has not expired (within 10s since it is created), then update
 // the event and put it back to queue. Otherwise return an error.
-func (v *VMTurboService) reprocessEvent(event *registry.VMTEvent) error {
+func (v *KubeturboService) reprocessEvent(event *registry.VMTEvent) error {
 	now := time.Now()
 	duration := now.Sub(event.LastTimestamp)
 	if duration > time.Duration(10)*time.Second {

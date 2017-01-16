@@ -19,25 +19,23 @@ package app
 
 import (
 	"net"
-	// "net/http"
 	"os"
 
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/apis/componentconfig"
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/client/leaderelection"
+	"k8s.io/kubernetes/pkg/client/record"
 	"k8s.io/kubernetes/pkg/client/restclient"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	// "k8s.io/kubernetes/pkg/healthz"
-	"k8s.io/kubernetes/pkg/apis/componentconfig"
-	"k8s.io/kubernetes/pkg/client/record"
 	_ "k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
 
 	kubeturbo "github.com/vmturbo/kubeturbo/pkg"
 	"github.com/vmturbo/kubeturbo/pkg/conversion"
+	"github.com/vmturbo/kubeturbo/pkg/discovery/probe"
 	"github.com/vmturbo/kubeturbo/pkg/helper"
 	"github.com/vmturbo/kubeturbo/pkg/metadata"
-	"github.com/vmturbo/kubeturbo/pkg/probe"
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 	etcdhelper "github.com/vmturbo/kubeturbo/pkg/storage/etcd"
@@ -137,21 +135,21 @@ func (s *VMTServer) Run(_ []string) error {
 	// 	&clientcmd.ClientConfigLoadingRules{ExplicitPath: s.Kubeconfig},
 	// 	&clientcmd.ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: s.Master}}).ClientConfig()
 
-	kubeconfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.Kubeconfig)
+	kubeConfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.Kubeconfig)
 	if err != nil {
 		glog.Errorf("Error getting kubeconfig:  %s", err)
 		return err
 	}
 	// This specifies the number and the max number of query per second to the api server.
-	kubeconfig.QPS = 20.0
-	kubeconfig.Burst = 30
+	kubeConfig.QPS = 20.0
+	kubeConfig.Burst = 30
 
-	kubeClient, err := client.New(kubeconfig)
+	kubeClient, err := client.New(kubeConfig)
 	if err != nil {
 		glog.Fatalf("Invalid API configuration: %v", err)
 	}
 
-	leaderElectionClient, err := clientset.NewForConfig(restclient.AddUserAgent(kubeconfig, "leader-election"))
+	leaderElectionClient, err := clientset.NewForConfig(restclient.AddUserAgent(kubeConfig, "leader-election"))
 	if err != nil {
 		glog.Fatalf("Invalid API configuration: %v", err)
 	}
@@ -159,9 +157,9 @@ func (s *VMTServer) Run(_ []string) error {
 	// serverAddr, targetType, nameOrAddress, targetIdentifier, password
 	var vmtMeta *metadata.VMTMeta
 	if s.TurboServerAddress != "" && s.OpsManagerUsername != "" && s.OpsManagerPassword != "" {
-		vmtMeta, err = metadata.NewVMTMeta(s.TurboServerAddress, s.TurboServerPort, s.OpsManagerUsername, s.OpsManagerPassword, kubeconfig.Host)
+		vmtMeta, err = metadata.NewVMTMeta(s.TurboServerAddress, s.TurboServerPort, s.OpsManagerUsername, s.OpsManagerPassword, kubeConfig.Host)
 	} else if s.MetaConfigPath != "" {
-		vmtMeta, err = metadata.NewVMTMetaFromFile(s.MetaConfigPath, kubeconfig.Host)
+		vmtMeta, err = metadata.NewVMTMetaFromFile(s.MetaConfigPath, kubeConfig.Host)
 	} else {
 		glog.Errorf("Failed to build turbo config.")
 		os.Exit(1)
@@ -173,8 +171,8 @@ func (s *VMTServer) Run(_ []string) error {
 
 	glog.V(3).Infof("Finished creating turbo configuration: %++v", vmtMeta)
 
-	etcdclientBuilder := etcdhelper.NewEtcdClientBuilder().ServerList(s.EtcdServerList).SetTransport(s.EtcdCA, s.EtcdClientCertificate, s.EtcdClientKey)
-	etcdClient, err := etcdclientBuilder.CreateAndTest()
+	etcdClientBuilder := etcdhelper.NewEtcdClientBuilder().ServerList(s.EtcdServerList).SetTransport(s.EtcdCA, s.EtcdClientCertificate, s.EtcdClientKey)
+	etcdClient, err := etcdClientBuilder.CreateAndTest()
 	if err != nil {
 		glog.Errorf("Error creating etcd client instance for vmt service: %s", err)
 		return err
@@ -194,7 +192,8 @@ func (s *VMTServer) Run(_ []string) error {
 	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(kubeClient.Events(""))
 
-	vmtService := kubeturbo.NewVMTurboService(vmtConfig)
+	vmtService := kubeturbo.NewKubeturboService(vmtConfig)
+
 
 	run := func(_ <-chan struct{}) {
 		vmtService.Run()
@@ -236,10 +235,12 @@ func (s *VMTServer) Run(_ []string) error {
 	panic("unreachable")
 }
 
-func newEtcd(client etcdclient.Client, pathPrefix string) (etcdStorage storage.Storage, err error) {
+func newEtcd(client etcdclient.Client, pathPrefix string) (storage.Storage, error) {
 
 	simpleCodec := conversion.NewSimpleCodec()
 	simpleCodec.AddKnownTypes(&registry.VMTEvent{})
 	simpleCodec.AddKnownTypes(&registry.VMTEventList{})
 	return etcdhelper.NewEtcdStorage(client, simpleCodec, pathPrefix), nil
 }
+
+
