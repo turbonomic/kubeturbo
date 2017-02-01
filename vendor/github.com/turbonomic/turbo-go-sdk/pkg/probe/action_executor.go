@@ -3,14 +3,13 @@ package probe
 import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
-type IActionExecutor interface {
+
+// TODO:
+type ActionExecutorClient interface {
 	executeAction(actionExecutionDTO proto.ActionExecutionDTO,
-	                accountValues[] *proto.AccountValue,
-			progressTracker IProgressTracker)
+		accountValues []*proto.AccountValue,
+		progressTracker ActionProgressTracker)
 }
 
-type IProgressTracker interface {
-
+type ActionProgressTracker interface {
 }
-
-

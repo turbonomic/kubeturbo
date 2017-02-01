@@ -6,6 +6,7 @@ import (
 
 	"github.com/vmturbo/kubeturbo/pkg/discovery"
 	"github.com/vmturbo/kubeturbo/pkg/registration"
+	"fmt"
 )
 
 type K8sTAPServiceConfig struct {
@@ -40,13 +41,21 @@ func NewKubernetesTAPService(config *K8sTAPServiceConfig) (*K8sTAPService, error
 	// Kubernetes Probe Discovery Client
 	discoveryClient := discovery.NewK8sDiscoveryClient(config.discoveryClientConfig)
 
-	tapService :=
+	communicationConfig, err := service.ParseTurboCommunicationConfig(config.communicationContainerConfigPath)
+	if (err != nil) {
+		return nil, fmt.Errorf("Error parsing communication config: %s", communicationConfig)
+	}
+
+	tapService, err :=
 		service.NewTAPServiceBuilder().
-			WithTurboCommunicator(config.communicationContainerConfigPath).
+			WithTurboCommunicator(communicationConfig).
 			WithTurboProbe(probe.NewProbeBuilder(config.targetType, config.probeCategory).
 				RegisteredBy(registrationClient).
 				DiscoversTarget(config.targetID, discoveryClient)).
 			Create()
+	if err != nil {
+		return nil, fmt.Errorf("Error when creating KubernetesTAPService: %s", err)
+	}
 
 	//// Connect to the Turbo server
 	//tapService.ConnectToTurbo()

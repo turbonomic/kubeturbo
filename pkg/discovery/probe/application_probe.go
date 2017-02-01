@@ -107,8 +107,8 @@ func (this *ApplicationProbe) calculateTransactionValuePerPod() (map[string]floa
 func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, nodeCpuCapacity, nodeMemCapacity float64, podTransactionCountMap map[string]float64) *ApplicationResourceStat {
 	podResourceStat := podResourceConsumptionMap[podName]
 
-	cpuUsage := podResourceStat.cpuAllocationUsed
-	memUsage := podResourceStat.memAllocationUsed
+	cpuUsage := podResourceStat.vCpuUsed
+	memUsage := podResourceStat.vMemUsed
 
 	transactionCapacity := float64(50)
 	transactionUsed := float64(0)
@@ -138,8 +138,6 @@ func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, 
 	}
 
 	return &ApplicationResourceStat{
-		cpuAllocationUsed:   cpuUsage,
-		memAllocationUsed:   memUsage,
 		vCpuUsed:            cpuUsage,
 		vMemUsed:            memUsage,
 		transactionCapacity: transactionCapacity,
@@ -175,35 +173,13 @@ func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, app
 	// TODO So we need to replace "/" with ":".
 	podProvider := builder.CreateProvider(proto.EntityDTO_CONTAINER_POD, strings.Replace(podName, "/", ":", -1))
 	var commoditiesBoughtFromPod []*proto.CommodityDTO
-	cpuAllocationCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_ALLOCATION).
-		Key(podName).
-		Used(appResourceStat.cpuAllocationUsed).
-		Create()
-	if err != nil {
-		return nil, err
-	}
-	commoditiesBoughtFromPod = append(commoditiesBoughtFromPod, cpuAllocationCommBought)
-	memAllocationCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_ALLOCATION).
-		Key(podName).
-		Used(appResourceStat.memAllocationUsed).
-		Create()
-	if err != nil {
-		return nil, err
-	}
-	commoditiesBoughtFromPod = append(commoditiesBoughtFromPod, memAllocationCommBought)
-	commoditiesBoughtMap[podProvider] = commoditiesBoughtFromPod
-
-	nodeUID := nodeUidTranslationMap[nodeName]
-	nodeProvider := builder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, nodeUID)
-
-	var commoditiesBoughtFromNode []*proto.CommodityDTO
 	vCpuCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VCPU).
 		Used(appResourceStat.vCpuUsed).
 		Create()
 	if err != nil {
 		return nil, err
 	}
-	commoditiesBoughtFromNode = append(commoditiesBoughtFromNode, vCpuCommBought)
+	commoditiesBoughtFromPod = append(commoditiesBoughtFromPod, vCpuCommBought)
 
 	vMemCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMEM).
 		Used(appResourceStat.vMemUsed).
@@ -211,16 +187,16 @@ func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, app
 	if err != nil {
 		return nil, err
 	}
-	commoditiesBoughtFromNode = append(commoditiesBoughtFromNode, vMemCommBought)
+	commoditiesBoughtFromPod = append(commoditiesBoughtFromPod, vMemCommBought)
 
 	appCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
-		Key(nodeUID).
+		Key(podName).
 		Create()
 	if err != nil {
 		return nil, err
 	}
-	commoditiesBoughtFromNode = append(commoditiesBoughtFromNode, appCommBought)
-	commoditiesBoughtMap[nodeProvider] = commoditiesBoughtFromNode
+	commoditiesBoughtFromPod = append(commoditiesBoughtFromPod, appCommBought)
+	commoditiesBoughtMap[podProvider] = commoditiesBoughtFromPod
 
 	return commoditiesBoughtMap, nil
 }

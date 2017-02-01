@@ -264,10 +264,10 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	glog.V(4).Infof(" Pod %s Mem request is %f", pod.Name, podMemUsed)
 
 	resourceStat := &PodResourceStat{
-		cpuAllocationCapacity:  podCpuCapacity,
-		cpuAllocationUsed:      podCpuUsed,
-		memAllocationCapacity:  podMemCapacity,
-		memAllocationUsed:      podMemUsed,
+		vCpuCapacity:           podCpuCapacity,
+		vCpuUsed:               podCpuUsed,
+		vMemCapacity:           podMemCapacity,
+		vMemUsed:               podMemUsed,
 		cpuProvisionedCapacity: podCpuCapacity,
 		cpuProvisionedUsed:     cpuProvisionedUsed,
 		memProvisionedCapacity: podMemCapacity,
@@ -285,27 +285,34 @@ func (podProbe *PodProbe) getCommoditiesSold(pod *api.Pod, podResourceStat *PodR
 
 	podNameWithNamespace := pod.Namespace + "/" + pod.Name
 	var commoditiesSold []*proto.CommodityDTO
-	memAllocationComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_ALLOCATION).
-		Key(podNameWithNamespace).
-		Capacity(float64(podResourceStat.memAllocationCapacity)).
-		Used(podResourceStat.memAllocationUsed).
+	vMem, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMEM).
+		Capacity(float64(podResourceStat.vMemCapacity)).
+		Used(podResourceStat.vMemUsed).
 		Resizable(true).
 		Create()
 	if err != nil {
 		return nil, err
 	}
-	commoditiesSold = append(commoditiesSold, memAllocationComm)
+	commoditiesSold = append(commoditiesSold, vMem)
 
-	cpuAllocationComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_ALLOCATION).
-		Key(podNameWithNamespace).
-		Capacity(float64(podResourceStat.cpuAllocationCapacity)).
-		Used(podResourceStat.cpuAllocationUsed).
+	vCpu, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VCPU).
+		Capacity(float64(podResourceStat.vCpuCapacity)).
+		Used(podResourceStat.vCpuUsed).
 		Resizable(true).
 		Create()
 	if err != nil {
 		return nil, err
 	}
-	commoditiesSold = append(commoditiesSold, cpuAllocationComm)
+	commoditiesSold = append(commoditiesSold, vCpu)
+
+	appComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
+		Key(podNameWithNamespace).
+		Capacity(1E10).
+		Create()
+	if err != nil {
+		return nil, err
+	}
+	commoditiesSold = append(commoditiesSold, appComm)
 	return commoditiesSold, nil
 }
 
@@ -314,26 +321,24 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 	[]*proto.CommodityDTO, error) {
 
 	var commoditiesBought []*proto.CommodityDTO
-	cpuAllocationCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_ALLOCATION).
-		Key("Container").
-		Used(podResourceStat.cpuAllocationUsed).
+	vCpu, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VCPU).
+		Used(podResourceStat.vCpuUsed).
 		Create()
 	if err != nil {
 		return nil, err
 	}
-	commoditiesBought = append(commoditiesBought, cpuAllocationCommBought)
+	commoditiesBought = append(commoditiesBought, vCpu)
 
-	memAllocationCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_ALLOCATION).
-		Key("Container").
-		Used(podResourceStat.memAllocationUsed).
+	vMem, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMEM).
+		Used(podResourceStat.vMemUsed).
 		Create()
 	if err != nil {
 		return nil, err
 	}
-	commoditiesBought = append(commoditiesBought, memAllocationCommBought)
+	commoditiesBought = append(commoditiesBought, vMem)
 
 	cpuProvisionedCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_PROVISIONED).
-		Key("Container").
+		//		Key("Container").
 		Used(podResourceStat.cpuProvisionedUsed).
 		Create()
 	if err != nil {
@@ -342,7 +347,7 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 	commoditiesBought = append(commoditiesBought, cpuProvisionedCommBought)
 
 	memProvisionedCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_PROVISIONED).
-		Key("Container").
+		//		Key("Container").
 		Used(podResourceStat.memProvisionedUsed).
 		Create()
 	if err != nil {
@@ -405,7 +410,7 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 	ipAddress := podProbe.getIPForStitching(pod)
 	propertyName := supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS
 	// TODO
-	propertyNamespace := "default"
+	propertyNamespace := "DEFAULT"
 	entityDTOBuilder = entityDTOBuilder.WithProperty(&proto.EntityDTO_EntityProperty{
 		Namespace: &propertyNamespace,
 		Name:      &propertyName,

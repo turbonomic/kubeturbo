@@ -19,7 +19,11 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-	"github.com/turbonomic/turbo-go-sdk/pkg/supplychain"
+	//	"github.com/turbonomic/turbo-go-sdk/pkg/supplychain"
+)
+
+const (
+	proxyVMIP string = "Proxy_VM_IP"
 )
 
 var hostSet map[string]*vmtAdvisor.Host = make(map[string]*vmtAdvisor.Host)
@@ -155,28 +159,6 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node, nodePodsMap map[
 		return commoditiesSold, err
 	}
 	nodeID := string(node.UID)
-
-	//TODO: create const value for keys
-	memAllocationComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_ALLOCATION).
-		Key("Container").
-		Capacity(float64(nodeResourceStat.memAllocationCapacity)).
-		Used(nodeResourceStat.memAllocationUsed).
-		Create()
-	if err != nil {
-		return nil, err
-	}
-	commoditiesSold = append(commoditiesSold, memAllocationComm)
-
-	cpuAllocationComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_ALLOCATION).
-		Key("Container").
-		Capacity(float64(nodeResourceStat.cpuAllocationCapacity)).
-		Used(nodeResourceStat.cpuAllocationUsed).
-		Create()
-	if err != nil {
-		return nil, err
-	}
-	commoditiesSold = append(commoditiesSold, cpuAllocationComm)
-
 	vMemComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMEM).
 		Capacity(nodeResourceStat.vMemCapacity).
 		Used(nodeResourceStat.vMemUsed).
@@ -196,7 +178,7 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node, nodePodsMap map[
 	commoditiesSold = append(commoditiesSold, vCpuComm)
 
 	memProvisionedComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_PROVISIONED).
-		Key("Container").
+		//		Key("Container").
 		Capacity(float64(nodeResourceStat.memProvisionedCapacity)).
 		Used(nodeResourceStat.memProvisionedUsed).
 		Create()
@@ -206,7 +188,7 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node, nodePodsMap map[
 	commoditiesSold = append(commoditiesSold, memProvisionedComm)
 
 	cpuProvisionedComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_PROVISIONED).
-		Key("Container").
+		//		Key("Container").
 		Capacity(float64(nodeResourceStat.cpuProvisionedCapacity)).
 		Used(nodeResourceStat.cpuProvisionedUsed).
 		Create()
@@ -305,9 +287,9 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeID, displayName string, commodi
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 	ipAddress := nodeProbe.getIPForStitching(displayName)
-	propertyName := supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS
+	propertyName := proxyVMIP
 	// TODO
-	propertyNamespace := "default"
+	propertyNamespace := "DEFAULT"
 	entityDTOBuilder = entityDTOBuilder.WithProperty(&proto.EntityDTO_EntityProperty{
 		Namespace: &propertyNamespace,
 		Name:      &propertyName,
@@ -331,7 +313,7 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeID, displayName string, commodi
 // Create the meta data that will be used during the reconcilation process.
 func (nodeProbe *NodeProbe) generateReconcilationMetaData() *proto.EntityDTO_ReplacementEntityMetaData {
 	replacementEntityMetaDataBuilder := builder.NewReplacementEntityMetaDataBuilder()
-	replacementEntityMetaDataBuilder.Matching("IP")
+	replacementEntityMetaDataBuilder.Matching(proxyVMIP)
 	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_CPU_ALLOCATION)
 	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_MEM_ALLOCATION)
 	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_APPLICATION)
@@ -429,10 +411,6 @@ func (this *NodeProbe) getNodeResourceStat(node *api.Node, nodePodsMap map[strin
 	}
 
 	return &NodeResourceStat{
-		cpuAllocationCapacity:  nodeCpuCapacity,
-		cpuAllocationUsed:      cpuUsed,
-		memAllocationCapacity:  nodeMemCapacity,
-		memAllocationUsed:      memUsed,
 		vCpuCapacity:           nodeCpuCapacity,
 		vCpuUsed:               cpuUsed,
 		vMemCapacity:           nodeMemCapacity,

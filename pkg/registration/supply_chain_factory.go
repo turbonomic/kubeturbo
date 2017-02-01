@@ -10,22 +10,18 @@ var (
 	vMemType           proto.CommodityDTO_CommodityType = proto.CommodityDTO_VMEM
 	cpuProvisionedType proto.CommodityDTO_CommodityType = proto.CommodityDTO_CPU_PROVISIONED
 	memProvisionedType proto.CommodityDTO_CommodityType = proto.CommodityDTO_MEM_PROVISIONED
-	cpuAllocationType  proto.CommodityDTO_CommodityType = proto.CommodityDTO_CPU_ALLOCATION
-	memAllocationType  proto.CommodityDTO_CommodityType = proto.CommodityDTO_MEM_ALLOCATION
 	transactionType    proto.CommodityDTO_CommodityType = proto.CommodityDTO_TRANSACTION
 
 	clusterType    proto.CommodityDTO_CommodityType = proto.CommodityDTO_CLUSTER
 	appCommType    proto.CommodityDTO_CommodityType = proto.CommodityDTO_APPLICATION
-	vmpmaccessType proto.CommodityDTO_CommodityType = proto.CommodityDTO_VMPM_ACCESS
+	vmPMAccessType proto.CommodityDTO_CommodityType = proto.CommodityDTO_VMPM_ACCESS
 
 	fakeKey string = "fake"
 
 	vCpuTemplateComm           *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vCpuType}
 	vMemTemplateComm           *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vMemType}
-	cpuAllocationTemplateComm  *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuAllocationType}
-	memAllocationTemplateComm  *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memAllocationType}
-	cpuProvisionedTemplateComm *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuProvisionedType}
-	memProvisionedTemplateComm *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memProvisionedType}
+	cpuProvisionedTemplateComm *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &cpuProvisionedType}
+	memProvisionedTemplateComm *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &memProvisionedType}
 	applicationTemplateComm    *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
 	clusterTemplateComm        *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
 	transactionTemplateComm    *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
@@ -78,8 +74,6 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 		Sells(vMemTemplateComm).
 		Sells(cpuProvisionedTemplateComm).
 		Sells(memProvisionedTemplateComm).
-		Sells(cpuAllocationTemplateComm).
-		Sells(memAllocationTemplateComm).
 		Sells(applicationTemplateComm).
 		Sells(clusterTemplateComm)
 
@@ -90,23 +84,20 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 	// Pod supply chain node builder
 	podSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER_POD)
 	podSupplyChainNodeBuilder = podSupplyChainNodeBuilder.
-		Sells(cpuAllocationTemplateComm).
-		Sells(memAllocationTemplateComm).
-		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
+		Sells(vCpuTemplateComm).
+		Sells(vMemTemplateComm).
+		Sells(applicationTemplateComm).
+		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_HOSTING).
 		Buys(cpuProvisionedTemplateComm).
 		Buys(memProvisionedTemplateComm).
-		Buys(cpuAllocationTemplateComm).
-		Buys(memAllocationTemplateComm).
 		Buys(clusterTemplateComm)
 
 	// Link from Pod to VM
 	vmPodExtLinkBuilder := supplychain.NewExternalEntityLinkBuilder()
-	vmPodExtLinkBuilder.Link(proto.EntityDTO_CONTAINER_POD, proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
-		Commodity(cpuAllocationType, true).
-		Commodity(memAllocationType, true).
-		Commodity(cpuProvisionedType, true).
-		Commodity(memProvisionedType, true).
-		Commodity(vmpmaccessType, true).
+	vmPodExtLinkBuilder.Link(proto.EntityDTO_CONTAINER_POD, proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_HOSTING).
+		Commodity(cpuProvisionedType, false).
+		Commodity(memProvisionedType, false).
+		Commodity(vmPMAccessType, true).
 		Commodity(clusterType, true).
 		ProbeEntityPropertyDef(supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS, "IP Address where the Pod is running").
 		ExternalEntityPropertyDef(supplychain.VM_IP)
@@ -123,33 +114,18 @@ func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO
 	appSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_APPLICATION)
 	appSupplyChainNodeBuilder = appSupplyChainNodeBuilder.
 		Sells(transactionTemplateComm).
-		Provider(proto.EntityDTO_CONTAINER_POD, proto.Provider_LAYERED_OVER). // Buys CpuAllocation and MemAllocation from Pod
-		Buys(cpuAllocationTemplateComm).
-		Buys(memAllocationTemplateComm).
-		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_HOSTING). // Buys VCpu, VMem and ApplicationCommodity from VM
+		Provider(proto.EntityDTO_CONTAINER_POD, proto.Provider_HOSTING).
 		Buys(vCpuTemplateComm).
 		Buys(vMemTemplateComm).
 		Buys(applicationTemplateComm)
 
-	// Link from Application to VM
-	vmAppExtLinkBuilder := supplychain.NewExternalEntityLinkBuilder()
-	vmAppExtLinkBuilder.Link(proto.EntityDTO_APPLICATION, proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_HOSTING).
-		Commodity(vCpuType, false).
-		Commodity(vMemType, false).
-		Commodity(appCommType, true).
-		ProbeEntityPropertyDef(supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS, "IP Address where the Application is running").
-		ExternalEntityPropertyDef(supplychain.VM_IP)
-	vmAppExternalLink, err := vmAppExtLinkBuilder.Build()
-	if err != nil {
-		return nil, err
-	}
-	return appSupplyChainNodeBuilder.ConnectsTo(vmAppExternalLink).Create()
+	return appSupplyChainNodeBuilder.Create()
 }
 
 func (f *SupplyChainFactory) buildVirtualApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
 	vAppSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_VIRTUAL_APPLICATION)
 	vAppSupplyChainNodeBuilder = vAppSupplyChainNodeBuilder.
-		Provider(proto.EntityDTO_APPLICATION, proto.Provider_LAYERED_OVER).
+		Provider(proto.EntityDTO_APPLICATION, proto.Provider_HOSTING).
 		Buys(transactionTemplateComm)
 	return vAppSupplyChainNodeBuilder.Create()
 }

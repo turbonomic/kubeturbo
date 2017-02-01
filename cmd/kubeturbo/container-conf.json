@@ -1,5 +1,5 @@
 {
-  "VmtServerAddress": "10.10.192.87:9400",
+  "VmtServerAddress": "10.10.192.131:9400",
   "VmtUserName": "vmtRemoteMediation",
   "VmtPassword": "vmtRemoteMediation",
   "IsSecure": true,
