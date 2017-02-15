@@ -1,7 +1,7 @@
 OUTPUT_DIR=${OUTPUT_DIR:-"_output"}
 
 sudo -E "./${OUTPUT_DIR}/kubeturbo" \
-	 --v=3 \
+	 --v=4 \
 	 --master="http://172.17.0.1:8080" \
 	 --etcd-servers="http://127.0.0.1:2379" \
 	 --flag-path="$GOPATH/src/github.com/vmturbo/kubeturbo/examples/vmt_testing_flag.json" \

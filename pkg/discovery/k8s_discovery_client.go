@@ -40,7 +40,7 @@ func NewK8sDiscoveryClient(config *DiscoveryConfig) *K8sDiscoveryClient {
 	}
 }
 
-func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTarget {
+func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTargetInfo {
 	var accountValues []*proto.AccountValue
 	targetConf := dc.config.targetConfig
 	// Convert all parameters in clientConf to AccountValue list
@@ -65,14 +65,10 @@ func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTarget {
 	}
 	accountValues = append(accountValues, accVal)
 
-	targetInfo := &sdkprobe.TurboTarget{
-		AccountValues: accountValues,
-	}
-
-	targetInfo.SetUser(targetConf.username)
-	targetInfo.SetPassword(targetConf.password)
+	targetInfo := sdkprobe.NewTurboTargetInfoBuilder("Custom", "Kubernetes", targetID, accountValues).Create()
+	//	targetInfo.SetUser(targetConf.username)
+	//	targetInfo.SetPassword(targetConf.password)
 	return targetInfo
-	return nil
 }
 
 // Validate the Target
