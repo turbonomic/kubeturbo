@@ -43,7 +43,7 @@ func NewKubeturboService(c *Config) *KubeturboService {
 
 	k8sTAPService, err := NewKubernetesTAPService(k8sTAPServiceConfig)
 	if err != nil {
-		glog.Fatal("Unexpected error while creating Kuberntes TAP service: %s", err)
+		glog.Fatalf("Unexpected error while creating Kuberntes TAP service: %s", err)
 	}
 
 	turboScheduler := turboscheduler.NewTurboScheduler(c.Client, c.Meta)

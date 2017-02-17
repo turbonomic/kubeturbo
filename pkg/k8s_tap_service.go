@@ -1,12 +1,14 @@
 package kubeturbo
 
 import (
+	"fmt"
+
+	//	"github.com/turbonomic/turbo-go-sdk/pkg/communication"
 	"github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/service"
 
 	"github.com/vmturbo/kubeturbo/pkg/discovery"
 	"github.com/vmturbo/kubeturbo/pkg/registration"
-	"fmt"
 )
 
 type K8sTAPServiceConfig struct {
@@ -42,8 +44,8 @@ func NewKubernetesTAPService(config *K8sTAPServiceConfig) (*K8sTAPService, error
 	discoveryClient := discovery.NewK8sDiscoveryClient(config.discoveryClientConfig)
 
 	communicationConfig, err := service.ParseTurboCommunicationConfig(config.communicationContainerConfigPath)
-	if (err != nil) {
-		return nil, fmt.Errorf("Error parsing communication config: %s", communicationConfig)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing communication config: %s", err)
 	}
 
 	tapService, err :=

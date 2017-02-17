@@ -1,12 +1,9 @@
 {
-  "VmtServerAddress": "10.10.192.131:9400",
-  "VmtUserName": "vmtRemoteMediation",
-  "VmtPassword": "vmtRemoteMediation",
-  "IsSecure": true,
-  "ApplicationBase": "/vmturbo/remoteMediation",
-  "VmtRestServerAddress": "10.10.192.87:8080",
-  "OpsManagerUsername": "administrator",
-  "OpsManagerPassword": "a"
+	"serverMeta": {
+		"turboServer": "https://10.10.192.131:9400"
+	},
+	"restAPIConfig": {
+		"opsManagerUserName": "administrator",
+		"opsManagerPassword": "a"
+	}
 }
-
-

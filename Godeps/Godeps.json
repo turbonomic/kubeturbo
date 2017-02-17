@@ -171,23 +171,23 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/client",
-			"Comment": "v3.0.9",
-			"Rev": "494c0126596c0e7cd59686a2e7afc90fe3296079"
+			"Comment": "v3.0.10",
+			"Rev": "546c0f7ed65523c24390f0f26c7e4af2232f52d2"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/error",
-			"Comment": "v3.0.9",
-			"Rev": "494c0126596c0e7cd59686a2e7afc90fe3296079"
+			"Comment": "v3.0.10",
+			"Rev": "546c0f7ed65523c24390f0f26c7e4af2232f52d2"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/pathutil",
-			"Comment": "v3.0.9",
-			"Rev": "494c0126596c0e7cd59686a2e7afc90fe3296079"
+			"Comment": "v3.0.10",
+			"Rev": "546c0f7ed65523c24390f0f26c7e4af2232f52d2"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/types",
-			"Comment": "v3.0.9",
-			"Rev": "494c0126596c0e7cd59686a2e7afc90fe3296079"
+			"Comment": "v3.0.10",
+			"Rev": "546c0f7ed65523c24390f0f26c7e4af2232f52d2"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-oidc/http",
@@ -435,7 +435,7 @@
 		},
 		{
 			"ImportPath": "github.com/spf13/pflag",
-			"Rev": "1560c1005499d61b80f865c04d39ca7505bf7f0b"
+			"Rev": "c7e63cf4530bcd3ba943729cee0efeff2ebea63f"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-api/pkg/api",
@@ -447,31 +447,31 @@
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/builder",
-			"Rev": "480185f02a97baca9dacb746627d7e8f7f0371b8"
+			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
 		},
 		{
-			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/communication",
-			"Rev": "480185f02a97baca9dacb746627d7e8f7f0371b8"
+			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/mediationcontainer",
+			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/probe",
-			"Rev": "480185f02a97baca9dacb746627d7e8f7f0371b8"
+			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/proto",
-			"Rev": "480185f02a97baca9dacb746627d7e8f7f0371b8"
+			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/service",
-			"Rev": "480185f02a97baca9dacb746627d7e8f7f0371b8"
+			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/supplychain",
-			"Rev": "480185f02a97baca9dacb746627d7e8f7f0371b8"
+			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/version",
-			"Rev": "480185f02a97baca9dacb746627d7e8f7f0371b8"
+			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
 		},
 		{
 			"ImportPath": "github.com/ugorji/go/codec",
@@ -547,7 +547,7 @@
 		},
 		{
 			"ImportPath": "golang.org/x/sys/unix",
-			"Rev": "9c60d1c508f5134d1ca726b4641db998f2523357"
+			"Rev": "8f0908ab3b2457e2e15403d3697c9ef5cb4b57a9"
 		},
 		{
 			"ImportPath": "golang.org/x/text/cases",
