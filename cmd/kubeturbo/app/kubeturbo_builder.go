@@ -1,20 +1,3 @@
-/*
-Copyright 2014 The Kubernetes Authors All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-// Package app implements a Server object for running the scheduler.
 package app
 
 import (
@@ -35,7 +18,6 @@ import (
 	"github.com/vmturbo/kubeturbo/pkg/conversion"
 	"github.com/vmturbo/kubeturbo/pkg/discovery/probe"
 	"github.com/vmturbo/kubeturbo/pkg/helper"
-	"github.com/vmturbo/kubeturbo/pkg/metadata"
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 	etcdhelper "github.com/vmturbo/kubeturbo/pkg/storage/etcd"
@@ -57,7 +39,7 @@ type VMTServer struct {
 	Port                  int
 	Address               net.IP
 	Master                string
-	MetaConfigPath        string
+	K8sTAPSpec            string
 	TestingFlagPath       string
 	Kubeconfig            string
 	BindPodsQPS           float32
@@ -92,7 +74,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.Port, "port", s.Port, "The port that the kubeturbo's http service runs on")
 	fs.IntVar(&s.CadvisorPort, "cadvisor-port", 4194, "The port of the cadvisor service runs on")
 	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
-	fs.StringVar(&s.MetaConfigPath, "config-path", s.MetaConfigPath, "The path to the vmt config file.")
+	fs.StringVar(&s.K8sTAPSpec, "config-path", s.K8sTAPSpec, "The path to the config file.")
 	fs.StringVar(&s.TestingFlagPath, "flag-path", s.TestingFlagPath, "The path to the testing flag.")
 	fs.StringVar(&s.Kubeconfig, "kubeconfig", s.Kubeconfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.StringSliceVar(&s.EtcdServerList, "etcd-servers", s.EtcdServerList, "List of etcd servers to watch (http://ip:port), comma separated. Mutually exclusive with -etcd-config")
@@ -154,22 +136,13 @@ func (s *VMTServer) Run(_ []string) error {
 		glog.Fatalf("Invalid API configuration: %v", err)
 	}
 
-	// serverAddr, targetType, nameOrAddress, targetIdentifier, password
-	var vmtMeta *metadata.VMTMeta
-	if s.TurboServerAddress != "" && s.OpsManagerUsername != "" && s.OpsManagerPassword != "" {
-		vmtMeta, err = metadata.NewVMTMeta(s.TurboServerAddress, s.TurboServerPort, s.OpsManagerUsername, s.OpsManagerPassword, kubeConfig.Host)
-	} else if s.MetaConfigPath != "" {
-		vmtMeta, err = metadata.NewVMTMetaFromFile(s.MetaConfigPath, kubeConfig.Host)
-	} else {
-		glog.Errorf("Failed to build turbo config.")
-		os.Exit(1)
-	}
-	if err != nil {
-		glog.Errorf("Get error when generating turbo config: %s", err)
-		os.Exit(1)
-	}
+	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
 
-	glog.V(3).Infof("Finished creating turbo configuration: %++v", vmtMeta)
+	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec)
+	if err != nil {
+		glog.Errorf("Failed to generate correct TAP config: %s", err)
+		os.Exit(1)
+	}
 
 	etcdClientBuilder := etcdhelper.NewEtcdClientBuilder().ServerList(s.EtcdServerList).SetTransport(s.EtcdCA, s.EtcdClientCertificate, s.EtcdClientKey)
 	etcdClient, err := etcdClientBuilder.CreateAndTest()
@@ -185,7 +158,7 @@ func (s *VMTServer) Run(_ []string) error {
 		return err
 	}
 
-	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, etcdStorage, vmtMeta, probeConfig)
+	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, etcdStorage, probeConfig, k8sTAPSpec)
 
 	eventBroadcaster := record.NewBroadcaster()
 	vmtConfig.Recorder = eventBroadcaster.NewRecorder(api.EventSource{Component: "kubeturbo"})
@@ -193,7 +166,6 @@ func (s *VMTServer) Run(_ []string) error {
 	eventBroadcaster.StartRecordingToSink(kubeClient.Events(""))
 
 	vmtService := kubeturbo.NewKubeturboService(vmtConfig)
-
 
 	run := func(_ <-chan struct{}) {
 		vmtService.Run()
@@ -242,5 +214,3 @@ func newEtcd(client etcdclient.Client, pathPrefix string) (storage.Storage, erro
 	simpleCodec.AddKnownTypes(&registry.VMTEventList{})
 	return etcdhelper.NewEtcdStorage(client, simpleCodec, pathPrefix), nil
 }
-
-

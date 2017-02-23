@@ -89,7 +89,7 @@ func (vmtApi *VmtApi) Delete(getUrl string) (string, error) {
 
 // Call vmturbo api. return response
 func (vmtApi *VmtApi) apiPost(postUrl, requestDataString string) (string, error) {
-	fullUrl := "https://" + vmtApi.vmtUrl + "/vmturbo/api" + postUrl + requestDataString
+	fullUrl := vmtApi.vmtUrl + "/vmturbo/api" + postUrl + requestDataString
 	glog.V(4).Info("The full Url is ", fullUrl)
 	req, err := http.NewRequest("POST", fullUrl, nil)
 
@@ -117,7 +117,7 @@ func (vmtApi *VmtApi) apiPost(postUrl, requestDataString string) (string, error)
 
 // Call vmturbo api. return response
 func (vmtApi *VmtApi) apiGet(getUrl string) (string, error) {
-	fullUrl := "https://" + vmtApi.vmtUrl + "/vmturbo/api" + getUrl
+	fullUrl := vmtApi.vmtUrl + "/vmturbo/api" + getUrl
 	glog.V(4).Infof("The full Url is %s", fullUrl)
 	req, err := http.NewRequest("GET", fullUrl, nil)
 
@@ -144,7 +144,7 @@ func (vmtApi *VmtApi) apiGet(getUrl string) (string, error) {
 
 // Delete API call
 func (vmtApi *VmtApi) apiDelete(getUrl string) (string, error) {
-	fullUrl := "https://" + vmtApi.vmtUrl + "/vmturbo/api" + getUrl
+	fullUrl := vmtApi.vmtUrl + "/vmturbo/api" + getUrl
 	glog.V(4).Infof("The full Url is ", fullUrl)
 	req, err := http.NewRequest("DELETE", fullUrl, nil)
 

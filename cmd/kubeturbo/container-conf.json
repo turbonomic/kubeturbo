@@ -1,9 +1,18 @@
 {
-	"serverMeta": {
-		"turboServer": "https://10.10.192.131:9400"
+	"communicationConfig": {
+		"serverMeta": {
+			"turboServer": "https://10.10.192.131:9400"
+		},
+		"restAPIConfig": {
+			"opsManagerUserName": "administrator",
+			"opsManagerPassword": "a"
+		}
 	},
-	"restAPIConfig": {
-		"opsManagerUserName": "administrator",
-		"opsManagerPassword": "a"
+	"targetConfig": {
+		"probeCategory":"CloudNative",
+		"targetType":"Kubernetes",
+		"address":"http://127.0.0.1:8080",
+		"username":"kuberentes_user",
+		"password":"fake_password"
 	}
 }

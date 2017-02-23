@@ -10,7 +10,6 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/metrics"
 
-	vmtmeta "github.com/vmturbo/kubeturbo/pkg/metadata"
 	"github.com/vmturbo/kubeturbo/pkg/scheduler/defaultscheduler"
 	"github.com/vmturbo/kubeturbo/pkg/scheduler/vmtscheduler"
 
@@ -31,7 +30,7 @@ type TurboScheduler struct {
 	defaultScheduler *defaultscheduler.DefaultScheduler
 }
 
-func NewTurboScheduler(kubeClient *client.Client, vmturboMeta *vmtmeta.VMTMeta) *TurboScheduler {
+func NewTurboScheduler(kubeClient *client.Client, serverURL, username, password string) *TurboScheduler {
 	config := &Config{
 		Binder: &binder{kubeClient},
 	}
@@ -40,7 +39,7 @@ func NewTurboScheduler(kubeClient *client.Client, vmturboMeta *vmtmeta.VMTMeta) 
 	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(kubeClient.Events(""))
 
-	vmtSched := vmtscheduler.NewVMTScheduler(kubeClient, vmturboMeta)
+	vmtSched := vmtscheduler.NewVMTScheduler(serverURL, username, password)
 	glog.V(4).Infof("VMTScheduler is set: %++v", vmtSched)
 
 	defaultSched := defaultscheduler.NewDefaultScheduler(kubeClient)

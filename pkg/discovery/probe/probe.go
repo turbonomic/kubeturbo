@@ -53,39 +53,36 @@ func getClusterID(kubeClient *client.Client) (string, error) {
 	return string(svc.UID), nil
 }
 
-func (this *KubeProbe) ParseNode() (result []*proto.EntityDTO, err error) {
+func (this *KubeProbe) ParseNode() ([]*proto.EntityDTO, error) {
 	vmtNodeGetter := NewVMTNodeGetter(this.KubeClient)
 	nodeProbe := NewNodeProbe(vmtNodeGetter.GetNodes, this.config)
 
-	k8sNodes := nodeProbe.GetNodes(labels.Everything(), fields.Everything())
-
+	k8sNodes, err := nodeProbe.GetNodes(labels.Everything(), fields.Everything())
+	if err != nil {
+		return nil, fmt.Errorf("Error during parse nodes: %s", err)
+	}
 	vmtPodGetter := NewVMTPodGetter(this.KubeClient)
 	podProbe := NewPodProbe(vmtPodGetter.GetPods)
 
 	k8sPods, err := podProbe.GetPods(api.NamespaceAll, labels.Everything(), fields.Everything())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error during parse nodes: %s", err)
 	}
 
-	result, err = nodeProbe.parseNodeFromK8s(k8sNodes, k8sPods)
-	return
+	return nodeProbe.parseNodeFromK8s(k8sNodes, k8sPods)
 }
 
 // Parse pods those are defined in namespace.
-func (this *KubeProbe) ParsePod(namespace string) (result []*proto.EntityDTO, err error) {
+func (this *KubeProbe) ParsePod(namespace string) ([]*proto.EntityDTO, error) {
 	vmtPodGetter := NewVMTPodGetter(this.KubeClient)
 	podProbe := NewPodProbe(vmtPodGetter.GetPods)
 
 	k8sPods, err := podProbe.GetPods(namespace, labels.Everything(), fields.Everything())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error during parse pods: %s", err)
 	}
 
-	result, err = podProbe.parsePodFromK8s(k8sPods)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
+	return podProbe.parsePodFromK8s(k8sPods)
 }
 
 func (this *KubeProbe) ParseApplication(namespace string) ([]*proto.EntityDTO, error) {
@@ -93,14 +90,14 @@ func (this *KubeProbe) ParseApplication(namespace string) ([]*proto.EntityDTO, e
 	return applicationProbe.ParseApplication(namespace)
 }
 
-func (kubeProbe *KubeProbe) ParseService(namespace string, selector labels.Selector) (result []*proto.EntityDTO, err error) {
+func (kubeProbe *KubeProbe) ParseService(namespace string, selector labels.Selector) ([]*proto.EntityDTO, error) {
 	vmtServiceGetter := NewVMTServiceGetter(kubeProbe.KubeClient)
 	vmtEndpointGetter := NewVMTEndpointGetter(kubeProbe.KubeClient)
 	svcProbe := NewServiceProbe(vmtServiceGetter.GetService, vmtEndpointGetter.GetEndpoints)
 
 	serviceList, err := svcProbe.GetService(namespace, labels.Everything())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error during parse service: %s", err)
 	}
 	endpointList, err := svcProbe.GetEndpoints(namespace, labels.Everything())
 	return svcProbe.ParseService(serviceList, endpointList)

@@ -8,7 +8,6 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/util/wait"
 
-	"github.com/vmturbo/kubeturbo/pkg/discovery"
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	turboscheduler "github.com/vmturbo/kubeturbo/pkg/scheduler"
 
@@ -16,37 +15,26 @@ import (
 )
 
 type KubeturboService struct {
-	config *Config
+	config           *Config
 
 	vmtEventRegistry *registry.VMTEventRegistry
 	vmtEventChan     chan *registry.VMTEvent
 	// Turbonomic scheduler
-	TurboScheduler *turboscheduler.TurboScheduler
+	TurboScheduler   *turboscheduler.TurboScheduler
 
-	// TAP Service
-	k8sTapService *K8sTAPService
+	k8sTAPService    *K8sTAPService
 }
 
 func NewKubeturboService(c *Config) *KubeturboService {
-
-	probeCategory := "CloudNative"
-	targetType := "Kubernetes"
-	turboCommConf := "cmd/kubeturbo/container-conf.json"
-	targetID := c.Meta.TargetIdentifier
-
-	targetConfig := discovery.NewK8sTargetConfig(c.Meta.TargetIdentifier, c.Meta.Username, c.Meta.Password)
-
-	discoveryConfig := discovery.NewDiscoveryConfig(c.Client, c.ProbeConfig, targetConfig)
-
-	k8sTAPServiceConfig := NewK8sTAPServiceConfig(turboCommConf, probeCategory,
-		targetType, targetID, discoveryConfig)
+	k8sTAPServiceConfig := NewK8sTAPServiceConfig(c.Client, c.ProbeConfig, c.tapSpec)
 
 	k8sTAPService, err := NewKubernetesTAPService(k8sTAPServiceConfig)
 	if err != nil {
 		glog.Fatalf("Unexpected error while creating Kuberntes TAP service: %s", err)
 	}
 
-	turboScheduler := turboscheduler.NewTurboScheduler(c.Client, c.Meta)
+	turboScheduler := turboscheduler.NewTurboScheduler(c.Client, c.tapSpec.TurboServer,
+		c.tapSpec.OpsManagerUsername, c.tapSpec.OpsManagerPassword)
 	vmtEventChannel := make(chan *registry.VMTEvent)
 	vmtEventRegistry := registry.NewVMTEventRegistry(c.EtcdStorage)
 
@@ -56,7 +44,7 @@ func NewKubeturboService(c *Config) *KubeturboService {
 		vmtEventChan:     vmtEventChannel,
 		TurboScheduler:   turboScheduler,
 
-		k8sTapService: k8sTAPService,
+		k8sTAPService: k8sTAPService,
 	}
 }
 
@@ -68,7 +56,7 @@ func (v *KubeturboService) Run() {
 	go wait.Until(v.getNextPod, 0, v.config.StopEverything)
 	go wait.Until(v.getNextVMTEvent, 0, v.config.StopEverything)
 
-	go v.k8sTapService.ConnectToTurbo()
+	go v.k8sTAPService.ConnectToTurbo()
 }
 
 func (v *KubeturboService) getNextVMTEvent() {

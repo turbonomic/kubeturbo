@@ -6,9 +6,9 @@ import (
 )
 
 const (
-	TargetIdentifier string = "targetIdentifier"
-	Username         string = "username"
-	Password         string = "password"
+	TargetIdentifierField string = "targetIdentifier"
+	Username              string = "username"
+	Password              string = "password"
 )
 
 type K8sRegistrationClient struct{}
@@ -30,7 +30,7 @@ func (rClient *K8sRegistrationClient) GetAccountDefinition() []*proto.AccountDef
 	var acctDefProps []*proto.AccountDefEntry
 
 	// target ID
-	targetIDAcctDefEntry := builder.NewAccountDefEntryBuilder(TargetIdentifier, "Address",
+	targetIDAcctDefEntry := builder.NewAccountDefEntryBuilder(TargetIdentifierField, "Address",
 		"IP of the Kubernetes master", ".*", false, false).Create()
 	acctDefProps = append(acctDefProps, targetIDAcctDefEntry)
 
@@ -48,5 +48,5 @@ func (rClient *K8sRegistrationClient) GetAccountDefinition() []*proto.AccountDef
 }
 
 func (rClient *K8sRegistrationClient) GetIdentifyingFields() string {
-	return TargetIdentifier
+	return TargetIdentifierField
 }

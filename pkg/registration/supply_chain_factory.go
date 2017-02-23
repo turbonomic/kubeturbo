@@ -95,6 +95,8 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 	// Link from Pod to VM
 	vmPodExtLinkBuilder := supplychain.NewExternalEntityLinkBuilder()
 	vmPodExtLinkBuilder.Link(proto.EntityDTO_CONTAINER_POD, proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_HOSTING).
+		Commodity(vCpuType, false).
+		Commodity(vMemType, false).
 		Commodity(cpuProvisionedType, false).
 		Commodity(memProvisionedType, false).
 		Commodity(vmPMAccessType, true).

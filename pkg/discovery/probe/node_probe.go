@@ -60,15 +60,14 @@ func NewVMTNodeGetter(kubeClient *client.Client) *VMTNodeGetter {
 }
 
 // Get all nodes
-func (this *VMTNodeGetter) GetNodes(label labels.Selector, field fields.Selector) []*api.Node {
+func (this *VMTNodeGetter) GetNodes(label labels.Selector, field fields.Selector) ([]*api.Node, error) {
 	listOption := &api.ListOptions{
 		LabelSelector: label,
 		FieldSelector: field,
 	}
 	nodeList, err := this.kubeClient.Nodes().List(*listOption)
 	if err != nil {
-		//TODO error must be handled
-		return nil
+		return nil, fmt.Errorf("Failed to get nodes from Kubernetes cluster: %s", err)
 	}
 	var nodeItems []*api.Node
 	for _, node := range nodeList.Items {
@@ -76,12 +75,12 @@ func (this *VMTNodeGetter) GetNodes(label labels.Selector, field fields.Selector
 		nodeItems = append(nodeItems, &n)
 	}
 	glog.V(2).Infof("Discovering Nodes.. The cluster has " + strconv.Itoa(len(nodeItems)) + " nodes")
-	return nodeItems
+	return nodeItems, nil
 }
 
-type NodesGetter func(label labels.Selector, field fields.Selector) []*api.Node
+type NodesGetter func(label labels.Selector, field fields.Selector) ([]*api.Node, error)
 
-func (nodeProbe *NodeProbe) GetNodes(label labels.Selector, field fields.Selector) []*api.Node {
+func (nodeProbe *NodeProbe) GetNodes(label labels.Selector, field fields.Selector) ([]*api.Node, error) {
 	//TODO check if nodesGetter is set
 
 	return nodeProbe.nodesGetter(label, field)
@@ -304,13 +303,13 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeID, displayName string, commodi
 
 	entityDto, err := entityDTOBuilder.Create()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", nodeID, err)
 	}
 
 	return entityDto, nil
 }
 
-// Create the meta data that will be used during the reconcilation process.
+// Create the meta data that will be used during the reconciliation process.
 func (nodeProbe *NodeProbe) generateReconcilationMetaData() *proto.EntityDTO_ReplacementEntityMetaData {
 	replacementEntityMetaDataBuilder := builder.NewReplacementEntityMetaDataBuilder()
 	replacementEntityMetaDataBuilder.Matching(proxyVMIP)

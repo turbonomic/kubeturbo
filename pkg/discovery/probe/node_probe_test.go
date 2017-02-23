@@ -34,13 +34,13 @@ func (fnb *FakeNodeBuilder) labels(labels map[string]string) *FakeNodeBuilder {
 
 type FakeNodeGetter struct{}
 
-func (fng *FakeNodeGetter) GetNodes(label labels.Selector, field fields.Selector) []*api.Node {
+func (fng *FakeNodeGetter) GetNodes(label labels.Selector, field fields.Selector) ([]*api.Node, error) {
 	var nodesList []*api.Node
 	fakenode1 := newFakeNodeBuilder("uid1", "fakenode1").build()
 	nodesList = append(nodesList, fakenode1)
 	fakenode2 := newFakeNodeBuilder("uid2", "fakenode2").build()
 	nodesList = append(nodesList, fakenode2)
-	return nodesList
+	return nodesList, nil
 }
 
 func TestGetNodes(t *testing.T) {
@@ -48,7 +48,10 @@ func TestGetNodes(t *testing.T) {
 
 	nodeProbe := NewNodeProbe(fakeGetter.GetNodes, nil)
 
-	nodes := nodeProbe.GetNodes(nil, nil)
+	nodes, err := nodeProbe.GetNodes(nil, nil)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 	if len(nodes) != 2 {
 		t.Errorf("Expected %n nodes, got %n", 2, len(nodes))
 	}

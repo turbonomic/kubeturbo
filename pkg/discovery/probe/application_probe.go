@@ -12,6 +12,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	"fmt"
 )
 
 const appPrefix string = "App-"
@@ -230,7 +231,7 @@ func (this *ApplicationProbe) buildApplicationEntityDTOs(appName string, host *v
 	}
 	entityDto, err := entityDTOBuilder.Create()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to build EntityDTO for application %s: %s", id, err)
 	}
 
 	return entityDto, nil

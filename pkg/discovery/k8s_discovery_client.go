@@ -44,30 +44,28 @@ func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTargetInfo {
 	var accountValues []*proto.AccountValue
 	targetConf := dc.config.targetConfig
 	// Convert all parameters in clientConf to AccountValue list
-	targetID := registration.TargetIdentifier
+	targetID := registration.TargetIdentifierField
 	accVal := &proto.AccountValue{
 		Key:         &targetID,
-		StringValue: &targetConf.targetIdentifier,
+		StringValue: &targetConf.TargetIdentifier,
 	}
 	accountValues = append(accountValues, accVal)
 
 	username := registration.Username
 	accVal = &proto.AccountValue{
 		Key:         &username,
-		StringValue: &targetConf.username,
+		StringValue: &targetConf.TargetUsername,
 	}
 	accountValues = append(accountValues, accVal)
 
 	password := registration.Password
 	accVal = &proto.AccountValue{
 		Key:         &password,
-		StringValue: &targetConf.password,
+		StringValue: &targetConf.TargetPassword,
 	}
 	accountValues = append(accountValues, accVal)
 
-	targetInfo := sdkprobe.NewTurboTargetInfoBuilder("Custom", "Kubernetes", targetID, accountValues).Create()
-	//	targetInfo.SetUser(targetConf.username)
-	//	targetInfo.SetPassword(targetConf.password)
+	targetInfo := sdkprobe.NewTurboTargetInfoBuilder(targetConf.ProbeCategory, targetConf.TargetType, targetID, accountValues).Create()
 	return targetInfo
 }
 
@@ -110,22 +108,19 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) *pro
 
 	podEntityDtos, err := kubeProbe.ParsePod(api.NamespaceAll)
 	if err != nil {
-		glog.Errorf("Error parsing pods: %s. Will return.", err)
+		glog.Errorf("Error parsing pods: %s. Skip.", err)
 		// TODO make error dto
-		return nil
 	}
 
 	appEntityDtos, err := kubeProbe.ParseApplication(api.NamespaceAll)
 	if err != nil {
-		glog.Errorf("Error parsing applications: %s. Will return.", err)
-		return nil
+		glog.Errorf("Error parsing applications: %s. Skip.", err)
 	}
 
 	serviceEntityDtos, err := kubeProbe.ParseService(api.NamespaceAll, labels.Everything())
 	if err != nil {
 		// TODO, should here still send out msg to server? Or set errorDTO?
-		glog.Errorf("Error parsing services: %s. Will return.", err)
-		return nil
+		glog.Errorf("Error parsing services: %s. Skip.", err)
 	}
 
 	entityDtos := nodeEntityDtos

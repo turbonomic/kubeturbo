@@ -135,7 +135,7 @@ func (this *ServiceProbe) ParseService(serviceList []*api.Service, endpointList 
 				return nil, err
 			}
 
-			entityDto, err := this.buildEntityDTO(serviceID, commoditiesBoughtMap)
+			entityDto, err := this.buildServiceEntityDTO(serviceID, commoditiesBoughtMap)
 			if err != nil {
 				return nil, err
 			}
@@ -180,7 +180,7 @@ func (this *ServiceProbe) findBackendPodPerService(service *api.Service, endpoin
 	return serviceEndpointMap
 }
 
-func (this *ServiceProbe) buildEntityDTO(serviceName string, commoditiesBoughtMap map[*builder.ProviderDTO][]*proto.CommodityDTO) (*proto.EntityDTO, error) {
+func (this *ServiceProbe) buildServiceEntityDTO(serviceName string, commoditiesBoughtMap map[*builder.ProviderDTO][]*proto.CommodityDTO) (*proto.EntityDTO, error) {
 	serviceEntityType := proto.EntityDTO_VIRTUAL_APPLICATION
 	id := "vApp-" + serviceName + "-" + ClusterID
 	dispName := id
@@ -193,7 +193,7 @@ func (this *ServiceProbe) buildEntityDTO(serviceName string, commoditiesBoughtMa
 	}
 	entityDto, err := entityDTOBuilder.Create()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to build EntityDTO for service %s: %s", id, err)
 	}
 
 	glog.V(4).Infof("created a service entityDTO %v", entityDto)

@@ -420,7 +420,7 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 
 	entityDto, err := entityDTOBuilder.Create()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to build EntityDTO for pod %s: %s", id, err)
 	}
 
 	// TODO: should change builder to change the monitored state
