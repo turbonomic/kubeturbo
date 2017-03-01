@@ -2,25 +2,26 @@ package vmtscheduler
 
 import (
 	"k8s.io/kubernetes/pkg/api"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-
-	vmtmeta "github.com/vmturbo/kubeturbo/pkg/metadata"
 	"github.com/vmturbo/kubeturbo/pkg/scheduler/vmtscheduler/reservation"
-
 	// "github.com/golang/glog"
 )
 
 type Config struct {
-	Meta *vmtmeta.VMTMeta
+	// TODO replace with the new API client
+	TurboServer        string
+	OpsManagerUsername string
+	OpsManagerPassword string
 }
 
 type VMTScheduler struct {
 	config *Config
 }
 
-func NewVMTScheduler(kubeClient *client.Client, meta *vmtmeta.VMTMeta) *VMTScheduler {
+func NewVMTScheduler(serverURL, username, password string) *VMTScheduler {
 	config := &Config{
-		Meta: meta,
+		TurboServer:        serverURL,
+		OpsManagerUsername: username,
+		OpsManagerPassword: password,
 	}
 
 	return &VMTScheduler{
@@ -32,7 +33,7 @@ func NewVMTScheduler(kubeClient *client.Client, meta *vmtmeta.VMTMeta) *VMTSched
 // TODO for now only deal with one pod at a time
 // But the result is a map. Will change later when deploy works.
 func (s *VMTScheduler) GetDestinationFromVmturbo(pod *api.Pod) (map[*api.Pod]string, error) {
-	deployRequest := reservation.NewDeployment(s.config.Meta)
+	deployRequest := reservation.NewDeployment(s.config.TurboServer, s.config.OpsManagerUsername, s.config.OpsManagerPassword)
 
 	// reservationResult is map[string]string -- [podName]nodeName
 	// TODO !!!!!!! Now only support a single pod.

@@ -6,4 +6,4 @@ build: clean
 	
 .PHONY: clean
 clean:
-	@: if [ -f ${OUTPUT_DIR} ]; then rm -rf ${OUTPUT_DIR};fi
+	@: if [ -f ${OUTPUT_DIR} ] then rm -rf ${OUTPUT_DIR} fi
