@@ -12,6 +12,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/vmturbo/kubeturbo/pkg/registration"
+	"fmt"
 )
 
 // TODO maybe use a discovery client config
@@ -70,40 +71,36 @@ func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTargetInfo {
 }
 
 // Validate the Target
-func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) *proto.ValidationResponse {
+func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*proto.ValidationResponse, error) {
 	glog.V(2).Infof("Validating Kubernetes target...")
 
 	// TODO: connect to the client and get validation response
 	validationResponse := &proto.ValidationResponse{}
 
-	return validationResponse
+	return validationResponse, nil
 }
 
 // DiscoverTopology receives a discovery request from server and start probing the k8s.
-func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) *proto.DiscoveryResponse {
+func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*proto.DiscoveryResponse, error) {
 	//Discover the Kubernetes topology
 	glog.V(2).Infof("Discovering Kubernetes cluster...")
 
 	// must have kubeClient to do ParseNode and ParsePod
 	if dc.config.kubeClient == nil {
-		glog.Errorf("Kubenetes client is nil, error")
 		// TODO make error dto
-		return nil
+		return nil, fmt.Errorf("Kubenetes client is nil, error")
 	}
 
 	kubeProbe, err := probe.NewKubeProbe(dc.config.kubeClient, dc.config.probeConfig)
 	if err != nil {
-		glog.Errorf("Error creating Kubernetes discovery probe.")
 		// TODO make error dto
-		return nil
+		return nil, fmt.Errorf("Error creating Kubernetes discovery probe.")
 	}
 
 	nodeEntityDtos, err := kubeProbe.ParseNode()
 	if err != nil {
-		// TODO, should here still send out msg to server?
-		glog.Errorf("Error parsing nodes: %s. Will return.", err)
 		// TODO make error dto
-		return nil
+		return nil, fmt.Errorf("Error parsing nodes: %s. Will return.", err)
 	}
 
 	podEntityDtos, err := kubeProbe.ParsePod(api.NamespaceAll)
@@ -131,5 +128,5 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) *pro
 		EntityDTO: entityDtos,
 	}
 
-	return discoveryResponse
+	return discoveryResponse, nil
 }

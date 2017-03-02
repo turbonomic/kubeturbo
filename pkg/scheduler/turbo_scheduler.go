@@ -83,7 +83,7 @@ func (s *TurboScheduler) Schedule(pod *api.Pod) error {
 }
 
 // Bind pod to destination node. dest is the name of the Node.
-func (s *TurboScheduler) ScheduleTo(pod *api.Pod, dest string) {
+func (s *TurboScheduler) ScheduleTo(pod *api.Pod, dest string) error {
 	// if s.config.BindPodsRateLimiter != nil {
 	// 	s.config.BindPodsRateLimiter.Accept()
 	// }
@@ -108,10 +108,12 @@ func (s *TurboScheduler) ScheduleTo(pod *api.Pod, dest string) {
 	if err != nil {
 		glog.V(1).Infof("Failed to bind pod: %+v", err)
 		s.config.Recorder.Eventf(pod, api.EventTypeNormal, "FailedScheduling", "Binding rejected: %v", err)
-		return
+		return err
 	}
 	metrics.BindingLatency.Observe(metrics.SinceInMicroseconds(bindingStart))
 	s.config.Recorder.Eventf(pod, "Scheduled", "Successfully assigned %v to %v", pod.Name, dest)
+
+	return nil
 }
 
 type binder struct {

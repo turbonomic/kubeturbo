@@ -87,7 +87,7 @@ func isPodCreatedBy(pod *api.Pod, kind string) bool {
 }
 
 // Find the reference object of the parent entity, which created the gived pod.
-func findParentReferenceObject(pod *api.Pod) (*api.ObjectReference, error) {
+func FindParentReferenceObject(pod *api.Pod) (*api.ObjectReference, error) {
 
 	annotations := pod.Annotations
 	if annotations == nil {
@@ -104,7 +104,7 @@ func findParentReferenceObject(pod *api.Pod) (*api.ObjectReference, error) {
 
 // Find the kind of the parent object that creates the pod, from the annotations of pod.
 func findParentObjectKind(pod *api.Pod) (string, error) {
-	parentObject, err := findParentReferenceObject(pod)
+	parentObject, err := FindParentReferenceObject(pod)
 	if err != nil {
 		return "", err
 	}

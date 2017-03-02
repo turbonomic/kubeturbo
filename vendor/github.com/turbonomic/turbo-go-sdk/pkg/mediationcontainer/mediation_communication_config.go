@@ -58,8 +58,6 @@ func (wsc *WebSocketConfig) ValidateWebSocketConfig() error {
 	return nil
 }
 
-
-
 type MediationContainerConfig struct {
 	ServerMeta
 	WebSocketConfig
@@ -76,4 +74,3 @@ func (containerConfig *MediationContainerConfig) ValidateMediationContainerConfi
 	glog.V(4).Infof("The mediation container config is %v", containerConfig)
 	return nil
 }
-
