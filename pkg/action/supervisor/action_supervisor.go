@@ -65,11 +65,11 @@ func (s *ActionSupervisor) getNextVMTEvent() {
 	// TODO use agent to verify if the event succeeds
 	switch {
 	case event.Content.ActionType == "move":
-		s.updateVMTEvent(event, s.checkMoveAction)
+		s.updateAction(event, s.checkMoveAction)
 	case event.Content.ActionType == "provision":
-		s.updateVMTEvent(event, s.checkProvisionAction)
+		s.updateAction(event, s.checkProvisionAction)
 	case event.Content.ActionType == "unbind":
-		s.updateVMTEvent(event, s.checkUnbindAction)
+		s.updateAction(event, s.checkUnbindAction)
 	}
 }
 
@@ -142,32 +142,34 @@ func (s *ActionSupervisor) checkScaleAction(event *turboaction.TurboAction) (boo
 	return false, nil
 }
 
-func (s *ActionSupervisor) updateVMTEvent(event *turboaction.TurboAction, checkFunc EventCheckFunc) {
-	successful, err := checkFunc(event)
+func (s *ActionSupervisor) updateAction(action *turboaction.TurboAction, checkFunc EventCheckFunc) {
+	successful, err := checkFunc(action)
 	if err != nil {
 		glog.Errorf("Error checking action: %s", err)
 		return
 	}
 	if successful {
-		glog.Infof("Failed")
-		s.config.succeededActionChan <- event
+		action.Status = turboaction.Success
+		s.config.succeededActionChan <- action
+		glog.Infof("Action is sent to channel: %s", action)
 		return
 	}
 	// Check if the event has expired. If true, update the status to fail and return;
 	// Otherwise, only update the LastTimestamp.
-	expired := checkExpired(event)
+	expired := checkExpired(action)
 	glog.Infof("checkExpired result %v", expired)
 	if expired {
 		glog.Errorf("Timeout processing %s event on %s-%s",
-			event.Content.ActionType, event.Content.TargetObject.TargetObjectType, event.Content.TargetObject.TargetObjectName)
+			action.Content.ActionType, action.Content.TargetObject.TargetObjectType, action.Content.TargetObject.TargetObjectName)
 		glog.Infof("------------------------")
-		s.config.failedActionChan <- event
+		action.Status = turboaction.Fail
+		s.config.failedActionChan <- action
 		return
 	}
 	time.Sleep(time.Second * 1)
 	glog.Infof("Update timestamp")
 	// update timestamp
-	event.LastTimestamp = time.Now()
+	action.LastTimestamp = time.Now()
 
 	return
 }

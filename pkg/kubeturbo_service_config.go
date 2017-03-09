@@ -9,11 +9,15 @@ import (
 
 	vmtcache "github.com/vmturbo/kubeturbo/pkg/cache"
 	"github.com/vmturbo/kubeturbo/pkg/discovery/probe"
+	"github.com/vmturbo/kubeturbo/pkg/turbostore"
 )
 
 // Meta stores VMT Metadata.
 type Config struct {
 	tapSpec *K8sTAPServiceSpec
+
+	//turboStore *turbostore.TurboStore
+	broker turbostore.Broker
 
 	Client    *client.Client
 	NodeQueue *vmtcache.HashedFIFO
@@ -29,10 +33,11 @@ type Config struct {
 	StopEverything chan struct{}
 }
 
-// Create a vmturbo config
-func NewVMTConfig(client *client.Client, probeConfig *probe.ProbeConfig, spec *K8sTAPServiceSpec) *Config {
+func NewVMTConfig(client *client.Client, probeConfig *probe.ProbeConfig, broker turbostore.Broker,
+	spec *K8sTAPServiceSpec) *Config {
 	config := &Config{
 		tapSpec:        spec,
+		broker:         broker,
 		ProbeConfig:    probeConfig,
 		Client:         client,
 		NodeQueue:      vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),

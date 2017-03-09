@@ -8,6 +8,8 @@ import (
 	turboscheduler "github.com/vmturbo/kubeturbo/pkg/scheduler"
 
 	"github.com/golang/glog"
+	"github.com/vmturbo/kubeturbo/pkg/discovery/probe"
+	"github.com/vmturbo/kubeturbo/pkg/turbostore"
 )
 
 type KubeturboService struct {
@@ -21,20 +23,19 @@ type KubeturboService struct {
 }
 
 func NewKubeturboService(c *Config) *KubeturboService {
-	k8sTAPServiceConfig := NewK8sTAPServiceConfig(c.Client, c.ProbeConfig, c.tapSpec)
-
-	k8sTAPService, err := NewKubernetesTAPService(k8sTAPServiceConfig)
-	if err != nil {
-		glog.Fatalf("Unexpected error while creating Kuberntes TAP service: %s", err)
-	}
-
 	turboScheduler := turboscheduler.NewTurboScheduler(c.Client, c.tapSpec.TurboServer,
 		c.tapSpec.OpsManagerUsername, c.tapSpec.OpsManagerPassword)
 
 	// Create action handler.
-	actionHandlerConfig := action.NewActionHandlerConfig(c.Client)
+	actionHandlerConfig := action.NewActionHandlerConfig(c.Client, c.broker)
 	actionHandler := action.NewActionHandler(actionHandlerConfig, turboScheduler)
 
+	k8sTAPServiceConfig := NewK8sTAPServiceConfig(c.Client, c.ProbeConfig, c.tapSpec)
+
+	k8sTAPService, err := NewKubernetesTAPService(k8sTAPServiceConfig, actionHandler)
+	if err != nil {
+		glog.Fatalf("Unexpected error while creating Kuberntes TAP service: %s", err)
+	}
 	return &KubeturboService{
 		config:         c,
 		TurboScheduler: turboScheduler,
@@ -63,11 +64,19 @@ func (v *KubeturboService) getNextPod() {
 	pod := p.(*api.Pod)
 	glog.V(3).Infof("Get a new Pod %v", pod.Name)
 
-	if v.actionHandler.CheckPodAction(pod) {
-		return
+	var uid string
+	parentRefObject, _ := probe.FindParentReferenceObject(pod)
+	if parentRefObject != nil {
+		uid = string(parentRefObject.UID)
+	} else {
+		uid = string(pod.UID)
 	}
-
-	v.regularSchedulePod(pod)
+	producer := &turbostore.PodProducer{}
+	err = producer.Produce(v.config.broker, uid, pod)
+	if err != nil {
+		glog.Errorf("Got error when producing pod: %s", err)
+		v.regularSchedulePod(pod)
+	}
 }
 
 func (v *KubeturboService) regularSchedulePod(pod *api.Pod) {
@@ -75,3 +84,17 @@ func (v *KubeturboService) regularSchedulePod(pod *api.Pod) {
 		glog.Errorf("Scheduling failed: %s", err)
 	}
 }
+
+//
+//// Find Action related to pod in action event repository.
+//func (v *KubeturboService) actionPodFilter(pod *api.Pod) bool {
+//	var uid string
+//	parentRefObject, _ := probe.FindParentReferenceObject(pod)
+//	if parentRefObject != nil {
+//		uid = string(parentRefObject.UID)
+//	} else {
+//		uid = string(pod.UID)
+//	}
+//	_, exist := v.config.turboStore.Get(uid)
+//	return exist
+//}

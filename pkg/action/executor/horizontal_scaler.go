@@ -14,22 +14,21 @@ import (
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
-	"github.com/golang/glog"
 	"errors"
+	"github.com/golang/glog"
 )
 
 type HorizontalScaler struct {
 	kubeClient *client.Client
 }
 
-// Create new VMT Actor. Must specify the kubernetes client.
 func NewHorizontalScaler(client *client.Client) *HorizontalScaler {
 	return &HorizontalScaler{
 		kubeClient: client,
 	}
 }
 
-func (h *HorizontalScaler) ScaleOut(actionItem *proto.ActionItemDTO, msgID int32) (*turboaction.TurboAction, error) {
+func (h *HorizontalScaler) ScaleOut(actionItem *proto.ActionItemDTO) (*turboaction.TurboAction, error) {
 	if actionItem == nil {
 		return nil, errors.New("ActionItem passed in is nil")
 	}
@@ -47,15 +46,17 @@ func (h *HorizontalScaler) ScaleOut(actionItem *proto.ActionItemDTO, msgID int32
 		podIdentifier := podNamespace + "/" + podName
 
 		targetObject := &turboaction.TargetObject{
-			podName,
-			providerPod.Kind,
+			TargetObjectUID:  string(providerPod.UID),
+			TargetObjectName: podName,
+			TargetObjectType: turboaction.TypePod,
 		}
 		var parentObjRef *turboaction.ParentObjectRef
 		parentRefObject, _ := probe.FindParentReferenceObject(providerPod)
 		if parentRefObject != nil {
 			parentObjRef = &turboaction.ParentObjectRef{
-				parentRefObject.Name,
-				parentRefObject.Kind,
+				ParentObjectUID:  string(parentRefObject.UID),
+				ParentObjectName: parentRefObject.Name,
+				ParentObjectType: parentRefObject.Kind,
 			}
 		} else {
 			return nil, errors.New("Cannot find replication controller or deployment related to the pod")
@@ -64,39 +65,46 @@ func (h *HorizontalScaler) ScaleOut(actionItem *proto.ActionItemDTO, msgID int32
 		if parentRefObject.Kind == turboaction.TypeReplicationController {
 			rc, _ := util.FindReplicationControllerForPod(h.kubeClient, providerPod)
 			scaleSpec := turboaction.ScaleSpec{
-				rc.Spec.Replicas,
-				rc.Spec.Replicas + 1,
+				OriginalReplicas: rc.Spec.Replicas,
+				NewReplicas:      rc.Spec.Replicas + 1,
 			}
-			content := turboaction.NewVMTEventContentBuilder(turboaction.ActionProvision, targetObject, int(msgID)).
-				ActionSpec(scaleSpec).ParentObjectRef(parentObjRef).Build()
-			event := turboaction.NewVMTEventBuilder(rc.Namespace).Content(content).Create()
-			glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
+			content := turboaction.NewTurboActionContentBuilder(turboaction.ActionProvision, targetObject).
+				ActionSpec(scaleSpec).
+				ParentObjectRef(parentObjRef).
+				Build()
+			action := turboaction.NewTurboActionBuilder(rc.Namespace, *actionItem.Uuid).
+				Content(content).
+				Create()
+			glog.V(4).Infof("Turbo action is %v", action)
 
 			err := h.ProvisionPods(rc)
 			if err != nil {
 				return nil, fmt.Errorf("Error provision pod %s: %s", podIdentifier, err)
 			}
-
-			return &event, nil
+			return &action, nil
 		} else if parentRefObject.Kind == turboaction.TypeReplicaSet {
 			deployment, _ := util.FindDeploymentForPod(h.kubeClient, providerPod)
 			scaleSpec := turboaction.ScaleSpec{
-				deployment.Spec.Replicas,
-				deployment.Spec.Replicas + 1,
+				OriginalReplicas: deployment.Spec.Replicas,
+				NewReplicas:      deployment.Spec.Replicas + 1,
 			}
-			content := turboaction.NewVMTEventContentBuilder(turboaction.ActionProvision, targetObject, int(msgID)).
-				ActionSpec(scaleSpec).ParentObjectRef(parentObjRef).Build()
-			event := turboaction.NewVMTEventBuilder(deployment.Namespace).Content(content).Create()
-			glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
+			content := turboaction.NewTurboActionContentBuilder(turboaction.ActionProvision, targetObject).
+				ActionSpec(scaleSpec).
+				ParentObjectRef(parentObjRef).
+				Build()
+			action := turboaction.NewTurboActionBuilder(deployment.Namespace, *actionItem.Uuid).
+				Content(content).
+				Create()
+			glog.V(4).Infof("Turbo action is %v", action)
 
 			err = h.ProvisionPodsWithDeployments(deployment)
 			if err != nil {
 				return nil, fmt.Errorf("Error provision pod %s: %s", podIdentifier, err)
 			}
-
-			return &event, nil
+			return &action, nil
 		} else {
-			return nil, fmt.Errorf("Error Scale Pod for %s-%s: Not Supported.", parentObjRef.ParentObjectType, parentObjRef.ParentObjectName)
+			return nil, fmt.Errorf("Error Scale Pod for %s-%s: Not Supported.",
+				parentObjRef.ParentObjectType, parentObjRef.ParentObjectName)
 		}
 
 	}
@@ -149,7 +157,7 @@ func (h *HorizontalScaler) ProvisionPodsWithDeployments(targetDeployment *extens
 	return nil
 }
 
-func (h *HorizontalScaler) ScaleIn(actionItem *proto.ActionItemDTO, msgID int32) (*turboaction.TurboAction, error) {
+func (h *HorizontalScaler) ScaleIn(actionItem *proto.ActionItemDTO) (*turboaction.TurboAction, error) {
 	currentSE := actionItem.GetCurrentSE()
 	targetEntityType := currentSE.GetEntityType()
 
@@ -173,61 +181,71 @@ func (h *HorizontalScaler) ScaleIn(actionItem *proto.ActionItemDTO, msgID int32)
 		}
 
 		targetObj := &turboaction.TargetObject{
-			providerPod.Name,
-			turboaction.TypePod,
+			TargetObjectUID:  string(providerPod.UID),
+			TargetObjectName: providerPod.Name,
+			TargetObjectType: turboaction.TypePod,
 		}
 		var parentObjRef *turboaction.ParentObjectRef
 		parentRefObject, _ := probe.FindParentReferenceObject(providerPod)
 		if parentRefObject != nil {
 			parentObjRef = &turboaction.ParentObjectRef{
-				parentRefObject.Name,
-				parentRefObject.Kind,
+				ParentObjectUID:  string(parentRefObject.UID),
+				ParentObjectName: parentRefObject.Name,
+				ParentObjectType: parentRefObject.Kind,
 			}
 		} else {
-			//TODO, if this pod does not have a parentRefObject, there should be no way to scale. Need to be verified!
+			// If this pod does not have a parentRefObject, there should be no way to scale.
 			return nil, fmt.Errorf("This pod %s is not able to be scaled.", podIdentifier)
 		}
 
 		if parentRefObject.Kind == turboaction.TypeReplicationController {
-			// TODO. change this. Find rc based on its name and namespace.
 			rc, _ := util.FindReplicationControllerForPod(h.kubeClient, providerPod)
 			scaleSpec := &turboaction.ScaleSpec{
-				rc.Spec.Replicas,
-				rc.Spec.Replicas - 1,
+				OriginalReplicas: rc.Spec.Replicas,
+				NewReplicas:      rc.Spec.Replicas - 1,
 			}
 
-			content := turboaction.NewVMTEventContentBuilder(turboaction.ActionUnbind, targetObj, int(msgID)).
-				ActionSpec(scaleSpec).ParentObjectRef(parentObjRef).Build()
-			event := turboaction.NewVMTEventBuilder(rc.Namespace).Content(content).Create()
-			glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
+			content := turboaction.NewTurboActionContentBuilder(turboaction.ActionUnbind, targetObj).
+				ActionSpec(scaleSpec).
+				ParentObjectRef(parentObjRef).
+				Build()
+			action := turboaction.NewTurboActionBuilder(rc.Namespace, *actionItem.Uuid).
+				Content(content).
+				Create()
+			glog.V(4).Infof("Turbo action is %v", action)
 
 			err = h.UnbindPods(rc)
 			if err != nil {
 				return nil, err
 			}
 
-			return &event, nil
+			return &action, nil
 		} else if parentRefObject.Kind == turboaction.TypeReplicaSet {
 			// If parent object is a replica set, we need to find its deployment.
 			deployment, _ := util.FindDeploymentForPod(h.kubeClient, providerPod)
 			scaleSpec := &turboaction.ScaleSpec{
-				deployment.Spec.Replicas,
-				deployment.Spec.Replicas - 1,
+				OriginalReplicas: deployment.Spec.Replicas,
+				NewReplicas:      deployment.Spec.Replicas - 1,
 			}
 
-			content := turboaction.NewVMTEventContentBuilder(turboaction.ActionUnbind, targetObj, int(msgID)).
-				ActionSpec(scaleSpec).ParentObjectRef(parentObjRef).Build()
-			event := turboaction.NewVMTEventBuilder(deployment.Namespace).Content(content).Create()
-			glog.V(4).Infof("vmt event is %v, msgId is %d, %d", event, msgID, int(msgID))
+			content := turboaction.NewTurboActionContentBuilder(turboaction.ActionUnbind, targetObj).
+				ActionSpec(scaleSpec).
+				ParentObjectRef(parentObjRef).
+				Build()
+			action := turboaction.NewTurboActionBuilder(deployment.Namespace, *actionItem.Uuid).
+				Content(content).
+				Create()
+			glog.V(4).Infof("Turbo action is %v", action)
 
 			err = h.UnbindPodsWithDeployment(deployment)
 			if err != nil {
 				return nil, err
 			}
 
-			return &event, nil
+			return &action, nil
 		} else {
-			return nil, fmt.Errorf("Error Scale Pod for %s-%s: Not Supported.", parentObjRef.ParentObjectType, parentObjRef.ParentObjectName)
+			return nil, fmt.Errorf("Error Scale Pod for %s-%s: Not Supported.",
+				parentObjRef.ParentObjectType, parentObjRef.ParentObjectName)
 		}
 	}
 	return nil, fmt.Errorf("Entity type %s is not supported for horizontal scaling in", targetEntityType)
@@ -237,7 +255,8 @@ func (h *HorizontalScaler) ScaleIn(actionItem *proto.ActionItemDTO, msgID int32)
 func (h *HorizontalScaler) UnbindPods(targetReplicationController *api.ReplicationController) error {
 	newReplicas := targetReplicationController.Spec.Replicas - 1
 	if newReplicas < 0 {
-		return fmt.Errorf("Replica of %s/%s is already 0. Cannot scale in anymore.", targetReplicationController.Namespace, targetReplicationController.Name)
+		return fmt.Errorf("Replica of %s/%s is already 0. Cannot scale in anymore.",
+			targetReplicationController.Namespace, targetReplicationController.Name)
 	}
 
 	err := h.updateReplicationControllerReplicas(targetReplicationController, newReplicas)
@@ -262,7 +281,8 @@ func (h *HorizontalScaler) updateReplicationControllerReplicas(rc *api.Replicati
 func (h *HorizontalScaler) UnbindPodsWithDeployment(deployment *extensions.Deployment) error {
 	newReplicas := deployment.Spec.Replicas - 1
 	if newReplicas < 0 {
-		return fmt.Errorf("Replica of %s/%s is already 0. Cannot scale in anymore.", deployment.Namespace, deployment.Name)
+		return fmt.Errorf("Replica of %s/%s is already 0. Cannot scale in anymore.",
+			deployment.Namespace, deployment.Name)
 	}
 
 	err := h.updateDeploymentReplicas(deployment, newReplicas)
@@ -277,8 +297,10 @@ func (h *HorizontalScaler) updateDeploymentReplicas(deployment *extensions.Deplo
 	namespace := deployment.Namespace
 	newDeployment, err := h.kubeClient.Deployments(namespace).Update(deployment)
 	if err != nil {
-		return fmt.Errorf("Error updating replication controller %s/%s: %s", deployment.Namespace, deployment.Name, err)
+		return fmt.Errorf("Error updating replication controller %s/%s: %s",
+			deployment.Namespace, deployment.Name, err)
 	}
-	glog.V(4).Infof("New replicas of %s/%s is %d", newDeployment.Namespace, newDeployment.Name, newDeployment.Spec.Replicas)
+	glog.V(4).Infof("New replicas of %s/%s is %d", newDeployment.Namespace, newDeployment.Name,
+		newDeployment.Spec.Replicas)
 	return nil
 }

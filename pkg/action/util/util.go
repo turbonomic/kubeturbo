@@ -12,8 +12,8 @@ import (
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
-	"github.com/golang/glog"
 	"errors"
+	"github.com/golang/glog"
 )
 
 // Takes in a podIdentifier(podNamespace/podName), and extract namespace and name of the pod.
@@ -50,6 +50,8 @@ func GetPodFromCluster(kubeClient *client.Client, podIdentifier string) (*api.Po
 	return pod, nil
 }
 
+// Find RC based on pod labels.
+// TODO. change this. Find rc based on its name and namespace or rc's UID.
 func FindReplicationControllerForPod(kubeClient *client.Client, currentPod *api.Pod) (*api.ReplicationController, error) {
 	// loop through all the labels in the pod and get List of RCs with selector that match at least one label
 	podNamespace := currentPod.Namespace
@@ -86,6 +88,7 @@ func GetAllDeployments(kubeClient *client.Client, namespace string) ([]extension
 	return deploymentList.Items, nil
 }
 
+// TODO. change this. Find deployment based on its name and namespace or UID.
 func findDeploymentBasedOnPodLabel(deploymentsList []extensions.Deployment, labels map[string]string) (*extensions.Deployment, error) {
 	for _, deployment := range deploymentsList {
 		findDeployment := true
@@ -193,7 +196,6 @@ func GetNodeNameFromIP(kubeClient *client.Client, machineIPs []string) (string, 
 				}
 			}
 		}
-
 	}
 	return "", fmt.Errorf("Cannot find node with IPs %s", ipAddresses)
 }
@@ -242,4 +244,9 @@ func GetPodFromIdentifier(kubeClient *client.Client, id string) (*api.Pod, error
 	}
 	return pod, nil
 
+}
+
+// Given namespace and name, return an identifier in the format, namespace/name
+func BuildIdentifier(namespace, name string) string {
+	return namespace + "/" + name
 }

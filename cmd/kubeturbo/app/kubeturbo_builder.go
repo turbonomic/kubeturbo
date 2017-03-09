@@ -20,6 +20,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
+	"github.com/vmturbo/kubeturbo/pkg/turbostore"
 )
 
 const (
@@ -130,8 +131,8 @@ func (s *VMTServer) Run(_ []string) error {
 		glog.Errorf("Failed to generate correct TAP config: %s", err)
 		os.Exit(1)
 	}
-
-	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, probeConfig, k8sTAPSpec)
+	broker := turbostore.NewPodBroker()
+	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, probeConfig, broker, k8sTAPSpec)
 	glog.V(3).Infof("Finished creating turbo configuration: %++v", vmtConfig)
 
 	eventBroadcaster := record.NewBroadcaster()

@@ -15,6 +15,7 @@ import (
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/service"
+	"github.com/vmturbo/kubeturbo/pkg/action"
 )
 
 type K8sTAPServiceSpec struct {
@@ -78,7 +79,7 @@ type K8sTAPService struct {
 	*service.TAPService
 }
 
-func NewKubernetesTAPService(config *K8sTAPServiceConfig) (*K8sTAPService, error) {
+func NewKubernetesTAPService(config *K8sTAPServiceConfig, actionHandler  *action.ActionHandler) (*K8sTAPService, error) {
 	if config == nil || config.spec == nil {
 		return nil, errors.New("Invalid K8sTAPServiceConfig")
 	}
@@ -92,7 +93,8 @@ func NewKubernetesTAPService(config *K8sTAPServiceConfig) (*K8sTAPService, error
 			WithTurboCommunicator(config.spec.TurboCommunicationConfig).
 			WithTurboProbe(probe.NewProbeBuilder(config.spec.TargetType, config.spec.ProbeCategory).
 				RegisteredBy(registrationClient).
-				DiscoversTarget(config.spec.TargetIdentifier, discoveryClient)).
+				DiscoversTarget(config.spec.TargetIdentifier, discoveryClient).
+				ExecutesActionsBy(actionHandler)).
 			Create()
 	if err != nil {
 		return nil, fmt.Errorf("Error when creating KubernetesTAPService: %s", err)

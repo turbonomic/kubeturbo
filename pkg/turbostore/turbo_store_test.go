@@ -1,4 +1,4 @@
-package actionrepo
+package turbostore
 
 import (
 	"reflect"
@@ -8,8 +8,8 @@ import (
 )
 
 func TestAdd(t *testing.T) {
-	actionRepo := NewActionRepository()
-	actionEventBuilder := turboaction.NewVMTEventBuilder("")
+	actionRepo := NewTurboStore()
+	actionEventBuilder := turboaction.NewTurboActionBuilder("")
 	targetObjectName1 := "Foo"
 	targetObjectType1 := "Pod"
 	actionContent1 := turboaction.TurboActionContent{
@@ -18,7 +18,7 @@ func TestAdd(t *testing.T) {
 	action1 := actionEventBuilder.Content(actionContent1).Create()
 
 	actionRepo.Add(&action1)
-	actions := actionRepo.actions
+	actions := actionRepo.items
 	if actionMap, exist := actions[targetObjectType1]; !exist {
 		t.Errorf("Cannot find expected actions with object type %s in reposity.", targetObjectType1)
 	} else {
@@ -43,8 +43,8 @@ func TestAdd(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	actionRepo := NewActionRepository()
-	actionEventBuilder := turboaction.NewVMTEventBuilder("")
+	actionRepo := NewTurboStore()
+	actionEventBuilder := turboaction.NewTurboActionBuilder("")
 	targetObjectName1 := "Foo"
 	targetObjectType1 := "Pod"
 	actionContent1 := turboaction.TurboActionContent{
@@ -57,14 +57,14 @@ func TestDelete(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	actions := actionRepo.actions
+	actions := actionRepo.items
 	if _, exist := actions[targetObjectType1]; exist {
 		t.Errorf("Action with object type %s is found. But it is expected to be deleted from repository.: %+v", targetObjectType1, actionRepo)
 	}
 }
 
 func TestFindActionInList(t *testing.T) {
-	actionEventBuilder := turboaction.NewVMTEventBuilder("")
+	actionEventBuilder := turboaction.NewTurboActionBuilder("")
 	targetObjectName1 := "Foo"
 	targetObjectType1 := "Pod"
 	actionContent1 := turboaction.TurboActionContent{
@@ -109,7 +109,7 @@ func TestGetEntityTypeAndName(t *testing.T) {
 		},
 	}
 	for _, item := range table {
-		actionEventBuilder := turboaction.NewVMTEventBuilder("")
+		actionEventBuilder := turboaction.NewTurboActionBuilder("")
 		actionContent := turboaction.TurboActionContent{
 			TargetObject: turboaction.TargetObject{item.targetObjectName, item.targetObjectType},
 		}
