@@ -170,26 +170,6 @@
 			"Rev": "31b736133b98f26d5e078ec9eb591666edfd091f"
 		},
 		{
-			"ImportPath": "github.com/coreos/etcd/client",
-			"Comment": "v3.0.10",
-			"Rev": "546c0f7ed65523c24390f0f26c7e4af2232f52d2"
-		},
-		{
-			"ImportPath": "github.com/coreos/etcd/error",
-			"Comment": "v3.0.10",
-			"Rev": "546c0f7ed65523c24390f0f26c7e4af2232f52d2"
-		},
-		{
-			"ImportPath": "github.com/coreos/etcd/pkg/pathutil",
-			"Comment": "v3.0.10",
-			"Rev": "546c0f7ed65523c24390f0f26c7e4af2232f52d2"
-		},
-		{
-			"ImportPath": "github.com/coreos/etcd/pkg/types",
-			"Comment": "v3.0.10",
-			"Rev": "546c0f7ed65523c24390f0f26c7e4af2232f52d2"
-		},
-		{
 			"ImportPath": "github.com/coreos/go-oidc/http",
 			"Rev": "5644a2f50e2d2d5ba0b474bc5bc55fea1925936d"
 		},
@@ -447,51 +427,35 @@
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/builder",
-			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
+			"Rev": "44fcb7093ef08eb2b91ccd2a2f5759973cf169c5"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/mediationcontainer",
-			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
+			"Rev": "44fcb7093ef08eb2b91ccd2a2f5759973cf169c5"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/probe",
-			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
+			"Rev": "44fcb7093ef08eb2b91ccd2a2f5759973cf169c5"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/proto",
-			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
+			"Rev": "44fcb7093ef08eb2b91ccd2a2f5759973cf169c5"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/service",
-			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
+			"Rev": "44fcb7093ef08eb2b91ccd2a2f5759973cf169c5"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/supplychain",
-			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
+			"Rev": "44fcb7093ef08eb2b91ccd2a2f5759973cf169c5"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/version",
-			"Rev": "8092a668c96415790ebf0dc327b31d1e5404774a"
+			"Rev": "44fcb7093ef08eb2b91ccd2a2f5759973cf169c5"
 		},
 		{
 			"ImportPath": "github.com/ugorji/go/codec",
 			"Rev": "f1f1a805ed361a0e078bb537e4ea78cd37dcf065"
-		},
-		{
-			"ImportPath": "github.com/vmturbo/vmturbo-go-sdk/pkg/builder",
-			"Rev": "dae934c265bc446931e507faa3d6c759128b58ef"
-		},
-		{
-			"ImportPath": "github.com/vmturbo/vmturbo-go-sdk/pkg/common",
-			"Rev": "dae934c265bc446931e507faa3d6c759128b58ef"
-		},
-		{
-			"ImportPath": "github.com/vmturbo/vmturbo-go-sdk/pkg/communication",
-			"Rev": "dae934c265bc446931e507faa3d6c759128b58ef"
-		},
-		{
-			"ImportPath": "github.com/vmturbo/vmturbo-go-sdk/pkg/proto",
-			"Rev": "dae934c265bc446931e507faa3d6c759128b58ef"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/ssh/terminal",

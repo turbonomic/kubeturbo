@@ -6,12 +6,14 @@ import (
 	"k8s.io/kubernetes/pkg/util/flag"
 	"k8s.io/kubernetes/pkg/util/logs"
 	"k8s.io/kubernetes/pkg/version/verflag"
+	_ "k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
 
 	"github.com/vmturbo/kubeturbo/cmd/kube-vmtactionsimulator/builder"
 	vmtaction "github.com/vmturbo/kubeturbo/pkg/action"
+	turboscheduler "github.com/vmturbo/kubeturbo/pkg/scheduler"
 
-	sdkbuilder "github.com/vmturbo/vmturbo-go-sdk/pkg/builder"
-	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
+	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
@@ -38,21 +40,25 @@ func main() {
 	action := simulator.Action()
 	namespace := simulator.Namespace()
 
-	// The simulator can simulate move, get and provision action now.
-	actor := vmtaction.NewVMTActionExecutor(simulator.KubeClient(), simulator.Etcd())
+	actionHandlerConfig := vmtaction.NewActionHandlerConfig(simulator.KubeClient())
+	turboSched := turboscheduler.NewTurboScheduler(simulator.KubeClient(), "", "", "")
+	actionHandler := vmtaction.NewActionHandler(actionHandlerConfig, turboSched)
+
 	if action == "move" || action == "Move " {
 		podName := simulator.Pod()
 		destinationNode := simulator.Destination()
 		podIdentifier := namespace + ":" + podName
 
 		targetSE, _ := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, podIdentifier).Create()
-		newSE, _ := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_MACHINE, destinationNode).Create()
+
 		var ips []string
 		ips = append(ips, destinationNode)
 		vmData := &proto.EntityDTO_VirtualMachineData{
 			IpAddress: ips,
 		}
-		newSE.VirtualMachineData = vmData
+		newSE, _ := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_MACHINE, destinationNode).
+			VirtualMachineData(vmData).
+			Create()
 
 		actionType := proto.ActionItemDTO_MOVE
 		actionItemDTO := &proto.ActionItemDTO{
@@ -61,10 +67,7 @@ func main() {
 			NewSE:      newSE,
 		}
 
-		_, err := actor.ExcuteAction(actionItemDTO, -1)
-		if err != nil {
-			glog.Errorf("Error executing move: %v", err)
-		}
+		actionHandler.Execute(actionItemDTO, -1)
 		return
 	} else if action == "provision" {
 		podName := simulator.Pod()
@@ -80,10 +83,7 @@ func main() {
 			NewSE:      newSE,
 		}
 
-		_, err := actor.ExcuteAction(actionItemDTO, -1)
-		if err != nil {
-			glog.Errorf("Error executing provision: %v", err)
-		}
+		actionHandler.Execute(actionItemDTO, -1)
 		return
 	} else if action == "unbind" {
 		app := simulator.Application()
@@ -98,10 +98,7 @@ func main() {
 			TargetSE:   targetSE,
 			CurrentSE:  currentSE,
 		}
-		_, err := actor.ExcuteAction(actionItemDTO, -1)
-		if err != nil {
-			glog.Errorf("Error executing provision: %v", err)
-		}
+		actionHandler.Execute(actionItemDTO, -1)
 		return
 	}
 }
