@@ -36,8 +36,8 @@ A new config file named kubeconfig will then be generated and placed under /etc/
 
 ### Step Two: Create Kubeturbo config
 
-A Kubeturbo config is required for the Kubeturbo service to connect to the Turbonomic server remotely. You need to specify correct **Turbonomic Server address**, **username** and **password**.
-**NOTE**: Turbonomic server address is "**IP address of your ops manger**".
+A Kubeturbo config is required for the Kubeturbo service to connect to the Turbonomic server remotely. You need to specify correct **Turbonomic instance address**, **username** and **password**.
+**NOTE**: Turbonomic server address is "**IP address of your ops manager**".
 
 Create a file called **"config"** and put it under */etc/kubeturbo/*.
 
@@ -113,8 +113,8 @@ spec:
 
 #### Create Kubeturbo pod
 
-As mirror pods are created by Kubelet, you can simply copy kubeturbo yaml definition to your config path you specified when you starts kubelet on master nodes. Usually, the path is /etc/kubernetes/manifests/.
-Next, you need to stop the default scheduler by removing kube-scheduler from both /etc/kubernetes/manifests and the source path you specified for pod-master pod, which is usually /srv/kubernetes/manifests by default.
+As mirror pods are created by Kubelet, you can simply copy the kubeturbo yaml definition to your config path you specified when you start the kubelet on master nodes. Usually, the path is /etc/kubernetes/manifests/.
+At the same time, you need to stop the default scheduler by removing kube-scheduler from both /etc/kubernetes/manifests and the source path you specified for pod-master pod, which is usually /srv/kubernetes/manifests by default. 
 
 After several seconds, you will be able to see Kubeturbo mirror pod is running. (For some versions of kubernetes, you may not see mirror pod from the command below, please use docker ps to check if kubeturbo is running)
 
@@ -129,6 +129,6 @@ kube-system   kubeturbo-ip-10-0-0-50.ec2.internal                 2/2       Runn
 ```
 ### Deploy K8sconntrack
 
-With previous steps, Kubeturbo service is running and starting to collect resource comsuption metrics from each node, pod and applications. Those metrics are continuously sent back to Turbonomic server. If you want Kubeturbo to collect network related metrics, such as service transaction counts and network flow information between pods inside current Kubernetes cluster, you need to deploy K8sconntrack monitoring service.
+With previous steps, Kubeturbo service is running and starting to collect resource consuption metrics from each node, pod and applications. Those metrics are continuously sent back to the Turbonomic Autonomic Platform instance. If you want Kubeturbo to collect network related metrics, such as service transaction counts and network flow information between pods inside current Kubernetes cluster, you need to deploy K8sconntrack monitoring service.
 
 K8sconntrack monitoring service should be running on each node inside cluster. A detailed guide about how to deploy K8sconnection onto a Kuberentes cluster running on AWS can be found [here](https://github.com/DongyiYang/k8sconnection/blob/master/deploy/aws_deploy/README.md). Since you already created a Kubeconfig, you can skip to step 2.
