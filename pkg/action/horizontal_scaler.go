@@ -33,7 +33,6 @@ func (this *HorizontalScaler) ScaleOut(actionItem *proto.ActionItemDTO, msgID in
 		return nil, fmt.Errorf("ActionItem passed in is nil")
 	}
 	targetEntityType := actionItem.GetTargetSE().GetEntityType()
-	fmt.Printf("is containerPod: %v; want %s, got %s\n", targetEntityType == proto.EntityDTO_CONTAINER_POD, targetEntityType, proto.EntityDTO_CONTAINER_POD)
 	if targetEntityType == proto.EntityDTO_CONTAINER_POD ||
 		targetEntityType == proto.EntityDTO_APPLICATION {
 

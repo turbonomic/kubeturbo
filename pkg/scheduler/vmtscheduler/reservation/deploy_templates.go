@@ -5,18 +5,18 @@ import (
 
 	"k8s.io/kubernetes/pkg/api"
 
-	"github.com/vmturbo/kubeturbo/pkg/probe"
+	"github.com/vmturbo/kubeturbo/pkg/discovery/probe"
 
 	"github.com/golang/glog"
 )
 
 var (
-	templateTiny DeployTemplate = DeployTemplate{
+	templateLarge DeployTemplate = DeployTemplate{
 		UUID:    "DC5_1CxZMJkEEeCaJOYu5",
 		CpuSize: 2.0,
 		MemSize: 8192,
 	}
-	templateMicro DeployTemplate = DeployTemplate{
+	templateMedium DeployTemplate = DeployTemplate{
 		UUID:    "DC5_1CxgeJkEEeCaJOYu5",
 		CpuSize: 2.0,
 		MemSize: 4096,
@@ -26,12 +26,12 @@ var (
 		CpuSize: 1.0,
 		MemSize: 2048,
 	}
-	templateMedium DeployTemplate = DeployTemplate{
+	templateMicro DeployTemplate = DeployTemplate{
 		UUID:    "DC5_1CxZMJfgejCaJOYu5",
 		CpuSize: 1.0,
 		MemSize: 1024,
 	}
-	templateLarge DeployTemplate = DeployTemplate{
+	templateTiny DeployTemplate = DeployTemplate{
 		UUID:    "DC5_1CxZMJkghjCaJOYu5",
 		CpuSize: 0.5,
 		MemSize: 512,

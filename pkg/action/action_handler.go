@@ -2,7 +2,6 @@ package action
 
 import (
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/util/wait"
 
@@ -31,8 +30,8 @@ func NewActionHandlerConfig(kubeClient *client.Client, etcdStorage storage.Stora
 		etcdStorage: etcdStorage,
 		kubeClient:  kubeClient,
 
-		SucceededVMTEventQueue: vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
-		FailedVMTEventQueue:    vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
+		SucceededVMTEventQueue: vmtcache.NewHashedFIFO(registry.VMTEventKeyFunc),
+		FailedVMTEventQueue:    vmtcache.NewHashedFIFO(registry.VMTEventKeyFunc),
 
 		StopEverything: make(chan struct{}),
 	}
@@ -117,7 +116,7 @@ func (this *ActionHandler) getNextSucceededVMTEvent() {
 }
 
 func (this *ActionHandler) getNextFailedVMTEvent() {
-	e, err := this.config.SucceededVMTEventQueue.Pop(nil)
+	e, err := this.config.FailedVMTEventQueue.Pop(nil)
 	if err != nil {
 		//TODO
 	}

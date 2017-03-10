@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
 	"k8s.io/kubernetes/pkg/util/wait"
 
 	client "k8s.io/kubernetes/pkg/client/unversioned"
@@ -31,7 +30,7 @@ func NewActionSupervisorConfig(kubeClient *client.Client, etcdStorage storage.St
 		etcdStorage: etcdStorage,
 		kubeClient:  kubeClient,
 
-		VMTEventQueue:  vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
+		VMTEventQueue:  vmtcache.NewHashedFIFO(registry.VMTEventKeyFunc),
 		StopEverything: make(chan struct{}),
 	}
 
@@ -161,7 +160,7 @@ func (this *VMTActionSupervisor) checkScaleAction(event *registry.VMTEvent) (boo
 func (this *VMTActionSupervisor) updateVMTEvent(event *registry.VMTEvent, checkFunc EventCheckFunc) {
 	successful, err := checkFunc(event)
 	if err != nil {
-		glog.Errorf("Error checking move action: %s", err)
+		glog.Errorf("Error checking action: %s", err)
 		return
 	}
 	if successful {

@@ -29,7 +29,6 @@ import (
 	"syscall"
 	"time"
 
-	"k8s.io/kubernetes/pkg/api/meta"
 	"k8s.io/kubernetes/pkg/client/cache"
 	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
 	"k8s.io/kubernetes/pkg/util/wait"
@@ -281,7 +280,7 @@ loop:
 		case <-resyncCh:
 			return errorResyncRequested
 		case event, ok := <-w.ResultChan():
-			glog.V(5).Infof("%v Result Event in reflector is: %v", ok, event)
+			glog.V(5).Infof("%v Result Event in reflector is: %++v", ok, event)
 			if !ok {
 				break loop
 			}
@@ -292,24 +291,18 @@ loop:
 				utilruntime.HandleError(fmt.Errorf("%s: expected type %v, but watch event object had type %v", r.name, e, a))
 				continue
 			}
-			meta, err := meta.Accessor(event.Object)
-			if err != nil {
-				utilruntime.HandleError(fmt.Errorf("%s: unable to understand watch event %#v", r.name, event))
-				continue
-			}
-			newResourceVersion := meta.GetResourceVersion()
 			switch event.Type {
 			case watch.Added:
 				r.store.Add(event.Object)
+				glog.V(4).Infof("Added %++v", event.Object)
 			case watch.Modified:
 				r.store.Update(event.Object)
+				glog.V(4).Infof("Modified %++v", event.Object)
 			case watch.Deleted:
 				r.store.Delete(event.Object)
 			default:
 				utilruntime.HandleError(fmt.Errorf("%s: unable to understand watch event %#v", r.name, event))
 			}
-			*resourceVersion = newResourceVersion
-			r.setLastSyncResourceVersion(newResourceVersion)
 			eventCount++
 		}
 	}

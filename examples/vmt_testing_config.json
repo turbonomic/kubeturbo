@@ -1,13 +1,8 @@
 {
-		"serveraddress":	"10.10.192.87:8080",
-		"targettype":"Kubernetes",
-		"nameoraddress":  "k8s_vmt",
-		"username":"kubernetes_user",
-		"targetidentifier": "my_k8s",
-		"password":"fake_password",
+		"serveraddress":	"10.10.192.131",
+		"serverapiport": "9400",
+		"websocketport": "9400",
 		"localaddress":"http://127.0.0.1/",
-		"websocketusername": "vmtRemoteMediation",
-		"websocketpassword": "vmtRemoteMediation",
 		"opsmanagerusername": "administrator",
 		"opsmanagerpassword": "a"
 }

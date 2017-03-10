@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: stress
+spec:
+  containers:
+  - name: stress
+    image: jess/stress
+    args:
+    - --cpu
+    - "1"

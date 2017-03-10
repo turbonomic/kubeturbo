@@ -3,6 +3,7 @@ package reservation
 import (
 	"bytes"
 	"fmt"
+	//"net"
 	"strings"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 
 	vmtapi "github.com/vmturbo/kubeturbo/pkg/api"
 	"github.com/vmturbo/kubeturbo/pkg/helper"
-	vmtmeta "github.com/vmturbo/kubeturbo/pkg/metadata"
+	//vmtmeta "github.com/vmturbo/kubeturbo/pkg/metadata"
 
 	"github.com/golang/glog"
 )
@@ -34,12 +35,16 @@ func init() {
 }
 
 type Reservation struct {
-	Meta *vmtmeta.VMTMeta
+	TurboServer        string
+	OpsManagerUsername string
+	OpsManagerPassword string
 }
 
-func NewDeployment(meta *vmtmeta.VMTMeta) *Reservation {
+func NewDeployment(turboServer, opsManagerUsername, opsManagerPassword string) *Reservation {
 	return &Reservation{
-		Meta: meta,
+		TurboServer:        turboServer,
+		OpsManagerUsername: opsManagerUsername,
+		OpsManagerPassword: opsManagerPassword,
 	}
 }
 
@@ -129,9 +134,11 @@ func (this *Reservation) RequestPlacement(podName string, requestSpec, filterPro
 	constrantsList []string) (map[string]string, error) {
 
 	extCongfix := make(map[string]string)
-	extCongfix["Username"] = this.Meta.OpsManagerUsername
-	extCongfix["Password"] = this.Meta.OpsManagerPassword
-	vmturboApi := vmtapi.NewVmtApi(this.Meta.ServerAddress, extCongfix)
+	extCongfix["Username"] = this.OpsManagerUsername
+	extCongfix["Password"] = this.OpsManagerPassword
+
+	vmtUrl := this.TurboServer
+	vmturboApi := vmtapi.NewVmtApi(vmtUrl, extCongfix)
 
 	glog.V(4).Info("Inside RequestPlacement")
 

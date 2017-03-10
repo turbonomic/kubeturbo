@@ -113,13 +113,14 @@ func (this *Rescheduler) ReschedulePod(originalPod *api.Pod, podIdentifier, targ
 
 	glog.V(3).Infof("Now Move Pod %s.", podIdentifier)
 
-	rcForPod, err := FindReplicationControllerForPod(this.kubeClient, originalPod)
-	if err != nil {
-		glog.Errorf("Error getting Replication for Pod %s: %s\n", podIdentifier, err)
+	rc, _ := FindReplicationControllerForPod(this.kubeClient, originalPod)
+	deployment, _ := FindDeploymentForPod(this.kubeClient, originalPod)
+	if rc == nil && deployment == nil {
+		glog.Warningf("Cannot find replication controller or deployment related to the pod %s", podIdentifier)
 	}
 
 	// Delete pod
-	err = this.kubeClient.Pods(podNamespace).Delete(podName, nil)
+	err := this.kubeClient.Pods(podNamespace).Delete(podName, nil)
 	if err != nil {
 		glog.Errorf("Error deleting pod %s: %s.\n", podIdentifier, err)
 		return fmt.Errorf("Error deleting pod %s: %s.\n", podIdentifier, err)
@@ -128,7 +129,7 @@ func (this *Rescheduler) ReschedulePod(originalPod *api.Pod, podIdentifier, targ
 	}
 
 	// This is a standalone pod. Need to clone manually.
-	if rcForPod == nil {
+	if rc == nil || deployment == nil {
 		time.Sleep(time.Second * 3)
 		return this.recreatePod(originalPod)
 	}

@@ -1,0 +1,6 @@
+{
+		"serveraddress":	"1.2.3.4:80",
+		"localaddress":"http://127.0.0.1/",
+		"opsmanagerusername": "foo",
+		"opsmanagerpassword": "bar"
+}

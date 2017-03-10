@@ -58,8 +58,8 @@ import (
 	"k8s.io/kubernetes/pkg/api/errors"
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/apis/componentconfig"
+	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/client/record"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/util/runtime"
 	"k8s.io/kubernetes/pkg/util/wait"
 
@@ -86,7 +86,7 @@ func NewLeaderElector(lec LeaderElectionConfig) (*LeaderElector, error) {
 		return nil, fmt.Errorf("renewDeadline must be greater than retryPeriod*JitterFactor")
 	}
 	if lec.Client == nil {
-		return nil, fmt.Errorf("Client must not be nil.")
+		return nil, fmt.Errorf("EndpointsClient must not be nil.")
 	}
 	if lec.EventRecorder == nil {
 		return nil, fmt.Errorf("EventRecorder must not be nil.")
@@ -103,7 +103,7 @@ type LeaderElectionConfig struct {
 	// Identity is a unique identifier of the leader elector.
 	Identity string
 
-	Client        client.Interface
+	Client        clientset.Interface
 	EventRecorder record.EventRecorder
 
 	// LeaseDuration is the duration that non-leader candidates will
@@ -246,7 +246,7 @@ func (le *LeaderElector) tryAcquireOrRenew() bool {
 		AcquireTime:          now,
 	}
 
-	e, err := le.config.Client.Endpoints(le.config.EndpointsMeta.Namespace).Get(le.config.EndpointsMeta.Name)
+	e, err := le.config.Client.Core().Endpoints(le.config.EndpointsMeta.Namespace).Get(le.config.EndpointsMeta.Name)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			glog.Errorf("error retrieving endpoint: %v", err)
@@ -257,7 +257,7 @@ func (le *LeaderElector) tryAcquireOrRenew() bool {
 		if err != nil {
 			return false
 		}
-		_, err = le.config.Client.Endpoints(le.config.EndpointsMeta.Namespace).Create(&api.Endpoints{
+		_, err = le.config.Client.Core().Endpoints(le.config.EndpointsMeta.Namespace).Create(&api.Endpoints{
 			ObjectMeta: api.ObjectMeta{
 				Name:      le.config.EndpointsMeta.Name,
 				Namespace: le.config.EndpointsMeta.Namespace,
@@ -312,7 +312,7 @@ func (le *LeaderElector) tryAcquireOrRenew() bool {
 	}
 	e.Annotations[LeaderElectionRecordAnnotationKey] = string(leaderElectionRecordBytes)
 
-	_, err = le.config.Client.Endpoints(le.config.EndpointsMeta.Namespace).Update(e)
+	_, err = le.config.Client.Core().Endpoints(le.config.EndpointsMeta.Namespace).Update(e)
 	if err != nil {
 		glog.Errorf("err: %v", err)
 		return false

@@ -10,8 +10,7 @@ import (
 	"k8s.io/kubernetes/pkg/fields"
 
 	vmtcache "github.com/vmturbo/kubeturbo/pkg/cache"
-	vmtmeta "github.com/vmturbo/kubeturbo/pkg/metadata"
-	"github.com/vmturbo/kubeturbo/pkg/probe"
+	"github.com/vmturbo/kubeturbo/pkg/discovery/probe"
 	"github.com/vmturbo/kubeturbo/pkg/registry"
 	"github.com/vmturbo/kubeturbo/pkg/storage"
 
@@ -20,9 +19,11 @@ import (
 
 // Meta stores VMT Metadata.
 type Config struct {
-	Client        *client.Client
-	Meta          *vmtmeta.VMTMeta
-	EtcdStorage   storage.Storage
+	tapSpec *K8sTAPServiceSpec
+
+	Client      *client.Client
+	EtcdStorage storage.Storage
+
 	NodeQueue     *vmtcache.HashedFIFO
 	PodQueue      *vmtcache.HashedFIFO
 	VMTEventQueue *vmtcache.HashedFIFO
@@ -38,15 +39,16 @@ type Config struct {
 }
 
 // Create a vmturbo config
-func NewVMTConfig(client *client.Client, etcdStorage storage.Storage, meta *vmtmeta.VMTMeta, probeConfig *probe.ProbeConfig) *Config {
+func NewVMTConfig(client *client.Client, etcdStorage storage.Storage, probeConfig *probe.ProbeConfig,
+	spec *K8sTAPServiceSpec) *Config {
 	config := &Config{
+		tapSpec:        spec,
+		ProbeConfig:    probeConfig,
 		Client:         client,
-		Meta:           meta,
 		EtcdStorage:    etcdStorage,
 		NodeQueue:      vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
 		PodQueue:       vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
-		VMTEventQueue:  vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
-		ProbeConfig:    probeConfig,
+		VMTEventQueue:  vmtcache.NewHashedFIFO(registry.VMTEventKeyFunc),
 		StopEverything: make(chan struct{}),
 	}
 

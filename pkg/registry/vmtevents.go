@@ -152,3 +152,13 @@ func (e *VMTEventRegistry) DeleteAll() error {
 	}
 	return nil
 }
+
+func VMTEventKeyFunc(obj interface{}) (string, error) {
+	e, ok := obj.(*VMTEvent)
+	if !ok {
+		return "", fmt.Errorf("Not a VMTEvent")
+	}
+
+	name := e.Name
+	return name, nil
+}

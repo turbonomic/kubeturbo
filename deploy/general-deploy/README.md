@@ -13,29 +13,25 @@ NOTE: this tutorial assumes there is no authentication for kube-apiserver. If th
 
 ### Step One: Create Kubeturbo config
 
-A Kubeturbo config is required for Kubeturbo service to connect to Ops Manager server remotely. You need to specify correct Turbonomic Server address, username and password.
+A Kubeturbo config is required for Kubeturbo service to connect to Ops Manager server remotely. You need to specify correct **Turbonomic Server address**, **username** and **password**.
+**NOTE**: Turbonomic server address is "**IP address of your ops manger**".
 
-The created config should be placed under /etc/kubeturbo/
+Create a file called **"config"** and put it under */etc/kubeturbo/*.
 
 ```json
 {
 	"serveraddress":	"<SERVER_ADDRESS>",
-	"targettype":		"Kubernetes",
-	"nameoraddress":  	"k8s_vmt",
-	"username":		"kubernetes_user",
-	"targetidentifier": 	"my_k8s",
-	"password":		"fake_password",
 	"localaddress":		"http://127.0.0.1/",
-	"websocketusername": 	"vmtRemoteMediation",
-	"websocketpassword": 	"vmtRemoteMediation",
 	"opsmanagerusername": 	"<USER_NAME>",
 	"opsmanagerpassword": 	"<PASSWORD>"
 }
 ```
+you can find an example [here](https://raw.githubusercontent.com/vmturbo/kubeturbo/master/deploy/config)
+
 
 ### Step Two: Create Kubeturbo Mirror Pod
 
-Here you need to get the IP address and port number for the kube-apiserver.
+Make sure you have **config** under */etc/kubeturbo* and you specify the correct **Kubernetes_API_Server_Address** and **ETCD_Servers**.
 
 #### Define Kubeturbo pod
 
@@ -50,7 +46,7 @@ metadata:
 spec:
   containers:
   - name: kubeturbo
-    image: vmturbo/kubeturbo:1.0
+    image: vmturbo/kubeturbo:latest
     command:
       - /bin/kubeturbo
     args:
