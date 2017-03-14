@@ -1,10 +1,6 @@
 package action
 
 import (
-	"errors"
-	"fmt"
-
-	"k8s.io/kubernetes/pkg/api"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/util/wait"
 
@@ -16,6 +12,8 @@ import (
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
+	"errors"
+	"fmt"
 	"github.com/golang/glog"
 	"github.com/vmturbo/kubeturbo/pkg/turbostore"
 )
@@ -38,8 +36,11 @@ func NewActionHandlerConfig(kubeClient *client.Client, broker turbostore.Broker)
 }
 
 type ActionHandler struct {
-	config           *ActionHandlerConfig
-	actionExecutor   *executor.ActionExecutor
+	config *ActionHandlerConfig
+
+	actionExecutors map[turboaction.TurboActionType]executor.TurboActionExecutor
+
+	//actionExecutor   *executor.ActionExecutor
 	actionSupervisor *supervisor.ActionSupervisor
 
 	scheduler *turboscheduler.TurboScheduler
@@ -64,11 +65,11 @@ func NewActionHandler(config *ActionHandlerConfig, scheduler *turboscheduler.Tur
 	supervisorConfig := supervisor.NewActionSupervisorConfig(config.kubeClient, executedActionChan, succeededActionChan, failedActionChan)
 	actionSupervisor := supervisor.NewActionSupervisor(supervisorConfig)
 
-	actionExecutor := executor.NewVMTActionExecutor(config.kubeClient, config.broker, scheduler, executedActionChan)
+	//actionExecutor := executor.NewVMTActionExecutor(config.kubeClient, config.broker, scheduler, executedActionChan)
 
 	handler := &ActionHandler{
 		config:           config,
-		actionExecutor:   actionExecutor,
+		//actionExecutor:   actionExecutor,
 		actionSupervisor: actionSupervisor,
 
 		scheduler: scheduler,
@@ -82,6 +83,15 @@ func NewActionHandler(config *ActionHandlerConfig, scheduler *turboscheduler.Tur
 
 	handler.Start()
 	return handler
+}
+
+func (h *ActionHandler) registerActionExecutors() {
+	reScheduler := executor.NewReScheduler(h.config.kubeClient, h.config.broker)
+	h.actionExecutors[turboaction.ActionMove] = reScheduler
+
+	horizontalScaler := executor.NewHorizontalScaler(h.config.kubeClient, h.config.broker, h.scheduler)
+	h.actionExecutors[turboaction.ActionUnbind] = horizontalScaler
+	h.actionExecutors[turboaction.ActionUnbind] = horizontalScaler
 }
 
 // Start watching successful and failed turbo actions.
@@ -115,6 +125,7 @@ func (h *ActionHandler) getNextFailedVMTEvent() {
 	h.sendActionResult(proto.ActionResponseState_FAILED, progress, "Failed 1")
 }
 
+// Implement ActionExecutorClient interface defined in Go SDK.
 // Execute the current action and return the action result.
 func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionDTO,
 	accountValues []*proto.AccountValue,
@@ -125,98 +136,63 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	actionItemDTO := actionItems[0]
 	h.execute(actionItemDTO)
 
-	glog.Infof("Waiting for result")
 	result := <-h.resultChan
-	glog.Infof("Result is %++v", result)
+	glog.V(4).Infof("Action result is %++v", result)
+	// TODO, currently the code in SDK make it share the actionExecution client between different workers. Once it is changed, need to close the channel.
 	//close(h.config.StopEverything)
 	return result, nil
 }
 
 func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) {
-	//	actionEvent, err := h.actionExecutor.ExecuteAction(actionItem)
-	_, err := h.actionExecutor.ExecuteAction(actionItem)
-
-	if err != nil {
-		glog.Errorf("Error execute action: %s", err)
+	actionType, err := getActionTypeFromActionItemDTO(actionItem)
+	if err!= nil {
+		glog.Errorf("Failed to execute action: %s", err)
 		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), "Failed to execute action")
 		return
 	}
-	//	isOne, err := isOneStageAction(actionEvent)
-	//	if err != nil {
-	//		glog.Errorf("Error execute action: %s", err)
-	//		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), "Failed to check action")
-	//		return
-	//	}
-	//	if isOne {
-	//		// The action is in Executed stage, then send the action to executedChan
-	//		glog.V(4).Infof("Finished executing action %+v, actionEvent")
-	//		h.executedActionChan <- actionEvent
-	//		return
-	//	}
-	//
-	//	// TODO we must make sure there is no NPE
-	//	if actionEvent.Content.TargetObject.TargetObjectType == turboaction.TypePod {
-	//		glog.V(3).Infof("A pod related aciton is in 2nd stage:%++v", actionEvent)
-	//		key := actionEvent.Content.ParentObjectRef.ParentObjectUID
-	//		if key == "" {
-	//			key = actionEvent.Content.TargetObject.TargetObjectUID
-	//		}
-	//		glog.V(3).Infof("the listening key is %s", key)
-	//		podConsumer := turbostore.NewPodConsumer(*actionItem.Uuid, key, h.config.broker)
-	//		p, ok := <-podConsumer.WaitPod()
-	//		if !ok {
-	//			return
-	//		}
-	//		h.HandlePodAction(p, actionEvent)
-	//		glog.Infof("HandlePod action  ends")
-	//		podConsumer.Leave(key, h.config.broker)
-	//		glog.Infof("Pod consumer has unsubscribed.")
-	//	}
-	//	glog.Infof("########### finish execute() #########")
-}
+	executor := h.actionExecutors[actionType]
 
-// Pod is created as a result of Move or Provision action.
-func (h *ActionHandler) HandlePodAction(pod *api.Pod, actionEvent *turboaction.TurboAction) {
-	content := actionEvent.Content
-	actionType := content.ActionType
-	glog.V(3).Infof("Pod %s/%s is related to an %s action", pod.Namespace, pod.Name, actionType)
-
-	var actionExecutionError error
-	switch actionType {
-	case turboaction.ActionMove:
-		moveSpec := content.ActionSpec.(turboaction.MoveSpec)
-		glog.V(2).Infof("Pod %s/%s is to be scheduled to %s as a result of MOVE action",
-			pod.Namespace, pod.Name, moveSpec.Destination)
-
-		moveSpec.NewObjectName = pod.Name
-		content.ActionSpec = moveSpec
-		actionEvent.Content = content
-		err := h.scheduler.ScheduleTo(pod, moveSpec.Destination)
-		if err != nil {
-			glog.Errorf("Error scheduling the moved pod: %s", err)
-			actionExecutionError = fmt.Errorf("Error scheduling the moved pod: %s", err)
-		}
-		break
-	case turboaction.ActionProvision:
-		glog.V(3).Infof("Increase the replicas of %s-%s.", content.ParentObjectRef.ParentObjectType, content.ParentObjectRef.ParentObjectName)
-
-		err := h.scheduler.Schedule(pod)
-		if err != nil {
-			glog.Errorf("Error scheduling the new provisioned pod: %s", err)
-			actionExecutionError = fmt.Errorf("Error scheduling the new provisioned pod: %s", err)
-		}
-		break
-	}
-
-	if actionExecutionError != nil {
-		//send failed chan
-		glog.V(4).Infof("Failed to execute action %+v", actionEvent)
-		h.failedActionChan <- actionEvent
+	action, err := executor.Execute(actionItem)
+	if err != nil {
+		glog.Errorf("Failed to execute action: %s", err)
+		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), "Failed to execute action")
 		return
 	}
-	// send executed chan
-	glog.V(4).Infof("Finished executing action %+v", actionEvent)
-	h.executedActionChan <- actionEvent
+	h.executedActionChan <- action
+}
+
+func getActionTypeFromActionItemDTO(actionItem *proto.ActionItemDTO) (turboaction.TurboActionType, error) {
+	var actionType turboaction.TurboActionType
+
+	if actionItem == nil {
+		return actionType, errors.New("ActionItem received in is null")
+	}
+	glog.V(3).Infof("Receive a %s action request.", actionItem.GetActionType())
+
+	switch actionItem.GetActionType() {
+	case proto.ActionItemDTO_MOVE:
+		// Here we must make sure the TargetSE is a Pod and NewSE is either a VirtualMachine or a PhysicalMachine.
+		if actionItem.GetTargetSE().GetEntityType() == proto.EntityDTO_CONTAINER_POD {
+			// A regular MOVE action
+			actionType = turboaction.ActionMove
+		} else if actionItem.GetTargetSE().GetEntityType() == proto.EntityDTO_VIRTUAL_APPLICATION {
+			// An UnBind action
+			actionType = turboaction.ActionUnbind
+		} else {
+			// NOT Supported
+			return actionType, fmt.Errorf("The service entity to be moved is not a "+
+				"Pod. Got %s", actionItem.GetTargetSE().GetEntityType())
+		}
+		break
+	case proto.ActionItemDTO_PROVISION:
+		// A Provision action
+		actionType = turboaction.ActionProvision
+		break
+	default:
+		return actionType, fmt.Errorf("Action %s not supported", actionItem.GetActionType())
+	}
+
+	return actionType, nil
 }
 
 // Send action response to Turbonomic server.
@@ -234,22 +210,4 @@ func (handler *ActionHandler) sendActionResult(state proto.ActionResponseState, 
 	glog.Infof("Send result to result chan %++v", result)
 	handler.resultChan <- result
 	glog.Infof("Result has been sent and received")
-}
-
-// Check if an action is a one-stage action.
-// One stage action means after executor executes action, the action state is in Executed.
-// If the state is Pending, then it means this action is a two stage action.
-// Executor only finishes part of the required steps for a successful action.
-func isOneStageAction(action *turboaction.TurboAction) (bool, error) {
-	if action == nil {
-		return false, errors.New("action passed in is nil.")
-	}
-	aType := action.Content.ActionType
-	switch aType {
-	case turboaction.ActionUnbind:
-		return true, nil
-	case turboaction.ActionProvision, turboaction.ActionMove:
-		return false, nil
-	}
-	return false, fmt.Errorf("Unknown action type %s", aType)
 }

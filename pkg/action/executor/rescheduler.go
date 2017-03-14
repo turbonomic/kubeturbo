@@ -45,7 +45,7 @@ func (r *ReScheduler) buildPendingReScheduleTurboAction(actionItem *proto.Action
 	error) {
 	// Find out the pod to be re-scheduled.
 	targetPod := actionItem.GetTargetSE()
-	podIdentifier := targetPod.GetId() // podIdentifier must have format as "Namespace/Name"
+	podIdentifier := targetPod.GetId() // podIdentifier must have format as "Namespace:Name"
 	originalPod, err := util.GetPodFromCluster(r.kubeClient, podIdentifier)
 	if err != nil {
 		return nil, fmt.Errorf("Try to move pod %s, but could not find it in the cluster.", podIdentifier)
@@ -122,7 +122,6 @@ func (r *ReScheduler) buildPendingReScheduleTurboAction(actionItem *proto.Action
 
 func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.TurboAction, error) {
 	// 1. Setup consumer
-	glog.V(3).Infof("A pod related aciton is in 2nd stage:%++v", action)
 	actionContent := action.Content
 	// Move destination should not be empty
 	moveSpec, ok := actionContent.ActionSpec.(turboaction.MoveSpec)
@@ -136,9 +135,9 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 	} else if actionContent.TargetObject.TargetObjectUID != "" {
 		key = actionContent.TargetObject.TargetObjectUID
 	} else {
-		return nil, errors.New("Failed to setup re-scheduler consume: failed to retrieve the key.")
+		return nil, errors.New("Failed to setup re-scheduler consumer: failed to retrieve the key.")
 	}
-	glog.V(3).Infof("The current re-scheduler consumer is listening on key %s", key)
+	glog.V(3).Infof("The current re-scheduler consumer is listening on the key %s", key)
 	podConsumer := turbostore.NewPodConsumer(string(action.UID), key, r.broker)
 
 	// 2. Get the target Pod
@@ -176,17 +175,22 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 	if !ok {
 		return nil, errors.New("Failed to receive the pending pod generated as a result of rescheduling.")
 	}
+	podConsumer.Leave(key, r.broker)
 
-	// 6. Update turbo action.
+
+	// 6. Received the pod, start 2nd stage.
+	err = r.reSchedulePodToDestination(p, moveSpec.Destination)
+	if err != nil {
+		return nil, fmt.Errorf("Re-schudeling failed at the 2nd stage: %s", err)
+	}
+
+
+	// 7. Update turbo action.
 	moveSpec.NewObjectName = p.Name
 	moveSpec.NewObjectNamespace = p.Namespace
 	actionContent.ActionSpec = moveSpec
 	action.Content = actionContent
 	action.Status = turboaction.Executed
-
-	// 7. Received the pod, start 2nd stage.
-	r.reSchedulePodToDestination(p, moveSpec.Destination)
-	podConsumer.Leave(key, r.broker)
 
 	return action, nil
 }
