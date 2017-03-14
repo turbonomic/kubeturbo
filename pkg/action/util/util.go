@@ -1,6 +1,7 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,7 +13,6 @@ import (
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
-	"errors"
 	"github.com/golang/glog"
 )
 

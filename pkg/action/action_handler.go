@@ -1,9 +1,13 @@
 package action
 
 import (
+	"errors"
+	"fmt"
+
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/util/wait"
 
+	"github.com/vmturbo/kubeturbo/pkg/turbostore"
 	"github.com/vmturbo/kubeturbo/pkg/action/executor"
 	"github.com/vmturbo/kubeturbo/pkg/action/supervisor"
 	"github.com/vmturbo/kubeturbo/pkg/action/turboaction"
@@ -12,10 +16,8 @@ import (
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
-	"errors"
-	"fmt"
+
 	"github.com/golang/glog"
-	"github.com/vmturbo/kubeturbo/pkg/turbostore"
 )
 
 type ActionHandlerConfig struct {
@@ -40,7 +42,6 @@ type ActionHandler struct {
 
 	actionExecutors map[turboaction.TurboActionType]executor.TurboActionExecutor
 
-	//actionExecutor   *executor.ActionExecutor
 	actionSupervisor *supervisor.ActionSupervisor
 
 	scheduler *turboscheduler.TurboScheduler
@@ -65,11 +66,9 @@ func NewActionHandler(config *ActionHandlerConfig, scheduler *turboscheduler.Tur
 	supervisorConfig := supervisor.NewActionSupervisorConfig(config.kubeClient, executedActionChan, succeededActionChan, failedActionChan)
 	actionSupervisor := supervisor.NewActionSupervisor(supervisorConfig)
 
-	//actionExecutor := executor.NewVMTActionExecutor(config.kubeClient, config.broker, scheduler, executedActionChan)
-
 	handler := &ActionHandler{
 		config:           config,
-		//actionExecutor:   actionExecutor,
+		actionExecutors:  make(map[turboaction.TurboActionType]executor.TurboActionExecutor),
 		actionSupervisor: actionSupervisor,
 
 		scheduler: scheduler,
@@ -81,10 +80,13 @@ func NewActionHandler(config *ActionHandlerConfig, scheduler *turboscheduler.Tur
 		resultChan: make(chan *proto.ActionResult),
 	}
 
+	handler.registerActionExecutors()
 	handler.Start()
 	return handler
 }
 
+// Register supported action executor.
+// As action executor is stateless, they can be safely reused.
 func (h *ActionHandler) registerActionExecutors() {
 	reScheduler := executor.NewReScheduler(h.config.kubeClient, h.config.broker)
 	h.actionExecutors[turboaction.ActionMove] = reScheduler
@@ -94,17 +96,16 @@ func (h *ActionHandler) registerActionExecutors() {
 	h.actionExecutors[turboaction.ActionUnbind] = horizontalScaler
 }
 
-// Start watching successful and failed turbo actions.
+// Start watching succeeded and failed turbo actions.
 // Also start ActionSupervisor to determine the final status of executed VMTEvents.
 func (h *ActionHandler) Start() {
-	go wait.Until(h.getNextSucceededVMTEvent, 0, h.config.StopEverything)
-	go wait.Until(h.getNextFailedVMTEvent, 0, h.config.StopEverything)
+	go wait.Until(h.getNextSucceededTurboAction, 0, h.config.StopEverything)
+	go wait.Until(h.getNextFailedTurboAction, 0, h.config.StopEverything)
 
 	h.actionSupervisor.Start()
-	glog.Infof("Finised Start handler")
 }
 
-func (h *ActionHandler) getNextSucceededVMTEvent() {
+func (h *ActionHandler) getNextSucceededTurboAction() {
 	event := <-h.succeededActionChan
 	glog.V(3).Infof("Succeeded event is %v", event)
 	content := event.Content
@@ -114,7 +115,7 @@ func (h *ActionHandler) getNextSucceededVMTEvent() {
 	h.sendActionResult(proto.ActionResponseState_SUCCEEDED, progress, "Success")
 }
 
-func (h *ActionHandler) getNextFailedVMTEvent() {
+func (h *ActionHandler) getNextFailedTurboAction() {
 	event := <-h.failedActionChan
 
 	glog.V(3).Infof("Failed event is %v", event)
@@ -132,25 +133,30 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	progressTracker sdkprobe.ActionProgressTracker) (*proto.ActionResult, error) {
 
 	actionItems := actionExecutionDTO.GetActionItem()
-	// TODO only deal with one action item.
+	// TODO: only deal with one action item.
 	actionItemDTO := actionItems[0]
 	h.execute(actionItemDTO)
 
 	result := <-h.resultChan
 	glog.V(4).Infof("Action result is %++v", result)
-	// TODO, currently the code in SDK make it share the actionExecution client between different workers. Once it is changed, need to close the channel.
+	// TODO: currently the code in SDK make it share the actionExecution client between different workers. Once it is changed, need to close the channel.
 	//close(h.config.StopEverything)
 	return result, nil
 }
 
 func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) {
 	actionType, err := getActionTypeFromActionItemDTO(actionItem)
-	if err!= nil {
+	if err != nil {
 		glog.Errorf("Failed to execute action: %s", err)
 		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), "Failed to execute action")
 		return
 	}
-	executor := h.actionExecutors[actionType]
+	executor, exist := h.actionExecutors[actionType]
+	if !exist {
+		glog.Errorf("action type %s is not support", actionType)
+		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), "Failed to execute action")
+		return
+	}
 
 	action, err := executor.Execute(actionItem)
 	if err != nil {
@@ -207,7 +213,5 @@ func (handler *ActionHandler) sendActionResult(state proto.ActionResponseState, 
 	result := &proto.ActionResult{
 		Response: response,
 	}
-	glog.Infof("Send result to result chan %++v", result)
 	handler.resultChan <- result
-	glog.Infof("Result has been sent and received")
 }

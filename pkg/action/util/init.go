@@ -8,10 +8,6 @@ import (
 
 var (
 	localTestingFlag bool = false
-
-	actionTestingFlag bool = false
-
-	localTestStitchingIP string = ""
 )
 
 func init() {

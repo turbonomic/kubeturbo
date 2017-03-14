@@ -228,7 +228,7 @@ func (h *HorizontalScaler) horizontalScale(action *turboaction.TurboAction) (*tu
 		return action, nil
 	}
 
-	// 3. Wait for desired pending pod
+	// 4. Wait for desired pending pod
 	// TODO, should we always block here?
 	pod, ok := <-podConsumer.WaitPod()
 	if !ok {
@@ -236,14 +236,14 @@ func (h *HorizontalScaler) horizontalScale(action *turboaction.TurboAction) (*tu
 	}
 	podConsumer.Leave(key, h.broker)
 
-	// 4. Schedule the pod.
+	// 5. Schedule the pod.
 	// TODO: we don't have a destination to provision a pod yet. So here we need to call scheduler. Or we can post back the pod to be scheduled
 	err = h.scheduler.Schedule(pod)
 	if err != nil {
 		return nil, fmt.Errorf("Error scheduling the new provisioned pod: %s", err)
 	}
 
-	// Update turbo action.
+	// 6. Update turbo action.
 	action.Status = turboaction.Executed
 
 	return action, nil

@@ -89,7 +89,10 @@ func (r *ReScheduler) buildPendingReScheduleTurboAction(actionItem *proto.Action
 	// Build action content.
 	var parentObjRef *turboaction.ParentObjectRef
 	// TODO, Ignore error?
-	parentRefObject, _ := probe.FindParentReferenceObject(originalPod)
+	parentRefObject, err := probe.FindParentReferenceObject(originalPod)
+	if err != nil {
+		return nil, err
+	}
 	if parentRefObject != nil {
 		parentObjRef = &turboaction.ParentObjectRef{
 			ParentObjectUID:       string(parentRefObject.UID),
