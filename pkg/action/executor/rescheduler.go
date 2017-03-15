@@ -138,9 +138,11 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 	} else if actionContent.TargetObject.TargetObjectUID != "" {
 		key = actionContent.TargetObject.TargetObjectUID
 	} else {
-		return nil, errors.New("Failed to setup re-scheduler consumer: failed to retrieve the key.")
+		return nil, errors.New("Failed to setup re-scheduler consumer: failed to retrieve the UID of " +
+			"replication controller or replca set.")
 	}
-	glog.V(3).Infof("The current re-scheduler consumer is listening on the key %s", key)
+	glog.V(3).Infof("The current re-scheduler consumer is listening on the any pod created by "+
+		"replication controller or replica set with UID  %s", key)
 	podConsumer := turbostore.NewPodConsumer(string(action.UID), key, r.broker)
 
 	// 2. Get the target Pod
@@ -180,13 +182,11 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 	}
 	podConsumer.Leave(key, r.broker)
 
-
 	// 6. Received the pod, start 2nd stage.
 	err = r.reSchedulePodToDestination(p, moveSpec.Destination)
 	if err != nil {
 		return nil, fmt.Errorf("Re-schudeling failed at the 2nd stage: %s", err)
 	}
-
 
 	// 7. Update turbo action.
 	moveSpec.NewObjectName = p.Name

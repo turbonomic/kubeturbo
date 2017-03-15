@@ -7,15 +7,14 @@ import (
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/util/wait"
 
-	"github.com/vmturbo/kubeturbo/pkg/turbostore"
 	"github.com/vmturbo/kubeturbo/pkg/action/executor"
 	"github.com/vmturbo/kubeturbo/pkg/action/supervisor"
 	"github.com/vmturbo/kubeturbo/pkg/action/turboaction"
 	turboscheduler "github.com/vmturbo/kubeturbo/pkg/scheduler"
+	"github.com/vmturbo/kubeturbo/pkg/turbostore"
 
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-
 
 	"github.com/golang/glog"
 )
@@ -92,7 +91,7 @@ func (h *ActionHandler) registerActionExecutors() {
 	h.actionExecutors[turboaction.ActionMove] = reScheduler
 
 	horizontalScaler := executor.NewHorizontalScaler(h.config.kubeClient, h.config.broker, h.scheduler)
-	h.actionExecutors[turboaction.ActionUnbind] = horizontalScaler
+	h.actionExecutors[turboaction.ActionProvision] = horizontalScaler
 	h.actionExecutors[turboaction.ActionUnbind] = horizontalScaler
 }
 
@@ -154,7 +153,8 @@ func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) {
 	executor, exist := h.actionExecutors[actionType]
 	if !exist {
 		glog.Errorf("action type %s is not support", actionType)
-		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), "Failed to execute action")
+		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0),
+			"Failed to execute action. The action is currently not supported")
 		return
 	}
 

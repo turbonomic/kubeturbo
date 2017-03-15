@@ -78,7 +78,8 @@ func (h *HorizontalScaler) buildPendingScalingTurboAction(actionItem *proto.Acti
 			ParentObjectType:      parentRefObject.Kind,
 		}
 	} else {
-		return nil, errors.New("Cannot automatically scale")
+		return nil, errors.New("Cannot perform auto-scale, please make sure the pod is connected to " +
+			"a replication controller or replica set.")
 	}
 
 	// Get diff and action type according scale in or scale out.
@@ -127,8 +128,8 @@ func (h *HorizontalScaler) buildPendingScalingTurboAction(actionItem *proto.Acti
 
 	// Invalid new replica.
 	if scaleSpec.NewReplicas < 0 {
-		return nil, fmt.Errorf("Cannot scale %s/%s from %d to %d", parentRefObject.Namespace,
-			parentRefObject.Name, scaleSpec.OriginalReplicas, scaleSpec.NewReplicas)
+		return nil, fmt.Errorf("Invalid new replica %d for %s/%s", scaleSpec.NewReplicas,
+			parentRefObject.Namespace, parentRefObject.Name)
 	}
 
 	content := turboaction.NewTurboActionContentBuilder(actionType, targetObject).
@@ -209,9 +210,11 @@ func (h *HorizontalScaler) horizontalScale(action *turboaction.TurboAction) (*tu
 	if actionContent.ParentObjectRef.ParentObjectUID != "" {
 		key = actionContent.ParentObjectRef.ParentObjectUID
 	} else {
-		return nil, errors.New("Failed to setup horizontal scaler consumer: failed to retrieve the key.")
+		return nil, errors.New("Failed to setup horizontal scaler consumer: failed to retrieve the UID of " +
+			"replication controller or replica set.")
 	}
-	glog.V(3).Infof("The current horizontal scaler consumer is listening on the key %s", key)
+	glog.V(3).Infof("The current horizontal scaler consumer is listening on the any pod created by " +
+		"replication controller or replica set with UID  %s", key)
 	podConsumer := turbostore.NewPodConsumer(string(action.UID), key, h.broker)
 
 	// 2. scale up and down by changing the replica of replication controller or deployment.
