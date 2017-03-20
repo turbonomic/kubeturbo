@@ -5,6 +5,12 @@ import (
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
+	"time"
+)
+
+const (
+	// This is the maximum time for action executor
+	secondPhaseTimeoutLimit time.Duration = time.Minute * 5
 )
 
 type TurboActionExecutor interface {

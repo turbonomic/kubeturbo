@@ -175,27 +175,35 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 	}
 
 	// 5. Wait for desired pending pod
-	// TODO, should we always block here?
-	p, ok := <-podConsumer.WaitPod()
-	if !ok {
-		return nil, errors.New("Failed to receive the pending pod generated as a result of rescheduling.")
+	// Set a timer for 5 minutes.
+	t := time.NewTimer(secondPhaseTimeoutLimit)
+	for {
+		select {
+		case p, ok := <-podConsumer.WaitPod():
+			if !ok {
+				return nil, errors.New("Failed to receive the pending pod generated as a result of rescheduling.")
+			}
+			podConsumer.Leave(key, r.broker)
+
+			// 6. Received the pod, start 2nd stage.
+			err = r.reSchedulePodToDestination(p, moveSpec.Destination)
+			if err != nil {
+				return nil, fmt.Errorf("Re-schudeling failed at the 2nd stage: %s", err)
+			}
+
+			// 7. Update turbo action.
+			moveSpec.NewObjectName = p.Name
+			moveSpec.NewObjectNamespace = p.Namespace
+			actionContent.ActionSpec = moveSpec
+			action.Content = actionContent
+			action.Status = turboaction.Executed
+			return action, nil
+
+		case <-t.C:
+		// timeout
+			return nil, errors.New("Timed out at the second phase when try to finish the rescheduling process")
+		}
 	}
-	podConsumer.Leave(key, r.broker)
-
-	// 6. Received the pod, start 2nd stage.
-	err = r.reSchedulePodToDestination(p, moveSpec.Destination)
-	if err != nil {
-		return nil, fmt.Errorf("Re-schudeling failed at the 2nd stage: %s", err)
-	}
-
-	// 7. Update turbo action.
-	moveSpec.NewObjectName = p.Name
-	moveSpec.NewObjectNamespace = p.Namespace
-	actionContent.ActionSpec = moveSpec
-	action.Content = actionContent
-	action.Status = turboaction.Executed
-
-	return action, nil
 }
 
 // Extract the reschedule destination from action and then bind the pod to it.

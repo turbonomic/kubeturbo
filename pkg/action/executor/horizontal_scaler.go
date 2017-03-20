@@ -18,6 +18,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	"time"
 )
 
 type HorizontalScaler struct {
@@ -50,7 +51,7 @@ func (h *HorizontalScaler) buildPendingScalingTurboAction(actionItem *proto.Acti
 	error) {
 	targetSE := actionItem.GetTargetSE()
 	targetEntityType := targetSE.GetEntityType()
-	if targetEntityType != proto.EntityDTO_CONTAINER_POD || targetEntityType != proto.EntityDTO_APPLICATION {
+	if targetEntityType != proto.EntityDTO_CONTAINER_POD && targetEntityType != proto.EntityDTO_APPLICATION {
 		return nil, errors.New("The target service entity for scaling action is " +
 			"neither a Pod nor an Application.")
 	}
@@ -60,6 +61,7 @@ func (h *HorizontalScaler) buildPendingScalingTurboAction(actionItem *proto.Acti
 		return nil, fmt.Errorf("Try to scaling %s, but cannot find a pod related to it in the cluster: %s",
 			targetSE.GetId(), err)
 	}
+	glog.V(3).Infof("Got the provider pod %s/%s", providerPod.Namespace, providerPod.Name)
 
 	targetObject := &turboaction.TargetObject{
 		TargetObjectUID:       string(providerPod.UID),
@@ -113,8 +115,10 @@ func (h *HorizontalScaler) buildPendingScalingTurboAction(actionItem *proto.Acti
 
 	case turboaction.TypeReplicaSet:
 		deployment, err := util.FindDeploymentForPod(h.kubeClient, providerPod)
-		return nil, fmt.Errorf("Failed to find deployment for finishing the scaling "+
-			"action: %s", err)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to find deployment for finishing the scaling "+
+				"action: %s", err)
+		}
 		scaleSpec = turboaction.ScaleSpec{
 			OriginalReplicas: deployment.Spec.Replicas,
 			NewReplicas:      deployment.Spec.Replicas + diff,
@@ -213,8 +217,8 @@ func (h *HorizontalScaler) horizontalScale(action *turboaction.TurboAction) (*tu
 		return nil, errors.New("Failed to setup horizontal scaler consumer: failed to retrieve the UID of " +
 			"replication controller or replica set.")
 	}
-	glog.V(3).Infof("The current horizontal scaler consumer is listening on the any pod created by " +
-		"replication controller or replica set with UID  %s", key)
+	glog.V(3).Infof("The current horizontal scaler consumer is listening on pod created by replication controller"+
+		" or replica set with UID  %s", key)
 	podConsumer := turbostore.NewPodConsumer(string(action.UID), key, h.broker)
 
 	// 2. scale up and down by changing the replica of replication controller or deployment.
@@ -232,24 +236,34 @@ func (h *HorizontalScaler) horizontalScale(action *turboaction.TurboAction) (*tu
 	}
 
 	// 4. Wait for desired pending pod
-	// TODO, should we always block here?
-	pod, ok := <-podConsumer.WaitPod()
-	if !ok {
-		return nil, errors.New("Failed to receive the pending pod generated as a result of rescheduling.")
+	// Set a timeout for 5 minutes.
+	t := time.NewTimer(secondPhaseTimeoutLimit)
+	for {
+		select {
+		case pod, ok := <-podConsumer.WaitPod():
+			if !ok {
+				return nil, errors.New("Failed to receive the pending pod generated as a result of auto scaling.")
+			}
+			podConsumer.Leave(key, h.broker)
+
+			// 5. Schedule the pod.
+			// TODO: we don't have a destination to provision a pod yet. So here we need to call scheduler. Or we can post back the pod to be scheduled
+			err = h.scheduler.Schedule(pod)
+			if err != nil {
+				return nil, fmt.Errorf("Error scheduling the new provisioned pod: %s", err)
+			}
+
+			// 6. Update turbo action.
+			action.Status = turboaction.Executed
+
+			return action, nil
+
+		case <-t.C:
+			// timeout
+			return nil, errors.New("Timed out at the second phase when try to finish the rescheduling process")
+		}
 	}
-	podConsumer.Leave(key, h.broker)
 
-	// 5. Schedule the pod.
-	// TODO: we don't have a destination to provision a pod yet. So here we need to call scheduler. Or we can post back the pod to be scheduled
-	err = h.scheduler.Schedule(pod)
-	if err != nil {
-		return nil, fmt.Errorf("Error scheduling the new provisioned pod: %s", err)
-	}
-
-	// 6. Update turbo action.
-	action.Status = turboaction.Executed
-
-	return action, nil
 }
 
 func (h *HorizontalScaler) updateReplica(targetObject turboaction.TargetObject, parentObjRef turboaction.ParentObjectRef,
