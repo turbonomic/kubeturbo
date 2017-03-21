@@ -15,16 +15,12 @@ import (
 	_ "k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
 
 	kubeturbo "github.com/vmturbo/kubeturbo/pkg"
-	"github.com/vmturbo/kubeturbo/pkg/conversion"
 	"github.com/vmturbo/kubeturbo/pkg/discovery/probe"
 	"github.com/vmturbo/kubeturbo/pkg/helper"
-	"github.com/vmturbo/kubeturbo/pkg/registry"
-	"github.com/vmturbo/kubeturbo/pkg/storage"
-	etcdhelper "github.com/vmturbo/kubeturbo/pkg/storage/etcd"
 
-	etcdclient "github.com/coreos/etcd/client"
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
+	"github.com/vmturbo/kubeturbo/pkg/turbostore"
 )
 
 const (
@@ -77,10 +73,6 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.K8sTAPSpec, "config-path", s.K8sTAPSpec, "The path to the config file.")
 	fs.StringVar(&s.TestingFlagPath, "flag-path", s.TestingFlagPath, "The path to the testing flag.")
 	fs.StringVar(&s.Kubeconfig, "kubeconfig", s.Kubeconfig, "Path to kubeconfig file with authorization and master location information.")
-	fs.StringSliceVar(&s.EtcdServerList, "etcd-servers", s.EtcdServerList, "List of etcd servers to watch (http://ip:port), comma separated. Mutually exclusive with -etcd-config")
-	fs.StringVar(&s.EtcdCA, "cacert", s.EtcdCA, "Path to etcd ca.")
-	fs.StringVar(&s.EtcdClientCertificate, "client-cert", s.EtcdClientCertificate, "Path to etcd client certificate")
-	fs.StringVar(&s.EtcdClientKey, "client-key", s.EtcdClientKey, "Path to etcd client key")
 	fs.StringVar(&s.TurboServerAddress, "serveraddress", s.TurboServerAddress, "Address of Turbo Server")
 	fs.StringVar(&s.TurboServerPort, "serverport", "", "Port of Turbo Server")
 	fs.StringVar(&s.OpsManagerUsername, "opsmanagerusername", s.OpsManagerUsername, "Username for Ops Manager")
@@ -98,10 +90,6 @@ func (s *VMTServer) Run(_ []string) error {
 
 	if s.TestingFlagPath != "" {
 		helper.SetPath(s.TestingFlagPath)
-	}
-
-	if (s.EtcdConfigFile != "" && len(s.EtcdServerList) != 0) || (s.EtcdConfigFile == "" && len(s.EtcdServerList) == 0) {
-		glog.Fatalf("specify either --etcd-servers or --etcd-config")
 	}
 
 	if s.CadvisorPort == 0 {
@@ -143,22 +131,9 @@ func (s *VMTServer) Run(_ []string) error {
 		glog.Errorf("Failed to generate correct TAP config: %s", err)
 		os.Exit(1)
 	}
-
-	etcdClientBuilder := etcdhelper.NewEtcdClientBuilder().ServerList(s.EtcdServerList).SetTransport(s.EtcdCA, s.EtcdClientCertificate, s.EtcdClientKey)
-	etcdClient, err := etcdClientBuilder.CreateAndTest()
-	if err != nil {
-		glog.Errorf("Error creating etcd client instance for vmt service: %s", err)
-		return err
-	}
-
-	s.EtcdPathPrefix = DefaultEtcdPathPrefix
-	etcdStorage, err := newEtcd(etcdClient, s.EtcdPathPrefix)
-	if err != nil {
-		glog.Warningf("Error creating etcd storage instance for vmt service: %s", err)
-		return err
-	}
-
-	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, etcdStorage, probeConfig, k8sTAPSpec)
+	broker := turbostore.NewPodBroker()
+	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, probeConfig, broker, k8sTAPSpec)
+	glog.V(3).Infof("Finished creating turbo configuration: %++v", vmtConfig)
 
 	eventBroadcaster := record.NewBroadcaster()
 	vmtConfig.Recorder = eventBroadcaster.NewRecorder(api.EventSource{Component: "kubeturbo"})
@@ -205,12 +180,4 @@ func (s *VMTServer) Run(_ []string) error {
 
 	glog.Fatal("this statement is unreachable")
 	panic("unreachable")
-}
-
-func newEtcd(client etcdclient.Client, pathPrefix string) (storage.Storage, error) {
-
-	simpleCodec := conversion.NewSimpleCodec()
-	simpleCodec.AddKnownTypes(&registry.VMTEvent{})
-	simpleCodec.AddKnownTypes(&registry.VMTEventList{})
-	return etcdhelper.NewEtcdStorage(client, simpleCodec, pathPrefix), nil
 }

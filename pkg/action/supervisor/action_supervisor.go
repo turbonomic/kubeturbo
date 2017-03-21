@@ -1,197 +1,186 @@
 package supervisor
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
-	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/util/wait"
 
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 
-	vmtcache "github.com/vmturbo/kubeturbo/pkg/cache"
-	"github.com/vmturbo/kubeturbo/pkg/registry"
-	"github.com/vmturbo/kubeturbo/pkg/storage"
+	"github.com/vmturbo/kubeturbo/pkg/action/turboaction"
+	"github.com/vmturbo/kubeturbo/pkg/action/util"
 
 	"github.com/golang/glog"
 )
 
-type EventCheckFunc func(event *registry.VMTEvent) (bool, error)
+type CheckActionFunc func(event *turboaction.TurboAction) (bool, error)
 
 type ActionSupervisorConfig struct {
-	etcdStorage    storage.Storage
-	kubeClient     *client.Client
-	VMTEventQueue  *vmtcache.HashedFIFO
+	kubeClient *client.Client
+
+	// The following three channels are used between action handler and action supervisor to pass action information.
+	executedActionChan  chan *turboaction.TurboAction
+	succeededActionChan chan *turboaction.TurboAction
+	failedActionChan    chan *turboaction.TurboAction
+
 	StopEverything chan struct{}
 }
 
-func NewActionSupervisorConfig(kubeClient *client.Client, etcdStorage storage.Storage) *ActionSupervisorConfig {
+func NewActionSupervisorConfig(kubeClient *client.Client, exeChan, succChan,
+	failedChan chan *turboaction.TurboAction) *ActionSupervisorConfig {
 	config := &ActionSupervisorConfig{
-		etcdStorage: etcdStorage,
-		kubeClient:  kubeClient,
+		kubeClient: kubeClient,
 
-		VMTEventQueue:  vmtcache.NewHashedFIFO(registry.VMTEventKeyFunc),
+		executedActionChan:  exeChan,
+		succeededActionChan: succChan,
+		failedActionChan:    failedChan,
+
 		StopEverything: make(chan struct{}),
 	}
-
-	vmtcache.NewReflector(config.createExecutedVMTEventsLW(), &registry.VMTEvent{},
-		config.VMTEventQueue, 0).RunUntil(config.StopEverything)
 
 	return config
 
 }
 
-func (config *ActionSupervisorConfig) createExecutedVMTEventsLW() *vmtcache.ListWatch {
-	return vmtcache.NewListWatchFromStorage(config.etcdStorage, "vmtevents", api.NamespaceAll,
-		func(obj interface{}) bool {
-			vmtEvent, ok := obj.(*registry.VMTEvent)
-			if !ok {
-				return false
-			}
-			if vmtEvent.Status == registry.Executed {
-				return true
-			}
-			return false
-		})
+// Action supervisor verifies if an executed action succeeds or fails.
+type ActionSupervisor struct {
+	config *ActionSupervisorConfig
 }
 
-// ActionSupervisor verifies if an exectued action succeed or failed.
-type VMTActionSupervisor struct {
-	config           *ActionSupervisorConfig
-	vmtEventRegistry *registry.VMTEventRegistry
-}
+func NewActionSupervisor(config *ActionSupervisorConfig) *ActionSupervisor {
 
-func NewActionSupervisor(config *ActionSupervisorConfig) *VMTActionSupervisor {
-	vmtEventRegistry := registry.NewVMTEventRegistry(config.etcdStorage)
-
-	return &VMTActionSupervisor{
-		config:           config,
-		vmtEventRegistry: vmtEventRegistry,
+	return &ActionSupervisor{
+		config: config,
 	}
 }
 
-func (this *VMTActionSupervisor) Start() {
-	go wait.Until(this.getNextVMTEvent, 0, this.config.StopEverything)
-
+func (s *ActionSupervisor) Start() {
+	go wait.Until(s.getNextExecutedTurboAction, 0, s.config.StopEverything)
 }
 
-func (this *VMTActionSupervisor) getNextVMTEvent() {
-	e, err := this.config.VMTEventQueue.Pop(nil)
-	if err != nil {
-		// TODO
-	}
-	event := e.(*registry.VMTEvent)
-
-	glog.V(3).Infof("Executed event is %v", event)
-	// TODO use agent to verify if the event secceeds
+func (s *ActionSupervisor) getNextExecutedTurboAction() {
+	action := <-s.config.executedActionChan
+	glog.V(3).Infof("Executed action is %v", action)
 	switch {
-	case event.Content.ActionType == "move":
-		this.updateVMTEvent(event, this.checkMoveAction)
-	case event.Content.ActionType == "provision":
-		this.updateVMTEvent(event, this.checkProvisionAction)
-	case event.Content.ActionType == "unbind":
-		this.updateVMTEvent(event, this.checkUnbindAction)
+	case action.Content.ActionType == "move":
+		s.updateAction(action, s.checkMoveAction)
+	case action.Content.ActionType == "provision":
+		s.updateAction(action, s.checkProvisionAction)
+	case action.Content.ActionType == "unbind":
+		s.updateAction(action, s.checkUnbindAction)
 	}
 }
 
-func (this *VMTActionSupervisor) checkMoveAction(event *registry.VMTEvent) (bool, error) {
-	if event.Content.ActionType != "move" {
-		return false, fmt.Errorf("Not a move action")
+func (s *ActionSupervisor) checkMoveAction(action *turboaction.TurboAction) (bool, error) {
+	glog.V(2).Infof("Checking a move action")
+	if action.Content.ActionType != "move" {
+		glog.Error("Not a move action")
+		return false, errors.New("Not a move action")
 	}
-	podName := event.Content.TargetSE
-	podNamespace := event.Namespace
-	podIdentifier := podNamespace + "/" + podName
+	moveSpec := action.Content.ActionSpec.(turboaction.MoveSpec)
+	podName := moveSpec.NewObjectName
+	podNamespace := action.Namespace
+	podIdentifier := util.BuildIdentifier(podNamespace, podName)
 
-	targetPod, err := this.config.kubeClient.Pods(podNamespace).Get(podName)
+	targetPod, err := s.config.kubeClient.Pods(podNamespace).Get(podName)
 	if err != nil {
-		return false, fmt.Errorf("Cannot find pod %s in cluster", podIdentifier)
+		glog.Errorf("Cannot find pod %s: %s", podIdentifier, err)
+		return false, fmt.Errorf("Cannot find pod %s in cluster after a move action", podIdentifier)
 	}
-	moveDestination := event.Content.MoveSpec.Destination
+
+	moveDestination := moveSpec.Destination
 	actualHostingNode := targetPod.Spec.NodeName
 	if actualHostingNode == moveDestination {
+		glog.V(2).Infof("Move action succeeded.")
 		return true, nil
+	} else {
+		glog.Errorf("Move action failed. Incorrect move destination %s", actualHostingNode)
+		return false, nil
 	}
-	return false, nil
 }
 
-func (this *VMTActionSupervisor) checkProvisionAction(event *registry.VMTEvent) (bool, error) {
+func (s *ActionSupervisor) checkProvisionAction(event *turboaction.TurboAction) (bool, error) {
+	glog.V(2).Infof("Checking a provision action.")
 	if event.Content.ActionType != "provision" {
-		return false, fmt.Errorf("Not a provision action")
+		return false, errors.New("Not a provision action")
 	}
-	return this.checkScaleAction(event)
+	return s.checkScaleAction(event)
 }
 
-func (this *VMTActionSupervisor) checkUnbindAction(event *registry.VMTEvent) (bool, error) {
+func (s *ActionSupervisor) checkUnbindAction(event *turboaction.TurboAction) (bool, error) {
+	glog.V(2).Infof("Checking an unbind action")
 	if event.Content.ActionType != "unbind" {
-		return false, fmt.Errorf("Not a unbind action")
+		return false, errors.New("Not a unbind action")
 	}
-	return this.checkScaleAction(event)
+	return s.checkScaleAction(event)
 }
 
-func (this *VMTActionSupervisor) checkScaleAction(event *registry.VMTEvent) (bool, error) {
-	name := event.Content.TargetSE
-	namespace := event.Namespace
-	identifier := namespace + "/" + name
+func (s *ActionSupervisor) checkScaleAction(action *turboaction.TurboAction) (bool, error) {
+	name := action.Content.ParentObjectRef.ParentObjectName
+	namespace := action.Namespace
+	identifier := util.BuildIdentifier(namespace, name)
 
-	targetRC, _ := this.config.kubeClient.ReplicationControllers(namespace).Get(name)
-	targetDeployment, _ := this.config.kubeClient.Deployments(namespace).Get(name)
-
-	if (targetDeployment == nil && targetRC == nil) ||
-		(targetDeployment.Name == "" && targetRC.Name == "") {
-		return false, fmt.Errorf("Cannot find replication controller or deployment %s in cluster", identifier)
-	}
-
-	targetReplicas := event.Content.ScaleSpec.NewReplicas
-	currentReplicas := int32(0)
-	if targetRC != nil && targetRC.Name != "" {
+	var currentReplicas int32
+	switch action.Content.ParentObjectRef.ParentObjectType {
+	case turboaction.TypeReplicationController:
+		targetRC, err := s.config.kubeClient.ReplicationControllers(namespace).Get(name)
+		if err != nil || targetRC == nil {
+			return false, fmt.Errorf("Cannot find replication controller for %s in cluster", identifier)
+		}
 		currentReplicas = targetRC.Spec.Replicas
 		glog.V(4).Infof("currentReplicas from RC is %d", currentReplicas)
-	} else if targetDeployment != nil && targetDeployment.Name != "" {
+		break
+	case turboaction.TypeReplicaSet:
+		targetDeployment, err := s.config.kubeClient.Deployments(namespace).Get(name)
+		if err != nil || targetDeployment == nil {
+			return false, fmt.Errorf("Cannot find deployment for %s in cluster", identifier)
+		}
 		currentReplicas = targetDeployment.Spec.Replicas
 		glog.V(4).Infof("currentReplicas from Deployment is %d", currentReplicas)
+		break
 	}
-	glog.V(4).Infof("replica want %d, is %d", targetReplicas, currentReplicas)
+
+	scaleSpec := action.Content.ActionSpec.(turboaction.ScaleSpec)
+	targetReplicas := scaleSpec.NewReplicas
+	glog.V(4).Infof("replica wanted is %d, current replica is %d", targetReplicas, currentReplicas)
 	if targetReplicas == currentReplicas {
 		return true, nil
 	}
 	return false, nil
 }
 
-func (this *VMTActionSupervisor) updateVMTEvent(event *registry.VMTEvent, checkFunc EventCheckFunc) {
-	successful, err := checkFunc(event)
-	if err != nil {
-		glog.Errorf("Error checking action: %s", err)
-		return
-	}
-	if successful {
-		if err = this.vmtEventRegistry.UpdateStatus(event, registry.Success); err != nil {
-			glog.Errorf("Failed to update event %s status to %s: %s", event.Name, registry.Success, err)
-		}
-		return
-	}
+func (s *ActionSupervisor) updateAction(action *turboaction.TurboAction, checkFunc CheckActionFunc) {
 	// Check if the event has expired. If true, update the status to fail and return;
 	// Otherwise, only update the LastTimestamp.
-	expired := checkExpired(event)
-	glog.Infof("checkExpired result %v", expired)
-	if expired {
-		glog.Errorf("Timeout processing %s event on %s",
-			event.Content.ActionType, event.Content.TargetSE)
-		if err = this.vmtEventRegistry.UpdateStatus(event, registry.Fail); err != nil {
-			glog.Errorf("Failed to update event %s status to %s: %s", event.Name, registry.Fail, err)
+	for !checkExpired(action) {
+		successful, err := checkFunc(action)
+		if err != nil {
+			// TODO: do we want to return?
+			glog.Errorf("Error checking action: %s", err)
 		}
-		return
+		if successful {
+			action.Status = turboaction.Success
+			s.config.succeededActionChan <- action
+			return
+		}
+
+		time.Sleep(time.Second * 1)
+		// update timestamp
+		action.LastTimestamp = time.Now()
 	}
-	time.Sleep(time.Second * 1)
-	if err = this.vmtEventRegistry.UpdateTimestamp(event); err != nil {
-		glog.Errorf("Failed to update timestamp of event %s", event.Name, err)
-	}
+	glog.Errorf("Timeout processing when %s action on %s-%s", action.Content.ActionType,
+		action.Content.TargetObject.TargetObjectType, action.Content.TargetObject.TargetObjectName)
+	action.Status = turboaction.Fail
+	s.config.failedActionChan <- action
 	return
 }
 
-func checkExpired(event *registry.VMTEvent) bool {
+func checkExpired(action *turboaction.TurboAction) bool {
 	now := time.Now()
-	duration := now.Sub(event.LastTimestamp)
-	glog.Infof("Duration is %v", duration)
+	duration := now.Sub(action.FirstTimestamp)
+	glog.V(3).Infof("Duration is %v", duration)
 	if duration > time.Duration(10)*time.Second {
 		return true
 	}

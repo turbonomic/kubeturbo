@@ -1,153 +1,208 @@
 package action
 
 import (
-	"k8s.io/kubernetes/pkg/api"
+	"errors"
+	"fmt"
+
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/util/wait"
 
+	"github.com/vmturbo/kubeturbo/pkg/action/executor"
 	"github.com/vmturbo/kubeturbo/pkg/action/supervisor"
-	vmtcache "github.com/vmturbo/kubeturbo/pkg/cache"
-	"github.com/vmturbo/kubeturbo/pkg/registry"
-	"github.com/vmturbo/kubeturbo/pkg/storage"
+	"github.com/vmturbo/kubeturbo/pkg/action/turboaction"
+	turboscheduler "github.com/vmturbo/kubeturbo/pkg/scheduler"
+	"github.com/vmturbo/kubeturbo/pkg/turbostore"
 
-	comm "github.com/vmturbo/vmturbo-go-sdk/pkg/communication"
-	"github.com/vmturbo/vmturbo-go-sdk/pkg/proto"
+	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 )
 
 type ActionHandlerConfig struct {
-	etcdStorage            storage.Storage
-	kubeClient             *client.Client
-	SucceededVMTEventQueue *vmtcache.HashedFIFO
-	FailedVMTEventQueue    *vmtcache.HashedFIFO
-	StopEverything         chan struct{}
+	kubeClient     *client.Client
+	broker         turbostore.Broker
+	StopEverything chan struct{}
 }
 
-func NewActionHandlerConfig(kubeClient *client.Client, etcdStorage storage.Storage,
-	wsComm *comm.WebSocketCommunicator) *ActionHandlerConfig {
+func NewActionHandlerConfig(kubeClient *client.Client, broker turbostore.Broker) *ActionHandlerConfig {
 	config := &ActionHandlerConfig{
-		etcdStorage: etcdStorage,
-		kubeClient:  kubeClient,
-
-		SucceededVMTEventQueue: vmtcache.NewHashedFIFO(registry.VMTEventKeyFunc),
-		FailedVMTEventQueue:    vmtcache.NewHashedFIFO(registry.VMTEventKeyFunc),
+		kubeClient: kubeClient,
+		broker:     broker,
 
 		StopEverything: make(chan struct{}),
 	}
 
-	vmtcache.NewReflector(config.createSucceededVMTEventsLW(), &registry.VMTEvent{},
-		config.SucceededVMTEventQueue, 0).RunUntil(config.StopEverything)
-	vmtcache.NewReflector(config.createFailedVMTEventsLW(), &registry.VMTEvent{},
-		config.FailedVMTEventQueue, 0).RunUntil(config.StopEverything)
 	return config
-
-}
-
-func (config *ActionHandlerConfig) createSucceededVMTEventsLW() *vmtcache.ListWatch {
-	return vmtcache.NewListWatchFromStorage(config.etcdStorage, "vmtevents", api.NamespaceAll,
-		func(obj interface{}) bool {
-			vmtEvent, ok := obj.(*registry.VMTEvent)
-			if ok && vmtEvent.Status == registry.Success {
-				return true
-			}
-			return false
-		})
-}
-
-func (config *ActionHandlerConfig) createFailedVMTEventsLW() *vmtcache.ListWatch {
-	return vmtcache.NewListWatchFromStorage(config.etcdStorage, "vmtevents", api.NamespaceAll,
-		func(obj interface{}) bool {
-			vmtEvent, ok := obj.(*registry.VMTEvent)
-			if ok && vmtEvent.Status == registry.Fail {
-				return true
-			}
-			return false
-		})
 }
 
 type ActionHandler struct {
-	config           *ActionHandlerConfig
-	actionExecutor   *VMTActionExecutor
-	actionSupervisor *supervisor.VMTActionSupervisor
+	config *ActionHandlerConfig
+
+	actionExecutors map[turboaction.TurboActionType]executor.TurboActionExecutor
+
+	actionSupervisor *supervisor.ActionSupervisor
+
+	scheduler *turboscheduler.TurboScheduler
+
+	// The following three channels are used between action handler and action supervisor to pass action information.
+	// handler -> supervisor
+	executedActionChan chan *turboaction.TurboAction
+	// supervisor -> handler
+	succeededActionChan chan *turboaction.TurboAction
+	// supervisor -> handler
+	failedActionChan chan *turboaction.TurboAction
 
 	resultChan chan *proto.ActionResult
 }
 
-func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
-	supervisorConfig := supervisor.NewActionSupervisorConfig(config.kubeClient, config.etcdStorage)
-	supervisor := supervisor.NewActionSupervisor(supervisorConfig)
+// Build new ActionHandler and start it.
+func NewActionHandler(config *ActionHandlerConfig, scheduler *turboscheduler.TurboScheduler) *ActionHandler {
+	executedActionChan := make(chan *turboaction.TurboAction)
+	succeededActionChan := make(chan *turboaction.TurboAction)
+	failedActionChan := make(chan *turboaction.TurboAction)
 
-	executor := NewVMTActionExecutor(config.kubeClient, config.etcdStorage)
+	supervisorConfig := supervisor.NewActionSupervisorConfig(config.kubeClient, executedActionChan, succeededActionChan, failedActionChan)
+	actionSupervisor := supervisor.NewActionSupervisor(supervisorConfig)
 
-	return &ActionHandler{
+	handler := &ActionHandler{
 		config:           config,
-		actionExecutor:   executor,
-		actionSupervisor: supervisor,
+		actionExecutors:  make(map[turboaction.TurboActionType]executor.TurboActionExecutor),
+		actionSupervisor: actionSupervisor,
+
+		scheduler: scheduler,
+
+		executedActionChan:  executedActionChan,
+		succeededActionChan: succeededActionChan,
+		failedActionChan:    failedActionChan,
 
 		resultChan: make(chan *proto.ActionResult),
 	}
+
+	handler.registerActionExecutors()
+	handler.Start()
+	return handler
 }
 
-// Start watching successful and failed VMTEvents.
-// Also start ActionSupervior to determine the final status of executed VMTEvents.
-func (this *ActionHandler) Start() {
-	go wait.Until(this.getNextSucceededVMTEvent, 0, this.config.StopEverything)
-	go wait.Until(this.getNextFailedVMTEvent, 0, this.config.StopEverything)
+// Register supported action executor.
+// As action executor is stateless, they can be safely reused.
+func (h *ActionHandler) registerActionExecutors() {
+	reScheduler := executor.NewReScheduler(h.config.kubeClient, h.config.broker)
+	h.actionExecutors[turboaction.ActionMove] = reScheduler
 
-	this.actionSupervisor.Start()
+	horizontalScaler := executor.NewHorizontalScaler(h.config.kubeClient, h.config.broker, h.scheduler)
+	h.actionExecutors[turboaction.ActionProvision] = horizontalScaler
+	h.actionExecutors[turboaction.ActionUnbind] = horizontalScaler
 }
 
-func (this *ActionHandler) getNextSucceededVMTEvent() {
-	e, err := this.config.SucceededVMTEventQueue.Pop(nil)
-	if err != nil {
-		//TODO
-	}
-	event := e.(*registry.VMTEvent)
+// Start watching succeeded and failed turbo actions.
+// Also start ActionSupervisor to determine the final status of executed VMTEvents.
+func (h *ActionHandler) Start() {
+	go wait.Until(h.getNextSucceededTurboAction, 0, h.config.StopEverything)
+	go wait.Until(h.getNextFailedTurboAction, 0, h.config.StopEverything)
+
+	h.actionSupervisor.Start()
+}
+
+func (h *ActionHandler) getNextSucceededTurboAction() {
+	event := <-h.succeededActionChan
 	glog.V(3).Infof("Succeeded event is %v", event)
 	content := event.Content
-	msgID := int32(content.VMTMessageID)
-	if msgID > -1 {
-		glog.V(2).Infof("Action %s for %s succeeded.", content.ActionType, content.TargetSE)
-		progress := int32(100)
-		this.sendActionResult(proto.ActionResponseState_SUCCEEDED, progress, msgID, "Success")
-	}
-	// TODO init discovery
+
+	glog.V(2).Infof("Action %s for %s-%s succeeded.", content.ActionType, content.TargetObject.TargetObjectType, content.TargetObject.TargetObjectName)
+	progress := int32(100)
+	h.sendActionResult(proto.ActionResponseState_SUCCEEDED, progress, "Success")
 }
 
-func (this *ActionHandler) getNextFailedVMTEvent() {
-	e, err := this.config.FailedVMTEventQueue.Pop(nil)
-	if err != nil {
-		//TODO
-	}
-	event := e.(*registry.VMTEvent)
+func (h *ActionHandler) getNextFailedTurboAction() {
+	event := <-h.failedActionChan
 
 	glog.V(3).Infof("Failed event is %v", event)
-	// TODO, send back action failed
 	content := event.Content
-	msgID := int32(content.VMTMessageID)
-	if msgID > -1 {
-		glog.V(2).Infof("Action %s for %s failed.", content.ActionType, content.TargetSE)
-		progress := int32(0)
-		this.sendActionResult(proto.ActionResponseState_FAILED, progress, msgID, "Failed")
-	}
-	// TODO init discovery
+
+	glog.V(2).Infof("Action %s for %s-%s failed.", content.ActionType, content.TargetObject.TargetObjectType, content.TargetObject.TargetObjectName)
+	progress := int32(0)
+	h.sendActionResult(proto.ActionResponseState_FAILED, progress, "Failed 1")
 }
 
-func (this *ActionHandler) Execute(actionItem *proto.ActionItemDTO, msgID int32) {
-	_, err := this.actionExecutor.ExcuteAction(actionItem, msgID)
+// Implement ActionExecutorClient interface defined in Go SDK.
+// Execute the current action and return the action result.
+func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionDTO,
+	accountValues []*proto.AccountValue,
+	progressTracker sdkprobe.ActionProgressTracker) (*proto.ActionResult, error) {
+
+	actionItems := actionExecutionDTO.GetActionItem()
+	// TODO: only deal with one action item.
+	actionItemDTO := actionItems[0]
+	h.execute(actionItemDTO)
+
+	result := <-h.resultChan
+	glog.V(4).Infof("Action result is %++v", result)
+	// TODO: currently the code in SDK make it share the actionExecution client between different workers. Once it is changed, need to close the channel.
+	//close(h.config.StopEverything)
+	return result, nil
+}
+
+func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) {
+	actionType, err := getActionTypeFromActionItemDTO(actionItem)
 	if err != nil {
-		glog.Errorf("Error execute action: %s", err)
-		this.sendActionResult(proto.ActionResponseState_FAILED, int32(0), msgID, "Failed")
+		glog.Errorf("Failed to execute action: %s", err)
+		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), "Failed to execute action")
+		return
 	}
+	executor, exist := h.actionExecutors[actionType]
+	if !exist {
+		glog.Errorf("action type %s is not support", actionType)
+		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0),
+			"Failed to execute action. The action is currently not supported")
+		return
+	}
+
+	action, err := executor.Execute(actionItem)
+	if err != nil {
+		glog.Errorf("Failed to execute action: %s", err)
+		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), "Failed to execute action")
+		return
+	}
+	h.executedActionChan <- action
 }
 
-func (handler *ActionHandler) ResultChan() *proto.ActionResult {
-	return <-handler.resultChan
+func getActionTypeFromActionItemDTO(actionItem *proto.ActionItemDTO) (turboaction.TurboActionType, error) {
+	var actionType turboaction.TurboActionType
+
+	if actionItem == nil {
+		return actionType, errors.New("ActionItem received in is null")
+	}
+	glog.V(3).Infof("Receive a %s action request.", actionItem.GetActionType())
+
+	switch actionItem.GetActionType() {
+	case proto.ActionItemDTO_MOVE:
+		// Here we must make sure the TargetSE is a Pod and NewSE is either a VirtualMachine or a PhysicalMachine.
+		if actionItem.GetTargetSE().GetEntityType() == proto.EntityDTO_CONTAINER_POD {
+			// A regular MOVE action
+			actionType = turboaction.ActionMove
+		} else if actionItem.GetTargetSE().GetEntityType() == proto.EntityDTO_VIRTUAL_APPLICATION {
+			// An UnBind action
+			actionType = turboaction.ActionUnbind
+		} else {
+			// NOT Supported
+			return actionType, fmt.Errorf("The service entity to be moved is not a "+
+				"Pod. Got %s", actionItem.GetTargetSE().GetEntityType())
+		}
+		break
+	case proto.ActionItemDTO_PROVISION:
+		// A Provision action
+		actionType = turboaction.ActionProvision
+		break
+	default:
+		return actionType, fmt.Errorf("Action %s not supported", actionItem.GetActionType())
+	}
+
+	return actionType, nil
 }
 
-// Send action response to vmt server.
-func (handler *ActionHandler) sendActionResult(state proto.ActionResponseState, progress, messageID int32, description string) {
+// Send action response to Turbonomic server.
+func (handler *ActionHandler) sendActionResult(state proto.ActionResponseState, progress int32, description string) {
 	// 1. build response
 	response := &proto.ActionResponse{
 		ActionResponseState: &state,
@@ -158,6 +213,5 @@ func (handler *ActionHandler) sendActionResult(state proto.ActionResponseState, 
 	result := &proto.ActionResult{
 		Response: response,
 	}
-
 	handler.resultChan <- result
 }

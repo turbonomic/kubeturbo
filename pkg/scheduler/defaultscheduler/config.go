@@ -1,6 +1,8 @@
 package defaultscheduler
 
 import (
+	"fmt"
+
 	"k8s.io/kubernetes/pkg/api"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	// "k8s.io/kubernetes/pkg/util"
@@ -17,7 +19,7 @@ func createConfigFromDefaultProvider(configFactory *factory.ConfigFactory) (*sch
 	// check of algorithm provider is registered and fail fast
 	_, err := factory.GetAlgorithmProvider(factory.DefaultProvider)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Cannot find provider: %s", err)
 	}
 
 	return configFactory.CreateFromProvider(factory.DefaultProvider)

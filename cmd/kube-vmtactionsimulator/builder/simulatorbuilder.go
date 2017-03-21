@@ -7,24 +7,16 @@ import (
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
 
-	"github.com/vmturbo/kubeturbo/pkg/conversion"
-	"github.com/vmturbo/kubeturbo/pkg/registry"
-	"github.com/vmturbo/kubeturbo/pkg/storage"
-	etcdhelper "github.com/vmturbo/kubeturbo/pkg/storage/etcd"
-
-	etcdclient "github.com/coreos/etcd/client"
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
 )
 
 const (
-	VMTPort               = 10265
-	DefaultEtcdPathPrefix = "/registry"
+	VMTPort = 10265
 )
 
 type ActionSimulator struct {
 	kubeClient         *client.Client
-	etcdStorage        storage.Storage
 	action             string
 	destination        string
 	namespace          string
@@ -37,10 +29,6 @@ type ActionSimulator struct {
 
 func (as *ActionSimulator) KubeClient() *client.Client {
 	return as.kubeClient
-}
-
-func (as *ActionSimulator) Etcd() storage.Storage {
-	return as.etcdStorage
 }
 
 func (as *ActionSimulator) Action() string {
@@ -77,25 +65,19 @@ func (as *ActionSimulator) VirtualApplication() string {
 
 // VMTServer has all the context and params needed to run a Scheduler
 type SimulatorBuilder struct {
-	KubeClient            *client.Client
-	Port                  int
-	Address               net.IP
-	Master                string
-	Kubeconfig            string
-	Namespace             string
-	Pod                   string
-	Application           string
-	VirtualApplication    string
-	Label                 string
-	NewReplica            string
-	Action                string
-	Destination           string
-	EtcdServerList        []string
-	EtcdCA                string
-	EtcdClientCertificate string
-	EtcdClientKey         string
-	EtcdConfigFile        string
-	EtcdPathPrefix        string
+	KubeClient         *client.Client
+	Port               int
+	Address            net.IP
+	Master             string
+	Kubeconfig         string
+	Namespace          string
+	Pod                string
+	Application        string
+	VirtualApplication string
+	Label              string
+	NewReplica         string
+	Action             string
+	Destination        string
 }
 
 //  creates a new VMTServer with default parameters
@@ -108,22 +90,9 @@ func NewSimulatorBuilder() *SimulatorBuilder {
 }
 
 func (s *SimulatorBuilder) Build() (*ActionSimulator, error) {
-	etcdclientBuilder := etcdhelper.NewEtcdClientBuilder().ServerList(s.EtcdServerList).SetTransport(s.EtcdCA, s.EtcdClientCertificate, s.EtcdClientKey)
-	etcdClient, err := etcdclientBuilder.CreateAndTest()
-	if err != nil {
-		glog.Errorf("Error creating etcd client instance for vmt service: %s", err)
-		return nil, err
-	}
-	etcdStorage, err := newEtcd(etcdClient, s.EtcdPathPrefix)
-
-	if err != nil {
-		glog.Warningf("Error creating etcd storage instance for vmt service: %s", err)
-		return nil, err
-	}
 
 	simulator := &ActionSimulator{
-		kubeClient:  s.KubeClient,
-		etcdStorage: etcdStorage,
+		kubeClient: s.KubeClient,
 	}
 
 	if s.Action != "" {
@@ -182,10 +151,6 @@ func (s *SimulatorBuilder) AddFlags(fs *pflag.FlagSet) *SimulatorBuilder {
 	fs.StringVar(&s.NewReplica, "replica", s.NewReplica, "New replica")
 	fs.StringVar(&s.Action, "action", s.Action, "The action to take")
 	fs.StringVar(&s.Destination, "destination", s.Destination, "IP of move destination. For move action exclusively")
-	fs.StringSliceVar(&s.EtcdServerList, "etcd-servers", s.EtcdServerList, "List of etcd servers to watch (http://ip:port), comma separated. Mutually exclusive with -etcd-config")
-	fs.StringVar(&s.EtcdCA, "cacert", s.EtcdCA, "Path to etcd ca.")
-	fs.StringVar(&s.EtcdClientCertificate, "client-cert", s.EtcdClientCertificate, "Path to etcd client certificate")
-	fs.StringVar(&s.EtcdClientKey, "client-key", s.EtcdClientKey, "Path to etcd client key")
 
 	return s
 }
@@ -197,9 +162,6 @@ func (s *SimulatorBuilder) Init(_ []string) *SimulatorBuilder {
 		glog.Warningf("Neither --kubeconfig nor --master was specified.  Using default API client.  This might not work.")
 	}
 
-	if (s.EtcdConfigFile != "" && len(s.EtcdServerList) != 0) || (s.EtcdConfigFile == "" && len(s.EtcdServerList) == 0) {
-		glog.Fatalf("specify either --etcd-servers or --etcd-config")
-	}
 	// This creates a client, first loading any specified kubeconfig
 	// file, and then overriding the Master flag, if non-empty.
 	kubeconfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.Kubeconfig)
@@ -216,15 +178,5 @@ func (s *SimulatorBuilder) Init(_ []string) *SimulatorBuilder {
 	}
 	s.KubeClient = kubeClient
 
-	s.EtcdPathPrefix = DefaultEtcdPathPrefix
-
 	return s
-}
-
-func newEtcd(client etcdclient.Client, pathPrefix string) (etcdStorage storage.Storage, err error) {
-
-	simpleCodec := conversion.NewSimpleCodec()
-	simpleCodec.AddKnownTypes(&registry.VMTEvent{})
-	simpleCodec.AddKnownTypes(&registry.VMTEventList{})
-	return etcdhelper.NewEtcdStorage(client, simpleCodec, pathPrefix), nil
 }
