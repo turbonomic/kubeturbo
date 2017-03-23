@@ -147,21 +147,23 @@ func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) {
 	actionType, err := getActionTypeFromActionItemDTO(actionItem)
 	if err != nil {
 		glog.Errorf("Failed to execute action: %s", err)
-		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), "Failed to execute action")
+		errorMsg := fmt.Sprintf("Failed to execute action: %s", err)
+		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), errorMsg)
 		return
 	}
 	executor, exist := h.actionExecutors[actionType]
 	if !exist {
 		glog.Errorf("action type %s is not support", actionType)
-		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0),
-			"Failed to execute action. The action is currently not supported")
+		errorMsg := fmt.Sprintf("Failed to execute action. The action %s is currently not supported", actionType)
+		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), errorMsg)
 		return
 	}
 
 	action, err := executor.Execute(actionItem)
 	if err != nil {
 		glog.Errorf("Failed to execute action: %s", err)
-		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), "Failed to execute action")
+		errorMsg := fmt.Sprintf("Failed to execute action: %s", err)
+		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), errorMsg)
 		return
 	}
 	h.executedActionChan <- action

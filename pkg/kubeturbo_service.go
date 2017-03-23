@@ -59,7 +59,8 @@ func (v *KubeturboService) Run() {
 func (v *KubeturboService) getNextPod() {
 	p, err := v.config.PodQueue.Pop(nil)
 	if err != nil {
-		// TODO
+		glog.Errorf("Failed to get the pending pod: %s", err)
+		return
 	}
 	pod := p.(*api.Pod)
 	glog.V(3).Infof("Get a new Pod %v", pod.Name)
@@ -84,17 +85,3 @@ func (v *KubeturboService) regularSchedulePod(pod *api.Pod) {
 		glog.Errorf("Scheduling failed: %s", err)
 	}
 }
-
-//
-//// Find Action related to pod in action event repository.
-//func (v *KubeturboService) actionPodFilter(pod *api.Pod) bool {
-//	var uid string
-//	parentRefObject, _ := probe.FindParentReferenceObject(pod)
-//	if parentRefObject != nil {
-//		uid = string(parentRefObject.UID)
-//	} else {
-//		uid = string(pod.UID)
-//	}
-//	_, exist := v.config.turboStore.Get(uid)
-//	return exist
-//}
