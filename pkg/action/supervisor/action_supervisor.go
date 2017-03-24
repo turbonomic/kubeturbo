@@ -133,12 +133,12 @@ func (s *ActionSupervisor) checkScaleAction(action *turboaction.TurboAction) (bo
 		glog.V(4).Infof("currentReplicas from RC is %d", currentReplicas)
 		break
 	case turboaction.TypeReplicaSet:
-		targetDeployment, err := s.config.kubeClient.Deployments(namespace).Get(name)
-		if err != nil || targetDeployment == nil {
-			return false, fmt.Errorf("Cannot find deployment for %s in cluster", identifier)
+		targetReplicaSet, err := s.config.kubeClient.ReplicaSets(namespace).Get(name)
+		if err != nil || targetReplicaSet == nil {
+			return false, fmt.Errorf("Cannot find replica set for %s in cluster", identifier)
 		}
-		currentReplicas = targetDeployment.Spec.Replicas
-		glog.V(4).Infof("currentReplicas from Deployment is %d", currentReplicas)
+		currentReplicas = targetReplicaSet.Spec.Replicas
+		glog.V(4).Infof("current replica of target replica set is %d", currentReplicas)
 		break
 	}
 

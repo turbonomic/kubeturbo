@@ -109,6 +109,10 @@ func (vmtApi *VmtApi) apiPost(postUrl, requestDataString string) (string, error)
 		glog.Errorf("Error getting response: %s", err)
 		return "", err
 	}
+	if resp.StatusCode != 200 {
+		glog.Errorf("Response failed: %s", resp.Status)
+		return "", err
+	}
 	glog.V(4).Infof("Post Succeed: %s", string(respContent))
 
 	defer resp.Body.Close()
@@ -137,6 +141,10 @@ func (vmtApi *VmtApi) apiGet(getUrl string) (string, error) {
 		glog.Errorf("Error getting response: %s", err)
 		return "", err
 	}
+	if resp.StatusCode != 200 {
+		glog.Errorf("Response failed: %s", resp.Status)
+		return "", err
+	}
 	glog.V(4).Infof("Get Succeed: %s", string(respContent))
 	defer resp.Body.Close()
 	return respContent, nil
@@ -161,6 +169,10 @@ func (vmtApi *VmtApi) apiDelete(getUrl string) (string, error) {
 	respContent, err := parseAPICallResponse(resp)
 	if err != nil {
 		glog.Errorf("Error getting response: %s", err)
+		return "", err
+	}
+	if resp.StatusCode != 200 {
+		glog.Errorf("Response failed: %s", resp.Status)
 		return "", err
 	}
 	glog.V(4).Infof("DELETE call Succeed: %s", string(respContent))
