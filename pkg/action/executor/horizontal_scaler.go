@@ -27,7 +27,8 @@ type HorizontalScaler struct {
 	scheduler  *turboscheduler.TurboScheduler
 }
 
-func NewHorizontalScaler(client *client.Client, broker turbostore.Broker, scheduler *turboscheduler.TurboScheduler) *HorizontalScaler {
+func NewHorizontalScaler(client *client.Client, broker turbostore.Broker,
+	scheduler *turboscheduler.TurboScheduler) *HorizontalScaler {
 	return &HorizontalScaler{
 		kubeClient: client,
 		broker:     broker,
@@ -217,8 +218,8 @@ func (h *HorizontalScaler) horizontalScale(action *turboaction.TurboAction) (*tu
 		return nil, errors.New("Failed to setup horizontal scaler consumer: failed to retrieve the UID of " +
 			"replication controller or replica set.")
 	}
-	glog.V(3).Infof("The current horizontal scaler consumer is listening on pod created by replication controller"+
-		" or replica set with UID  %s", key)
+	glog.V(3).Infof("The current horizontal scaler consumer is listening on pod created by replication "+
+		"controller or replica set with UID  %s", key)
 	podConsumer := turbostore.NewPodConsumer(string(action.UID), key, h.broker)
 
 	// 2. scale up and down by changing the replica of replication controller or deployment.
@@ -242,7 +243,8 @@ func (h *HorizontalScaler) horizontalScale(action *turboaction.TurboAction) (*tu
 		select {
 		case pod, ok := <-podConsumer.WaitPod():
 			if !ok {
-				return nil, errors.New("Failed to receive the pending pod generated as a result of auto scaling.")
+				return nil, errors.New("Failed to receive the pending pod generated as a result of " +
+					"auto scaling.")
 			}
 			podConsumer.Leave(key, h.broker)
 
@@ -260,7 +262,8 @@ func (h *HorizontalScaler) horizontalScale(action *turboaction.TurboAction) (*tu
 
 		case <-t.C:
 			// timeout
-			return nil, errors.New("Timed out at the second phase when try to finish the rescheduling process")
+			return nil, errors.New("Timed out at the second phase when try to finish the horizontal scale" +
+				" process")
 		}
 	}
 
@@ -278,7 +281,8 @@ func (h *HorizontalScaler) updateReplica(targetObject turboaction.TargetObject, 
 		rc, err := h.kubeClient.ReplicationControllers(parentObjRef.ParentObjectNamespace).
 			Get(parentObjRef.ParentObjectName)
 		if err != nil {
-			return fmt.Errorf("Failed to find replication controller for finishing the scaling action: %s", err)
+			return fmt.Errorf("Failed to find replication controller for finishing the scaling "+
+				"action: %s", err)
 		}
 		return h.updateReplicationControllerReplicas(rc, scaleSpec.NewReplicas)
 
