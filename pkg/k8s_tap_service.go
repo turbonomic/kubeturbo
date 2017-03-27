@@ -9,13 +9,13 @@ import (
 
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 
-	"github.com/vmturbo/kubeturbo/pkg/discovery"
-	k8sprobe "github.com/vmturbo/kubeturbo/pkg/discovery/probe"
-	"github.com/vmturbo/kubeturbo/pkg/registration"
+	"github.com/turbonomic/kubeturbo/pkg/discovery"
+	k8sprobe "github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/registration"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/service"
-	"github.com/vmturbo/kubeturbo/pkg/action"
+	"github.com/turbonomic/kubeturbo/pkg/action"
 )
 
 type K8sTAPServiceSpec struct {

@@ -8,4 +8,4 @@ sudo -E "./${OUTPUT_DIR}/kubeturbo" \
 	 --serverport="8080" \
 	 --opsmanagerusername="administrator" \
 	 --opsmanagerpassword="a" \
-	 --flag-path="$GOPATH/src/github.com/vmturbo/kubeturbo/examples/vmt_testing_flag.json" > "/tmp/kubeturbo.log" 2>&1 &
+	 --flag-path="$GOPATH/src/github.com/turbonomic/kubeturbo/examples/vmt_testing_flag.json" > "/tmp/kubeturbo.log" 2>&1 &

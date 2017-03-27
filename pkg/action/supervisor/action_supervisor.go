@@ -9,8 +9,8 @@ import (
 
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 
-	"github.com/vmturbo/kubeturbo/pkg/action/turboaction"
-	"github.com/vmturbo/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
+	"github.com/turbonomic/kubeturbo/pkg/action/util"
 
 	"github.com/golang/glog"
 )

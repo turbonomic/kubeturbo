@@ -3,7 +3,7 @@ package monitor
 import (
 	"fmt"
 
-	vmtAdvisor "github.com/vmturbo/kubeturbo/pkg/cadvisor"
+	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
 )
 
 type ServiceMonitor struct{}

@@ -10,9 +10,9 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	utilrand "k8s.io/kubernetes/pkg/util/rand"
 
-	vmtapi "github.com/vmturbo/kubeturbo/pkg/api"
-	"github.com/vmturbo/kubeturbo/pkg/helper"
-	//vmtmeta "github.com/vmturbo/kubeturbo/pkg/metadata"
+	vmtapi "github.com/turbonomic/kubeturbo/pkg/api"
+	"github.com/turbonomic/kubeturbo/pkg/helper"
+	//vmtmeta "github.com/turbonomic/kubeturbo/pkg/metadata"
 
 	"github.com/golang/glog"
 )

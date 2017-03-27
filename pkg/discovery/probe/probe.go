@@ -8,7 +8,7 @@ import (
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 
-	"github.com/vmturbo/kubeturbo/pkg/helper"
+	"github.com/turbonomic/kubeturbo/pkg/helper"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )

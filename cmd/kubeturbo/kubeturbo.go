@@ -24,7 +24,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/logs"
 	"k8s.io/kubernetes/pkg/version/verflag"
 
-	"github.com/vmturbo/kubeturbo/cmd/kubeturbo/app"
+	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"

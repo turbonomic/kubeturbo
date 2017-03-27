@@ -10,8 +10,8 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/metrics"
 
-	"github.com/vmturbo/kubeturbo/pkg/scheduler/defaultscheduler"
-	"github.com/vmturbo/kubeturbo/pkg/scheduler/vmtscheduler"
+	"github.com/turbonomic/kubeturbo/pkg/scheduler/defaultscheduler"
+	"github.com/turbonomic/kubeturbo/pkg/scheduler/vmtscheduler"
 
 	"github.com/golang/glog"
 )

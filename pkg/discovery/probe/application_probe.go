@@ -3,10 +3,10 @@ package probe
 import (
 	"strings"
 
-	vmtAdvisor "github.com/vmturbo/kubeturbo/pkg/cadvisor"
-	"github.com/vmturbo/kubeturbo/pkg/helper"
-	vmtmonitor "github.com/vmturbo/kubeturbo/pkg/monitor"
-	vmtproxy "github.com/vmturbo/kubeturbo/pkg/monitor"
+	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
+	"github.com/turbonomic/kubeturbo/pkg/helper"
+	vmtmonitor "github.com/turbonomic/kubeturbo/pkg/monitor"
+	vmtproxy "github.com/turbonomic/kubeturbo/pkg/monitor"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"

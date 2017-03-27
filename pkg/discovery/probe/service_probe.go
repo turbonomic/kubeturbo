@@ -9,7 +9,7 @@ import (
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/labels"
 
-	"github.com/vmturbo/kubeturbo/pkg/helper"
+	"github.com/turbonomic/kubeturbo/pkg/helper"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
