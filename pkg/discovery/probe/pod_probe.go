@@ -12,13 +12,12 @@ import (
 	"k8s.io/kubernetes/pkg/labels"
 
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
-	"github.com/turbonomic/kubeturbo/pkg/helper"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"github.com/turbonomic/turbo-go-sdk/pkg/supplychain"
 
 	"github.com/golang/glog"
-	"github.com/turbonomic/turbo-go-sdk/pkg/supplychain"
 )
 
 var container2PodMap map[string]string = make(map[string]string)
@@ -239,20 +238,6 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	glog.V(4).Infof("The actual Cpu used value of %s is %f", podNameWithNamespace, podCpuUsed)
 	glog.V(4).Infof("The actual Mem used value of %s is %f", podNameWithNamespace, podMemUsed)
 
-	flag, err := helper.LoadTestingFlag()
-	if err == nil {
-		if flag.ProvisionTestingFlag || flag.DeprovisionTestingFlag {
-			if fakeUtil := flag.FakePodComputeResourceUtil; fakeUtil != 0 {
-				if podCpuUsed < podCpuCapacity*fakeUtil {
-					podCpuUsed = podCpuCapacity * fakeUtil
-				}
-				if podMemUsed < podMemCapacity*fakeUtil {
-					podMemUsed = podMemCapacity * fakeUtil
-				}
-			}
-		}
-	}
-
 	cpuProvisionedUsed, memProvisionedUsed, err := GetResourceRequest(pod)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting provisioned resource consumption: %s", err)
@@ -449,6 +434,7 @@ func updateNodePodMap(nodeName, podID string) {
 // TODO, this needs to be consistent with the hypervisor probe.
 // The correct behavior depends on what kind of IP address the hypervisor probe picks.
 func (podProbe *PodProbe) getIPForStitching(pod *api.Pod) string {
+	// If this is a local test, just return the predefined local testing stitching IP.
 	if localTestingFlag {
 		return localTestStitchingIP
 	}

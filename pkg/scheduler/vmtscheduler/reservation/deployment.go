@@ -11,28 +11,9 @@ import (
 	utilrand "k8s.io/kubernetes/pkg/util/rand"
 
 	vmtapi "github.com/turbonomic/kubeturbo/pkg/api"
-	"github.com/turbonomic/kubeturbo/pkg/helper"
-	//vmtmeta "github.com/turbonomic/kubeturbo/pkg/metadata"
 
 	"github.com/golang/glog"
 )
-
-var (
-	localTestingFlag bool = false
-
-	actionTestingFlag bool = false
-
-	localTestStitchingIP string = ""
-)
-
-func init() {
-	flag, err := helper.LoadTestingFlag()
-	if err != nil {
-		glog.Errorf("Error initialize vmturbo package: %s", err)
-		return
-	}
-	localTestingFlag = flag.LocalTestingFlag
-}
 
 type Reservation struct {
 	TurboServer        string
@@ -76,9 +57,6 @@ func (this *Reservation) GetDestinationFromVmturbo(pod *api.Pod) (map[*api.Pod]s
 	placementMap := make(map[*api.Pod]string)
 	// currently only deal with one pod
 	if nodeName, ok := reservationResult[pod.Name]; ok {
-		if localTestingFlag {
-			nodeName = "127.0.0.1"
-		}
 		placementMap[pod] = nodeName
 	}
 	return placementMap, nil

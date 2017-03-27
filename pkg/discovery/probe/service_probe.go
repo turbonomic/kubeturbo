@@ -9,8 +9,6 @@ import (
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/labels"
 
-	"github.com/turbonomic/kubeturbo/pkg/helper"
-
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
@@ -236,15 +234,6 @@ func getServiceResourceStat(transactionCountMap map[string]float64, podID string
 		glog.V(4).Infof("Transaction bought from pod %s is %d", podID, count)
 	} else {
 		glog.V(4).Infof("No transaction value for applications on pod %s", podID)
-	}
-
-	flag, err := helper.LoadTestingFlag()
-	if err == nil {
-		if flag.ProvisionTestingFlag || flag.DeprovisionTestingFlag {
-			if fakeUtil := flag.FakeTransactionUtil; fakeUtil != 0 {
-				transactionBought = fakeUtil * 1000
-			}
-		}
 	}
 
 	return &ServiceResourceStat{
