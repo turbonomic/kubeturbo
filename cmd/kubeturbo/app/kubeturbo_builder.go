@@ -16,7 +16,7 @@ import (
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
-	"github.com/turbonomic/kubeturbo/pkg/helper"
+	"github.com/turbonomic/kubeturbo/test/flag"
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
@@ -89,7 +89,7 @@ func (s *VMTServer) Run(_ []string) error {
 	glog.V(3).Infof("Master is %s", s.Master)
 
 	if s.TestingFlagPath != "" {
-		helper.SetPath(s.TestingFlagPath)
+		flag.SetPath(s.TestingFlagPath)
 	}
 
 	if s.CadvisorPort == 0 {

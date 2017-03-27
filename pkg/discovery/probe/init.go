@@ -1,19 +1,17 @@
 package probe
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/helper"
+	"github.com/turbonomic/kubeturbo/test/flag"
 
 	"github.com/golang/glog"
 )
 
 var localTestingFlag bool = false
 
-var actionTestingFlag bool = false
-
 var localTestStitchingIP string = ""
 
 func init() {
-	flag, err := helper.LoadTestingFlag()
+	flag, err := flag.LoadTestingFlag()
 	if err != nil {
 		glog.Errorf("Error initialize probe package: %s", err)
 		return

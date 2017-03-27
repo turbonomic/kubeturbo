@@ -7,19 +7,17 @@ import (
 
 	"k8s.io/kubernetes/pkg/api"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
-
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 
 	cadvisor "github.com/google/cadvisor/info/v1"
+
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
-	"github.com/turbonomic/kubeturbo/pkg/helper"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-	//	"github.com/turbonomic/turbo-go-sdk/pkg/supplychain"
 )
 
 const (
@@ -324,6 +322,7 @@ func (nodeProbe *NodeProbe) generateReconcilationMetaData() *proto.EntityDTO_Rep
 
 // Get the correct IP that will be used during the stitching process.
 func (nodeProbe *NodeProbe) getIPForStitching(nodeName string) string {
+	// If this is a local test, just return the predefined local testing stitching IP.
 	if localTestingFlag {
 		return localTestStitchingIP
 	}
@@ -395,19 +394,6 @@ func (this *NodeProbe) getNodeResourceStat(node *api.Node, nodePodsMap map[strin
 		}
 	}
 	cpuProvisionedUsed *= float64(cpuFrequency)
-
-	// this flag is defined at package level, in probe.go
-	flag, err := helper.LoadTestingFlag()
-	if err == nil {
-		if flag.DeprovisionTestingFlag {
-			if fakeUtil := flag.FakeNodeComputeResourceUtil; fakeUtil != 0 {
-
-				cpuUsed = 9600 * fakeUtil
-				memUsed = 4194304 * fakeUtil
-				glog.Infof("fakeUtil is %f, cpuUsed is %f, cpuCapacity is %f", fakeUtil, cpuUsed, nodeCpuCapacity)
-			}
-		}
-	}
 
 	return &NodeResourceStat{
 		vCpuCapacity:           nodeCpuCapacity,

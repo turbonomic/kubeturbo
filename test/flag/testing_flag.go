@@ -1,4 +1,4 @@
-package helper
+package flag
 
 import (
 	"encoding/json"
@@ -6,24 +6,16 @@ import (
 	"os"
 
 	"github.com/golang/glog"
+	"errors"
 )
 
 var (
-	// default flag path
-	flagPath = "./pkg/helper/testing_flag.json"
+	flagPath = ""
 )
 
 type TestingFlag struct {
 	LocalTestingFlag       bool
-	ProvisionTestingFlag   bool
-	DeprovisionTestingFlag bool
 	LocalTestStitchingIP   string
-
-	FakeTransactionUtil         float64
-	FakeNodeComputeResourceUtil float64
-	FakePodComputeResourceUtil  float64
-	FakeApplicationCpuUsed      float64
-	FakeApplicationMemUsed      float64
 }
 
 func SetPath(path string) {
@@ -36,6 +28,10 @@ func SetPath(path string) {
 }
 
 func LoadTestingFlag() (*TestingFlag, error) {
+	if flagPath == "" {
+		glog.V(4).Infof("Not a local testing.")
+		return nil, errors.New("Not a local testing.")
+	}
 	file, err := ioutil.ReadFile(flagPath)
 	if err != nil {
 		glog.V(4).Infof("ERROR! : %v\n", err)
@@ -45,20 +41,4 @@ func LoadTestingFlag() (*TestingFlag, error) {
 	json.Unmarshal(file, &flags)
 	glog.V(5).Infof("Results: %v\n", flags)
 	return &flags, nil
-}
-
-func IsActionTesting() (bool, error) {
-	flag, err := LoadTestingFlag()
-	if err != nil {
-		return false, err
-	}
-	return flag.ProvisionTestingFlag, nil
-}
-
-func IsDeprovisionTesting() (bool, error) {
-	flag, err := LoadTestingFlag()
-	if err != nil {
-		return false, err
-	}
-	return flag.DeprovisionTestingFlag, nil
 }
