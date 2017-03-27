@@ -1,2 +1,3 @@
-cp $GOPATH/src/github.com/turbonomic/kubeturbo/kubeturbo ./kubeturbo
+#!/usr/bin/env bash
+
 docker build -t dongyiyang/kubeturbo:dev .
