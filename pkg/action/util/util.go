@@ -176,12 +176,6 @@ func GetAllNodes(kubeClient *client.Client) ([]api.Node, error) {
 // TODO. We can also create a IP->NodeName map to save time. But it consumes space.
 func GetNodeNameFromIP(kubeClient *client.Client, machineIPs []string) (string, error) {
 	ipAddresses := machineIPs
-	// If just test locally, return the name of local cluster node.
-	if localTestingFlag {
-		glog.V(3).Infof("Local testing. Overrdie IP address of local node")
-		ipAddresses = []string{"127.0.0.1"}
-	}
-
 	allNodes, err := GetAllNodes(kubeClient)
 	if err != nil {
 		return "", err

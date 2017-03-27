@@ -16,7 +16,6 @@ import (
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
-	"github.com/turbonomic/kubeturbo/pkg/helper"
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
@@ -24,10 +23,8 @@ import (
 )
 
 const (
-	// The default port for vmt service server
+	// The default port for TAP service server
 	VMTPort = 10265
-
-	DefaultEtcdPathPrefix = "/registry"
 )
 
 // VMTServer has all the context and params needed to run a Scheduler
@@ -36,7 +33,6 @@ type VMTServer struct {
 	Address               net.IP
 	Master                string
 	K8sTAPSpec            string
-	TestingFlagPath       string
 	Kubeconfig            string
 	BindPodsQPS           float32
 	BindPodsBurst         int
@@ -71,7 +67,6 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.CadvisorPort, "cadvisor-port", 4194, "The port of the cadvisor service runs on")
 	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
 	fs.StringVar(&s.K8sTAPSpec, "config-path", s.K8sTAPSpec, "The path to the config file.")
-	fs.StringVar(&s.TestingFlagPath, "flag-path", s.TestingFlagPath, "The path to the testing flag.")
 	fs.StringVar(&s.Kubeconfig, "kubeconfig", s.Kubeconfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.StringVar(&s.TurboServerAddress, "serveraddress", s.TurboServerAddress, "Address of Turbo Server")
 	fs.StringVar(&s.TurboServerPort, "serverport", "", "Port of Turbo Server")
@@ -87,10 +82,6 @@ func (s *VMTServer) Run(_ []string) error {
 	}
 
 	glog.V(3).Infof("Master is %s", s.Master)
-
-	if s.TestingFlagPath != "" {
-		helper.SetPath(s.TestingFlagPath)
-	}
 
 	if s.CadvisorPort == 0 {
 		s.CadvisorPort = 4194

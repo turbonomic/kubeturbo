@@ -1,10 +1,10 @@
 package probe
 
 import (
+	"fmt"
 	"strings"
 
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
-	"github.com/turbonomic/kubeturbo/pkg/helper"
 	vmtmonitor "github.com/turbonomic/kubeturbo/pkg/monitor"
 	vmtproxy "github.com/turbonomic/kubeturbo/pkg/monitor"
 
@@ -12,7 +12,6 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-	"fmt"
 )
 
 const appPrefix string = "App-"
@@ -117,25 +116,6 @@ func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, 
 	if count, ok := podTransactionCountMap[podName]; ok {
 		transactionUsed = count
 		glog.V(4).Infof("Get transactions value of pod %s, is %f", podName, transactionUsed)
-	}
-
-	flag, err := helper.LoadTestingFlag()
-	if err == nil {
-		if flag.ProvisionTestingFlag {
-			if fakeUtil := flag.FakeTransactionUtil; fakeUtil != 0 {
-				transactionUsed = fakeUtil * transactionCapacity
-			}
-		} else if flag.DeprovisionTestingFlag {
-			if fakeUtil := flag.FakeTransactionUtil; fakeUtil != 0 {
-				transactionUsed = fakeUtil * transactionCapacity
-			}
-			if fakeCpuUsed := flag.FakeApplicationCpuUsed; fakeCpuUsed != 0 {
-				cpuUsage = fakeCpuUsed
-			}
-			if fakeMemUsed := flag.FakeApplicationMemUsed; fakeMemUsed != 0 {
-				memUsage = fakeMemUsed
-			}
-		}
 	}
 
 	return &ApplicationResourceStat{
@@ -292,9 +272,6 @@ func (this *ApplicationProbe) getTransactionFromNode(host *vmtAdvisor.Host) ([]v
 }
 
 func (this *ApplicationProbe) getIPAddress(host *vmtAdvisor.Host, nodeName string) string {
-	if localTestingFlag {
-		return localTestStitchingIP
-	}
 	ipAddress := host.IP
 	if externalIP, ok := nodeName2ExternalIPMap[nodeName]; ok {
 		ipAddress = externalIP
