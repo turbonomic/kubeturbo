@@ -134,8 +134,9 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	actionItems := actionExecutionDTO.GetActionItem()
 	// TODO: only deal with one action item.
 	actionItemDTO := actionItems[0]
-	h.execute(actionItemDTO)
+	go h.execute(actionItemDTO)
 
+	glog.V(3).Infof("Now wait for action result")
 	result := <-h.resultChan
 	glog.V(4).Infof("Action result is %++v", result)
 	// TODO: currently the code in SDK make it share the actionExecution client between different workers. Once it is changed, need to close the channel.
