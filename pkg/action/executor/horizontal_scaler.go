@@ -9,11 +9,11 @@ import (
 	"k8s.io/kubernetes/pkg/apis/extensions"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 
-	"github.com/vmturbo/kubeturbo/pkg/action/turboaction"
-	"github.com/vmturbo/kubeturbo/pkg/action/util"
-	"github.com/vmturbo/kubeturbo/pkg/discovery/probe"
-	turboscheduler "github.com/vmturbo/kubeturbo/pkg/scheduler"
-	"github.com/vmturbo/kubeturbo/pkg/turbostore"
+	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
+	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	turboscheduler "github.com/turbonomic/kubeturbo/pkg/scheduler"
+	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 

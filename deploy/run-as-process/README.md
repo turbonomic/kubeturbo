@@ -9,7 +9,7 @@ This example requires a running Kubernetes cluster. First check the current clus
 $ kubectl cluster-info
 ```
 
-NOTE: this tutorial assumes there is no authentication for kube-apiserver. If there is authentication configured, please referred to the guide for [deploying Kubeturbo on AWS](https://github.com/vmturbo/kubeturbo/blob/master/deploy/kubeturbo-for-aws/README.md#step-one-create-kubeconfig) to create a valid kubeconfig and put it under */etc/kubeturbo*.
+NOTE: this tutorial assumes there is no authentication for kube-apiserver. If there is authentication configured, please referred to the guide for [deploying Kubeturbo on AWS](https://github.com/turbonomic/kubeturbo/blob/master/deploy/kubeturbo-for-aws/README.md#step-one-create-kubeconfig) to create a valid kubeconfig and put it under */etc/kubeturbo*.
 
 ### Step One: Create Kubeturbo config
 
@@ -30,7 +30,7 @@ you can find an example [here](https://raw.githubusercontent.com/vmturbo/kubetur
 
 ### Step Two: Get Kubeturbo Binary
 
-Kubeturbo binary can be downloaded [here](https://github.com/vmturbo/kubeturbo/raw/master/deploy/run-as-process/kubeturbo).
+Kubeturbo binary can be downloaded [here](https://github.com/turbonomic/kubeturbo/raw/master/deploy/run-as-process/kubeturbo).
 
 ### Step Three:  Run Kubeturbo
 

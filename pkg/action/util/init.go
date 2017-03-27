@@ -1,7 +1,7 @@
 package util
 
 import (
-	"github.com/vmturbo/kubeturbo/pkg/helper"
+	"github.com/turbonomic/kubeturbo/pkg/helper"
 
 	"github.com/golang/glog"
 )

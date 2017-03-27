@@ -7,11 +7,11 @@ import (
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/util/wait"
 
-	"github.com/vmturbo/kubeturbo/pkg/action/executor"
-	"github.com/vmturbo/kubeturbo/pkg/action/supervisor"
-	"github.com/vmturbo/kubeturbo/pkg/action/turboaction"
-	turboscheduler "github.com/vmturbo/kubeturbo/pkg/scheduler"
-	"github.com/vmturbo/kubeturbo/pkg/turbostore"
+	"github.com/turbonomic/kubeturbo/pkg/action/executor"
+	"github.com/turbonomic/kubeturbo/pkg/action/supervisor"
+	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
+	turboscheduler "github.com/turbonomic/kubeturbo/pkg/scheduler"
+	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"

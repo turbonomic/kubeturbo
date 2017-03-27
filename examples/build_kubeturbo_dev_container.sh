@@ -1,2 +1,2 @@
-cp $GOPATH/src/github.com/vmturbo/kubeturbo/kubeturbo ./kubeturbo
+cp $GOPATH/src/github.com/turbonomic/kubeturbo/kubeturbo ./kubeturbo
 docker build -t dongyiyang/kubeturbo:dev .

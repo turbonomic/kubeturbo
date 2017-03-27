@@ -4,12 +4,12 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/util/wait"
 
-	"github.com/vmturbo/kubeturbo/pkg/action"
-	turboscheduler "github.com/vmturbo/kubeturbo/pkg/scheduler"
+	"github.com/turbonomic/kubeturbo/pkg/action"
+	turboscheduler "github.com/turbonomic/kubeturbo/pkg/scheduler"
 
 	"github.com/golang/glog"
-	"github.com/vmturbo/kubeturbo/pkg/discovery/probe"
-	"github.com/vmturbo/kubeturbo/pkg/turbostore"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 )
 
 type KubeturboService struct {

@@ -8,9 +8,9 @@ import (
 	"k8s.io/kubernetes/pkg/version/verflag"
 	_ "k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
 
-	"github.com/vmturbo/kubeturbo/cmd/kube-vmtactionsimulator/builder"
-	vmtaction "github.com/vmturbo/kubeturbo/pkg/action"
-	turboscheduler "github.com/vmturbo/kubeturbo/pkg/scheduler"
+	"github.com/turbonomic/kubeturbo/cmd/kube-vmtactionsimulator/builder"
+	vmtaction "github.com/turbonomic/kubeturbo/pkg/action"
+	turboscheduler "github.com/turbonomic/kubeturbo/pkg/scheduler"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"

@@ -1,7 +1,7 @@
 package executor
 
 import (
-	"github.com/vmturbo/kubeturbo/pkg/action/turboaction"
+	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 

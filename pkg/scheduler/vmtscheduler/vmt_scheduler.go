@@ -2,7 +2,7 @@ package vmtscheduler
 
 import (
 	"k8s.io/kubernetes/pkg/api"
-	"github.com/vmturbo/kubeturbo/pkg/scheduler/vmtscheduler/reservation"
+	"github.com/turbonomic/kubeturbo/pkg/scheduler/vmtscheduler/reservation"
 	// "github.com/golang/glog"
 )
 

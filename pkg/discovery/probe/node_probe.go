@@ -12,8 +12,8 @@ import (
 	"k8s.io/kubernetes/pkg/labels"
 
 	cadvisor "github.com/google/cadvisor/info/v1"
-	vmtAdvisor "github.com/vmturbo/kubeturbo/pkg/cadvisor"
-	"github.com/vmturbo/kubeturbo/pkg/helper"
+	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
+	"github.com/turbonomic/kubeturbo/pkg/helper"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"

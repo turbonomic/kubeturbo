@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/vmturbo/kubeturbo",
+	"ImportPath": "github.com/turbonomic/kubeturbo",
 	"GoVersion": "go1.7",
 	"GodepVersion": "v79",
 	"Packages": [

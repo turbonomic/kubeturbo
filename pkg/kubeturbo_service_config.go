@@ -7,9 +7,9 @@ import (
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/fields"
 
-	vmtcache "github.com/vmturbo/kubeturbo/pkg/cache"
-	"github.com/vmturbo/kubeturbo/pkg/discovery/probe"
-	"github.com/vmturbo/kubeturbo/pkg/turbostore"
+	vmtcache "github.com/turbonomic/kubeturbo/pkg/cache"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 )
 
 // Meta stores VMT Metadata.

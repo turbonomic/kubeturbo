@@ -8,10 +8,10 @@ import (
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
-	"github.com/vmturbo/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 
 	"github.com/golang/glog"
-	"github.com/vmturbo/kubeturbo/pkg/registration"
+	"github.com/turbonomic/kubeturbo/pkg/registration"
 	"fmt"
 )
 

@@ -14,13 +14,13 @@ import (
 	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
 	_ "k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
 
-	kubeturbo "github.com/vmturbo/kubeturbo/pkg"
-	"github.com/vmturbo/kubeturbo/pkg/discovery/probe"
-	"github.com/vmturbo/kubeturbo/pkg/helper"
+	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/helper"
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
-	"github.com/vmturbo/kubeturbo/pkg/turbostore"
+	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 )
 
 const (
