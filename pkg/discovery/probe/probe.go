@@ -8,8 +8,6 @@ import (
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 
-	"github.com/turbonomic/kubeturbo/pkg/helper"
-
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
@@ -25,12 +23,6 @@ type KubeProbe struct {
 
 // Create a new Kubernetes probe with the given kube client.
 func NewKubeProbe(kubeClient *client.Client, config *ProbeConfig) (*KubeProbe, error) {
-	// TODO: for local testing
-	flag, err := helper.LoadTestingFlag()
-	if err == nil && flag.LocalTestStitchingIP != "" {
-		localTestStitchingIP = flag.LocalTestStitchingIP
-	}
-
 	// First try to get cluster ID.
 	if ClusterID == "" {
 		id, err := getClusterID(kubeClient)
