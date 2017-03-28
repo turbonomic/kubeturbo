@@ -91,7 +91,7 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 		return nil, fmt.Errorf("Kubenetes client is nil, error")
 	}
 
-	kubeProbe, err := probe.NewKubeProbe(dc.config.kubeClient, dc.config.probeConfig)
+	kubeProbe, err := probe.NewK8sProbe(dc.config.kubeClient, dc.config.probeConfig)
 	if err != nil {
 		// TODO make error dto
 		return nil, fmt.Errorf("Error creating Kubernetes discovery probe.")
