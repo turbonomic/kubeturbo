@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 docker run -d --net=host --restart=always          \
                 gcr.io/google_containers/kube2sky:1.11           \
                 -v=10 -logtostderr=true -domain=kubernetes.local \

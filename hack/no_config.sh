@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 OUTPUT_DIR=${OUTPUT_DIR:-"_output"}
 
 sudo -E "./${OUTPUT_DIR}/kubeturbo" \
