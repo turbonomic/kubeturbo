@@ -40,7 +40,6 @@ type NodeProbe struct {
 	nodeIPMap map[string]map[api.NodeAddressType]string
 }
 
-// Since this is only used in probe package, do not expose it.
 func NewNodeProbe(accessor ClusterAccessor, config *ProbeConfig) *NodeProbe {
 	return &NodeProbe{
 		nodesAccessor: accessor,
