@@ -11,6 +11,7 @@ import (
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 )
 
 const (
@@ -24,15 +25,23 @@ const (
 )
 
 type KubeletMonitorConfig struct {
+	monitorType types.MonitorType
+	source      types.MonitoringSource
+
 	*kubeletclient.KubeletClientConfig
 }
 
 // Implement MonitoringWorkerConfig interface.
-func (*KubeletMonitorConfig) isMonitorWorkerConfig() {}
+func (c KubeletMonitorConfig) GetMonitorType() types.MonitorType {
+	return c.monitorType
+}
+func (c KubeletMonitorConfig) GetMonitoringSource() types.MonitoringSource {
+	return c.source
+}
 
 //
 // TODO Add port and https later.
-func GetKubeConfigs(kubeConfig *restclient.Config) (*kubeletclient.KubeletClientConfig, error) {
+func NewKubeletMonitorConfig(kubeConfig *restclient.Config) (*KubeletMonitorConfig, error) {
 
 	kubeletPort := defaultKubeletPort
 	kubeletHttps := defaultKubeletHttps
@@ -45,5 +54,10 @@ func GetKubeConfigs(kubeConfig *restclient.Config) (*kubeletclient.KubeletClient
 		BearerToken:     kubeConfig.BearerToken,
 	}
 
-	return kubeletConfig, nil
+	return &KubeletMonitorConfig{
+		monitorType: types.ResourceMonitor,
+		source:      types.KubeletSource,
+
+		KubeletClientConfig: kubeletConfig,
+	}, nil
 }

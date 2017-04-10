@@ -257,7 +257,7 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeID, displayName string, commodi
 	})
 	glog.V(4).Infof("Parse node: The ip of vm to be reconcile with is %s", ipAddress)
 
-	metaData := generateReconcilationMetaData()
+	metaData := generateReconciliationMetaData()
 	entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
 
 	entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
@@ -271,7 +271,7 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeID, displayName string, commodi
 }
 
 // Create the meta data that will be used during the reconciliation process.
-func generateReconcilationMetaData() *proto.EntityDTO_ReplacementEntityMetaData {
+func generateReconciliationMetaData() *proto.EntityDTO_ReplacementEntityMetaData {
 	replacementEntityMetaDataBuilder := builder.NewReplacementEntityMetaDataBuilder()
 	replacementEntityMetaDataBuilder.Matching(proxyVMIP)
 	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_CPU_ALLOCATION)

@@ -10,33 +10,42 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 
+	"errors"
 	"github.com/golang/glog"
 	"github.com/pborman/uuid"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
-const (
-	milliToUnit = 1E3
-)
+
 
 type k8sDiscoveryWorkerConfig struct {
-	kubeConfig             *restclient.Config
-	monitoringWorkerConfig monitoring.MonitorWorkerConfig
-	monitorSource          string
+	kubeConfig *restclient.Config
+
+	monitoringSourceConfigs map[types.MonitorType][]monitoring.MonitorWorkerConfig
 }
 
-func NewK8sDiscoveryWorkerConfig(kubeConfig *restclient.Config, source string) *k8sDiscoveryWorkerConfig {
-
+func NewK8sDiscoveryWorkerConfig(kubeConfig *restclient.Config) *k8sDiscoveryWorkerConfig {
 	return &k8sDiscoveryWorkerConfig{
-		kubeConfig:    kubeConfig,
-		monitorSource: source,
+		kubeConfig:              kubeConfig,
+		monitoringSourceConfigs: make(map[types.MonitorType][]monitoring.MonitorWorkerConfig),
 	}
 }
 
-func (c *k8sDiscoveryWorkerConfig) SetMonitoringWorkerConfig(config monitoring.MonitorWorkerConfig) *k8sDiscoveryWorkerConfig {
-	c.monitoringWorkerConfig = config
+func (c *k8sDiscoveryWorkerConfig) WithMonitoringWorkerConfig(config monitoring.MonitorWorkerConfig) *k8sDiscoveryWorkerConfig {
+	monitorType := config.GetMonitorType()
+	configs, exist := c.monitoringSourceConfigs[monitorType]
+	if !exist {
+		configs = []monitoring.MonitorWorkerConfig{}
+	}
+
+	configs = append(configs, config)
+	c.monitoringSourceConfigs[monitorType] = configs
+
 	return c
 }
 
@@ -46,10 +55,12 @@ type k8sDiscoveryWorker struct {
 	//clusterAccessor probe.ClusterAccessor
 	kubeClient *client.Client
 
-	monitoringWorker monitoring.MonitoringWorker
+	monitoringWorker map[types.MonitorType][]monitoring.MonitoringWorker
+
+	sink *metrics.EntityMetricSink
 
 	// Currently a worker only receives one task at a time.
-	task task.WorkerTask
+	task *task.Task
 }
 
 func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig) (*k8sDiscoveryWorker, error) {
@@ -60,19 +71,38 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig) (*k8sDiscoveryWorke
 		return nil, fmt.Errorf("Invalid API configuration: %v", err)
 	}
 
-	monitoringWorker, err := monitoring.BuildMonitorWorker(config.monitorSource, config.monitoringWorkerConfig)
-	if err != nil {
-		return nil, fmt.Errorf("Invalid monitoring worker configuration: %v", err)
+	if len(config.monitoringSourceConfigs) == 0 {
+		return nil, errors.New("No monitoring source config found in config.")
+	}
+
+	// Build all the monitoring worker based on configs.
+	monitoringWorkerMap := make(map[types.MonitorType][]monitoring.MonitoringWorker)
+	for monitorType, configList := range config.monitoringSourceConfigs {
+		monitorList, exist := monitoringWorkerMap[monitorType]
+		if !exist {
+			monitorList = []monitoring.MonitoringWorker{}
+		}
+		for _, config := range configList {
+			monitoringWorker, err := monitoring.BuildMonitorWorker(config.GetMonitoringSource(), config)
+			if err != nil {
+				// TODO return?
+				glog.Errorf("Failed to build monitoring worker configuration: %v", err)
+				continue
+			}
+			monitorList = append(monitorList, monitoringWorker)
+		}
+		monitoringWorkerMap[monitorType] = monitorList
 	}
 
 	return &k8sDiscoveryWorker{
 		id:               id,
 		kubeClient:       kubeClient,
-		monitoringWorker: monitoringWorker,
-	}
+		monitoringWorker: monitoringWorkerMap,
+		sink:             metrics.NewEntityMetricSink(),
+	}, nil
 }
 
-func (worker *k8sDiscoveryWorker) AssignTask(task *task.WorkerTask) error {
+func (worker *k8sDiscoveryWorker) AssignTask(task *task.Task) error {
 	if worker.task != nil {
 		return fmt.Errorf("The current worker %s has already been assigned a task and has not finished yet", worker.id)
 	}
@@ -87,24 +117,34 @@ func (worker *k8sDiscoveryWorker) Do() {
 		return
 	}
 
-	sink := metrics.NewMetricSink()
-	sink.RegisterSinkForEntityType(task.NodeType)
-	sink.RegisterSinkForEntityType(task.PodType)
-	// Init metric sink. The same metric sink will be used by monitoring and topology discovery.
-	worker.monitoringWorker.InitMetricSink(sink)
-	// Assign task to monitoring worker.
-	worker.monitoringWorker.AssignTask(worker.task)
-	// TODO redefine the interface method, how to get data back.
-	worker.monitoringWorker.RetrieveResourceStat()
+	err := worker.findClusterID()
+
+	// Resource monitoring
+	resourceMonitorTask := worker.task
+	if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.ResourceMonitor]; exist {
+		for _, rmWorker := range resourceMonitoringWorkers {
+			// Assign task to monitoring worker.
+			rmWorker.AssignTask(resourceMonitorTask)
+			monitoringSink := rmWorker.Do()
+			// Don't do any filtering
+			worker.sink.MergeSink(monitoringSink, nil)
+		}
+	}
 
 	// Get all pods in the task scope
-	pods := worker.findPodsRunningInTaskNodes()
+	//pods := worker.findPodsRunningInTaskNodes()
 
-	// Get Capacity for nodes, pods.
-	findNodeResourceCapacity(worker.task.NodeList(), sink)
-	findPodResourceCapacity(pods, sink)
-
-	// Get Additional Attribute
+	// Topology monitoring
+	clusterMonitorTask := worker.task
+	if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.StateMonitor]; exist {
+		for _, smWorker := range resourceMonitoringWorkers {
+			// Assign task to monitoring worker.
+			smWorker.AssignTask(clusterMonitorTask)
+			monitoringSink := smWorker.Do()
+			// Don't do any filtering
+			worker.sink.MergeSink(monitoringSink, nil)
+		}
+	}
 
 	// Build EntityDTO
 
@@ -112,82 +152,177 @@ func (worker *k8sDiscoveryWorker) Do() {
 
 }
 
+func (worker *k8sDiscoveryWorker) getNodeCommoditiesSold(node api.Node) ([]*proto.CommodityDTO, error) {
+	var commoditiesSold []*proto.CommodityDTO
+	key := util.NodeKeyFunc(node)
+
+	resourceCommoditiesSold, err := worker.getResourceCommoditiesSold(task.NodeType, key, rTypeMapping)
+	if err != nil {
+		return nil, err
+	}
+	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
+
+	// VMPM_ACCESS
+	labelMetricUID := metrics.GenerateEntityStateMetricUID(task.NodeType, key, metrics.Access)
+	labelMetric, err := worker.sink.GetMetric(labelMetricUID)
+	if err != nil {
+		glog.Errorf("Failed to get %s used for %s %s", metrics.Access, task.NodeType, key)
+	} else {
+		labelPairs, ok := labelMetric.GetValue().([]string)
+		if !ok {
+			glog.Errorf("Failed to get label pairs for %s %s", task.NodeType, key)
+		}
+		for _, label := range labelPairs {
+			accessComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
+				Key(label).
+				Capacity(1E10).
+				Create()
+			if err != nil {
+				return nil, err
+			}
+
+			commoditiesSold = append(commoditiesSold, accessComm)
+		}
+	}
+
+	// APPLICATION
+	appComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
+		Key(key).
+		Capacity(1E10).
+		Create()
+	if err != nil {
+		return nil, err
+	}
+	commoditiesSold = append(commoditiesSold, appComm)
+
+	// CLUSTER
+	// Use Kubernetes service UID as the key for cluster commodity
+	clusterCommodityKey, err := getClusterID(worker.kubeClient)
+	if err != nil {
+		glog.Error("Failed to get cluster ID")
+	} else {
+		clusterComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
+			Key(clusterCommodityKey).
+			Capacity(1E10).
+			Create()
+		if err != nil {
+			return nil, err
+		}
+		commoditiesSold = append(commoditiesSold, clusterComm)
+	}
+
+	return commoditiesSold, nil
+}
+
+func (worker *k8sDiscoveryWorker) getResourceCommoditiesSold(entityType task.DiscoveredEntityType, entityID string,
+	rTypesMapping map[metrics.ResourceType]proto.CommodityDTO_CommodityType) ([]*proto.CommodityDTO, error) {
+	var resourceCommoditiesSold []*proto.CommodityDTO
+	for rType, cType := range rTypesMapping {
+		usedMetricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, rType, metrics.Used)
+		usedMetric, err := worker.sink.GetMetric(usedMetricUID)
+		if err != nil {
+			// TODO return?
+			glog.Errorf("Failed to get %s used for %s %s", rType, entityType, entityID)
+			continue
+		}
+		usedValue := usedMetric.GetValue().(float64)
+
+		capacityUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, rType, metrics.Capacity)
+		capacityMetric, err := worker.sink.GetMetric(capacityUID)
+		if err != nil {
+			// TODO return?
+			glog.Errorf("Failed to get %s capacity for %s %s", rType, entityType, entityID)
+			continue
+		}
+		vcpuCapacityValue := capacityMetric.GetValue().(float64)
+
+		commSold, err := builder.NewCommodityDTOBuilder(cType).
+			Capacity(vcpuCapacityValue).
+			Used(usedValue).
+			Create()
+		if err != nil {
+			// TODO return?
+			return nil, err
+		}
+		resourceCommoditiesSold = append(resourceCommoditiesSold, commSold)
+	}
+	return resourceCommoditiesSold, nil
+}
+
+func (worker *k8sDiscoveryWorker) getResourceCommoditiesBought(entityType task.DiscoveredEntityType, entityID string,
+	rTypesMapping map[metrics.ResourceType]proto.CommodityDTO_CommodityType) ([]*proto.CommodityDTO, error) {
+	var resourceCommoditiesSold []*proto.CommodityDTO
+	for rType, cType := range rTypesMapping {
+		usedMetricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, rType, metrics.Used)
+		usedMetric, err := worker.sink.GetMetric(usedMetricUID)
+		if err != nil {
+			// TODO return?
+			glog.Errorf("Failed to get %s used for %s %s", rType, entityType, entityID)
+			continue
+		}
+		usedValue := usedMetric.GetValue().(float64)
+
+		commSold, err := builder.NewCommodityDTOBuilder(cType).
+			Used(usedValue).
+			Create()
+		if err != nil {
+			// TODO return?
+			return nil, err
+		}
+		resourceCommoditiesSold = append(resourceCommoditiesSold, commSold)
+	}
+	return resourceCommoditiesSold, nil
+}
+//
+func (worker *k8sDiscoveryWorker) buildVMEntityDTO(nodeID, displayName string, commoditiesSold []*proto.CommodityDTO) (*proto.EntityDTO, error) {
+	entityDTOBuilder := builder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_MACHINE, nodeID)
+	entityDTOBuilder.DisplayName(displayName)
+	entityDTOBuilder.SellsCommodities(commoditiesSold)
+
+	ipAddress := nodeProbe.getIPForStitching(displayName)
+	propertyName := proxyVMIP
+	// TODO
+	propertyNamespace := "DEFAULT"
+	entityDTOBuilder = entityDTOBuilder.WithProperty(&proto.EntityDTO_EntityProperty{
+		Namespace: &propertyNamespace,
+		Name:      &propertyName,
+		Value:     &ipAddress,
+	})
+	glog.V(4).Infof("Parse node: The ip of vm to be reconcile with is %s", ipAddress)
+
+	metaData := generateReconciliationMetaData()
+	entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
+
+	entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
+
+	entityDto, err := entityDTOBuilder.Create()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", nodeID, err)
+	}
+
+	return entityDto, nil
+}
+
 // Discover pods running on nodes specified in task.
-func (worker *k8sDiscoveryWorker) findPodsRunningInTaskNodes() []*api.Pod {
-	var podList []*api.Pod
+func (worker *k8sDiscoveryWorker) findPodsRunningInTaskNodes() []api.Pod {
+	var podList []api.Pod
 	for _, node := range worker.task.NodeList() {
 		nodeNonTerminatedPodsList, err := worker.findNonTerminatedPods(node.Name)
 		if err != nil {
 			glog.Errorf("Failed to find non-ternimated pods in %s", node.Name)
 			continue
 		}
-		for _, pod := range nodeNonTerminatedPodsList {
-			p := pod
-			podList = append(podList, &p)
-		}
+		podList = append(podList, nodeNonTerminatedPodsList.Items...)
 	}
-	return podList, nil
+	return podList
 }
 
-func (worker *k8sDiscoveryWorker) findNonTerminatedPods(nodeName string) ([]api.Pod, error) {
+func (worker *k8sDiscoveryWorker) findNonTerminatedPods(nodeName string) (*api.PodList, error) {
 	fieldSelector, err := fields.ParseSelector("spec.nodeName=" + nodeName + ",status.phase!=" +
 		string(api.PodSucceeded) + ",status.phase!=" + string(api.PodFailed))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	return worker.kubeClient.Pods(api.NamespaceAll).List(api.ListOptions{FieldSelector: fieldSelector})
 }
 
-func findNodeResourceCapacity(sink *metrics.MetricSink, nodes []*api.Node) {
-	for _, node := range nodes {
-		if node == nil {
-			glog.Error("node passed in is nil.")
-		}
-
-		nodeMetrics, err := sink.GetMetric(task.NodeType, util.NodeKeyFunc(node))
-		if err != nil {
-			glog.Warningf("Cannot find usage data for node %s", node.Name)
-		}
-		// cpu
-		cpuCapacityCore := float64(node.Status.Capacity.Cpu().Value())
-		nodeMetrics.SetMetric(metrics.CPU, metrics.Capacity, cpuCapacityCore)
-		// memory
-		memoryCapacityKiloBytes := float64(node.Status.Capacity.Memory().Value())
-		nodeMetrics.SetMetric(metrics.Memory, metrics.Capacity, memoryCapacityKiloBytes)
-
-		sink.UpdateMetricEntry(task.NodeType, util.NodeKeyFunc(node), nodeMetrics)
-	}
-}
-
-//
-func findPodResourceCapacity(sink *metrics.MetricSink, pods []*api.Pod) {
-	for _, pod := range pods {
-		if pod == nil {
-			glog.Error("pod passed in is nil.")
-		}
-
-		podMetrics, err := sink.GetMetric(task.PodType, util.PodKeyFunc(pod))
-		if err != nil {
-			glog.Warningf("Cannot find usage data for pod %s", util.PodKeyFunc(pod))
-		}
-
-		var memoryCapacityKiloBytes float64
-		var cpuCapacityCore float64
-		for _, container := range pod.Spec.Containers {
-			limits := container.Resources.Limits
-			request := container.Resources.Requests
-
-			ctnMemoryCapacityKiloBytes := limits.Memory().MilliValue()
-			if ctnMemoryCapacityKiloBytes == 0 {
-				ctnMemoryCapacityKiloBytes = request.Memory().MilliValue()
-			}
-			ctnCpuCapacityMilliCore := limits.Cpu().MilliValue()
-			memoryCapacityKiloBytes += float64(ctnMemoryCapacityKiloBytes)
-			cpuCapacityCore += float64(ctnCpuCapacityMilliCore) / milliToUnit
-		}
-		podMetrics.SetMetric(metrics.CPU, metrics.Capacity, cpuCapacityCore)
-		podMetrics.SetMetric(metrics.Memory, metrics.Capacity, memoryCapacityKiloBytes)
-
-		sink.UpdateMetricEntry(task.PodType, util.PodKeyFunc(pod), podMetrics)
-	}
-}

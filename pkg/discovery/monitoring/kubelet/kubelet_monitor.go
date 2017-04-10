@@ -12,19 +12,18 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 
 	"github.com/golang/glog"
+	"errors"
 )
 
-const (
-	nanoToUnit int64 = 1E9
 
-	byteToKiloBytes int64 = 1024
-)
 
+// KubeletMonitor is a resource monitoring worker.
 type KubeletMonitor struct {
-	nodeList      []api.Node
-	kubeletClient kubeletClient
+	nodeList []api.Node
 
-	metricSink *metrics.MetricSink
+	kubeletClient *kubeletClient
+
+	metricSink *metrics.EntityMetricSink
 
 	wg sync.WaitGroup
 }
@@ -37,39 +36,44 @@ func NewKubeletMonitor(config KubeletMonitorConfig) (*KubeletMonitor, error) {
 
 	return &KubeletMonitor{
 		kubeletClient: kubeletClient,
+		metricSink:    metrics.NewEntityMetricSink(),
 	}, nil
 }
 
-func (m *KubeletMonitor) InitMetricSink(sink *metrics.MetricSink) {
-	m.metricSink = sink
-}
-
-func (m *KubeletMonitor) AssignTask(task *task.WorkerTask) {
+func (m *KubeletMonitor) AssignTask(task *task.Task) {
 	m.nodeList = task.NodeList()
 }
 
+func (m *KubeletMonitor) Do() *metrics.EntityMetricSink {
+	m.RetrieveResourceStat()
+
+	return m.metricSink
+}
+
 // Start to retrieve resource stats for the received list of nodes.
-func (m *KubeletMonitor) RetrieveResourceStat() {
+func (m *KubeletMonitor) RetrieveResourceStat() error{
 	if m.nodeList == nil || len(m.nodeList) == 0 {
 		// TODO, more informative.
-		glog.Warning("Invalid nodeList or empty nodeList. Finish Immediately...")
-		return
+		return errors.New("Invalid nodeList or empty nodeList. Finish Immediately...")
 	}
 	m.wg.Add(len(m.nodeList))
 
 	for _, node := range m.nodeList {
 		// TODO, do we want to add timeout?
-		go m.scrapeKubelet(node)
+		n := node
+		go m.scrapeKubelet(&n)
 	}
 
 	m.wg.Wait()
+
+	return nil
 }
 
 // Retrieve resource metrics for the given node.
 func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 	defer m.wg.Done()
 
-	ip, err := getNodeIP(node)
+	ip, err := getNodeIPForKubelet(node)
 	if err != nil {
 		glog.Errorf("Failed to get resource metrics from %s: %s", node.Name, err)
 		return
@@ -90,36 +94,42 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 
 // Parse node stats and put it into sink.
 func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats) {
-	nodeMetrics := metrics.NewResourceMetric()
 	// cpu
-	cpuUsageCore := float64(*nodeStats.CPU.UsageNanoCores) / float64(nanoToUnit)
-	nodeMetrics.SetMetric(metrics.CPU, metrics.Used, cpuUsageCore)
-	// memory
-	memoryUsageKiloBytes := float64(*nodeStats.Memory.UsageBytes) / float64(byteToKiloBytes)
-	nodeMetrics.SetMetric(metrics.Memory, metrics.Used, memoryUsageKiloBytes)
+	cpuUsageCore := float64(*nodeStats.CPU.UsageNanoCores) / float64(util.NanoToUnit)
+	nodeCpuUsageCoreMetrics := metrics.NewEntityResourceMetric(task.NodeType, util.NodeStatsKeyFunc(nodeStats),
+		metrics.CPU, metrics.Used, cpuUsageCore)
+	m.metricSink.AddNewMetricEntry(nodeCpuUsageCoreMetrics)
 
-	m.metricSink.AddNewMetricEntry(task.NodeType, util.NodeStatsKeyFunc(nodeStats), nodeMetrics)
+	// memory
+	memoryUsageKiloBytes := float64(*nodeStats.Memory.UsageBytes) / float64(util.ByteToKiloBytes)
+	nodeMemoryUsageKiloBytesMetrics := metrics.NewEntityResourceMetric(task.NodeType,
+		util.NodeStatsKeyFunc(nodeStats), metrics.Memory, metrics.Used, memoryUsageKiloBytes)
+	m.metricSink.AddNewMetricEntry(nodeMemoryUsageKiloBytesMetrics)
+
 }
 
 // Parse pod stats for every pod and put them into sink.
 func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats) {
 	for _, podStat := range podStats {
-		podMetrics := metrics.NewResourceMetric()
 		var cpuUsageNanoCoreSum uint64
 		var memoryUsageBytesSum uint64
 		for _, containerStat := range podStat.Containers {
 			cpuUsageNanoCoreSum += *containerStat.CPU.UsageNanoCores
 			memoryUsageBytesSum += *containerStat.Memory.UsageBytes
 		}
-		podMetrics.SetMetric(metrics.CPU, metrics.Used, float64(cpuUsageNanoCoreSum)/float64(nanoToUnit))
-		podMetrics.SetMetric(metrics.Memory, metrics.Used, float64(memoryUsageBytesSum)/float64(byteToKiloBytes))
 
-		m.metricSink.AddNewMetricEntry(task.PodType, util.PodStatsKeyFunc(podStat), podMetrics)
+		podCpuUsageCoreMetrics := metrics.NewEntityResourceMetric(task.PodType, util.PodStatsKeyFunc(podStat),
+			metrics.CPU, metrics.Used, float64(cpuUsageNanoCoreSum)/float64(util.NanoToUnit))
+		m.metricSink.AddNewMetricEntry(podCpuUsageCoreMetrics)
+
+		podMemoryUsageCoreMetrics := metrics.NewEntityResourceMetric(task.PodType, util.PodStatsKeyFunc(podStat),
+			metrics.Memory, metrics.Used, float64(memoryUsageBytesSum)/float64(util.ByteToKiloBytes))
+		m.metricSink.AddNewMetricEntry(podMemoryUsageCoreMetrics)
 	}
 }
 
 // Get the IP address for building kubelet client the given node.
-func getNodeIP(node *api.Node) (string, error) {
+func getNodeIPForKubelet(node *api.Node) (string, error) {
 	hostname, ip := node.Name, ""
 	for _, addr := range node.Status.Addresses {
 		if addr.Type == api.NodeHostName && addr.Address != "" {

@@ -1,7 +1,7 @@
 package turbostore
 
 import (
-"sync"
+	"sync"
 )
 
 // Not Scalable and Single Point Failure.
@@ -38,5 +38,13 @@ func (s *Cache) Get(key string) (interface{}, bool) {
 
 	item, exist := s.items[key]
 	return item, exist
+}
 
+// Get all the keys of current cache.
+func (s *Cache) AllKeys() []string {
+	keys := make([]string, 0, len(s.items))
+	for k := range s.items {
+		keys = append(keys, k)
+	}
+	return keys
 }
