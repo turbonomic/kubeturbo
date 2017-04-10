@@ -16,12 +16,10 @@ import (
 	"errors"
 	"github.com/golang/glog"
 	"github.com/pborman/uuid"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"k8s.io/kubernetes/pkg/runtime"
 )
-
-
 
 type k8sDiscoveryWorkerConfig struct {
 	kubeConfig *restclient.Config
@@ -117,8 +115,6 @@ func (worker *k8sDiscoveryWorker) Do() {
 		return
 	}
 
-	err := worker.findClusterID()
-
 	// Resource monitoring
 	resourceMonitorTask := worker.task
 	if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.ResourceMonitor]; exist {
@@ -146,161 +142,25 @@ func (worker *k8sDiscoveryWorker) Do() {
 		}
 	}
 
+	var discoveryResult []*proto.EntityDTO
 	// Build EntityDTO
-
+	nodeEntityDTOBuilder, err := dtofactory.GetK8sEntityDTOBuilder(task.NodeType, worker.sink)
+	if err != nil {
+		glog.Errorf("Error: %v", err)
+		return
+	}
+	var nodes [] runtime.Object
+	for _, n := range worker.task.NodeList() {
+		nodes = append(nodes, n)
+	}
+	nodeEntityDTOs, err := nodeEntityDTOBuilder.BuildEntityDTOs(nodes)
+	if err != nil {
+		glog.Errorf("Error while creating node entityDTOs: %v", err)
+		// TODO Node discovery fails, directly return?
+	}
+	discoveryResult = append(discoveryResult, nodeEntityDTOs...)
 	// Send result
 
-}
-
-func (worker *k8sDiscoveryWorker) getNodeCommoditiesSold(node api.Node) ([]*proto.CommodityDTO, error) {
-	var commoditiesSold []*proto.CommodityDTO
-	key := util.NodeKeyFunc(node)
-
-	resourceCommoditiesSold, err := worker.getResourceCommoditiesSold(task.NodeType, key, rTypeMapping)
-	if err != nil {
-		return nil, err
-	}
-	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
-
-	// VMPM_ACCESS
-	labelMetricUID := metrics.GenerateEntityStateMetricUID(task.NodeType, key, metrics.Access)
-	labelMetric, err := worker.sink.GetMetric(labelMetricUID)
-	if err != nil {
-		glog.Errorf("Failed to get %s used for %s %s", metrics.Access, task.NodeType, key)
-	} else {
-		labelPairs, ok := labelMetric.GetValue().([]string)
-		if !ok {
-			glog.Errorf("Failed to get label pairs for %s %s", task.NodeType, key)
-		}
-		for _, label := range labelPairs {
-			accessComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
-				Key(label).
-				Capacity(1E10).
-				Create()
-			if err != nil {
-				return nil, err
-			}
-
-			commoditiesSold = append(commoditiesSold, accessComm)
-		}
-	}
-
-	// APPLICATION
-	appComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
-		Key(key).
-		Capacity(1E10).
-		Create()
-	if err != nil {
-		return nil, err
-	}
-	commoditiesSold = append(commoditiesSold, appComm)
-
-	// CLUSTER
-	// Use Kubernetes service UID as the key for cluster commodity
-	clusterCommodityKey, err := getClusterID(worker.kubeClient)
-	if err != nil {
-		glog.Error("Failed to get cluster ID")
-	} else {
-		clusterComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
-			Key(clusterCommodityKey).
-			Capacity(1E10).
-			Create()
-		if err != nil {
-			return nil, err
-		}
-		commoditiesSold = append(commoditiesSold, clusterComm)
-	}
-
-	return commoditiesSold, nil
-}
-
-func (worker *k8sDiscoveryWorker) getResourceCommoditiesSold(entityType task.DiscoveredEntityType, entityID string,
-	rTypesMapping map[metrics.ResourceType]proto.CommodityDTO_CommodityType) ([]*proto.CommodityDTO, error) {
-	var resourceCommoditiesSold []*proto.CommodityDTO
-	for rType, cType := range rTypesMapping {
-		usedMetricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, rType, metrics.Used)
-		usedMetric, err := worker.sink.GetMetric(usedMetricUID)
-		if err != nil {
-			// TODO return?
-			glog.Errorf("Failed to get %s used for %s %s", rType, entityType, entityID)
-			continue
-		}
-		usedValue := usedMetric.GetValue().(float64)
-
-		capacityUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, rType, metrics.Capacity)
-		capacityMetric, err := worker.sink.GetMetric(capacityUID)
-		if err != nil {
-			// TODO return?
-			glog.Errorf("Failed to get %s capacity for %s %s", rType, entityType, entityID)
-			continue
-		}
-		vcpuCapacityValue := capacityMetric.GetValue().(float64)
-
-		commSold, err := builder.NewCommodityDTOBuilder(cType).
-			Capacity(vcpuCapacityValue).
-			Used(usedValue).
-			Create()
-		if err != nil {
-			// TODO return?
-			return nil, err
-		}
-		resourceCommoditiesSold = append(resourceCommoditiesSold, commSold)
-	}
-	return resourceCommoditiesSold, nil
-}
-
-func (worker *k8sDiscoveryWorker) getResourceCommoditiesBought(entityType task.DiscoveredEntityType, entityID string,
-	rTypesMapping map[metrics.ResourceType]proto.CommodityDTO_CommodityType) ([]*proto.CommodityDTO, error) {
-	var resourceCommoditiesSold []*proto.CommodityDTO
-	for rType, cType := range rTypesMapping {
-		usedMetricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, rType, metrics.Used)
-		usedMetric, err := worker.sink.GetMetric(usedMetricUID)
-		if err != nil {
-			// TODO return?
-			glog.Errorf("Failed to get %s used for %s %s", rType, entityType, entityID)
-			continue
-		}
-		usedValue := usedMetric.GetValue().(float64)
-
-		commSold, err := builder.NewCommodityDTOBuilder(cType).
-			Used(usedValue).
-			Create()
-		if err != nil {
-			// TODO return?
-			return nil, err
-		}
-		resourceCommoditiesSold = append(resourceCommoditiesSold, commSold)
-	}
-	return resourceCommoditiesSold, nil
-}
-//
-func (worker *k8sDiscoveryWorker) buildVMEntityDTO(nodeID, displayName string, commoditiesSold []*proto.CommodityDTO) (*proto.EntityDTO, error) {
-	entityDTOBuilder := builder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_MACHINE, nodeID)
-	entityDTOBuilder.DisplayName(displayName)
-	entityDTOBuilder.SellsCommodities(commoditiesSold)
-
-	ipAddress := nodeProbe.getIPForStitching(displayName)
-	propertyName := proxyVMIP
-	// TODO
-	propertyNamespace := "DEFAULT"
-	entityDTOBuilder = entityDTOBuilder.WithProperty(&proto.EntityDTO_EntityProperty{
-		Namespace: &propertyNamespace,
-		Name:      &propertyName,
-		Value:     &ipAddress,
-	})
-	glog.V(4).Infof("Parse node: The ip of vm to be reconcile with is %s", ipAddress)
-
-	metaData := generateReconciliationMetaData()
-	entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
-
-	entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
-
-	entityDto, err := entityDTOBuilder.Create()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", nodeID, err)
-	}
-
-	return entityDto, nil
 }
 
 // Discover pods running on nodes specified in task.
@@ -325,4 +185,3 @@ func (worker *k8sDiscoveryWorker) findNonTerminatedPods(nodeName string) (*api.P
 	}
 	return worker.kubeClient.Pods(api.NamespaceAll).List(api.ListOptions{FieldSelector: fieldSelector})
 }
-

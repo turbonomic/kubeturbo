@@ -24,7 +24,7 @@ type DiscoveredEntityType string
 type Task struct {
 	uid string
 
-	nodeList []api.Node
+	nodeList []*api.Node
 	podList  []api.Pod
 }
 
@@ -36,7 +36,7 @@ func NewTask() *Task {
 }
 
 // Assign nodes to the task.
-func (t *Task) WithNodes(nodeList []api.Node) *Task {
+func (t *Task) WithNodes(nodeList []*api.Node) *Task {
 	return &Task{
 		nodeList: nodeList,
 	}
@@ -50,7 +50,7 @@ func (t *Task) WithPods(podList []api.Pod) *Task {
 }
 
 // Get node list from the task.
-func (t *Task) NodeList() []api.Node {
+func (t *Task) NodeList() []*api.Node {
 	return t.nodeList
 }
 

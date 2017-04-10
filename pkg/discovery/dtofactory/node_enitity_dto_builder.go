@@ -1,4 +1,4 @@
-package dto
+package dtofactory
 
 import (
 	"fmt"
@@ -13,6 +13,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	"k8s.io/kubernetes/pkg/runtime"
 )
 
 const (
@@ -20,7 +21,9 @@ const (
 	applicationCommodityDefaultCapacity = 1E10
 	clusterCommodityDefaultCapacity     = 1E10
 
-	proxyVMIP string = "Proxy_VM_IP"
+	proxyVMIP = "Proxy_VM_IP"
+
+	defaultPropertyNamespace = "DEFAULT"
 )
 
 var (
@@ -32,19 +35,31 @@ var (
 	}
 )
 
-type NodeEntityDTOBuilder struct {
+type nodeEntityDTOBuilder struct {
 	generalBuilder
 }
 
+func newNodeEntityDTOBuilder(sink *metrics.EntityMetricSink) *nodeEntityDTOBuilder {
+	return &nodeEntityDTOBuilder{
+		generalBuilder: newGeneralBuilder(sink),
+	}
+}
+
 // Build entityDTOs based on the given node list.
-func (builder *NodeEntityDTOBuilder) buildEntityDTO(nodes []*api.Node) ([]*proto.EntityDTO, error) {
+func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []runtime.Object) ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
 	for _, node := range nodes {
+		node, ok := node.(*api.Node)
+		if !ok {
+			glog.Warningf("%v is not a node", node.GetObjectKind())
+			continue
+		}
 		// We do not parse node that is not ready or unschedulable.
 		if !nodeIsReady(node) || !nodeIsSchedulable(node) {
 			continue
 		}
 
+		// TODO, what should be nodeID, as node.Name is also unique in cluster.
 		nodeID := string(node.UID)
 		dispName := node.Name
 
@@ -53,7 +68,10 @@ func (builder *NodeEntityDTOBuilder) buildEntityDTO(nodes []*api.Node) ([]*proto
 			glog.Errorf("Error when create commoditiesSold for %s: %s", node.Name, err)
 			continue
 		}
-		entityDto, err := builder.buildVMEntityDTO(nodeID, dispName, commoditiesSold)
+
+		properties := builder.getNodeProperties(node)
+
+		entityDto, err := builder.buildVMEntityDTO(nodeID, dispName, commoditiesSold, properties)
 		if err != nil {
 			return nil, err
 		}
@@ -67,9 +85,9 @@ func (builder *NodeEntityDTOBuilder) buildEntityDTO(nodes []*api.Node) ([]*proto
 // Build the sold commodityDTO by each node. They are include:
 // VCPU, VMem, CPUProvisioned, MemProvisioned;
 // VMPMAccessCommodity, ApplicationCommodity, ClusterCommodity.
-func (builder *NodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*proto.CommodityDTO, error) {
+func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
-	key := util.NodeKeyFunc(&node)
+	key := util.NodeKeyFunc(node)
 
 	// Resource Commodities
 	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(task.NodeType, key, nodeResourceCommoditySold)
@@ -134,23 +152,33 @@ func (builder *NodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 	return commoditiesSold, nil
 }
 
+// Get the properties of the node, such as IP address.
+func (nodeProbe *nodeEntityDTOBuilder) getNodeProperties(node *api.Node) []*proto.EntityDTO_EntityProperty {
+	var properties []*proto.EntityDTO_EntityProperty
+
+	ipAddress := getNodeIPAddress(node)
+	propertyName := proxyVMIP
+
+	propertyNamespace := defaultPropertyNamespace
+	ipProperty := &proto.EntityDTO_EntityProperty{
+		Namespace: &propertyNamespace,
+		Name:      &propertyName,
+		Value:     &ipAddress,
+	}
+	glog.V(4).Infof("Parse node: The ip of vm to be reconcile with is %s", ipAddress)
+	properties = append(properties, ipProperty)
+
+	return properties
+}
+
 // Build EntityDTO for a single node.
-func (nodeProbe *NodeEntityDTOBuilder) buildVMEntityDTO(nodeID, displayName string, commoditiesSold []*proto.CommodityDTO) (*proto.EntityDTO, error) {
+func (nodeProbe *nodeEntityDTOBuilder) buildVMEntityDTO(nodeID, displayName string,
+	commoditiesSold []*proto.CommodityDTO, properties []*proto.EntityDTO_EntityProperty) (*proto.EntityDTO, error) {
 	entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_MACHINE, nodeID)
 	entityDTOBuilder.DisplayName(displayName)
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
 
-	ipAddress := getNodeIPAddress(displayName)
-	propertyName := proxyVMIP
-
-	// TODO, make it a constant.
-	propertyNamespace := "DEFAULT"
-	entityDTOBuilder = entityDTOBuilder.WithProperty(&proto.EntityDTO_EntityProperty{
-		Namespace: &propertyNamespace,
-		Name:      &propertyName,
-		Value:     &ipAddress,
-	})
-	glog.V(4).Infof("Parse node: The ip of vm to be reconcile with is %s", ipAddress)
+	entityDTOBuilder = entityDTOBuilder.WithProperties(properties)
 
 	metaData := generateReconciliationMetaData()
 	entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
@@ -179,7 +207,6 @@ func getNodeIPAddress(node *api.Node) string {
 		if addr.Type == api.NodeLegacyHostIP && addr.Address != "" && ip == "" {
 			ip = addr.Address
 		}
-
 	}
 	return ip
 }
@@ -188,10 +215,13 @@ func getNodeIPAddress(node *api.Node) string {
 func generateReconciliationMetaData() *proto.EntityDTO_ReplacementEntityMetaData {
 	replacementEntityMetaDataBuilder := sdkbuilder.NewReplacementEntityMetaDataBuilder()
 	replacementEntityMetaDataBuilder.Matching(proxyVMIP)
-	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_CPU_ALLOCATION)
-	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_MEM_ALLOCATION)
-	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_APPLICATION)
+	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_VCPU)
+	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_VMEM)
+	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_CPU_PROVISIONED)
+	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_MEM_PROVISIONED)
 	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_VMPM_ACCESS)
+	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_APPLICATION)
+	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_CLUSTER)
 
 	metaData := replacementEntityMetaDataBuilder.Build()
 	return metaData

@@ -19,7 +19,7 @@ import (
 
 // KubeletMonitor is a resource monitoring worker.
 type KubeletMonitor struct {
-	nodeList []api.Node
+	nodeList []*api.Node
 
 	kubeletClient *kubeletClient
 
@@ -61,7 +61,7 @@ func (m *KubeletMonitor) RetrieveResourceStat() error{
 	for _, node := range m.nodeList {
 		// TODO, do we want to add timeout?
 		n := node
-		go m.scrapeKubelet(&n)
+		go m.scrapeKubelet(n)
 	}
 
 	m.wg.Wait()

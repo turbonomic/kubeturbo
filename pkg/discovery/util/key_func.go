@@ -11,7 +11,7 @@ func PodStatsKeyFunc(podStat stats.PodStats) string {
 	return podStat.PodRef.Namespace + "/" + podStat.PodRef.Name
 }
 
-func PodKeyFunc(pod api.Pod) string {
+func PodKeyFunc(pod *api.Pod) string {
 	return pod.Namespace + "/" + pod.Name
 }
 
@@ -20,6 +20,6 @@ func NodeStatsKeyFunc(nodeStat stats.NodeStats) string {
 	return nodeStat.NodeName
 }
 
-func NodeKeyFunc(node api.Node) string {
+func NodeKeyFunc(node *api.Node) string {
 	return node.Name
 }

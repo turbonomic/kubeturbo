@@ -20,9 +20,9 @@ type ClusterMonitor struct {
 
 	sink *metrics.EntityMetricSink
 
-	nodeList []api.Node
+	nodeList []*api.Node
 
-	nodePodList map[string][]api.Pod
+	nodePodList map[string]*api.PodList
 }
 
 func NewClusterMonitor(config ClusterMonitorConfig) (*ClusterMonitor, error) {
@@ -70,7 +70,7 @@ func (m *ClusterMonitor) RetrieveClusterStat() error {
 func (m *ClusterMonitor) findClusterID() error {
 	svc, err := m.kubeClient.Services("default").Get("kubernetes")
 	if err != nil {
-		return "", err
+		return err
 	}
 	kubernetesSvcID := string(svc.UID)
 	clusterInfo := metrics.NewEntityStateMetric(task.ClusterType, "", metrics.Cluster, kubernetesSvcID)
@@ -104,7 +104,7 @@ func (m *ClusterMonitor) findNodeStates() {
 //	memoryProvisioned	capacity
 //	CPUProvisioned 		used
 //	memoryProvisioned 	used
-func (m *ClusterMonitor) getNodeResourceMetrics(node api.Node) []metrics.EntityResourceMetric {
+func (m *ClusterMonitor) getNodeResourceMetrics(node *api.Node) []metrics.EntityResourceMetric {
 	key := util.NodeKeyFunc(node)
 
 	var nodeResourceMetrics []metrics.EntityResourceMetric
@@ -138,7 +138,7 @@ func (m *ClusterMonitor) getNodeResourceMetrics(node api.Node) []metrics.EntityR
 	var nodeCpuProvisionedUsedCore float64
 	var nodeMemoryProvisionedUsedKiloBytes float64
 
-	podList := m.nodePodList[node.Name]
+	podList := m.nodePodList[node.Name].Items
 	for _, pod := range podList {
 		for _, container := range pod.Spec.Containers {
 			request := container.Resources.Requests
@@ -163,7 +163,7 @@ func (m *ClusterMonitor) getNodeResourceMetrics(node api.Node) []metrics.EntityR
 }
 
 // Parse the labels of a node and create one EntityStateMetric
-func parseNodeLabels(node api.Node) metrics.EntityStateMetric {
+func parseNodeLabels(node *api.Node) metrics.EntityStateMetric {
 	labelsMap := node.ObjectMeta.Labels
 	if len(labelsMap) > 0 {
 		var labels []string
@@ -181,18 +181,20 @@ func parseNodeLabels(node api.Node) metrics.EntityStateMetric {
 
 func (m *ClusterMonitor) findPodStates() {
 	for _, podList := range m.nodePodList {
-		for _, pod := range podList {
-			key := util.PodKeyFunc(pod)
+		for _, p := range podList.Items {
+			pod := p
+
+			key := util.PodKeyFunc(&pod)
 			if key == "" {
 				glog.Warning("Not a valid pod.")
 				continue
 			}
-			podResourceMetrics := getPodResourceMetric(pod)
+			podResourceMetrics := getPodResourceMetric(&pod)
 			for _, prm := range podResourceMetrics {
 				m.sink.AddNewMetricEntry(prm)
 			}
 
-			selectorMetrics := parsePodNodeSelector(pod)
+			selectorMetrics := parsePodNodeSelector(&pod)
 			m.sink.AddNewMetricEntry(selectorMetrics)
 		}
 	}
@@ -203,7 +205,7 @@ func (m *ClusterMonitor) findPodStates() {
 // 	memory 			capacity
 //	CPUProvisioned 		used
 //	memoryProvisioned 	used
-func getPodResourceMetric(pod api.Pod) []metrics.EntityResourceMetric {
+func getPodResourceMetric(pod *api.Pod) []metrics.EntityResourceMetric {
 	key := util.PodKeyFunc(pod)
 
 	var memoryCapacityKiloBytes float64
@@ -252,7 +254,7 @@ func getPodResourceMetric(pod api.Pod) []metrics.EntityResourceMetric {
 	return podResourceMetrics
 }
 
-func parsePodNodeSelector(pod api.Pod) metrics.EntityStateMetric {
+func parsePodNodeSelector(pod *api.Pod) metrics.EntityStateMetric {
 	selectorMap := pod.Spec.NodeSelector
 	if len(selectorMap) > 0 {
 		var selectors []string
@@ -268,15 +270,15 @@ func parsePodNodeSelector(pod api.Pod) metrics.EntityStateMetric {
 }
 
 // Discover pods running on nodes specified in task.
-func (m *ClusterMonitor) groupPodsByNodeNames(nodeList []api.Node) map[string][]api.Pod {
-	groupedPods := make(map[string][]api.Pod)
+func (m *ClusterMonitor) groupPodsByNodeNames(nodeList []*api.Node) map[string]*api.PodList{
+	groupedPods := make(map[string]*api.PodList)
 	for _, node := range nodeList {
 		nodeNonTerminatedPodsList, err := m.findNonTerminatedPods(node.Name)
 		if err != nil {
 			glog.Errorf("Failed to find non-ternimated pods in %s", node.Name)
 			continue
 		}
-		groupedPods[node.Name] = nodeNonTerminatedPodsList.Items
+		groupedPods[node.Name] = nodeNonTerminatedPodsList
 	}
 	return groupedPods
 }

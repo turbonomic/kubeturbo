@@ -1,4 +1,5 @@
-package dto
+package dtofactory
+
 
 import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -10,6 +11,7 @@ import (
 )
 
 var (
+	// This map maps resource type to commodity types defined in ProtoBuf.
 	// VCPU, VMEM, MEM_PROVISIONED, CPU_PROVISIONED
 	rTypeMapping = map[metrics.ResourceType]proto.CommodityDTO_CommodityType{
 		metrics.CPU:               proto.CommodityDTO_VCPU,
@@ -19,19 +21,18 @@ var (
 	}
 )
 
-type K8sEntityDTOBuilderFactory struct {
-}
-
-type k8sEntityDTOBuilder interface {
-	buildEntityDTOs() *proto.EntityDTO
-}
-
 type generalBuilder struct {
 	metricsSink *metrics.EntityMetricSink
 }
 
-func (builder *generalBuilder) getResourceCommoditiesSold(entityType task.DiscoveredEntityType, entityID string,
-	resourceTypesList []metrics.ResourceType) ([]*proto.CommodityDTO, error) {
+func newGeneralBuilder(sink *metrics.EntityMetricSink) generalBuilder {
+	return generalBuilder{
+		metricsSink: sink,
+	}
+}
+
+func (builder generalBuilder) getResourceCommoditiesSold(entityType task.DiscoveredEntityType, entityID string,
+resourceTypesList []metrics.ResourceType) ([]*proto.CommodityDTO, error) {
 	var resourceCommoditiesSold []*proto.CommodityDTO
 	for _, rType := range resourceTypesList {
 		cType, exist := rTypeMapping[rType]
@@ -70,8 +71,8 @@ func (builder *generalBuilder) getResourceCommoditiesSold(entityType task.Discov
 	return resourceCommoditiesSold, nil
 }
 
-func (builder *generalBuilder) getResourceCommoditiesBought(entityType task.DiscoveredEntityType, entityID string,
-	rTypesMapping map[metrics.ResourceType]proto.CommodityDTO_CommodityType) ([]*proto.CommodityDTO, error) {
+func (builder generalBuilder) getResourceCommoditiesBought(entityType task.DiscoveredEntityType, entityID string,
+rTypesMapping map[metrics.ResourceType]proto.CommodityDTO_CommodityType) ([]*proto.CommodityDTO, error) {
 	var resourceCommoditiesSold []*proto.CommodityDTO
 	for rType, cType := range rTypesMapping {
 		usedMetricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, rType, metrics.Used)
