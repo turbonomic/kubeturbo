@@ -1,24 +1,25 @@
 package discovery
 
 import (
+	"errors"
 	"fmt"
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/restclient"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/fields"
+	"k8s.io/kubernetes/pkg/runtime"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 
-	"errors"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+
 	"github.com/golang/glog"
 	"github.com/pborman/uuid"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	"k8s.io/kubernetes/pkg/runtime"
 )
 
 type k8sDiscoveryWorkerConfig struct {
@@ -149,7 +150,7 @@ func (worker *k8sDiscoveryWorker) Do() {
 		glog.Errorf("Error: %v", err)
 		return
 	}
-	var nodes [] runtime.Object
+	var nodes []runtime.Object
 	for _, n := range worker.task.NodeList() {
 		nodes = append(nodes, n)
 	}
