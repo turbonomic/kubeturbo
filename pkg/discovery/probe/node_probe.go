@@ -6,9 +6,6 @@ import (
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
 
 	cadvisor "github.com/google/cadvisor/info/v1"
 
@@ -33,55 +30,21 @@ var nodeName2ExternalIPMap map[string]string = make(map[string]string)
 // A map stores the machine information of each node. Key is node name, value is the corresponding machine information.
 var nodeMachineInfoMap map[string]*cadvisor.MachineInfo = make(map[string]*cadvisor.MachineInfo)
 
+// A node probe discoveries nodes inside a Kubernetes cluster and build entityDTOs based on discovered information.
 type NodeProbe struct {
-	nodesGetter NodesGetter
-	config      *ProbeConfig
-	nodeIPMap   map[string]map[api.NodeAddressType]string
+	nodesAccessor ClusterAccessor
+
+	// The probe config is used to build cAdvisor client.
+	config *ProbeConfig
+
+	nodeIPMap map[string]map[api.NodeAddressType]string
 }
 
-// Since this is only used in probe package, do not expose it.
-func NewNodeProbe(getter NodesGetter, config *ProbeConfig) *NodeProbe {
+func NewNodeProbe(accessor ClusterAccessor, config *ProbeConfig) *NodeProbe {
 	return &NodeProbe{
-		nodesGetter: getter,
-		config:      config,
+		nodesAccessor: accessor,
+		config:        config,
 	}
-}
-
-type VMTNodeGetter struct {
-	kubeClient *client.Client
-}
-
-func NewVMTNodeGetter(kubeClient *client.Client) *VMTNodeGetter {
-	return &VMTNodeGetter{
-		kubeClient: kubeClient,
-	}
-}
-
-// Get all nodes
-func (this *VMTNodeGetter) GetNodes(label labels.Selector, field fields.Selector) ([]*api.Node, error) {
-	listOption := &api.ListOptions{
-		LabelSelector: label,
-		FieldSelector: field,
-	}
-	nodeList, err := this.kubeClient.Nodes().List(*listOption)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get nodes from Kubernetes cluster: %s", err)
-	}
-	var nodeItems []*api.Node
-	for _, node := range nodeList.Items {
-		n := node
-		nodeItems = append(nodeItems, &n)
-	}
-	glog.V(2).Infof("Discovering Nodes.. The cluster has " + strconv.Itoa(len(nodeItems)) + " nodes")
-	return nodeItems, nil
-}
-
-type NodesGetter func(label labels.Selector, field fields.Selector) ([]*api.Node, error)
-
-func (nodeProbe *NodeProbe) GetNodes(label labels.Selector, field fields.Selector) ([]*api.Node, error) {
-	//TODO check if nodesGetter is set
-
-	return nodeProbe.nodesGetter(label, field)
 }
 
 // Parse each node inside K8s. Get the resources usage of each node and build the entityDTO.
@@ -241,9 +204,9 @@ func (nodeProbe *NodeProbe) getHost(nodeName string) *vmtAdvisor.Host {
 	}
 	// Use NodeLegacyHostIP to build the host to interact with cAdvisor.
 	host := &vmtAdvisor.Host{
-		IP:       nodeIP,
-		Port:     nodeProbe.config.CadvisorPort,
-		Resource: "",
+		IP:   nodeIP,
+		Port: nodeProbe.config.CadvisorPort,
+		//Resource: "",
 	}
 	return host
 }
@@ -294,7 +257,7 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeID, displayName string, commodi
 	})
 	glog.V(4).Infof("Parse node: The ip of vm to be reconcile with is %s", ipAddress)
 
-	metaData := nodeProbe.generateReconcilationMetaData()
+	metaData := generateReconciliationMetaData()
 	entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
 
 	entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
@@ -308,7 +271,7 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeID, displayName string, commodi
 }
 
 // Create the meta data that will be used during the reconciliation process.
-func (nodeProbe *NodeProbe) generateReconcilationMetaData() *proto.EntityDTO_ReplacementEntityMetaData {
+func generateReconciliationMetaData() *proto.EntityDTO_ReplacementEntityMetaData {
 	replacementEntityMetaDataBuilder := builder.NewReplacementEntityMetaDataBuilder()
 	replacementEntityMetaDataBuilder.Matching(proxyVMIP)
 	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_CPU_ALLOCATION)

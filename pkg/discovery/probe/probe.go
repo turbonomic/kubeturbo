@@ -16,13 +16,13 @@ var (
 	ClusterID string
 )
 
-type KubeProbe struct {
-	KubeClient *client.Client
-	config     *ProbeConfig
+type K8sProbe struct {
+	clusterAccessor ClusterAccessor
+	config          *ProbeConfig
 }
 
-// Create a new Kubernetes probe with the given kube client.
-func NewKubeProbe(kubeClient *client.Client, config *ProbeConfig) (*KubeProbe, error) {
+// Create a new Kubernetes probe with the given kubeClient.
+func NewK8sProbe(kubeClient *client.Client, config *ProbeConfig) (*K8sProbe, error) {
 	// First try to get cluster ID.
 	if ClusterID == "" {
 		id, err := getClusterID(kubeClient)
@@ -31,9 +31,9 @@ func NewKubeProbe(kubeClient *client.Client, config *ProbeConfig) (*KubeProbe, e
 		}
 		ClusterID = id
 	}
-	return &KubeProbe{
-		KubeClient: kubeClient,
-		config:     config,
+	return &K8sProbe{
+		clusterAccessor: NewK8sClusterAccessor(kubeClient),
+		config:          config,
 	}, nil
 }
 
@@ -45,52 +45,47 @@ func getClusterID(kubeClient *client.Client) (string, error) {
 	return string(svc.UID), nil
 }
 
-func (this *KubeProbe) ParseNode() ([]*proto.EntityDTO, error) {
-	vmtNodeGetter := NewVMTNodeGetter(this.KubeClient)
-	nodeProbe := NewNodeProbe(vmtNodeGetter.GetNodes, this.config)
-
-	k8sNodes, err := nodeProbe.GetNodes(labels.Everything(), fields.Everything())
+func (k8sProbe *K8sProbe) ParseNode() ([]*proto.EntityDTO, error) {
+	k8sNodes, err := k8sProbe.clusterAccessor.GetNodes(labels.Everything(), fields.Everything())
 	if err != nil {
-		return nil, fmt.Errorf("Error during parse nodes: %s", err)
-	}
-	vmtPodGetter := NewVMTPodGetter(this.KubeClient)
-	podProbe := NewPodProbe(vmtPodGetter.GetPods)
-
-	k8sPods, err := podProbe.GetPods(api.NamespaceAll, labels.Everything(), fields.Everything())
-	if err != nil {
-		return nil, fmt.Errorf("Error during parse nodes: %s", err)
+		return nil, fmt.Errorf("Failed to get all nodes in Kubernetes cluster: %s", err)
 	}
 
+	k8sPods, err := k8sProbe.clusterAccessor.GetPods(api.NamespaceAll, labels.Everything(), fields.Everything())
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get all running pods in Kubernetes cluster: %s", err)
+	}
+
+	nodeProbe := NewNodeProbe(k8sProbe.clusterAccessor, k8sProbe.config)
 	return nodeProbe.parseNodeFromK8s(k8sNodes, k8sPods)
 }
 
 // Parse pods those are defined in namespace.
-func (this *KubeProbe) ParsePod(namespace string) ([]*proto.EntityDTO, error) {
-	vmtPodGetter := NewVMTPodGetter(this.KubeClient)
-	podProbe := NewPodProbe(vmtPodGetter.GetPods)
-
-	k8sPods, err := podProbe.GetPods(namespace, labels.Everything(), fields.Everything())
+func (k8sProbe *K8sProbe) ParsePod(namespace string) ([]*proto.EntityDTO, error) {
+	k8sPods, err := k8sProbe.clusterAccessor.GetPods(namespace, labels.Everything(), fields.Everything())
 	if err != nil {
-		return nil, fmt.Errorf("Error during parse pods: %s", err)
+		return nil, fmt.Errorf("Failed to get all running pods in Kubernetes cluster: %s", err)
 	}
 
+	podProbe := NewPodProbe(k8sProbe.clusterAccessor)
 	return podProbe.parsePodFromK8s(k8sPods)
 }
 
-func (this *KubeProbe) ParseApplication(namespace string) ([]*proto.EntityDTO, error) {
+func (k8sProbe *K8sProbe) ParseApplication(namespace string) ([]*proto.EntityDTO, error) {
 	applicationProbe := NewApplicationProbe()
 	return applicationProbe.ParseApplication(namespace)
 }
 
-func (kubeProbe *KubeProbe) ParseService(namespace string, selector labels.Selector) ([]*proto.EntityDTO, error) {
-	vmtServiceGetter := NewVMTServiceGetter(kubeProbe.KubeClient)
-	vmtEndpointGetter := NewVMTEndpointGetter(kubeProbe.KubeClient)
-	svcProbe := NewServiceProbe(vmtServiceGetter.GetService, vmtEndpointGetter.GetEndpoints)
-
-	serviceList, err := svcProbe.GetService(namespace, labels.Everything())
+func (k8sProbe *K8sProbe) ParseService(namespace string, selector labels.Selector) ([]*proto.EntityDTO, error) {
+	serviceList, err := k8sProbe.clusterAccessor.GetServices(namespace, labels.Everything())
 	if err != nil {
-		return nil, fmt.Errorf("Error during parse service: %s", err)
+		return nil, fmt.Errorf("Failed to get all services in Kubernetes cluster: %s", err)
 	}
-	endpointList, err := svcProbe.GetEndpoints(namespace, labels.Everything())
+	endpointList, err := k8sProbe.clusterAccessor.GetEndpoints(namespace, labels.Everything())
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get all endpoints in Kubernetes cluster: %s", err)
+	}
+
+	svcProbe := NewServiceProbe(k8sProbe.clusterAccessor)
 	return svcProbe.ParseService(serviceList, endpointList)
 }

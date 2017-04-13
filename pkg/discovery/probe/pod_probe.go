@@ -2,14 +2,10 @@ package probe
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
 
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
 
@@ -20,7 +16,7 @@ import (
 	"github.com/golang/glog"
 )
 
-var container2PodMap map[string]string = make(map[string]string)
+//var container2PodMap map[string]string = make(map[string]string)
 
 var podIP2PodMap map[string]*api.Pod = make(map[string]*api.Pod)
 
@@ -33,14 +29,11 @@ var nodePodMap map[string][]string
 var podNodeMap map[string]string
 var podAppTypeMap map[string]string
 
-// Pods Getter is such func that gets all the pods match the provided namespace, labels and fiels.
-type PodsGetter func(namespace string, label labels.Selector, field fields.Selector) ([]*api.Pod, error)
-
 type PodProbe struct {
-	podGetter PodsGetter
+	podAccessor ClusterAccessor
 }
 
-func NewPodProbe(getter PodsGetter) *PodProbe {
+func NewPodProbe(accessor ClusterAccessor) *PodProbe {
 	inactivePods = make(map[string]struct{})
 	podResourceConsumptionMap = make(map[string]*PodResourceStat)
 	nodePodMap = make(map[string][]string)
@@ -48,52 +41,8 @@ func NewPodProbe(getter PodsGetter) *PodProbe {
 	podAppTypeMap = make(map[string]string)
 
 	return &PodProbe{
-		podGetter: getter,
+		podAccessor: accessor,
 	}
-}
-
-func (this *PodProbe) GetPods(namespace string, label labels.Selector, field fields.Selector) ([]*api.Pod, error) {
-	if this.podGetter == nil {
-		return nil, fmt.Errorf("Error. podGetter is not set.")
-	}
-
-	return this.podGetter(namespace, label, field)
-}
-
-type VMTPodGetter struct {
-	kubeClient *client.Client
-}
-
-func NewVMTPodGetter(kubeClient *client.Client) *VMTPodGetter {
-	return &VMTPodGetter{
-		kubeClient: kubeClient,
-	}
-}
-
-// Get pods match specified namespace, label and field.
-func (this *VMTPodGetter) GetPods(namespace string, label labels.Selector, field fields.Selector) ([]*api.Pod, error) {
-	listOption := &api.ListOptions{
-		LabelSelector: label,
-		FieldSelector: field,
-	}
-	podList, err := this.kubeClient.Pods(namespace).List(*listOption)
-	if err != nil {
-		return nil, fmt.Errorf("Error getting all the desired pods from Kubernetes cluster: %s", err)
-	}
-	var podItems []*api.Pod
-	for _, pod := range podList.Items {
-		p := pod
-		if pod.Status.Phase != api.PodRunning {
-			// Skip pods those are not running.
-			continue
-		}
-		hostIP := p.Status.PodIP
-		podIP2PodMap[hostIP] = &p
-		podItems = append(podItems, &p)
-	}
-	glog.V(2).Infof("Discovering Pods, now the cluster has " + strconv.Itoa(len(podItems)) + " pods")
-
-	return podItems, nil
 }
 
 // Get pod resource usage from Kubernetes cluster and return a list of entityDTOs.
@@ -163,7 +112,7 @@ func (podProbe *PodProbe) groupContainerByPod() (map[string][]*vmtAdvisor.Contai
 					podContainers[podName] = containers
 
 					// Map container to hosting pod. This map will be used in application probe.
-					container2PodMap[container.Name] = podName
+					//container2PodMap[container.Name] = podName
 				}
 			}
 		}
@@ -392,7 +341,7 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 	entityDTOBuilder = entityDTOBuilder.Provider(provider)
 	entityDTOBuilder.BuysCommodities(commoditiesBought)
 
-	ipAddress := podProbe.getIPForStitching(pod)
+	ipAddress := getIPForStitching(pod)
 	propertyName := supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS
 	// TODO
 	propertyNamespace := "DEFAULT"
@@ -433,7 +382,7 @@ func updateNodePodMap(nodeName, podID string) {
 // Get the IP address that will be used for stitching process.
 // TODO, this needs to be consistent with the hypervisor probe.
 // The correct behavior depends on what kind of IP address the hypervisor probe picks.
-func (podProbe *PodProbe) getIPForStitching(pod *api.Pod) string {
+func getIPForStitching(pod *api.Pod) string {
 	// If this is a local test, just return the predefined local testing stitching IP.
 	if localTestingFlag {
 		return localTestStitchingIP

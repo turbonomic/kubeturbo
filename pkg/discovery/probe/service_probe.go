@@ -2,12 +2,9 @@ package probe
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"k8s.io/kubernetes/pkg/api"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/labels"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -15,95 +12,14 @@ import (
 	"github.com/golang/glog"
 )
 
-// Pods Getter is such func that gets all the pods match the provided namespace, labels and fiels.
-type ServiceGetter func(namespace string, selector labels.Selector) ([]*api.Service, error)
-
-type EndpointGetter func(namespace string, selector labels.Selector) ([]*api.Endpoints, error)
-
 type ServiceProbe struct {
-	serviceGetter  ServiceGetter
-	endpointGetter EndpointGetter
+	serviceAccessor ClusterAccessor
 }
 
-func NewServiceProbe(serviceGetter ServiceGetter, epGetter EndpointGetter) *ServiceProbe {
+func NewServiceProbe(serviceAccessor ClusterAccessor) *ServiceProbe {
 	return &ServiceProbe{
-		serviceGetter:  serviceGetter,
-		endpointGetter: epGetter,
+		serviceAccessor: serviceAccessor,
 	}
-}
-
-type VMTServiceGetter struct {
-	kubeClient *client.Client
-}
-
-func NewVMTServiceGetter(kubeClient *client.Client) *VMTServiceGetter {
-	return &VMTServiceGetter{
-		kubeClient: kubeClient,
-	}
-}
-
-// Get service match specified namesapce and label.
-func (this *VMTServiceGetter) GetService(namespace string, selector labels.Selector) ([]*api.Service, error) {
-	listOption := &api.ListOptions{
-		LabelSelector: selector,
-	}
-	serviceList, err := this.kubeClient.Services(namespace).List(*listOption)
-	if err != nil {
-		return nil, fmt.Errorf("Error listing services: %s", err)
-	}
-
-	var serviceItems []*api.Service
-	for _, service := range serviceList.Items {
-		s := service
-		serviceItems = append(serviceItems, &s)
-	}
-
-	glog.V(2).Infof("Discovering Services, now the cluster has " + strconv.Itoa(len(serviceItems)) + " services")
-
-	return serviceItems, nil
-}
-
-type VMTEndpointGetter struct {
-	kubeClient *client.Client
-}
-
-func NewVMTEndpointGetter(kubeClient *client.Client) *VMTEndpointGetter {
-	return &VMTEndpointGetter{
-		kubeClient: kubeClient,
-	}
-}
-
-// Get endpoints match specified namesapce and label.
-func (this *VMTEndpointGetter) GetEndpoints(namespace string, selector labels.Selector) ([]*api.Endpoints, error) {
-	listOption := &api.ListOptions{
-		LabelSelector: selector,
-	}
-	epList, err := this.kubeClient.Endpoints(namespace).List(*listOption)
-	if err != nil {
-		return nil, fmt.Errorf("Error listing endpoints: %s", err)
-	}
-
-	var epItems []*api.Endpoints
-	for _, endpoint := range epList.Items {
-		ep := endpoint
-		epItems = append(epItems, &ep)
-	}
-
-	return epItems, nil
-}
-
-func (this *ServiceProbe) GetService(namespace string, selector labels.Selector) ([]*api.Service, error) {
-	if this.serviceGetter == nil {
-		return nil, fmt.Errorf("Service getter is not set")
-	}
-	return this.serviceGetter(namespace, selector)
-}
-
-func (this *ServiceProbe) GetEndpoints(namespace string, selector labels.Selector) ([]*api.Endpoints, error) {
-	if this.endpointGetter == nil {
-		return nil, fmt.Errorf("Endpoint getter is not set")
-	}
-	return this.endpointGetter(namespace, selector)
 }
 
 // Parse Services inside Kubernetes and build entityDTO as VApp.
