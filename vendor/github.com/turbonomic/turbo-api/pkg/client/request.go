@@ -177,7 +177,6 @@ func (r *Request) request(fn func(*http.Response)) error {
 
 	url := r.URL().String()
 	glog.V(4).Infof("The request url is %s", url)
-	fmt.Printf("The request url is %s\n", url)
 	req, err := http.NewRequest(r.verb, url, r.data)
 	if err != nil {
 		return err
