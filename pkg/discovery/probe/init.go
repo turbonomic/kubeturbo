@@ -10,7 +10,7 @@ var localTestingFlag bool = false
 
 var localTestStitchingIP string = ""
 
-func init() {
+func initProbe() {
 	flag, err := flag.LoadTestingFlag()
 	if err != nil {
 		glog.Errorf("Error initialize probe package: %s", err)

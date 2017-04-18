@@ -31,6 +31,7 @@ func NewKubeProbe(kubeClient *client.Client, config *ProbeConfig) (*KubeProbe, e
 		}
 		ClusterID = id
 	}
+	initProbe()
 	return &KubeProbe{
 		KubeClient: kubeClient,
 		config:     config,
