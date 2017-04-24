@@ -1,6 +1,18 @@
 {
-		"serveraddress":	"1.2.3.4:80",
-		"localaddress":"http://127.0.0.1/",
-		"opsmanagerusername": "foo",
-		"opsmanagerpassword": "bar"
+	"communicationConfig": {
+		"serverMeta": {
+			"turboServer": "https://127.0.0.1:9400"
+		},
+		"restAPIConfig": {
+			"opsManagerUserName": "foo",
+			"opsManagerPassword": "bar"
+		}
+	},
+	"targetConfig": {
+		"probeCategory":"CloudNative",
+		"targetType":"OpenShift",
+		"address":"https://10.10.231.123:8443",
+		"username":"user1",
+		"password":"passwd1"
+	}
 }
