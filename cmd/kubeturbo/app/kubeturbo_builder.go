@@ -2,7 +2,10 @@ package app
 
 import (
 	"net"
+	"net/http"
+	"net/http/pprof"
 	"os"
+	"strconv"
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/componentconfig"
@@ -16,11 +19,11 @@ import (
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	"github.com/turbonomic/kubeturbo/test/flag"
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
-	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 )
 
 const (
@@ -32,22 +35,19 @@ const (
 
 // VMTServer has all the context and params needed to run a Scheduler
 type VMTServer struct {
-	Port                  int
-	Address               net.IP
-	Master                string
-	K8sTAPSpec            string
-	TestingFlagPath       string
-	Kubeconfig            string
-	BindPodsQPS           float32
-	BindPodsBurst         int
-	CadvisorPort          int
-
-	TurboServerAddress string
-	TurboServerPort    string
-	OpsManagerUsername string
-	OpsManagerPassword string
+	Port            int
+	Address         net.IP
+	Master          string
+	K8sTAPSpec      string
+	TestingFlagPath string
+	Kubeconfig      string
+	BindPodsQPS     float32
+	BindPodsBurst   int
+	CAdvisorPort    int
 
 	LeaderElection componentconfig.LeaderElectionConfiguration
+
+	EnableProfiling bool
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -62,15 +62,12 @@ func NewVMTServer() *VMTServer {
 // AddFlags adds flags for a specific VMTServer to the specified FlagSet
 func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.Port, "port", s.Port, "The port that the kubeturbo's http service runs on")
-	fs.IntVar(&s.CadvisorPort, "cadvisor-port", 4194, "The port of the cadvisor service runs on")
+	fs.IntVar(&s.CAdvisorPort, "cadvisor-port", 4194, "The port of the cadvisor service runs on")
 	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
 	fs.StringVar(&s.K8sTAPSpec, "turboconfig", s.K8sTAPSpec, "Path to the config file.")
 	fs.StringVar(&s.TestingFlagPath, "testingflag", s.TestingFlagPath, "Path to the testing flag.")
 	fs.StringVar(&s.Kubeconfig, "kubeconfig", s.Kubeconfig, "Path to kubeconfig file with authorization and master location information.")
-	fs.StringVar(&s.TurboServerAddress, "serveraddress", s.TurboServerAddress, "Address of Turbo Server")
-	fs.StringVar(&s.TurboServerPort, "serverport", "", "Port of Turbo Server")
-	fs.StringVar(&s.OpsManagerUsername, "opsmanagerusername", s.OpsManagerUsername, "Username for Ops Manager")
-	fs.StringVar(&s.OpsManagerPassword, "opsmanagerpassword", s.OpsManagerPassword, "Password for Ops Manager")
+	fs.BoolVar(&s.EnableProfiling, "profiling", true, "Enable profiling via web interface host:port/debug/pprof/")
 	leaderelection.BindFlags(&s.LeaderElection, fs)
 }
 
@@ -86,18 +83,13 @@ func (s *VMTServer) Run(_ []string) error {
 		flag.SetPath(s.TestingFlagPath)
 	}
 
-	if s.CadvisorPort == 0 {
-		s.CadvisorPort = 4194
+	if s.CAdvisorPort == 0 {
+		s.CAdvisorPort = 4194
 	}
 
 	probeConfig := &probe.ProbeConfig{
-		CadvisorPort: s.CadvisorPort,
+		CadvisorPort: s.CAdvisorPort,
 	}
-	// This creates a client, first loading any specified kubeconfig
-	// file, and then overriding the Master flag, if non-empty.
-	// kubeconfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-	// 	&clientcmd.ClientConfigLoadingRules{ExplicitPath: s.Kubeconfig},
-	// 	&clientcmd.ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: s.Master}}).ClientConfig()
 
 	kubeConfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.Kubeconfig)
 	if err != nil {
@@ -117,6 +109,21 @@ func (s *VMTServer) Run(_ []string) error {
 	if err != nil {
 		glog.Fatalf("Invalid API configuration: %v", err)
 	}
+
+	go func() {
+		mux := http.NewServeMux()
+		if s.EnableProfiling {
+			mux.HandleFunc("/debug/pprof/", pprof.Index)
+			mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+			mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		}
+
+		server := &http.Server{
+			Addr:    net.JoinHostPort(s.Address.String(), strconv.Itoa(s.Port)),
+			Handler: mux,
+		}
+		glog.Fatal(server.ListenAndServe())
+	}()
 
 	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
 
