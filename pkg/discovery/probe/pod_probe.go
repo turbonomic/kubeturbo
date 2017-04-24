@@ -208,14 +208,18 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	if containers, ok := podContainers[podNameWithNamespace]; ok {
 		for _, container := range containers {
 			containerStats := container.Stats
+			// We need at least two data points.
 			if len(containerStats) < 2 {
 				//TODO, maybe a warning is enough?
 				glog.Warningf("Not enough data for %s. Skip.", podNameWithNamespace)
 				continue
-				// return nil, fmt.Errorf("Not enough data for %s", podNameWithNamespace)
 			}
+			// Get the average of all the available data.
+			dataSampleNumber := len(containerStats)
+			glog.V(4).Infof("data sample number is %d", dataSampleNumber)
+
 			currentStat := containerStats[len(containerStats)-1]
-			prevStat := containerStats[len(containerStats)-2]
+			prevStat := containerStats[0]
 			rawUsage := int64(currentStat.Cpu.Usage.Total - prevStat.Cpu.Usage.Total)
 			intervalInNs := currentStat.Timestamp.Sub(prevStat.Timestamp).Nanoseconds()
 			glog.V(4).Infof("%d - %d = rawUsage is %f", currentStat.Cpu.Usage.Total,
@@ -223,7 +227,13 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 			glog.V(4).Infof("intervalInNs is %f", intervalInNs)
 
 			podCpuUsed += float64(rawUsage) / float64(intervalInNs)
-			podMemUsed += float64(currentStat.Memory.Usage)
+
+			// memory
+			var currContainerMemUsed float64
+			for i := 1; i <= dataSampleNumber; i++ {
+				currContainerMemUsed += float64(containerStats[len(containerStats)-i].Memory.Usage)
+			}
+			podMemUsed += currContainerMemUsed / float64(dataSampleNumber)
 		}
 	} else {
 		glog.Warningf("Cannot find pod %s", podNameWithNamespace)
@@ -231,7 +241,7 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	}
 	glog.V(4).Infof("used is %f", podCpuUsed)
 
-	// convert num of core to frequecy in MHz
+	// convert num of core to frequency in MHz
 	podCpuUsed = podCpuUsed * float64(cpuFrequency)
 	podMemUsed = podMemUsed / 1024 // Mem is in bytes, convert to Kb
 

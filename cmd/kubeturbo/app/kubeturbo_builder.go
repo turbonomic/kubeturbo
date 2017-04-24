@@ -41,12 +41,6 @@ type VMTServer struct {
 	BindPodsQPS           float32
 	BindPodsBurst         int
 	CadvisorPort          int
-	EtcdServerList        []string
-	EtcdCA                string
-	EtcdClientCertificate string
-	EtcdClientKey         string
-	EtcdConfigFile        string
-	EtcdPathPrefix        string
 
 	TurboServerAddress string
 	TurboServerPort    string
