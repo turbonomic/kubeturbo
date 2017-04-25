@@ -56,8 +56,9 @@ func GetResourceRequest(pod *api.Pod) (cpuRequest float64, memRequest float64, e
 	return
 }
 
+// Returns a bool indicates whether the given pod should be monitored.
+// Do not monitor mirror pods or pods created by DaemonSets.
 func monitored(pod *api.Pod) bool {
-	// Do not monitor mirror pods and pods created by daemonsets.
 	if isMirrorPod(pod) || isPodCreatedBy(pod, Kind_DaemonSet) {
 		return false
 	}

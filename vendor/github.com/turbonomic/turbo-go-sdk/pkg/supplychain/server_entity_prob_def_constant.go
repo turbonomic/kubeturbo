@@ -2,29 +2,46 @@ package supplychain
 
 import "github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
-var ipHandler *proto.ExternalEntityLink_PropertyHandler = getIpHandler()
+const (
+	getIPAddressMethodName string = "getAddress"
 
-func getIpHandler() *proto.ExternalEntityLink_PropertyHandler {
+	serverIPProperty   = "UsesEndPoints"
+	serverUUIDProperty = "Uuid"
+)
+
+func getIPHandler() *proto.ExternalEntityLink_PropertyHandler {
 	directlyApply := false
 	ipEntityType := proto.EntityDTO_IP
-	METHOD_NAME_GET_IP_ADDRESS := "getAddress"
+	methodName := getIPAddressMethodName
 
 	return &proto.ExternalEntityLink_PropertyHandler{
-		MethodName:    &METHOD_NAME_GET_IP_ADDRESS,
+		MethodName:    &methodName,
 		DirectlyApply: &directlyApply,
 		EntityType:    &ipEntityType,
 	}
 }
 
-var VM_IP *proto.ExternalEntityLink_ServerEntityPropDef = getVirtualMachineIpProperty()
+var VM_IP *proto.ExternalEntityLink_ServerEntityPropDef = getVirtualMachineIPProperty()
 
-func getVirtualMachineIpProperty() *proto.ExternalEntityLink_ServerEntityPropDef {
-	attribute := "UsesEndPoints"
+func getVirtualMachineIPProperty() *proto.ExternalEntityLink_ServerEntityPropDef {
+	attribute := serverIPProperty
 	vmEntityType := proto.EntityDTO_VIRTUAL_MACHINE
 
 	return &proto.ExternalEntityLink_ServerEntityPropDef{
 		Entity:          &vmEntityType,
 		Attribute:       &attribute,
-		PropertyHandler: ipHandler,
+		PropertyHandler: getIPHandler(),
+	}
+}
+
+var VM_UUID *proto.ExternalEntityLink_ServerEntityPropDef = getVirtualMachineUUIDProperty()
+
+func getVirtualMachineUUIDProperty() *proto.ExternalEntityLink_ServerEntityPropDef {
+	attribute := serverUUIDProperty
+	vmEntityType := proto.EntityDTO_VIRTUAL_MACHINE
+
+	return &proto.ExternalEntityLink_ServerEntityPropDef{
+		Entity:    &vmEntityType,
+		Attribute: &attribute,
 	}
 }

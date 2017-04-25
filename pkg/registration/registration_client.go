@@ -11,14 +11,28 @@ const (
 	Password              string = "password"
 )
 
-type K8sRegistrationClient struct{}
+type RegistrationConfig struct {
+	useVMWare bool
+}
 
-func NewK8sRegistrationClient() *K8sRegistrationClient {
-	return &K8sRegistrationClient{}
+func NewRegistrationClientConfig(useVMWare bool) *RegistrationConfig {
+	return &RegistrationConfig{
+		useVMWare: useVMWare,
+	}
+}
+
+type K8sRegistrationClient struct {
+	config *RegistrationConfig
+}
+
+func NewK8sRegistrationClient(config *RegistrationConfig) *K8sRegistrationClient {
+	return &K8sRegistrationClient{
+		config: config,
+	}
 }
 
 func (rClient *K8sRegistrationClient) GetSupplyChainDefinition() []*proto.TemplateDTO {
-	supplyChainFactory := NewSupplyChainFactory()
+	supplyChainFactory := NewSupplyChainFactory(rClient.config.useVMWare)
 	supplyChain, err := supplyChainFactory.createSupplyChain()
 	if err != nil {
 		// TODO error handling

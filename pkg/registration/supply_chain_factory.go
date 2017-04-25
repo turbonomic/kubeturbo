@@ -27,10 +27,15 @@ var (
 	transactionTemplateComm    *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
 )
 
-type SupplyChainFactory struct{}
+type SupplyChainFactory struct {
+	// if the underlying infrastructure is VMWare, we use UUID to stitch. Otherwise use IP.
+	useVMWare bool
+}
 
-func NewSupplyChainFactory() *SupplyChainFactory {
-	return &SupplyChainFactory{}
+func NewSupplyChainFactory(useVMWare bool) *SupplyChainFactory {
+	return &SupplyChainFactory{
+		useVMWare: useVMWare,
+	}
 }
 
 func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
@@ -100,9 +105,16 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Commodity(cpuProvisionedType, false).
 		Commodity(memProvisionedType, false).
 		Commodity(vmPMAccessType, true).
-		Commodity(clusterType, true).
-		ProbeEntityPropertyDef(supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS, "IP Address where the Pod is running").
-		ExternalEntityPropertyDef(supplychain.VM_IP)
+		Commodity(clusterType, true)
+	if f.useVMWare {
+		vmPodExtLinkBuilder.
+			ProbeEntityPropertyDef(supplychain.SUPPLY_CHAIN_CONSTANT_UUID, "UUID of the Node").
+			ExternalEntityPropertyDef(supplychain.VM_UUID)
+	} else {
+		vmPodExtLinkBuilder.
+			ProbeEntityPropertyDef(supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS, "IP of the Node").
+			ExternalEntityPropertyDef(supplychain.VM_IP)
+	}
 	vmPodExternalLink, err := vmPodExtLinkBuilder.Build()
 	if err != nil {
 		return nil, err

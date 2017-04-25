@@ -8,6 +8,7 @@ import (
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
@@ -17,8 +18,9 @@ var (
 )
 
 type KubeProbe struct {
-	KubeClient *client.Client
-	config     *ProbeConfig
+	KubeClient       *client.Client
+	config           *ProbeConfig
+	stitchingManager *stitching.StitchingManager
 }
 
 // Create a new Kubernetes probe with the given kube client.
@@ -31,10 +33,14 @@ func NewKubeProbe(kubeClient *client.Client, config *ProbeConfig) (*KubeProbe, e
 		}
 		ClusterID = id
 	}
-	initProbe()
+	stitchingManager := stitching.NewStitchingManager()
+	if config.UseVMWare {
+		stitchingManager.UseVMWare(true)
+	}
 	return &KubeProbe{
-		KubeClient: kubeClient,
-		config:     config,
+		KubeClient:       kubeClient,
+		config:           config,
+		stitchingManager: stitchingManager,
 	}, nil
 }
 
@@ -46,18 +52,17 @@ func getClusterID(kubeClient *client.Client) (string, error) {
 	return string(svc.UID), nil
 }
 
-func (this *KubeProbe) ParseNode() ([]*proto.EntityDTO, error) {
-	vmtNodeGetter := NewVMTNodeGetter(this.KubeClient)
-	nodeProbe := NewNodeProbe(vmtNodeGetter.GetNodes, this.config)
+func (kubeProbe *KubeProbe) ParseNode() ([]*proto.EntityDTO, error) {
+	vmtNodeGetter := NewVMTNodeGetter(kubeProbe.KubeClient)
+	nodeProbe := NewNodeProbe(vmtNodeGetter.GetNodes, kubeProbe.config, kubeProbe.stitchingManager)
 
 	k8sNodes, err := nodeProbe.GetNodes(labels.Everything(), fields.Everything())
 	if err != nil {
 		return nil, fmt.Errorf("Error during parse nodes: %s", err)
 	}
-	vmtPodGetter := NewVMTPodGetter(this.KubeClient)
-	podProbe := NewPodProbe(vmtPodGetter.GetPods)
 
-	k8sPods, err := podProbe.GetPods(api.NamespaceAll, labels.Everything(), fields.Everything())
+	vmtPodGetter := NewVMTPodGetter(kubeProbe.KubeClient)
+	k8sPods, err := vmtPodGetter.GetPods(api.NamespaceAll, labels.Everything(), fields.Everything())
 	if err != nil {
 		return nil, fmt.Errorf("Error during parse nodes: %s", err)
 	}
@@ -66,9 +71,9 @@ func (this *KubeProbe) ParseNode() ([]*proto.EntityDTO, error) {
 }
 
 // Parse pods those are defined in namespace.
-func (this *KubeProbe) ParsePod(namespace string) ([]*proto.EntityDTO, error) {
-	vmtPodGetter := NewVMTPodGetter(this.KubeClient)
-	podProbe := NewPodProbe(vmtPodGetter.GetPods)
+func (kubeProbe *KubeProbe) ParsePod(namespace string) ([]*proto.EntityDTO, error) {
+	vmtPodGetter := NewVMTPodGetter(kubeProbe.KubeClient)
+	podProbe := NewPodProbe(vmtPodGetter.GetPods, kubeProbe.config, kubeProbe.stitchingManager)
 
 	k8sPods, err := podProbe.GetPods(namespace, labels.Everything(), fields.Everything())
 	if err != nil {
@@ -83,7 +88,7 @@ func (this *KubeProbe) ParseApplication(namespace string) ([]*proto.EntityDTO, e
 	return applicationProbe.ParseApplication(namespace)
 }
 
-func (kubeProbe *KubeProbe) ParseService(namespace string, selector labels.Selector) ([]*proto.EntityDTO, error) {
+func (kubeProbe *KubeProbe) ParseService(namespace string) ([]*proto.EntityDTO, error) {
 	vmtServiceGetter := NewVMTServiceGetter(kubeProbe.KubeClient)
 	vmtEndpointGetter := NewVMTEndpointGetter(kubeProbe.KubeClient)
 	svcProbe := NewServiceProbe(vmtServiceGetter.GetService, vmtEndpointGetter.GetEndpoints)

@@ -1,18 +1,18 @@
 package discovery
 
 import (
+	"fmt"
+
 	"k8s.io/kubernetes/pkg/api"
 	kubeClient "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/labels"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/registration"
 
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
-
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/registration"
-	"fmt"
 )
 
 // TODO maybe use a discovery client config
@@ -114,7 +114,7 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 		glog.Errorf("Error parsing applications: %s. Skip.", err)
 	}
 
-	serviceEntityDtos, err := kubeProbe.ParseService(api.NamespaceAll, labels.Everything())
+	serviceEntityDtos, err := kubeProbe.ParseService(api.NamespaceAll)
 	if err != nil {
 		// TODO, should here still send out msg to server? Or set errorDTO?
 		glog.Errorf("Error parsing services: %s. Skip.", err)

@@ -13,9 +13,9 @@ import (
 	k8sprobe "github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
 
+	"github.com/turbonomic/kubeturbo/pkg/action"
 	"github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/service"
-	"github.com/turbonomic/kubeturbo/pkg/action"
 )
 
 type K8sTAPServiceSpec struct {
@@ -61,17 +61,20 @@ func readK8sTAPServiceSpec(path string) (*K8sTAPServiceSpec, error) {
 }
 
 type K8sTAPServiceConfig struct {
-	spec                  *K8sTAPServiceSpec
-	probeConfig           *k8sprobe.ProbeConfig
-	discoveryClientConfig *discovery.DiscoveryConfig
+	spec                     *K8sTAPServiceSpec
+	probeConfig              *k8sprobe.ProbeConfig
+	registrationClientConfig *registration.RegistrationConfig
+	discoveryClientConfig    *discovery.DiscoveryConfig
 }
 
 func NewK8sTAPServiceConfig(kubeClient *client.Client, probeConfig *k8sprobe.ProbeConfig,
 	spec *K8sTAPServiceSpec) *K8sTAPServiceConfig {
+	registrationClientConfig := registration.NewRegistrationClientConfig(probeConfig.UseVMWare)
 	discoveryClientConfig := discovery.NewDiscoveryConfig(kubeClient, probeConfig, spec.K8sTargetConfig)
 	return &K8sTAPServiceConfig{
 		spec: spec,
-		discoveryClientConfig: discoveryClientConfig,
+		registrationClientConfig: registrationClientConfig,
+		discoveryClientConfig:    discoveryClientConfig,
 	}
 }
 
@@ -79,12 +82,12 @@ type K8sTAPService struct {
 	*service.TAPService
 }
 
-func NewKubernetesTAPService(config *K8sTAPServiceConfig, actionHandler  *action.ActionHandler) (*K8sTAPService, error) {
+func NewKubernetesTAPService(config *K8sTAPServiceConfig, actionHandler *action.ActionHandler) (*K8sTAPService, error) {
 	if config == nil || config.spec == nil {
 		return nil, errors.New("Invalid K8sTAPServiceConfig")
 	}
 	// Kubernetes Probe Registration Client
-	registrationClient := registration.NewK8sRegistrationClient()
+	registrationClient := registration.NewK8sRegistrationClient(config.registrationClientConfig)
 	// Kubernetes Probe Discovery Client
 	discoveryClient := discovery.NewK8sDiscoveryClient(config.discoveryClientConfig)
 

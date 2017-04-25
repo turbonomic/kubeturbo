@@ -47,7 +47,7 @@ func (fpg *FakePodGetter) GetPods(namespace string, label labels.Selector, field
 func TestGetPods(t *testing.T) {
 	fakeGetter := &FakePodGetter{}
 
-	podProbe := NewPodProbe(fakeGetter.GetPods)
+	podProbe := NewPodProbe(fakeGetter.GetPods, nil)
 
 	pods, _ := podProbe.GetPods("", nil, nil)
 
