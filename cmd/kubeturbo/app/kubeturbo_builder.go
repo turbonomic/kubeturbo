@@ -29,8 +29,6 @@ import (
 const (
 	// The default port for vmt service server
 	VMTPort = 10265
-
-	DefaultEtcdPathPrefix = "/registry"
 )
 
 // VMTServer has all the context and params needed to run a Scheduler
@@ -40,14 +38,15 @@ type VMTServer struct {
 	Master          string
 	K8sTAPSpec      string
 	TestingFlagPath string
-	Kubeconfig      string
+	KubeConfig      string
 	BindPodsQPS     float32
 	BindPodsBurst   int
 	CAdvisorPort    int
 
-	LeaderElection componentconfig.LeaderElectionConfiguration
+	LeaderElection  componentconfig.LeaderElectionConfiguration
 
 	EnableProfiling bool
+	ProfilingPort   int
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -66,14 +65,15 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
 	fs.StringVar(&s.K8sTAPSpec, "turboconfig", s.K8sTAPSpec, "Path to the config file.")
 	fs.StringVar(&s.TestingFlagPath, "testingflag", s.TestingFlagPath, "Path to the testing flag.")
-	fs.StringVar(&s.Kubeconfig, "kubeconfig", s.Kubeconfig, "Path to kubeconfig file with authorization and master location information.")
-	fs.BoolVar(&s.EnableProfiling, "profiling", true, "Enable profiling via web interface host:port/debug/pprof/")
+	fs.StringVar(&s.KubeConfig, "kubeconfig", s.KubeConfig, "Path to kubeconfig file with authorization and master location information.")
+	fs.BoolVar(&s.EnableProfiling, "profiling", false, "Enable profiling via web interface host:port/debug/pprof/.")
+	fs.IntVar(&s.ProfilingPort, "profiling-port", VMTPort, "The port number for profiling via web interface.")
 	leaderelection.BindFlags(&s.LeaderElection, fs)
 }
 
 // Run runs the specified VMTServer.  This should never exit.
 func (s *VMTServer) Run(_ []string) error {
-	if s.Kubeconfig == "" && s.Master == "" {
+	if s.KubeConfig == "" && s.Master == "" {
 		glog.Warningf("Neither --kubeconfig nor --master was specified.  Using default API client.  This might not work.")
 	}
 
@@ -91,7 +91,7 @@ func (s *VMTServer) Run(_ []string) error {
 		CadvisorPort: s.CAdvisorPort,
 	}
 
-	kubeConfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.Kubeconfig)
+	kubeConfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.KubeConfig)
 	if err != nil {
 		glog.Errorf("Error getting kubeconfig:  %s", err)
 		return err
@@ -110,20 +110,7 @@ func (s *VMTServer) Run(_ []string) error {
 		glog.Fatalf("Invalid API configuration: %v", err)
 	}
 
-	go func() {
-		mux := http.NewServeMux()
-		if s.EnableProfiling {
-			mux.HandleFunc("/debug/pprof/", pprof.Index)
-			mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-			mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		}
-
-		server := &http.Server{
-			Addr:    net.JoinHostPort(s.Address.String(), strconv.Itoa(s.Port)),
-			Handler: mux,
-		}
-		glog.Fatal(server.ListenAndServe())
-	}()
+	go s.profiling()
 
 	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
 
@@ -181,4 +168,22 @@ func (s *VMTServer) Run(_ []string) error {
 
 	glog.Fatal("this statement is unreachable")
 	panic("unreachable")
+}
+
+// Set up the profiling web interface if profiling is enabled.
+func (s *VMTServer) profiling() {
+	if !s.EnableProfiling {
+		return
+	}
+	glog.V(2).Info("Profiling is enabled.")
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+
+	server := &http.Server{
+		Addr:    net.JoinHostPort(s.Address.String(), strconv.Itoa(s.ProfilingPort)),
+		Handler: mux,
+	}
+	glog.Fatal(server.ListenAndServe())
 }
