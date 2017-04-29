@@ -41,7 +41,7 @@ type PodProbe struct {
 	stitchingManager *stitching.StitchingManager
 }
 
-func NewPodProbe(getter PodsGetter, config *ProbeConfig, stitchingManager *stitching.StitchingManager) *PodProbe {
+func NewPodProbe(getter PodsGetter, stitchingManager *stitching.StitchingManager) *PodProbe {
 	inactivePods = make(map[string]struct{})
 	podResourceConsumptionMap = make(map[string]*PodResourceStat)
 	nodePodMap = make(map[string][]string)

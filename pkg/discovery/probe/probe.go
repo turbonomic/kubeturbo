@@ -73,7 +73,7 @@ func (kubeProbe *KubeProbe) ParseNode() ([]*proto.EntityDTO, error) {
 // Parse pods those are defined in namespace.
 func (kubeProbe *KubeProbe) ParsePod(namespace string) ([]*proto.EntityDTO, error) {
 	vmtPodGetter := NewVMTPodGetter(kubeProbe.KubeClient)
-	podProbe := NewPodProbe(vmtPodGetter.GetPods, kubeProbe.config, kubeProbe.stitchingManager)
+	podProbe := NewPodProbe(vmtPodGetter.GetPods, kubeProbe.stitchingManager)
 
 	k8sPods, err := podProbe.GetPods(namespace, labels.Everything(), fields.Everything())
 	if err != nil {
