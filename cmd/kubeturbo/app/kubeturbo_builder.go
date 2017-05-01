@@ -2,7 +2,10 @@ package app
 
 import (
 	"net"
+	"net/http"
+	"net/http/pprof"
 	"os"
+	"strconv"
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/componentconfig"
@@ -16,38 +19,34 @@ import (
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	"github.com/turbonomic/kubeturbo/test/flag"
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
-	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 )
 
 const (
 	// The default port for vmt service server
 	VMTPort = 10265
-
-	DefaultEtcdPathPrefix = "/registry"
 )
 
 // VMTServer has all the context and params needed to run a Scheduler
 type VMTServer struct {
-	Port                  int
-	Address               net.IP
-	Master                string
-	K8sTAPSpec            string
-	TestingFlagPath       string
-	Kubeconfig            string
-	BindPodsQPS           float32
-	BindPodsBurst         int
-	CadvisorPort          int
+	Port            int
+	Address         net.IP
+	Master          string
+	K8sTAPSpec      string
+	TestingFlagPath string
+	KubeConfig      string
+	BindPodsQPS     float32
+	BindPodsBurst   int
+	CAdvisorPort    int
 
-	TurboServerAddress string
-	TurboServerPort    string
-	OpsManagerUsername string
-	OpsManagerPassword string
+	LeaderElection  componentconfig.LeaderElectionConfiguration
 
-	LeaderElection componentconfig.LeaderElectionConfiguration
+	EnableProfiling bool
+	ProfilingPort   int
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -62,21 +61,19 @@ func NewVMTServer() *VMTServer {
 // AddFlags adds flags for a specific VMTServer to the specified FlagSet
 func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.Port, "port", s.Port, "The port that the kubeturbo's http service runs on")
-	fs.IntVar(&s.CadvisorPort, "cadvisor-port", 4194, "The port of the cadvisor service runs on")
+	fs.IntVar(&s.CAdvisorPort, "cadvisor-port", 4194, "The port of the cadvisor service runs on")
 	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
 	fs.StringVar(&s.K8sTAPSpec, "turboconfig", s.K8sTAPSpec, "Path to the config file.")
 	fs.StringVar(&s.TestingFlagPath, "testingflag", s.TestingFlagPath, "Path to the testing flag.")
-	fs.StringVar(&s.Kubeconfig, "kubeconfig", s.Kubeconfig, "Path to kubeconfig file with authorization and master location information.")
-	fs.StringVar(&s.TurboServerAddress, "serveraddress", s.TurboServerAddress, "Address of Turbo Server")
-	fs.StringVar(&s.TurboServerPort, "serverport", "", "Port of Turbo Server")
-	fs.StringVar(&s.OpsManagerUsername, "opsmanagerusername", s.OpsManagerUsername, "Username for Ops Manager")
-	fs.StringVar(&s.OpsManagerPassword, "opsmanagerpassword", s.OpsManagerPassword, "Password for Ops Manager")
+	fs.StringVar(&s.KubeConfig, "kubeconfig", s.KubeConfig, "Path to kubeconfig file with authorization and master location information.")
+	fs.BoolVar(&s.EnableProfiling, "profiling", false, "Enable profiling via web interface host:port/debug/pprof/.")
+	fs.IntVar(&s.ProfilingPort, "profiling-port", VMTPort, "The port number for profiling via web interface.")
 	leaderelection.BindFlags(&s.LeaderElection, fs)
 }
 
 // Run runs the specified VMTServer.  This should never exit.
 func (s *VMTServer) Run(_ []string) error {
-	if s.Kubeconfig == "" && s.Master == "" {
+	if s.KubeConfig == "" && s.Master == "" {
 		glog.Warningf("Neither --kubeconfig nor --master was specified.  Using default API client.  This might not work.")
 	}
 
@@ -86,20 +83,15 @@ func (s *VMTServer) Run(_ []string) error {
 		flag.SetPath(s.TestingFlagPath)
 	}
 
-	if s.CadvisorPort == 0 {
-		s.CadvisorPort = 4194
+	if s.CAdvisorPort == 0 {
+		s.CAdvisorPort = 4194
 	}
 
 	probeConfig := &probe.ProbeConfig{
-		CadvisorPort: s.CadvisorPort,
+		CadvisorPort: s.CAdvisorPort,
 	}
-	// This creates a client, first loading any specified kubeconfig
-	// file, and then overriding the Master flag, if non-empty.
-	// kubeconfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-	// 	&clientcmd.ClientConfigLoadingRules{ExplicitPath: s.Kubeconfig},
-	// 	&clientcmd.ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: s.Master}}).ClientConfig()
 
-	kubeConfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.Kubeconfig)
+	kubeConfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.KubeConfig)
 	if err != nil {
 		glog.Errorf("Error getting kubeconfig:  %s", err)
 		return err
@@ -117,6 +109,8 @@ func (s *VMTServer) Run(_ []string) error {
 	if err != nil {
 		glog.Fatalf("Invalid API configuration: %v", err)
 	}
+
+	go s.profiling()
 
 	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
 
@@ -174,4 +168,22 @@ func (s *VMTServer) Run(_ []string) error {
 
 	glog.Fatal("this statement is unreachable")
 	panic("unreachable")
+}
+
+// Set up the profiling web interface if profiling is enabled.
+func (s *VMTServer) profiling() {
+	if !s.EnableProfiling {
+		return
+	}
+	glog.V(2).Info("Profiling is enabled.")
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+
+	server := &http.Server{
+		Addr:    net.JoinHostPort(s.Address.String(), strconv.Itoa(s.ProfilingPort)),
+		Handler: mux,
+	}
+	glog.Fatal(server.ListenAndServe())
 }
