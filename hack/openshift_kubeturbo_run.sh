@@ -3,7 +3,7 @@
 OUTPUT_DIR=${OUTPUT_DIR:-"_output"}
 
 ./${OUTPUT_DIR}/kubeturbo \
-	 --v=4 \
+	 --v=3 \
 	 --kubeconfig="$HOME/.kube/config" \
 	 --cadvisor-port=9999 \
 	 --usevmware=false \

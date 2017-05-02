@@ -19,6 +19,7 @@ import (
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	"github.com/turbonomic/kubeturbo/test/flag"
 
@@ -43,11 +44,10 @@ type VMTServer struct {
 	BindPodsBurst   int
 	CAdvisorPort    int
 
-	LeaderElection  componentconfig.LeaderElectionConfiguration
+	LeaderElection componentconfig.LeaderElectionConfiguration
 
 	EnableProfiling bool
 	ProfilingPort   int
-
 
 	// If the underlying infrastructure is VMWare, we cannot reply on IP address for stitching. Instead we use the
 	// systemUUID of each node, which is equal to UUID of corresponding VM discovered by VM probe.
@@ -94,9 +94,16 @@ func (s *VMTServer) Run(_ []string) error {
 		s.CAdvisorPort = 4194
 	}
 
+	// The default property type for stitching is IP.
+	pType := stitching.IP
+	if s.UseVMWare {
+		// If the underlying hypervisor is vCenter, use UUID.
+		// Refer to Bug: https://vmturbo.atlassian.net/browse/OM-18139
+		pType = stitching.UUID
+	}
 	probeConfig := &probe.ProbeConfig{
-		CadvisorPort: s.CAdvisorPort,
-		UseVMWare:    s.UseVMWare,
+		CadvisorPort:          s.CAdvisorPort,
+		StitchingPropertyType: pType,
 	}
 
 	kubeConfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.KubeConfig)

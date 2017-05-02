@@ -9,6 +9,7 @@ import (
 	"k8s.io/kubernetes/pkg/labels"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
+
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
@@ -33,10 +34,7 @@ func NewKubeProbe(kubeClient *client.Client, config *ProbeConfig) (*KubeProbe, e
 		}
 		ClusterID = id
 	}
-	stitchingManager := stitching.NewStitchingManager()
-	if config.UseVMWare {
-		stitchingManager.UseVMWare(true)
-	}
+	stitchingManager := stitching.NewStitchingManager(config.StitchingPropertyType)
 	return &KubeProbe{
 		KubeClient:       kubeClient,
 		config:           config,

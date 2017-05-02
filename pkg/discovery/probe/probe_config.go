@@ -1,9 +1,10 @@
 package probe
 
+import "github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
+
 type ProbeConfig struct {
 	CadvisorPort int
 
-	// A flag to indicate whether the underlying infrastructure is VMWare. If true, use UUID for stitching.
-	// Otherwise use IP.
-	UseVMWare bool
+	// A correct stitching property type is the prerequisite for stitching process.
+	StitchingPropertyType stitching.StitchingPropertyType
 }

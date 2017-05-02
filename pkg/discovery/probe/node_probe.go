@@ -10,15 +10,14 @@ import (
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 
-	cadvisor "github.com/google/cadvisor/info/v1"
-
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
+	cadvisor "github.com/google/cadvisor/info/v1"
 )
 
 // key: node name; value: cAdvisor host.
@@ -281,7 +280,10 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeUID, nodeName string, commoditi
 	glog.V(4).Infof("Node %s will be reconciled with VM with %s: %s", nodeName, *property.Name, *property.Value)
 
 	// reconciliation meta data
-	metaData := nodeProbe.stitchingManager.GenerateReconciliationMetaData()
+	metaData, err := nodeProbe.stitchingManager.GenerateReconciliationMetaData()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", nodeName, err)
+	}
 	entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
 
 	// power state

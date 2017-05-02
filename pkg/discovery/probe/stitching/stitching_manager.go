@@ -17,6 +17,9 @@ import (
 )
 
 const (
+	UUID StitchingPropertyType = "UUID"
+	IP   StitchingPropertyType = "IP"
+
 	// The property used for node property and replacement entity metadata
 	proxyVMIP   string = "Proxy_VM_IP"
 	proxyVMUUID string = "Proxy_VM_UUID"
@@ -24,11 +27,15 @@ const (
 	// The default namespace of entity property
 	defaultPropertyNamespace string = "DEFAULT"
 
-	Stitch    stitchingPropertyType = "stitch"
-	Reconcile stitchingPropertyType = "reconcile"
+	Stitch    stitchingType = "stitch"
+	Reconcile stitchingType = "reconcile"
 )
 
-type stitchingPropertyType string
+// The property type that is used for stitching. For example "UUID", "IP address".
+type StitchingPropertyType string
+
+// Stitching type includes "stitch" and "reconcile".
+type stitchingType string
 
 type StitchingManager struct {
 	// key: node name; value: node IP address for stitching.
@@ -37,33 +44,32 @@ type StitchingManager struct {
 	// key: node name; value: node IP address for stitching.
 	nodeStitchingIPMap map[string]string
 
-	//
-	useVMWare bool
+	// The property used for stitching.
+	stitchingPropertyType StitchingPropertyType
 
+	// Flags for local stitching simulation.
 	localTestingFlags *flag.TestingFlag
 }
 
-func NewStitchingManager() *StitchingManager {
+func NewStitchingManager(pType StitchingPropertyType) *StitchingManager {
 	testingFlag := flag.GetFlag()
 	return &StitchingManager{
+		stitchingPropertyType: pType,
+
 		localTestingFlags: testingFlag,
 	}
-}
-
-func (s *StitchingManager) UseVMWare(u bool) *StitchingManager {
-	s.useVMWare = u
-	return s
 }
 
 // Retrieve stitching values from given node and store in maps.
 // Do nothing if it is a local testing.
 func (s *StitchingManager) StoreStitchingValue(node *api.Node) {
-	if s.localTestingFlags.LocalTestingFlag {
+	if s.localTestingFlags != nil && s.localTestingFlags.LocalTestingFlag {
 		return
 	}
-	if s.useVMWare {
+	switch s.stitchingPropertyType {
+	case UUID:
 		s.retrieveAndStoreStitchingUUID(node)
-	} else {
+	case IP:
 		s.retrieveAndStoreStitchingIP(node)
 	}
 }
@@ -109,17 +115,20 @@ func (s *StitchingManager) retrieveAndStoreStitchingUUID(node *api.Node) {
 // Get the stitching value based on given nodeName.
 // Return localTestStitchingValue if it is a local testing.
 func (s *StitchingManager) GetStitchingValue(nodeName string) (string, error) {
-	if s.localTestingFlags.LocalTestingFlag {
+	if s.localTestingFlags != nil && s.localTestingFlags.LocalTestingFlag {
 		if s.localTestingFlags.LocalTestStitchingValue == "" {
 			return "", errors.New("Local testing stitching value is empty.")
 		} else {
 			return s.localTestingFlags.LocalTestStitchingValue, nil
 		}
 	} else {
-		if s.useVMWare {
+		switch s.stitchingPropertyType {
+		case UUID:
 			return s.getNodeUUIDForStitching(nodeName)
-		} else {
+		case IP:
 			return s.getNodeIPForStitching(nodeName)
+		default:
+			return "", fmt.Errorf("Stitching property type %s is not supported.", s.stitchingPropertyType)
 		}
 	}
 }
@@ -151,9 +160,9 @@ func (s *StitchingManager) getNodeUUIDForStitching(nodeName string) (string, err
 }
 
 // Build the stitching node property for entity based on the given node name and stitching property type.
-func (s *StitchingManager) BuildStitchingProperty(nodeName string, pType stitchingPropertyType) (*proto.EntityDTO_EntityProperty, error) {
+func (s *StitchingManager) BuildStitchingProperty(nodeName string, pType stitchingType) (*proto.EntityDTO_EntityProperty, error) {
 	propertyNamespace := defaultPropertyNamespace
-	propertyName, err := s.getStitchingPropertyName(pType)
+	propertyName, err := s.getPropertyName(pType)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to build entity stitching property: %s", err)
 	}
@@ -168,34 +177,55 @@ func (s *StitchingManager) BuildStitchingProperty(nodeName string, pType stitchi
 	}, nil
 }
 
-func (s *StitchingManager) getStitchingPropertyName(pType stitchingPropertyType) (string, error) {
-	switch pType {
+// Get the property name based on whether it is a stitching or reconciliation.
+func (s *StitchingManager) getPropertyName(sType stitchingType) (string, error) {
+	switch sType {
 	case Reconcile:
-		if s.useVMWare {
-			return proxyVMUUID, nil
-		} else {
-			return proxyVMIP, nil
-		}
+		return getReconciliationPropertyName(s.stitchingPropertyType)
 	case Stitch:
-		if s.useVMWare {
-			return supplychain.SUPPLY_CHAIN_CONSTANT_UUID, nil
-		} else {
-			return supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS, nil
-		}
+		return getStitchingPropertyName(s.stitchingPropertyType)
 	}
-	return "", fmt.Errorf("Stitching property type %s is not supported.", pType)
+	return "", fmt.Errorf("Stitching type %s is not supported.", sType)
+}
+
+// Get the name of property for entities reconciliation.
+func getReconciliationPropertyName(pType StitchingPropertyType) (string, error) {
+	switch pType {
+	case UUID:
+		return proxyVMUUID, nil
+	case IP:
+		return proxyVMIP, nil
+	default:
+		return "", fmt.Errorf("Stitching property type %s is not supported.", pType)
+	}
+}
+
+// Get the name of property for entities stitching.
+func getStitchingPropertyName(pType StitchingPropertyType) (string, error) {
+	switch pType {
+	case UUID:
+		return supplychain.SUPPLY_CHAIN_CONSTANT_UUID, nil
+	case IP:
+		return supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS, nil
+	default:
+		return "", fmt.Errorf("Reconciliation property type %s is not supported.", pType)
+	}
 }
 
 // Create the meta data that will be used during the reconciliation process.
-func (s *StitchingManager) GenerateReconciliationMetaData() *proto.EntityDTO_ReplacementEntityMetaData {
+func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_ReplacementEntityMetaData, error) {
 	replacementEntityMetaDataBuilder := builder.NewReplacementEntityMetaDataBuilder()
-	if s.useVMWare {
+	switch s.stitchingPropertyType {
+	case UUID:
 		replacementEntityMetaDataBuilder.Matching(proxyVMUUID)
-	} else {
+	case IP:
 		replacementEntityMetaDataBuilder.Matching(proxyVMIP)
+	default:
+		return nil, fmt.Errorf("Stitching property type %s is not supported.", s.stitchingPropertyType)
 	}
 	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_CLUSTER).
 		PatchSelling(proto.CommodityDTO_APPLICATION).
 		PatchSelling(proto.CommodityDTO_VMPM_ACCESS)
-	return replacementEntityMetaDataBuilder.Build()
+	meta := replacementEntityMetaDataBuilder.Build()
+	return meta, nil
 }

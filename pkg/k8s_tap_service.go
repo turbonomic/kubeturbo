@@ -69,7 +69,7 @@ type K8sTAPServiceConfig struct {
 
 func NewK8sTAPServiceConfig(kubeClient *client.Client, probeConfig *k8sprobe.ProbeConfig,
 	spec *K8sTAPServiceSpec) *K8sTAPServiceConfig {
-	registrationClientConfig := registration.NewRegistrationClientConfig(probeConfig.UseVMWare)
+	registrationClientConfig := registration.NewRegistrationClientConfig(probeConfig.StitchingPropertyType)
 	discoveryClientConfig := discovery.NewDiscoveryConfig(kubeClient, probeConfig, spec.K8sTargetConfig)
 	return &K8sTAPServiceConfig{
 		spec: spec,
