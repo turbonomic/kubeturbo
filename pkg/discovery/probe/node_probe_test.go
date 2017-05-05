@@ -46,7 +46,7 @@ func (fng *FakeNodeGetter) GetNodes(label labels.Selector, field fields.Selector
 func TestGetNodes(t *testing.T) {
 	fakeGetter := &FakeNodeGetter{}
 
-	nodeProbe := NewNodeProbe(fakeGetter.GetNodes, nil)
+	nodeProbe := NewNodeProbe(fakeGetter.GetNodes, nil, nil)
 
 	nodes, err := nodeProbe.GetNodes(nil, nil)
 	if err != nil {
