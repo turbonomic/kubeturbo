@@ -10,40 +10,40 @@ import (
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 
-	cadvisor "github.com/google/cadvisor/info/v1"
-
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	cadvisor "github.com/google/cadvisor/info/v1"
 )
 
-const (
-	proxyVMIP string = "Proxy_VM_IP"
-)
-
+// key: node name; value: cAdvisor host.
 var hostSet map[string]*vmtAdvisor.Host = make(map[string]*vmtAdvisor.Host)
 
-var nodeUidTranslationMap map[string]string = make(map[string]string)
+// key: node name; value: node uid.
+var nodeUIDMap map[string]string = make(map[string]string)
 
-var nodeName2ExternalIPMap map[string]string = make(map[string]string)
-
-// A map stores the machine information of each node. Key is node name, value is the corresponding machine information.
+// A map stores the machine information of each node.
+// key: node name; value: machine information.
 var nodeMachineInfoMap map[string]*cadvisor.MachineInfo = make(map[string]*cadvisor.MachineInfo)
 
 type NodeProbe struct {
-	nodesGetter NodesGetter
-	config      *ProbeConfig
-	nodeIPMap   map[string]map[api.NodeAddressType]string
+	nodesGetter      NodesGetter
+	config           *ProbeConfig
+	stitchingManager *stitching.StitchingManager
+
+	nodeIPMap map[string]map[api.NodeAddressType]string
 }
 
 // Since this is only used in probe package, do not expose it.
-func NewNodeProbe(getter NodesGetter, config *ProbeConfig) *NodeProbe {
+func NewNodeProbe(getter NodesGetter, config *ProbeConfig, stitchingManager *stitching.StitchingManager) *NodeProbe {
 	return &NodeProbe{
-		nodesGetter: getter,
-		config:      config,
+		nodesGetter:      getter,
+		config:           config,
+		stitchingManager: stitchingManager,
 	}
 }
 
@@ -79,8 +79,6 @@ func (this *VMTNodeGetter) GetNodes(label labels.Selector, field fields.Selector
 type NodesGetter func(label labels.Selector, field fields.Selector) ([]*api.Node, error)
 
 func (nodeProbe *NodeProbe) GetNodes(label labels.Selector, field fields.Selector) ([]*api.Node, error) {
-	//TODO check if nodesGetter is set
-
 	return nodeProbe.nodesGetter(label, field)
 }
 
@@ -105,21 +103,25 @@ func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node, pods []*api.Pod)
 		nodeProbe.parseNodeIP(node)
 		hostSet[node.Name] = nodeProbe.getHost(node.Name)
 
-		// // Now start to build supply chain.
-		nodeID := string(node.UID)
-		dispName := node.Name
-		nodeUidTranslationMap[node.Name] = nodeID
+		// Now start to build supply chain.
+		nodeUID := string(node.UID)
+		displayName := node.Name
+		nodeUIDMap[node.Name] = nodeUID
+
+		// find stitching values.
+		nodeProbe.stitchingManager.StoreStitchingValue(node)
 
 		commoditiesSold, err := nodeProbe.createCommoditySold(node, nodePodsMap)
 		if err != nil {
 			glog.Errorf("Error when create commoditiesSold for %s: %s", node.Name, err)
 			continue
 		}
-		entityDto, err := nodeProbe.buildVMEntityDTO(nodeID, dispName, commoditiesSold)
+		entityDto, err := nodeProbe.buildVMEntityDTO(nodeUID, displayName, commoditiesSold)
 		if err != nil {
-			return nil, err
+			glog.Errorf("Errora: %s", displayName, err)
+			// failed to build entityDTO for the current node. Skip.
+			continue
 		}
-
 		result = append(result, entityDto)
 	}
 
@@ -131,22 +133,6 @@ func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node, pods []*api.Pod)
 	}
 
 	return
-}
-
-// Check is a node is ready.
-func nodeIsReady(node *api.Node) bool {
-	for _, condition := range node.Status.Conditions {
-		if condition.Type == api.NodeReady {
-			return condition.Status == api.ConditionTrue
-		}
-	}
-	glog.Errorf("Node %s does not have Ready status.", node.Name)
-	return false
-}
-
-// Check if a node is schedulable.
-func nodeIsSchedulable(node *api.Node) bool {
-	return !node.Spec.Unschedulable
 }
 
 func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node, nodePodsMap map[string][]*api.Pod) ([]*proto.CommodityDTO, error) {
@@ -233,6 +219,7 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node, nodePodsMap map[
 	return commoditiesSold, nil
 }
 
+// Get the cAdvisor host endpoint associated with node based on the given node name.
 func (nodeProbe *NodeProbe) getHost(nodeName string) *vmtAdvisor.Host {
 	nodeIP, err := nodeProbe.getNodeIPWithType(nodeName, api.NodeLegacyHostIP)
 	if err != nil {
@@ -257,17 +244,15 @@ func (nodeProbe *NodeProbe) parseNodeIP(node *api.Node) {
 
 	nodeAddresses := node.Status.Addresses
 	for _, nodeAddress := range nodeAddresses {
-		if nodeAddress.Type == api.NodeExternalIP {
-			nodeName2ExternalIPMap[node.Name] = nodeAddress.Address
-		}
 		currentNodeIPMap[nodeAddress.Type] = nodeAddress.Address
 	}
 
 	nodeProbe.nodeIPMap[node.Name] = currentNodeIPMap
 }
 
-func (this *NodeProbe) getNodeIPWithType(nodeName string, ipType api.NodeAddressType) (string, error) {
-	ips, ok := this.nodeIPMap[nodeName]
+// Retrieve all available IP of a node and store them in a map according to IP address type.
+func (nodeProbe *NodeProbe) getNodeIPWithType(nodeName string, ipType api.NodeAddressType) (string, error) {
+	ips, ok := nodeProbe.nodeIPMap[nodeName]
 	if !ok {
 		return "", fmt.Errorf("IP of node %s is not tracked", nodeName)
 	}
@@ -278,71 +263,46 @@ func (this *NodeProbe) getNodeIPWithType(nodeName string, ipType api.NodeAddress
 	return nodeIP, nil
 }
 
-func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeID, displayName string, commoditiesSold []*proto.CommodityDTO) (*proto.EntityDTO, error) {
-	entityDTOBuilder := builder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_MACHINE, nodeID)
-	entityDTOBuilder.DisplayName(displayName)
+// Build entityDTO for a single node.
+func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeUID, nodeName string, commoditiesSold []*proto.CommodityDTO) (*proto.EntityDTO, error) {
+	entityDTOBuilder := builder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_MACHINE, nodeUID)
+	entityDTOBuilder.DisplayName(nodeName)
+
+	// sells commodities
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
 
-	ipAddress := nodeProbe.getIPForStitching(displayName)
-	propertyName := proxyVMIP
-	// TODO
-	propertyNamespace := "DEFAULT"
-	entityDTOBuilder = entityDTOBuilder.WithProperty(&proto.EntityDTO_EntityProperty{
-		Namespace: &propertyNamespace,
-		Name:      &propertyName,
-		Value:     &ipAddress,
-	})
-	glog.V(4).Infof("Parse node: The ip of vm to be reconcile with is %s", ipAddress)
+	// property
+	property, err := nodeProbe.stitchingManager.BuildStitchingProperty(nodeName, stitching.Reconcile)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", nodeName, err)
+	}
+	entityDTOBuilder = entityDTOBuilder.WithProperty(property)
+	glog.V(4).Infof("Node %s will be reconciled with VM with %s: %s", nodeName, *property.Name, *property.Value)
 
-	metaData := nodeProbe.generateReconcilationMetaData()
+	// reconciliation meta data
+	metaData, err := nodeProbe.stitchingManager.GenerateReconciliationMetaData()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", nodeName, err)
+	}
 	entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
 
+	// power state
 	entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
 	entityDto, err := entityDTOBuilder.Create()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", nodeID, err)
+		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", nodeUID, err)
 	}
 
 	return entityDto, nil
 }
 
-// Create the meta data that will be used during the reconciliation process.
-func (nodeProbe *NodeProbe) generateReconcilationMetaData() *proto.EntityDTO_ReplacementEntityMetaData {
-	replacementEntityMetaDataBuilder := builder.NewReplacementEntityMetaDataBuilder()
-	replacementEntityMetaDataBuilder.Matching(proxyVMIP)
-	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_CPU_ALLOCATION)
-	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_MEM_ALLOCATION)
-	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_APPLICATION)
-	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_VMPM_ACCESS)
-
-	metaData := replacementEntityMetaDataBuilder.Build()
-	return metaData
-}
-
-// Get the correct IP that will be used during the stitching process.
-func (nodeProbe *NodeProbe) getIPForStitching(nodeName string) string {
-	// If this is a local test, just return the predefined local testing stitching IP.
-	if localTestingFlag {
-		return localTestStitchingIP
-	}
-	nodeIPs, exist := nodeProbe.nodeIPMap[nodeName]
-	if !exist {
-		glog.Fatalf("Error trying to get IP of node %s in Kubernetes cluster", nodeName)
-	}
-	if externalIP, ok := nodeIPs[api.NodeExternalIP]; ok {
-		return externalIP
-	}
-
-	return nodeIPs[api.NodeLegacyHostIP]
-}
-
 // Get current stat of node resources, such as capacity and used values.
-func (this *NodeProbe) getNodeResourceStat(node *api.Node, nodePodsMap map[string][]*api.Pod) (*NodeResourceStat, error) {
-	cadvisor := &vmtAdvisor.CadvisorSource{}
+func (nodeProbe *NodeProbe) getNodeResourceStat(node *api.Node, nodePodsMap map[string][]*api.Pod) (*NodeResourceStat, error) {
+	source := &vmtAdvisor.CadvisorSource{}
 
-	host := this.getHost(node.Name)
-	machineInfo, err := cadvisor.GetMachineInfo(*host)
+	host := nodeProbe.getHost(node.Name)
+	machineInfo, err := source.GetMachineInfo(*host)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting machineInfo for %s: %s", node.Name, err)
 	}
@@ -351,7 +311,7 @@ func (this *NodeProbe) getNodeResourceStat(node *api.Node, nodePodsMap map[strin
 	nodeMachineInfoMap[node.Name] = machineInfo
 
 	// Here we only need the root container.
-	_, root, err := cadvisor.GetAllContainers(*host, time.Now(), time.Now())
+	_, root, err := source.GetAllContainers(*host, time.Now(), time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("Error getting root container info for %s: %s", node.Name, err)
 	}

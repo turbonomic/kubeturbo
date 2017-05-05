@@ -1,6 +1,10 @@
 package registration
 
 import (
+	"fmt"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
+
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"github.com/turbonomic/turbo-go-sdk/pkg/supplychain"
 )
@@ -27,10 +31,15 @@ var (
 	transactionTemplateComm    *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
 )
 
-type SupplyChainFactory struct{}
+type SupplyChainFactory struct {
+	// The property used for stitching.
+	stitchingPropertyType stitching.StitchingPropertyType
+}
 
-func NewSupplyChainFactory() *SupplyChainFactory {
-	return &SupplyChainFactory{}
+func NewSupplyChainFactory(pType stitching.StitchingPropertyType) *SupplyChainFactory {
+	return &SupplyChainFactory{
+		stitchingPropertyType: pType,
+	}
 }
 
 func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
@@ -100,9 +109,21 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Commodity(cpuProvisionedType, false).
 		Commodity(memProvisionedType, false).
 		Commodity(vmPMAccessType, true).
-		Commodity(clusterType, true).
-		ProbeEntityPropertyDef(supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS, "IP Address where the Pod is running").
-		ExternalEntityPropertyDef(supplychain.VM_IP)
+		Commodity(clusterType, true)
+
+	switch f.stitchingPropertyType {
+	case stitching.UUID:
+		vmPodExtLinkBuilder.
+			ProbeEntityPropertyDef(supplychain.SUPPLY_CHAIN_CONSTANT_UUID, "UUID of the Node").
+			ExternalEntityPropertyDef(supplychain.VM_UUID)
+	case stitching.IP:
+		vmPodExtLinkBuilder.
+			ProbeEntityPropertyDef(supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS, "IP of the Node").
+			ExternalEntityPropertyDef(supplychain.VM_IP)
+	default:
+		return nil, fmt.Errorf("Stitching property type %s is not supported.", f.stitchingPropertyType)
+	}
+
 	vmPodExternalLink, err := vmPodExtLinkBuilder.Build()
 	if err != nil {
 		return nil, err

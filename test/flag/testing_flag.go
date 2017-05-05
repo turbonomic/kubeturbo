@@ -4,18 +4,46 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
+	"sync"
 
 	"github.com/golang/glog"
-	"errors"
 )
 
 var (
 	flagPath = ""
+
+	instance *TestingFlag
+	once     sync.Once
 )
 
 type TestingFlag struct {
-	LocalTestingFlag       bool
-	LocalTestStitchingIP   string
+	LocalTestingFlag        bool
+	LocalTestStitchingValue string
+}
+
+func GetFlag() *TestingFlag {
+	once.Do(func() {
+		instance = loadTestingFlag()
+	})
+	return instance
+}
+
+func loadTestingFlag() *TestingFlag {
+	if flagPath == "" {
+		glog.V(4).Infof("Not a local testing.")
+		return nil
+	}
+	file, err := ioutil.ReadFile(flagPath)
+	if err != nil {
+		glog.V(4).Infof("ERROR! : %v\n", err)
+		return nil
+	}
+	var flags TestingFlag
+	err = json.Unmarshal(file, &flags)
+	if err != nil {
+		glog.Errorf("Failed to unmarshal file: %v", err)
+	}
+	return &flags
 }
 
 func SetPath(path string) {
@@ -25,20 +53,4 @@ func SetPath(path string) {
 	} else {
 		glog.V(3).Infof("%s does not exist.", path)
 	}
-}
-
-func LoadTestingFlag() (*TestingFlag, error) {
-	if flagPath == "" {
-		glog.V(4).Infof("Not a local testing.")
-		return nil, errors.New("Not a local testing.")
-	}
-	file, err := ioutil.ReadFile(flagPath)
-	if err != nil {
-		glog.V(4).Infof("ERROR! : %v\n", err)
-		return nil, err
-	}
-	var flags TestingFlag
-	json.Unmarshal(file, &flags)
-	glog.V(5).Infof("Results: %v\n", flags)
-	return &flags, nil
 }

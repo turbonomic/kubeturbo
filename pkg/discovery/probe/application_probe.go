@@ -1,6 +1,7 @@
 package probe
 
 import (
+	"fmt"
 	"strings"
 
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
@@ -11,7 +12,6 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-	"fmt"
 )
 
 const appPrefix string = "App-"
@@ -53,7 +53,7 @@ func (appProbe *ApplicationProbe) ParseApplication(namespace string) (result []*
 		nodeCpuCapacity := float64(machineInfo.NumCores) * float64(cpuFrequency)
 		nodeMemCapacity := float64(machineInfo.MemoryCapacity) / 1024 // Mem is returned in B
 
-		for podName, _ := range podResourceConsumptionMap {
+		for podName := range podResourceConsumptionMap {
 			if podNodeMap[podName] != nodeName {
 				continue
 			}
@@ -143,8 +143,8 @@ func (this *ApplicationProbe) getCommoditiesSold(appName string, appResourceStat
 	return commoditiesSold, nil
 }
 
-// Build commodities bought by an applicaiton.
-// An application buys vCpu and vMem from a VM, cpuAllocation and memAllocation from a containerPod.
+// Build commodities bought by an application.
+// An application buys vCpu, vMem and application commodity from a containerPod.
 func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, appResourceStat *ApplicationResourceStat) (
 	map[*builder.ProviderDTO][]*proto.CommodityDTO, error) {
 
@@ -199,10 +199,8 @@ func (this *ApplicationProbe) buildApplicationEntityDTOs(appName string, host *v
 	}
 
 	appType := podAppTypeMap[podName]
-	ipAddress := this.getIPAddress(host, nodeName)
 	appData := &proto.EntityDTO_ApplicationData{
-		Type:      &appType,
-		IpAddress: &ipAddress,
+		Type: &appType,
 	}
 	entityDTOBuilder.ApplicationData(appData)
 
@@ -269,17 +267,4 @@ func (this *ApplicationProbe) getTransactionFromNode(host *vmtAdvisor.Host) ([]v
 		return transactions, err
 	}
 	return transactions, nil
-}
-
-func (this *ApplicationProbe) getIPAddress(host *vmtAdvisor.Host, nodeName string) string {
-	if localTestingFlag {
-		return localTestStitchingIP
-	}
-	ipAddress := host.IP
-	if externalIP, ok := nodeName2ExternalIPMap[nodeName]; ok {
-		ipAddress = externalIP
-	}
-	glog.V(4).Infof("Parse application: The ip of vm to be stitched is %s", ipAddress)
-
-	return ipAddress
 }

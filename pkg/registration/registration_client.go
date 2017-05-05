@@ -1,6 +1,8 @@
 package registration
 
 import (
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
+
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
@@ -11,14 +13,29 @@ const (
 	Password              string = "password"
 )
 
-type K8sRegistrationClient struct{}
+type RegistrationConfig struct {
+	// The property used for stitching.
+	stitchingPropertyType stitching.StitchingPropertyType
+}
 
-func NewK8sRegistrationClient() *K8sRegistrationClient {
-	return &K8sRegistrationClient{}
+func NewRegistrationClientConfig(pType stitching.StitchingPropertyType) *RegistrationConfig {
+	return &RegistrationConfig{
+		stitchingPropertyType: pType,
+	}
+}
+
+type K8sRegistrationClient struct {
+	config *RegistrationConfig
+}
+
+func NewK8sRegistrationClient(config *RegistrationConfig) *K8sRegistrationClient {
+	return &K8sRegistrationClient{
+		config: config,
+	}
 }
 
 func (rClient *K8sRegistrationClient) GetSupplyChainDefinition() []*proto.TemplateDTO {
-	supplyChainFactory := NewSupplyChainFactory()
+	supplyChainFactory := NewSupplyChainFactory(rClient.config.stitchingPropertyType)
 	supplyChain, err := supplyChainFactory.createSupplyChain()
 	if err != nil {
 		// TODO error handling

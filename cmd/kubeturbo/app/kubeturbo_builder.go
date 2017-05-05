@@ -19,6 +19,7 @@ import (
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	"github.com/turbonomic/kubeturbo/test/flag"
 
@@ -43,10 +44,15 @@ type VMTServer struct {
 	BindPodsBurst   int
 	CAdvisorPort    int
 
-	LeaderElection  componentconfig.LeaderElectionConfiguration
+	LeaderElection componentconfig.LeaderElectionConfiguration
 
 	EnableProfiling bool
 	ProfilingPort   int
+
+	// If the underlying infrastructure is VMWare, we cannot reply on IP address for stitching. Instead we use the
+	// systemUUID of each node, which is equal to UUID of corresponding VM discovered by VM probe.
+	// The default value is false.
+	UseVMWare bool
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -68,6 +74,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.KubeConfig, "kubeconfig", s.KubeConfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.BoolVar(&s.EnableProfiling, "profiling", false, "Enable profiling via web interface host:port/debug/pprof/.")
 	fs.IntVar(&s.ProfilingPort, "profiling-port", VMTPort, "The port number for profiling via web interface.")
+	fs.BoolVar(&s.UseVMWare, "usevmware", false, "If the underlying infrastructure is VMWare.")
 	leaderelection.BindFlags(&s.LeaderElection, fs)
 }
 
@@ -87,8 +94,16 @@ func (s *VMTServer) Run(_ []string) error {
 		s.CAdvisorPort = 4194
 	}
 
+	// The default property type for stitching is IP.
+	pType := stitching.IP
+	if s.UseVMWare {
+		// If the underlying hypervisor is vCenter, use UUID.
+		// Refer to Bug: https://vmturbo.atlassian.net/browse/OM-18139
+		pType = stitching.UUID
+	}
 	probeConfig := &probe.ProbeConfig{
-		CadvisorPort: s.CAdvisorPort,
+		CadvisorPort:          s.CAdvisorPort,
+		StitchingPropertyType: pType,
 	}
 
 	kubeConfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.KubeConfig)

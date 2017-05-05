@@ -12,10 +12,10 @@ import (
 	"k8s.io/kubernetes/pkg/labels"
 
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	"github.com/turbonomic/turbo-go-sdk/pkg/supplychain"
 
 	"github.com/golang/glog"
 )
@@ -37,10 +37,11 @@ var podAppTypeMap map[string]string
 type PodsGetter func(namespace string, label labels.Selector, field fields.Selector) ([]*api.Pod, error)
 
 type PodProbe struct {
-	podGetter PodsGetter
+	podGetter        PodsGetter
+	stitchingManager *stitching.StitchingManager
 }
 
-func NewPodProbe(getter PodsGetter) *PodProbe {
+func NewPodProbe(getter PodsGetter, stitchingManager *stitching.StitchingManager) *PodProbe {
 	inactivePods = make(map[string]struct{})
 	podResourceConsumptionMap = make(map[string]*PodResourceStat)
 	nodePodMap = make(map[string][]string)
@@ -48,7 +49,8 @@ func NewPodProbe(getter PodsGetter) *PodProbe {
 	podAppTypeMap = make(map[string]string)
 
 	return &PodProbe{
-		podGetter: getter,
+		podGetter:        getter,
+		stitchingManager: stitchingManager,
 	}
 }
 
@@ -222,9 +224,9 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 			prevStat := containerStats[0]
 			rawUsage := int64(currentStat.Cpu.Usage.Total - prevStat.Cpu.Usage.Total)
 			intervalInNs := currentStat.Timestamp.Sub(prevStat.Timestamp).Nanoseconds()
-			glog.V(4).Infof("%d - %d = rawUsage is %f", currentStat.Cpu.Usage.Total,
+			glog.V(4).Infof("%d - %d = rawUsage is %d nanocore.", currentStat.Cpu.Usage.Total,
 				prevStat.Cpu.Usage.Total, rawUsage)
-			glog.V(4).Infof("intervalInNs is %f", intervalInNs)
+			glog.V(4).Infof("intervalInNs is %d ns", intervalInNs)
 
 			podCpuUsed += float64(rawUsage) / float64(intervalInNs)
 
@@ -239,7 +241,6 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 		glog.Warningf("Cannot find pod %s", podNameWithNamespace)
 		return nil, fmt.Errorf("Cannot find pod %s", podNameWithNamespace)
 	}
-	glog.V(4).Infof("used is %f", podCpuUsed)
 
 	// convert num of core to frequency in MHz
 	podCpuUsed = podCpuUsed * float64(cpuFrequency)
@@ -254,9 +255,9 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	}
 	cpuProvisionedUsed *= float64(cpuFrequency)
 
-	glog.V(3).Infof(" Discovered pod is " + pod.Name)
-	glog.V(4).Infof(" Pod %s CPU request is %f", pod.Name, podCpuUsed)
-	glog.V(4).Infof(" Pod %s Mem request is %f", pod.Name, podMemUsed)
+	glog.V(3).Infof("Discovered pod is %s", podNameWithNamespace)
+	glog.V(4).Infof("Pod %s CPU request is %f", podNameWithNamespace, podCpuUsed)
+	glog.V(4).Infof("Pod %s Mem request is %f", podNameWithNamespace, podMemUsed)
 
 	resourceStat := &PodResourceStat{
 		vCpuCapacity:           podCpuCapacity,
@@ -381,47 +382,49 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 	podNameWithNamespace := pod.Namespace + "/" + pod.Name
 
 	id := podNameWithNamespace
-	dispName := podNameWithNamespace
+	podDisplayName := podNameWithNamespace
 
-	// NOTE: quick fix, podName are now show as namespace:name, which is namespace/name before. So we need to replace "/" with ":".
+	// TODO: quick fix. As "/" is not escaped on the new UI, id should be changed to "namespace:name".
 	entityDTOBuilder := builder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, strings.Replace(podNameWithNamespace, "/", ":", -1))
-	entityDTOBuilder.DisplayName(dispName)
+	entityDTOBuilder.DisplayName(podDisplayName)
 
-	minionId := pod.Spec.NodeName
-	if minionId == "" {
+	nodeName := pod.Spec.NodeName
+	if nodeName == "" {
 		return nil, fmt.Errorf("Cannot find the hosting node ID for pod %s", podNameWithNamespace)
 	}
-	glog.V(4).Infof("Pod %s is hosted on %s", dispName, minionId)
+	glog.V(4).Infof("Pod %s is hosted on %s", podDisplayName, nodeName)
 
 	// TODO, temp solution.
-	updateNodePodMap(minionId, id)
+	updateNodePodMap(nodeName, id)
 
+	// sells commodities.
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
-	providerUid := nodeUidTranslationMap[minionId]
-	provider := builder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, providerUid)
+
+	// buys commodities.
+	providerNodeUID := nodeUIDMap[nodeName]
+	provider := builder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, providerNodeUID)
 	entityDTOBuilder = entityDTOBuilder.Provider(provider)
 	entityDTOBuilder.BuysCommodities(commoditiesBought)
 
-	ipAddress := podProbe.getIPForStitching(pod)
-	propertyName := supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS
-	// TODO
-	propertyNamespace := "DEFAULT"
-	entityDTOBuilder = entityDTOBuilder.WithProperty(&proto.EntityDTO_EntityProperty{
-		Namespace: &propertyNamespace,
-		Name:      &propertyName,
-		Value:     &ipAddress,
-	})
-	glog.V(4).Infof("Pod %s will be stitched to VM with IP %s", dispName, ipAddress)
+	// property
+	property, err := podProbe.stitchingManager.BuildStitchingProperty(nodeName, stitching.Stitch)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to build EntityDTO for Pod %s: %s", podDisplayName, err)
+	}
+	entityDTOBuilder = entityDTOBuilder.WithProperty(property)
+	glog.V(4).Infof("Pod %s will be stitched with VM with %s: %s", podDisplayName, *property.Name, *property.Value)
 
+	// monitored or not
+	monitored := monitored(pod)
+	if !monitored {
+		inactivePods[podNameWithNamespace] = struct{}{}
+	}
+	entityDTOBuilder = entityDTOBuilder.Monitored(monitored)
+
+	// create entityDTO
 	entityDto, err := entityDTOBuilder.Create()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to build EntityDTO for pod %s: %s", id, err)
-	}
-
-	// TODO: should change builder to change the monitored state
-	if monitored := monitored(pod); !monitored {
-		entityDto.Monitored = &monitored
-		inactivePods[podNameWithNamespace] = struct{}{}
 	}
 
 	// Get the app type of the pod.
@@ -438,20 +441,4 @@ func updateNodePodMap(nodeName, podID string) {
 	podIDs = append(podIDs, podID)
 	nodePodMap[nodeName] = podIDs
 	podNodeMap[podID] = nodeName
-}
-
-// Get the IP address that will be used for stitching process.
-// TODO, this needs to be consistent with the hypervisor probe.
-// The correct behavior depends on what kind of IP address the hypervisor probe picks.
-func (podProbe *PodProbe) getIPForStitching(pod *api.Pod) string {
-	// If this is a local test, just return the predefined local testing stitching IP.
-	if localTestingFlag {
-		return localTestStitchingIP
-	}
-	ipAddress := pod.Status.HostIP
-	minionId := pod.Spec.NodeName
-	if externalIP, ok := nodeName2ExternalIPMap[minionId]; ok {
-		ipAddress = externalIP
-	}
-	return ipAddress
 }
