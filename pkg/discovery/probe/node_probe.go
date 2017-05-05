@@ -30,6 +30,10 @@ var nodeUIDMap map[string]string = make(map[string]string)
 // key: node name; value: machine information.
 var nodeMachineInfoMap map[string]*cadvisor.MachineInfo = make(map[string]*cadvisor.MachineInfo)
 
+// This set keeps track of unschedulable or inactive nodes, which are not monitored in Turbonomic.
+// key: node name.
+var notMonitoredNodes map[string]struct{}
+
 type NodeProbe struct {
 	nodesGetter      NodesGetter
 	config           *ProbeConfig
@@ -40,6 +44,9 @@ type NodeProbe struct {
 
 // Since this is only used in probe package, do not expose it.
 func NewNodeProbe(getter NodesGetter, config *ProbeConfig, stitchingManager *stitching.StitchingManager) *NodeProbe {
+	// initiate set every time.
+	notMonitoredNodes = make(map[string]struct{})
+
 	return &NodeProbe{
 		nodesGetter:      getter,
 		config:           config,
@@ -94,19 +101,10 @@ func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node, pods []*api.Pod)
 		nodePodsMap[pod.Spec.NodeName] = podList
 	}
 	for _, node := range nodes {
-		// We do not parse node that is not ready or unschedulable.
-		if !nodeIsReady(node) || !nodeIsSchedulable(node) {
-			glog.V(3).Infof("Node %s is either not ready or unschedulable. Skip", node.Name)
-			continue
-		}
+
 		// use cAdvisor to get node info
 		nodeProbe.parseNodeIP(node)
 		hostSet[node.Name] = nodeProbe.getHost(node.Name)
-
-		// Now start to build supply chain.
-		nodeUID := string(node.UID)
-		displayName := node.Name
-		nodeUIDMap[node.Name] = nodeUID
 
 		// find stitching values.
 		nodeProbe.stitchingManager.StoreStitchingValue(node)
@@ -116,9 +114,9 @@ func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node, pods []*api.Pod)
 			glog.Errorf("Error when create commoditiesSold for %s: %s", node.Name, err)
 			continue
 		}
-		entityDto, err := nodeProbe.buildVMEntityDTO(nodeUID, displayName, commoditiesSold)
+		entityDto, err := nodeProbe.buildVMEntityDTO(node, commoditiesSold)
 		if err != nil {
-			glog.Errorf("Errora: %s", displayName, err)
+			glog.Errorf("Error: %s", err)
 			// failed to build entityDTO for the current node. Skip.
 			continue
 		}
@@ -264,30 +262,43 @@ func (nodeProbe *NodeProbe) getNodeIPWithType(nodeName string, ipType api.NodeAd
 }
 
 // Build entityDTO for a single node.
-func (nodeProbe *NodeProbe) buildVMEntityDTO(nodeUID, nodeName string, commoditiesSold []*proto.CommodityDTO) (*proto.EntityDTO, error) {
+func (nodeProbe *NodeProbe) buildVMEntityDTO(node *api.Node, commoditiesSold []*proto.CommodityDTO) (*proto.EntityDTO, error) {
+	// Now start to build supply chain.
+	nodeUID := string(node.UID)
+	displayName := node.Name
+	nodeUIDMap[node.Name] = nodeUID
+
 	entityDTOBuilder := builder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_MACHINE, nodeUID)
-	entityDTOBuilder.DisplayName(nodeName)
+	entityDTOBuilder.DisplayName(displayName)
 
 	// sells commodities
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 	// property
-	property, err := nodeProbe.stitchingManager.BuildStitchingProperty(nodeName, stitching.Reconcile)
+	property, err := nodeProbe.stitchingManager.BuildStitchingProperty(node.Name, stitching.Reconcile)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", nodeName, err)
+		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", node.Name, err)
 	}
 	entityDTOBuilder = entityDTOBuilder.WithProperty(property)
-	glog.V(4).Infof("Node %s will be reconciled with VM with %s: %s", nodeName, *property.Name, *property.Value)
+	glog.V(4).Infof("Node %s will be reconciled with VM with %s: %s", node.Name, *property.Name, *property.Value)
 
 	// reconciliation meta data
 	metaData, err := nodeProbe.stitchingManager.GenerateReconciliationMetaData()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", nodeName, err)
+		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", node.Name, err)
 	}
 	entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
 
 	// power state
 	entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
+
+	// We do not monitor node that is not ready or unschedulable.
+	if !nodeIsReady(node) || !nodeIsSchedulable(node) {
+		glog.V(3).Infof("Node %s is either not ready or unschedulable. Skip", node.Name)
+		//continue
+		notMonitoredNodes[node.Name] = struct{}{}
+		entityDTOBuilder.Monitored(false)
+	}
 
 	entityDto, err := entityDTOBuilder.Create()
 	if err != nil {
