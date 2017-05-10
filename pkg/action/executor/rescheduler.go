@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
+	k8serror "k8s.io/kubernetes/pkg/api/errors"
+	"k8s.io/kubernetes/pkg/api/unversioned"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
@@ -16,6 +18,11 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+)
+
+const (
+	// Set the grace period to 0 for deleting the pod immediately.
+	podDeletionGracePeriod int64 = 0
 )
 
 type ReScheduler struct {
@@ -136,7 +143,9 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 	if actionContent.ParentObjectRef.ParentObjectUID != "" {
 		key = actionContent.ParentObjectRef.ParentObjectUID
 	} else if actionContent.TargetObject.TargetObjectUID != "" {
-		key = actionContent.TargetObject.TargetObjectUID
+		// If the targetObject doesn't have any parent object, use its namespace and name as key.
+		key = fmt.Sprintf("%s/%s", actionContent.TargetObject.TargetObjectNamespace,
+			actionContent.TargetObject.TargetObjectName)
 	} else {
 		return nil, errors.New("Failed to setup re-scheduler consumer: failed to retrieve the UID of " +
 			"replication controller or replca set.")
@@ -155,9 +164,14 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 	podIdentifier := util.BuildIdentifier(originalPod.Namespace, originalPod.Name)
 
 	// 3. delete pod
-	// TODO, we may want to specify a DeleteOption.
-	err = r.kubeClient.Pods(originalPod.Namespace).Delete(originalPod.Name, nil)
+	grace := podDeletionGracePeriod
+	deleteOption := &api.DeleteOptions{GracePeriodSeconds: &grace}
+	err = r.kubeClient.Pods(originalPod.Namespace).Delete(originalPod.Name, deleteOption)
 	if err != nil {
+		return nil, fmt.Errorf("Failed to delete pod %s: %s", podIdentifier, err)
+	}
+	podDeletionChecker := &podDeletionChecker{r.kubeClient}
+	if err := podDeletionChecker.check(originalPod); err != nil {
 		return nil, fmt.Errorf("Failed to delete pod %s: %s", podIdentifier, err)
 	}
 	glog.V(3).Infof("Successfully delete pod %s.\n", podIdentifier)
@@ -165,8 +179,6 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 	// 4. create a pending pod if necessary
 	if actionContent.ParentObjectRef.ParentObjectUID == "" {
 		glog.V(2).Infof("Pod %s a standalone pod. Need to clone manually", podIdentifier)
-		// TODO need to wait the pod has been deleted complete.. A better way may related to DeleteOption?
-		time.Sleep(time.Second * 3)
 		podClone := &podClone{r.kubeClient}
 		err := podClone.clone(originalPod)
 		if err != nil {
@@ -181,7 +193,8 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 		select {
 		case p, ok := <-podConsumer.WaitPod():
 			if !ok {
-				return nil, errors.New("Failed to receive the pending pod generated as a result of rescheduling.")
+				return nil, errors.New("Failed to receive the pending pod generated as a result of " +
+					"rescheduling.")
 			}
 			podConsumer.Leave(key, r.broker)
 
@@ -200,8 +213,9 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 			return action, nil
 
 		case <-t.C:
-		// timeout
-			return nil, errors.New("Timed out at the second phase when try to finish the rescheduling process")
+			// timeout
+			return nil, errors.New("Timed out at the second phase when try to finish the rescheduling " +
+				"process")
 		}
 	}
 }
@@ -228,22 +242,69 @@ func (r *ReScheduler) reSchedulePodToDestination(pod *api.Pod, destination strin
 	return nil
 }
 
+// PodDeletionChecker is responsible for check is a given pod is actually deleted completely from cluster.
+type podDeletionChecker struct {
+	*client.Client
+}
+
+func (checker *podDeletionChecker) check(pod *api.Pod) error {
+	t := time.NewTimer(podDeletionTimeout)
+	for {
+		select {
+		case <-t.C:
+			// timeout
+			return fmt.Errorf("Timed out when waiting the original pod %s/%s to be deleted.",
+				pod.Namespace, pod.Name)
+		default:
+			deleted, err := checker.isPodDeleted(pod)
+			if !deleted {
+				if err != nil {
+					return err
+				} else {
+					time.Sleep(time.Second * 1)
+				}
+			} else {
+				// the pod has been deleted, continue after for loop.
+				glog.V(3).Infof("Break for loop.")
+				return nil
+			}
+		}
+	}
+}
+
+// Check if a pod with given namespace and name does not exist in the cluster.
+func (checker *podDeletionChecker) isPodDeleted(pod *api.Pod) (bool, error) {
+	currPod, err := checker.Pods(pod.Namespace).Get(pod.Name)
+	if err != nil {
+		err, ok := err.(*k8serror.StatusError)
+		if !ok {
+			return false, fmt.Errorf("Failed to check if %s/%s has been deleted: %s",
+				pod.Namespace, pod.Name, err)
+		}
+		if err.Status().Reason != unversioned.StatusReasonNotFound {
+			return false, fmt.Errorf("Failed to check if %s/%s has been deleted: %s",
+				pod.Namespace, pod.Name, err)
+		}
+		// Now we assure the err is NOT FOUND, which indicate the pod has been deleted.
+		glog.V(4).Infof("Cannnot find Pod %s/%s in the cluster. It's been deleted.", pod.Namespace, pod.Name)
+		return true, nil
+	}
+	// If found pod, check if the new pod has the same name and namespace with the original pod.
+	return currPod.UID != pod.UID, nil
+}
+
+// PodClone creates a clone of a given pod. The new Pod will have the same namespace and name,
+// except that UID is different.
 type podClone struct {
 	*client.Client
 }
 
-// verify the pod has been deleted and then create a clone.
 func (pc *podClone) clone(originalPod *api.Pod) error {
 	podNamespace := originalPod.Namespace
 	podName := originalPod.Name
-	_, err := pc.Pods(podNamespace).Get(podName)
-	if err != nil {
-		// TODO, is this the only reason to get the error?
-		glog.V(3).Infof("%s has can no long be found in the cluster. This is expected.")
-	}
 
 	pod := cloneHelper(originalPod)
-	_, err = pc.Pods(podNamespace).Create(pod)
+	_, err := pc.Pods(podNamespace).Create(pod)
 	if err != nil {
 		glog.Errorf("Error recreating pod %s/%s: %s", podNamespace, podName, err)
 		return err

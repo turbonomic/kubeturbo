@@ -294,7 +294,7 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(node *api.Node, commoditiesSold []*
 
 	// We do not monitor node that is not ready or unschedulable.
 	if !nodeIsReady(node) || !nodeIsSchedulable(node) {
-		glog.V(3).Infof("Node %s is either not ready or unschedulable. Skip", node.Name)
+		glog.V(3).Infof("Node %s is either not ready or unschedulable.", node.Name)
 		//continue
 		notMonitoredNodes[node.Name] = struct{}{}
 		entityDTOBuilder.Monitored(false)

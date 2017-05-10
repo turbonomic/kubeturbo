@@ -1,15 +1,17 @@
 package kubeturbo
 
 import (
+	"fmt"
+
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/util/wait"
 
 	"github.com/turbonomic/kubeturbo/pkg/action"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	turboscheduler "github.com/turbonomic/kubeturbo/pkg/scheduler"
+	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
-	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 )
 
 type KubeturboService struct {
@@ -65,15 +67,15 @@ func (v *KubeturboService) getNextPod() {
 	pod := p.(*api.Pod)
 	glog.V(3).Infof("Get a new Pod %v", pod.Name)
 
-	var uid string
+	var key string
 	parentRefObject, _ := probe.FindParentReferenceObject(pod)
 	if parentRefObject != nil {
-		uid = string(parentRefObject.UID)
+		key = string(parentRefObject.UID)
 	} else {
-		uid = string(pod.UID)
+		key = fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	}
 	producer := &turbostore.PodProducer{}
-	err = producer.Produce(v.config.broker, uid, pod)
+	err = producer.Produce(v.config.broker, key, pod)
 	if err != nil {
 		glog.Errorf("Got error when producing pod: %s", err)
 		v.regularSchedulePod(pod)
