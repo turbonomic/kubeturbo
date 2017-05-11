@@ -9,8 +9,6 @@ This example requires a running Kubernetes cluster. First check the current clus
 $ kubectl cluster-info
 ```
 
-NOTE: this tutorial assumes there is no authentication for kube-apiserver. If there is authentication configured, please referred to the guide for deploying Kubeturbo on AWS.
-
 ### Step One: Create Kubeturbo config
 
 A Kubeturbo config is required for Kubeturbo service to connect to Ops Manager server remotely. You need to specify correct **Turbonomic Server address**, **username** and **password**.
@@ -20,18 +18,30 @@ Create a file called **"config"** and put it under */etc/kubeturbo/*.
 
 ```json
 {
-	"serveraddress":	"<SERVER_ADDRESS>",
-	"localaddress":		"http://127.0.0.1/",
-	"opsmanagerusername": 	"<USER_NAME>",
-	"opsmanagerpassword": 	"<PASSWORD>"
+	"communicationConfig": {
+		"serverMeta": {
+			"turboServer": "<SERVER_ADDRESS>"
+		},
+		"restAPIConfig": {
+			"opsManagerUserName": "<USERNAME>",
+			"opsManagerPassword": "<PASSWORD>"
+		}
+	},
+	"targetConfig": {
+		"probeCategory":"CloudNative",
+		"targetType":"Kubernetes",
+		"address":"<KUBERNETES_MASTER_ADDRESS>",
+		"username":"<KUBERNETES_USERNAME>",
+		"password":"<KUBERNETES_PASSWORD>"
+	}
 }
 ```
-you can find an example [here](https://raw.githubusercontent.com/vmturbo/kubeturbo/master/deploy/config)
+you can find an example [here](../config)
 
 
 ### Step Two: Create Kubeturbo Mirror Pod
 
-Make sure you have **config** under */etc/kubeturbo* and you specify the correct **Kubernetes_API_Server_Address** and **ETCD_Servers**.
+Make sure you have **config** under */etc/kubeturbo*.
 
 #### Define Kubeturbo pod
 
@@ -40,7 +50,6 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: kubeturbo
-  namespace: kube-system
   labels:
     name: kubeturbo
 spec:
@@ -51,40 +60,17 @@ spec:
       - /bin/kubeturbo
     args:
       - --v=2
-      - --master=<Kubernetes_API_Server_Address>
-      - --etcd-servers=http://127.0.0.1:2379
-      - --config-path=/etc/kubeturbo/config
+      - --master=<Kubernetes_API_Server_URL>
+      - --turboconfig=/etc/kubeturbo/config
     volumeMounts:
-    - name: vmt-config
+    - name: turbo-config
       mountPath: /etc/kubeturbo
       readOnly: true
-  - name: etcd
-    image: gcr.io/google_containers/etcd:2.0.9
-    resources:
-      limits:
-        cpu: 100m
-        memory: 50Mi
-    command:
-    - /usr/local/bin/etcd
-    - -data-dir
-    - /var/etcd/data
-    - -listen-client-urls
-    - http://127.0.0.1:2379,http://127.0.0.1:4001
-    - -advertise-client-urls
-    - http://127.0.0.1:2379,http://127.0.0.1:4001
-    - -initial-cluster-token
-    - etcd-kubeturbo
-    volumeMounts:
-    - name: etcd-storage
-      mountPath: /var/etcd/data
   volumes:
-  - name: etcd-storage
-    emptyDir: {}
-  - name: vmt-config
+  - name: turbo-config
     hostPath:
       path: /etc/kubeturbo
   restartPolicy: Always
-
 ```
 
 [Download example](kubeturbo.yaml?raw=true)
@@ -107,7 +93,7 @@ kube-system   kube-proxy-10.10.174.117                1/1       Running       0 
 kube-system   kube-proxy-10.10.174.118                1/1       Running       0          10s
 kube-system   kube-proxy-10.10.174.119                1/1       Running       0          10s
 ```
-### Deploy K8sconntrack
+### Deploy K8sConntrack
 
 With previous steps, Kubeturbo service is running and starting to collect resource comsuption metrics from each node, pod and applications. Those metrics are continuously sent back to Turbonomic server. If you want Kubeturbo to collect network related metrics, such as service transaction counts and network flow information between pods inside current Kubernetes cluster, you need to deploy K8sconntrack monitoring service.
 
