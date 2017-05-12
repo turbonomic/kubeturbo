@@ -56,6 +56,27 @@ func GetResourceRequest(pod *api.Pod) (cpuRequest float64, memRequest float64, e
 	return
 }
 
+// Get the UUID that will be used in Turbonomic server. Here we build the UUID based on pod UID, namespace and name.
+// The out UUID is in format "UID:namespace:name"
+func GetTurboPodUUID(pod *api.Pod) string {
+	uid := string(pod.UID)
+	namespace := pod.Namespace
+	name := pod.Name
+	return uid + ":" + namespace + ":" + name
+}
+
+func BreakdownTurboPodUUID(uuid string) (uid string, namespace string, name string, err error) {
+	components := strings.Split(uuid, ":")
+	if len(components) != 3 {
+		err = fmt.Errorf("Given string %s is not a Turbo Pod UUID.", uuid)
+		return
+	}
+	uid = components[0]
+	namespace = components[1]
+	name = components[2]
+	return
+}
+
 // Returns a bool indicates whether the given pod should be monitored.
 // Do not monitor pods running on nodes those are not monitored.
 // Do not monitor mirror pods or pods created by DaemonSets.

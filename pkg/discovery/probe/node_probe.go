@@ -21,14 +21,14 @@ import (
 )
 
 // key: node name; value: cAdvisor host.
-var hostSet map[string]*vmtAdvisor.Host = make(map[string]*vmtAdvisor.Host)
+var hostSet map[string]*vmtAdvisor.Host
 
 // key: node name; value: node uid.
-var nodeUIDMap map[string]string = make(map[string]string)
+var nodeUIDMap map[string]string
 
 // A map stores the machine information of each node.
 // key: node name; value: machine information.
-var nodeMachineInfoMap map[string]*cadvisor.MachineInfo = make(map[string]*cadvisor.MachineInfo)
+var nodeMachineInfoMap map[string]*cadvisor.MachineInfo
 
 // This set keeps track of unschedulable or inactive nodes, which are not monitored in Turbonomic.
 // key: node name.
@@ -46,6 +46,9 @@ type NodeProbe struct {
 func NewNodeProbe(getter NodesGetter, config *ProbeConfig, stitchingManager *stitching.StitchingManager) *NodeProbe {
 	// initiate set every time.
 	notMonitoredNodes = make(map[string]struct{})
+	hostSet = make(map[string]*vmtAdvisor.Host)
+	nodeUIDMap = make(map[string]string)
+	nodeMachineInfoMap = make(map[string]*cadvisor.MachineInfo)
 
 	return &NodeProbe{
 		nodesGetter:      getter,

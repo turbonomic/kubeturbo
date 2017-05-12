@@ -52,9 +52,10 @@ func (r *ReScheduler) buildPendingReScheduleTurboAction(actionItem *proto.Action
 	error) {
 	// Find out the pod to be re-scheduled.
 	targetPod := actionItem.GetTargetSE()
-	podIdentifier := targetPod.GetId() // podIdentifier must have format as "Namespace:Name"
-	originalPod, err := util.GetPodFromCluster(r.kubeClient, podIdentifier)
+	podIdentifier := targetPod.GetId()
+	originalPod, err := util.GetPodFromIdentifier(r.kubeClient, podIdentifier)
 	if err != nil {
+		glog.Errorf("Cannot not find pod in the cluster: %s", err)
 		return nil, fmt.Errorf("Try to move pod %s, but could not find it in the cluster.", podIdentifier)
 	}
 
@@ -151,7 +152,7 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 			"replication controller or replca set.")
 	}
 	glog.V(3).Infof("The current re-scheduler consumer is listening on the any pod created by "+
-		"replication controller or replica set with UID  %s", key)
+		"replication controller or replica set with key %s", key)
 	podConsumer := turbostore.NewPodConsumer(string(action.UID), key, r.broker)
 
 	// 2. Get the target Pod

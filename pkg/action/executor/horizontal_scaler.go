@@ -219,7 +219,7 @@ func (h *HorizontalScaler) horizontalScale(action *turboaction.TurboAction) (*tu
 			"replication controller or replica set.")
 	}
 	glog.V(3).Infof("The current horizontal scaler consumer is listening on pod created by replication "+
-		"controller or replica set with UID  %s", key)
+		"controller or replica set with key %s", key)
 	podConsumer := turbostore.NewPodConsumer(string(action.UID), key, h.broker)
 
 	// 2. scale up and down by changing the replica of replication controller or deployment.

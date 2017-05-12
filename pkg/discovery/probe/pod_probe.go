@@ -3,7 +3,6 @@ package probe
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
@@ -20,20 +19,28 @@ import (
 	"github.com/golang/glog"
 )
 
-var container2PodMap map[string]string = make(map[string]string)
+// Build here, used in application probe.
+// key: pod IP; value: pod.
+var podIP2PodMap map[string]*api.Pod
 
-var podIP2PodMap map[string]*api.Pod = make(map[string]*api.Pod)
-
-// This map keep records of pods whose states are set to inactive in VMT server side. The key is the pod identifier (podNamespace/podName)
-var inactivePods map[string]struct{} = make(map[string]struct{})
-
-// TODO, this is a quick fix
-var podResourceConsumptionMap map[string]*PodResourceStat
-var nodePodMap map[string][]string
-var podNodeMap map[string]string
+// Get the pod application type.
+// Build here, used in application probe.
+// key: podNamespace/podName; value: appType
 var podAppTypeMap map[string]string
 
-// Pods Getter is such func that gets all the pods match the provided namespace, labels and fiels.
+// TODO, this is a quick fix, we need to pass the consumption data to application probe.
+// key: podNameWithNamespace; value: pod resource consumption.
+var podResourceConsumptionMap map[string]*PodResourceStat
+
+// Store turboPodUID of each pod.
+// key: podNamespace/podName, value: turboPodUID.
+var turboPodUUIDMap map[string]string
+
+// This set keeps records of pods whose states are set to inactive in VMT server side.
+// key: podNamespace/podName)
+var inactivePods map[string]struct{}
+
+// Pods Getter is such func that gets all the pods match the provided namespace, labels and fields.
 type PodsGetter func(namespace string, label labels.Selector, field fields.Selector) ([]*api.Pod, error)
 
 type PodProbe struct {
@@ -44,9 +51,10 @@ type PodProbe struct {
 func NewPodProbe(getter PodsGetter, stitchingManager *stitching.StitchingManager) *PodProbe {
 	inactivePods = make(map[string]struct{})
 	podResourceConsumptionMap = make(map[string]*PodResourceStat)
-	nodePodMap = make(map[string][]string)
-	podNodeMap = make(map[string]string)
 	podAppTypeMap = make(map[string]string)
+	podIP2PodMap = make(map[string]*api.Pod)
+	inactivePods = make(map[string]struct{})
+	turboPodUUIDMap = make(map[string]string)
 
 	return &PodProbe{
 		podGetter:        getter,
@@ -89,8 +97,7 @@ func (this *VMTPodGetter) GetPods(namespace string, label labels.Selector, field
 			// Skip pods those are not running.
 			continue
 		}
-		hostIP := p.Status.PodIP
-		podIP2PodMap[hostIP] = &p
+
 		podItems = append(podItems, &p)
 	}
 	glog.V(2).Infof("Discovering Pods, now the cluster has " + strconv.Itoa(len(podItems)) + " pods")
@@ -106,6 +113,8 @@ func (podProbe *PodProbe) parsePodFromK8s(pods []*api.Pod) (result []*proto.Enti
 	}
 
 	for _, pod := range pods {
+		hostIP := pod.Status.PodIP
+		podIP2PodMap[hostIP] = pod
 
 		podResourceStat, err := podProbe.getPodResourceStat(pod, podContainers)
 		if err != nil {
@@ -163,9 +172,6 @@ func (podProbe *PodProbe) groupContainerByPod() (map[string][]*vmtAdvisor.Contai
 					}
 					containers = append(containers, container)
 					podContainers[podName] = containers
-
-					// Map container to hosting pod. This map will be used in application probe.
-					container2PodMap[container.Name] = podName
 				}
 			}
 		}
@@ -380,12 +386,12 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 // Build entityDTO that contains all the necessary info of a pod.
 func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commoditiesBought []*proto.CommodityDTO) (*proto.EntityDTO, error) {
 	podNameWithNamespace := pod.Namespace + "/" + pod.Name
+	id := GetTurboPodUUID(pod)
+	turboPodUUIDMap[podNameWithNamespace] = id
 
-	id := podNameWithNamespace
+	entityDTOBuilder := builder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, id)
+
 	podDisplayName := podNameWithNamespace
-
-	// TODO: quick fix. As "/" is not escaped on the new UI, id should be changed to "namespace:name".
-	entityDTOBuilder := builder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, strings.Replace(podNameWithNamespace, "/", ":", -1))
 	entityDTOBuilder.DisplayName(podDisplayName)
 
 	nodeName := pod.Spec.NodeName
@@ -393,9 +399,6 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 		return nil, fmt.Errorf("Cannot find the hosting node ID for pod %s", podNameWithNamespace)
 	}
 	glog.V(4).Infof("Pod %s is hosted on %s", podDisplayName, nodeName)
-
-	// TODO, temp solution.
-	updateNodePodMap(nodeName, id)
 
 	// sells commodities.
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
@@ -431,14 +434,4 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 	podAppTypeMap[podNameWithNamespace] = GetAppType(pod)
 
 	return entityDto, nil
-}
-
-func updateNodePodMap(nodeName, podID string) {
-	var podIDs []string
-	if ids, exist := nodePodMap[nodeName]; exist {
-		podIDs = ids
-	}
-	podIDs = append(podIDs, podID)
-	nodePodMap[nodeName] = podIDs
-	podNodeMap[podID] = nodeName
 }
