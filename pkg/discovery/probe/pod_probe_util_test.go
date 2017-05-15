@@ -72,30 +72,30 @@ func TestBreakdownTurboPodUUID(t *testing.T) {
 		expectsError bool
 	}{
 		{
-			uid: "abc",
-			namespace:"default",
-			name:"foo",
+			uid:       "abc",
+			namespace: "default",
+			name:      "foo",
 		},
 		{
-			namespace:"default",
-			name:"foo",
+			namespace: "default",
+			name:      "foo",
 
-			expectsError:true,
+			expectsError: true,
 		},
 		{
-			uid: "abc",
-			name:"foo",
+			uid:  "abc",
+			name: "foo",
 
-			expectsError:true,
+			expectsError: true,
 		},
 		{
-			namespace:"default",
-			name:"foo",
+			namespace: "default",
+			name:      "foo",
 
-			expectsError:true,
+			expectsError: true,
 		},
 	}
-	for _, item := range table{
+	for _, item := range table {
 		turboUUID := ""
 		if item.uid != "" {
 			turboUUID += item.uid + ":"
