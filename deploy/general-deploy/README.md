@@ -1,6 +1,6 @@
 ## Deploying Kubeturbo
 
-Once deployed, the Kubeturbo service enables you to give Turbonomic visibility into a Kubernetes cluster. This cluster can be located in either a private datacenter, or locally. Kubeturbo will be deployed as a mirror on Master nodes.
+Once deployed, the Kubeturbo service enables you to give Turbonomic visibility into a Kubernetes cluster. This cluster can be located in either a private datacenter, or locally. Kubeturbo will be deployed as a mirror pod on Master nodes.
 
 ### Prerequisites
 * Turbonomic 5.9+
