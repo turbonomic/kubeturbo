@@ -1,30 +1,29 @@
-## Deploy Kubeturbo on Existing Kubernetes Cluster
+## Deploying Kubeturbo
 
-This guide is about how to deploy kubeturbo service in an existing Kubernetes cluster running in a private datacenter. It also applies to a local Kubernetes cluster. Kubeturbo is deployed as mirror on Master nodes.
+Once deployed, the Kubeturbo service enables you to give Turbonomic visibility into a Kubernetes cluster. This cluster can be located in either a private datacenter, or locally. Kubeturbo will be deployed as a mirror on Master nodes.
 
 ### Prerequisites
-This example requires a running Kubernetes cluster. First check the current cluster status with kubectl.
+* Turbonomic 5.9+
+* Running Kubernetes 1.4+ cluster 
+> NOTE: to check the current status of your cluster, run the following command in the console:
+> ```console
+>$ kubectl cluster-info
 
-```console
-$ kubectl cluster-info
-```
+### Step One: Creating the Kubeturbo Configuration Files
 
-### Step One: Create Kubeturbo config
+In order to connect to your Turbonomic installation, a Kubeturbo configuration file must be created. 
 
-A Kubeturbo config is required for Kubeturbo service to connect to Ops Manager server remotely. You need to specify correct **Turbonomic Server address**, **username** and **password**.
-**NOTE**: Turbonomic server address is "**IP address of your ops manger**".
-
-Create a file called **"config"** and put it under */etc/kubeturbo/*.
+Create a file called `config` in the `/etc/kubeturbo/` directory, with the following contents:
 
 ```json
 {
 	"communicationConfig": {
 		"serverMeta": {
-			"turboServer": "<SERVER_ADDRESS>"
+			"turboServer": "<TURBONOMIC_SERVER_IP_ADDRESS>"
 		},
 		"restAPIConfig": {
-			"opsManagerUserName": "<USERNAME>",
-			"opsManagerPassword": "<PASSWORD>"
+			"opsManagerUserName": "<TURBONOMIC_USERNAME>",
+			"opsManagerPassword": "<TURBONOMIC_PASSWORD>"
 		}
 	},
 	"targetConfig": {
@@ -36,14 +35,16 @@ Create a file called **"config"** and put it under */etc/kubeturbo/*.
 	}
 }
 ```
-you can find an example [here](../config)
+you can find an example with values [here](../config).
 
 
-### Step Two: Create Kubeturbo Mirror Pod
+### Step Two: Creating the Kubeturbo Mirror Pod
 
-Make sure you have **config** under */etc/kubeturbo*.
+> NOTE: Ensure that you have completed Step One.
 
-#### Define Kubeturbo pod
+Mirror pods are created by Kubelet. Copy the Kubeturbo yaml pod definition to the configuration path used by Kubelet master nodes on startup. Typically, `/etc/kubernetes/manifests/`.
+
+#### Kubeturbo Pod Definition
 
 ```yaml
 apiVersion: v1
@@ -75,15 +76,11 @@ spec:
 
 [Download example](kubeturbo.yaml?raw=true)
 
-#### Create Kubeturbo pod
+You must also stop the default scheduler by removing kube-scheduler from both `/etc/kubernetes/manifests` and the source path you specified for the pod-master pod (Typically `/srv/kubernetes/manifests`).
 
-As mirror pods are created by Kubelet, you can simply copy kubeturbo yaml definition to your config path you specified when you starts kubelet on master nodes. Usually, the path is /etc/kubernetes/manifests/.
-At the same time, you need to stop the default scheduler by removing kube-scheduler from both /etc/kubernetes/manifests and the source path you specified for pod-master pod, which is usually /srv/kubernetes/manifests by default.
-
-After several seconds, you will be able to see Kubeturbo mirror pod is running.
+The Kubeturbo mirror pod will be visible after several seconds. To verify that the Kubeturbo pod is running, use `kubectl get pods --all-namespaces` and look for "kubeturbo".
 
 ```console
-$kubectl get pods --all-namespaces
 NAMESPACE     NAME                                    READY     STATUS        RESTARTS   AGE
 kube-system   kube-apiserver-10.10.174.116            1/1       Running       0          55s
 kube-system   kubeturbo-10.10.174.116                 1/1       Running       0          55s
@@ -93,8 +90,8 @@ kube-system   kube-proxy-10.10.174.117                1/1       Running       0 
 kube-system   kube-proxy-10.10.174.118                1/1       Running       0          10s
 kube-system   kube-proxy-10.10.174.119                1/1       Running       0          10s
 ```
-### Deploy K8sConntrack
+### Optional- Enable Network Metric Collection via K8sconntrack
 
-With previous steps, Kubeturbo service is running and starting to collect resource comsuption metrics from each node, pod and applications. Those metrics are continuously sent back to Turbonomic server. If you want Kubeturbo to collect network related metrics, such as service transaction counts and network flow information between pods inside current Kubernetes cluster, you need to deploy K8sconntrack monitoring service.
+In order for Kubeturbo to collect network related metrics such as service transaction counts and network flow information between pods in the Kubernetes cluster, you must deploy the K8sconntrack monitoring service.
 
-K8sconntrack monitoring service should be running on each node inside cluster. A detailed guide about how to deploy K8sconnection onto a Kuberentes cluster can be found [here](https://github.com/DongyiYang/k8sconnection/blob/master/deploy/general_deploy/README.md).
+K8sconntrack should be running on each node in the cluster. A guide detailing how to deploy K8sconnection in a Kubernetes cluster can be found [here](https://github.com/DongyiYang/k8sconnection/blob/master/deploy/general_deploy/README.md).
