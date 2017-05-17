@@ -2,7 +2,6 @@ package probe
 
 import (
 	"fmt"
-	"strings"
 
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
 	vmtmonitor "github.com/turbonomic/kubeturbo/pkg/monitor"
@@ -16,10 +15,9 @@ import (
 
 const appPrefix string = "App-"
 
-var podTransactionCountMap map[string]float64 = make(map[string]float64)
+var podTransactionCountMap map[string]float64
 
-type ApplicationProbe struct {
-}
+type ApplicationProbe struct{}
 
 func NewApplicationProbe() *ApplicationProbe {
 	return &ApplicationProbe{}
@@ -37,44 +35,24 @@ func (appProbe *ApplicationProbe) ParseApplication(namespace string) (result []*
 
 	podTransactionCountMap = transactionCountMap
 
-	for nodeName, host := range hostSet {
+	for podNamespaceName := range podResourceConsumptionMap {
+		appResourceStat := appProbe.getApplicationResourceStatFromPod(podNamespaceName, transactionCountMap)
 
-		// In order to get the actual usage for each process, the CPU/Mem capacity
-		// for the machine must be retrieved.
-		machineInfo, exist := nodeMachineInfoMap[nodeName]
-		if !exist {
-			glog.Warningf("Error getting machine info for %s when parsing process: %s", nodeName, err)
-			continue
-			// return nil, err
+		commoditiesSold, err := appProbe.getCommoditiesSold(podNamespaceName, appResourceStat)
+		if err != nil {
+			return nil, err
 		}
-		// The return cpu frequency is in KHz, we need MHz
-		cpuFrequency := machineInfo.CpuFrequency / 1000
-		// Get the node Cpu and Mem capacity.
-		nodeCpuCapacity := float64(machineInfo.NumCores) * float64(cpuFrequency)
-		nodeMemCapacity := float64(machineInfo.MemoryCapacity) / 1024 // Mem is returned in B
-
-		for podName := range podResourceConsumptionMap {
-			if podNodeMap[podName] != nodeName {
-				continue
-			}
-			appResourceStat := appProbe.getApplicationResourceStatFromPod(podName, nodeCpuCapacity, nodeMemCapacity, transactionCountMap)
-
-			commoditiesSold, err := appProbe.getCommoditiesSold(podName, appResourceStat)
-			if err != nil {
-				return nil, err
-			}
-			commoditiesBoughtMap, err := appProbe.getCommoditiesBought(podName, nodeName, appResourceStat)
-			if err != nil {
-				return nil, err
-			}
-
-			entityDto, err := appProbe.buildApplicationEntityDTOs(podName, host, podName, nodeName, commoditiesSold, commoditiesBoughtMap)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, entityDto)
-			glog.V(4).Infof("Build Application based on pod %s", podName)
+		commoditiesBoughtMap, err := appProbe.getCommoditiesBought(podNamespaceName, appResourceStat)
+		if err != nil {
+			return nil, err
 		}
+
+		entityDto, err := appProbe.buildApplicationEntityDTOs(podNamespaceName, podNamespaceName, commoditiesSold, commoditiesBoughtMap)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, entityDto)
+		glog.V(4).Infof("Build Application based on pod %s", podNamespaceName)
 	}
 	return
 }
@@ -104,8 +82,8 @@ func (this *ApplicationProbe) calculateTransactionValuePerPod() (map[string]floa
 }
 
 // Get resource usage status for a single application.
-func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, nodeCpuCapacity, nodeMemCapacity float64, podTransactionCountMap map[string]float64) *ApplicationResourceStat {
-	podResourceStat := podResourceConsumptionMap[podName]
+func (this *ApplicationProbe) getApplicationResourceStatFromPod(podNamespaceName string, podTransactionCountMap map[string]float64) *ApplicationResourceStat {
+	podResourceStat := podResourceConsumptionMap[podNamespaceName]
 
 	cpuUsage := podResourceStat.vCpuUsed
 	memUsage := podResourceStat.vMemUsed
@@ -113,9 +91,9 @@ func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, 
 	transactionCapacity := float64(50)
 	transactionUsed := float64(0)
 
-	if count, ok := podTransactionCountMap[podName]; ok {
+	if count, ok := podTransactionCountMap[podNamespaceName]; ok {
 		transactionUsed = count
-		glog.V(4).Infof("Get transactions value of pod %s, is %f", podName, transactionUsed)
+		glog.V(4).Infof("Get transactions value of pod %s, is %f", podNamespaceName, transactionUsed)
 	}
 
 	return &ApplicationResourceStat{
@@ -127,10 +105,10 @@ func (this *ApplicationProbe) getApplicationResourceStatFromPod(podName string, 
 }
 
 // Build commodities sold for each application. An application sells transaction, which a virtual application buys.
-func (this *ApplicationProbe) getCommoditiesSold(appName string, appResourceStat *ApplicationResourceStat) (
+func (this *ApplicationProbe) getCommoditiesSold(podNamespaceName string, appResourceStat *ApplicationResourceStat) (
 	[]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
-	appType := podAppTypeMap[appName]
+	appType := podAppTypeMap[podNamespaceName]
 	transactionComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).
 		Key(appType + "-" + ClusterID).
 		Capacity(appResourceStat.transactionCapacity).
@@ -145,14 +123,17 @@ func (this *ApplicationProbe) getCommoditiesSold(appName string, appResourceStat
 
 // Build commodities bought by an application.
 // An application buys vCpu, vMem and application commodity from a containerPod.
-func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, appResourceStat *ApplicationResourceStat) (
+func (this *ApplicationProbe) getCommoditiesBought(podNamespaceName string, appResourceStat *ApplicationResourceStat) (
 	map[*builder.ProviderDTO][]*proto.CommodityDTO, error) {
 
 	commoditiesBoughtMap := make(map[*builder.ProviderDTO][]*proto.CommodityDTO)
 
-	// TODO: quick fix, podName are now show as namespace:name, which is namespace/name before.
-	// TODO So we need to replace "/" with ":".
-	podProvider := builder.CreateProvider(proto.EntityDTO_CONTAINER_POD, strings.Replace(podName, "/", ":", -1))
+	turboPodUUID, exist := turboPodUUIDMap[podNamespaceName]
+	if !exist {
+		return nil, fmt.Errorf("Cannot build commodity bought based on given Pod identifier: %s.", podNamespaceName)
+	}
+
+	podProvider := builder.CreateProvider(proto.EntityDTO_CONTAINER_POD, turboPodUUID)
 	var commoditiesBoughtFromPod []*proto.CommodityDTO
 	vCpuCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VCPU).
 		Used(appResourceStat.vCpuUsed).
@@ -171,7 +152,7 @@ func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, app
 	commoditiesBoughtFromPod = append(commoditiesBoughtFromPod, vMemCommBought)
 
 	appCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
-		Key(podName).
+		Key(podNamespaceName).
 		Create()
 	if err != nil {
 		return nil, err
@@ -183,28 +164,32 @@ func (this *ApplicationProbe) getCommoditiesBought(podName, nodeName string, app
 }
 
 // Build entityDTOs for Applications.
-func (this *ApplicationProbe) buildApplicationEntityDTOs(appName string, host *vmtAdvisor.Host,
-	podName, nodeName string, commoditiesSold []*proto.CommodityDTO,
+func (this *ApplicationProbe) buildApplicationEntityDTOs(appName, podNamespaceName string, commoditiesSold []*proto.CommodityDTO,
 	commoditiesBoughtMap map[*builder.ProviderDTO][]*proto.CommodityDTO) (*proto.EntityDTO, error) {
 
+	turboPodUUID, exist := turboPodUUIDMap[podNamespaceName]
+	if !exist {
+		return nil, fmt.Errorf("Cannot build application entityDTO based on give pod identifier: %s. "+
+			"Failed to find Turbo UUID.", podNamespaceName)
+	}
+	id := appPrefix + turboPodUUID
 	appEntityType := proto.EntityDTO_APPLICATION
-	id := appPrefix + appName
-	dispName := appName
-	entityDTOBuilder := builder.NewEntityDTOBuilder(appEntityType, strings.Replace(id, "/", ":", -1))
-	entityDTOBuilder = entityDTOBuilder.DisplayName("App-" + dispName)
+	displayName := appName
+	entityDTOBuilder := builder.NewEntityDTOBuilder(appEntityType, id)
+	entityDTOBuilder = entityDTOBuilder.DisplayName("App-" + displayName)
 
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
 	for provider, commodities := range commoditiesBoughtMap {
 		entityDTOBuilder = entityDTOBuilder.Provider(provider).BuysCommodities(commodities)
 	}
 
-	appType := podAppTypeMap[podName]
+	appType := podAppTypeMap[podNamespaceName]
 	appData := &proto.EntityDTO_ApplicationData{
 		Type: &appType,
 	}
 	entityDTOBuilder.ApplicationData(appData)
 
-	if _, exist := inactivePods[podName]; exist {
+	if _, exist := inactivePods[podNamespaceName]; exist {
 		entityDTOBuilder = entityDTOBuilder.Monitored(false)
 	}
 	entityDto, err := entityDTOBuilder.Create()

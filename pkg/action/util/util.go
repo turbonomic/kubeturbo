@@ -3,7 +3,6 @@ package util
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/extensions"
@@ -11,44 +10,11 @@ import (
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 )
-
-// Takes in a podIdentifier(podNamespace/podName), and extract namespace and name of the pod.
-func ProcessPodIdentifier(podIdentifier string) (string, string, error) {
-	// Pod identifier in vmt server passed from VMTurbo server is in "namespace:podname"
-	idArray := strings.Split(podIdentifier, ":")
-	if len(idArray) < 2 {
-		return "", "", fmt.Errorf("Invalid Pod identifier: %s", podIdentifier)
-	}
-	podNamespace := idArray[0]
-	podName := idArray[1]
-
-	if podName == "" {
-		return "", "", errors.New("Pod name is empty.\n")
-	}
-	if podNamespace == "" {
-		return "", "", errors.New("Pod namespace is empty.\n")
-	}
-	return podNamespace, podName, nil
-}
-
-func GetPodFromCluster(kubeClient *client.Client, podIdentifier string) (*api.Pod, error) {
-	podNamespace, podName, err := ProcessPodIdentifier(podIdentifier)
-	if err != nil {
-		return nil, err
-	}
-
-	pod, err := kubeClient.Pods(podNamespace).Get(podName)
-	if err != nil {
-		glog.Errorf("Error getting pod %s: %s.", podIdentifier, err)
-		return nil, err
-	}
-	glog.V(4).Infof("Successfully got pod %s.", podIdentifier)
-	return pod, nil
-}
 
 // Find RC based on pod labels.
 // TODO. change this. Find rc based on its name and namespace or rc's UID.
@@ -221,23 +187,22 @@ func FindApplicationPodProvider(kubeClient *client.Client, providers []*proto.Ac
 	return nil, errors.New("Cannot find any Pod provider")
 }
 
-// Check is an ID is a pod identifier.
+// Get Pod from a turbo pod UUID.
 func GetPodFromIdentifier(kubeClient *client.Client, id string) (*api.Pod, error) {
-
-	podNamespace, podName, err := ProcessPodIdentifier(id)
+	podUID, podNamespace, podName, err := probe.BreakdownTurboPodUUID(id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to breakdown turbo pod UUID: %s", err)
 	}
 
 	pod, err := kubeClient.Pods(podNamespace).Get(podName)
 	if err != nil {
 		return nil, err
-	} else if pod.Name != podName || pod.Namespace != podNamespace {
-		// Not sure is this is necessary.
-		return nil, fmt.Errorf("Got wrong pod, desired: %s/%s, found: %s/%s", podNamespace, podName, pod.Namespace, pod.Name)
+	} else if string(pod.UID) != podUID || pod.Name != podName || pod.Namespace != podNamespace {
+		return nil, fmt.Errorf("Got wrong pod, wanted: %s/%s with UID %s, "+
+			"found: %s/%s with UID %s", podNamespace, podName, podUID, pod.Namespace, pod.Name, pod.UID)
 	}
+	glog.V(4).Infof("Successfully got pod %s/%s.", podNamespace, podName)
 	return pod, nil
-
 }
 
 // Given namespace and name, return an identifier in the format, namespace/name

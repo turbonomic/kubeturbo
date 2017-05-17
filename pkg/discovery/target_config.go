@@ -31,7 +31,7 @@ func (config *K8sTargetConfig) ValidateK8sTargetConfig() error {
 		return errors.New("Either probeCategory or targetType is not provided.")
 	}
 	if config.TargetIdentifier == "" {
-		return errors.New("targetIdenfifier is not provided.")
+		return errors.New("targetIdentifier is not provided.")
 	}
 	if config.TargetUsername == "" {
 		config.TargetUsername = defaultUsername

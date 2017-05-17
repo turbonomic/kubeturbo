@@ -120,7 +120,7 @@ func (this *ServiceProbe) ParseService(serviceList []*api.Service, endpointList 
 
 		// Now build entityDTO
 		for serviceID, podIDList := range serviceEndpointMap {
-			glog.V(4).Infof("service %s has the following pod as endpoints %s", serviceID, podIDList)
+			glog.V(4).Infof("service %s has the following pod as endpoints %v", serviceID, podIDList)
 
 			if len(podIDList) < 1 {
 				continue
@@ -146,6 +146,8 @@ func (this *ServiceProbe) ParseService(serviceList []*api.Service, endpointList 
 	return
 }
 
+// For every service, find the pods serve this service.
+// Return a map with key is the service identifier (namespace/name), value is a list of pod identifier (namespace/name).
 func (this *ServiceProbe) findBackendPodPerService(service *api.Service, endpointMap map[string]*api.Endpoints) map[string][]string {
 	// key is service identifier, value is the string list of the pod name with namespace
 	serviceEndpointMap := make(map[string][]string)
@@ -204,11 +206,16 @@ func (this *ServiceProbe) getCommoditiesBought(podIDList []string) (
 
 	for _, podID := range podIDList {
 		serviceResourceStat := getServiceResourceStat(podTransactionCountMap, podID)
-		appName := podID
+		turboPodUUID, exist := turboPodUUIDMap[podID]
+		if !exist {
+			return nil, fmt.Errorf("Cannot build commodityBought based on give pod identifier: %s. "+
+				"Failed to find Turbo UUID.", podID)
+		}
+		// Here it is consisted with the ID when we build the application entityDTO in ApplicationProbe/
+		appID := appPrefix + turboPodUUID
 		appType := podAppTypeMap[podID]
-		appID := appPrefix + appName
 		// We might want to check here if the appID exist.
-		appProvider := builder.CreateProvider(proto.EntityDTO_APPLICATION, strings.Replace(appID, "/", ":", -1))
+		appProvider := builder.CreateProvider(proto.EntityDTO_APPLICATION, appID)
 		var commoditiesBoughtFromApp []*proto.CommodityDTO
 		transactionCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).
 			Key(appType + "-" + ClusterID).
