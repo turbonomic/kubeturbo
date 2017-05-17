@@ -17,6 +17,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	"errors"
 )
 
 // Build here, used in application probe.
@@ -124,14 +125,20 @@ func (podProbe *PodProbe) parsePodFromK8s(pods []*api.Pod) (result []*proto.Enti
 
 		commoditiesSold, err := podProbe.getCommoditiesSold(pod, podResourceStat)
 		if err != nil {
-			return nil, err
+			glog.Errorf("Failed to get commodities sold for pod %s/%s: %s", pod.Namespace, pod.Name, err)
+			continue
 		}
 		commoditiesBought, err := podProbe.getCommoditiesBought(pod, podResourceStat)
 		if err != nil {
-			return nil, err
+			glog.Errorf("Failed to get commodities bought for pod %s/%s: %s", pod.Namespace, pod.Name, err)
+			continue
 		}
 
-		entityDto, _ := podProbe.buildPodEntityDTO(pod, commoditiesSold, commoditiesBought)
+		entityDto, err := podProbe.buildPodEntityDTO(pod, commoditiesSold, commoditiesBought)
+		if err != nil {
+			glog.Errorf("Failed to build entityDTO for pod %s/%s: %s", pod.Namespace, pod.Name, err)
+			continue
+		}
 
 		result = append(result, entityDto)
 	}
@@ -387,6 +394,9 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commoditiesBought []*proto.CommodityDTO) (*proto.EntityDTO, error) {
 	podNameWithNamespace := pod.Namespace + "/" + pod.Name
 	id := GetTurboPodUUID(pod)
+	if id == "" {
+		return nil, errors.New("Failed to get turbo pod UUID.")
+	}
 	turboPodUUIDMap[podNameWithNamespace] = id
 
 	entityDTOBuilder := builder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, id)
