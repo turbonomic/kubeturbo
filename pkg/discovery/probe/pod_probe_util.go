@@ -28,12 +28,8 @@ func GetResourceLimits(pod *api.Pod) (cpuCapacity float64, memCapacity float64, 
 
 	for _, container := range pod.Spec.Containers {
 		limits := container.Resources.Limits
-		request := container.Resources.Requests
 
 		memCap := limits.Memory().Value()
-		if memCap == 0 {
-			memCap = request.Memory().Value()
-		}
 		cpuCap := limits.Cpu().MilliValue()
 		memCapacity += float64(memCap) / 1024
 		cpuCapacity += float64(cpuCap) / 1000
@@ -97,7 +93,7 @@ func BreakdownTurboPodUUID(uuid string) (uid string, namespace string, name stri
 // Returns a bool indicates whether the given pod should be monitored.
 // Do not monitor pods running on nodes those are not monitored.
 // Do not monitor mirror pods or pods created by DaemonSets.
-func monitored(pod *api.Pod) bool {
+func monitored(pod *api.Pod, notMonitoredNodes map[string]struct{}) bool {
 	if _, exist := notMonitoredNodes[pod.Spec.NodeName]; exist {
 		return false
 	}
