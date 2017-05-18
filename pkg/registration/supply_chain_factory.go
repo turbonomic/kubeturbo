@@ -81,9 +81,9 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 	nodeSupplyChainNodeBuilder = nodeSupplyChainNodeBuilder.
 		Sells(vCpuTemplateComm).
 		Sells(vMemTemplateComm).
-		Sells(cpuProvisionedTemplateComm).
-		Sells(memProvisionedTemplateComm).
-		Sells(applicationTemplateComm).
+		// TODO we will re-include provisioned commodities sold by node later.
+		//Sells(cpuProvisionedTemplateComm).
+		//Sells(memProvisionedTemplateComm)
 		Sells(clusterTemplateComm)
 
 	return nodeSupplyChainNodeBuilder.Create()
@@ -97,8 +97,9 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Sells(vMemTemplateComm).
 		Sells(applicationTemplateComm).
 		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_HOSTING).
-		Buys(cpuProvisionedTemplateComm).
-		Buys(memProvisionedTemplateComm).
+		// TODO we will re-include provisioned commodities bought by pod later.
+		//Buys(cpuProvisionedTemplateComm).
+		//Buys(memProvisionedTemplateComm).
 		Buys(clusterTemplateComm)
 
 	// Link from Pod to VM
@@ -106,8 +107,8 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 	vmPodExtLinkBuilder.Link(proto.EntityDTO_CONTAINER_POD, proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_HOSTING).
 		Commodity(vCpuType, false).
 		Commodity(vMemType, false).
-		Commodity(cpuProvisionedType, false).
-		Commodity(memProvisionedType, false).
+		//Commodity(cpuProvisionedType, false).
+		//Commodity(memProvisionedType, false).
 		Commodity(vmPMAccessType, true).
 		Commodity(clusterType, true)
 

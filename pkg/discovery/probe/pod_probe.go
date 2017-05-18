@@ -1,6 +1,7 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-	"errors"
 )
 
 // Build here, used in application probe.
@@ -203,8 +203,6 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	}
 	if cpuCapacity == 0 {
 		cpuCapacity = float64(machineInfo.NumCores)
-	} else {
-		glog.V(4).Infof("Get cpu limit for Pod %s, is %f", pod.Name, cpuCapacity)
 	}
 	if memCapacity == 0 {
 		memCapacity = float64(machineInfo.MemoryCapacity) / 1024
@@ -213,9 +211,21 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 
 	// the cpu return value is in KHz. VMTurbo uses MHz. So here should divide 1000
 	podCpuCapacity := cpuCapacity * float64(cpuFrequency)
-	podMemCapacity := memCapacity // Mem is in bytes, convert to Kb
+	podMemCapacity := memCapacity
 	glog.V(4).Infof("Cpu cap of Pod %s is %f", pod.Name, podCpuCapacity)
 	glog.V(4).Infof("Mem cap of Pod %s is %f", pod.Name, podMemCapacity)
+
+	cpuRequest, memRequest, err := GetResourceRequest(pod)
+	if err != nil {
+		return nil, err
+	}
+	glog.V(4).Infof("Cpu request of Pod %s/%s in k8s format is %f", pod.Namespace, pod.Name, cpuRequest)
+
+	// the cpu return value is in KHz. VMTurbo uses MHz. So here should divide 1000
+	cpuReserved := cpuRequest * float64(cpuFrequency)
+	memReserved := memRequest
+	glog.V(4).Infof("Cpu reservation of Pod %s/%s is %f", pod.Namespace, pod.Name, cpuReserved)
+	glog.V(4).Infof("Mem reservation of Pod %s/%s is %f", pod.Namespace, pod.Name, memReserved)
 
 	podCpuUsed := float64(0)
 	podMemUsed := float64(0)
@@ -262,25 +272,29 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 	glog.V(4).Infof("The actual Cpu used value of %s is %f", podNameWithNamespace, podCpuUsed)
 	glog.V(4).Infof("The actual Mem used value of %s is %f", podNameWithNamespace, podMemUsed)
 
-	cpuProvisionedUsed, memProvisionedUsed, err := GetResourceRequest(pod)
-	if err != nil {
-		return nil, fmt.Errorf("Error getting provisioned resource consumption: %s", err)
-	}
-	cpuProvisionedUsed *= float64(cpuFrequency)
+	// TODO we will re-include provisioned commodities bought by pod later.
+	//cpuProvisionedUsed, memProvisionedUsed, err := GetResourceRequest(pod)
+	//if err != nil {
+	//	return nil, fmt.Errorf("Error getting provisioned resource consumption: %s", err)
+	//}
+	//cpuProvisionedUsed *= float64(cpuFrequency)
 
 	glog.V(3).Infof("Discovered pod is %s", podNameWithNamespace)
 	glog.V(4).Infof("Pod %s CPU request is %f", podNameWithNamespace, podCpuUsed)
 	glog.V(4).Infof("Pod %s Mem request is %f", podNameWithNamespace, podMemUsed)
 
 	resourceStat := &PodResourceStat{
-		vCpuCapacity:           podCpuCapacity,
-		vCpuUsed:               podCpuUsed,
-		vMemCapacity:           podMemCapacity,
-		vMemUsed:               podMemUsed,
-		cpuProvisionedCapacity: podCpuCapacity,
-		cpuProvisionedUsed:     cpuProvisionedUsed,
-		memProvisionedCapacity: podMemCapacity,
-		memProvisionedUsed:     memProvisionedUsed,
+		vCpuCapacity: podCpuCapacity,
+		vCpuReserved: cpuReserved,
+		vCpuUsed:     podCpuUsed,
+		vMemCapacity: podMemCapacity,
+		vMemReserved: memReserved,
+		vMemUsed:     podMemUsed,
+		// TODO we will re-include provisioned commodities bought by pod later.
+		//cpuProvisionedCapacity: podCpuCapacity,
+		//cpuProvisionedUsed:     cpuProvisionedUsed,
+		//memProvisionedCapacity: podMemCapacity,
+		//memProvisionedUsed:     memProvisionedUsed,
 	}
 
 	podResourceConsumptionMap[podNameWithNamespace] = resourceStat
@@ -332,6 +346,7 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 	var commoditiesBought []*proto.CommodityDTO
 	vCpu, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VCPU).
 		Used(podResourceStat.vCpuUsed).
+		Reservation(podResourceStat.vCpuReserved).
 		Create()
 	if err != nil {
 		return nil, err
@@ -340,29 +355,31 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 
 	vMem, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMEM).
 		Used(podResourceStat.vMemUsed).
+		Reservation(podResourceStat.vMemReserved).
 		Create()
 	if err != nil {
 		return nil, err
 	}
 	commoditiesBought = append(commoditiesBought, vMem)
 
-	cpuProvisionedCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_PROVISIONED).
-		//		Key("Container").
-		Used(podResourceStat.cpuProvisionedUsed).
-		Create()
-	if err != nil {
-		return nil, err
-	}
-	commoditiesBought = append(commoditiesBought, cpuProvisionedCommBought)
-
-	memProvisionedCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_PROVISIONED).
-		//		Key("Container").
-		Used(podResourceStat.memProvisionedUsed).
-		Create()
-	if err != nil {
-		return nil, err
-	}
-	commoditiesBought = append(commoditiesBought, memProvisionedCommBought)
+	// TODO we will re-include provisioned commodities bought by pod later.
+	//cpuProvisionedCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_PROVISIONED).
+	//	//		Key("Container").
+	//	Used(podResourceStat.cpuProvisionedUsed).
+	//	Create()
+	//if err != nil {
+	//	return nil, err
+	//}
+	//commoditiesBought = append(commoditiesBought, cpuProvisionedCommBought)
+	//
+	//memProvisionedCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_PROVISIONED).
+	//	//		Key("Container").
+	//	Used(podResourceStat.memProvisionedUsed).
+	//	Create()
+	//if err != nil {
+	//	return nil, err
+	//}
+	//commoditiesBought = append(commoditiesBought, memProvisionedCommBought)
 
 	selectorMap := pod.Spec.NodeSelector
 	if len(selectorMap) > 0 {
