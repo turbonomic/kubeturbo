@@ -11,6 +11,7 @@ import (
 	"k8s.io/kubernetes/pkg/labels"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
@@ -160,6 +161,46 @@ func GetNodeNameFromIP(kubeClient *client.Client, machineIPs []string) (string, 
 	return "", fmt.Errorf("Cannot find node with IPs %s", ipAddresses)
 }
 
+// Get a pod based on received entity properties.
+func GetPodFromProperties(kubeClient *client.Client, entityType proto.EntityDTO_EntityType,
+	properties []*proto.EntityDTO_EntityProperty) (*api.Pod, error) {
+	var podNamespace, podName string
+	switch entityType {
+	case proto.EntityDTO_APPLICATION:
+		podNamespace, podName = probe.GetApplicationHostingPodInfoFromProperty(properties)
+	case proto.EntityDTO_CONTAINER_POD:
+		podNamespace, podName = probe.GetPodInfoFromProperty(properties)
+	default:
+		return nil, fmt.Errorf("cannot find pod based on properties of an entity with type: %s", entityType)
+	}
+	if podNamespace == "" || podName == "" {
+		return nil, fmt.Errorf("railed to find  pod info from pod properties: %v", properties)
+	}
+	return kubeClient.Pods(podNamespace).Get(podName)
+}
+
+// Get a pod instance from the uuid of a pod. Since there is no support for uuid lookup, we have to get all the pods
+// and then find the correct pod based on uuid match.
+func GetPodFromUUID(kubeClient *client.Client, podUUID string) (*api.Pod, error) {
+	namespace := api.NamespaceAll
+	label := labels.Everything()
+	field := fields.Everything()
+	listOption := &api.ListOptions{
+		LabelSelector: label,
+		FieldSelector: field,
+	}
+	podList, err := kubeClient.Pods(namespace).List(*listOption)
+	if err != nil {
+		return nil, fmt.Errorf("error getting all the desired pods from Kubernetes cluster: %s", err)
+	}
+	for _, pod := range podList.Items {
+		if string(pod.UID) == podUUID {
+			return &pod, nil
+		}
+	}
+	return nil, fmt.Errorf("cannot find pod based on given uuid: %s", podUUID)
+}
+
 // Find which pod is the app running based on the received action request.
 func FindApplicationPodProvider(kubeClient *client.Client, providers []*proto.ActionItemDTO_ProviderInfo) (*api.Pod, error) {
 	if providers == nil || len(providers) < 1 {
@@ -173,7 +214,7 @@ func FindApplicationPodProvider(kubeClient *client.Client, providers []*proto.Ac
 		if providerInfo.GetEntityType() == proto.EntityDTO_CONTAINER_POD {
 			providerIDs := providerInfo.GetIds()
 			for _, id := range providerIDs {
-				podProvider, err := GetPodFromIdentifier(kubeClient, id)
+				podProvider, err := GetPodFromUUID(kubeClient, id)
 				if err != nil {
 					glog.Errorf("Error getting pod provider from pod identifier %s", id)
 					continue
@@ -185,24 +226,6 @@ func FindApplicationPodProvider(kubeClient *client.Client, providers []*proto.Ac
 		}
 	}
 	return nil, errors.New("Cannot find any Pod provider")
-}
-
-// Get Pod from a turbo pod UUID.
-func GetPodFromIdentifier(kubeClient *client.Client, id string) (*api.Pod, error) {
-	podUID, podNamespace, podName, err := probe.BreakdownTurboPodUUID(id)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to breakdown turbo pod UUID: %s", err)
-	}
-
-	pod, err := kubeClient.Pods(podNamespace).Get(podName)
-	if err != nil {
-		return nil, err
-	} else if string(pod.UID) != podUID || pod.Name != podName || pod.Namespace != podNamespace {
-		return nil, fmt.Errorf("Got wrong pod, wanted: %s/%s with UID %s, "+
-			"found: %s/%s with UID %s", podNamespace, podName, podUID, pod.Namespace, pod.Name, pod.UID)
-	}
-	glog.V(4).Infof("Successfully got pod %s/%s.", podNamespace, podName)
-	return pod, nil
 }
 
 // Given namespace and name, return an identifier in the format, namespace/name
