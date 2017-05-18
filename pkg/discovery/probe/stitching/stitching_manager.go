@@ -224,7 +224,6 @@ func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_Re
 		return nil, fmt.Errorf("Stitching property type %s is not supported.", s.stitchingPropertyType)
 	}
 	replacementEntityMetaDataBuilder.PatchSelling(proto.CommodityDTO_CLUSTER).
-		PatchSelling(proto.CommodityDTO_APPLICATION).
 		PatchSelling(proto.CommodityDTO_VMPM_ACCESS)
 	meta := replacementEntityMetaDataBuilder.Build()
 	return meta, nil

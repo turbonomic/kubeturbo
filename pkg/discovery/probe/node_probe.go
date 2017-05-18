@@ -142,7 +142,6 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node, nodePodsMap map[
 	if err != nil {
 		return commoditiesSold, err
 	}
-	nodeID := string(node.UID)
 	vMemComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMEM).
 		Capacity(nodeResourceStat.vMemCapacity).
 		Used(nodeResourceStat.vMemUsed).
@@ -161,38 +160,29 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node, nodePodsMap map[
 	}
 	commoditiesSold = append(commoditiesSold, vCpuComm)
 
-	memProvisionedComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_PROVISIONED).
-		//		Key("Container").
-		Capacity(float64(nodeResourceStat.memProvisionedCapacity)).
-		Used(nodeResourceStat.memProvisionedUsed).
-		Create()
-	if err != nil {
-		return nil, err
-	}
-	commoditiesSold = append(commoditiesSold, memProvisionedComm)
+	//memProvisionedComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_MEM_PROVISIONED).
+	//	//		Key("Container").
+	//	Capacity(float64(nodeResourceStat.memProvisionedCapacity)).
+	//	Used(nodeResourceStat.memProvisionedUsed).
+	//	Create()
+	//if err != nil {
+	//	return nil, err
+	//}
+	//commoditiesSold = append(commoditiesSold, memProvisionedComm)
+	//
+	//cpuProvisionedComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_PROVISIONED).
+	//	//		Key("Container").
+	//	Capacity(float64(nodeResourceStat.cpuProvisionedCapacity)).
+	//	Used(nodeResourceStat.cpuProvisionedUsed).
+	//	Create()
+	//if err != nil {
+	//	return nil, err
+	//}
+	//commoditiesSold = append(commoditiesSold, cpuProvisionedComm)
 
-	cpuProvisionedComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CPU_PROVISIONED).
-		//		Key("Container").
-		Capacity(float64(nodeResourceStat.cpuProvisionedCapacity)).
-		Used(nodeResourceStat.cpuProvisionedUsed).
-		Create()
-	if err != nil {
-		return nil, err
-	}
-	commoditiesSold = append(commoditiesSold, cpuProvisionedComm)
-
-	appComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
-		Key(nodeID).
-		Capacity(1E10).
-		Create()
-	if err != nil {
-		return nil, err
-	}
-	commoditiesSold = append(commoditiesSold, appComm)
-
-	labelsmap := node.ObjectMeta.Labels
-	if len(labelsmap) > 0 {
-		for key, value := range labelsmap {
+	labelsMap := node.ObjectMeta.Labels
+	if len(labelsMap) > 0 {
+		for key, value := range labelsMap {
 			label := key + "=" + value
 			glog.V(4).Infof("label for this Node is : %s", label)
 			accessComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
@@ -354,29 +344,32 @@ func (nodeProbe *NodeProbe) getNodeResourceStat(node *api.Node, nodePodsMap map[
 	cpuUsed := float64(rootCurCpu) * float64(cpuFrequency)
 	memUsed := float64(rootCurMem)
 
-	cpuProvisionedUsed := float64(0)
-	memProvisionedUsed := float64(0)
 
-	if podList, exist := nodePodsMap[node.Name]; exist {
-		for _, pod := range podList {
-			cpuRequest, memRequest, err := GetResourceRequest(pod)
-			if err != nil {
-				return nil, fmt.Errorf("Error getting provisioned resource consumption: %s", err)
-			}
-			cpuProvisionedUsed += cpuRequest
-			memProvisionedUsed += memRequest
-		}
-	}
-	cpuProvisionedUsed *= float64(cpuFrequency)
+	// TODO we will re-include provisioned commodities sold by node later.
+	//cpuProvisionedUsed := float64(0)
+	//memProvisionedUsed := float64(0)
+	//
+	//if podList, exist := nodePodsMap[node.Name]; exist {
+	//	for _, pod := range podList {
+	//		cpuRequest, memRequest, err := GetResourceRequest(pod)
+	//		if err != nil {
+	//			return nil, fmt.Errorf("Error getting provisioned resource consumption: %s", err)
+	//		}
+	//		cpuProvisionedUsed += cpuRequest
+	//		memProvisionedUsed += memRequest
+	//	}
+	//}
+	//cpuProvisionedUsed *= float64(cpuFrequency)
 
 	return &NodeResourceStat{
 		vCpuCapacity:           nodeCpuCapacity,
 		vCpuUsed:               cpuUsed,
 		vMemCapacity:           nodeMemCapacity,
 		vMemUsed:               memUsed,
-		cpuProvisionedCapacity: nodeCpuCapacity,
-		cpuProvisionedUsed:     cpuProvisionedUsed,
-		memProvisionedCapacity: nodeMemCapacity,
-		memProvisionedUsed:     memProvisionedUsed,
+		// TODO we will re-include provisioned commodities sold by node later.
+		//cpuProvisionedCapacity: nodeCpuCapacity,
+		//cpuProvisionedUsed:     cpuProvisionedUsed,
+		//memProvisionedCapacity: nodeMemCapacity,
+		//memProvisionedUsed:     memProvisionedUsed,
 	}, nil
 }
