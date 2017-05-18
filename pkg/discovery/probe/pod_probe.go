@@ -428,7 +428,7 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 	glog.V(4).Infof("Pod %s will be stitched with VM with %s: %s", podDisplayName, *property.Name, *property.Value)
 
 	// monitored or not
-	monitored := monitored(pod)
+	monitored := monitored(pod, notMonitoredNodes)
 	if !monitored {
 		inactivePods[podNameWithNamespace] = struct{}{}
 	}

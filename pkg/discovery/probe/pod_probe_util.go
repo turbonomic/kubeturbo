@@ -2,6 +2,7 @@ package probe
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -21,17 +22,14 @@ const (
 // CPU returned is in KHz; Mem is in Kb
 func GetResourceLimits(pod *api.Pod) (cpuCapacity float64, memCapacity float64, err error) {
 	if pod == nil {
-		return 0, 0, fmt.Errorf("pod passed in is nil.")
+		err = errors.New("pod passed in is nil.")
+		return
 	}
 
 	for _, container := range pod.Spec.Containers {
 		limits := container.Resources.Limits
-		request := container.Resources.Requests
 
 		memCap := limits.Memory().Value()
-		if memCap == 0 {
-			memCap = request.Memory().Value()
-		}
 		cpuCap := limits.Cpu().MilliValue()
 		memCapacity += float64(memCap) / 1024
 		cpuCapacity += float64(cpuCap) / 1000
@@ -42,7 +40,8 @@ func GetResourceLimits(pod *api.Pod) (cpuCapacity float64, memCapacity float64, 
 // CPU returned is in KHz; Mem is in Kb
 func GetResourceRequest(pod *api.Pod) (cpuRequest float64, memRequest float64, err error) {
 	if pod == nil {
-		return 0, 0, fmt.Errorf("pod passed in is nil.")
+		err = errors.New("pod passed in is nil.")
+		return
 	}
 
 	for _, container := range pod.Spec.Containers {
@@ -94,7 +93,7 @@ func BreakdownTurboPodUUID(uuid string) (uid string, namespace string, name stri
 // Returns a bool indicates whether the given pod should be monitored.
 // Do not monitor pods running on nodes those are not monitored.
 // Do not monitor mirror pods or pods created by DaemonSets.
-func monitored(pod *api.Pod) bool {
+func monitored(pod *api.Pod, notMonitoredNodes map[string]struct{}) bool {
 	if _, exist := notMonitoredNodes[pod.Spec.NodeName]; exist {
 		return false
 	}
@@ -153,7 +152,7 @@ func findParentObjectKind(pod *api.Pod) (string, error) {
 		return "", nil
 	}
 	kind := parentObject.Kind
-	glog.V(4).Infof("The kind is %s", kind)
+	glog.V(4).Infof("The kind of parent object of Pod %s/%s is %s", pod.Namespace, pod.Name, kind)
 	return kind, nil
 }
 
@@ -176,7 +175,7 @@ func DecodeJSON(ref interface{}, data string) error {
 }
 
 // Find the appType (TODO the name is TBD) of the given pod.
-// NOTE This function is highly depend on the name of differetn kinds of pod.
+// NOTE This function is highly depend on the name of different kinds of pod.
 // 	If a pod is created by a kubelet, then the name is like name-nodeName
 //	If a pod is created by a replication controller, then the name is like name-random
 //	if a pod is created by a deployment, then the name is like name-generated-random
@@ -185,17 +184,26 @@ func GetAppType(pod *api.Pod) string {
 		nodeName := pod.Spec.NodeName
 		na := strings.Split(pod.Name, nodeName)
 		return na[0][:len(na[0])-1]
-	} else if isPodCreatedBy(pod, Kind_DaemonSet) || isPodCreatedBy(pod, Kind_ReplicationController) || isPodCreatedBy(pod, Kind_Job) {
-		generatedName := pod.GenerateName
-		return generatedName[:len(generatedName)-1]
-	} else if isPodCreatedBy(pod, Kind_ReplicaSet) {
-		generatedName := pod.GenerateName
-		na := strings.Split(generatedName, "-")
-		res := ""
-		for i := 0; i < len(na)-2; i++ {
-			res = res + na[i]
+	} else {
+		parentKind, err := findParentObjectKind(pod)
+		if err != nil {
+			glog.Errorf("%++v", err)
+			return ""
 		}
-		return res
+		switch parentKind {
+		case Kind_DaemonSet, Kind_ReplicationController, Kind_Job:
+			generatedName := pod.GenerateName
+			return generatedName[:len(generatedName)-1]
+		case Kind_ReplicaSet:
+			generatedName := pod.GenerateName
+			na := strings.Split(generatedName, "-")
+			res := ""
+			for i := 0; i < len(na)-2; i++ {
+				res = res + na[i]
+			}
+			return res
+		default:
+			return pod.Name
+		}
 	}
-	return pod.Name
 }

@@ -1,11 +1,12 @@
 package probe
 
 import (
-	"testing"
-
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util/uuid"
+
+	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
+	"testing"
 )
 
 func TestGetTurboPodUUID(t *testing.T) {
@@ -72,30 +73,32 @@ func TestBreakdownTurboPodUUID(t *testing.T) {
 		expectsError bool
 	}{
 		{
-			uid: "abc",
-			namespace:"default",
-			name:"foo",
+			uid:       "abc",
+			namespace: "default",
+			name:      "foo",
 		},
 		{
-			namespace:"default",
-			name:"foo",
+			namespace: "default",
+			name:      "foo",
 
-			expectsError:true,
+			expectsError: true,
+		},
+
+		{
+			uid:  "abc",
+			name: "foo",
+
+			expectsError: true,
 		},
 		{
-			uid: "abc",
-			name:"foo",
+			namespace: "default",
+			name:      "foo",
 
-			expectsError:true,
-		},
-		{
-			namespace:"default",
-			name:"foo",
-
-			expectsError:true,
+			expectsError: true,
 		},
 	}
-	for _, item := range table{
+
+	for _, item := range table {
 		turboUUID := ""
 		if item.uid != "" {
 			turboUUID += item.uid + ":"
@@ -124,6 +127,43 @@ func TestBreakdownTurboPodUUID(t *testing.T) {
 			if name != item.name {
 				t.Errorf("Expects name %s, got %s", item.name, name)
 			}
+		}
+	}
+}
+
+func TestIsMirrorPod(t *testing.T) {
+	table := []struct {
+		annotations map[string]string
+
+		expects bool
+	}{
+		{
+			annotations: map[string]string{
+				kubelettypes.ConfigMirrorAnnotationKey: "foo",
+			},
+			expects: true,
+		},
+		{
+			annotations: map[string]string{
+				"foo": "bar",
+			},
+			expects: false,
+		},
+		{
+			expects: false,
+		},
+	}
+	for _, item := range table {
+		pod := &api.Pod{}
+		pod.Annotations = item.annotations
+		res := isMirrorPod(pod)
+		if res != item.expects {
+			temp := ""
+			if !item.expects {
+				temp = "not"
+			}
+			t.Errorf("pod with annotation %++v is %s a mirror pod, but isMirror returned %t",
+				item.annotations, temp, res)
 		}
 	}
 }
