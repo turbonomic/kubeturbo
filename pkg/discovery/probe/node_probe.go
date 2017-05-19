@@ -20,6 +20,12 @@ import (
 	cadvisor "github.com/google/cadvisor/info/v1"
 )
 
+const (
+	accessCommodityDefaultCapacity float64 = 1E10
+
+	schedAccessCommodityKey string = "schedulable"
+)
+
 // key: node name; value: cAdvisor host.
 var hostSet map[string]*vmtAdvisor.Host
 
@@ -104,6 +110,12 @@ func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node, pods []*api.Pod)
 		nodePodsMap[pod.Spec.NodeName] = podList
 	}
 	for _, node := range nodes {
+		// We do not monitor node that is not ready or unschedulable.
+		if !nodeIsReady(node) || !nodeIsSchedulable(node) {
+			glog.V(3).Infof("Node %s is either not ready or unschedulable.", node.Name)
+			//continue
+			notMonitoredNodes[node.Name] = struct{}{}
+		}
 
 		// use cAdvisor to get node info
 		nodeProbe.parseNodeIP(node)
@@ -187,7 +199,7 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node, nodePodsMap map[
 			glog.V(4).Infof("label for this Node is : %s", label)
 			accessComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
 				Key(label).
-				Capacity(1E10).
+				Capacity(accessCommodityDefaultCapacity).
 				Create()
 			if err != nil {
 				return nil, err
@@ -196,11 +208,26 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node, nodePodsMap map[
 		}
 	}
 
-	// Use Kubernetes service UID as the key for cluster commodity
+	// Create a new VMPMAccessCommodity to indicate if the node is schedulable. If the Node is schedulable, then
+	// the node will sell it. Otherwise, it doesn't sell. On the consumer side, if a pod can be scheduled by
+	// scheduler, then the pod should buy the same VMPMAccessCommodity.
+	if _, exists := notMonitoredNodes[node.Name]; !exists {
+		schedAccessComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
+			Key(schedAccessCommodityKey).
+			Capacity(accessCommodityDefaultCapacity).
+			Create()
+		if err != nil {
+			return nil, err
+		}
+		commoditiesSold = append(commoditiesSold, schedAccessComm)
+	}
+
+	// Use Kubernetes service UID as the key for cluster commodity. Cluster commodity is also one type of access
+	// commodity, so the capacity should also be the default access commodity capacity.
 	clusterCommodityKey := ClusterID
 	clusterComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
 		Key(clusterCommodityKey).
-		Capacity(1E10).
+		Capacity(accessCommodityDefaultCapacity).
 		Create()
 	if err != nil {
 		return nil, err
@@ -285,14 +312,6 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(node *api.Node, commoditiesSold []*
 	// power state
 	entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
-	// We do not monitor node that is not ready or unschedulable.
-	if !nodeIsReady(node) || !nodeIsSchedulable(node) {
-		glog.V(3).Infof("Node %s is either not ready or unschedulable.", node.Name)
-		//continue
-		notMonitoredNodes[node.Name] = struct{}{}
-		entityDTOBuilder.Monitored(false)
-	}
-
 	entityDto, err := entityDTOBuilder.Create()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", nodeUID, err)
@@ -344,7 +363,6 @@ func (nodeProbe *NodeProbe) getNodeResourceStat(node *api.Node, nodePodsMap map[
 	cpuUsed := float64(rootCurCpu) * float64(cpuFrequency)
 	memUsed := float64(rootCurMem)
 
-
 	// TODO we will re-include provisioned commodities sold by node later.
 	//cpuProvisionedUsed := float64(0)
 	//memProvisionedUsed := float64(0)
@@ -362,10 +380,10 @@ func (nodeProbe *NodeProbe) getNodeResourceStat(node *api.Node, nodePodsMap map[
 	//cpuProvisionedUsed *= float64(cpuFrequency)
 
 	return &NodeResourceStat{
-		vCpuCapacity:           nodeCpuCapacity,
-		vCpuUsed:               cpuUsed,
-		vMemCapacity:           nodeMemCapacity,
-		vMemUsed:               memUsed,
+		vCpuCapacity: nodeCpuCapacity,
+		vCpuUsed:     cpuUsed,
+		vMemCapacity: nodeMemCapacity,
+		vMemUsed:     memUsed,
 		// TODO we will re-include provisioned commodities sold by node later.
 		//cpuProvisionedCapacity: nodeCpuCapacity,
 		//cpuProvisionedUsed:     cpuProvisionedUsed,
