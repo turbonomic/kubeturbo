@@ -192,6 +192,10 @@ func (this *ApplicationProbe) buildApplicationEntityDTOs(appName, podNamespaceNa
 	if _, exist := inactivePods[podNamespaceName]; exist {
 		entityDTOBuilder = entityDTOBuilder.Monitored(false)
 	}
+
+	appProperties := buildAppProperties(podNamespaceName)
+	entityDTOBuilder = entityDTOBuilder.WithProperties(appProperties)
+
 	entityDto, err := entityDTOBuilder.Create()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to build EntityDTO for application %s: %s", id, err)

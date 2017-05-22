@@ -2,134 +2,12 @@ package probe
 
 import (
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/types"
-	"k8s.io/kubernetes/pkg/util/uuid"
 
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
+	"reflect"
 	"testing"
 )
-
-func TestGetTurboPodUUID(t *testing.T) {
-	table := []struct {
-		uid       types.UID
-		namespace string
-		name      string
-
-		illegal bool
-	}{
-		{
-			uid:       uuid.NewUUID(),
-			namespace: "default",
-			name:      "pod-name",
-		},
-		{
-			uid:       types.UID("abcd-e:fg"),
-			namespace: "default",
-			name:      "pod-name",
-
-			illegal: true,
-		},
-		{
-			uid:       uuid.NewUUID(),
-			namespace: "d:efault",
-			name:      "pod-name",
-
-			illegal: true,
-		},
-		{
-			uid:       uuid.NewUUID(),
-			namespace: "default",
-			name:      "pod-n:ame",
-
-			illegal: true,
-		},
-	}
-
-	for _, item := range table {
-		pod := &api.Pod{}
-		pod.UID = item.uid
-		pod.Namespace = item.namespace
-		pod.Name = item.name
-		turboPodUUID := GetTurboPodUUID(pod)
-
-		var expectedUUID string
-		if item.illegal {
-			expectedUUID = ""
-		} else {
-			expectedUUID = string(item.uid) + ":" + item.namespace + ":" + item.name
-		}
-		if expectedUUID != turboPodUUID {
-			t.Errorf("Expects %s, got %s", expectedUUID, turboPodUUID)
-		}
-	}
-}
-
-func TestBreakdownTurboPodUUID(t *testing.T) {
-	table := []struct {
-		uid       string
-		namespace string
-		name      string
-
-		expectsError bool
-	}{
-		{
-			uid:       "abc",
-			namespace: "default",
-			name:      "foo",
-		},
-		{
-			namespace: "default",
-			name:      "foo",
-
-			expectsError: true,
-		},
-
-		{
-			uid:  "abc",
-			name: "foo",
-
-			expectsError: true,
-		},
-		{
-			namespace: "default",
-			name:      "foo",
-
-			expectsError: true,
-		},
-	}
-
-	for _, item := range table {
-		turboUUID := ""
-		if item.uid != "" {
-			turboUUID += item.uid + ":"
-		}
-		if item.namespace != "" {
-			turboUUID += item.namespace + ":"
-		}
-		if item.name != "" {
-			turboUUID += item.name
-		}
-		uid, ns, name, err := BreakdownTurboPodUUID(turboUUID)
-		if item.expectsError {
-			if err == nil {
-				t.Error("Expected error, but got no error.")
-			}
-		} else {
-			if err != nil {
-				t.Errorf("Unexpected error, %s", err)
-			}
-			if uid != item.uid {
-				t.Errorf("Expects uid %s, got %s", item.uid, uid)
-			}
-			if ns != item.namespace {
-				t.Errorf("Expects namespace %s, got %s", item.namespace, ns)
-			}
-			if name != item.name {
-				t.Errorf("Expects name %s, got %s", item.name, name)
-			}
-		}
-	}
-}
 
 func TestIsMirrorPod(t *testing.T) {
 	table := []struct {
@@ -164,6 +42,162 @@ func TestIsMirrorPod(t *testing.T) {
 			}
 			t.Errorf("pod with annotation %++v is %s a mirror pod, but isMirror returned %t",
 				item.annotations, temp, res)
+		}
+	}
+}
+
+func TestBuildPodProperties(t *testing.T) {
+	table := []struct {
+		podNamespace string
+		podName      string
+	}{
+		{
+			podNamespace: "default",
+			podName:      "foo",
+		},
+	}
+	for _, item := range table {
+		pod := &api.Pod{}
+		pod.Namespace = item.podNamespace
+		pod.Name = item.podName
+		properties := buildPodProperties(pod)
+
+		propertyNamespace := podPropertyNamespace
+		podNamespacePropertyName := podPropertyNamePodNamespace
+		podNamePropertyName := podPropertyNamePodName
+		expectedProperties := []*proto.EntityDTO_EntityProperty{
+			{
+				Namespace: &propertyNamespace,
+				Name:      &podNamespacePropertyName,
+				Value:     &item.podNamespace,
+			},
+			{
+				Namespace: &propertyNamespace,
+				Name:      &podNamePropertyName,
+				Value:     &item.podName,
+			},
+		}
+
+		if !reflect.DeepEqual(expectedProperties, properties) {
+			t.Errorf("Expected: %v, got: %v", expectedProperties, properties)
+		}
+	}
+}
+
+func TestGetPodInfoFromProperty(t *testing.T) {
+	table := []struct {
+		namespacePropertyNamespace string
+		namespacePropertyName      string
+		podNamespace               string
+
+		namePropertyNamespace string
+		namePropertyName      string
+		podName               string
+
+		otherProperties []struct {
+			otherPropertyNamespace string
+			otherPropertyName      string
+			otherPropertyValue     string
+		}
+
+		expectedNamespace string
+		expectedName      string
+	}{
+		{
+			namespacePropertyNamespace: podPropertyNamespace,
+			namespacePropertyName:      podPropertyNamePodNamespace,
+			podNamespace:               "default",
+
+			namePropertyNamespace: podPropertyNamespace,
+			namePropertyName:      podPropertyNamePodName,
+			podName:               "foo",
+
+			expectedNamespace: "default",
+			expectedName:      "foo",
+		},
+		{
+			namespacePropertyNamespace: podPropertyNamespace,
+			namespacePropertyName:      podPropertyNamePodNamespace,
+			podNamespace:               "default",
+
+			namePropertyNamespace: podPropertyNamespace,
+			namePropertyName:      podPropertyNamePodName,
+			podName:               "foo",
+
+			otherProperties: []struct {
+				otherPropertyNamespace string
+				otherPropertyName      string
+				otherPropertyValue     string
+			}{
+				{
+					"random",
+					"bar",
+					"foo",
+				},
+				{
+					podPropertyNamespace,
+					"bar",
+					"foo",
+				},
+			},
+
+			expectedNamespace: "default",
+			expectedName:      "foo",
+		},
+		{
+			namespacePropertyNamespace: "random namespace",
+			namespacePropertyName:      podPropertyNamePodNamespace,
+			podNamespace:               "default",
+
+			namePropertyNamespace: podPropertyNamespace,
+			namePropertyName:      podPropertyNamePodName,
+			podName:               "foo",
+
+			expectedNamespace: "",
+			expectedName:      "foo",
+		},
+		{
+			namespacePropertyNamespace: podPropertyNamespace,
+			namespacePropertyName:      podPropertyNamePodNamespace,
+			podNamespace:               "default",
+
+			namePropertyNamespace: "random namespace",
+			namePropertyName:      podPropertyNamePodName,
+			podName:               "foo",
+
+			expectedNamespace: "default",
+			expectedName:      "",
+		},
+	}
+	for i, item := range table {
+		properties := []*proto.EntityDTO_EntityProperty{}
+		properties = append(properties, &proto.EntityDTO_EntityProperty{
+			Namespace: &item.namespacePropertyNamespace,
+			Name:      &item.namespacePropertyName,
+			Value:     &item.podNamespace,
+		})
+		properties = append(properties, &proto.EntityDTO_EntityProperty{
+			Namespace: &item.namePropertyNamespace,
+			Name:      &item.namePropertyName,
+			Value:     &item.podName,
+		})
+		if item.otherProperties != nil {
+			for _, otherProperty := range item.otherProperties {
+				properties = append(properties, &proto.EntityDTO_EntityProperty{
+					Namespace: &otherProperty.otherPropertyNamespace,
+					Name:      &otherProperty.otherPropertyName,
+					Value:     &otherProperty.otherPropertyValue,
+				})
+			}
+		}
+
+		podNamespace, podName := GetPodInfoFromProperty(properties)
+		if podNamespace != item.expectedNamespace {
+			t.Errorf("Test case %d failed: exptected namespace %s, got %s",
+				i, item.expectedNamespace, podNamespace)
+		}
+		if podName != item.expectedName {
+			t.Errorf("Test case %d failed: expected name %s, got %s", i, item.expectedName, podName)
 		}
 	}
 }

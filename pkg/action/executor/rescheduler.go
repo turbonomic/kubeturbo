@@ -52,11 +52,20 @@ func (r *ReScheduler) buildPendingReScheduleTurboAction(actionItem *proto.Action
 	error) {
 	// Find out the pod to be re-scheduled.
 	targetPod := actionItem.GetTargetSE()
-	podIdentifier := targetPod.GetId()
-	originalPod, err := util.GetPodFromIdentifier(r.kubeClient, podIdentifier)
+	if targetPod == nil {
+		return nil, errors.New("Target pod in actionItem is nil")
+	}
+
+	// TODO, as there is issue in server, find pod based on entity properties is not supported right now. Once the issue in server gets resolved, we should use the following code to find the pod.
+	//podProperties := targetPod.GetEntityProperties()
+	//foundPod, err:= util.GetPodFromProperties(h.kubeClient, targetEntityType, podProperties)
+
+	// TODO the following is a temporary fix.
+	originalPod, err := util.GetPodFromUUID(r.kubeClient, targetPod.GetId())
 	if err != nil {
-		glog.Errorf("Cannot not find pod in the cluster: %s", err)
-		return nil, fmt.Errorf("Try to move pod %s, but could not find it in the cluster.", podIdentifier)
+		glog.Errorf("Cannot not find pod %s in the cluster: %s", targetPod.GetDisplayName(), err)
+		return nil, fmt.Errorf("Try to move pod %s, but could not find it in the cluster.",
+			targetPod.GetDisplayName())
 	}
 
 	// Find out where to re-schedule the pod.
