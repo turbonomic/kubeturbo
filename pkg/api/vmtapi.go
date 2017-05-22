@@ -22,31 +22,24 @@ const (
 func (vmtApi *VmtApi) AddK8sTarget(targetType, nameOrAddress, username, targetIdentifier, password string) error {
 	glog.V(2).Infof("Calling VMTurbo REST API to added current %s target.", targetType)
 
-	requestData := make(map[string]string)
-
 	var requestDataBuffer bytes.Buffer
 
-	requestData["type"] = targetType
 	requestDataBuffer.WriteString("?type=")
 	requestDataBuffer.WriteString(targetType)
 	requestDataBuffer.WriteString("&")
 
-	requestData["nameOrAddress"] = nameOrAddress
 	requestDataBuffer.WriteString("nameOrAddress=")
 	requestDataBuffer.WriteString(nameOrAddress)
 	requestDataBuffer.WriteString("&")
 
-	requestData["username"] = username
 	requestDataBuffer.WriteString("username=")
 	requestDataBuffer.WriteString(username)
 	requestDataBuffer.WriteString("&")
 
-	requestData["targetIdentifier"] = targetIdentifier
 	requestDataBuffer.WriteString("targetIdentifier=")
 	requestDataBuffer.WriteString(targetIdentifier)
 	requestDataBuffer.WriteString("&")
 
-	requestData["password"] = password
 	requestDataBuffer.WriteString("password=")
 	requestDataBuffer.WriteString(password)
 
