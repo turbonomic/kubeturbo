@@ -149,7 +149,7 @@ func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO
 func (f *SupplyChainFactory) buildVirtualApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
 	vAppSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_VIRTUAL_APPLICATION)
 	vAppSupplyChainNodeBuilder = vAppSupplyChainNodeBuilder.
-		Provider(proto.EntityDTO_APPLICATION, proto.Provider_HOSTING).
+		Provider(proto.EntityDTO_APPLICATION, proto.Provider_LAYERED_OVER).
 		Buys(transactionTemplateComm)
 	return vAppSupplyChainNodeBuilder.Create()
 }
