@@ -38,6 +38,7 @@ var podResourceConsumptionMap map[string]*PodResourceStat
 var turboPodUUIDMap map[string]string
 
 // This set keeps records of pods whose states are set to inactive in VMT server side.
+// Inactive pod include mirror pods, pods created by DaemonSet, or pods running on a node which is unschedulable.
 // key: podNamespace/podName)
 var inactivePods map[string]struct{}
 
@@ -116,6 +117,13 @@ func (podProbe *PodProbe) parsePodFromK8s(pods []*api.Pod) (result []*proto.Enti
 	for _, pod := range pods {
 		hostIP := pod.Status.PodIP
 		podIP2PodMap[hostIP] = pod
+
+		podNameWithNamespace := pod.Namespace + "/" + pod.Name
+		// monitored or not
+		monitored := monitored(pod, notMonitoredNodes)
+		if !monitored {
+			inactivePods[podNameWithNamespace] = struct{}{}
+		}
 
 		podResourceStat, err := podProbe.getPodResourceStat(pod, podContainers)
 		if err != nil {
@@ -395,6 +403,19 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 		}
 	}
 
+	// If a pod can be scheduled by scheduler, then we must guarantee it can only be scheduled to a schedulable
+	// node. So the pod must buy an access commodity which indicates the node selling it is schedulable.
+	podNameWithNamespace := pod.Namespace + "/" + pod.Name
+	if _, exist := inactivePods[podNameWithNamespace]; !exist {
+		schedComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
+			Key(schedAccessCommodityKey).
+			Create()
+		if err != nil {
+			return nil, err
+		}
+		commoditiesBought = append(commoditiesBought, schedComm)
+	}
+
 	//cluster commodity
 	clusterCommodityKey := ClusterID
 	clusterComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
@@ -445,11 +466,12 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 	glog.V(4).Infof("Pod %s will be stitched with VM with %s: %s", podDisplayName, *property.Name, *property.Value)
 
 	// monitored or not
-	monitored := monitored(pod, notMonitoredNodes)
-	if !monitored {
-		inactivePods[podNameWithNamespace] = struct{}{}
+	if _, exist := inactivePods[podNameWithNamespace]; exist {
+		entityDTOBuilder = entityDTOBuilder.Monitored(false)
+	} else {
+		entityDTOBuilder = entityDTOBuilder.Monitored(true)
+
 	}
-	entityDTOBuilder = entityDTOBuilder.Monitored(monitored)
 
 	// create entityDTO
 	entityDto, err := entityDTOBuilder.Create()
