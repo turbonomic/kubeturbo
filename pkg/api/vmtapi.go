@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
@@ -18,55 +17,6 @@ type VmtApi struct {
 const (
 	logger = "VMTurbo API"
 )
-
-func (vmtApi *VmtApi) AddK8sTarget(targetType, nameOrAddress, username, targetIdentifier, password string) error {
-	glog.V(2).Infof("Calling VMTurbo REST API to added current %s target.", targetType)
-
-	var requestDataBuffer bytes.Buffer
-
-	requestDataBuffer.WriteString("?type=")
-	requestDataBuffer.WriteString(targetType)
-	requestDataBuffer.WriteString("&")
-
-	requestDataBuffer.WriteString("nameOrAddress=")
-	requestDataBuffer.WriteString(nameOrAddress)
-	requestDataBuffer.WriteString("&")
-
-	requestDataBuffer.WriteString("username=")
-	requestDataBuffer.WriteString(username)
-	requestDataBuffer.WriteString("&")
-
-	requestDataBuffer.WriteString("targetIdentifier=")
-	requestDataBuffer.WriteString(targetIdentifier)
-	requestDataBuffer.WriteString("&")
-
-	requestDataBuffer.WriteString("password=")
-	requestDataBuffer.WriteString(password)
-
-	s := requestDataBuffer.String()
-
-	respMsg, err := vmtApi.apiPost("/externaltargets", s)
-	if err != nil {
-		return err
-	}
-	glog.V(4).Infof("Add target response is %s", respMsg)
-
-	return nil
-}
-
-// Discover a target using api
-// http://localhost:8400/vmturbo/api/targets/k8s_vmt
-func (vmtApi *VmtApi) DiscoverTarget(nameOrAddress string) error {
-	glog.V(2).Info("Calling VMTurbo REST API to initiate a new discovery.")
-
-	respMsg, err := vmtApi.apiPost("/targets/"+nameOrAddress, "")
-	if err != nil {
-		return err
-	}
-	glog.V(4).Infof("Discover target response is %s", respMsg)
-
-	return nil
-}
 
 func (vmtApi *VmtApi) Post(postUrl, requestDataString string) (string, error) {
 	return vmtApi.apiPost(postUrl, requestDataString)
