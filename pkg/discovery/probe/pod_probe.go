@@ -431,7 +431,7 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 // Build entityDTO that contains all the necessary info of a pod.
 func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commoditiesBought []*proto.CommodityDTO) (*proto.EntityDTO, error) {
 	podNameWithNamespace := pod.Namespace + "/" + pod.Name
-	id := GetTurboPodUUID(pod)
+	id := string(pod.UID)
 	if id == "" {
 		return nil, errors.New("Failed to get turbo pod UUID.")
 	}
@@ -458,12 +458,16 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 	entityDTOBuilder.BuysCommodities(commoditiesBought)
 
 	// property
-	property, err := podProbe.stitchingManager.BuildStitchingProperty(nodeName, stitching.Stitch)
+	stitchingProperty, err := podProbe.stitchingManager.BuildStitchingProperty(nodeName, stitching.Stitch)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to build EntityDTO for Pod %s: %s", podDisplayName, err)
 	}
-	entityDTOBuilder = entityDTOBuilder.WithProperty(property)
-	glog.V(4).Infof("Pod %s will be stitched with VM with %s: %s", podDisplayName, *property.Name, *property.Value)
+	entityDTOBuilder = entityDTOBuilder.WithProperty(stitchingProperty)
+	glog.V(4).Infof("Pod %s will be stitched with VM with %s: %s", podDisplayName, *stitchingProperty.Name,
+		*stitchingProperty.Value)
+
+	podProperties := buildPodProperties(pod)
+	entityDTOBuilder = entityDTOBuilder.WithProperties(podProperties)
 
 	// monitored or not
 	if _, exist := inactivePods[podNameWithNamespace]; exist {

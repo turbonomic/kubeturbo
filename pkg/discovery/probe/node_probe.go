@@ -295,12 +295,15 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(node *api.Node, commoditiesSold []*
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 	// property
-	property, err := nodeProbe.stitchingManager.BuildStitchingProperty(node.Name, stitching.Reconcile)
+	stitchingProperty, err := nodeProbe.stitchingManager.BuildStitchingProperty(node.Name, stitching.Reconcile)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to build EntityDTO for node %s: %s", node.Name, err)
 	}
-	entityDTOBuilder = entityDTOBuilder.WithProperty(property)
-	glog.V(4).Infof("Node %s will be reconciled with VM with %s: %s", node.Name, *property.Name, *property.Value)
+	entityDTOBuilder = entityDTOBuilder.WithProperty(stitchingProperty)
+	glog.V(4).Infof("Node %s will be reconciled with VM with %s: %s", node.Name, *stitchingProperty.Name, *stitchingProperty.Value)
+
+	nodeProperty := buildNodeProperties(node)
+	entityDTOBuilder = entityDTOBuilder.WithProperty(nodeProperty)
 
 	// reconciliation meta data
 	metaData, err := nodeProbe.stitchingManager.GenerateReconciliationMetaData()

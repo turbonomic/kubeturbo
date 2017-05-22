@@ -10,6 +10,7 @@ import (
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 const (
@@ -52,41 +53,6 @@ func GetResourceRequest(pod *api.Pod) (cpuRequest float64, memRequest float64, e
 		memRequest += float64(mem) / 1024
 		cpuRequest += float64(cpu) / 1000
 	}
-	return
-}
-
-const defaultDelimiter string = ":"
-
-// Get the UUID that will be used in Turbonomic server. Here we build the UUID based on pod UID, namespace and name.
-// The out UUID is in format "UID:namespace:name"
-func GetTurboPodUUID(pod *api.Pod) string {
-	uid := string(pod.UID)
-	if strings.ContainsAny(uid, defaultDelimiter) {
-		glog.Warningf("The pod UID %s contains the default delimitor %s", uid, defaultDelimiter)
-		return ""
-	}
-	namespace := pod.Namespace
-	if strings.ContainsAny(namespace, defaultDelimiter) {
-		glog.Warningf("The pod namespace %s contains the default delimitor %s", namespace, defaultDelimiter)
-		return ""
-	}
-	name := pod.Name
-	if strings.ContainsAny(name, defaultDelimiter) {
-		glog.Warningf("The pod name %s contains the default delimitor %s", name, defaultDelimiter)
-		return ""
-	}
-	return uid + defaultDelimiter + namespace + defaultDelimiter + name
-}
-
-func BreakdownTurboPodUUID(uuid string) (uid string, namespace string, name string, err error) {
-	components := strings.Split(uuid, defaultDelimiter)
-	if len(components) != 3 {
-		err = fmt.Errorf("Given string %s is not a Turbo Pod UUID.", uuid)
-		return
-	}
-	uid = components[0]
-	namespace = components[1]
-	name = components[2]
 	return
 }
 
@@ -206,4 +172,76 @@ func GetAppType(pod *api.Pod) string {
 			return pod.Name
 		}
 	}
+}
+
+// A pod in-cluster unique ID is namespace/name
+func GetPodClusterID(namespace, name string) string {
+	return namespace + "/" + name
+}
+
+func BreakdownPodClusterID(podID string) (namespace string, name string, err error) {
+	components := strings.Split(podID, "/")
+	if len(components) != 2 {
+		err = fmt.Errorf("%s is not a pod in-cluster ID.", podID)
+	} else {
+		namespace = components[0]
+		name = components[1]
+	}
+	return
+}
+
+const (
+	// TODO currently in the server side only properties in "DEFAULT" namespaces are respected. Ideally we should use "Kubernetes-Pod".
+	podPropertyNamespace = "DEFAULT"
+
+	podPropertyNamePodNamespace = "KubernetesPodNamespace"
+
+	podPropertyNamePodName = "KubernetesPodName"
+)
+
+// Build entity properties of a pod. The properties are consisted of name and namespace of a pod.
+func buildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
+	var properties []*proto.EntityDTO_EntityProperty
+	propertyNamespace := podPropertyNamespace
+	podNamespacePropertyName := podPropertyNamePodNamespace
+	podNamespacePropertyValue := pod.Namespace
+	namespaceProperty := &proto.EntityDTO_EntityProperty{
+		Namespace: &propertyNamespace,
+		Name:      &podNamespacePropertyName,
+		Value:     &podNamespacePropertyValue,
+	}
+	properties = append(properties, namespaceProperty)
+
+	podNamePropertyName := podPropertyNamePodName
+	podNamePropertyValue := pod.Name
+	nameProperty := &proto.EntityDTO_EntityProperty{
+		Namespace: &propertyNamespace,
+		Name:      &podNamePropertyName,
+		Value:     &podNamePropertyValue,
+	}
+	properties = append(properties, nameProperty)
+
+	return properties
+}
+
+// Get the namespace and name of a pod from entity property.
+func GetPodInfoFromProperty(properties []*proto.EntityDTO_EntityProperty) (podNamespace string, podName string) {
+	if properties == nil {
+		return
+	}
+	for _, property := range properties {
+		if property.GetNamespace() != podPropertyNamespace {
+			continue
+		}
+		if podNamespace == "" && property.GetName() == podPropertyNamePodNamespace {
+			podNamespace = property.GetValue()
+		}
+		if podName == "" && property.GetName() == podPropertyNamePodName {
+			podName = property.GetValue()
+		}
+		if podNamespace != "" && podName != "" {
+			return
+		}
+	}
+	return
 }

@@ -3,7 +3,7 @@ package executor
 import (
 	"errors"
 	"fmt"
-	"strings"
+	"time"
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/extensions"
@@ -18,7 +18,6 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-	"time"
 )
 
 type HorizontalScaler struct {
@@ -93,6 +92,7 @@ func (h *HorizontalScaler) buildPendingScalingTurboAction(actionItem *proto.Acti
 		diff = 1
 		actionType = turboaction.ActionProvision
 	} else if actionItem.GetActionType() == proto.ActionItemDTO_MOVE {
+		// TODO, unbind action is send as MOVE. This requires server side change.
 		// Scale in, decrease the replica. diff = -1.
 		diff = -1
 		actionType = turboaction.ActionUnbind
@@ -154,51 +154,65 @@ func (h *HorizontalScaler) getProviderPod(actionItem *proto.ActionItemDTO) (*api
 	var providerPod *api.Pod
 	if targetEntityType == proto.EntityDTO_CONTAINER_POD {
 		targetPod := actionItem.GetTargetSE()
-		id := targetPod.GetId()
-		foundPod, err := util.GetPodFromIdentifier(h.kubeClient, id)
+
+		// TODO, as there is issue in server, find pod based on entity properties is not supported right now. Once the issue in server gets resolved, we should use the following code to find the pod.
+		//podProperties := targetPod.GetEntityProperties()
+		//foundPod, err:= util.GetPodFromProperties(h.kubeClient, targetEntityType, podProperties)
+
+		// TODO the following is a temporary fix.
+		foundPod, err := util.GetPodFromUUID(h.kubeClient, targetPod.GetId())
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to find pod %s in Kubernetes: %s", targetPod.GetDisplayName(),
+				err)
 		}
 		providerPod = foundPod
 	} else if targetEntityType == proto.EntityDTO_APPLICATION {
-		providers := actionItem.GetProviders()
+		// TODO, as there is issue in server, find pod based on entity properties is not supported right now. Once the issue in server gets resolved, we should use the following code to find the pod.
+		// As we store hosting pod information inside entity properties of an application entity, so we can get
+		// the application provider directly from there.
+		//appProperties := actionItem.GetTargetSE().GetEntityProperties()
+		//foundPod, err:= util.GetPodFromProperties(h.kubeClient, targetEntityType, appProperties)
 
+		// TODO the following is a temporary fix.
+		providers := actionItem.GetProviders()
 		foundPod, err := util.FindApplicationPodProvider(h.kubeClient, providers)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to find provider pod for %s in Kubernetes: %s",
+				actionItem.GetTargetSE().GetDisplayName(), err)
 		}
 		providerPod = foundPod
 	} else if targetEntityType == proto.EntityDTO_VIRTUAL_APPLICATION {
-		// TODO, unbind action is send as MOVE
-		// An example actionItemDTO is as follows:
-
-		// actionItemDTO:<actionType:MOVE uuid:"_YaxeQDPxEea2efRvkwVM-Q"
-		// targetSE:<entityType:VIRTUAL_APPLICATION id:"vApp-apache2" displayName:"vApp-apache2" > currentSE:<
-		// entityType:APPLICATION id:"apache2::default/frontend-hhp6g" displayName:"apache2::default/frontend-
-		// hhp6g" > providers:<entityType:APPLICATION ids:"apache2::default/frontend-57ytg" ids:"apache2::
-		// default/frontend-ue0kg" ids:"apache2::default/frontend-hhp6g" ids:"apache2::default/frontend-luohe">>
-		//
-		// TODO find the pod name based on application ID. App id is in the following format.
-		// TODO, maybe use service related info to find the corresponding pod.
-		// ProcessName::PodNamespace/PodName
+		// Get the current application provider.
 		currentSE := actionItem.GetCurrentSE()
-		targetEntityType := currentSE.GetEntityType()
-		if targetEntityType != proto.EntityDTO_APPLICATION {
-
+		currentEntityType := currentSE.GetEntityType()
+		if currentEntityType != proto.EntityDTO_APPLICATION {
+			return nil, fmt.Errorf("Unexpected entity type for a Unbind action: %s", currentEntityType)
 		}
-		appName := currentSE.GetId()
-		ids := strings.Split(appName, "::")
-		if len(ids) < 2 {
-			return nil, fmt.Errorf("%s is not a valid Application ID. Unbind failed.", appName)
-		}
-		podIdentifier := ids[1]
 
-		// Get the target pod from podIdentifier.
-		pod, err := util.GetPodFromIdentifier(h.kubeClient, podIdentifier)
+		// TODO, as there is issue in server, find pod based on entity properties is not supported right now. Once the issue in server resolve, we should use the following code to find the pod.
+		// As we store hosting pod information inside entity properties of an application entity, so we can get
+		// the application provider directly from there.
+		//appProperties := currentSE.GetEntityProperties()
+		//foundPod, err:= util.GetPodFromProperties(h.kubeClient, targetEntityType, appProperties)
+
+		// TODO the following is a temporary fix.
+		// Here we need to find the ID of the provider pod from commodity bought of application.
+		commoditiesBought := currentSE.GetCommoditiesBought()
+		var podID string
+		for _, cb := range commoditiesBought {
+			if cb.GetProviderType() == proto.EntityDTO_CONTAINER_POD {
+				podID = cb.GetProviderId()
+			}
+		}
+		if podID == "" {
+			return nil, fmt.Errorf("cannot find provider pod for application %s based on commodities "+
+				"bought map %++v", currentSE.GetDisplayName(), commoditiesBought)
+		}
+		foundPod, err := util.GetPodFromUUID(h.kubeClient, podID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to find pod with ID %s in Kubernetes: %s", podID, err)
 		}
-		providerPod = pod
+		providerPod = foundPod
 	}
 	return providerPod, nil
 }
