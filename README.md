@@ -25,8 +25,20 @@ limitations under the License.
 2. [Getting Started](#getting-started)
   * [System Requirements](#system-requirements)
 
-## Getting Started
+----
 
-### System Requirements
+## Overview 
+
+Turbonomic will discover application containers 
+running across all pods in a Kubernetes cluster. In order to add this target, you must create a Kubeturbo configuration file which includes your Turbonomic credentials,and a custom pod definition that will be used by Kubelet to create a mirror pod running the Kubeturbo service.
+
+## Getting Started 
+### System Requirements 
+
+* Turbonomic 5.9+ installation
+* Kubernetes 1.4+
+
+## Creating the Configuration File:
+[Test Link](https://github.com/DigitalCommodore/kubeturbo/blob/digicomm-anchorlinktest/deploy/general-deploy/README.md#step-one-creating-the-kubeturbo-configuration-files)
 
 
