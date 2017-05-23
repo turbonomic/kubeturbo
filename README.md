@@ -39,6 +39,4 @@ running across all pods in a Kubernetes cluster. In order to add this target, yo
 * Kubernetes 1.4+
 
 ## Creating the Configuration File:
-[Test Link](#step-one:-creating-the-kubeturbo-configuration-files)
-
 
