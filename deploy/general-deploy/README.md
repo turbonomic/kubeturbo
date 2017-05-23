@@ -76,8 +76,6 @@ spec:
 
 [Download example](kubeturbo.yaml?raw=true)
 
-You must also stop the default scheduler by removing kube-scheduler from both `/etc/kubernetes/manifests` and the source path you specified for the pod-master pod (Typically `/srv/kubernetes/manifests`).
-
 The Kubeturbo mirror pod will be visible after several seconds. To verify that the Kubeturbo pod is running, use `kubectl get pods --all-namespaces` and look for "kubeturbo".
 
 ```console
@@ -90,6 +88,16 @@ kube-system   kube-proxy-10.10.174.117                1/1       Running       0 
 kube-system   kube-proxy-10.10.174.118                1/1       Running       0          10s
 kube-system   kube-proxy-10.10.174.119                1/1       Running       0          10s
 ```
+### Optional- Enable Action Execution
+
+By default, Turbonomic will recommend the following actions for ContainerPods:
+* Horizontal Scale Up
+* Horizontal Scale Down
+* Provision additional resources (VMem, VCPU)
+* Move Pod across Virtual Machines
+
+In order to make these actions executable from within Turbonomic, you must stop the default scheduler by removing kube-scheduler from both `/etc/kubernetes/manifests` and the source path you specified for the pod-master pod (Typically `/srv/kubernetes/manifests`).
+
 ### Optional- Enable Network Metric Collection via K8sconntrack
 
 In order for Kubeturbo to collect network related metrics such as service transaction counts and network flow information between pods in the Kubernetes cluster, you must deploy the K8sconntrack monitoring service.
