@@ -27,18 +27,18 @@ limitations under the License.
 
 ----
 
-## <a name="overview"></a>Overview 
+## Overview 
 
 Turbonomic will discover application containers 
 running across all pods in a Kubernetes cluster. In order to add this target, you must create a Kubeturbo configuration file which includes your Turbonomic credentials,and a custom pod definition that will be used by Kubelet to create a mirror pod running the Kubeturbo service.
 
-## <a name="getting-started"></a>Getting Started 
-### <a name="system-requirements"></a>System Requirements 
+## Getting Started 
+### System Requirements 
 
 * Turbonomic 5.9+ installation
 * Kubernetes 1.4+
 
 ## Creating the Configuration File:
-[Test Link](https://github.com/turbonomic/kubeturbo/blob/master/deploy/general-deploy/README.md#configFile)
+[Test Link](#step-one:-creating-the-kubeturbo-configuration-files)
 
 
