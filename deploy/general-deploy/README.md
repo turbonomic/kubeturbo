@@ -9,7 +9,7 @@ Once deployed, the Kubeturbo service enables you to give Turbonomic visibility i
 > ```console
 >$ kubectl cluster-info
 
-### Step One: Creating the Kubeturbo Configuration Files
+### <a name="configFile"></a>Step One: Creating the Kubeturbo Configuration Files
 
 In order to connect to your Turbonomic installation, a Kubeturbo configuration file must be created. 
 
