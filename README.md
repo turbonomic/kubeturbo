@@ -39,6 +39,6 @@ running across all pods in a Kubernetes cluster. In order to add this target, yo
 * Kubernetes 1.4+
 
 ## Creating the Configuration File:
-[Test Link](https://github.com/DigitalCommodore/kubeturbo/blob/digicomm-anchorlinktest/deploy/general-deploy/README.md#step-one:-creating-the-kubeturbo-configuration-files)
+[Test Link](https://github.com/DigitalCommodore/kubeturbo/blob/digicomm-anchorlinktest/deploy/general-deploy/README.md#step-one-creating-the-kubeturbo-configuration-files)
 
 
