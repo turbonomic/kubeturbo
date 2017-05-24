@@ -182,6 +182,12 @@ func (svcProbe *ServiceProbe) buildServiceEntityDTO(service *api.Service,
 		entityDTOBuilder.Provider(provider)
 		entityDTOBuilder.BuysCommodities(commodities)
 	}
+
+	vAppData := &proto.EntityDTO_VirtualApplicationData{
+		ServiceType: &service.Name,
+	}
+	entityDTOBuilder.VirtualApplicationData(vAppData)
+
 	entityDto, err := entityDTOBuilder.Create()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to build EntityDTO for service %s: %s",
