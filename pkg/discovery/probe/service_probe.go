@@ -1,6 +1,7 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/golang/glog"
 )
 
-// Pods Getter is such func that gets all the pods match the provided namespace, labels and fiels.
+// Pods Getter is such func that gets all the pods match the provided namespace, labels and fields.
 type ServiceGetter func(namespace string, selector labels.Selector) ([]*api.Service, error)
 
 type EndpointGetter func(namespace string, selector labels.Selector) ([]*api.Endpoints, error)
@@ -41,12 +42,12 @@ func NewVMTServiceGetter(kubeClient *client.Client) *VMTServiceGetter {
 	}
 }
 
-// Get service match specified namesapce and label.
-func (this *VMTServiceGetter) GetService(namespace string, selector labels.Selector) ([]*api.Service, error) {
+// Get service match specified namespace and label.
+func (getter *VMTServiceGetter) GetService(namespace string, selector labels.Selector) ([]*api.Service, error) {
 	listOption := &api.ListOptions{
 		LabelSelector: selector,
 	}
-	serviceList, err := this.kubeClient.Services(namespace).List(*listOption)
+	serviceList, err := getter.kubeClient.Services(namespace).List(*listOption)
 	if err != nil {
 		return nil, fmt.Errorf("Error listing services: %s", err)
 	}
@@ -72,12 +73,12 @@ func NewVMTEndpointGetter(kubeClient *client.Client) *VMTEndpointGetter {
 	}
 }
 
-// Get endpoints match specified namesapce and label.
-func (this *VMTEndpointGetter) GetEndpoints(namespace string, selector labels.Selector) ([]*api.Endpoints, error) {
+// Get endpoints match specified namespace and label.
+func (getter *VMTEndpointGetter) GetEndpoints(namespace string, selector labels.Selector) ([]*api.Endpoints, error) {
 	listOption := &api.ListOptions{
 		LabelSelector: selector,
 	}
-	epList, err := this.kubeClient.Endpoints(namespace).List(*listOption)
+	epList, err := getter.kubeClient.Endpoints(namespace).List(*listOption)
 	if err != nil {
 		return nil, fmt.Errorf("Error listing endpoints: %s", err)
 	}
@@ -91,22 +92,23 @@ func (this *VMTEndpointGetter) GetEndpoints(namespace string, selector labels.Se
 	return epItems, nil
 }
 
-func (this *ServiceProbe) GetService(namespace string, selector labels.Selector) ([]*api.Service, error) {
-	if this.serviceGetter == nil {
-		return nil, fmt.Errorf("Service getter is not set")
+func (svcProbe *ServiceProbe) GetService(namespace string, selector labels.Selector) ([]*api.Service, error) {
+	if svcProbe.serviceGetter == nil {
+		return nil, errors.New("Service getter is not set")
 	}
-	return this.serviceGetter(namespace, selector)
+	return svcProbe.serviceGetter(namespace, selector)
 }
 
-func (this *ServiceProbe) GetEndpoints(namespace string, selector labels.Selector) ([]*api.Endpoints, error) {
-	if this.endpointGetter == nil {
-		return nil, fmt.Errorf("Endpoint getter is not set")
+func (svcProbe *ServiceProbe) GetEndpoints(namespace string, selector labels.Selector) ([]*api.Endpoints, error) {
+	if svcProbe.endpointGetter == nil {
+		return nil, errors.New("Endpoint getter is not set")
 	}
-	return this.endpointGetter(namespace, selector)
+	return svcProbe.endpointGetter(namespace, selector)
 }
 
 // Parse Services inside Kubernetes and build entityDTO as VApp.
-func (svcProbe *ServiceProbe) ParseService(serviceList []*api.Service, endpointList []*api.Endpoints) (result []*proto.EntityDTO, err error) {
+func (svcProbe *ServiceProbe) ParseService(serviceList []*api.Service, endpointList []*api.Endpoints) (
+	result []*proto.EntityDTO, err error) {
 	// first make a endpoint map, key is endpoints cluster ID; value is endpoint object
 	endpointMap := make(map[string]*api.Endpoints)
 	for _, endpoint := range endpointList {
@@ -115,33 +117,34 @@ func (svcProbe *ServiceProbe) ParseService(serviceList []*api.Service, endpointL
 	}
 
 	for _, service := range serviceList {
+		serviceClusterID := service.Namespace + "/" + service.Name
 		podClusterIDs := svcProbe.findPodEndpoints(service, endpointMap)
 		if len(podClusterIDs) < 1 {
+			glog.V(3).Infof("%s is a standalone service without any enpoint pod.", serviceClusterID)
 			continue
 		}
-		glog.V(4).Infof("service %s has the following pod as endpoints %v",
-			service.Namespace+"/"+service.Name, podClusterIDs)
+		glog.V(4).Infof("service %s has the following pod as endpoints %v", serviceClusterID, podClusterIDs)
 
 		// create the commodities bought map.
 		commoditiesBoughtMap, err := svcProbe.getCommoditiesBought(podClusterIDs)
 		if err != nil {
-			return nil, err
+			glog.Errorf("Failed to build commodities bought by service %s: %s", serviceClusterID, err)
+			continue
 		}
 
 		// build the entityDTO.
 		entityDto, err := svcProbe.buildServiceEntityDTO(service, commoditiesBoughtMap)
 		if err != nil {
-			return nil, err
+			glog.Errorf("Failed to build entityDTO for service %s: %s", serviceClusterID, err)
+			continue
 		}
-
 		result = append(result, entityDto)
 	}
-
 	return
 }
 
 // For every service, find the pods serve this service.
-func (this *ServiceProbe) findPodEndpoints(service *api.Service, endpointMap map[string]*api.Endpoints) []string {
+func (svcProbe *ServiceProbe) findPodEndpoints(service *api.Service, endpointMap map[string]*api.Endpoints) []string {
 	serviceNameWithNamespace := service.Namespace + "/" + service.Name
 	serviceEndpoint := endpointMap[serviceNameWithNamespace]
 	if serviceEndpoint == nil {
@@ -166,7 +169,9 @@ func (this *ServiceProbe) findPodEndpoints(service *api.Service, endpointMap map
 	return podClusterIDList
 }
 
-func (this *ServiceProbe) buildServiceEntityDTO(service *api.Service, commoditiesBoughtMap map[*builder.ProviderDTO][]*proto.CommodityDTO) (*proto.EntityDTO, error) {
+func (svcProbe *ServiceProbe) buildServiceEntityDTO(service *api.Service,
+	commoditiesBoughtMap map[*builder.ProviderDTO][]*proto.CommodityDTO) (*proto.EntityDTO, error) {
+
 	serviceEntityType := proto.EntityDTO_VIRTUAL_APPLICATION
 	id := string(service.UID)
 	displayName := "vApp-" + service.Namespace + "/" + service.Name + "-" + ClusterID
@@ -179,28 +184,33 @@ func (this *ServiceProbe) buildServiceEntityDTO(service *api.Service, commoditie
 	}
 	entityDto, err := entityDTOBuilder.Create()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to build EntityDTO for service %s: %s", id, err)
+		return nil, fmt.Errorf("Failed to build EntityDTO for service %s: %s",
+			service.Namespace+"/"+service.Name, err)
 	}
 
 	glog.V(4).Infof("created a service entityDTO %v", entityDto)
 	return entityDto, nil
 }
 
-func (this *ServiceProbe) getCommoditiesBought(podIDList []string) (
+func (svcProbe *ServiceProbe) getCommoditiesBought(podClusterIDList []string) (
 	map[*builder.ProviderDTO][]*proto.CommodityDTO, error) {
 	commoditiesBoughtMap := make(map[*builder.ProviderDTO][]*proto.CommodityDTO)
 
-	for _, podID := range podIDList {
-		serviceResourceStat := getServiceResourceStat(podTransactionCountMap, podID)
-		turboPodUUID, exist := turboPodUUIDMap[podID]
+	for _, podClusterID := range podClusterIDList {
+		serviceResourceStat := getServiceResourceStat(podTransactionCountMap, podClusterID)
+		turboPodUUID, exist := turboPodUUIDMap[podClusterID]
 		if !exist {
 			return nil, fmt.Errorf("Cannot build commodityBought based on give pod identifier: %s. "+
-				"Failed to find Turbo UUID.", podID)
+				"Failed to find Turbo UUID.", podClusterID)
 		}
 		// Here it is consisted with the ID when we build the application entityDTO in ApplicationProbe/
 		appID := appPrefix + turboPodUUID
-		appType := podAppTypeMap[podID]
-		// We might want to check here if the appID exist.
+		appType, exist := podAppTypeMap[podClusterID]
+		if !exist {
+			glog.V(3).Infof("No application has been discovered related to pod %s", podClusterID)
+			continue
+		}
+		
 		appProvider := builder.CreateProvider(proto.EntityDTO_APPLICATION, appID)
 		var commoditiesBoughtFromApp []*proto.CommodityDTO
 		transactionCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).
@@ -213,7 +223,6 @@ func (this *ServiceProbe) getCommoditiesBought(podIDList []string) (
 		commoditiesBoughtFromApp = append(commoditiesBoughtFromApp, transactionCommBought)
 
 		commoditiesBoughtMap[appProvider] = commoditiesBoughtFromApp
-
 	}
 	return commoditiesBoughtMap, nil
 }
