@@ -427,31 +427,31 @@
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/builder",
-			"Rev": "776040894a9cb62f9ec74e5b465ef52c2076816c"
+			"Rev": "bf79a3be519e820b8b677dfd3c35348e7417aad0"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/mediationcontainer",
-			"Rev": "776040894a9cb62f9ec74e5b465ef52c2076816c"
+			"Rev": "bf79a3be519e820b8b677dfd3c35348e7417aad0"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/probe",
-			"Rev": "776040894a9cb62f9ec74e5b465ef52c2076816c"
+			"Rev": "bf79a3be519e820b8b677dfd3c35348e7417aad0"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/proto",
-			"Rev": "776040894a9cb62f9ec74e5b465ef52c2076816c"
+			"Rev": "bf79a3be519e820b8b677dfd3c35348e7417aad0"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/service",
-			"Rev": "776040894a9cb62f9ec74e5b465ef52c2076816c"
+			"Rev": "bf79a3be519e820b8b677dfd3c35348e7417aad0"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/supplychain",
-			"Rev": "776040894a9cb62f9ec74e5b465ef52c2076816c"
+			"Rev": "bf79a3be519e820b8b677dfd3c35348e7417aad0"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/version",
-			"Rev": "776040894a9cb62f9ec74e5b465ef52c2076816c"
+			"Rev": "bf79a3be519e820b8b677dfd3c35348e7417aad0"
 		},
 		{
 			"ImportPath": "github.com/ugorji/go/codec",
