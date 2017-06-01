@@ -152,7 +152,7 @@ func (this *ApplicationProbe) getCommoditiesBought(podNamespaceName string, appR
 	commoditiesBoughtFromPod = append(commoditiesBoughtFromPod, vMemCommBought)
 
 	appCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
-		Key(podNamespaceName).
+		Key(turboPodUUID).
 		Create()
 	if err != nil {
 		return nil, err

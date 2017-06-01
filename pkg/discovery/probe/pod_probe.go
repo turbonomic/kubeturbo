@@ -314,7 +314,6 @@ func (podProbe *PodProbe) getPodResourceStat(pod *api.Pod, podContainers map[str
 func (podProbe *PodProbe) getCommoditiesSold(pod *api.Pod, podResourceStat *PodResourceStat) (
 	[]*proto.CommodityDTO, error) {
 
-	podNameWithNamespace := pod.Namespace + "/" + pod.Name
 	var commoditiesSold []*proto.CommodityDTO
 	vMem, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMEM).
 		Capacity(float64(podResourceStat.vMemCapacity)).
@@ -337,7 +336,7 @@ func (podProbe *PodProbe) getCommoditiesSold(pod *api.Pod, podResourceStat *PodR
 	commoditiesSold = append(commoditiesSold, vCpu)
 
 	appComm, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
-		Key(podNameWithNamespace).
+		Key(string(pod.UID)).
 		Capacity(1E10).
 		Create()
 	if err != nil {
