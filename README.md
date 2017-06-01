@@ -55,7 +55,7 @@ Kubeturbo leverages [Turbonomic](https://turbonomic.com/) patented analysis engi
 <img width="1320" alt="screen shot 2017-06-01 at 10 11 54 am" src="https://cloud.githubusercontent.com/assets/4391815/26683749/d7813a30-46b2-11e7-9283-0dbc63769d90.png">
 <img width="1403" alt="screen shot 2017-06-01 at 10 11 03 am" src="https://cloud.githubusercontent.com/assets/4391815/26683745/d3c42a38-46b2-11e7-9e6c-3587a1480afc.png">
 
-* Provide Rescheduler capability by leveraging Turbonomic analysis engine (Require Kubeturbo to be the scheduler)
+* Provide Rescheduler capability by leveraging Turbonomic analysis engine **(Execution of moving pods requires Kubeturbo to be the scheduler of the pod)**
   * Consolidating Pod in real time to increase node efficiency
   * Reschedule Pod in advance to prevent suffering resource congestion from the underlying node
   *	Reschedule Pod to new node added to the cluster
