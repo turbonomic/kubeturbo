@@ -24,14 +24,11 @@ limitations under the License.
 
 # **KubeTurbo** 
 
-----
-
 1. [Overview](#overview)
 2. [Getting Started](#getting-started)
 3. [Kubeturbo Use Cases](#use-cases)
 4. [Coming Soon](#coming-soon)
 
-----
 
 ## Overview 
 
@@ -43,14 +40,16 @@ Kubeturbo leverages [Turbonomic's](https://turbonomic.com/) patented analysis en
 * Kubernetes 1.4+
 ### Kubeturbo Installation
 * [Deploy Kubeturbo](https://github.com/turbonomic/kubeturbo/tree/master/deploy)
+* Once deployed, corresponding targets will show up in Turbonomic UI
 
 <img width="1323" alt="screen shot 2017-06-01 at 10 10 21 am" src="https://cloud.githubusercontent.com/assets/4391815/26683726/c5e06e7c-46b2-11e7-92f2-5f555fe88ea2.png">
 
 ## Use Cases
-* Full-Stack Visibility by leveraging 50+ existed Turbonomic controllers, from on-prem DataCenter to major public cloud providers. No more shadow IT
+* Full-Stack Visibility by leveraging 50+ existing Turbonomic controllers, from on-prem DataCenter to major public cloud providers. No more shadow IT
   * From Load Balancer all the way down to your physical Infrastructure
   * Real-Time resource monitoring across entire DataCenter
   * Real-Time Cost visibility for your public cloud deployment
+
 <img width="1322" alt="screen shot 2017-06-01 at 10 10 48 am" src="https://cloud.githubusercontent.com/assets/4391815/26683739/cfde3c7e-46b2-11e7-84b5-a39c12f47022.png">
 <img width="1320" alt="screen shot 2017-06-01 at 10 11 54 am" src="https://cloud.githubusercontent.com/assets/4391815/26683749/d7813a30-46b2-11e7-9283-0dbc63769d90.png">
 <img width="1403" alt="screen shot 2017-06-01 at 10 11 03 am" src="https://cloud.githubusercontent.com/assets/4391815/26683745/d3c42a38-46b2-11e7-9e6c-3587a1480afc.png">
@@ -71,11 +70,11 @@ Kubeturbo leverages [Turbonomic's](https://turbonomic.com/) patented analysis en
 
 
 ## Coming Soon
-* Cluster Federation Control Plane
+* Support for Cluster Federation Control Plane
   * Complete visibility for your K8s deployments across different underlying infrastructures
   * Create affinity/anti-affinity policies directly from Turbonomic UI
   * Improve cost efficiency by consolidating workload across deployments and identifying the cheapest region and provider to deploy your workload
-* What-If Planer 
+* What-If Planner
   * A complete What-If sandbox to help you plan your IT changes in advance
   * Plan for workload change: Add/Remove Containers
   * Plan for infrastructure change: Add/Remove/Replace hardware
