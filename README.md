@@ -44,22 +44,23 @@ Kubeturbo leverages [Turbonomic](https://turbonomic.com/) patented analysis engi
 ### Kubeturbo Installation
 * [Deploy Kubeturbo](https://github.com/turbonomic/kubeturbo/tree/master/deploy)
 
-![screen shot 2017-06-01 at 9 50 06 am 2](https://cloud.githubusercontent.com/assets/4391815/26682910/106ebb7c-46b0-11e7-88dd-9d0d073c0620.png)
+<img width="1323" alt="screen shot 2017-06-01 at 10 10 21 am" src="https://cloud.githubusercontent.com/assets/4391815/26683726/c5e06e7c-46b2-11e7-92f2-5f555fe88ea2.png">
 
 ## Use Cases
 * Full-Stack Visibility by leveraging 50+ existed Turbonomic controllers, from on-prem DataCenter to major public cloud providers. No more shadow IT
   * From Load Balancer all the way down to your physical Infrastructure
   * Real-Time resource monitoring across entire DataCenter
   * Real-Time Cost visibility for your public cloud deployment
-![screen shot 2017-06-01 at 9 49 48 am 2](https://cloud.githubusercontent.com/assets/4391815/26682938/2cb28296-46b0-11e7-892d-8f06c02e7072.png)
-![screen shot 2017-06-01 at 9 58 43 am](https://cloud.githubusercontent.com/assets/4391815/26683161/eab420ba-46b0-11e7-9fb2-4faad6f08025.png)
+<img width="1322" alt="screen shot 2017-06-01 at 10 10 48 am" src="https://cloud.githubusercontent.com/assets/4391815/26683739/cfde3c7e-46b2-11e7-84b5-a39c12f47022.png">
+<img width="1320" alt="screen shot 2017-06-01 at 10 11 54 am" src="https://cloud.githubusercontent.com/assets/4391815/26683749/d7813a30-46b2-11e7-9283-0dbc63769d90.png">
+<img width="1403" alt="screen shot 2017-06-01 at 10 11 03 am" src="https://cloud.githubusercontent.com/assets/4391815/26683745/d3c42a38-46b2-11e7-9e6c-3587a1480afc.png">
 
 * Provide Rescheduler capability by leveraging Turbonomic analysis engine (Require Kubeturbo to be the scheduler)
   * Consolidating Pod in real time to increase node efficiency
   * Reschedule Pod in advance to prevent suffering resource congestion from the underlying node
   *	Reschedule Pod to new node added to the cluster
   *	Reschedule Pods that peak together to different nodes, to avoid performance dropping
-![screen shot 2017-06-01 at 9 50 00 am 2](https://cloud.githubusercontent.com/assets/4391815/26682996/59ccfdce-46b0-11e7-9b6d-6ccad13df3fa.png)
+<img width="1320" alt="screen shot 2017-06-01 at 10 11 31 am" src="https://cloud.githubusercontent.com/assets/4391815/26683755/dccd6ad6-46b2-11e7-8d9f-452b60e827d5.png">
 
 
 * Right-Sizing your Pod and your entire IT stack
