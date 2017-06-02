@@ -2,6 +2,8 @@
 
 This guide is about how to deploy kubeturbo service in an existing Kubernetes cluster running on AWS. Kubeturbo is deployed as mirror on Master nodes. So whenever Kubeturbo stops running for any reason, Kubelet on master node would restart Kubeturbo pod automatically.
 
+NOTE: Some of the procedure is outdated and will be updated shortly.  Please check back in a couple of days.
+
 ### Prerequisites
 This example requires a running Kubernetes cluster. First check the current cluster status with kubectl.
 
@@ -36,20 +38,32 @@ A new config file named kubeconfig will then be generated and placed under /etc/
 
 ### Step Two: Create Kubeturbo config
 
-A Kubeturbo config is required for the Kubeturbo service to connect to the Turbonomic server remotely. You need to specify correct **Turbonomic instance address**, **username** and **password**.
+A Kubeturbo config is required for Kubeturbo service to connect to Ops Manager server remotely. You need to specify correct **Turbonomic Server address**, **username** and **password**.
 **NOTE**: Turbonomic server address is "**IP address of your ops manager**".
 
 Create a file called **"config"** and put it under */etc/kubeturbo/*.
 
 ```json
 {
-	"serveraddress":	"<SERVER_ADDRESS>",
-	"localaddress":		"http://127.0.0.1/",
-	"opsmanagerusername": 	"<USER_NAME>",
-	"opsmanagerpassword": 	"<PASSWORD>"
+	"communicationConfig": {
+		"serverMeta": {
+			"turboServer": "<SERVER_ADDRESS>"
+		},
+		"restAPIConfig": {
+			"opsManagerUserName": "<USERNAME>",
+			"opsManagerPassword": "<PASSWORD>"
+		}
+	},
+	"targetConfig": {
+		"probeCategory":"CloudNative",
+		"targetType":"OpenShift",
+		"address":"<OPENSHIFT_MASTER_ADDRESS>",
+		"username":"<OPENSHIFT_USERNAME>",
+		"password":"<OPENSHIFT_PASSWORD>"
+	}
 }
 ```
-you can find an example [here](https://raw.githubusercontent.com/vmturbo/kubeturbo/master/deploy/config)
+you can find an example [here](../config).
 
 ### Step Three: Create Kubeturbo Mirror Pod
 
