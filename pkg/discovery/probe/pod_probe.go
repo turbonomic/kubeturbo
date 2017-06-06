@@ -354,6 +354,7 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 	vCpu, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VCPU).
 		Used(podResourceStat.vCpuUsed).
 		Reservation(podResourceStat.vCpuReserved).
+		Resizable(true).
 		Create()
 	if err != nil {
 		return nil, err
@@ -363,6 +364,7 @@ func (podProbe *PodProbe) getCommoditiesBought(pod *api.Pod, podResourceStat *Po
 	vMem, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_VMEM).
 		Used(podResourceStat.vMemUsed).
 		Reservation(podResourceStat.vMemReserved).
+		Resizable(true).
 		Create()
 	if err != nil {
 		return nil, err
