@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"k8s.io/kubernetes/pkg/api"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/labels"
+	api "k8s.io/client-go/pkg/api/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	client "k8s.io/client-go/kubernetes"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -16,9 +16,9 @@ import (
 )
 
 // Pods Getter is such func that gets all the pods match the provided namespace, labels and fields.
-type ServiceGetter func(namespace string, selector labels.Selector) ([]*api.Service, error)
+type ServiceGetter func(namespace string, selector string) ([]*api.Service, error)
 
-type EndpointGetter func(namespace string, selector labels.Selector) ([]*api.Endpoints, error)
+type EndpointGetter func(namespace string, selector string) ([]*api.Endpoints, error)
 
 type ServiceProbe struct {
 	serviceGetter  ServiceGetter
@@ -33,21 +33,21 @@ func NewServiceProbe(serviceGetter ServiceGetter, epGetter EndpointGetter) *Serv
 }
 
 type VMTServiceGetter struct {
-	kubeClient *client.Client
+	kubeClient *client.Clientset
 }
 
-func NewVMTServiceGetter(kubeClient *client.Client) *VMTServiceGetter {
+func NewVMTServiceGetter(kubeCli *client.Clientset) *VMTServiceGetter {
 	return &VMTServiceGetter{
-		kubeClient: kubeClient,
+		kubeClient: kubeCli,
 	}
 }
 
 // Get service match specified namespace and label.
-func (getter *VMTServiceGetter) GetService(namespace string, selector labels.Selector) ([]*api.Service, error) {
-	listOption := &api.ListOptions{
+func (getter *VMTServiceGetter) GetService(namespace string, selector string) ([]*api.Service, error) {
+	listOption := metav1.ListOptions{
 		LabelSelector: selector,
 	}
-	serviceList, err := getter.kubeClient.Services(namespace).List(*listOption)
+	serviceList, err := getter.kubeClient.CoreV1().Services(namespace).List(listOption)
 	if err != nil {
 		return nil, fmt.Errorf("Error listing services: %s", err)
 	}
@@ -64,21 +64,21 @@ func (getter *VMTServiceGetter) GetService(namespace string, selector labels.Sel
 }
 
 type VMTEndpointGetter struct {
-	kubeClient *client.Client
+	kubeClient *client.Clientset
 }
 
-func NewVMTEndpointGetter(kubeClient *client.Client) *VMTEndpointGetter {
+func NewVMTEndpointGetter(kubeCli *client.Clientset) *VMTEndpointGetter {
 	return &VMTEndpointGetter{
-		kubeClient: kubeClient,
+		kubeClient: kubeCli,
 	}
 }
 
 // Get endpoints match specified namespace and label.
-func (getter *VMTEndpointGetter) GetEndpoints(namespace string, selector labels.Selector) ([]*api.Endpoints, error) {
-	listOption := &api.ListOptions{
+func (getter *VMTEndpointGetter) GetEndpoints(namespace string, selector string) ([]*api.Endpoints, error) {
+	listOption := metav1.ListOptions{
 		LabelSelector: selector,
 	}
-	epList, err := getter.kubeClient.Endpoints(namespace).List(*listOption)
+	epList, err := getter.kubeClient.CoreV1().Endpoints(namespace).List(listOption)
 	if err != nil {
 		return nil, fmt.Errorf("Error listing endpoints: %s", err)
 	}
@@ -92,14 +92,14 @@ func (getter *VMTEndpointGetter) GetEndpoints(namespace string, selector labels.
 	return epItems, nil
 }
 
-func (svcProbe *ServiceProbe) GetService(namespace string, selector labels.Selector) ([]*api.Service, error) {
+func (svcProbe *ServiceProbe) GetService(namespace string, selector string) ([]*api.Service, error) {
 	if svcProbe.serviceGetter == nil {
 		return nil, errors.New("Service getter is not set")
 	}
 	return svcProbe.serviceGetter(namespace, selector)
 }
 
-func (svcProbe *ServiceProbe) GetEndpoints(namespace string, selector labels.Selector) ([]*api.Endpoints, error) {
+func (svcProbe *ServiceProbe) GetEndpoints(namespace string, selector string) ([]*api.Endpoints, error) {
 	if svcProbe.endpointGetter == nil {
 		return nil, errors.New("Endpoint getter is not set")
 	}
@@ -109,6 +109,7 @@ func (svcProbe *ServiceProbe) GetEndpoints(namespace string, selector labels.Sel
 // Parse Services inside Kubernetes and build entityDTO as VApp.
 func (svcProbe *ServiceProbe) ParseService(serviceList []*api.Service, endpointList []*api.Endpoints) (
 	result []*proto.EntityDTO, err error) {
+    err = nil
 	// first make a endpoint map, key is endpoints cluster ID; value is endpoint object
 	endpointMap := make(map[string]*api.Endpoints)
 	for _, endpoint := range endpointList {

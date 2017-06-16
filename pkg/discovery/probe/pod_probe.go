@@ -6,10 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"k8s.io/kubernetes/pkg/api"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	api "k8s.io/client-go/pkg/api/v1"
+	client "k8s.io/client-go/kubernetes"
 
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
@@ -43,7 +42,7 @@ var turboPodUUIDMap map[string]string
 var inactivePods map[string]struct{}
 
 // Pods Getter is such func that gets all the pods match the provided namespace, labels and fields.
-type PodsGetter func(namespace string, label labels.Selector, field fields.Selector) ([]*api.Pod, error)
+type PodsGetter func(namespace, label, field string) ([]*api.Pod, error)
 
 type PodProbe struct {
 	podGetter        PodsGetter
@@ -64,7 +63,7 @@ func NewPodProbe(getter PodsGetter, stitchingManager *stitching.StitchingManager
 	}
 }
 
-func (this *PodProbe) GetPods(namespace string, label labels.Selector, field fields.Selector) ([]*api.Pod, error) {
+func (this *PodProbe) GetPods(namespace, label, field string) ([]*api.Pod, error) {
 	if this.podGetter == nil {
 		return nil, fmt.Errorf("Error. podGetter is not set.")
 	}
@@ -73,22 +72,22 @@ func (this *PodProbe) GetPods(namespace string, label labels.Selector, field fie
 }
 
 type VMTPodGetter struct {
-	kubeClient *client.Client
+	kubeClient *client.Clientset
 }
 
-func NewVMTPodGetter(kubeClient *client.Client) *VMTPodGetter {
+func NewVMTPodGetter(kubeClient *client.Clientset) *VMTPodGetter {
 	return &VMTPodGetter{
 		kubeClient: kubeClient,
 	}
 }
 
 // Get pods match specified namespace, label and field.
-func (this *VMTPodGetter) GetPods(namespace string, label labels.Selector, field fields.Selector) ([]*api.Pod, error) {
-	listOption := &api.ListOptions{
+func (this *VMTPodGetter) GetPods(namespace, label, field string) ([]*api.Pod, error) {
+	listOption := metav1.ListOptions{
 		LabelSelector: label,
 		FieldSelector: field,
 	}
-	podList, err := this.kubeClient.Pods(namespace).List(*listOption)
+	podList, err := this.kubeClient.CoreV1().Pods(namespace).List(listOption)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting all the desired pods from Kubernetes cluster: %s", err)
 	}

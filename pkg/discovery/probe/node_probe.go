@@ -5,10 +5,9 @@ import (
 	"strconv"
 	"time"
 
-	"k8s.io/kubernetes/pkg/api"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
+    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+    api "k8s.io/client-go/pkg/api/v1"
+    client "k8s.io/client-go/kubernetes"
 
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
@@ -64,22 +63,22 @@ func NewNodeProbe(getter NodesGetter, config *ProbeConfig, stitchingManager *sti
 }
 
 type VMTNodeGetter struct {
-	kubeClient *client.Client
+	kubeClient *client.Clientset
 }
 
-func NewVMTNodeGetter(kubeClient *client.Client) *VMTNodeGetter {
+func NewVMTNodeGetter(kubeClient *client.Clientset) *VMTNodeGetter {
 	return &VMTNodeGetter{
 		kubeClient: kubeClient,
 	}
 }
 
 // Get all nodes
-func (this *VMTNodeGetter) GetNodes(label labels.Selector, field fields.Selector) ([]*api.Node, error) {
-	listOption := &api.ListOptions{
+func (this *VMTNodeGetter) GetNodes(label, field string) ([]*api.Node, error) {
+	listOption := metav1.ListOptions{
 		LabelSelector: label,
 		FieldSelector: field,
 	}
-	nodeList, err := this.kubeClient.Nodes().List(*listOption)
+	nodeList, err := this.kubeClient.CoreV1().Nodes().List(listOption)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get nodes from Kubernetes cluster: %s", err)
 	}
@@ -92,9 +91,9 @@ func (this *VMTNodeGetter) GetNodes(label labels.Selector, field fields.Selector
 	return nodeItems, nil
 }
 
-type NodesGetter func(label labels.Selector, field fields.Selector) ([]*api.Node, error)
+type NodesGetter func(label , field string) ([]*api.Node, error)
 
-func (nodeProbe *NodeProbe) GetNodes(label labels.Selector, field fields.Selector) ([]*api.Node, error) {
+func (nodeProbe *NodeProbe) GetNodes(label, field string) ([]*api.Node, error) {
 	return nodeProbe.nodesGetter(label, field)
 }
 
@@ -239,7 +238,7 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node, nodePodsMap map[
 
 // Get the cAdvisor host endpoint associated with node based on the given node name.
 func (nodeProbe *NodeProbe) getHost(nodeName string) *vmtAdvisor.Host {
-	nodeIP, err := nodeProbe.getNodeIPWithType(nodeName, api.NodeLegacyHostIP)
+	nodeIP, err := nodeProbe.getNodeIPWithType(nodeName, api.NodeExternalIP)
 	if err != nil {
 		glog.Errorf("Error getting NodeLegacyHostIP of node %s: %s.", nodeName, err)
 		return nil

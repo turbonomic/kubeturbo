@@ -3,7 +3,7 @@ package reservation
 import (
 	"fmt"
 
-	"k8s.io/kubernetes/pkg/api"
+	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 

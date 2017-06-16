@@ -4,22 +4,24 @@ import (
 	"errors"
 	"fmt"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apis/extensions"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
+    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+    api "k8s.io/client-go/pkg/api/v1"
+	client "k8s.io/client-go/kubernetes"
+    "k8s.io/client-go/pkg/apis/apps/v1beta1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
-
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 )
 
+var (
+    listOption = metav1.ListOptions{}
+)
+
 // Find RC based on pod labels.
 // TODO. change this. Find rc based on its name and namespace or rc's UID.
-func FindReplicationControllerForPod(kubeClient *client.Client, currentPod *api.Pod) (*api.ReplicationController, error) {
+func FindReplicationControllerForPod(kubeClient *client.Clientset, currentPod *api.Pod) (*api.ReplicationController, error) {
 	// loop through all the labels in the pod and get List of RCs with selector that match at least one label
 	podNamespace := currentPod.Namespace
 	podName := currentPod.Name
@@ -44,11 +46,8 @@ func FindReplicationControllerForPod(kubeClient *client.Client, currentPod *api.
 }
 
 // Get all replication controllers defined in the specified namespace.
-func GetAllDeployments(kubeClient *client.Client, namespace string) ([]extensions.Deployment, error) {
-	listOption := &api.ListOptions{
-		LabelSelector: labels.Everything(),
-	}
-	deploymentList, err := kubeClient.Deployments(namespace).List(*listOption)
+func GetAllDeployments(kubeClient *client.Clientset, namespace string) ([]v1beta1.Deployment, error) {
+    deploymentList, err := kubeClient.AppsV1beta1().Deployments(namespace).List(listOption)
 	if err != nil {
 		return nil, fmt.Errorf("Error when getting all the deployments: %s", err)
 	}
@@ -56,7 +55,7 @@ func GetAllDeployments(kubeClient *client.Client, namespace string) ([]extension
 }
 
 // TODO. change this. Find deployment based on its name and namespace or UID.
-func findDeploymentBasedOnPodLabel(deploymentsList []extensions.Deployment, labels map[string]string) (*extensions.Deployment, error) {
+func findDeploymentBasedOnPodLabel(deploymentsList []v1beta1.Deployment, labels map[string]string) (*v1beta1.Deployment, error) {
 	for _, deployment := range deploymentsList {
 		findDeployment := true
 		// check if a Deployment controls pods with given labels
@@ -73,7 +72,7 @@ func findDeploymentBasedOnPodLabel(deploymentsList []extensions.Deployment, labe
 	return nil, errors.New("No Deployment has selectors match Pod labels.")
 }
 
-func FindDeploymentForPod(kubeClient *client.Client, currentPod *api.Pod) (*extensions.Deployment, error) {
+func FindDeploymentForPod(kubeClient *client.Clientset, currentPod *api.Pod) (*v1beta1.Deployment, error) {
 	// loop through all the labels in the pod and get List of RCs with selector that match at least one label
 	podNamespace := currentPod.Namespace
 	podName := currentPod.Name
@@ -98,11 +97,8 @@ func FindDeploymentForPod(kubeClient *client.Client, currentPod *api.Pod) (*exte
 }
 
 // Get all replication controllers defined in the specified namespace.
-func GetAllReplicationControllers(kubeClient *client.Client, namespace string) ([]api.ReplicationController, error) {
-	listOption := &api.ListOptions{
-		LabelSelector: labels.Everything(),
-	}
-	rcList, err := kubeClient.ReplicationControllers(namespace).List(*listOption)
+func GetAllReplicationControllers(kubeClient *client.Clientset, namespace string) ([]api.ReplicationController, error) {
+    rcList, err := kubeClient.CoreV1().ReplicationControllers(namespace).List(listOption)
 	if err != nil {
 		return nil, fmt.Errorf("Error when getting all the replication controllers: %s", err)
 	}
@@ -127,12 +123,8 @@ func findRCBasedOnPodLabel(rcList []api.ReplicationController, labels map[string
 }
 
 // Get all nodes currently in K8s.
-func GetAllNodes(kubeClient *client.Client) ([]api.Node, error) {
-	listOption := &api.ListOptions{
-		LabelSelector: labels.Everything(),
-		FieldSelector: fields.Everything(),
-	}
-	nodeList, err := kubeClient.Nodes().List(*listOption)
+func GetAllNodes(kubeClient *client.Clientset) ([]api.Node, error) {
+	nodeList, err := kubeClient.CoreV1().Nodes().List(listOption)
 	if err != nil {
 		return nil, fmt.Errorf("Error when getting all the nodes :%s", err)
 	}
@@ -141,7 +133,7 @@ func GetAllNodes(kubeClient *client.Client) ([]api.Node, error) {
 
 // Iterate all nodes to find the name of the node which has the provided IP address.
 // TODO. We can also create a IP->NodeName map to save time. But it consumes space.
-func GetNodeNameFromIP(kubeClient *client.Client, machineIPs []string) (string, error) {
+func GetNodeNameFromIP(kubeClient *client.Clientset, machineIPs []string) (string, error) {
 	ipAddresses := machineIPs
 	allNodes, err := GetAllNodes(kubeClient)
 	if err != nil {
@@ -162,7 +154,7 @@ func GetNodeNameFromIP(kubeClient *client.Client, machineIPs []string) (string, 
 }
 
 // Get a pod based on received entity properties.
-func GetPodFromProperties(kubeClient *client.Client, entityType proto.EntityDTO_EntityType,
+func GetPodFromProperties(kubeClient *client.Clientset, entityType proto.EntityDTO_EntityType,
 	properties []*proto.EntityDTO_EntityProperty) (*api.Pod, error) {
 	var podNamespace, podName string
 	switch entityType {
@@ -176,20 +168,14 @@ func GetPodFromProperties(kubeClient *client.Client, entityType proto.EntityDTO_
 	if podNamespace == "" || podName == "" {
 		return nil, fmt.Errorf("railed to find  pod info from pod properties: %v", properties)
 	}
-	return kubeClient.Pods(podNamespace).Get(podName)
+	return kubeClient.CoreV1().Pods(podNamespace).Get(podName, metav1.GetOptions{})
 }
 
 // Get a pod instance from the uuid of a pod. Since there is no support for uuid lookup, we have to get all the pods
 // and then find the correct pod based on uuid match.
-func GetPodFromUUID(kubeClient *client.Client, podUUID string) (*api.Pod, error) {
+func GetPodFromUUID(kubeClient *client.Clientset, podUUID string) (*api.Pod, error) {
 	namespace := api.NamespaceAll
-	label := labels.Everything()
-	field := fields.Everything()
-	listOption := &api.ListOptions{
-		LabelSelector: label,
-		FieldSelector: field,
-	}
-	podList, err := kubeClient.Pods(namespace).List(*listOption)
+	podList, err := kubeClient.CoreV1().Pods(namespace).List(listOption)
 	if err != nil {
 		return nil, fmt.Errorf("error getting all the desired pods from Kubernetes cluster: %s", err)
 	}
@@ -202,7 +188,7 @@ func GetPodFromUUID(kubeClient *client.Client, podUUID string) (*api.Pod, error)
 }
 
 // Find which pod is the app running based on the received action request.
-func FindApplicationPodProvider(kubeClient *client.Client, providers []*proto.ActionItemDTO_ProviderInfo) (*api.Pod, error) {
+func FindApplicationPodProvider(kubeClient *client.Clientset, providers []*proto.ActionItemDTO_ProviderInfo) (*api.Pod, error) {
 	if providers == nil || len(providers) < 1 {
 		return nil, errors.New("Cannot find any provider.")
 	}
@@ -221,7 +207,6 @@ func FindApplicationPodProvider(kubeClient *client.Client, providers []*proto.Ac
 				} else {
 					return podProvider, nil
 				}
-
 			}
 		}
 	}

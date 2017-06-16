@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/kubernetes/pkg/api"
-	k8serror "k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
+    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	api "k8s.io/client-go/pkg/api/v1"
+    client "k8s.io/client-go/kubernetes"
+    k8serror "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
@@ -26,11 +26,11 @@ const (
 )
 
 type ReScheduler struct {
-	kubeClient *client.Client
+	kubeClient *client.Clientset
 	broker     turbostore.Broker
 }
 
-func NewReScheduler(client *client.Client, broker turbostore.Broker) *ReScheduler {
+func NewReScheduler(client *client.Clientset, broker turbostore.Broker) *ReScheduler {
 	return &ReScheduler{
 		kubeClient: client,
 		broker:     broker,
@@ -166,7 +166,7 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 
 	// 2. Get the target Pod
 	targetObj := actionContent.TargetObject
-	originalPod, err := r.kubeClient.Pods(targetObj.TargetObjectNamespace).Get(targetObj.TargetObjectName)
+	originalPod, err := r.kubeClient.CoreV1().Pods(targetObj.TargetObjectNamespace).Get(targetObj.TargetObjectName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get the pod to be re-scheduled based on the given targetObject "+
 			"info: %++v", targetObj)
@@ -175,8 +175,8 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 
 	// 3. delete pod
 	grace := podDeletionGracePeriod
-	deleteOption := &api.DeleteOptions{GracePeriodSeconds: &grace}
-	err = r.kubeClient.Pods(originalPod.Namespace).Delete(originalPod.Name, deleteOption)
+	deleteOption := &metav1.DeleteOptions{GracePeriodSeconds: &grace}
+	err = r.kubeClient.CoreV1().Pods(originalPod.Namespace).Delete(originalPod.Name, deleteOption)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to delete pod %s: %s", podIdentifier, err)
 	}
@@ -236,7 +236,7 @@ func (r *ReScheduler) reSchedulePodToDestination(pod *api.Pod, destination strin
 		pod.Namespace, pod.Name, destination)
 
 	b := &api.Binding{
-		ObjectMeta: api.ObjectMeta{Namespace: pod.Namespace, Name: pod.Name},
+		ObjectMeta: metav1.ObjectMeta{Namespace: pod.Namespace, Name: pod.Name},
 		Target: api.ObjectReference{
 			Kind: "Node",
 			Name: destination,
@@ -254,7 +254,7 @@ func (r *ReScheduler) reSchedulePodToDestination(pod *api.Pod, destination strin
 
 // PodDeletionChecker is responsible for check is a given pod is actually deleted completely from cluster.
 type podDeletionChecker struct {
-	*client.Client
+	*client.Clientset
 }
 
 func (checker *podDeletionChecker) check(pod *api.Pod) error {
@@ -284,14 +284,14 @@ func (checker *podDeletionChecker) check(pod *api.Pod) error {
 
 // Check if a pod with given namespace and name does not exist in the cluster.
 func (checker *podDeletionChecker) isPodDeleted(pod *api.Pod) (bool, error) {
-	currPod, err := checker.Pods(pod.Namespace).Get(pod.Name)
+	currPod, err := checker.CoreV1().Pods(pod.Namespace).Get(pod.Name, metav1.GetOptions{})
 	if err != nil {
 		err, ok := err.(*k8serror.StatusError)
 		if !ok {
 			return false, fmt.Errorf("Failed to check if %s/%s has been deleted: %s",
 				pod.Namespace, pod.Name, err)
 		}
-		if err.Status().Reason != unversioned.StatusReasonNotFound {
+		if err.Status().Reason != metav1.StatusReasonNotFound {
 			return false, fmt.Errorf("Failed to check if %s/%s has been deleted: %s",
 				pod.Namespace, pod.Name, err)
 		}
@@ -306,7 +306,7 @@ func (checker *podDeletionChecker) isPodDeleted(pod *api.Pod) (bool, error) {
 // PodClone creates a clone of a given pod. The new Pod will have the same namespace and name,
 // except that UID is different.
 type podClone struct {
-	*client.Client
+	*client.Clientset
 }
 
 func (pc *podClone) clone(originalPod *api.Pod) error {
@@ -314,7 +314,7 @@ func (pc *podClone) clone(originalPod *api.Pod) error {
 	podName := originalPod.Name
 
 	pod := cloneHelper(originalPod)
-	_, err := pc.Pods(podNamespace).Create(pod)
+	_, err := pc.CoreV1().Pods(podNamespace).Create(pod)
 	if err != nil {
 		glog.Errorf("Error recreating pod %s/%s: %s", podNamespace, podName, err)
 		return err

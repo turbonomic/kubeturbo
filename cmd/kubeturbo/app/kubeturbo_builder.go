@@ -7,15 +7,20 @@ import (
 	"os"
 	"strconv"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apis/componentconfig"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/client/leaderelection"
-	"k8s.io/kubernetes/pkg/client/record"
-	"k8s.io/kubernetes/pkg/client/restclient"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	_ "k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
+	"k8s.io/client-go/kubernetes"
+	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
+	apiv1 "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/kubernetes/scheme"
+
+	//_ "k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
+
+	//"k8s.io/kubernetes/pkg/apis/componentconfig"
+	//"k8s.io/kubernetes/pkg/client/leaderelection"
+	//"k8s.io/kubernetes/pkg/client/leaderelection/resourcelock"
+	"k8s.io/kubernetes/pkg/util/configz"
+	"k8s.io/apiserver/pkg/server/healthz"
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
@@ -24,6 +29,7 @@ import (
 	"github.com/turbonomic/kubeturbo/test/flag"
 
 	"github.com/golang/glog"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/pflag"
 )
 
@@ -35,7 +41,7 @@ const (
 // VMTServer has all the context and params needed to run a Scheduler
 type VMTServer struct {
 	Port            int
-	Address         net.IP
+	Address         string
 	Master          string
 	K8sTAPSpec      string
 	TestingFlagPath string
@@ -44,10 +50,9 @@ type VMTServer struct {
 	BindPodsBurst   int
 	CAdvisorPort    int
 
-	LeaderElection componentconfig.LeaderElectionConfiguration
+	//LeaderElection componentconfig.LeaderElectionConfiguration
 
 	EnableProfiling bool
-	ProfilingPort   int
 
 	// If the underlying infrastructure is VMWare, we cannot reply on IP address for stitching. Instead we use the
 	// systemUUID of each node, which is equal to UUID of corresponding VM discovered by VM probe.
@@ -59,7 +64,7 @@ type VMTServer struct {
 func NewVMTServer() *VMTServer {
 	s := VMTServer{
 		Port:    VMTPort,
-		Address: net.ParseIP("127.0.0.1"),
+		Address: "127.0.0.1",
 	}
 	return &s
 }
@@ -73,10 +78,69 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.TestingFlagPath, "testingflag", s.TestingFlagPath, "Path to the testing flag.")
 	fs.StringVar(&s.KubeConfig, "kubeconfig", s.KubeConfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.BoolVar(&s.EnableProfiling, "profiling", false, "Enable profiling via web interface host:port/debug/pprof/.")
-	fs.IntVar(&s.ProfilingPort, "profiling-port", VMTPort, "The port number for profiling via web interface.")
 	fs.BoolVar(&s.UseVMWare, "usevmware", false, "If the underlying infrastructure is VMWare.")
-	leaderelection.BindFlags(&s.LeaderElection, fs)
+	//leaderelection.BindFlags(&s.LeaderElection, fs)
 }
+
+func createRecorder(kubecli *kubernetes.Clientset) record.EventRecorder {
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(glog.Infof)
+	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{
+								Interface: v1core.New(kubecli.Core().RESTClient()).Events("")})
+	return eventBroadcaster.NewRecorder(scheme.Scheme, apiv1.EventSource{Component: "kubeturbo"})
+}
+
+func (s *VMTServer) createKubeClient() (*kubernetes.Clientset, error) {
+	kubeConfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.KubeConfig)
+	if err != nil {
+		glog.Errorf("Error getting kubeconfig:  %s", err)
+		return nil, err
+	}
+	// This specifies the number and the max number of query per second to the api server.
+	kubeConfig.QPS = 20.0
+	kubeConfig.Burst = 30
+
+	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		glog.Fatalf("Invalid API configuration: %v", err)
+	}
+
+	return kubeClient, nil
+}
+
+// dependency problem to enable leaderElection.
+//func (s *VMTServer) RunWithLeaderElection(kubeClient *kubernetes.Clientset) error {
+//
+//    id, err := os.Hostname()
+//    if err != nil {
+//		return err
+//	}
+//
+//	rl, err := resourcelock.New(s.LeaderElection.ResourceLock,
+//		"kube-system",
+//		"kubeturbo",
+//		kubeClient,
+//		resourcelock.ResourceLockConfig{
+//			Identity:      id,
+//			EventRecorder: vmtConfig.Recorder,
+//		})
+//	if err != nil {
+//		glog.Fatalf("error creating lock: %v", err)
+//	}
+//
+//	leaderelection.RunOrDie(leaderelection.LeaderElectionConfig{
+//		Lock:          rl,
+//		LeaseDuration: s.LeaderElection.LeaseDuration.Duration,
+//		RenewDeadline: s.LeaderElection.RenewDeadline.Duration,
+//		RetryPeriod:   s.LeaderElection.RetryPeriod.Duration,
+//		Callbacks: leaderelection.LeaderCallbacks{
+//			OnStartedLeading: run,
+//			OnStoppedLeading: func() {
+//				glog.Fatalf("lost master")
+//			},
+//		},
+//	})
+//}
 
 // Run runs the specified VMTServer.  This should never exit.
 func (s *VMTServer) Run(_ []string) error {
@@ -106,42 +170,26 @@ func (s *VMTServer) Run(_ []string) error {
 		StitchingPropertyType: pType,
 	}
 
-	kubeConfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.KubeConfig)
-	if err != nil {
-		glog.Errorf("Error getting kubeconfig:  %s", err)
-		return err
-	}
-	// This specifies the number and the max number of query per second to the api server.
-	kubeConfig.QPS = 20.0
-	kubeConfig.Burst = 30
-
-	kubeClient, err := client.New(kubeConfig)
-	if err != nil {
-		glog.Fatalf("Invalid API configuration: %v", err)
-	}
-
-	leaderElectionClient, err := clientset.NewForConfig(restclient.AddUserAgent(kubeConfig, "leader-election"))
-	if err != nil {
-		glog.Fatalf("Invalid API configuration: %v", err)
-	}
-
-	go s.profiling()
+	go startHttp(s)
 
 	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
-
 	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec)
 	if err != nil {
 		glog.Errorf("Failed to generate correct TAP config: %s", err)
 		os.Exit(1)
 	}
+
+	kubeClient, err := s.createKubeClient()
+	if err != nil {
+		glog.Errorf("Failed to get kubeClient: %v", err)
+		os.Exit(1)
+	}
+
 	broker := turbostore.NewPodBroker()
 	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, probeConfig, broker, k8sTAPSpec)
 	glog.V(3).Infof("Finished creating turbo configuration: %++v", vmtConfig)
 
-	eventBroadcaster := record.NewBroadcaster()
-	vmtConfig.Recorder = eventBroadcaster.NewRecorder(api.EventSource{Component: "kubeturbo"})
-	eventBroadcaster.StartLogging(glog.Infof)
-	eventBroadcaster.StartRecordingToSink(kubeClient.Events(""))
+	vmtConfig.Recorder = createRecorder(kubeClient)
 
 	vmtService := kubeturbo.NewKubeturboService(vmtConfig)
 
@@ -150,54 +198,44 @@ func (s *VMTServer) Run(_ []string) error {
 		select {}
 	}
 
-	if !s.LeaderElection.LeaderElect {
+	//if !s.LeaderElection.LeaderElect {
 		glog.Infof("No leader election")
 		run(nil)
 		glog.Fatal("this statement is unreachable")
 		panic("unreachable")
-	}
-
-	id, err := os.Hostname()
-	if err != nil {
-		return err
-	}
-
-	leaderelection.RunOrDie(leaderelection.LeaderElectionConfig{
-		EndpointsMeta: api.ObjectMeta{
-			Namespace: "kube-system",
-			Name:      "kubeturbo",
-		},
-		Client:        leaderElectionClient,
-		Identity:      id,
-		EventRecorder: vmtConfig.Recorder,
-		LeaseDuration: s.LeaderElection.LeaseDuration.Duration,
-		RenewDeadline: s.LeaderElection.RenewDeadline.Duration,
-		RetryPeriod:   s.LeaderElection.RetryPeriod.Duration,
-		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: run,
-			OnStoppedLeading: func() {
-				glog.Fatalf("lost master")
-			},
-		},
-	})
+	//}
 
 	glog.Fatal("this statement is unreachable")
 	panic("unreachable")
 }
 
-// Set up the profiling web interface if profiling is enabled.
-func (s *VMTServer) profiling() {
-	if !s.EnableProfiling {
-		return
-	}
-	glog.V(2).Info("Profiling is enabled.")
+func startHttp(s *VMTServer) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+
+	//healthz
+	healthz.InstallHandler(mux)
+
+	//debug
+	if s.EnableProfiling {
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	}
+
+	//config
+	if c, err := configz.New("componentconfig"); err == nil {
+		c.Set(s)
+	} else {
+		glog.Errorf("unable to register configz: %v", err)
+	}
+	configz.InstallHandler(mux)
+
+	//prometheus.metrics
+	mux.Handle("/metrics", prometheus.Handler())
 
 	server := &http.Server{
-		Addr:    net.JoinHostPort(s.Address.String(), strconv.Itoa(s.ProfilingPort)),
+		Addr:    net.JoinHostPort(s.Address, strconv.Itoa(s.Port)),
 		Handler: mux,
 	}
 	glog.Fatal(server.ListenAndServe())

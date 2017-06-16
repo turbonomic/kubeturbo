@@ -1,10 +1,10 @@
 package probe
 
 import (
-	"k8s.io/kubernetes/pkg/api"
+	api "k8s.io/client-go/pkg/api/v1"
+	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"reflect"
 	"testing"
 )

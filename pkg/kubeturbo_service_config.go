@@ -1,11 +1,11 @@
 package kubeturbo
 
 import (
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
-	"k8s.io/kubernetes/pkg/client/record"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/fields"
+	api "k8s.io/client-go/pkg/api/v1"
+    "k8s.io/client-go/tools/cache"
+    "k8s.io/client-go/tools/record"
+    client "k8s.io/client-go/kubernetes"
+    "k8s.io/apimachinery/pkg/fields"
 
 	vmtcache "github.com/turbonomic/kubeturbo/pkg/cache"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
@@ -19,7 +19,7 @@ type Config struct {
 	//turboStore *turbostore.TurboStore
 	broker turbostore.Broker
 
-	Client    *client.Client
+	Client    *client.Clientset
 	NodeQueue *vmtcache.HashedFIFO
 	PodQueue  *vmtcache.HashedFIFO
 
@@ -33,7 +33,7 @@ type Config struct {
 	StopEverything chan struct{}
 }
 
-func NewVMTConfig(client *client.Client, probeConfig *probe.ProbeConfig, broker turbostore.Broker,
+func NewVMTConfig(client *client.Clientset, probeConfig *probe.ProbeConfig, broker turbostore.Broker,
 	spec *K8sTAPServiceSpec) *Config {
 	config := &Config{
 		tapSpec:        spec,
@@ -57,8 +57,9 @@ func NewVMTConfig(client *client.Client, probeConfig *probe.ProbeConfig, broker 
 
 // Create a list and watch for node to filter out nodes those cannot be scheduled.
 func (c *Config) createMinionLW() *cache.ListWatch {
-	fields := fields.Set{api.NodeUnschedulableField: "false"}.AsSelector()
-	return cache.NewListWatchFromClient(c.Client, "nodes", api.NamespaceAll, fields)
+	//fields := fields.Set{api.NodeUnschedulableField: "false"}.AsSelector()
+    selector := fields.ParseSelectorOrDie("spec.unschedulable == false")
+	return cache.NewListWatchFromClient(c.Client.CoreV1().RESTClient(), "nodes", api.NamespaceAll, selector)
 }
 
 // Returns a cache.ListWatch that finds all pods that are
@@ -67,7 +68,7 @@ func (c *Config) createMinionLW() *cache.ListWatch {
 func (c *Config) createAssignedPodLW() *cache.ListWatch {
 	selector := fields.ParseSelectorOrDie("spec.nodeName!=" + "" + ",status.phase!=" + string(api.PodSucceeded) + ",status.phase!=" + string(api.PodFailed))
 
-	return cache.NewListWatchFromClient(c.Client, "pods", api.NamespaceAll, selector)
+	return cache.NewListWatchFromClient(c.Client.CoreV1().RESTClient(), "pods", api.NamespaceAll, selector)
 }
 
 // Returns a cache.ListWatch that finds all pods that need to be
@@ -75,5 +76,5 @@ func (c *Config) createAssignedPodLW() *cache.ListWatch {
 func (c *Config) createUnassignedPodLW() *cache.ListWatch {
 	selector := fields.ParseSelectorOrDie("spec.nodeName==" + "" + ",status.phase!=" + string(api.PodSucceeded) + ",status.phase!=" + string(api.PodFailed))
 
-	return cache.NewListWatchFromClient(c.Client, "pods", api.NamespaceAll, selector)
+	return cache.NewListWatchFromClient(c.Client.CoreV1().RESTClient(), "pods", api.NamespaceAll, selector)
 }

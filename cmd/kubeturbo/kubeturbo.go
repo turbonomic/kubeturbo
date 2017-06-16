@@ -19,9 +19,7 @@ package main
 import (
 	"runtime"
 
-	"k8s.io/kubernetes/pkg/healthz"
-	"k8s.io/kubernetes/pkg/util/flag"
-	"k8s.io/kubernetes/pkg/util/logs"
+    "k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/kubernetes/pkg/version/verflag"
 
 	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
@@ -30,20 +28,13 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func init() {
-	healthz.DefaultHealthz()
-}
-
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	glog.V(2).Infof("*** Run Kubeturbo service ***")
 
 	s := app.NewVMTServer()
 	s.AddFlags(pflag.CommandLine)
-
-	flag.InitFlags()
-	logs.InitLogs()
-	defer logs.FlushLogs()
+    flag.InitFlags()
 
 	verflag.PrintAndExitIfRequested()
 

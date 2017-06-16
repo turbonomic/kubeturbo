@@ -3,13 +3,14 @@ package probe
 import (
 	"fmt"
 
-	"k8s.io/kubernetes/pkg/api"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+    api "k8s.io/client-go/pkg/api/v1"
+    client "k8s.io/client-go/kubernetes"
+
+	//"k8s.io/apimachinery/pkg/labels"
+    //"k8s.io/apimachinery/pkg/fields"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
-
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
@@ -18,14 +19,19 @@ var (
 	ClusterID string
 )
 
+const (
+    labelSelectEverything = ""
+    fieldSelectEverything = ""
+)
+
 type KubeProbe struct {
-	KubeClient       *client.Client
+	KubeClient       *client.Clientset
 	config           *ProbeConfig
 	stitchingManager *stitching.StitchingManager
 }
 
 // Create a new Kubernetes probe with the given kube client.
-func NewKubeProbe(kubeClient *client.Client, config *ProbeConfig) (*KubeProbe, error) {
+func NewKubeProbe(kubeClient *client.Clientset, config *ProbeConfig) (*KubeProbe, error) {
 	// First try to get cluster ID.
 	if ClusterID == "" {
 		id, err := getClusterID(kubeClient)
@@ -42,8 +48,9 @@ func NewKubeProbe(kubeClient *client.Client, config *ProbeConfig) (*KubeProbe, e
 	}, nil
 }
 
-func getClusterID(kubeClient *client.Client) (string, error) {
-	svc, err := kubeClient.Services("default").Get("kubernetes")
+func getClusterID(kubeClient *client.Clientset) (string, error) {
+    ns := api.NamespaceAll
+	svc, err := kubeClient.CoreV1().Services(ns).Get("kubernetes", metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -54,13 +61,13 @@ func (kubeProbe *KubeProbe) ParseNode() ([]*proto.EntityDTO, error) {
 	vmtNodeGetter := NewVMTNodeGetter(kubeProbe.KubeClient)
 	nodeProbe := NewNodeProbe(vmtNodeGetter.GetNodes, kubeProbe.config, kubeProbe.stitchingManager)
 
-	k8sNodes, err := nodeProbe.GetNodes(labels.Everything(), fields.Everything())
+	k8sNodes, err := nodeProbe.GetNodes(labelSelectEverything, fieldSelectEverything)
 	if err != nil {
 		return nil, fmt.Errorf("Error during parse nodes: %s", err)
 	}
 
 	vmtPodGetter := NewVMTPodGetter(kubeProbe.KubeClient)
-	k8sPods, err := vmtPodGetter.GetPods(api.NamespaceAll, labels.Everything(), fields.Everything())
+	k8sPods, err := vmtPodGetter.GetPods(api.NamespaceAll, labelSelectEverything, fieldSelectEverything)
 	if err != nil {
 		return nil, fmt.Errorf("Error during parse nodes: %s", err)
 	}
@@ -73,7 +80,7 @@ func (kubeProbe *KubeProbe) ParsePod(namespace string) ([]*proto.EntityDTO, erro
 	vmtPodGetter := NewVMTPodGetter(kubeProbe.KubeClient)
 	podProbe := NewPodProbe(vmtPodGetter.GetPods, kubeProbe.stitchingManager)
 
-	k8sPods, err := podProbe.GetPods(namespace, labels.Everything(), fields.Everything())
+	k8sPods, err := podProbe.GetPods(namespace, labelSelectEverything, fieldSelectEverything)
 	if err != nil {
 		return nil, fmt.Errorf("Error during parse pods: %s", err)
 	}
@@ -91,10 +98,10 @@ func (kubeProbe *KubeProbe) ParseService(namespace string) ([]*proto.EntityDTO, 
 	vmtEndpointGetter := NewVMTEndpointGetter(kubeProbe.KubeClient)
 	svcProbe := NewServiceProbe(vmtServiceGetter.GetService, vmtEndpointGetter.GetEndpoints)
 
-	serviceList, err := svcProbe.GetService(namespace, labels.Everything())
+	serviceList, err := svcProbe.GetService(namespace, labelSelectEverything)
 	if err != nil {
 		return nil, fmt.Errorf("Error during parse service: %s", err)
 	}
-	endpointList, err := svcProbe.GetEndpoints(namespace, labels.Everything())
+	endpointList, err := svcProbe.GetEndpoints(namespace, labelSelectEverything)
 	return svcProbe.ParseService(serviceList, endpointList)
 }
