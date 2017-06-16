@@ -3,8 +3,8 @@ package kubeturbo
 import (
 	"fmt"
 
-	api "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/action"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"

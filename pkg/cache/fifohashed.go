@@ -57,7 +57,7 @@ var (
 )
 
 func (f *HashedFIFO) Close() {
-    return;
+	return
 }
 
 // Return true if an Add/Update/Delete/AddIfNotPresent are called first,

@@ -4,11 +4,8 @@ import (
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-    api "k8s.io/client-go/pkg/api/v1"
-    client "k8s.io/client-go/kubernetes"
-
-	//"k8s.io/apimachinery/pkg/labels"
-    //"k8s.io/apimachinery/pkg/fields"
+	client "k8s.io/client-go/kubernetes"
+	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -20,8 +17,8 @@ var (
 )
 
 const (
-    labelSelectEverything = ""
-    fieldSelectEverything = ""
+	labelSelectEverything = ""
+	fieldSelectEverything = ""
 )
 
 type KubeProbe struct {
@@ -49,7 +46,7 @@ func NewKubeProbe(kubeClient *client.Clientset, config *ProbeConfig) (*KubeProbe
 }
 
 func getClusterID(kubeClient *client.Clientset) (string, error) {
-    ns := api.NamespaceDefault
+	ns := api.NamespaceDefault
 	svc, err := kubeClient.CoreV1().Services(ns).Get("kubernetes", metav1.GetOptions{})
 	if err != nil {
 		return "", err

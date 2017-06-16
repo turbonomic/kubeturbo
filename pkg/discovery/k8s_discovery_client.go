@@ -3,8 +3,8 @@ package discovery
 import (
 	"fmt"
 
-	api "k8s.io/client-go/pkg/api/v1"
 	kubeClient "k8s.io/client-go/kubernetes"
+	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	"github.com/turbonomic/kubeturbo/pkg/registration"

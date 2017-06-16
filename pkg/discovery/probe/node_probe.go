@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"time"
 
-    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-    api "k8s.io/client-go/pkg/api/v1"
-    client "k8s.io/client-go/kubernetes"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	client "k8s.io/client-go/kubernetes"
+	api "k8s.io/client-go/pkg/api/v1"
 
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
@@ -91,7 +91,7 @@ func (this *VMTNodeGetter) GetNodes(label, field string) ([]*api.Node, error) {
 	return nodeItems, nil
 }
 
-type NodesGetter func(label , field string) ([]*api.Node, error)
+type NodesGetter func(label, field string) ([]*api.Node, error)
 
 func (nodeProbe *NodeProbe) GetNodes(label, field string) ([]*api.Node, error) {
 	return nodeProbe.nodesGetter(label, field)
@@ -238,7 +238,7 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node, nodePodsMap map[
 
 // Get the cAdvisor host endpoint associated with node based on the given node name.
 func (nodeProbe *NodeProbe) getHost(nodeName string) *vmtAdvisor.Host {
-    //TODO: make sure using the right IP type.
+	//TODO: make sure using the right IP type.
 	nodeIP, err := nodeProbe.getNodeIPWithType(nodeName, api.NodeInternalIP)
 	if err != nil {
 		glog.Errorf("Error getting NodeLegacyHostIP of node %s: %s.", nodeName, err)

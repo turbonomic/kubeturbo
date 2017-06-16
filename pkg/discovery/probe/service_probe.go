@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strconv"
 
-	api "k8s.io/client-go/pkg/api/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	client "k8s.io/client-go/kubernetes"
+	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -109,7 +109,7 @@ func (svcProbe *ServiceProbe) GetEndpoints(namespace string, selector string) ([
 // Parse Services inside Kubernetes and build entityDTO as VApp.
 func (svcProbe *ServiceProbe) ParseService(serviceList []*api.Service, endpointList []*api.Endpoints) (
 	result []*proto.EntityDTO, err error) {
-    err = nil
+	err = nil
 	// first make a endpoint map, key is endpoints cluster ID; value is endpoint object
 	endpointMap := make(map[string]*api.Endpoints)
 	for _, endpoint := range endpointList {
@@ -217,7 +217,7 @@ func (svcProbe *ServiceProbe) getCommoditiesBought(podClusterIDList []string) (
 			glog.V(3).Infof("No application has been discovered related to pod %s", podClusterID)
 			continue
 		}
-		
+
 		appProvider := builder.CreateProvider(proto.EntityDTO_APPLICATION, appID)
 		var commoditiesBoughtFromApp []*proto.CommodityDTO
 		transactionCommBought, err := builder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).

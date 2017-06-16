@@ -907,11 +907,6 @@
 			"Rev": "562e721ece8a16e05c7e7d6bdd6334c910733ab2"
 		},
 		{
-			"ImportPath": "k8s.io/kubernetes/pkg/util/configz",
-			"Comment": "v1.8.0-alpha.0-737-g562e721ece",
-			"Rev": "562e721ece8a16e05c7e7d6bdd6334c910733ab2"
-		},
-		{
 			"ImportPath": "k8s.io/kubernetes/pkg/util/parsers",
 			"Comment": "v1.8.0-alpha.0-737-g562e721ece",
 			"Rev": "562e721ece8a16e05c7e7d6bdd6334c910733ab2"

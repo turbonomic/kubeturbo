@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	api "k8s.io/client-go/pkg/api/v1"
 	utilrand "k8s.io/apimachinery/pkg/util/rand"
+	api "k8s.io/client-go/pkg/api/v1"
 
 	vmtapi "github.com/turbonomic/kubeturbo/pkg/api"
 

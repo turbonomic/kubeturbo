@@ -7,8 +7,8 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	api "k8s.io/client-go/pkg/api/v1"
 	client "k8s.io/client-go/kubernetes"
+	api "k8s.io/client-go/pkg/api/v1"
 
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"

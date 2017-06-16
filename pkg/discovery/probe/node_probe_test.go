@@ -3,8 +3,8 @@ package probe
 import (
 	"testing"
 
-	api "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/apimachinery/pkg/types"
+	api "k8s.io/client-go/pkg/api/v1"
 )
 
 type FakeNodeBuilder struct {

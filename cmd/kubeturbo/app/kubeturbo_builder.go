@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 
+	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -14,18 +15,13 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
 
-	//"k8s.io/kubernetes/pkg/apis/componentconfig"
-	//"k8s.io/kubernetes/pkg/client/leaderelection"
-	//"k8s.io/kubernetes/pkg/client/leaderelection/resourcelock"
-	"k8s.io/kubernetes/pkg/util/configz"
-	"k8s.io/apiserver/pkg/server/healthz"
-
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	"github.com/turbonomic/kubeturbo/test/flag"
 
+	"fmt"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/pflag"
@@ -33,7 +29,8 @@ import (
 
 const (
 	// The default port for vmt service server
-	VMTPort = 10265
+	KubeturboPort   = 10265
+	K8sCadvisorPort = 4194
 )
 
 // VMTServer has all the context and params needed to run a Scheduler
@@ -62,7 +59,7 @@ type VMTServer struct {
 // NewVMTServer creates a new VMTServer with default parameters
 func NewVMTServer() *VMTServer {
 	s := VMTServer{
-		Port:    VMTPort,
+		Port:    KubeturboPort,
 		Address: "127.0.0.1",
 	}
 	return &s
@@ -70,8 +67,9 @@ func NewVMTServer() *VMTServer {
 
 // AddFlags adds flags for a specific VMTServer to the specified FlagSet
 func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
-	fs.IntVar(&s.Port, "port", s.Port, "The port that the kubeturbo's http service runs on")
-	fs.IntVar(&s.CAdvisorPort, "cadvisor-port", 4194, "The port of the cadvisor service runs on")
+	fs.IntVar(&s.Port, "port", s.Port, "The port that kubeturbo's http service runs on")
+	fs.StringVar(&s.Address, "ip", s.Address, "the ip address that kubeturbo's http service runs on")
+	fs.IntVar(&s.CAdvisorPort, "cadvisor-port", K8sCadvisorPort, "The port of the cadvisor service runs on")
 	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
 	fs.StringVar(&s.K8sTAPSpec, "turboconfig", s.K8sTAPSpec, "Path to the config file.")
 	fs.StringVar(&s.TestingFlagPath, "testingflag", s.TestingFlagPath, "Path to the testing flag.")
@@ -81,11 +79,15 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	//leaderelection.BindFlags(&s.LeaderElection, fs)
 }
 
+// create an eventRecorder to send events to Kubernetes APIserver
 func createRecorder(kubecli *kubernetes.Clientset) record.EventRecorder {
+	// Create a new broadcaster which will send events we generate to the apiserver
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{
-		Interface: v1core.New(kubecli.Core().RESTClient()).Events("")})
+		Interface: v1core.New(kubecli.Core().RESTClient()).Events(apiv1.NamespaceAll)})
+	// this EventRecorder can be used to send events to this EventBroadcaster
+	// with the given event source.
 	return eventBroadcaster.NewRecorder(scheme.Scheme, apiv1.EventSource{Component: "kubeturbo"})
 }
 
@@ -109,7 +111,7 @@ func (s *VMTServer) createKubeClient() (*kubernetes.Clientset, error) {
 
 func (s *VMTServer) createProbeConfig() *probe.ProbeConfig {
 	if s.CAdvisorPort == 0 {
-		s.CAdvisorPort = 4194
+		s.CAdvisorPort = K8sCadvisorPort
 	}
 
 	// The default property type for stitching is IP.
@@ -128,16 +130,32 @@ func (s *VMTServer) createProbeConfig() *probe.ProbeConfig {
 	return probeConfig
 }
 
-// Run runs the specified VMTServer.  This should never exit.
-func (s *VMTServer) Run(_ []string) error {
+func (s *VMTServer) checkFlag() error {
 	if s.KubeConfig == "" && s.Master == "" {
 		glog.Warningf("Neither --kubeconfig nor --master was specified.  Using default API client.  This might not work.")
 	}
 
-	glog.V(3).Infof("Master is %s", s.Master)
+	if s.Master != "" {
+		glog.V(3).Infof("Master is %s", s.Master)
+	}
 
 	if s.TestingFlagPath != "" {
 		flag.SetPath(s.TestingFlagPath)
+	}
+
+	ip := net.ParseIP(s.Address)
+	if ip == nil {
+		return fmt.Errorf("wrong ip format:%s", s.Address)
+	}
+
+	return nil
+}
+
+// Run runs the specified VMTServer.  This should never exit.
+func (s *VMTServer) Run(_ []string) error {
+	if err := s.checkFlag(); err != nil {
+		glog.Errorf("check flag failed:%v. abort.", err.Error())
+		os.Exit(1)
 	}
 
 	probeConfig := s.createProbeConfig()
@@ -168,7 +186,7 @@ func (s *VMTServer) Run(_ []string) error {
 		select {}
 	}
 
-	go startHttp(s)
+	go s.startHttp()
 
 	//if !s.LeaderElection.LeaderElect {
 	glog.V(2).Infof("No leader election")
@@ -178,7 +196,7 @@ func (s *VMTServer) Run(_ []string) error {
 	panic("unreachable")
 }
 
-func startHttp(s *VMTServer) {
+func (s *VMTServer) startHttp() {
 	mux := http.NewServeMux()
 
 	//healthz
@@ -190,18 +208,10 @@ func startHttp(s *VMTServer) {
 		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	}
 
-	//config
-	if c, err := configz.New("componentconfig"); err == nil {
-		c.Set(s)
-	} else {
-		glog.Errorf("unable to register configz: %v", err)
+		//prometheus.metrics
+		mux.Handle("/metrics", prometheus.Handler())
 	}
-	configz.InstallHandler(mux)
-
-	//prometheus.metrics
-	mux.Handle("/metrics", prometheus.Handler())
 
 	server := &http.Server{
 		Addr:    net.JoinHostPort(s.Address, strconv.Itoa(s.Port)),

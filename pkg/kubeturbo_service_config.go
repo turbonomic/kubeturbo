@@ -1,11 +1,11 @@
 package kubeturbo
 
 import (
+	"k8s.io/apimachinery/pkg/fields"
+	client "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
-    "k8s.io/client-go/tools/cache"
-    "k8s.io/client-go/tools/record"
-    client "k8s.io/client-go/kubernetes"
-    "k8s.io/apimachinery/pkg/fields"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 
 	vmtcache "github.com/turbonomic/kubeturbo/pkg/cache"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
@@ -58,7 +58,7 @@ func NewVMTConfig(client *client.Clientset, probeConfig *probe.ProbeConfig, brok
 // Create a list and watch for node to filter out nodes those cannot be scheduled.
 func (c *Config) createMinionLW() *cache.ListWatch {
 	//fields := fields.Set{api.NodeUnschedulableField: "false"}.AsSelector()
-    selector := fields.ParseSelectorOrDie("spec.unschedulable == false")
+	selector := fields.ParseSelectorOrDie("spec.unschedulable == false")
 	return cache.NewListWatchFromClient(c.Client.CoreV1().RESTClient(), "nodes", api.NamespaceAll, selector)
 }
 

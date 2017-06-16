@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-    api "k8s.io/client-go/pkg/api/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	client "k8s.io/client-go/kubernetes"
-    "k8s.io/client-go/pkg/apis/apps/v1beta1"
+	api "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/apis/apps/v1beta1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -16,7 +16,7 @@ import (
 )
 
 var (
-    listOption = metav1.ListOptions{}
+	listOption = metav1.ListOptions{}
 )
 
 // Find RC based on pod labels.
@@ -47,7 +47,7 @@ func FindReplicationControllerForPod(kubeClient *client.Clientset, currentPod *a
 
 // Get all replication controllers defined in the specified namespace.
 func GetAllDeployments(kubeClient *client.Clientset, namespace string) ([]v1beta1.Deployment, error) {
-    deploymentList, err := kubeClient.AppsV1beta1().Deployments(namespace).List(listOption)
+	deploymentList, err := kubeClient.AppsV1beta1().Deployments(namespace).List(listOption)
 	if err != nil {
 		return nil, fmt.Errorf("Error when getting all the deployments: %s", err)
 	}
@@ -98,7 +98,7 @@ func FindDeploymentForPod(kubeClient *client.Clientset, currentPod *api.Pod) (*v
 
 // Get all replication controllers defined in the specified namespace.
 func GetAllReplicationControllers(kubeClient *client.Clientset, namespace string) ([]api.ReplicationController, error) {
-    rcList, err := kubeClient.CoreV1().ReplicationControllers(namespace).List(listOption)
+	rcList, err := kubeClient.CoreV1().ReplicationControllers(namespace).List(listOption)
 	if err != nil {
 		return nil, fmt.Errorf("Error when getting all the replication controllers: %s", err)
 	}

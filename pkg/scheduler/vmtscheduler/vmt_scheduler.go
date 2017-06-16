@@ -1,9 +1,8 @@
 package vmtscheduler
 
 import (
-	api "k8s.io/client-go/pkg/api/v1"
 	"github.com/turbonomic/kubeturbo/pkg/scheduler/vmtscheduler/reservation"
-	// "github.com/golang/glog"
+	api "k8s.io/client-go/pkg/api/v1"
 )
 
 type Config struct {

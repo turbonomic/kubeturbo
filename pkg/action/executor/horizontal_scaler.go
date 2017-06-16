@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-    api "k8s.io/client-go/pkg/api/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	client "k8s.io/client-go/kubernetes"
-    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-    "k8s.io/client-go/pkg/apis/apps/v1beta1"
+	api "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/apis/apps/v1beta1"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
@@ -22,7 +22,7 @@ import (
 )
 
 var (
-    getOption = metav1.GetOptions{}
+	getOption = metav1.GetOptions{}
 )
 
 type HorizontalScaler struct {

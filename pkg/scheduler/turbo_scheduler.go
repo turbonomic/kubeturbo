@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	client "k8s.io/client-go/kubernetes"
-    v1core "k8s.io/client-go/kubernetes/typed/core/v1"
-    "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/kubernetes/scheme"
+	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	api "k8s.io/client-go/pkg/api/v1"
-    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/metrics"
 
@@ -17,12 +17,12 @@ import (
 	"github.com/golang/glog"
 )
 
-type VMTBinder interface {
-    Bind(binding *api.Binding) error
+type TurboBinder interface {
+	Bind(binding *api.Binding) error
 }
 
 type Config struct {
-	Binder VMTBinder
+	Binder TurboBinder
 
 	// Recorder is the EventRecorder to use
 	Recorder record.EventRecorder
@@ -41,9 +41,9 @@ func NewTurboScheduler(kubeClient *client.Clientset, serverURL, username, passwo
 	}
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
-    config.Recorder = eventBroadcaster.NewRecorder(scheme.Scheme, api.EventSource{Component: "turboscheduler"})
-    eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{
-        Interface: v1core.New(kubeClient.Core().RESTClient()).Events("")})
+	config.Recorder = eventBroadcaster.NewRecorder(scheme.Scheme, api.EventSource{Component: "turboscheduler"})
+	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{
+		Interface: v1core.New(kubeClient.Core().RESTClient()).Events("")})
 	vmtSched := vmtscheduler.NewVMTScheduler(serverURL, username, password)
 	glog.V(4).Infof("VMTScheduler is set: %++v", vmtSched)
 
@@ -67,7 +67,8 @@ func (s *TurboScheduler) Schedule(pod *api.Pod) error {
 	var placementMap map[*api.Pod]string
 	placementMap, err := s.vmtScheduler.GetDestinationFromVmturbo(pod)
 	if err != nil {
-		glog.Warningf("Failed to schedule Pod %s/%s using VMTScheduler: %s", pod.Namespace, pod.Name, err)
+		return fmt.Errorf("DefaultScheduler has not been set. Backup option is not available. "+
+			"Failed to schedule Pod %s/%s", pod.Namespace, pod.Name)
 		//if s.defaultScheduler == nil {
 		//	return fmt.Errorf("DefaultScheduler has not been set. Backup option is not available. "+
 		//		"Failed to schedule Pod %s/%s", pod.Namespace, pod.Name)
