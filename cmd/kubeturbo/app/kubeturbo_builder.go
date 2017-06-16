@@ -8,13 +8,11 @@ import (
 	"strconv"
 
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	apiv1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/kubernetes/scheme"
-
-	//_ "k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
 
 	//"k8s.io/kubernetes/pkg/apis/componentconfig"
 	//"k8s.io/kubernetes/pkg/client/leaderelection"
@@ -39,6 +37,7 @@ const (
 )
 
 // VMTServer has all the context and params needed to run a Scheduler
+// TODO: leaderElection is disabled now because of dependency problems.
 type VMTServer struct {
 	Port            int
 	Address         string
@@ -86,7 +85,7 @@ func createRecorder(kubecli *kubernetes.Clientset) record.EventRecorder {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{
-								Interface: v1core.New(kubecli.Core().RESTClient()).Events("")})
+		Interface: v1core.New(kubecli.Core().RESTClient()).Events("")})
 	return eventBroadcaster.NewRecorder(scheme.Scheme, apiv1.EventSource{Component: "kubeturbo"})
 }
 
@@ -108,39 +107,26 @@ func (s *VMTServer) createKubeClient() (*kubernetes.Clientset, error) {
 	return kubeClient, nil
 }
 
-// dependency problem to enable leaderElection.
-//func (s *VMTServer) RunWithLeaderElection(kubeClient *kubernetes.Clientset) error {
-//
-//    id, err := os.Hostname()
-//    if err != nil {
-//		return err
-//	}
-//
-//	rl, err := resourcelock.New(s.LeaderElection.ResourceLock,
-//		"kube-system",
-//		"kubeturbo",
-//		kubeClient,
-//		resourcelock.ResourceLockConfig{
-//			Identity:      id,
-//			EventRecorder: vmtConfig.Recorder,
-//		})
-//	if err != nil {
-//		glog.Fatalf("error creating lock: %v", err)
-//	}
-//
-//	leaderelection.RunOrDie(leaderelection.LeaderElectionConfig{
-//		Lock:          rl,
-//		LeaseDuration: s.LeaderElection.LeaseDuration.Duration,
-//		RenewDeadline: s.LeaderElection.RenewDeadline.Duration,
-//		RetryPeriod:   s.LeaderElection.RetryPeriod.Duration,
-//		Callbacks: leaderelection.LeaderCallbacks{
-//			OnStartedLeading: run,
-//			OnStoppedLeading: func() {
-//				glog.Fatalf("lost master")
-//			},
-//		},
-//	})
-//}
+func (s *VMTServer) createProbeConfig() *probe.ProbeConfig {
+	if s.CAdvisorPort == 0 {
+		s.CAdvisorPort = 4194
+	}
+
+	// The default property type for stitching is IP.
+	pType := stitching.IP
+	if s.UseVMWare {
+		// If the underlying hypervisor is vCenter, use UUID.
+		// Refer to Bug: https://vmturbo.atlassian.net/browse/OM-18139
+		pType = stitching.UUID
+	}
+
+	probeConfig := &probe.ProbeConfig{
+		CadvisorPort:          s.CAdvisorPort,
+		StitchingPropertyType: pType,
+	}
+
+	return probeConfig
+}
 
 // Run runs the specified VMTServer.  This should never exit.
 func (s *VMTServer) Run(_ []string) error {
@@ -154,23 +140,7 @@ func (s *VMTServer) Run(_ []string) error {
 		flag.SetPath(s.TestingFlagPath)
 	}
 
-	if s.CAdvisorPort == 0 {
-		s.CAdvisorPort = 4194
-	}
-
-	// The default property type for stitching is IP.
-	pType := stitching.IP
-	if s.UseVMWare {
-		// If the underlying hypervisor is vCenter, use UUID.
-		// Refer to Bug: https://vmturbo.atlassian.net/browse/OM-18139
-		pType = stitching.UUID
-	}
-	probeConfig := &probe.ProbeConfig{
-		CadvisorPort:          s.CAdvisorPort,
-		StitchingPropertyType: pType,
-	}
-
-	go startHttp(s)
+	probeConfig := s.createProbeConfig()
 
 	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
 	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec)
@@ -187,7 +157,7 @@ func (s *VMTServer) Run(_ []string) error {
 
 	broker := turbostore.NewPodBroker()
 	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, probeConfig, broker, k8sTAPSpec)
-	glog.V(3).Infof("Finished creating turbo configuration: %++v", vmtConfig)
+	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	vmtConfig.Recorder = createRecorder(kubeClient)
 
@@ -198,12 +168,11 @@ func (s *VMTServer) Run(_ []string) error {
 		select {}
 	}
 
+	go startHttp(s)
+
 	//if !s.LeaderElection.LeaderElect {
-		glog.Infof("No leader election")
-		run(nil)
-		glog.Fatal("this statement is unreachable")
-		panic("unreachable")
-	//}
+	glog.V(2).Infof("No leader election")
+	run(nil)
 
 	glog.Fatal("this statement is unreachable")
 	panic("unreachable")

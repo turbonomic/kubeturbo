@@ -19,7 +19,7 @@ package main
 import (
 	"runtime"
 
-    "k8s.io/apiserver/pkg/util/flag"
+	"k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/kubernetes/pkg/version/verflag"
 
 	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
@@ -34,7 +34,7 @@ func main() {
 
 	s := app.NewVMTServer()
 	s.AddFlags(pflag.CommandLine)
-    flag.InitFlags()
+	flag.InitFlags()
 
 	verflag.PrintAndExitIfRequested()
 

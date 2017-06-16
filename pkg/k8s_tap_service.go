@@ -29,7 +29,7 @@ func ParseK8sTAPServiceSpec(configFile string) (*K8sTAPServiceSpec, error) {
 	if err != nil {
 		return nil, err
 	}
-	glog.V(3).Infof("K8sTapSericeSpec is: %v", tapSpec)
+	glog.V(3).Infof("K8sTapSericeSpec is: %+v", tapSpec)
 
 	if tapSpec.TurboCommunicationConfig == nil {
 		return nil, errors.New("Communication config is missing")

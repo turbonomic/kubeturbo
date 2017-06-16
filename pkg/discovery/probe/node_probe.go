@@ -87,7 +87,7 @@ func (this *VMTNodeGetter) GetNodes(label, field string) ([]*api.Node, error) {
 		n := node
 		nodeItems = append(nodeItems, &n)
 	}
-	glog.V(2).Infof("Discovering Nodes.. The cluster has " + strconv.Itoa(len(nodeItems)) + " nodes")
+	glog.V(2).Infof("Discovering Nodes.. The cluster has %v nodes", len(nodeItems))
 	return nodeItems, nil
 }
 
@@ -238,7 +238,8 @@ func (nodeProbe *NodeProbe) createCommoditySold(node *api.Node, nodePodsMap map[
 
 // Get the cAdvisor host endpoint associated with node based on the given node name.
 func (nodeProbe *NodeProbe) getHost(nodeName string) *vmtAdvisor.Host {
-	nodeIP, err := nodeProbe.getNodeIPWithType(nodeName, api.NodeExternalIP)
+    //TODO: make sure using the right IP type.
+	nodeIP, err := nodeProbe.getNodeIPWithType(nodeName, api.NodeInternalIP)
 	if err != nil {
 		glog.Errorf("Error getting NodeLegacyHostIP of node %s: %s.", nodeName, err)
 		return nil

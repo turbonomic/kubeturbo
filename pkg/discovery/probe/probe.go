@@ -49,7 +49,7 @@ func NewKubeProbe(kubeClient *client.Clientset, config *ProbeConfig) (*KubeProbe
 }
 
 func getClusterID(kubeClient *client.Clientset) (string, error) {
-    ns := api.NamespaceAll
+    ns := api.NamespaceDefault
 	svc, err := kubeClient.CoreV1().Services(ns).Get("kubernetes", metav1.GetOptions{})
 	if err != nil {
 		return "", err
