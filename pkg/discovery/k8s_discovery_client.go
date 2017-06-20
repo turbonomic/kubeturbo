@@ -3,8 +3,8 @@ package discovery
 import (
 	"fmt"
 
-	"k8s.io/kubernetes/pkg/api"
-	kubeClient "k8s.io/kubernetes/pkg/client/unversioned"
+	kubeClient "k8s.io/client-go/kubernetes"
+	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
@@ -17,15 +17,15 @@ import (
 
 // TODO maybe use a discovery client config
 type DiscoveryConfig struct {
-	kubeClient  *kubeClient.Client
+	kubeClient  *kubeClient.Clientset
 	probeConfig *probe.ProbeConfig
 
 	targetConfig *K8sTargetConfig
 }
 
-func NewDiscoveryConfig(kubeClient *kubeClient.Client, probeConfig *probe.ProbeConfig, targetConfig *K8sTargetConfig) *DiscoveryConfig {
+func NewDiscoveryConfig(kubeCli *kubeClient.Clientset, probeConfig *probe.ProbeConfig, targetConfig *K8sTargetConfig) *DiscoveryConfig {
 	return &DiscoveryConfig{
-		kubeClient:   kubeClient,
+		kubeClient:   kubeCli,
 		probeConfig:  probeConfig,
 		targetConfig: targetConfig,
 	}
@@ -94,7 +94,7 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 	kubeProbe, err := probe.NewKubeProbe(dc.config.kubeClient, dc.config.probeConfig)
 	if err != nil {
 		// TODO make error dto
-		return nil, fmt.Errorf("Error creating Kubernetes discovery probe.")
+		return nil, fmt.Errorf("Error creating Kubernetes discovery probe:%s", err.Error())
 	}
 
 	nodeEntityDtos, err := kubeProbe.ParseNode()

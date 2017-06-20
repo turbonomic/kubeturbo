@@ -1,5 +1,8 @@
 OUTPUT_DIR=./_output
 
+product: clean
+	env GOOS=linux GOARCH=amd64 go build -o ${OUTPUT_DIR}/kubeturbo.linux ./cmd/kubeturbo
+
 build: clean
 	go build -o ${OUTPUT_DIR}/kubeturbo ./cmd/kubeturbo
 

@@ -3,10 +3,8 @@ package probe
 import (
 	"testing"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/types"
+	"k8s.io/apimachinery/pkg/types"
+	api "k8s.io/client-go/pkg/api/v1"
 )
 
 type FakeNodeBuilder struct {
@@ -34,7 +32,7 @@ func (fnb *FakeNodeBuilder) labels(labels map[string]string) *FakeNodeBuilder {
 
 type FakeNodeGetter struct{}
 
-func (fng *FakeNodeGetter) GetNodes(label labels.Selector, field fields.Selector) ([]*api.Node, error) {
+func (fng *FakeNodeGetter) GetNodes(label, field string) ([]*api.Node, error) {
 	var nodesList []*api.Node
 	fakenode1 := newFakeNodeBuilder("uid1", "fakenode1").build()
 	nodesList = append(nodesList, fakenode1)
@@ -48,7 +46,7 @@ func TestGetNodes(t *testing.T) {
 
 	nodeProbe := NewNodeProbe(fakeGetter.GetNodes, nil, nil)
 
-	nodes, err := nodeProbe.GetNodes(nil, nil)
+	nodes, err := nodeProbe.GetNodes("", "")
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/kubernetes/pkg/api"
+	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/test/flag"
 
@@ -83,7 +83,7 @@ func (s *StitchingManager) retrieveAndStoreStitchingIP(node *api.Node) {
 		if nodeAddress.Type == api.NodeExternalIP {
 			nodeStitchingIP = nodeAddress.Address
 		}
-		if nodeStitchingIP == "" && nodeAddress.Type == api.NodeLegacyHostIP {
+		if nodeStitchingIP == "" && nodeAddress.Type == api.NodeExternalIP {
 			nodeStitchingIP = nodeAddress.Address
 		}
 	}

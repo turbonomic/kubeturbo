@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/kubernetes/pkg/util/wait"
-
-	client "k8s.io/kubernetes/pkg/client/unversioned"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	client "k8s.io/client-go/kubernetes"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
@@ -18,7 +18,7 @@ import (
 type CheckActionFunc func(event *turboaction.TurboAction) (bool, error)
 
 type ActionSupervisorConfig struct {
-	kubeClient *client.Client
+	kubeClient *client.Clientset
 
 	// The following three channels are used between action handler and action supervisor to pass action information.
 	executedActionChan  chan *turboaction.TurboAction
@@ -28,7 +28,7 @@ type ActionSupervisorConfig struct {
 	StopEverything chan struct{}
 }
 
-func NewActionSupervisorConfig(kubeClient *client.Client, exeChan, succChan,
+func NewActionSupervisorConfig(kubeClient *client.Clientset, exeChan, succChan,
 	failedChan chan *turboaction.TurboAction) *ActionSupervisorConfig {
 	config := &ActionSupervisorConfig{
 		kubeClient: kubeClient,
@@ -84,7 +84,7 @@ func (s *ActionSupervisor) checkMoveAction(action *turboaction.TurboAction) (boo
 	podNamespace := action.Namespace
 	podIdentifier := util.BuildIdentifier(podNamespace, podName)
 
-	targetPod, err := s.config.kubeClient.Pods(podNamespace).Get(podName)
+	targetPod, err := s.config.kubeClient.CoreV1().Pods(podNamespace).Get(podName, metav1.GetOptions{})
 	if err != nil {
 		glog.Errorf("Cannot find pod %s: %s", podIdentifier, err)
 		return false, fmt.Errorf("Cannot find pod %s in cluster after a move action", podIdentifier)
@@ -125,19 +125,19 @@ func (s *ActionSupervisor) checkScaleAction(action *turboaction.TurboAction) (bo
 	var currentReplicas int32
 	switch action.Content.ParentObjectRef.ParentObjectType {
 	case turboaction.TypeReplicationController:
-		targetRC, err := s.config.kubeClient.ReplicationControllers(namespace).Get(name)
+		targetRC, err := s.config.kubeClient.CoreV1().ReplicationControllers(namespace).Get(name, metav1.GetOptions{})
 		if err != nil || targetRC == nil {
 			return false, fmt.Errorf("Cannot find replication controller for %s in cluster", identifier)
 		}
-		currentReplicas = targetRC.Spec.Replicas
+		currentReplicas = *targetRC.Spec.Replicas
 		glog.V(4).Infof("currentReplicas from RC is %d", currentReplicas)
 		break
 	case turboaction.TypeReplicaSet:
-		targetReplicaSet, err := s.config.kubeClient.ReplicaSets(namespace).Get(name)
+		targetReplicaSet, err := s.config.kubeClient.ExtensionsV1beta1().ReplicaSets(namespace).Get(name, metav1.GetOptions{})
 		if err != nil || targetReplicaSet == nil {
 			return false, fmt.Errorf("Cannot find replica set for %s in cluster", identifier)
 		}
-		currentReplicas = targetReplicaSet.Spec.Replicas
+		currentReplicas = *targetReplicaSet.Spec.Replicas
 		glog.V(4).Infof("current replica of target replica set is %d", currentReplicas)
 		break
 	}

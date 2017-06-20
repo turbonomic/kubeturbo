@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/util/wait"
+	client "k8s.io/client-go/kubernetes"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/supervisor"
@@ -20,12 +20,12 @@ import (
 )
 
 type ActionHandlerConfig struct {
-	kubeClient     *client.Client
+	kubeClient     *client.Clientset
 	broker         turbostore.Broker
 	StopEverything chan struct{}
 }
 
-func NewActionHandlerConfig(kubeClient *client.Client, broker turbostore.Broker) *ActionHandlerConfig {
+func NewActionHandlerConfig(kubeClient *client.Clientset, broker turbostore.Broker) *ActionHandlerConfig {
 	config := &ActionHandlerConfig{
 		kubeClient: kubeClient,
 		broker:     broker,

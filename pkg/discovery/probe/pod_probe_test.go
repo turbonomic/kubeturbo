@@ -3,11 +3,8 @@ package probe
 import (
 	"testing"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/types"
-
+	"k8s.io/apimachinery/pkg/types"
+	api "k8s.io/client-go/pkg/api/v1"
 )
 
 type FakePodBuilder struct {
@@ -35,7 +32,7 @@ func (this *FakePodBuilder) labels(labels map[string]string) *FakePodBuilder {
 
 type FakePodGetter struct{}
 
-func (fpg *FakePodGetter) GetPods(namespace string, label labels.Selector, field fields.Selector) ([]*api.Pod, error) {
+func (fpg *FakePodGetter) GetPods(namespace string, label, field string) ([]*api.Pod, error) {
 	var podsList []*api.Pod
 	fakePod1 := newFakePodBuilder("uid1", "fakePod1").build()
 	podsList = append(podsList, fakePod1)
@@ -49,7 +46,7 @@ func TestGetPods(t *testing.T) {
 
 	podProbe := NewPodProbe(fakeGetter.GetPods, nil)
 
-	pods, _ := podProbe.GetPods("", nil, nil)
+	pods, _ := podProbe.GetPods(api.NamespaceAll, "", "")
 
 	if len(pods) != 2 {
 		t.Errorf("Expected %n nodes, got %n", 2, len(pods))

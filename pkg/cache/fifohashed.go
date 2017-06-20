@@ -19,7 +19,7 @@ package cache
 import (
 	"sync"
 
-	"k8s.io/kubernetes/pkg/client/cache"
+	"k8s.io/client-go/tools/cache"
 )
 
 // HashedFIFO receives adds and updates from a Reflector, and puts them in a queue for
@@ -55,6 +55,10 @@ type HashedFIFO struct {
 var (
 	_ = cache.Queue(&HashedFIFO{}) // HashedFIFO is a Queue
 )
+
+func (f *HashedFIFO) Close() {
+	return
+}
 
 // Return true if an Add/Update/Delete/AddIfNotPresent are called first,
 // or an Update called first but the first batch of items inserted by Replace() has been popped

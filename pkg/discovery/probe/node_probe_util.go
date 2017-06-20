@@ -1,7 +1,7 @@
 package probe
 
 import (
-	"k8s.io/kubernetes/pkg/api"
+	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"

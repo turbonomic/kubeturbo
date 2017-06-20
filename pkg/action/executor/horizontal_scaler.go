@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apis/extensions"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	client "k8s.io/client-go/kubernetes"
+	api "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/apis/apps/v1beta1"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
@@ -20,13 +21,17 @@ import (
 	"github.com/golang/glog"
 )
 
+var (
+	getOption = metav1.GetOptions{}
+)
+
 type HorizontalScaler struct {
-	kubeClient *client.Client
+	kubeClient *client.Clientset
 	broker     turbostore.Broker
 	scheduler  *turboscheduler.TurboScheduler
 }
 
-func NewHorizontalScaler(client *client.Client, broker turbostore.Broker,
+func NewHorizontalScaler(client *client.Clientset, broker turbostore.Broker,
 	scheduler *turboscheduler.TurboScheduler) *HorizontalScaler {
 	return &HorizontalScaler{
 		kubeClient: client,
@@ -109,8 +114,8 @@ func (h *HorizontalScaler) buildPendingScalingTurboAction(actionItem *proto.Acti
 				"action: %s", err)
 		}
 		scaleSpec = turboaction.ScaleSpec{
-			OriginalReplicas: rc.Spec.Replicas,
-			NewReplicas:      rc.Spec.Replicas + diff,
+			OriginalReplicas: *rc.Spec.Replicas,
+			NewReplicas:      *rc.Spec.Replicas + diff,
 		}
 		break
 
@@ -121,8 +126,8 @@ func (h *HorizontalScaler) buildPendingScalingTurboAction(actionItem *proto.Acti
 				"action: %s", err)
 		}
 		scaleSpec = turboaction.ScaleSpec{
-			OriginalReplicas: deployment.Spec.Replicas,
-			NewReplicas:      deployment.Spec.Replicas + diff,
+			OriginalReplicas: *deployment.Spec.Replicas,
+			NewReplicas:      *deployment.Spec.Replicas + diff,
 		}
 		break
 
@@ -292,8 +297,8 @@ func (h *HorizontalScaler) updateReplica(targetObject turboaction.TargetObject, 
 	providerType := parentObjRef.ParentObjectType
 	switch providerType {
 	case turboaction.TypeReplicationController:
-		rc, err := h.kubeClient.ReplicationControllers(parentObjRef.ParentObjectNamespace).
-			Get(parentObjRef.ParentObjectName)
+		rc, err := h.kubeClient.CoreV1().ReplicationControllers(parentObjRef.ParentObjectNamespace).
+			Get(parentObjRef.ParentObjectName, getOption)
 		if err != nil {
 			return fmt.Errorf("Failed to find replication controller for finishing the scaling "+
 				"action: %s", err)
@@ -301,7 +306,7 @@ func (h *HorizontalScaler) updateReplica(targetObject turboaction.TargetObject, 
 		return h.updateReplicationControllerReplicas(rc, scaleSpec.NewReplicas)
 
 	case turboaction.TypeReplicaSet:
-		providerPod, err := h.kubeClient.Pods(targetObject.TargetObjectNamespace).Get(targetObject.TargetObjectName)
+		providerPod, err := h.kubeClient.CoreV1().Pods(targetObject.TargetObjectNamespace).Get(targetObject.TargetObjectName, getOption)
 		if err != nil {
 			return fmt.Errorf("Failed to find deployemnet for finishing the scaling action: %s", err)
 		}
@@ -319,9 +324,9 @@ func (h *HorizontalScaler) updateReplica(targetObject turboaction.TargetObject, 
 }
 
 func (h *HorizontalScaler) updateReplicationControllerReplicas(rc *api.ReplicationController, newReplicas int32) error {
-	rc.Spec.Replicas = newReplicas
+	rc.Spec.Replicas = &newReplicas
 	namespace := rc.Namespace
-	newRC, err := h.kubeClient.ReplicationControllers(namespace).Update(rc)
+	newRC, err := h.kubeClient.CoreV1().ReplicationControllers(namespace).Update(rc)
 	if err != nil {
 		return fmt.Errorf("Error updating replication controller %s/%s: %s", rc.Namespace, rc.Name, err)
 	}
@@ -329,15 +334,15 @@ func (h *HorizontalScaler) updateReplicationControllerReplicas(rc *api.Replicati
 	return nil
 }
 
-func (h *HorizontalScaler) updateDeploymentReplicas(deployment *extensions.Deployment, newReplicas int32) error {
-	deployment.Spec.Replicas = newReplicas
+func (h *HorizontalScaler) updateDeploymentReplicas(deployment *v1beta1.Deployment, newReplicas int32) error {
+	deployment.Spec.Replicas = &newReplicas
 	namespace := deployment.Namespace
-	newDeployment, err := h.kubeClient.Deployments(namespace).Update(deployment)
+	newDeployment, err := h.kubeClient.AppsV1beta1().Deployments(namespace).Update(deployment)
 	if err != nil {
 		return fmt.Errorf("Error updating replication controller %s/%s: %s",
 			deployment.Namespace, deployment.Name, err)
 	}
-	glog.V(4).Infof("New replicas of %s/%s is %d", newDeployment.Namespace, newDeployment.Name,
+	glog.V(4).Infof("New replicas of %s/%s is %v", newDeployment.Namespace, newDeployment.Name,
 		newDeployment.Spec.Replicas)
 	return nil
 }

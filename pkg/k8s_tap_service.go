@@ -7,7 +7,7 @@ import (
 	"github.com/golang/glog"
 	"io/ioutil"
 
-	client "k8s.io/kubernetes/pkg/client/unversioned"
+	client "k8s.io/client-go/kubernetes"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery"
 	k8sprobe "github.com/turbonomic/kubeturbo/pkg/discovery/probe"
@@ -29,7 +29,7 @@ func ParseK8sTAPServiceSpec(configFile string) (*K8sTAPServiceSpec, error) {
 	if err != nil {
 		return nil, err
 	}
-	glog.V(3).Infof("K8sTapSericeSpec is: %v", tapSpec)
+	glog.V(3).Infof("K8sTapSericeSpec is: %+v", tapSpec)
 
 	if tapSpec.TurboCommunicationConfig == nil {
 		return nil, errors.New("Communication config is missing")
@@ -67,7 +67,7 @@ type K8sTAPServiceConfig struct {
 	discoveryClientConfig    *discovery.DiscoveryConfig
 }
 
-func NewK8sTAPServiceConfig(kubeClient *client.Client, probeConfig *k8sprobe.ProbeConfig,
+func NewK8sTAPServiceConfig(kubeClient *client.Clientset, probeConfig *k8sprobe.ProbeConfig,
 	spec *K8sTAPServiceSpec) *K8sTAPServiceConfig {
 	registrationClientConfig := registration.NewRegistrationClientConfig(probeConfig.StitchingPropertyType)
 	discoveryClientConfig := discovery.NewDiscoveryConfig(kubeClient, probeConfig, spec.K8sTargetConfig)
