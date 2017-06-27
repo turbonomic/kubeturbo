@@ -163,13 +163,13 @@ func (s *VMTServer) Run(_ []string) error {
 	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
 	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec)
 	if err != nil {
-		glog.Errorf("Failed to generate correct TAP config: %s", err)
+		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
 		os.Exit(1)
 	}
 
 	kubeClient, err := s.createKubeClient()
 	if err != nil {
-		glog.Errorf("Failed to get kubeClient: %v", err)
+		glog.Errorf("Failed to get kubeClient: %v", err.Error())
 		os.Exit(1)
 	}
 

@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	client "k8s.io/client-go/kubernetes"
+	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
@@ -86,8 +87,15 @@ func (s *ActionSupervisor) checkMoveAction(action *turboaction.TurboAction) (boo
 
 	targetPod, err := s.config.kubeClient.CoreV1().Pods(podNamespace).Get(podName, metav1.GetOptions{})
 	if err != nil {
-		glog.Errorf("Cannot find pod %s: %s", podIdentifier, err)
-		return false, fmt.Errorf("Cannot find pod %s in cluster after a move action", podIdentifier)
+		err = fmt.Errorf("move-check failed: cannot find pod %v: %v", podIdentifier, err.Error())
+		glog.Error(err.Error())
+		return false, err
+	}
+
+	if targetPod.Status.Phase != api.PodRunning {
+		err = fmt.Errorf("move-check failed: new pod status is %v", targetPod.Status.Phase)
+		glog.Error(err.Error())
+		return false, err
 	}
 
 	moveDestination := moveSpec.Destination

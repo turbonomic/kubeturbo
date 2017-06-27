@@ -149,28 +149,26 @@ func GetAppType(pod *api.Pod) string {
 	if isMirrorPod(pod) {
 		nodeName := pod.Spec.NodeName
 		na := strings.Split(pod.Name, nodeName)
-		return na[0][:len(na[0])-1]
+		result := na[0]
+		if len(result) > 1 {
+			return result[:len(result)-1]
+		}
+		return result
 	} else {
-		parentKind, err := findParentObjectKind(pod)
+		parent, err := FindParentReferenceObject(pod)
 		if err != nil {
-			glog.Errorf("%++v", err)
+			glog.Errorf("fail to getAppType: %v", err.Error())
 			return ""
 		}
-		switch parentKind {
-		case Kind_DaemonSet, Kind_ReplicationController, Kind_Job:
-			generatedName := pod.GenerateName
-			return generatedName[:len(generatedName)-1]
-		case Kind_ReplicaSet:
-			generatedName := pod.GenerateName
-			na := strings.Split(generatedName, "-")
-			res := ""
-			for i := 0; i < len(na)-2; i++ {
-				res = res + na[i]
-			}
-			return res
-		default:
+
+		if parent == nil {
 			return pod.Name
 		}
+
+		//TODO: if parent.Kind==ReplicaSet:
+		//       try to find the Deployment if it has.
+		//      or extract the Deployment Name by string operations
+		return parent.Name
 	}
 }
 
