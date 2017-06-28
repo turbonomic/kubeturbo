@@ -80,10 +80,10 @@ func (s *StitchingManager) retrieveAndStoreStitchingIP(node *api.Node) {
 	nodeAddresses := node.Status.Addresses
 	// Use external IP if it is available. Otherwise use legacy host IP.
 	for _, nodeAddress := range nodeAddresses {
-		if nodeAddress.Type == api.NodeExternalIP {
+		if nodeAddress.Type == api.NodeExternalIP && nodeAddress.Address != "" {
 			nodeStitchingIP = nodeAddress.Address
 		}
-		if nodeStitchingIP == "" && nodeAddress.Type == api.NodeExternalIP {
+		if nodeStitchingIP == "" && nodeAddress.Address != "" && nodeAddress.Type == api.NodeInternalIP {
 			nodeStitchingIP = nodeAddress.Address
 		}
 	}

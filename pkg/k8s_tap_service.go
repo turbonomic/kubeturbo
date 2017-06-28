@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/golang/glog"
 	"io/ioutil"
 
 	client "k8s.io/client-go/kubernetes"
@@ -16,6 +15,8 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/action"
 	"github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/service"
+
+	"github.com/golang/glog"
 )
 
 type K8sTAPServiceSpec struct {

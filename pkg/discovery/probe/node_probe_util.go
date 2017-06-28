@@ -8,7 +8,7 @@ import (
 )
 
 // Check if a node is in Ready status.
-func nodeIsReady(node *api.Node) bool {
+func NodeIsReady(node *api.Node) bool {
 	for _, condition := range node.Status.Conditions {
 		if condition.Type == api.NodeReady {
 			return condition.Status == api.ConditionTrue
@@ -19,7 +19,7 @@ func nodeIsReady(node *api.Node) bool {
 }
 
 // Check if a node is schedulable.
-func nodeIsSchedulable(node *api.Node) bool {
+func NodeIsSchedulable(node *api.Node) bool {
 	return !node.Spec.Unschedulable
 }
 
@@ -31,7 +31,7 @@ const (
 )
 
 // Build entity properties for a node. The name is the name of the node shown inside Kubernetes cluster.
-func buildNodeProperties(node *api.Node) *proto.EntityDTO_EntityProperty {
+func BuildNodeProperties(node *api.Node) *proto.EntityDTO_EntityProperty {
 	propertyNamespace := nodePropertyNamespace
 	propertyName := nodePropertyNameNodeName
 	propertyValue := node.Name

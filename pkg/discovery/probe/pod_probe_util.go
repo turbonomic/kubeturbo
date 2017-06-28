@@ -177,6 +177,10 @@ func GetPodClusterID(namespace, name string) string {
 	return namespace + "/" + name
 }
 
+func GetPodClusterIDFromPod(pod *api.Pod) string {
+	return GetPodClusterID(pod.Namespace, pod.Name)
+}
+
 func BreakdownPodClusterID(podID string) (namespace string, name string, err error) {
 	components := strings.Split(podID, "/")
 	if len(components) != 2 {
@@ -198,7 +202,7 @@ const (
 )
 
 // Build entity properties of a pod. The properties are consisted of name and namespace of a pod.
-func buildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
+func BuildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
 	var properties []*proto.EntityDTO_EntityProperty
 	propertyNamespace := podPropertyNamespace
 	podNamespacePropertyName := podPropertyNamePodNamespace

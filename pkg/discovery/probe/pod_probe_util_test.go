@@ -60,7 +60,7 @@ func TestBuildPodProperties(t *testing.T) {
 		pod := &api.Pod{}
 		pod.Namespace = item.podNamespace
 		pod.Name = item.podName
-		properties := buildPodProperties(pod)
+		properties := BuildPodProperties(pod)
 
 		propertyNamespace := podPropertyNamespace
 		podNamespacePropertyName := podPropertyNamePodNamespace

@@ -3,11 +3,8 @@ package probe
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	client "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
 
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
@@ -45,11 +42,11 @@ var inactivePods map[string]struct{}
 type PodsGetter func(namespace, label, field string) ([]*api.Pod, error)
 
 type PodProbe struct {
-	podGetter        PodsGetter
+	podAccessor      ClusterAccessor
 	stitchingManager *stitching.StitchingManager
 }
 
-func NewPodProbe(getter PodsGetter, stitchingManager *stitching.StitchingManager) *PodProbe {
+func NewPodProbe(accessor ClusterAccessor, stitchingManager *stitching.StitchingManager) *PodProbe {
 	inactivePods = make(map[string]struct{})
 	podResourceConsumptionMap = make(map[string]*PodResourceStat)
 	podAppTypeMap = make(map[string]string)
@@ -58,52 +55,10 @@ func NewPodProbe(getter PodsGetter, stitchingManager *stitching.StitchingManager
 	turboPodUUIDMap = make(map[string]string)
 
 	return &PodProbe{
-		podGetter:        getter,
 		stitchingManager: stitchingManager,
+
+		podAccessor: accessor,
 	}
-}
-
-func (this *PodProbe) GetPods(namespace, label, field string) ([]*api.Pod, error) {
-	if this.podGetter == nil {
-		return nil, fmt.Errorf("Error. podGetter is not set.")
-	}
-
-	return this.podGetter(namespace, label, field)
-}
-
-type VMTPodGetter struct {
-	kubeClient *client.Clientset
-}
-
-func NewVMTPodGetter(kubeClient *client.Clientset) *VMTPodGetter {
-	return &VMTPodGetter{
-		kubeClient: kubeClient,
-	}
-}
-
-// Get pods match specified namespace, label and field.
-func (this *VMTPodGetter) GetPods(namespace, label, field string) ([]*api.Pod, error) {
-	listOption := metav1.ListOptions{
-		LabelSelector: label,
-		FieldSelector: field,
-	}
-	podList, err := this.kubeClient.CoreV1().Pods(namespace).List(listOption)
-	if err != nil {
-		return nil, fmt.Errorf("Error getting all the desired pods from Kubernetes cluster: %s", err)
-	}
-	var podItems []*api.Pod
-	for _, pod := range podList.Items {
-		p := pod
-		if pod.Status.Phase != api.PodRunning {
-			// Skip pods those are not running.
-			continue
-		}
-
-		podItems = append(podItems, &p)
-	}
-	glog.V(2).Infof("Discovering Pods, now the cluster has " + strconv.Itoa(len(podItems)) + " pods")
-
-	return podItems, nil
 }
 
 // Get pod resource usage from Kubernetes cluster and return a list of entityDTOs.
@@ -466,7 +421,7 @@ func (podProbe *PodProbe) buildPodEntityDTO(pod *api.Pod, commoditiesSold, commo
 	glog.V(4).Infof("Pod %s will be stitched with VM with %s: %s", podDisplayName, *stitchingProperty.Name,
 		*stitchingProperty.Value)
 
-	podProperties := buildPodProperties(pod)
+	podProperties := BuildPodProperties(pod)
 	entityDTOBuilder = entityDTOBuilder.WithProperties(podProperties)
 
 	// monitored or not

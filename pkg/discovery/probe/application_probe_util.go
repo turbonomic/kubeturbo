@@ -1,7 +1,6 @@
 package probe
 
 import (
-	"github.com/golang/glog"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
@@ -15,12 +14,8 @@ const (
 )
 
 // Build properties of an application. The namespace and name of the hosting pod is stored in the properties.
-func buildAppProperties(podNamespaceName string) []*proto.EntityDTO_EntityProperty {
-	podNamespace, podName, err := BreakdownPodClusterID(podNamespaceName)
-	if err != nil {
-		glog.Errorf("Failed to build App properties: %s", err)
-		return nil
-	}
+func BuildAppProperties(podNamespace, podName string) []*proto.EntityDTO_EntityProperty {
+
 	var properties []*proto.EntityDTO_EntityProperty
 	propertyNamespace := appPropertyNamespace
 	hostingPodNamespacePropertyName := appPropertyNameHostingPodNamespace

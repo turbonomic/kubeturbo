@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	client "k8s.io/client-go/kubernetes"
+	//metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	//client "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
 
 	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
@@ -40,7 +40,7 @@ var nodeMachineInfoMap map[string]*cadvisor.MachineInfo
 var notMonitoredNodes map[string]struct{}
 
 type NodeProbe struct {
-	nodesGetter      NodesGetter
+	nodesAccessor    ClusterAccessor
 	config           *ProbeConfig
 	stitchingManager *stitching.StitchingManager
 
@@ -48,7 +48,7 @@ type NodeProbe struct {
 }
 
 // Since this is only used in probe package, do not expose it.
-func NewNodeProbe(getter NodesGetter, config *ProbeConfig, stitchingManager *stitching.StitchingManager) *NodeProbe {
+func NewNodeProbe(accessor ClusterAccessor, config *ProbeConfig, stitchingManager *stitching.StitchingManager) *NodeProbe {
 	// initiate set every time.
 	notMonitoredNodes = make(map[string]struct{})
 	hostSet = make(map[string]*vmtAdvisor.Host)
@@ -56,45 +56,10 @@ func NewNodeProbe(getter NodesGetter, config *ProbeConfig, stitchingManager *sti
 	nodeMachineInfoMap = make(map[string]*cadvisor.MachineInfo)
 
 	return &NodeProbe{
-		nodesGetter:      getter,
+		nodesAccessor:    accessor,
 		config:           config,
 		stitchingManager: stitchingManager,
 	}
-}
-
-type VMTNodeGetter struct {
-	kubeClient *client.Clientset
-}
-
-func NewVMTNodeGetter(kubeClient *client.Clientset) *VMTNodeGetter {
-	return &VMTNodeGetter{
-		kubeClient: kubeClient,
-	}
-}
-
-// Get all nodes
-func (this *VMTNodeGetter) GetNodes(label, field string) ([]*api.Node, error) {
-	listOption := metav1.ListOptions{
-		LabelSelector: label,
-		FieldSelector: field,
-	}
-	nodeList, err := this.kubeClient.CoreV1().Nodes().List(listOption)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get nodes from Kubernetes cluster: %s", err)
-	}
-	var nodeItems []*api.Node
-	for _, node := range nodeList.Items {
-		n := node
-		nodeItems = append(nodeItems, &n)
-	}
-	glog.V(2).Infof("Discovering Nodes.. The cluster has %v nodes", len(nodeItems))
-	return nodeItems, nil
-}
-
-type NodesGetter func(label, field string) ([]*api.Node, error)
-
-func (nodeProbe *NodeProbe) GetNodes(label, field string) ([]*api.Node, error) {
-	return nodeProbe.nodesGetter(label, field)
 }
 
 // Parse each node inside K8s. Get the resources usage of each node and build the entityDTO.
@@ -110,7 +75,7 @@ func (nodeProbe *NodeProbe) parseNodeFromK8s(nodes []*api.Node, pods []*api.Pod)
 	}
 	for _, node := range nodes {
 		// We do not monitor node that is not ready or unschedulable.
-		if !nodeIsReady(node) || !nodeIsSchedulable(node) {
+		if !NodeIsReady(node) || !NodeIsSchedulable(node) {
 			glog.V(3).Infof("Node %s is either not ready or unschedulable.", node.Name)
 			//continue
 			notMonitoredNodes[node.Name] = struct{}{}
@@ -246,9 +211,9 @@ func (nodeProbe *NodeProbe) getHost(nodeName string) *vmtAdvisor.Host {
 	}
 	// Use NodeLegacyHostIP to build the host to interact with cAdvisor.
 	host := &vmtAdvisor.Host{
-		IP:       nodeIP,
-		Port:     nodeProbe.config.CadvisorPort,
-		Resource: "",
+		IP:   nodeIP,
+		Port: nodeProbe.config.CadvisorPort,
+		//Resource: "",
 	}
 	return host
 }
@@ -302,7 +267,7 @@ func (nodeProbe *NodeProbe) buildVMEntityDTO(node *api.Node, commoditiesSold []*
 	entityDTOBuilder = entityDTOBuilder.WithProperty(stitchingProperty)
 	glog.V(4).Infof("Node %s will be reconciled with VM with %s: %s", node.Name, *stitchingProperty.Name, *stitchingProperty.Value)
 
-	nodeProperty := buildNodeProperties(node)
+	nodeProperty := BuildNodeProperties(node)
 	entityDTOBuilder = entityDTOBuilder.WithProperty(nodeProperty)
 
 	// reconciliation meta data

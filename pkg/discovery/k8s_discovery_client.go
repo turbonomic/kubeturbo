@@ -3,10 +3,15 @@ package discovery
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	kubeClient "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
 
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
@@ -82,6 +87,11 @@ func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*pr
 
 // DiscoverTopology receives a discovery request from server and start probing the k8s.
 func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*proto.DiscoveryResponse, error) {
+	newDiscoveryResultDTOs, err := dc.DiscoverWithNewFramework()
+	if err != nil {
+		glog.Errorf("Failed to use the new framework to discover current Kubernetes cluster: %s", err)
+	}
+
 	//Discover the Kubernetes topology
 	glog.V(2).Infof("Discovering Kubernetes cluster...")
 
@@ -91,7 +101,7 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 		return nil, fmt.Errorf("Kubenetes client is nil, error")
 	}
 
-	kubeProbe, err := probe.NewKubeProbe(dc.config.kubeClient, dc.config.probeConfig)
+	kubeProbe, err := probe.NewK8sProbe(dc.config.kubeClient, dc.config.probeConfig)
 	if err != nil {
 		// TODO make error dto
 		return nil, fmt.Errorf("Error creating Kubernetes discovery probe:%s", err.Error())
@@ -124,9 +134,64 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 	entityDtos = append(entityDtos, podEntityDtos...)
 	entityDtos = append(entityDtos, appEntityDtos...)
 	entityDtos = append(entityDtos, serviceEntityDtos...)
+
 	discoveryResponse := &proto.DiscoveryResponse{
-		EntityDTO: entityDtos,
+		EntityDTO: newDiscoveryResultDTOs,
+		//EntityDTO: entityDtos,
 	}
 
+	compareDiscoveryResults(entityDtos, newDiscoveryResultDTOs)
+
 	return discoveryResponse, nil
+}
+
+// A testing function for invoking discovery process with the new discovery framework.
+func (dc *K8sDiscoveryClient) DiscoverWithNewFramework() ([]*proto.EntityDTO, error) {
+	workerConfig := worker.NewK8sDiscoveryWorkerConfig(dc.config.kubeClient, dc.config.probeConfig.StitchingPropertyType)
+	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.config.kubeClient)
+	for _, mc := range dc.config.probeConfig.MonitoringConfigs {
+		workerConfig.WithMonitoringWorkerConfig(mc)
+	}
+	// create workers
+	discoveryWorker, err := worker.NewK8sDiscoveryWorker(workerConfig)
+	if err != nil {
+		fmt.Errorf("failed to build discovery worker %s", err)
+	}
+
+	// create tasks
+	listOption := metav1.ListOptions{
+		LabelSelector: labels.Everything().String(),
+		FieldSelector: fields.Everything().String(),
+	}
+	nodeList, err := dc.config.kubeClient.Nodes().List(listOption)
+	var nodes []*api.Node
+	for _, n := range nodeList.Items {
+		node := n
+		nodes = append(nodes, &node)
+	}
+	task := task.NewTask().WithNodes(nodes)
+
+	// assign task
+	discoveryWorker.ReceiveTask(task)
+
+	// TODO make this async
+	// execute task
+	result := discoveryWorker.Do()
+
+	if result.Err() != nil {
+		return nil, fmt.Errorf("failed to discover current Kubernetes cluster with the new discovery framework: %s", result.Err())
+	}
+
+	var entityDTOs []*proto.EntityDTO
+	entityDTOs = append(entityDTOs, result.Content()...)
+
+	svcDiscWorker, err := worker.NewK8sServiceDiscoveryWorker(svcWorkerConfig)
+	svcDiscWorker.ReceiveTask(task)
+	svcDiscResult := svcDiscWorker.Do(entityDTOs)
+	if svcDiscResult.Err() != nil {
+		return nil, fmt.Errorf("failed to discover services from current Kubernetes cluster with the new discovery framework: %s", result.Err())
+	}
+	entityDTOs = append(entityDTOs, svcDiscResult.Content()...)
+
+	return entityDTOs, nil
 }

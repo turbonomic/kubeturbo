@@ -193,7 +193,11 @@ func (this *ApplicationProbe) buildApplicationEntityDTOs(appName, podNamespaceNa
 		entityDTOBuilder = entityDTOBuilder.Monitored(false)
 	}
 
-	appProperties := buildAppProperties(podNamespaceName)
+	podNamespace, podName, err := BreakdownPodClusterID(podNamespaceName)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to build App properties: %s", err)
+	}
+	appProperties := BuildAppProperties(podNamespace, podName)
 	entityDTOBuilder = entityDTOBuilder.WithProperties(appProperties)
 
 	entityDto, err := entityDTOBuilder.Create()
