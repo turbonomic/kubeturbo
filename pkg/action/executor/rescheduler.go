@@ -214,12 +214,17 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 	}
 
 	preScheduler, err := f(r.kubeClient, namespace, parentName, "", DefaultNoneExistSchedulerName)
+	restore := func() {
+		if preScheduler != "" {
+			f(r.kubeClient, namespace, parentName, DefaultNoneExistSchedulerName, preScheduler)
+		}
+	}
+	defer restore()
 	if err != nil {
 		err = fmt.Errorf("move-failed: update pod-%v parent-%v scheduler failed:%v", fullName, parentName, err.Error())
 		glog.Error(err.Error())
 		return nil, err
 	}
-	defer f(r.kubeClient, namespace, parentName, DefaultNoneExistSchedulerName, preScheduler)
 
 	//3. move the Pod
 	npod, err := movePod(r.kubeClient, pod, nodeName)
@@ -241,9 +246,6 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 // return the previous schedulerName
 func updateRSscheduler(client *client.Clientset, nameSpace, rsName, condName, schedulerName string) (string, error) {
 	currentName := ""
-	if schedulerName == "" {
-		return "", fmt.Errorf("update failed: schedulerName is empty")
-	}
 
 	rsClient := client.ExtensionsV1beta1().ReplicaSets(nameSpace)
 	if rsClient == nil {
@@ -306,9 +308,6 @@ func updateRSscheduler(client *client.Clientset, nameSpace, rsName, condName, sc
 // return the previous schedulerName
 func updateRCscheduler(client *client.Clientset, nameSpace, rcName, condName, schedulerName string) (string, error) {
 	currentName := ""
-	if schedulerName == "" {
-		return "", fmt.Errorf("update failed: schedulerName is empty")
-	}
 
 	id := fmt.Sprintf("%v/%v", nameSpace, rcName)
 	rcClient := client.CoreV1().ReplicationControllers(nameSpace)
@@ -425,8 +424,9 @@ func getParentInfo(pod *api.Pod) (string, string, error) {
 
 			var ref api.SerializedReference
 
-			if err := json.Unmarshal([]byte(value), ref); err != nil {
+			if err := json.Unmarshal([]byte(value), &ref); err != nil {
 				err = fmt.Errorf("failed to decode parent annoation:%v", err.Error())
+				glog.Errorf("%v\n%v", err.Error(), value)
 				return "", "", err
 			}
 
