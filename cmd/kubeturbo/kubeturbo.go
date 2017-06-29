@@ -20,7 +20,7 @@ import (
 	"runtime"
 
 	"k8s.io/apiserver/pkg/util/flag"
-	"k8s.io/kubernetes/pkg/version/verflag"
+	"k8s.io/kubernetes/pkg/util/logs"
 
 	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
 
@@ -36,7 +36,8 @@ func main() {
 	s.AddFlags(pflag.CommandLine)
 	flag.InitFlags()
 
-	verflag.PrintAndExitIfRequested()
+	logs.InitLogs()
+	defer logs.FlushLogs()
 
 	s.Run(pflag.CommandLine.Args())
 }
