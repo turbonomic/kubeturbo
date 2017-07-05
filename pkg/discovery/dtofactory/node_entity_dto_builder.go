@@ -119,7 +119,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 		glog.Errorf("Failed to get cpu frequency from sink for node %s: %s", key, err)
 	}
 	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
-	glog.Infof("Frequency is %f", cpuFrequency)
+	glog.V(4).Infof("Frequency is %f", cpuFrequency)
 	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPUProvisioned)
 

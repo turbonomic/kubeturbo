@@ -2,7 +2,6 @@ package worker
 
 import (
 	"errors"
-	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -14,14 +13,13 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 	"github.com/pborman/uuid"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
-	"reflect"
 )
 
 type k8sDiscoveryWorkerConfig struct {
@@ -73,8 +71,7 @@ type k8sDiscoveryWorker struct {
 	// sink is a central place to store all the monitored data.
 	sink *metrics.EntityMetricSink
 
-	// Currently a worker only receives one task at a time.
-	task *task.Task
+	taskChan chan *task.Task
 }
 
 func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig) (*k8sDiscoveryWorker, error) {
@@ -96,7 +93,6 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig) (*k8sDiscoveryWorke
 			if err != nil {
 				// TODO return?
 				glog.Errorf("Failed to build monitoring worker configuration: %v", err)
-				glog.Errorf("%++v", reflect.TypeOf(config))
 				continue
 			}
 			monitorList = append(monitorList, monitoringWorker)
@@ -109,27 +105,43 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig) (*k8sDiscoveryWorke
 		config:           config,
 		monitoringWorker: monitoringWorkerMap,
 		sink:             metrics.NewEntityMetricSink(),
+
+		taskChan: make(chan *task.Task),
 	}, nil
 }
 
-func (worker *k8sDiscoveryWorker) ReceiveTask(task *task.Task) error {
-	if worker.task != nil {
-		return fmt.Errorf("The current worker %s has already been assigned a task and has not finished yet", worker.id)
+func (worker *k8sDiscoveryWorker) RegisterAndRun(dispatcher *Dispatcher, collector *ResultCollector) {
+	worker.registerToDispatcher(dispatcher)
+	//worker.registerToResultCollector(collector)
+	for {
+		select {
+		case currTask := <-worker.taskChan:
+			glog.V(3).Infof("Worker %s has received a discovery task.", worker.id)
+			result := worker.executeTask(currTask)
+			collector.ResultPool() <- result
+			glog.V(3).Infof("Worker %s has finished the discovery task.", worker.id)
+
+			worker.registerToDispatcher(dispatcher)
+
+		}
 	}
-	worker.task = task
-	return nil
+}
+
+func (worker *k8sDiscoveryWorker) registerToDispatcher(dispatcher *Dispatcher) {
+	glog.V(3).Infof("Register current worker %s to dispatcher", worker.id)
+	dispatcher.WorkerPool() <- worker.taskChan
 }
 
 // Worker start to working on task.
-func (worker *k8sDiscoveryWorker) Do() *task.TaskResult {
-	if worker.task == nil {
+func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskResult {
+	if currTask == nil {
 		err := errors.New("No task has been assigned to current worker.")
 		glog.Errorf("%s", err)
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
 
 	// Resource monitoring
-	resourceMonitorTask := worker.task
+	resourceMonitorTask := currTask
 	if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.ResourceMonitor]; exist {
 		for _, rmWorker := range resourceMonitoringWorkers {
 			glog.V(2).Infof("A %s monitoring worker is invoked.", rmWorker.GetMonitoringSource())
@@ -141,11 +153,8 @@ func (worker *k8sDiscoveryWorker) Do() *task.TaskResult {
 		}
 	}
 
-	// Get all pods in the task scope
-	//pods := worker.findPodsRunningInTaskNodes()
-
 	// Topology monitoring
-	clusterMonitorTask := worker.task
+	clusterMonitorTask := currTask
 	if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.StateMonitor]; exist {
 		for _, smWorker := range resourceMonitoringWorkers {
 			// Assign task to monitoring worker.
@@ -156,9 +165,6 @@ func (worker *k8sDiscoveryWorker) Do() *task.TaskResult {
 		}
 	}
 
-	//glog.Infof("Examine all keys in sink")
-	//worker.sink.PrintAllKeys()
-
 	var discoveryResult []*proto.EntityDTO
 	// Build EntityDTO
 	// node
@@ -166,7 +172,7 @@ func (worker *k8sDiscoveryWorker) Do() *task.TaskResult {
 
 	var nodes []runtime.Object
 	nodeNameUIDMap := make(map[string]string)
-	for _, n := range worker.task.NodeList() {
+	for _, n := range currTask.NodeList() {
 		node := n
 		nodes = append(nodes, node)
 		nodeNameUIDMap[node.Name] = string(node.UID)
@@ -183,7 +189,7 @@ func (worker *k8sDiscoveryWorker) Do() *task.TaskResult {
 	discoveryResult = append(discoveryResult, nodeEntityDTOs...)
 
 	// pod
-	pods := worker.findPodsRunningInTaskNodes()
+	pods := worker.findPodsRunningInTaskNodes(currTask.NodeList())
 	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager, nodeNameUIDMap)
 	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods)
 	if err != nil {
@@ -198,23 +204,22 @@ func (worker *k8sDiscoveryWorker) Do() *task.TaskResult {
 	appEntityDTOs, err := applicationEntityDTOBuilder.BuildEntityDTOs(pods)
 	if err != nil {
 		glog.Errorf("Error while creating application entityDTOs: %v", err)
-		// TODO return?
+		// TODO Application discovery fails, return?
 	}
 	discoveryResult = append(discoveryResult, appEntityDTOs...)
 	glog.V(2).Infof("Build %d application entityDTOs.", len(appEntityDTOs))
 
 	// Send result
-
-	glog.V(3).Infof("Discovery Result is: %++v", discoveryResult)
+	glog.V(3).Infof("Discovery result of worker %s is: %++v", worker.id, discoveryResult)
 
 	result := task.NewTaskResult(worker.id, task.TaskSucceeded).WithContent(discoveryResult)
 	return result
 }
 
 // Discover pods running on nodes specified in task.
-func (worker *k8sDiscoveryWorker) findPodsRunningInTaskNodes() []runtime.Object {
+func (worker *k8sDiscoveryWorker) findPodsRunningInTaskNodes(nodes []*api.Node) []runtime.Object {
 	var podList []runtime.Object
-	for _, node := range worker.task.NodeList() {
+	for _, node := range nodes {
 		nodeNonTerminatedPodsList, err := worker.findRunningPods(node.Name)
 		if err != nil {
 			glog.Errorf("Failed to find non-ternimated pods in %s", node.Name)

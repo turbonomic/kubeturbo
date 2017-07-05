@@ -2,12 +2,13 @@ package discovery
 
 import (
 	"fmt"
+	"sync"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	kubeClient "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
@@ -20,6 +21,11 @@ import (
 	"github.com/golang/glog"
 )
 
+const (
+	// TODO make this number programmatically.
+	workerCount int = 4
+)
+
 // TODO maybe use a discovery client config
 type DiscoveryConfig struct {
 	kubeClient  *kubeClient.Clientset
@@ -28,9 +34,9 @@ type DiscoveryConfig struct {
 	targetConfig *K8sTargetConfig
 }
 
-func NewDiscoveryConfig(kubeCli *kubeClient.Clientset, probeConfig *probe.ProbeConfig, targetConfig *K8sTargetConfig) *DiscoveryConfig {
+func NewDiscoveryConfig(kubeClient *kubeClient.Clientset, probeConfig *probe.ProbeConfig, targetConfig *K8sTargetConfig) *DiscoveryConfig {
 	return &DiscoveryConfig{
-		kubeClient:   kubeCli,
+		kubeClient:   kubeClient,
 		probeConfig:  probeConfig,
 		targetConfig: targetConfig,
 	}
@@ -38,12 +44,27 @@ func NewDiscoveryConfig(kubeCli *kubeClient.Clientset, probeConfig *probe.ProbeC
 
 type K8sDiscoveryClient struct {
 	config *DiscoveryConfig
+
+	dispatcher      *worker.Dispatcher
+	resultCollector *worker.ResultCollector
+
+	wg sync.WaitGroup
 }
 
 func NewK8sDiscoveryClient(config *DiscoveryConfig) *K8sDiscoveryClient {
-	return &K8sDiscoveryClient{
-		config: config,
+	// make maxWorkerCount of result collector twice the worker count.
+	resultCollector := worker.NewResultCollector(workerCount * 2)
+
+	dispatcherConfig := worker.NewDispatcherConfig(config.kubeClient, config.probeConfig, workerCount)
+	dispatcher := worker.NewDispatcher(dispatcherConfig)
+	dispatcher.Init(resultCollector)
+
+	dc := &K8sDiscoveryClient{
+		config:          config,
+		dispatcher:      dispatcher,
+		resultCollector: resultCollector,
 	}
+	return dc
 }
 
 func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTargetInfo {
@@ -92,6 +113,21 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 		glog.Errorf("Failed to use the new framework to discover current Kubernetes cluster: %s", err)
 	}
 
+	discoveryResponse := &proto.DiscoveryResponse{
+		EntityDTO: newDiscoveryResultDTOs,
+		//EntityDTO: entityDtos,
+	}
+
+	oldDiscoveryResult, err := dc.discoveryWithOldFramework()
+	if err != nil {
+		glog.Errorf("Failed to discovery with the old framework: %s", err)
+	} else {
+		compareDiscoveryResults(oldDiscoveryResult, newDiscoveryResultDTOs)
+	}
+	return discoveryResponse, nil
+}
+
+func (dc *K8sDiscoveryClient) discoveryWithOldFramework() ([]*proto.EntityDTO, error) {
 	//Discover the Kubernetes topology
 	glog.V(2).Infof("Discovering Kubernetes cluster...")
 
@@ -135,63 +171,39 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 	entityDtos = append(entityDtos, appEntityDtos...)
 	entityDtos = append(entityDtos, serviceEntityDtos...)
 
-	discoveryResponse := &proto.DiscoveryResponse{
-		EntityDTO: newDiscoveryResultDTOs,
-		//EntityDTO: entityDtos,
-	}
-
-	compareDiscoveryResults(entityDtos, newDiscoveryResultDTOs)
-
-	return discoveryResponse, nil
+	return entityDtos, nil
 }
 
 // A testing function for invoking discovery process with the new discovery framework.
 func (dc *K8sDiscoveryClient) DiscoverWithNewFramework() ([]*proto.EntityDTO, error) {
-	workerConfig := worker.NewK8sDiscoveryWorkerConfig(dc.config.kubeClient, dc.config.probeConfig.StitchingPropertyType)
-	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.config.kubeClient)
-	for _, mc := range dc.config.probeConfig.MonitoringConfigs {
-		workerConfig.WithMonitoringWorkerConfig(mc)
-	}
-	// create workers
-	discoveryWorker, err := worker.NewK8sDiscoveryWorker(workerConfig)
-	if err != nil {
-		fmt.Errorf("failed to build discovery worker %s", err)
-	}
-
-	// create tasks
 	listOption := metav1.ListOptions{
 		LabelSelector: labels.Everything().String(),
 		FieldSelector: fields.Everything().String(),
 	}
 	nodeList, err := dc.config.kubeClient.Nodes().List(listOption)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list all nodes in the cluster: %s", err)
+	}
 	var nodes []*api.Node
 	for _, n := range nodeList.Items {
 		node := n
 		nodes = append(nodes, &node)
 	}
-	task := task.NewTask().WithNodes(nodes)
 
-	// assign task
-	discoveryWorker.ReceiveTask(task)
+	workerCount := dc.dispatcher.Dispatch(nodes, workerCount)
+	entityDTOs := dc.resultCollector.Collect(workerCount)
+	glog.V(3).Infof("Discovery workers have finished discovery work with %d entityDTOs built. Now performing service discovery...", len(entityDTOs))
 
-	// TODO make this async
-	// execute task
-	result := discoveryWorker.Do()
-
-	if result.Err() != nil {
-		return nil, fmt.Errorf("failed to discover current Kubernetes cluster with the new discovery framework: %s", result.Err())
-	}
-
-	var entityDTOs []*proto.EntityDTO
-	entityDTOs = append(entityDTOs, result.Content()...)
-
+	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.config.kubeClient)
 	svcDiscWorker, err := worker.NewK8sServiceDiscoveryWorker(svcWorkerConfig)
-	svcDiscWorker.ReceiveTask(task)
+	svcTask := task.NewTask().WithNodes(nodes)
+	svcDiscWorker.ReceiveTask(svcTask)
 	svcDiscResult := svcDiscWorker.Do(entityDTOs)
 	if svcDiscResult.Err() != nil {
-		return nil, fmt.Errorf("failed to discover services from current Kubernetes cluster with the new discovery framework: %s", result.Err())
+		glog.Errorf("failed to discover services from current Kubernetes cluster with the new discovery framework: %s", svcDiscResult.Err())
+	} else {
+		entityDTOs = append(entityDTOs, svcDiscResult.Content()...)
 	}
-	entityDTOs = append(entityDTOs, svcDiscResult.Content()...)
 
 	return entityDTOs, nil
 }

@@ -133,12 +133,10 @@ func (m *K8sConntrackMonitor) scrapeK8sConntrack(node *api.Node) {
 
 // Parse transaction data and create metrics.
 func (m *K8sConntrackMonitor) parseTransactionData(runningPods map[*api.Pod]struct{}, podIPMap map[string]*api.Pod, transactionData []Transaction) {
-	//backupIPMap := make(map[string]*api.Pod)
-
 	for _, transaction := range transactionData {
 		for ep, transactionUsedCount := range transaction.EndpointsCounterMap {
 			if pod, found := podIPMap[ep]; found {
-				glog.V(3).Infof("Transaction count usage of pod %s is %f",
+				glog.V(4).Infof("Transaction count usage of pod %s is %f",
 					util.GetPodClusterID(pod), transactionUsedCount)
 
 				// application transaction used
@@ -159,7 +157,6 @@ func (m *K8sConntrackMonitor) parseTransactionData(runningPods map[*api.Pod]stru
 					serviceTransactionUsedCountMetrics)
 
 				delete(runningPods, pod)
-				//backupIPMap[ep] = pod
 			} else {
 				glog.Warningf("Don't find pod with IP: %s", ep)
 			}
@@ -168,7 +165,7 @@ func (m *K8sConntrackMonitor) parseTransactionData(runningPods map[*api.Pod]stru
 
 	// TODO for now, if we don't find transaction value for a pod, we assign it to 0.
 	for pod := range runningPods {
-		glog.V(3).Infof("Assign 0 transaction to pod %s", util.GetPodClusterID(pod))
+		glog.V(4).Infof("Assign 0 transaction to pod %s", util.GetPodClusterID(pod))
 		podTransactionUsedCountMetrics := metrics.NewEntityResourceMetric(task.ApplicationType,
 			util.PodKeyFunc(pod), metrics.Transaction, metrics.Used, zeroTransactionUsed)
 
@@ -183,11 +180,7 @@ func (m *K8sConntrackMonitor) parseTransactionData(runningPods map[*api.Pod]stru
 			podTransactionCapacityCountMetrics,
 			serviceTransactionUsedCountMetrics)
 
-		//backupIPMap[ep] = pod
 	}
-
-	//podIPMap = backupIPMap
-
 }
 
 func (m *K8sConntrackMonitor) findRunningPodOnNode(nodeName string) (map[*api.Pod]struct{}, error) {
@@ -204,7 +197,6 @@ func (m *K8sConntrackMonitor) findRunningPodOnNode(nodeName string) (map[*api.Po
 	for _, p := range podList.Items {
 		pod := p
 		runningPods[&pod] = struct{}{}
-		glog.Infof("Find pod %s running on %s", util.GetPodClusterID(&pod), nodeName)
 	}
 	return runningPods, nil
 }

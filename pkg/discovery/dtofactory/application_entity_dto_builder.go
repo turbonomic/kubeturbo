@@ -117,7 +117,7 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesSold(pod *a
 	if !ok {
 		return nil, errors.New("Failed to get cluster ID")
 	}
-	glog.V(3).Infof("Cluster key is %s", clusterCommodityKey)
+	glog.V(4).Infof("Cluster key is %s", clusterCommodityKey)
 
 	var commoditiesSold []*proto.CommodityDTO
 	// As all the application commodities are actually retrieved from pods, so the key is also from pod.
@@ -127,7 +127,6 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesSold(pod *a
 	attributeSetter := NewCommodityAttrSetter()
 	//attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)
 	transactionCommKey := FindTransactionCommodityKey(pod, clusterCommodityKey)
-	glog.Infof("Transaction commodity key of application running in %s is %s", probe.GetPodClusterIDFromPod(pod), transactionCommKey)
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Key(transactionCommKey) }, metrics.Transaction)
 
 	// transaction
@@ -167,8 +166,6 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(pod 
 	if err != nil {
 		return nil, err
 	}
-	glog.Infof("Application App-%s bought %d resource commodities", key, len(resourceCommoditiesBought))
-	glog.Infof("Application App-%s bought resource commodities: %++v", key, resourceCommoditiesBought)
 	commoditiesBought = append(commoditiesBought, resourceCommoditiesBought...)
 
 	// Application commodity

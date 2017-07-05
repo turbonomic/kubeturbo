@@ -82,6 +82,7 @@ func (svcDiscWorker *k8sServiceDiscoveryWorker) Do(entityDTOs []*proto.EntityDTO
 	if err != nil {
 		return task.NewTaskResult(svcDiscWorker.id, task.TaskFailed).WithErr(err)
 	}
+	glog.V(3).Infof("Service discovery result is: %++v", svcDiscoveryResult)
 	result := task.NewTaskResult(svcDiscWorker.id, task.TaskSucceeded).WithContent(svcDiscoveryResult)
 	return result
 }

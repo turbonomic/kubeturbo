@@ -120,7 +120,7 @@ func (builder generalBuilder) getResourceCommoditiesSold(entityType task.Discove
 		if converter != nil && converter.Convertible(rType) {
 			oldValue := usedValue
 			usedValue = converter.Convert(rType, usedValue)
-			glog.Infof("Convert %s used value from %f to %f for %s - %s", rType, oldValue, usedValue, entityType, entityID)
+			glog.V(4).Infof("Convert %s used value from %f to %f for %s - %s", rType, oldValue, usedValue, entityType, entityID)
 		}
 		commBoughtBuilder.Used(usedValue)
 
@@ -135,7 +135,7 @@ func (builder generalBuilder) getResourceCommoditiesSold(entityType task.Discove
 		if converter != nil && converter.Convertible(rType) {
 			oldValue := capacityValue
 			capacityValue = converter.Convert(rType, capacityValue)
-			glog.Infof("Convert %s capacity value from %f to %f for %s - %s", rType, oldValue, capacityValue, entityType, entityID)
+			glog.V(4).Infof("Convert %s capacity value from %f to %f for %s - %s", rType, oldValue, capacityValue, entityType, entityID)
 
 		}
 		commBoughtBuilder.Capacity(capacityValue)
