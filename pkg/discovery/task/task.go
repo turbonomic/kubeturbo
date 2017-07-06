@@ -25,7 +25,7 @@ type Task struct {
 	uid string
 
 	nodeList []*api.Node
-	podList  []api.Pod
+	podList  []*api.Pod
 }
 
 // Worker task is consisted of a list of nodes the worker must discover.
@@ -37,16 +37,14 @@ func NewTask() *Task {
 
 // Assign nodes to the task.
 func (t *Task) WithNodes(nodeList []*api.Node) *Task {
-	return &Task{
-		nodeList: nodeList,
-	}
+	t.nodeList = nodeList
+	return t
 }
 
 // Assign pods to the task.
-func (t *Task) WithPods(podList []api.Pod) *Task {
-	return &Task{
-		podList: podList,
-	}
+func (t *Task) WithPods(podList []*api.Pod) *Task {
+	t.podList = podList
+	return t
 }
 
 // Get node list from the task.
@@ -55,7 +53,7 @@ func (t *Task) NodeList() []*api.Node {
 }
 
 // Get pod list from the task.
-func (t *Task) PodList() []api.Pod {
+func (t *Task) PodList() []*api.Pod {
 	return t.podList
 }
 

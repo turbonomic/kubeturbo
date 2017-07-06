@@ -1,12 +1,6 @@
 package k8sconntrack
 
 import (
-	"fmt"
-
-	"k8s.io/client-go/kubernetes"
-	client "k8s.io/client-go/kubernetes"
-	restclient "k8s.io/client-go/rest"
-
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 )
 
@@ -16,9 +10,6 @@ const (
 
 // Config for building a K8sConntrack monitor worker.
 type K8sConntrackMonitorConfig struct {
-	// Kubernetes client to connect to a Kubernetes cluster.
-	kubeClient *client.Clientset
-
 	// the port number of K8sConntrack agent running on each node.
 	port int64
 
@@ -26,16 +17,11 @@ type K8sConntrackMonitorConfig struct {
 	enableHttps bool
 }
 
-func NewK8sConntrackMonitorConfig(kubeConfig *restclient.Config) (*K8sConntrackMonitorConfig, error) {
-	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create kubeConfig: %s", err)
-	}
+func NewK8sConntrackMonitorConfig() *K8sConntrackMonitorConfig {
 	return &K8sConntrackMonitorConfig{
-		kubeClient:  kubeClient,
 		port:        defaultK8sConntrackPort,
 		enableHttps: false,
-	}, nil
+	}
 }
 
 // Assign a different port if it is not default port.

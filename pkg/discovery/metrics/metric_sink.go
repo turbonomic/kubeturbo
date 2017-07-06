@@ -2,10 +2,11 @@ package metrics
 
 import (
 	"fmt"
+	"reflect"
+
+	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/turbostore"
-	"reflect"
 )
 
 type EntityMetricSink struct {
@@ -20,10 +21,12 @@ func NewEntityMetricSink() *EntityMetricSink {
 
 // Add one or more metric entries to sink.
 func (s *EntityMetricSink) AddNewMetricEntries(metric ...Metric) {
+	entries := make(map[string]interface{})
 	for _, m := range metric {
 		key := m.GetUID()
-		s.data.Add(key, m)
+		entries[key] = m
 	}
+	s.data.AddAll(entries)
 }
 
 func (s *EntityMetricSink) UpdateMetricEntry(metric Metric) {
@@ -60,7 +63,6 @@ func (s *EntityMetricSink) MergeSink(anotherSink *EntityMetricSink, filterFunc M
 			glog.Errorf("Failed the filterFunc.")
 			continue
 		}
-		//glog.Infof("Update metric to current sink: %++v", metric)
 		s.UpdateMetricEntry(metric)
 	}
 }

@@ -24,6 +24,15 @@ func (s *Cache) Add(key string, obj interface{}) {
 	s.items[key] = obj
 }
 
+func (s *Cache) AddAll(entries map[string]interface{}) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	for key, obj := range entries {
+		s.items[key] = obj
+	}
+}
+
 func (s *Cache) Delete(key string) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()

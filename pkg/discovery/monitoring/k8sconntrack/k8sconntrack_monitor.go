@@ -4,8 +4,6 @@ import (
 	"errors"
 	"sync"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -29,6 +27,8 @@ type K8sConntrackMonitor struct {
 	k8sConntrackClient *K8sConntrackClient
 
 	nodeList []*api.Node
+
+	nodePodMap map[string][]*api.Pod
 
 	metricSink *metrics.EntityMetricSink
 
@@ -59,6 +59,7 @@ func (m *K8sConntrackMonitor) GetMonitoringSource() types.MonitoringSource {
 // Implement MonitoringWorker interface.
 func (m *K8sConntrackMonitor) ReceiveTask(task *task.Task) {
 	m.nodeList = task.NodeList()
+	m.nodePodMap = util.GroupPodsByNode(task.PodList())
 }
 
 // Implement MonitoringWorker interface.
@@ -106,9 +107,9 @@ func (m *K8sConntrackMonitor) scrapeK8sConntrack(node *api.Node) {
 	defer m.wg.Done()
 
 	// build pod IP map.
-	runningPods, err := m.findRunningPodOnNode(node.Name)
-	if err != nil {
-		glog.Errorf("Failed to get all running pods on node %s: %s", node.Name, err)
+	runningPods, exist := m.nodePodMap[node.Name]
+	if !exist {
+		glog.Errorf("Failed to get all running pods on node %s.", node.Name)
 		return
 	}
 	podIPMap := m.findPodsIPMapOnNode(runningPods)
@@ -132,7 +133,13 @@ func (m *K8sConntrackMonitor) scrapeK8sConntrack(node *api.Node) {
 }
 
 // Parse transaction data and create metrics.
-func (m *K8sConntrackMonitor) parseTransactionData(runningPods map[*api.Pod]struct{}, podIPMap map[string]*api.Pod, transactionData []Transaction) {
+func (m *K8sConntrackMonitor) parseTransactionData(pods []*api.Pod, podIPMap map[string]*api.Pod, transactionData []Transaction) {
+	runningPodSet := make(map[*api.Pod]struct{})
+	for _, p := range pods {
+		pod := p
+		runningPodSet[pod] = struct{}{}
+	}
+
 	for _, transaction := range transactionData {
 		for ep, transactionUsedCount := range transaction.EndpointsCounterMap {
 			if pod, found := podIPMap[ep]; found {
@@ -156,7 +163,7 @@ func (m *K8sConntrackMonitor) parseTransactionData(runningPods map[*api.Pod]stru
 					appTransactionCapacityCountMetrics,
 					serviceTransactionUsedCountMetrics)
 
-				delete(runningPods, pod)
+				delete(runningPodSet, pod)
 			} else {
 				glog.Warningf("Don't find pod with IP: %s", ep)
 			}
@@ -164,7 +171,7 @@ func (m *K8sConntrackMonitor) parseTransactionData(runningPods map[*api.Pod]stru
 	}
 
 	// TODO for now, if we don't find transaction value for a pod, we assign it to 0.
-	for pod := range runningPods {
+	for pod := range runningPodSet {
 		glog.V(4).Infof("Assign 0 transaction to pod %s", util.GetPodClusterID(pod))
 		podTransactionUsedCountMetrics := metrics.NewEntityResourceMetric(task.ApplicationType,
 			util.PodKeyFunc(pod), metrics.Transaction, metrics.Used, zeroTransactionUsed)
@@ -183,29 +190,11 @@ func (m *K8sConntrackMonitor) parseTransactionData(runningPods map[*api.Pod]stru
 	}
 }
 
-func (m *K8sConntrackMonitor) findRunningPodOnNode(nodeName string) (map[*api.Pod]struct{}, error) {
-	fieldSelector, err := fields.ParseSelector("spec.nodeName=" + nodeName + ",status.phase=" +
-		string(api.PodRunning))
-	if err != nil {
-		return nil, err
-	}
-	podList, err := m.config.kubeClient.CoreV1().Pods(api.NamespaceAll).List(metav1.ListOptions{FieldSelector: fieldSelector.String()})
-	if err != nil {
-		return nil, err
-	}
-	runningPods := make(map[*api.Pod]struct{})
-	for _, p := range podList.Items {
-		pod := p
-		runningPods[&pod] = struct{}{}
-	}
-	return runningPods, nil
-}
-
 // Create a map for the pods running in the given node.
 // key: pod IP address; value: pod.
-func (m *K8sConntrackMonitor) findPodsIPMapOnNode(runningPods map[*api.Pod]struct{}) map[string]*api.Pod {
+func (m *K8sConntrackMonitor) findPodsIPMapOnNode(runningPods []*api.Pod) map[string]*api.Pod {
 	podIPMap := make(map[string]*api.Pod)
-	for pod := range runningPods {
+	for _, pod := range runningPods {
 		podIPMap[pod.Status.PodIP] = pod
 	}
 	return podIPMap

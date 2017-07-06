@@ -15,25 +15,21 @@ import (
 )
 
 type ClusterMonitor struct {
-	clusterInfoScraper *ClusterInfoScraper
+	config *ClusterMonitorConfig
 
 	sink *metrics.EntityMetricSink
 
 	nodeList []*api.Node
 
-	nodePodList map[string]*api.PodList
+	nodePodMap map[string][]*api.Pod
 
 	nodeResourceCapacities map[string]*nodeInfo
 }
 
 func NewClusterMonitor(config *ClusterMonitorConfig) (*ClusterMonitor, error) {
-	clusterInfoScraper, err := newClusterInfoScraper(config.kubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("Invalid API configuration: %v", err)
-	}
 
 	return &ClusterMonitor{
-		clusterInfoScraper: clusterInfoScraper,
+		config: config,
 	}, nil
 }
 
@@ -43,6 +39,7 @@ func (m *ClusterMonitor) GetMonitoringSource() types.MonitoringSource {
 
 func (m *ClusterMonitor) ReceiveTask(task *task.Task) {
 	m.nodeList = task.NodeList()
+	m.nodePodMap = util.GroupPodsByNode(task.PodList())
 }
 
 func (m *ClusterMonitor) Do() *metrics.EntityMetricSink {
@@ -62,8 +59,6 @@ func (m *ClusterMonitor) RetrieveClusterStat() error {
 		return fmt.Errorf("Failed to find cluster ID based on Kubernetes service: %v", err)
 	}
 
-	m.nodePodList = m.clusterInfoScraper.groupPodsByNodeNames(m.nodeList)
-
 	m.findNodeStates()
 	m.findPodStates()
 
@@ -80,7 +75,7 @@ func (m *ClusterMonitor) reset() {
 // Get the cluster ID of the Kubernetes cluster.
 // Use Kubernetes service UID as the key for cluster commodity
 func (m *ClusterMonitor) findClusterID() error {
-	kubernetesSvcID, err := GetKubernetesServiceID(m.clusterInfoScraper.kubeClient)
+	kubernetesSvcID, err := m.config.clusterInfoScraper.GetKubernetesServiceID()
 	if err != nil {
 		return err
 	}
@@ -157,7 +152,7 @@ func (m *ClusterMonitor) getNodeResourceMetrics(node *api.Node) ([]metrics.Entit
 	nodeResourceMetrics = append(nodeResourceMetrics, nodeCpuProvisionedCapacityCoreMetrics, nodeMemoryProvisionedCapacityKiloBytesMetrics)
 
 	// Provisioned resource used is the sum of all the requested resource of all the pods running in the node.
-	nodeCpuProvisionedUsedCore, nodeMemoryProvisionedUsedKiloBytes, err := util.GetNodeResourceRequestConsumption(m.nodePodList[node.Name])
+	nodeCpuProvisionedUsedCore, nodeMemoryProvisionedUsedKiloBytes, err := util.GetNodeResourceRequestConsumption(m.nodePodMap[node.Name])
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provision used metrics: %s", err)
 	}
@@ -191,16 +186,14 @@ func parseNodeLabels(node *api.Node) metrics.EntityStateMetric {
 
 // ----------------------------------------------- Pod State -------------------------------------------------
 func (m *ClusterMonitor) findPodStates() {
-	for _, podList := range m.nodePodList {
-		for _, p := range podList.Items {
-			pod := p
-
-			key := util.PodKeyFunc(&pod)
+	for _, podList := range m.nodePodMap {
+		for _, pod := range podList {
+			key := util.PodKeyFunc(pod)
 			if key == "" {
 				glog.Warning("Not a valid pod.")
 				continue
 			}
-			podResourceMetrics, err := m.getPodResourceMetric(&pod)
+			podResourceMetrics, err := m.getPodResourceMetric(pod)
 			if err != nil {
 				glog.Errorf("Failed to find resource metric for pod %s: %s", key, err)
 			}

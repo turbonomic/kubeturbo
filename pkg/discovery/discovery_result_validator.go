@@ -2,10 +2,12 @@ package discovery
 
 import (
 	"fmt"
-	"github.com/golang/glog"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"math"
 	"reflect"
+
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+
+	"github.com/golang/glog"
 )
 
 func compareDiscoveryResults(discResFromOldFramework, discResFromNewFramework []*proto.EntityDTO) {

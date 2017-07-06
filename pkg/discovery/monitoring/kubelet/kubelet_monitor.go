@@ -141,10 +141,10 @@ func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats) {
 		var cpuUsageNanoCoreSum uint64
 		var memoryUsageBytesSum uint64
 		for _, containerStat := range podStat.Containers {
-			if containerStat.CPU != nil {
+			if containerStat.CPU != nil && containerStat.CPU.UsageNanoCores != nil {
 				cpuUsageNanoCoreSum += *containerStat.CPU.UsageNanoCores
 			}
-			if containerStat.Memory != nil {
+			if containerStat.Memory != nil && containerStat.Memory.UsageBytes != nil {
 				memoryUsageBytesSum += *containerStat.Memory.UsageBytes
 			}
 		}

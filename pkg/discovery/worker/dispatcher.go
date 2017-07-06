@@ -4,27 +4,27 @@ import (
 	"fmt"
 	"math"
 
-	kubeClient "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 )
 
 type DispatcherConfig struct {
-	kubeClient  *kubeClient.Clientset
-	probeConfig *probe.ProbeConfig
+	clusterInfoScraper *cluster.ClusterScraper
+	probeConfig        *probe.ProbeConfig
 
 	workerCount int
 }
 
-func NewDispatcherConfig(kubeClient *kubeClient.Clientset, probeConfig *probe.ProbeConfig, workerCount int) *DispatcherConfig {
+func NewDispatcherConfig(clusterInfoScraper *cluster.ClusterScraper, probeConfig *probe.ProbeConfig, workerCount int) *DispatcherConfig {
 	return &DispatcherConfig{
-		kubeClient:  kubeClient,
-		probeConfig: probeConfig,
-		workerCount: workerCount,
+		clusterInfoScraper: clusterInfoScraper,
+		probeConfig:        probeConfig,
+		workerCount:        workerCount,
 	}
 }
 
@@ -44,7 +44,7 @@ func NewDispatcher(config *DispatcherConfig) *Dispatcher {
 
 func (d *Dispatcher) Init(c *ResultCollector) {
 	for i := 0; i < d.config.workerCount; i++ {
-		workerConfig := NewK8sDiscoveryWorkerConfig(d.config.kubeClient, d.config.probeConfig.StitchingPropertyType)
+		workerConfig := NewK8sDiscoveryWorkerConfig(d.config.probeConfig.StitchingPropertyType)
 		for _, mc := range d.config.probeConfig.MonitoringConfigs {
 			workerConfig.WithMonitoringWorkerConfig(mc)
 		}
@@ -58,19 +58,20 @@ func (d *Dispatcher) Init(c *ResultCollector) {
 	}
 }
 
-func (d *Dispatcher) WorkerPool() chan chan *task.Task {
-	return d.workerPool
+func (d *Dispatcher) RegisterWorker(worker *k8sDiscoveryWorker) {
+	d.workerPool <- worker.taskChan
 }
 
-func (d *Dispatcher) Dispatch(nodes []*api.Node, workerCount int) int {
+func (d *Dispatcher) Dispatch(nodes []*api.Node) int {
 	// make sure when len(node) < workerCount, worker will receive at most 1 node to discover
-	perTaskNodeLength := int(math.Ceil(float64(len(nodes)) / float64(workerCount)))
+	perTaskNodeLength := int(math.Ceil(float64(len(nodes)) / float64(d.config.workerCount)))
 	glog.V(3).Infof("The number of nodes per task is: %d", perTaskNodeLength)
 	assignedNodesCount := 0
 	assignedWorkerCount := 0
 	for assignedNodesCount+perTaskNodeLength <= len(nodes) {
 		currNodes := nodes[assignedNodesCount : assignedNodesCount+perTaskNodeLength]
-		currTask := task.NewTask().WithNodes(currNodes)
+		currPods := d.config.clusterInfoScraper.GetRunningPodsOnNodes(currNodes)
+		currTask := task.NewTask().WithNodes(currNodes).WithPods(currPods)
 		d.assignTask(currTask)
 
 		assignedNodesCount += perTaskNodeLength

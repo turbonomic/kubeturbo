@@ -1,11 +1,13 @@
 package util
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 
-	api "k8s.io/client-go/pkg/api/v1"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
+	api "k8s.io/client-go/pkg/api/v1"
+
+	"github.com/golang/glog"
 )
 
 func GetNodeIPForMonitor(node *api.Node, source types.MonitoringSource) (string, error) {
@@ -27,4 +29,20 @@ func GetNodeIPForMonitor(node *api.Node, source types.MonitoringSource) (string,
 	default:
 		return "", errors.New("Unsupported monitoring source or monitoring source not provided")
 	}
+}
+
+// Check if a node is in Ready status.
+func NodeIsReady(node *api.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == api.NodeReady {
+			return condition.Status == api.ConditionTrue
+		}
+	}
+	glog.Errorf("Node %s does not have Ready status.", node.Name)
+	return false
+}
+
+// Check if a node is schedulable.
+func NodeIsSchedulable(node *api.Node) bool {
+	return !node.Spec.Unschedulable
 }

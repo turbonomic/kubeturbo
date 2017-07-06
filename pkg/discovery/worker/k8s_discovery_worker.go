@@ -3,12 +3,6 @@ package worker
 import (
 	"errors"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/runtime"
-	client "k8s.io/client-go/kubernetes"
-	api "k8s.io/client-go/pkg/api/v1"
-
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
@@ -23,8 +17,7 @@ import (
 )
 
 type k8sDiscoveryWorkerConfig struct {
-	// TODO, once we know what are the required method, we can use a clusterAccessor.
-	kubeClient *client.Clientset
+	//k8sClusterScraper *cluster.ClusterScraper
 
 	// a collection of all configs for building different monitoring clients.
 	// key: monitor type; value: monitor worker config.
@@ -33,9 +26,8 @@ type k8sDiscoveryWorkerConfig struct {
 	stitchingPropertyType stitching.StitchingPropertyType
 }
 
-func NewK8sDiscoveryWorkerConfig(kubeClient *client.Clientset, sType stitching.StitchingPropertyType) *k8sDiscoveryWorkerConfig {
+func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType) *k8sDiscoveryWorkerConfig {
 	return &k8sDiscoveryWorkerConfig{
-		kubeClient:              kubeClient,
 		stitchingPropertyType:   sType,
 		monitoringSourceConfigs: make(map[types.MonitorType][]monitoring.MonitorWorkerConfig),
 	}
@@ -111,7 +103,7 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig) (*k8sDiscoveryWorke
 }
 
 func (worker *k8sDiscoveryWorker) RegisterAndRun(dispatcher *Dispatcher, collector *ResultCollector) {
-	worker.registerToDispatcher(dispatcher)
+	dispatcher.RegisterWorker(worker)
 	//worker.registerToResultCollector(collector)
 	for {
 		select {
@@ -121,15 +113,9 @@ func (worker *k8sDiscoveryWorker) RegisterAndRun(dispatcher *Dispatcher, collect
 			collector.ResultPool() <- result
 			glog.V(3).Infof("Worker %s has finished the discovery task.", worker.id)
 
-			worker.registerToDispatcher(dispatcher)
-
+			dispatcher.RegisterWorker(worker)
 		}
 	}
-}
-
-func (worker *k8sDiscoveryWorker) registerToDispatcher(dispatcher *Dispatcher) {
-	glog.V(3).Infof("Register current worker %s to dispatcher", worker.id)
-	dispatcher.WorkerPool() <- worker.taskChan
 }
 
 // Worker start to working on task.
@@ -144,12 +130,14 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	resourceMonitorTask := currTask
 	if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.ResourceMonitor]; exist {
 		for _, rmWorker := range resourceMonitoringWorkers {
-			glog.V(2).Infof("A %s monitoring worker is invoked.", rmWorker.GetMonitoringSource())
-			// Assign task to monitoring worker.
-			rmWorker.ReceiveTask(resourceMonitorTask)
-			monitoringSink := rmWorker.Do()
-			// Don't do any filtering
-			worker.sink.MergeSink(monitoringSink, nil)
+			go func() {
+				glog.V(2).Infof("A %s monitoring worker is invoked.", rmWorker.GetMonitoringSource())
+				// Assign task to monitoring worker.
+				rmWorker.ReceiveTask(resourceMonitorTask)
+				monitoringSink := rmWorker.Do()
+				// Don't do any filtering
+				worker.sink.MergeSink(monitoringSink, nil)
+			}()
 		}
 	}
 
@@ -157,11 +145,13 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	clusterMonitorTask := currTask
 	if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.StateMonitor]; exist {
 		for _, smWorker := range resourceMonitoringWorkers {
-			// Assign task to monitoring worker.
-			smWorker.ReceiveTask(clusterMonitorTask)
-			monitoringSink := smWorker.Do()
-			// Don't do any filtering
-			worker.sink.MergeSink(monitoringSink, nil)
+			go func() {
+				// Assign task to monitoring worker.
+				smWorker.ReceiveTask(clusterMonitorTask)
+				monitoringSink := smWorker.Do()
+				// Don't do any filtering
+				worker.sink.MergeSink(monitoringSink, nil)
+			}()
 		}
 	}
 
@@ -170,11 +160,9 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	// node
 	stitchingManager := stitching.NewStitchingManager(worker.config.stitchingPropertyType)
 
-	var nodes []runtime.Object
+	nodes := currTask.NodeList()
 	nodeNameUIDMap := make(map[string]string)
-	for _, n := range currTask.NodeList() {
-		node := n
-		nodes = append(nodes, node)
+	for _, node := range nodes {
 		nodeNameUIDMap[node.Name] = string(node.UID)
 		stitchingManager.StoreStitchingValue(node)
 	}
@@ -185,11 +173,11 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		glog.Errorf("Error while creating node entityDTOs: %v", err)
 		// TODO Node discovery fails, directly return?
 	}
-	glog.V(2).Infof("Build %d node entityDTOs.", len(nodeEntityDTOs))
+	glog.V(2).Infof("Worker %s builds %d node entityDTOs.", worker.id, len(nodeEntityDTOs))
 	discoveryResult = append(discoveryResult, nodeEntityDTOs...)
 
 	// pod
-	pods := worker.findPodsRunningInTaskNodes(currTask.NodeList())
+	pods := currTask.PodList()
 	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager, nodeNameUIDMap)
 	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods)
 	if err != nil {
@@ -197,7 +185,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		// TODO Pod discovery fails, directly return?
 	}
 	discoveryResult = append(discoveryResult, podEntityDTOs...)
-	glog.V(2).Infof("Build %d pod entityDTOs.", len(podEntityDTOs))
+	glog.V(2).Infof("Worker %s builds %d pod entityDTOs.", worker.id, len(podEntityDTOs))
 
 	// application
 	applicationEntityDTOBuilder := dtofactory.NewApplicationEntityDTOBuilder(worker.sink)
@@ -207,37 +195,11 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		// TODO Application discovery fails, return?
 	}
 	discoveryResult = append(discoveryResult, appEntityDTOs...)
-	glog.V(2).Infof("Build %d application entityDTOs.", len(appEntityDTOs))
+	glog.V(2).Infof("Worker %s builds %d application entityDTOs.", worker.id, len(appEntityDTOs))
 
 	// Send result
 	glog.V(3).Infof("Discovery result of worker %s is: %++v", worker.id, discoveryResult)
 
 	result := task.NewTaskResult(worker.id, task.TaskSucceeded).WithContent(discoveryResult)
 	return result
-}
-
-// Discover pods running on nodes specified in task.
-func (worker *k8sDiscoveryWorker) findPodsRunningInTaskNodes(nodes []*api.Node) []runtime.Object {
-	var podList []runtime.Object
-	for _, node := range nodes {
-		nodeNonTerminatedPodsList, err := worker.findRunningPods(node.Name)
-		if err != nil {
-			glog.Errorf("Failed to find non-ternimated pods in %s", node.Name)
-			continue
-		}
-		for _, p := range nodeNonTerminatedPodsList.Items {
-			pod := p
-			podList = append(podList, &pod)
-		}
-	}
-	return podList
-}
-
-func (worker *k8sDiscoveryWorker) findRunningPods(nodeName string) (*api.PodList, error) {
-	fieldSelector, err := fields.ParseSelector("spec.nodeName=" + nodeName + ",status.phase=" +
-		string(api.PodRunning))
-	if err != nil {
-		return nil, err
-	}
-	return worker.config.kubeClient.CoreV1().Pods(api.NamespaceAll).List(metav1.ListOptions{FieldSelector: fieldSelector.String()})
 }

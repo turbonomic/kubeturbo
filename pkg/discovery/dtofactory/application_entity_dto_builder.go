@@ -4,11 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	api "k8s.io/client-go/pkg/api/v1"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 
@@ -45,14 +44,9 @@ func NewApplicationEntityDTOBuilder(sink *metrics.EntityMetricSink) *application
 }
 
 // Build entityDTOs based on the given pod list.
-func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []runtime.Object) ([]*proto.EntityDTO, error) {
+func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
-	for _, p := range pods {
-		pod, ok := p.(*api.Pod)
-		if !ok {
-			glog.Warningf("%v is not a pod, which is required to build application entityDTO.", pod.GetObjectKind())
-		}
-
+	for _, pod := range pods {
 		// id. Application entity dto ID is consisted of appPrefix and pod UID.
 		appID := getApplicationID(string(pod.UID))
 		entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_APPLICATION, appID)
@@ -85,7 +79,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []runtime.Objec
 			entityDTOBuilder.Monitored(false)
 		}
 
-		appType := probe.GetAppType(pod)
+		appType := util.GetAppType(pod)
 		entityDTOBuilder.ApplicationData(&proto.EntityDTO_ApplicationData{
 			Type: &appType,
 		})
@@ -125,7 +119,6 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesSold(pod *a
 
 	// attr
 	attributeSetter := NewCommodityAttrSetter()
-	//attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)
 	transactionCommKey := FindTransactionCommodityKey(pod, clusterCommodityKey)
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Key(transactionCommKey) }, metrics.Transaction)
 
@@ -140,7 +133,7 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesSold(pod *a
 }
 
 func FindTransactionCommodityKey(pod *api.Pod, clusterID string) string {
-	appType := probe.GetAppType(pod)
+	appType := util.GetAppType(pod)
 	return appType + "-" + clusterID
 }
 
@@ -155,7 +148,8 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(pod 
 	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(task.NodeType, util.NodeKeyFromPodFunc(pod), metrics.CpuFrequency)
 	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
 	if err != nil {
-		glog.Errorf("Failed to get cpu frequency from sink for node %s: %s", util.NodeKeyFromPodFunc(pod), err)
+		// TODO acceptable return? To get cpu, frequency is required.
+		return nil, fmt.Errorf("Failed to get cpu frequency from sink for node %s: %s", util.NodeKeyFromPodFunc(pod), err)
 	}
 	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
 	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
@@ -183,7 +177,7 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(pod 
 func (builder *applicationEntityDTOBuilder) getApplicationProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
 	var properties []*proto.EntityDTO_EntityProperty
 	// additional node cluster info property.
-	appProperties := probe.BuildAppProperties(pod.Namespace, pod.Name)
+	appProperties := property.BuildAppProperties(pod.Namespace, pod.Name)
 	properties = append(properties, appProperties...)
 
 	return properties

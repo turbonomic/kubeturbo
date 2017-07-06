@@ -96,3 +96,21 @@ func DecodeJSON(ref interface{}, data string) error {
 	}
 	return nil
 }
+
+func GroupPodsByNode(pods []*api.Pod) map[string][]*api.Pod {
+	podsNodeMap := make(map[string][]*api.Pod)
+	if pods == nil {
+		glog.Error("Pod list is nil")
+		return podsNodeMap
+	}
+	for _, pod := range pods {
+		nodeName := pod.Spec.NodeName
+		podList, exist := podsNodeMap[nodeName]
+		if !exist {
+			podList = []*api.Pod{}
+		}
+		podList = append(podList, pod)
+		podsNodeMap[nodeName] = podList
+	}
+	return podsNodeMap
+}

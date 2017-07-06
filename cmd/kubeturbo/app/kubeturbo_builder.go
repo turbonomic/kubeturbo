@@ -138,7 +138,10 @@ func (s *VMTServer) createProbeConfig(kubeConfig *restclient.Config) (*probe.Pro
 	}
 
 	// Create cluster monitoring
-	masterMonitoringConfig := master.NewClusterMonitorConfig(kubeConfig)
+	masterMonitoringConfig, err := master.NewClusterMonitorConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build monitoring config for master topology monitor: %s", err)
+	}
 
 	// TODO for now kubelet is the only monitoring source. As we have more sources, we should choose what to be added into the slice here.
 	monitoringConfigs := []monitoring.MonitorWorkerConfig{
@@ -148,13 +151,8 @@ func (s *VMTServer) createProbeConfig(kubeConfig *restclient.Config) (*probe.Pro
 
 	// Create K8sConntrack monitoring
 	// TODO, disable https by default. Change this when k8sconntrack supports https.
-	k8sConntrackMonitoringConfig, err := k8sconntrack.NewK8sConntrackMonitorConfig(kubeConfig)
-	if err != nil {
-		// As K8sConntrack is not required, we don't return.
-		glog.Errorf("Failed to set up k8sconntrack monitoring config: %s", err)
-	} else {
-		monitoringConfigs = append(monitoringConfigs, k8sConntrackMonitoringConfig)
-	}
+	k8sConntrackMonitoringConfig := k8sconntrack.NewK8sConntrackMonitorConfig()
+	monitoringConfigs = append(monitoringConfigs, k8sConntrackMonitoringConfig)
 
 	probeConfig := &probe.ProbeConfig{
 		CadvisorPort:          s.CAdvisorPort,

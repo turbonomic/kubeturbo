@@ -7,13 +7,13 @@ import (
 	api "k8s.io/client-go/pkg/api/v1"
 )
 
-func GetNodeResourceRequestConsumption(podList *api.PodList) (nodeCpuProvisionedUsedCore, nodeMemoryProvisionedUsedKiloBytes float64, err error) {
-	if podList == nil {
+func GetNodeResourceRequestConsumption(pods []*api.Pod) (nodeCpuProvisionedUsedCore, nodeMemoryProvisionedUsedKiloBytes float64, err error) {
+	if pods == nil {
 		err = errors.New("pod list passed in is nil")
 		return
 	}
-	for _, pod := range podList.Items {
-		podCpuRequest, podMemoryRequest, getErr := GetPodResourceRequest(&pod)
+	for _, pod := range pods {
+		podCpuRequest, podMemoryRequest, getErr := GetPodResourceRequest(pod)
 		if getErr != nil {
 			err = fmt.Errorf("failed to get resource requests: %s", getErr)
 			return

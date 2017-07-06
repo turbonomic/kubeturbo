@@ -3,11 +3,10 @@ package dtofactory
 import (
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	api "k8s.io/client-go/pkg/api/v1"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -48,15 +47,9 @@ func NewNodeEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *s
 }
 
 // Build entityDTOs based on the given node list.
-func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []runtime.Object) ([]*proto.EntityDTO, error) {
+func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
 	for _, node := range nodes {
-		node, ok := node.(*api.Node)
-		if !ok {
-			glog.Warningf("%v is not a node", node.GetObjectKind())
-			continue
-		}
-
 		// id.
 		nodeID := string(node.UID)
 		entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_MACHINE, nodeID)
@@ -116,12 +109,17 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(task.NodeType, key, metrics.CpuFrequency)
 	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
 	if err != nil {
-		glog.Errorf("Failed to get cpu frequency from sink for node %s: %s", key, err)
+		// TODO acceptable return? To get cpu, frequency is required.
+		return nil, fmt.Errorf("Failed to get cpu frequency from sink for node %s: %s", key, err)
 	}
 	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
 	glog.V(4).Infof("Frequency is %f", cpuFrequency)
 	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
-	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPUProvisioned)
+	converter := NewConverter().Set(
+		func(input float64) float64 {
+			return input * cpuFrequency
+		},
+		metrics.CPU, metrics.CPUProvisioned)
 
 	// Resource Commodities
 	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(task.NodeType, key, nodeResourceCommoditiesSold, converter, nil)
@@ -146,7 +144,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 	}
 
 	// Access commodity: schedulable.
-	if probe.NodeIsReady(node) && probe.NodeIsSchedulable(node) {
+	if util.NodeIsReady(node) && util.NodeIsSchedulable(node) {
 		schedAccessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
 			Key(schedAccessCommodityKey).
 			Capacity(accessCommodityDefaultCapacity).
@@ -194,7 +192,7 @@ func (builder *nodeEntityDTOBuilder) getNodeProperties(node *api.Node) ([]*proto
 	properties = append(properties, stitchingProperty)
 
 	// additional node cluster info property.
-	nodeProperty := probe.BuildNodeProperties(node)
+	nodeProperty := property.BuildNodeProperties(node)
 	properties = append(properties, nodeProperty)
 
 	return properties, nil

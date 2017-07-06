@@ -3,14 +3,14 @@ package dtofactory
 import (
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	api "k8s.io/client-go/pkg/api/v1"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
@@ -51,14 +51,9 @@ func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *st
 }
 
 // Build entityDTOs based on the given pod list.
-func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []runtime.Object) ([]*proto.EntityDTO, error) {
+func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
-	for _, p := range pods {
-		pod, ok := p.(*api.Pod)
-		if !ok {
-			glog.Warningf("%v is not a pod", pod.GetObjectKind())
-			continue
-		}
+	for _, pod := range pods {
 
 		// id.
 		podID := string(pod.UID)
@@ -127,8 +122,10 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod) ([]*prot
 	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(task.NodeType, util.NodeKeyFromPodFunc(pod), metrics.CpuFrequency)
 	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
 	if err != nil {
-		glog.Errorf("Failed to get cpu frequency from sink for node %s: %s", key, err)
+		// TODO acceptable return? To get cpu, frequency is required.
+		return nil, fmt.Errorf("Failed to get cpu frequency from sink for node %s: %s", key, err)
 	}
+
 	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
 	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPUProvisioned)
@@ -233,7 +230,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod) ([]*pr
 func (builder *podEntityDTOBuilder) getPodProperties(pod *api.Pod) ([]*proto.EntityDTO_EntityProperty, error) {
 	var properties []*proto.EntityDTO_EntityProperty
 	// additional node cluster info property.
-	podProperties := probe.BuildPodProperties(pod)
+	podProperties := property.BuildPodProperties(pod)
 	properties = append(properties, podProperties...)
 
 	podClusterID := util.GetPodClusterID(pod)

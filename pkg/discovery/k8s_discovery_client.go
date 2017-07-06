@@ -3,13 +3,12 @@ package discovery
 import (
 	"fmt"
 	"sync"
+	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
 	kubeClient "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
 
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
@@ -28,17 +27,23 @@ const (
 
 // TODO maybe use a discovery client config
 type DiscoveryConfig struct {
-	kubeClient  *kubeClient.Clientset
+	k8sClusterScraper *cluster.ClusterScraper
+
 	probeConfig *probe.ProbeConfig
 
 	targetConfig *K8sTargetConfig
+
+	// TODO remove this when the old framework is removed.
+	kubeClient *kubeClient.Clientset
 }
 
 func NewDiscoveryConfig(kubeClient *kubeClient.Clientset, probeConfig *probe.ProbeConfig, targetConfig *K8sTargetConfig) *DiscoveryConfig {
 	return &DiscoveryConfig{
-		kubeClient:   kubeClient,
-		probeConfig:  probeConfig,
-		targetConfig: targetConfig,
+		k8sClusterScraper: &cluster.ClusterScraper{kubeClient},
+		probeConfig:       probeConfig,
+		targetConfig:      targetConfig,
+
+		kubeClient: kubeClient,
 	}
 }
 
@@ -55,7 +60,7 @@ func NewK8sDiscoveryClient(config *DiscoveryConfig) *K8sDiscoveryClient {
 	// make maxWorkerCount of result collector twice the worker count.
 	resultCollector := worker.NewResultCollector(workerCount * 2)
 
-	dispatcherConfig := worker.NewDispatcherConfig(config.kubeClient, config.probeConfig, workerCount)
+	dispatcherConfig := worker.NewDispatcherConfig(config.k8sClusterScraper, config.probeConfig, workerCount)
 	dispatcher := worker.NewDispatcher(dispatcherConfig)
 	dispatcher.Init(resultCollector)
 
@@ -108,6 +113,7 @@ func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*pr
 
 // DiscoverTopology receives a discovery request from server and start probing the k8s.
 func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*proto.DiscoveryResponse, error) {
+	currentTime := time.Now()
 	newDiscoveryResultDTOs, err := dc.DiscoverWithNewFramework()
 	if err != nil {
 		glog.Errorf("Failed to use the new framework to discover current Kubernetes cluster: %s", err)
@@ -118,10 +124,17 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 		//EntityDTO: entityDtos,
 	}
 
+	newFrameworkDiscTime := time.Now().Sub(currentTime).Nanoseconds()
+	glog.Infof("New framework discovery time: %d", newFrameworkDiscTime)
+
+	currentTime = time.Now()
 	oldDiscoveryResult, err := dc.discoveryWithOldFramework()
 	if err != nil {
 		glog.Errorf("Failed to discovery with the old framework: %s", err)
 	} else {
+		oldFrameworkDiscTime := time.Now().Sub(currentTime).Nanoseconds()
+		glog.Infof("Old framework discovery time: %d", oldFrameworkDiscTime)
+
 		compareDiscoveryResults(oldDiscoveryResult, newDiscoveryResultDTOs)
 	}
 	return discoveryResponse, nil
@@ -176,25 +189,16 @@ func (dc *K8sDiscoveryClient) discoveryWithOldFramework() ([]*proto.EntityDTO, e
 
 // A testing function for invoking discovery process with the new discovery framework.
 func (dc *K8sDiscoveryClient) DiscoverWithNewFramework() ([]*proto.EntityDTO, error) {
-	listOption := metav1.ListOptions{
-		LabelSelector: labels.Everything().String(),
-		FieldSelector: fields.Everything().String(),
-	}
-	nodeList, err := dc.config.kubeClient.Nodes().List(listOption)
+	nodes, err := dc.config.k8sClusterScraper.GetAllNodes()
 	if err != nil {
-		return nil, fmt.Errorf("failed to list all nodes in the cluster: %s", err)
-	}
-	var nodes []*api.Node
-	for _, n := range nodeList.Items {
-		node := n
-		nodes = append(nodes, &node)
+		return nil, fmt.Errorf("Failed to get all nodes in the cluster: %s", err)
 	}
 
-	workerCount := dc.dispatcher.Dispatch(nodes, workerCount)
+	workerCount := dc.dispatcher.Dispatch(nodes)
 	entityDTOs := dc.resultCollector.Collect(workerCount)
 	glog.V(3).Infof("Discovery workers have finished discovery work with %d entityDTOs built. Now performing service discovery...", len(entityDTOs))
 
-	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.config.kubeClient)
+	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.config.k8sClusterScraper)
 	svcDiscWorker, err := worker.NewK8sServiceDiscoveryWorker(svcWorkerConfig)
 	svcTask := task.NewTask().WithNodes(nodes)
 	svcDiscWorker.ReceiveTask(svcTask)
