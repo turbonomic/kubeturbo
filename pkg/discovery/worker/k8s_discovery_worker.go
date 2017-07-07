@@ -2,6 +2,7 @@ package worker
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -126,18 +127,24 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
 
+	// wait group to make sure metrics scraping finishes.
+	var wg sync.WaitGroup
+
 	// Resource monitoring
 	resourceMonitorTask := currTask
 	if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.ResourceMonitor]; exist {
 		for _, rmWorker := range resourceMonitoringWorkers {
-			go func() {
-				glog.V(2).Infof("A %s monitoring worker is invoked.", rmWorker.GetMonitoringSource())
+			wg.Add(1)
+			go func(w monitoring.MonitoringWorker) {
+				glog.V(2).Infof("A %s monitoring worker is invoked.", w.GetMonitoringSource())
 				// Assign task to monitoring worker.
-				rmWorker.ReceiveTask(resourceMonitorTask)
-				monitoringSink := rmWorker.Do()
+				w.ReceiveTask(resourceMonitorTask)
+				monitoringSink := w.Do()
 				// Don't do any filtering
 				worker.sink.MergeSink(monitoringSink, nil)
-			}()
+
+				wg.Done()
+			}(rmWorker)
 		}
 	}
 
@@ -145,15 +152,20 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	clusterMonitorTask := currTask
 	if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.StateMonitor]; exist {
 		for _, smWorker := range resourceMonitoringWorkers {
-			go func() {
+			wg.Add(1)
+			go func(w monitoring.MonitoringWorker) {
 				// Assign task to monitoring worker.
-				smWorker.ReceiveTask(clusterMonitorTask)
-				monitoringSink := smWorker.Do()
+				w.ReceiveTask(clusterMonitorTask)
+				monitoringSink := w.Do()
 				// Don't do any filtering
 				worker.sink.MergeSink(monitoringSink, nil)
-			}()
+
+				wg.Done()
+			}(smWorker)
 		}
 	}
+
+	wg.Wait()
 
 	var discoveryResult []*proto.EntityDTO
 	// Build EntityDTO

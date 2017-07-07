@@ -25,7 +25,6 @@ func compareDiscoveryResults(discResFromOldFramework, discResFromNewFramework []
 			// compare size
 			if len(entitiesFromNew) != len(entitiesFromOld) {
 				glog.Errorf("%s check: Discoverd %d from old, but got %d from new.", entityType, len(entitiesFromOld), len(entitiesFromNew))
-				//glog.Errorf("old %++v; new %++v", entitiesFromOld, entitiesFromNew)
 				showEntityDTOListDifference(entitiesFromOld, entitiesFromNew)
 				//continue
 			}

@@ -43,9 +43,10 @@ func (m *ClusterMonitor) ReceiveTask(task *task.Task) {
 }
 
 func (m *ClusterMonitor) Do() *metrics.EntityMetricSink {
+	glog.V(4).Infof("%s has started task.", m.GetMonitoringSource())
 	m.reset()
 	m.RetrieveClusterStat()
-
+	glog.V(4).Infof("%s monitor has finished task.", m.GetMonitoringSource())
 	return m.sink
 }
 

@@ -50,11 +50,12 @@ func (m *KubeletMonitor) ReceiveTask(task *task.Task) {
 }
 
 func (m *KubeletMonitor) Do() *metrics.EntityMetricSink {
+	glog.V(4).Infof("%s has started task.", m.GetMonitoringSource())
 	err := m.RetrieveResourceStat()
 	if err != nil {
 		glog.Errorf("Failed to execute task: %s", err)
 	}
-
+	glog.V(4).Infof("%s monitor has finished task.", m.GetMonitoringSource())
 	return m.metricSink
 }
 
