@@ -33,6 +33,8 @@ type K8sConntrackMonitor struct {
 	metricSink *metrics.EntityMetricSink
 
 	wg sync.WaitGroup
+
+	stopCh chan struct{}
 }
 
 func NewK8sConntrackMonitor(config *K8sConntrackMonitorConfig) (*K8sConntrackMonitor, error) {
@@ -48,7 +50,13 @@ func NewK8sConntrackMonitor(config *K8sConntrackMonitorConfig) (*K8sConntrackMon
 		config:             config,
 		k8sConntrackClient: NewK8sConntrackClient(k8sConntrackClientConfig),
 		metricSink:         metrics.NewEntityMetricSink(),
+		stopCh:             make(chan struct{}, 1),
 	}, nil
+}
+
+func (m *K8sConntrackMonitor) reset() {
+	m.metricSink = metrics.NewEntityMetricSink()
+	m.stopCh = make(chan struct{}, 1)
 }
 
 // Implement MonitoringWorker interface.
@@ -58,8 +66,14 @@ func (m *K8sConntrackMonitor) GetMonitoringSource() types.MonitoringSource {
 
 // Implement MonitoringWorker interface.
 func (m *K8sConntrackMonitor) ReceiveTask(task *task.Task) {
+	m.reset()
+
 	m.nodeList = task.NodeList()
 	m.nodePodMap = util.GroupPodsByNode(task.PodList())
+}
+
+func (m *K8sConntrackMonitor) Stop() {
+	m.stopCh <- struct{}{}
 }
 
 // Implement MonitoringWorker interface.
@@ -75,14 +89,26 @@ func (m *K8sConntrackMonitor) Do() *metrics.EntityMetricSink {
 
 // Start to retrieve resource stats for the received list of nodes.
 func (m *K8sConntrackMonitor) RetrieveResourceStat() error {
+	defer func() {
+		close(m.stopCh)
+	}()
+
 	if m.nodeList == nil || len(m.nodeList) == 0 {
 		return errors.New("Invalid nodeList or empty nodeList. Finish Immediately...")
 	}
 	m.wg.Add(len(m.nodeList))
 
 	for _, node := range m.nodeList {
+		go func(n *api.Node) {
+			defer m.wg.Done()
 
-		go m.scrapeK8sConntrack(node)
+			select {
+			case <-m.stopCh:
+				return
+			default:
+				m.scrapeK8sConntrack(node)
+			}
+		}(node)
 	}
 
 	m.wg.Wait()
@@ -105,8 +131,6 @@ func (m *K8sConntrackMonitor) getTransactionFromNode(ip string) ([]Transaction, 
 
 // Retrieve resource metrics for the given node.
 func (m *K8sConntrackMonitor) scrapeK8sConntrack(node *api.Node) {
-	defer m.wg.Done()
-
 	// build pod IP map.
 	runningPods, exist := m.nodePodMap[node.Name]
 	if !exist {

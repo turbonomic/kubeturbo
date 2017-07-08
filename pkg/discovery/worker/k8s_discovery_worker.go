@@ -3,6 +3,7 @@ package worker
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -15,6 +16,10 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pborman/uuid"
+)
+
+const (
+	defaultMonitoringWorkerTimeout time.Duration = time.Minute * 5
 )
 
 type k8sDiscoveryWorkerConfig struct {
@@ -105,7 +110,6 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig) (*k8sDiscoveryWorke
 
 func (worker *k8sDiscoveryWorker) RegisterAndRun(dispatcher *Dispatcher, collector *ResultCollector) {
 	dispatcher.RegisterWorker(worker)
-	//worker.registerToResultCollector(collector)
 	for {
 		select {
 		case currTask := <-worker.taskChan:
@@ -132,36 +136,51 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 
 	// Resource monitoring
 	resourceMonitorTask := currTask
-	if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.ResourceMonitor]; exist {
+	//if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.ResourceMonitor]; exist {
+	for _, resourceMonitoringWorkers := range worker.monitoringWorker {
 		for _, rmWorker := range resourceMonitoringWorkers {
 			wg.Add(1)
 			go func(w monitoring.MonitoringWorker) {
-				glog.V(2).Infof("A %s monitoring worker is invoked.", w.GetMonitoringSource())
-				// Assign task to monitoring worker.
+				finishCh := make(chan struct{})
+				stopCh := make(chan struct{}, 1)
+				defer close(finishCh)
+				defer close(stopCh)
+				defer wg.Done()
+
 				w.ReceiveTask(resourceMonitorTask)
-				monitoringSink := w.Do()
-				// Don't do any filtering
-				worker.sink.MergeSink(monitoringSink, nil)
+				t := time.NewTimer(defaultMonitoringWorkerTimeout)
+				go func() {
+					glog.V(2).Infof("A %s monitoring worker is invoked.", w.GetMonitoringSource())
+					// Assign task to monitoring worker.
+					monitoringSink := w.Do()
+					select {
+					case <-stopCh:
+						//glog.Infof("Calling thread: %s monitoring worker timeout!", w.GetMonitoringSource())
+						return
+					default:
+					}
+					//glog.Infof("%s has finished", w.GetMonitoringSource())
+					t.Stop()
+					// Don't do any filtering
+					worker.sink.MergeSink(monitoringSink, nil)
+					//glog.Infof("send to finish channel %p", finishCh)
+					finishCh <- struct{}{}
+				}()
 
-				wg.Done()
+				// either finish as expected or timeout.
+				select {
+				case <-finishCh:
+					//glog.Infof("Worker %s finished as expected.", w.GetMonitoringSource())
+					return
+				case <-t.C:
+					glog.Errorf("%s monitoring worker exceeds the max time limit for "+
+						"completing the task.", w.GetMonitoringSource())
+					stopCh <- struct{}{}
+					//glog.Infof("%s stop", w.GetMonitoringSource())
+					w.Stop()
+					return
+				}
 			}(rmWorker)
-		}
-	}
-
-	// Topology monitoring
-	clusterMonitorTask := currTask
-	if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.StateMonitor]; exist {
-		for _, smWorker := range resourceMonitoringWorkers {
-			wg.Add(1)
-			go func(w monitoring.MonitoringWorker) {
-				// Assign task to monitoring worker.
-				w.ReceiveTask(clusterMonitorTask)
-				monitoringSink := w.Do()
-				// Don't do any filtering
-				worker.sink.MergeSink(monitoringSink, nil)
-
-				wg.Done()
-			}(smWorker)
 		}
 	}
 

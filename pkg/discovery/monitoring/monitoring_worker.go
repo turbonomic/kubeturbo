@@ -19,6 +19,7 @@ type MonitorWorkerConfig interface {
 
 type MonitoringWorker interface {
 	Do() *metrics.EntityMetricSink
+	Stop()
 	ReceiveTask(task *task.Task)
 	GetMonitoringSource() types.MonitoringSource
 }

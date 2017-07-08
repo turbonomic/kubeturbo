@@ -24,12 +24,15 @@ type ClusterMonitor struct {
 	nodePodMap map[string][]*api.Pod
 
 	nodeResourceCapacities map[string]*nodeInfo
+
+	stopCh chan struct{}
 }
 
 func NewClusterMonitor(config *ClusterMonitorConfig) (*ClusterMonitor, error) {
 
 	return &ClusterMonitor{
 		config: config,
+		stopCh: make(chan struct{}, 1),
 	}, nil
 }
 
@@ -38,37 +41,59 @@ func (m *ClusterMonitor) GetMonitoringSource() types.MonitoringSource {
 }
 
 func (m *ClusterMonitor) ReceiveTask(task *task.Task) {
+	m.reset()
+
 	m.nodeList = task.NodeList()
 	m.nodePodMap = util.GroupPodsByNode(task.PodList())
 }
 
+func (m *ClusterMonitor) Stop() {
+	m.stopCh <- struct{}{}
+}
+
 func (m *ClusterMonitor) Do() *metrics.EntityMetricSink {
 	glog.V(4).Infof("%s has started task.", m.GetMonitoringSource())
-	m.reset()
-	m.RetrieveClusterStat()
+	err := m.RetrieveClusterStat()
+	if err != nil {
+		glog.Errorf("Failed to execute task: %s", err)
+	}
 	glog.V(4).Infof("%s monitor has finished task.", m.GetMonitoringSource())
 	return m.sink
 }
 
 // Start to retrieve resource stats for the received list of nodes.
 func (m *ClusterMonitor) RetrieveClusterStat() error {
+	defer func() {
+		close(m.stopCh)
+	}()
+
 	if m.nodeList == nil {
 		return errors.New("Invalid nodeList or empty nodeList. Nothing to monitor.")
 	}
-	err := m.findClusterID()
-	if err != nil {
-		return fmt.Errorf("Failed to find cluster ID based on Kubernetes service: %v", err)
+	select {
+	case <-m.stopCh:
+		return nil
+	default:
+		err := m.findClusterID()
+		if err != nil {
+			return fmt.Errorf("Failed to find cluster ID based on Kubernetes service: %v", err)
+		}
+		select {
+		case <-m.stopCh:
+			return nil
+		default:
+			m.findNodeStates()
+			m.findPodStates()
+		}
+
+		return nil
 	}
-
-	m.findNodeStates()
-	m.findPodStates()
-
-	return nil
 }
 
 func (m *ClusterMonitor) reset() {
 	m.sink = metrics.NewEntityMetricSink()
 	m.nodeResourceCapacities = make(map[string]*nodeInfo)
+	m.stopCh = make(chan struct{}, 1)
 }
 
 // ----------------------------------------------- Cluster State -------------------------------------------------
@@ -197,6 +222,7 @@ func (m *ClusterMonitor) findPodStates() {
 			podResourceMetrics, err := m.getPodResourceMetric(pod)
 			if err != nil {
 				glog.Errorf("Failed to find resource metric for pod %s: %s", key, err)
+				continue
 			}
 			m.sink.AddNewMetricEntries(podResourceMetrics...)
 		}

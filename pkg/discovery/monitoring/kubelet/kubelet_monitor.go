@@ -26,6 +26,8 @@ type KubeletMonitor struct {
 
 	metricSink *metrics.EntityMetricSink
 
+	stopCh chan struct{}
+
 	wg sync.WaitGroup
 }
 
@@ -38,7 +40,13 @@ func NewKubeletMonitor(config *KubeletMonitorConfig) (*KubeletMonitor, error) {
 	return &KubeletMonitor{
 		kubeletClient: kubeletClient,
 		metricSink:    metrics.NewEntityMetricSink(),
+		stopCh:        make(chan struct{}, 1),
 	}, nil
+}
+
+func (m *KubeletMonitor) reset() {
+	m.metricSink = metrics.NewEntityMetricSink()
+	m.stopCh = make(chan struct{}, 1)
 }
 
 func (m *KubeletMonitor) GetMonitoringSource() types.MonitoringSource {
@@ -46,7 +54,13 @@ func (m *KubeletMonitor) GetMonitoringSource() types.MonitoringSource {
 }
 
 func (m *KubeletMonitor) ReceiveTask(task *task.Task) {
+	m.reset()
+
 	m.nodeList = task.NodeList()
+}
+
+func (m *KubeletMonitor) Stop() {
+	m.stopCh <- struct{}{}
 }
 
 func (m *KubeletMonitor) Do() *metrics.EntityMetricSink {
@@ -61,15 +75,25 @@ func (m *KubeletMonitor) Do() *metrics.EntityMetricSink {
 
 // Start to retrieve resource stats for the received list of nodes.
 func (m *KubeletMonitor) RetrieveResourceStat() error {
+	defer func() {
+		close(m.stopCh)
+	}()
 	if m.nodeList == nil || len(m.nodeList) == 0 {
 		return errors.New("Invalid nodeList or empty nodeList. Finish Immediately...")
 	}
 	m.wg.Add(len(m.nodeList))
 
 	for _, node := range m.nodeList {
-		// TODO, do we want to add timeout?
-		n := node
-		go m.scrapeKubelet(n)
+		go func(n *api.Node) {
+			defer m.wg.Done()
+			select {
+			case <-m.stopCh:
+				return
+			default:
+				m.scrapeKubelet(n)
+
+			}
+		}(node)
 	}
 
 	m.wg.Wait()
@@ -79,8 +103,6 @@ func (m *KubeletMonitor) RetrieveResourceStat() error {
 
 // Retrieve resource metrics for the given node.
 func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
-	defer m.wg.Done()
-
 	ip, err := util.GetNodeIPForMonitor(node, types.KubeletSource)
 	if err != nil {
 		glog.Errorf("Failed to get resource metrics from %s: %s", node.Name, err)
@@ -108,7 +130,7 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 	m.parseNodeStats(summary.Node)
 	m.parsePodStats(summary.Pods)
 
-	glog.Infof("Finished scrape node %s.", node.Name)
+	glog.V(4).Infof("Finished scrape node %s.", node.Name)
 
 }
 

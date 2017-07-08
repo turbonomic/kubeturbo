@@ -2,12 +2,12 @@ package worker
 
 import (
 	"fmt"
+	"errors"
 
 	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
-	//"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 
@@ -39,9 +39,6 @@ type k8sServiceDiscoveryWorker struct {
 	// Cluster ID for the current Kubernetes cluster.
 	clusterID string
 
-	// Currently a worker only receives one task at a time.
-	task *task.Task
-
 	podClusterIDToPodMap map[string]*api.Pod
 }
 
@@ -58,18 +55,13 @@ func NewK8sServiceDiscoveryWorker(config *k8sServiceDiscoveryWorkerConfig) (*k8s
 	}, nil
 }
 
-func (svcDiscWorker *k8sServiceDiscoveryWorker) ReceiveTask(task *task.Task) error {
-	if svcDiscWorker.task != nil {
-		return fmt.Errorf("The current worker %s has already been assigned a task and has not finished yet", svcDiscWorker.id)
-	}
-	svcDiscWorker.task = task
-	return nil
-}
-
 // post-process the entityDTOs and create service entityDTOs.
 func (svcDiscWorker *k8sServiceDiscoveryWorker) Do(entityDTOs []*proto.EntityDTO) *task.TaskResult {
 
 	applicationDTOs := getAllApplicationEntityDTOs(entityDTOs)
+	if len(applicationDTOs) < 1{
+		return task.NewTaskResult(svcDiscWorker.id, task.TaskFailed).WithErr(errors.New("No applicatoin found"))
+	}
 
 	svcDiscoveryResult, err := svcDiscWorker.parseService(applicationDTOs)
 	if err != nil {

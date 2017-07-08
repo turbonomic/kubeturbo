@@ -35,21 +35,28 @@ func (svcEntityDTOBuilder *ServiceEntityDTOBuilder) BuildSvcEntityDTO(servicePod
 		entityDTOBuilder = entityDTOBuilder.DisplayName(displayName)
 
 		// commodities bought.
+		hasErr := false
 		for _, pod := range pods {
 			// Here it is consisted with the ID when we build the application entityDTO in ApplicationProbe
 			appID := AppPrefix + string(pod.UID)
 			appDTO, exist := appDTOs[appID]
 			if !exist {
 				glog.Errorf("Cannot find app %s in the application entityDTOs", appID)
+				hasErr = true
+				continue
 			}
 			appProvider := sdkbuilder.CreateProvider(proto.EntityDTO_APPLICATION, appID)
 			commoditiesBoughtFromApp, err := svcEntityDTOBuilder.getCommoditiesBought(pod, appDTO)
 			if err != nil {
 				glog.Errorf("Failed to get commodity bought from %s.", appID)
+				hasErr = true
 				continue
 			}
 			entityDTOBuilder.Provider(appProvider)
 			entityDTOBuilder.BuysCommodities(commoditiesBoughtFromApp)
+		}
+		if hasErr {
+			continue
 		}
 
 		// virtual application data.

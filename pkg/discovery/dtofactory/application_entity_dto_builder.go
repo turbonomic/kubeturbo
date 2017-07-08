@@ -59,6 +59,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 		commoditiesSold, err := builder.getApplicationCommoditiesSold(pod)
 		if err != nil {
 			glog.Errorf("Failed to create commodities sold by application %s: %s", displayName, err)
+			continue
 		}
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
@@ -68,6 +69,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 		commoditiesBought, err := builder.getApplicationCommoditiesBought(pod)
 		if err != nil {
 			glog.Errorf("Failed to create commodities bought by application %s: %s", displayName, err)
+			continue
 		}
 		entityDTOBuilder.BuysCommodities(commoditiesBought)
 

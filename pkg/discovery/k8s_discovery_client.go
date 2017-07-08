@@ -10,7 +10,6 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
 
@@ -127,16 +126,16 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 	newFrameworkDiscTime := time.Now().Sub(currentTime).Nanoseconds()
 	glog.Infof("New framework discovery time: %d", newFrameworkDiscTime)
 
-	currentTime = time.Now()
-	oldDiscoveryResult, err := dc.discoveryWithOldFramework()
-	if err != nil {
-		glog.Errorf("Failed to discovery with the old framework: %s", err)
-	} else {
-		oldFrameworkDiscTime := time.Now().Sub(currentTime).Nanoseconds()
-		glog.Infof("Old framework discovery time: %d", oldFrameworkDiscTime)
-
-		compareDiscoveryResults(oldDiscoveryResult, newDiscoveryResultDTOs)
-	}
+	//currentTime = time.Now()
+	//oldDiscoveryResult, err := dc.discoveryWithOldFramework()
+	//if err != nil {
+	//	glog.Errorf("Failed to discovery with the old framework: %s", err)
+	//} else {
+	//	oldFrameworkDiscTime := time.Now().Sub(currentTime).Nanoseconds()
+	//	glog.Infof("Old framework discovery time: %d", oldFrameworkDiscTime)
+	//
+	//	compareDiscoveryResults(oldDiscoveryResult, newDiscoveryResultDTOs)
+	//}
 	return discoveryResponse, nil
 }
 
@@ -200,11 +199,9 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework() ([]*proto.EntityDTO, er
 
 	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.config.k8sClusterScraper)
 	svcDiscWorker, err := worker.NewK8sServiceDiscoveryWorker(svcWorkerConfig)
-	svcTask := task.NewTask().WithNodes(nodes)
-	svcDiscWorker.ReceiveTask(svcTask)
 	svcDiscResult := svcDiscWorker.Do(entityDTOs)
 	if svcDiscResult.Err() != nil {
-		glog.Errorf("failed to discover services from current Kubernetes cluster with the new discovery framework: %s", svcDiscResult.Err())
+		glog.Errorf("Failed to discover services from current Kubernetes cluster with the new discovery framework: %s", svcDiscResult.Err())
 	} else {
 		entityDTOs = append(entityDTOs, svcDiscResult.Content()...)
 	}
