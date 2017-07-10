@@ -53,12 +53,11 @@ func (s *ClusterScraper) GetNodes(opts metav1.ListOptions) ([]*api.Node, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list all nodes in the cluster: %s", err)
 	}
-	var nodes []*api.Node
-	for _, n := range nodeList.Items {
-		node := n
-		nodes = append(nodes, &node)
+	nodes := make([]*api.Node, len(nodeList.Items))
+	for i := 0; i < len(nodeList.Items); i++ {
+		nodes[i] = &nodeList.Items[i]
 	}
-
+	glog.Infof("Nodes are: %++v", nodes)
 	return nodes, nil
 }
 
@@ -76,10 +75,9 @@ func (s *ClusterScraper) GetPods(namespaces string, opts metav1.ListOptions) ([]
 		return nil, err
 	}
 
-	pods := []*api.Pod{}
-	for _, p := range podList.Items {
-		pod := p
-		pods = append(pods, &pod)
+	pods := make([]*api.Pod, len(podList.Items))
+	for i := 0; i < len(podList.Items); i++ {
+		pods[i] = &podList.Items[i]
 	}
 	return pods, nil
 }
@@ -98,10 +96,9 @@ func (s *ClusterScraper) GetServices(namespace string, opts metav1.ListOptions) 
 		return nil, err
 	}
 
-	services := []*api.Service{}
-	for _, s := range serviceList.Items {
-		service := s
-		services = append(services, &service)
+	services := make([]*api.Service, len(serviceList.Items))
+	for i := 0; i < len(serviceList.Items); i++ {
+		services[i] = &serviceList.Items[i]
 	}
 	return services, nil
 }
@@ -112,10 +109,9 @@ func (s *ClusterScraper) GetEndpoints(namespaces string, opts metav1.ListOptions
 		return nil, err
 	}
 
-	endpoints := []*api.Endpoints{}
-	for _, ep := range epList.Items {
-		endpoint := ep
-		endpoints = append(endpoints, &endpoint)
+	endpoints := make([]*api.Endpoints, len(epList.Items))
+	for i := 0; i < len(epList.Items); i++ {
+		endpoints[i] = &epList.Items[i]
 	}
 	return endpoints, nil
 }
@@ -160,10 +156,9 @@ func (s *ClusterScraper) findRunningPodsOnNode(nodeName string) ([]*api.Pod, err
 	if err != nil {
 		return nil, err
 	}
-	pods := []*api.Pod{}
-	for _, p := range podList.Items {
-		pod := p
-		pods = append(pods, &pod)
+	pods := make([]*api.Pod, len(podList.Items))
+	for i := 0; i < len(podList.Items); i++ {
+		pods[i] = &podList.Items[i]
 	}
 	return pods, nil
 }
