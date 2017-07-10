@@ -3,7 +3,7 @@ package registration
 import (
 	"fmt"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"github.com/turbonomic/turbo-go-sdk/pkg/supplychain"

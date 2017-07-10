@@ -8,7 +8,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	vmtcache "github.com/turbonomic/kubeturbo/pkg/cache"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 )
 
@@ -24,7 +24,7 @@ type Config struct {
 	PodQueue  *vmtcache.HashedFIFO
 
 	// Configuration for creating Kubernetes probe
-	ProbeConfig *probe.ProbeConfig
+	ProbeConfig *configs.ProbeConfig
 
 	// Recorder is the EventRecorder to use
 	Recorder record.EventRecorder
@@ -33,7 +33,7 @@ type Config struct {
 	StopEverything chan struct{}
 }
 
-func NewVMTConfig(client *client.Clientset, probeConfig *probe.ProbeConfig, broker turbostore.Broker,
+func NewVMTConfig(client *client.Clientset, probeConfig *configs.ProbeConfig, broker turbostore.Broker,
 	spec *K8sTAPServiceSpec) *Config {
 	config := &Config{
 		tapSpec:        spec,

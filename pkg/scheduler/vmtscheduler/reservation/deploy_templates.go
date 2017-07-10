@@ -5,7 +5,7 @@ import (
 
 	api "k8s.io/client-go/pkg/api/v1"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	discutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 
 	"github.com/golang/glog"
 )
@@ -59,7 +59,7 @@ func SelectTemplate(cpuLimit float64, memLimit float64) (string, error) {
 }
 
 func SelectTemplateForPod(pod *api.Pod) (string, error) {
-	cpuLimit, memLimit, err := probe.GetResourceLimits(pod)
+	cpuLimit, memLimit, err := discutil.GetPodResourceLimits(pod)
 
 	if err != nil {
 		return "", err

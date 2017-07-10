@@ -12,7 +12,7 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	discutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	turboscheduler "github.com/turbonomic/kubeturbo/pkg/scheduler"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 
@@ -76,7 +76,7 @@ func (h *HorizontalScaler) buildPendingScalingTurboAction(actionItem *proto.Acti
 	}
 
 	var parentObjRef *turboaction.ParentObjectRef
-	parentRefObject, _ := probe.FindParentReferenceObject(providerPod)
+	parentRefObject, _ := discutil.FindParentReferenceObject(providerPod)
 	if parentRefObject != nil {
 		parentObjRef = &turboaction.ParentObjectRef{
 			ParentObjectUID:       string(parentRefObject.UID),

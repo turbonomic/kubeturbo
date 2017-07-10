@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -12,16 +13,20 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	apiv1 "k8s.io/client-go/pkg/api/v1"
+	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/k8sconntrack"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/master"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	"github.com/turbonomic/kubeturbo/test/flag"
 
-	"fmt"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/pflag"
@@ -91,7 +96,7 @@ func createRecorder(kubecli *kubernetes.Clientset) record.EventRecorder {
 	return eventBroadcaster.NewRecorder(scheme.Scheme, apiv1.EventSource{Component: "kubeturbo"})
 }
 
-func (s *VMTServer) createKubeClient() (*kubernetes.Clientset, error) {
+func (s *VMTServer) createKubeConfig() (*restclient.Config, error) {
 	kubeConfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.KubeConfig)
 	if err != nil {
 		glog.Errorf("Error getting kubeconfig:  %s", err)
@@ -101,6 +106,10 @@ func (s *VMTServer) createKubeClient() (*kubernetes.Clientset, error) {
 	kubeConfig.QPS = 20.0
 	kubeConfig.Burst = 30
 
+	return kubeConfig, nil
+}
+
+func (s *VMTServer) createKubeClient(kubeConfig *restclient.Config) (*kubernetes.Clientset, error) {
 	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
 		glog.Fatalf("Invalid API configuration: %v", err)
@@ -109,7 +118,7 @@ func (s *VMTServer) createKubeClient() (*kubernetes.Clientset, error) {
 	return kubeClient, nil
 }
 
-func (s *VMTServer) createProbeConfig() *probe.ProbeConfig {
+func (s *VMTServer) createProbeConfig(kubeConfig *restclient.Config) (*configs.ProbeConfig, error) {
 	if s.CAdvisorPort == 0 {
 		s.CAdvisorPort = K8sCadvisorPort
 	}
@@ -122,12 +131,36 @@ func (s *VMTServer) createProbeConfig() *probe.ProbeConfig {
 		pType = stitching.UUID
 	}
 
-	probeConfig := &probe.ProbeConfig{
-		CadvisorPort:          s.CAdvisorPort,
-		StitchingPropertyType: pType,
+	// Create Kubelet monitoring
+	kubeletMonitoringConfig, err := kubelet.NewKubeletMonitorConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build monitoring config for kubelet: %s", err)
 	}
 
-	return probeConfig
+	// Create cluster monitoring
+	masterMonitoringConfig, err := master.NewClusterMonitorConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build monitoring config for master topology monitor: %s", err)
+	}
+
+	// TODO for now kubelet is the only monitoring source. As we have more sources, we should choose what to be added into the slice here.
+	monitoringConfigs := []monitoring.MonitorWorkerConfig{
+		kubeletMonitoringConfig,
+		masterMonitoringConfig,
+	}
+
+	// Create K8sConntrack monitoring
+	// TODO, disable https by default. Change this when k8sconntrack supports https.
+	k8sConntrackMonitoringConfig := k8sconntrack.NewK8sConntrackMonitorConfig()
+	monitoringConfigs = append(monitoringConfigs, k8sConntrackMonitoringConfig)
+
+	probeConfig := &configs.ProbeConfig{
+		CadvisorPort:          s.CAdvisorPort,
+		StitchingPropertyType: pType,
+		MonitoringConfigs:     monitoringConfigs,
+	}
+
+	return probeConfig, nil
 }
 
 func (s *VMTServer) checkFlag() error {
@@ -158,8 +191,6 @@ func (s *VMTServer) Run(_ []string) error {
 		os.Exit(1)
 	}
 
-	probeConfig := s.createProbeConfig()
-
 	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
 	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec)
 	if err != nil {
@@ -167,9 +198,20 @@ func (s *VMTServer) Run(_ []string) error {
 		os.Exit(1)
 	}
 
-	kubeClient, err := s.createKubeClient()
+	kubeConfig, err := s.createKubeConfig()
+	if err != nil {
+		glog.Error(err)
+	}
+
+	kubeClient, err := s.createKubeClient(kubeConfig)
 	if err != nil {
 		glog.Errorf("Failed to get kubeClient: %v", err.Error())
+		os.Exit(1)
+	}
+
+	probeConfig, err := s.createProbeConfig(kubeConfig)
+	if err != nil {
+		glog.Errorf("Failed to build probe config: %s")
 		os.Exit(1)
 	}
 

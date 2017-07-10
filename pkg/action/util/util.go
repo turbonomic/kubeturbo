@@ -9,7 +9,8 @@ import (
 	api "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/apps/v1beta1"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
+
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
@@ -159,9 +160,9 @@ func GetPodFromProperties(kubeClient *client.Clientset, entityType proto.EntityD
 	var podNamespace, podName string
 	switch entityType {
 	case proto.EntityDTO_APPLICATION:
-		podNamespace, podName = probe.GetApplicationHostingPodInfoFromProperty(properties)
+		podNamespace, podName = property.GetApplicationHostingPodInfoFromProperty(properties)
 	case proto.EntityDTO_CONTAINER_POD:
-		podNamespace, podName = probe.GetPodInfoFromProperty(properties)
+		podNamespace, podName = property.GetPodInfoFromProperty(properties)
 	default:
 		return nil, fmt.Errorf("cannot find pod based on properties of an entity with type: %s", entityType)
 	}
