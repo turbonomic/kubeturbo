@@ -57,7 +57,6 @@ func (s *ClusterScraper) GetNodes(opts metav1.ListOptions) ([]*api.Node, error) 
 	for i := 0; i < len(nodeList.Items); i++ {
 		nodes[i] = &nodeList.Items[i]
 	}
-	glog.Infof("Nodes are: %++v", nodes)
 	return nodes, nil
 }
 

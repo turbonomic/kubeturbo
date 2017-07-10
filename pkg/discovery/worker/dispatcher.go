@@ -6,7 +6,7 @@ import (
 
 	api "k8s.io/client-go/pkg/api/v1"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 
 	"github.com/golang/glog"
@@ -15,12 +15,12 @@ import (
 
 type DispatcherConfig struct {
 	clusterInfoScraper *cluster.ClusterScraper
-	probeConfig        *probe.ProbeConfig
+	probeConfig        *configs.ProbeConfig
 
 	workerCount int
 }
 
-func NewDispatcherConfig(clusterInfoScraper *cluster.ClusterScraper, probeConfig *probe.ProbeConfig, workerCount int) *DispatcherConfig {
+func NewDispatcherConfig(clusterInfoScraper *cluster.ClusterScraper, probeConfig *configs.ProbeConfig, workerCount int) *DispatcherConfig {
 	return &DispatcherConfig{
 		clusterInfoScraper: clusterInfoScraper,
 		probeConfig:        probeConfig,

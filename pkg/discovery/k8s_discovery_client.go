@@ -6,10 +6,9 @@ import (
 	"time"
 
 	kubeClient "k8s.io/client-go/kubernetes"
-	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
 
@@ -17,6 +16,8 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/old"
 )
 
 const (
@@ -24,30 +25,24 @@ const (
 	workerCount int = 4
 )
 
-// TODO maybe use a discovery client config
-type DiscoveryConfig struct {
+type DiscoveryClientConfig struct {
 	k8sClusterScraper *cluster.ClusterScraper
 
-	probeConfig *probe.ProbeConfig
+	probeConfig *configs.ProbeConfig
 
-	targetConfig *K8sTargetConfig
-
-	// TODO remove this when the old framework is removed.
-	kubeClient *kubeClient.Clientset
+	targetConfig *configs.K8sTargetConfig
 }
 
-func NewDiscoveryConfig(kubeClient *kubeClient.Clientset, probeConfig *probe.ProbeConfig, targetConfig *K8sTargetConfig) *DiscoveryConfig {
-	return &DiscoveryConfig{
+func NewDiscoveryConfig(kubeClient *kubeClient.Clientset, probeConfig *configs.ProbeConfig, targetConfig *configs.K8sTargetConfig) *DiscoveryClientConfig {
+	return &DiscoveryClientConfig{
 		k8sClusterScraper: &cluster.ClusterScraper{kubeClient},
 		probeConfig:       probeConfig,
 		targetConfig:      targetConfig,
-
-		kubeClient: kubeClient,
 	}
 }
 
 type K8sDiscoveryClient struct {
-	config *DiscoveryConfig
+	config *DiscoveryClientConfig
 
 	dispatcher      *worker.Dispatcher
 	resultCollector *worker.ResultCollector
@@ -55,7 +50,7 @@ type K8sDiscoveryClient struct {
 	wg sync.WaitGroup
 }
 
-func NewK8sDiscoveryClient(config *DiscoveryConfig) *K8sDiscoveryClient {
+func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	// make maxWorkerCount of result collector twice the worker count.
 	resultCollector := worker.NewResultCollector(workerCount * 2)
 
@@ -113,18 +108,17 @@ func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*pr
 // DiscoverTopology receives a discovery request from server and start probing the k8s.
 func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*proto.DiscoveryResponse, error) {
 	currentTime := time.Now()
-	newDiscoveryResultDTOs, err := dc.DiscoverWithNewFramework()
+	newDiscoveryResultDTOs, err := dc.discoverWithNewFramework()
 	if err != nil {
 		glog.Errorf("Failed to use the new framework to discover current Kubernetes cluster: %s", err)
 	}
 
 	discoveryResponse := &proto.DiscoveryResponse{
 		EntityDTO: newDiscoveryResultDTOs,
-		//EntityDTO: entityDtos,
 	}
 
 	newFrameworkDiscTime := time.Now().Sub(currentTime).Nanoseconds()
-	glog.Infof("New framework discovery time: %d", newFrameworkDiscTime)
+	glog.Infof("New framework discovery time: %dns", newFrameworkDiscTime)
 
 	//currentTime = time.Now()
 	//oldDiscoveryResult, err := dc.discoveryWithOldFramework()
@@ -132,10 +126,11 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 	//	glog.Errorf("Failed to discovery with the old framework: %s", err)
 	//} else {
 	//	oldFrameworkDiscTime := time.Now().Sub(currentTime).Nanoseconds()
-	//	glog.Infof("Old framework discovery time: %d", oldFrameworkDiscTime)
+	//	glog.Infof("Old framework discovery time: %dns", oldFrameworkDiscTime)
 	//
 	//	compareDiscoveryResults(oldDiscoveryResult, newDiscoveryResultDTOs)
 	//}
+
 	return discoveryResponse, nil
 }
 
@@ -143,51 +138,22 @@ func (dc *K8sDiscoveryClient) discoveryWithOldFramework() ([]*proto.EntityDTO, e
 	//Discover the Kubernetes topology
 	glog.V(2).Infof("Discovering Kubernetes cluster...")
 
-	// must have kubeClient to do ParseNode and ParsePod
-	if dc.config.kubeClient == nil {
-		// TODO make error dto
-		return nil, fmt.Errorf("Kubenetes client is nil, error")
-	}
-
-	kubeProbe, err := probe.NewK8sProbe(dc.config.kubeClient, dc.config.probeConfig)
+	kubeProbe, err := old.NewK8sProbe(dc.config.k8sClusterScraper, dc.config.probeConfig)
 	if err != nil {
 		// TODO make error dto
 		return nil, fmt.Errorf("Error creating Kubernetes discovery probe:%s", err.Error())
 	}
 
-	nodeEntityDtos, err := kubeProbe.ParseNode()
+	entityDtos, err := kubeProbe.Discovery()
 	if err != nil {
-		// TODO make error dto
-		return nil, fmt.Errorf("Error parsing nodes: %s. Will return.", err)
+		return nil, err
 	}
-
-	podEntityDtos, err := kubeProbe.ParsePod(api.NamespaceAll)
-	if err != nil {
-		glog.Errorf("Error parsing pods: %s. Skip.", err)
-		// TODO make error dto
-	}
-
-	appEntityDtos, err := kubeProbe.ParseApplication(api.NamespaceAll)
-	if err != nil {
-		glog.Errorf("Error parsing applications: %s. Skip.", err)
-	}
-
-	serviceEntityDtos, err := kubeProbe.ParseService(api.NamespaceAll)
-	if err != nil {
-		// TODO, should here still send out msg to server? Or set errorDTO?
-		glog.Errorf("Error parsing services: %s. Skip.", err)
-	}
-
-	entityDtos := nodeEntityDtos
-	entityDtos = append(entityDtos, podEntityDtos...)
-	entityDtos = append(entityDtos, appEntityDtos...)
-	entityDtos = append(entityDtos, serviceEntityDtos...)
 
 	return entityDtos, nil
 }
 
 // A testing function for invoking discovery process with the new discovery framework.
-func (dc *K8sDiscoveryClient) DiscoverWithNewFramework() ([]*proto.EntityDTO, error) {
+func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
 	nodes, err := dc.config.k8sClusterScraper.GetAllNodes()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get all nodes in the cluster: %s", err)

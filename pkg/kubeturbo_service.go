@@ -7,7 +7,7 @@ import (
 	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/action"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	discutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	turboscheduler "github.com/turbonomic/kubeturbo/pkg/scheduler"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 
@@ -68,7 +68,7 @@ func (v *KubeturboService) getNextPod() {
 	glog.V(3).Infof("Get a new Pod %v", pod.Name)
 
 	var key string
-	parentRefObject, _ := probe.FindParentReferenceObject(pod)
+	parentRefObject, _ := discutil.FindParentReferenceObject(pod)
 	if parentRefObject != nil {
 		key = string(parentRefObject.UID)
 	} else {

@@ -1,11 +1,11 @@
-package probe
+package old
 
 import (
 	"fmt"
 
-	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
-	vmtmonitor "github.com/turbonomic/kubeturbo/pkg/monitor"
-	vmtproxy "github.com/turbonomic/kubeturbo/pkg/monitor"
+	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/discovery/old/cadvisor"
+	vmtmonitor "github.com/turbonomic/kubeturbo/pkg/discovery/old/monitor"
+	vmtproxy "github.com/turbonomic/kubeturbo/pkg/discovery/old/monitor"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -24,7 +24,7 @@ func NewApplicationProbe() *ApplicationProbe {
 }
 
 // Parse processes those are defined in namespace.
-func (appProbe *ApplicationProbe) ParseApplication(namespace string) (result []*proto.EntityDTO, err error) {
+func (appProbe *ApplicationProbe) ParseApplication() (result []*proto.EntityDTO, err error) {
 	glog.V(4).Infof("Has %d hosts", len(hostSet))
 
 	transactionCountMap, err := appProbe.calculateTransactionValuePerPod()

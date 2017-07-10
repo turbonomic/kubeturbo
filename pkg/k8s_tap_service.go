@@ -8,11 +8,11 @@ import (
 
 	client "k8s.io/client-go/kubernetes"
 
+	"github.com/turbonomic/kubeturbo/pkg/action"
 	"github.com/turbonomic/kubeturbo/pkg/discovery"
-	k8sprobe "github.com/turbonomic/kubeturbo/pkg/discovery/probe"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
 
-	"github.com/turbonomic/kubeturbo/pkg/action"
 	"github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/service"
 
@@ -21,7 +21,7 @@ import (
 
 type K8sTAPServiceSpec struct {
 	*service.TurboCommunicationConfig `json:"communicationConfig,omitempty"`
-	*discovery.K8sTargetConfig        `json:"targetConfig,omitempty"`
+	*configs.K8sTargetConfig          `json:"targetConfig,omitempty"`
 }
 
 func ParseK8sTAPServiceSpec(configFile string) (*K8sTAPServiceSpec, error) {
@@ -63,12 +63,12 @@ func readK8sTAPServiceSpec(path string) (*K8sTAPServiceSpec, error) {
 
 type K8sTAPServiceConfig struct {
 	spec                     *K8sTAPServiceSpec
-	probeConfig              *k8sprobe.ProbeConfig
+	probeConfig              *configs.ProbeConfig
 	registrationClientConfig *registration.RegistrationConfig
-	discoveryClientConfig    *discovery.DiscoveryConfig
+	discoveryClientConfig    *discovery.DiscoveryClientConfig
 }
 
-func NewK8sTAPServiceConfig(kubeClient *client.Clientset, probeConfig *k8sprobe.ProbeConfig,
+func NewK8sTAPServiceConfig(kubeClient *client.Clientset, probeConfig *configs.ProbeConfig,
 	spec *K8sTAPServiceSpec) *K8sTAPServiceConfig {
 	registrationClientConfig := registration.NewRegistrationClientConfig(probeConfig.StitchingPropertyType)
 	discoveryClientConfig := discovery.NewDiscoveryConfig(kubeClient, probeConfig, spec.K8sTargetConfig)

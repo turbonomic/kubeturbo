@@ -1,4 +1,4 @@
-package probe
+package old
 
 import (
 	"fmt"
@@ -11,14 +11,10 @@ import (
 	"github.com/golang/glog"
 )
 
-type ServiceProbe struct {
-	serviceAccessor ClusterAccessor
-}
+type ServiceProbe struct{}
 
-func NewServiceProbe(serviceAccessor ClusterAccessor) *ServiceProbe {
-	return &ServiceProbe{
-		serviceAccessor: serviceAccessor,
-	}
+func NewServiceProbe() *ServiceProbe {
+	return &ServiceProbe{}
 }
 
 // Parse Services inside Kubernetes and build entityDTO as VApp.

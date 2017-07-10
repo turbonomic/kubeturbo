@@ -1,16 +1,15 @@
-package probe
+package old
 
 import (
 	"fmt"
 	"strconv"
 	"time"
 
-	//metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	//client "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
 
-	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
+	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/discovery/old/cadvisor"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -40,15 +39,14 @@ var nodeMachineInfoMap map[string]*cadvisor.MachineInfo
 var notMonitoredNodes map[string]struct{}
 
 type NodeProbe struct {
-	nodesAccessor    ClusterAccessor
-	config           *ProbeConfig
+	config           *configs.ProbeConfig
 	stitchingManager *stitching.StitchingManager
 
 	nodeIPMap map[string]map[api.NodeAddressType]string
 }
 
 // Since this is only used in probe package, do not expose it.
-func NewNodeProbe(accessor ClusterAccessor, config *ProbeConfig, stitchingManager *stitching.StitchingManager) *NodeProbe {
+func NewNodeProbe(config *configs.ProbeConfig, stitchingManager *stitching.StitchingManager) *NodeProbe {
 	// initiate set every time.
 	notMonitoredNodes = make(map[string]struct{})
 	hostSet = make(map[string]*vmtAdvisor.Host)
@@ -56,7 +54,6 @@ func NewNodeProbe(accessor ClusterAccessor, config *ProbeConfig, stitchingManage
 	nodeMachineInfoMap = make(map[string]*cadvisor.MachineInfo)
 
 	return &NodeProbe{
-		nodesAccessor:    accessor,
 		config:           config,
 		stitchingManager: stitchingManager,
 	}

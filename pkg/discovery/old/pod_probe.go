@@ -1,4 +1,4 @@
-package probe
+package old
 
 import (
 	"errors"
@@ -7,8 +7,8 @@ import (
 
 	api "k8s.io/client-go/pkg/api/v1"
 
-	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/cadvisor"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
+	vmtAdvisor "github.com/turbonomic/kubeturbo/pkg/discovery/old/cadvisor"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -42,11 +42,10 @@ var inactivePods map[string]struct{}
 type PodsGetter func(namespace, label, field string) ([]*api.Pod, error)
 
 type PodProbe struct {
-	podAccessor      ClusterAccessor
 	stitchingManager *stitching.StitchingManager
 }
 
-func NewPodProbe(accessor ClusterAccessor, stitchingManager *stitching.StitchingManager) *PodProbe {
+func NewPodProbe(stitchingManager *stitching.StitchingManager) *PodProbe {
 	inactivePods = make(map[string]struct{})
 	podResourceConsumptionMap = make(map[string]*PodResourceStat)
 	podAppTypeMap = make(map[string]string)
@@ -56,8 +55,6 @@ func NewPodProbe(accessor ClusterAccessor, stitchingManager *stitching.Stitching
 
 	return &PodProbe{
 		stitchingManager: stitchingManager,
-
-		podAccessor: accessor,
 	}
 }
 

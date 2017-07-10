@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -17,19 +18,18 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
-	"github.com/turbonomic/kubeturbo/pkg/turbostore"
-	"github.com/turbonomic/kubeturbo/test/flag"
-
-	"fmt"
-	"github.com/golang/glog"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/spf13/pflag"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/k8sconntrack"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/master"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
+	"github.com/turbonomic/kubeturbo/pkg/turbostore"
+	"github.com/turbonomic/kubeturbo/test/flag"
+
+	"github.com/golang/glog"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -118,7 +118,7 @@ func (s *VMTServer) createKubeClient(kubeConfig *restclient.Config) (*kubernetes
 	return kubeClient, nil
 }
 
-func (s *VMTServer) createProbeConfig(kubeConfig *restclient.Config) (*probe.ProbeConfig, error) {
+func (s *VMTServer) createProbeConfig(kubeConfig *restclient.Config) (*configs.ProbeConfig, error) {
 	if s.CAdvisorPort == 0 {
 		s.CAdvisorPort = K8sCadvisorPort
 	}
@@ -154,7 +154,7 @@ func (s *VMTServer) createProbeConfig(kubeConfig *restclient.Config) (*probe.Pro
 	k8sConntrackMonitoringConfig := k8sconntrack.NewK8sConntrackMonitorConfig()
 	monitoringConfigs = append(monitoringConfigs, k8sConntrackMonitoringConfig)
 
-	probeConfig := &probe.ProbeConfig{
+	probeConfig := &configs.ProbeConfig{
 		CadvisorPort:          s.CAdvisorPort,
 		StitchingPropertyType: pType,
 		MonitoringConfigs:     monitoringConfigs,

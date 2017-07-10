@@ -1,8 +1,9 @@
-package probe
+package configs
+
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 )
 
 type ProbeConfig struct {

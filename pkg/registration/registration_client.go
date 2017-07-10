@@ -1,7 +1,7 @@
 package registration
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/probe/stitching"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
