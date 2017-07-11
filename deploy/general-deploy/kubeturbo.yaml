@@ -5,14 +5,18 @@ metadata:
   labels:
     name: kubeturbo
 spec:
+#  uncomment the following line if master is http://127.0.0.1:8080
+#  hostNetwork: true
   containers:
   - name: kubeturbo
-    image: vmturbo/kubeturbo:latest
+#   change version
+    image: vmturbo/kubeturbo:v5.9.0
     command:
       - /bin/kubeturbo
     args:
       - --v=2
-      - --master=<Kubernetes_API_Server_URL>
+#     change master url
+      - --master=http://1.2.3.4:8080
       - --turboconfig=/etc/kubeturbo/config
     volumeMounts:
     - name: turbo-config
@@ -21,5 +25,6 @@ spec:
   volumes:
   - name: turbo-config
     hostPath:
+#     change the path to config
       path: /etc/kubeturbo
   restartPolicy: Always

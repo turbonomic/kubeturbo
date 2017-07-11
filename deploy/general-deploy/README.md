@@ -1,6 +1,6 @@
 ## Deploying Kubeturbo
 
-Once deployed, the Kubeturbo service enables you to give Turbonomic visibility into a Kubernetes cluster. This cluster can be located in either a private datacenter, or locally. Kubeturbo will be deployed as a mirror pod on Master nodes.
+Once deployed, the Kubeturbo service enables you to give Turbonomic visibility into a Kubernetes cluster. This cluster can be located in either a private datacenter, or locally. Kubeturbo will be deployed as a static pod on Master nodes.
 
 ### Prerequisites
 * Turbonomic 5.9+
@@ -15,11 +15,13 @@ In order to connect to your Turbonomic installation, a Kubeturbo configuration f
 
 Create a file called `config` in the `/etc/kubeturbo/` directory, with the following contents:
 
+> The `<TURBONOMIC_SERVER_URL>` is typically `http://<TURBO_SERVER_IP>:80`
+
 ```json
 {
 	"communicationConfig": {
 		"serverMeta": {
-			"turboServer": "<TURBONOMIC_SERVER_IP_ADDRESS>"
+			"turboServer": "<TURBONOMIC_SERVER_URL>"
 		},
 		"restAPIConfig": {
 			"opsManagerUserName": "<TURBONOMIC_USERNAME>",
@@ -38,13 +40,16 @@ Create a file called `config` in the `/etc/kubeturbo/` directory, with the follo
 you can find an example with values [here](../config).
 
 
-### Step Two: Creating the Kubeturbo Mirror Pod
+### Step Two: Creating the Kubeturbo Static Pod
 
 > NOTE: Ensure that you have completed Step One.
 
-Mirror pods are created by Kubelet. Copy the Kubeturbo yaml pod definition to the configuration path used by Kubelet master nodes on startup. Typically, `/etc/kubernetes/manifests/`.
+Static pods are created by Kubelet. Based on whether kubeconfig is used, there are two ways to define the Kubeturbo pod template.
+Copy the Kubeturbo yaml pod definition to the configuration path used by Kubelet master nodes on startup. Typically, `/etc/kubernetes/manifests/`.
 
-#### Kubeturbo Pod Definition
+>NOTE: If api-server runs on localhost, `hostNetwork:true` must be added to pod spec
+
+#### Kubeturbo Pod Definition without kubeconfig
 
 ```yaml
 apiVersion: v1
@@ -54,9 +59,11 @@ metadata:
   labels:
     name: kubeturbo
 spec:
+#  uncomment the following line if api server runs on http://127.0.0.1:8080
+#  hostNetwork: true
   containers:
   - name: kubeturbo
-    image: vmturbo/kubeturbo:latest
+    image: vmturbo/kubeturbo:<VERSION>
     command:
       - /bin/kubeturbo
     args:
@@ -70,13 +77,53 @@ spec:
   volumes:
   - name: turbo-config
     hostPath:
-      path: /etc/kubeturbo
+      path: <DIRECTORY_CONTAINS_KUBETURBO_CONFIG_IN_HOST>
   restartPolicy: Always
 ```
 
-[Download example](kubeturbo.yaml?raw=true)
+[Download example](kubeturbo.yaml)
 
-The Kubeturbo mirror pod will be visible after several seconds. To verify that the Kubeturbo pod is running, use `kubectl get pods --all-namespaces` and look for "kubeturbo".
+#### Kubeturbo Pod Definition with kubeconfig
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kubeturbo
+  labels:
+    name: kubeturbo
+spec:
+  containers:
+  - name: kubeturbo
+    image: vmturbo/kubeturbo:<VERSION>
+    command:
+      - /bin/kubeturbo
+    args:
+      - --v=2
+      - --kubeconfig=<PATH_TO_KUBECONFIG_IN_CONTAINER>
+      - --turboconfig=/etc/kubeturbo/config
+    volumeMounts:
+    - name: turbo-config
+      mountPath: /etc/kubeturbo
+      readOnly: true
+    - name: kubeconfig-dir
+      mountPath: <DIRECTORY_CONTAINS_KUBECONFIG_IN_CONTAINER>
+      readOnly: true
+  volumes:
+  - name: turbo-config
+    hostPath:
+      path: <DIRECTORY_CONTAINS_KUBETURBO_CONFIG_IN_HOST>
+  - name: kubeconfig-dir
+    hostPath:
+      path: <DIRECTORY_CONTAINS_KUBECONFIG_IN_HOST>
+  restartPolicy: Always
+```
+
+[Download example](kubeturbo-with-kubeconfig.yaml)
+
+
+
+The Kubeturbo static pod will be visible after several seconds. To verify that the Kubeturbo pod is running, use `kubectl get pods --all-namespaces` and look for "kubeturbo".
 
 ```console
 NAMESPACE     NAME                                    READY     STATUS        RESTARTS   AGE
