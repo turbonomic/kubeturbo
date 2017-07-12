@@ -59,6 +59,10 @@ type VMTServer struct {
 	// systemUUID of each node, which is equal to UUID of corresponding VM discovered by VM probe.
 	// The default value is false.
 	UseVMWare bool
+
+	// Kubelet related config
+	KubeletPort        uint
+	EnableKubeletHttps bool
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -81,6 +85,9 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.KubeConfig, "kubeconfig", s.KubeConfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.BoolVar(&s.EnableProfiling, "profiling", false, "Enable profiling via web interface host:port/debug/pprof/.")
 	fs.BoolVar(&s.UseVMWare, "usevmware", false, "If the underlying infrastructure is VMWare.")
+	fs.UintVar(&s.KubeletPort, "kubelet-port", kubelet.DefaultKubeletPort, "The port of the kubelet runs on")
+	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", kubelet.DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
+
 	//leaderelection.BindFlags(&s.LeaderElection, fs)
 }
 
@@ -132,10 +139,7 @@ func (s *VMTServer) createProbeConfig(kubeConfig *restclient.Config) (*configs.P
 	}
 
 	// Create Kubelet monitoring
-	kubeletMonitoringConfig, err := kubelet.NewKubeletMonitorConfig(kubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build monitoring config for kubelet: %s", err)
-	}
+	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(kubeConfig).WithPort(s.KubeletPort).EnableHttps(s.EnableKubeletHttps)
 
 	// Create cluster monitoring
 	masterMonitoringConfig, err := master.NewClusterMonitorConfig(kubeConfig)
