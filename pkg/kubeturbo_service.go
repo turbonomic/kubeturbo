@@ -29,7 +29,7 @@ func NewKubeturboService(c *Config) *KubeturboService {
 		c.tapSpec.OpsManagerUsername, c.tapSpec.OpsManagerPassword)
 
 	// Create action handler.
-	actionHandlerConfig := action.NewActionHandlerConfig(c.Client, c.broker)
+	actionHandlerConfig := action.NewActionHandlerConfig(c.Client, c.broker, c.k8sVersion, c.noneSchedulerName)
 	actionHandler := action.NewActionHandler(actionHandlerConfig, turboScheduler)
 
 	k8sTAPServiceConfig := NewK8sTAPServiceConfig(c.Client, c.ProbeConfig, c.tapSpec)

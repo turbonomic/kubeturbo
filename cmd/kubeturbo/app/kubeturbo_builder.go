@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
+	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/k8sconntrack"
@@ -63,6 +64,10 @@ type VMTServer struct {
 	// Kubelet related config
 	KubeletPort        uint
 	EnableKubeletHttps bool
+
+	// for Move Action
+	K8sVersion        string
+	NoneSchedulerName string
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -87,6 +92,8 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&s.UseVMWare, "usevmware", false, "If the underlying infrastructure is VMWare.")
 	fs.UintVar(&s.KubeletPort, "kubelet-port", kubelet.DefaultKubeletPort, "The port of the kubelet runs on")
 	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", kubelet.DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
+	fs.StringVar(&s.K8sVersion, "k8sVersion", executor.HigherK8sVersion, "the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
+	fs.StringVar(&s.NoneSchedulerName, "noneSchedulerName", executor.DefaultNoneExistSchedulerName, "a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
 
 	//leaderelection.BindFlags(&s.LeaderElection, fs)
 }
@@ -220,7 +227,7 @@ func (s *VMTServer) Run(_ []string) error {
 	}
 
 	broker := turbostore.NewPodBroker()
-	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, probeConfig, broker, k8sTAPSpec)
+	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, probeConfig, broker, k8sTAPSpec, s.K8sVersion, s.NoneSchedulerName)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	vmtConfig.Recorder = createRecorder(kubeClient)

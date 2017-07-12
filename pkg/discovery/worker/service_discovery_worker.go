@@ -1,8 +1,8 @@
 package worker
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 
 	api "k8s.io/client-go/pkg/api/v1"
 
@@ -59,7 +59,7 @@ func NewK8sServiceDiscoveryWorker(config *k8sServiceDiscoveryWorkerConfig) (*k8s
 func (svcDiscWorker *k8sServiceDiscoveryWorker) Do(entityDTOs []*proto.EntityDTO) *task.TaskResult {
 
 	applicationDTOs := getAllApplicationEntityDTOs(entityDTOs)
-	if len(applicationDTOs) < 1{
+	if len(applicationDTOs) < 1 {
 		return task.NewTaskResult(svcDiscWorker.id, task.TaskFailed).WithErr(errors.New("No applicatoin found"))
 	}
 

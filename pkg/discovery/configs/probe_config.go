@@ -1,6 +1,5 @@
 package configs
 
-
 import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"

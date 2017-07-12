@@ -29,28 +29,35 @@ type Config struct {
 	// Recorder is the EventRecorder to use
 	Recorder record.EventRecorder
 
+	//for moveAction
+	// for Kubernetes version < 1.6, schedulerName is in a different field.
+	k8sVersion        string
+	noneSchedulerName string
+
 	// Close this to stop all reflectors
 	StopEverything chan struct{}
 }
 
 func NewVMTConfig(client *client.Clientset, probeConfig *configs.ProbeConfig, broker turbostore.Broker,
-	spec *K8sTAPServiceSpec) *Config {
+	spec *K8sTAPServiceSpec, k8sVer, noneScheduler string) *Config {
 	config := &Config{
-		tapSpec:        spec,
-		broker:         broker,
-		ProbeConfig:    probeConfig,
-		Client:         client,
-		NodeQueue:      vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
-		PodQueue:       vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
-		StopEverything: make(chan struct{}),
+		tapSpec:           spec,
+		broker:            broker,
+		ProbeConfig:       probeConfig,
+		Client:            client,
+		k8sVersion:        k8sVer,
+		noneSchedulerName: noneScheduler,
+		NodeQueue:         vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
+		PodQueue:          vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
+		StopEverything:    make(chan struct{}),
 	}
 
 	// Watch minions.
 	// Minions may be listed frequently, so provide a local up-to-date cache.
 	// cache.NewReflector(config.createMinionLW(), &api.Node{}, config.NodeQueue, 0).RunUntil(config.StopEverything)
 
-	// monitor unassigned pod
-	cache.NewReflector(config.createUnassignedPodLW(), &api.Pod{}, config.PodQueue, 0).RunUntil(config.StopEverything)
+	// monitor unassigned pod ## NO USE currently @ 2017.07.20
+	// cache.NewReflector(config.createUnassignedPodLW(), &api.Pod{}, config.PodQueue, 0).RunUntil(config.StopEverything)
 
 	return config
 }

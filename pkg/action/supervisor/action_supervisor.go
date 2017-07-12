@@ -16,6 +16,11 @@ import (
 	"github.com/golang/glog"
 )
 
+const (
+	//TODO: set timeout for each Action
+	defaultTimeOut = time.Duration(30) * time.Second
+)
+
 type CheckActionFunc func(event *turboaction.TurboAction) (bool, error)
 
 type ActionSupervisorConfig struct {
@@ -92,21 +97,22 @@ func (s *ActionSupervisor) checkMoveAction(action *turboaction.TurboAction) (boo
 		return false, err
 	}
 
-	if targetPod.Status.Phase != api.PodRunning {
-		err = fmt.Errorf("move-check failed: new pod status is %v", targetPod.Status.Phase)
-		glog.Error(err.Error())
-		return false, err
+	phase := targetPod.Status.Phase
+	if phase == api.PodRunning || (phase == api.PodPending && targetPod.DeletionGracePeriodSeconds == nil) {
+		moveDestination := moveSpec.Destination
+		actualHostingNode := targetPod.Spec.NodeName
+		if actualHostingNode == moveDestination {
+			glog.V(3).Infof("Move pod [%s/%s] action succeeded.", podNamespace, podName)
+			return true, nil
+		} else {
+			glog.Errorf("Move action failed. Incorrect move destination %s", actualHostingNode)
+			return false, nil
+		}
 	}
 
-	moveDestination := moveSpec.Destination
-	actualHostingNode := targetPod.Spec.NodeName
-	if actualHostingNode == moveDestination {
-		glog.V(2).Infof("Move action succeeded.")
-		return true, nil
-	} else {
-		glog.Errorf("Move action failed. Incorrect move destination %s", actualHostingNode)
-		return false, nil
-	}
+	err = fmt.Errorf("move-check failed: new pod status is %v", targetPod.Status.Phase)
+	glog.Error(err.Error())
+	return false, err
 }
 
 func (s *ActionSupervisor) checkProvisionAction(event *turboaction.TurboAction) (bool, error) {
@@ -166,30 +172,32 @@ func (s *ActionSupervisor) updateAction(action *turboaction.TurboAction, checkFu
 		successful, err := checkFunc(action)
 		if err != nil {
 			// TODO: do we want to return?
-			glog.Errorf("Error checking action: %s", err)
+			glog.Errorf("Error checking action: %v", err)
 		}
 		if successful {
 			action.Status = turboaction.Success
+			action.LastTimestamp = time.Now()
 			s.config.succeededActionChan <- action
 			return
 		}
 
 		time.Sleep(time.Second * 1)
-		// update timestamp
-		action.LastTimestamp = time.Now()
 	}
 	glog.Errorf("Timeout processing when %s action on %s-%s", action.Content.ActionType,
 		action.Content.TargetObject.TargetObjectType, action.Content.TargetObject.TargetObjectName)
 	action.Status = turboaction.Fail
+	action.LastTimestamp = time.Now()
 	s.config.failedActionChan <- action
 	return
 }
 
+// check whether it is timeOut since the action was executed.
+// the action.LastTimestamp is set by the action executor when the action has been executed.
 func checkExpired(action *turboaction.TurboAction) bool {
 	now := time.Now()
-	duration := now.Sub(action.FirstTimestamp)
+	duration := now.Sub(action.LastTimestamp)
 	glog.V(3).Infof("Duration is %v", duration)
-	if duration > time.Duration(10)*time.Second {
+	if duration > defaultTimeOut {
 		return true
 	}
 	return false
