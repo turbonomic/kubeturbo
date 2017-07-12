@@ -11,11 +11,11 @@ import (
 const (
 	APIVersion = "v1"
 
-	defaultKubeletPort        = 10255
-	disableKubeletHttps       = false
-	defaultUseServiceAccount  = false
-	defaultServiceAccountFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	defaultInClusterConfig    = true
+	DefaultKubeletPort        uint = 10255
+	DefaultKubeletHttps            = false
+	defaultUseServiceAccount       = false
+	defaultServiceAccountFile      = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	defaultInClusterConfig         = true
 )
 
 type KubeletMonitorConfig struct {
@@ -32,15 +32,25 @@ func (c KubeletMonitorConfig) GetMonitoringSource() types.MonitoringSource {
 
 // Create a new Kubelet monitor config using kubeConfig.
 // TODO Add port and https later.
-func NewKubeletMonitorConfig(kubeConfig *restclient.Config) (*KubeletMonitorConfig, error) {
+func NewKubeletMonitorConfig(kubeConfig *restclient.Config) *KubeletMonitorConfig {
 	kubeletConfig := &kubeletclient.KubeletClientConfig{
-		Port:            uint(defaultKubeletPort),
-		EnableHttps:     disableKubeletHttps,
+		Port:            uint(DefaultKubeletPort),
+		EnableHttps:     DefaultKubeletHttps,
 		TLSClientConfig: kubeConfig.TLSClientConfig,
 		BearerToken:     kubeConfig.BearerToken,
 	}
 
 	return &KubeletMonitorConfig{
 		KubeletClientConfig: kubeletConfig,
-	}, nil
+	}
+}
+
+func (kc *KubeletMonitorConfig) WithPort(port uint) *KubeletMonitorConfig {
+	kc.Port = port
+	return kc
+}
+
+func (kc *KubeletMonitorConfig) EnableHttps(enable bool) *KubeletMonitorConfig {
+	kc.KubeletClientConfig.EnableHttps = enable
+	return kc
 }
