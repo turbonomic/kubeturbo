@@ -18,6 +18,7 @@ import (
 	"github.com/golang/glog"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/old"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
 )
 
 const (
@@ -162,6 +163,15 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 	workerCount := dc.dispatcher.Dispatch(nodes)
 	entityDTOs := dc.resultCollector.Collect(workerCount)
 	glog.V(3).Infof("Discovery workers have finished discovery work with %d entityDTOs built. Now performing service discovery...", len(entityDTOs))
+
+	// affinity process
+	affinityProcessorConfig := compliance.NewAffinityProcessorConfig(dc.config.k8sClusterScraper)
+	affinityProcessor, err := compliance.NewAffinityProcessor(affinityProcessorConfig)
+	if err != nil {
+		glog.Errorf("Failed during process affinity rules: %s", err)
+	} else {
+		entityDTOs = affinityProcessor.ProcessNodeAffinity(entityDTOs)
+	}
 
 	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.config.k8sClusterScraper)
 	svcDiscWorker, err := worker.NewK8sServiceDiscoveryWorker(svcWorkerConfig)
