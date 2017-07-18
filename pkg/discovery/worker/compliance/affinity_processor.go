@@ -1,7 +1,6 @@
 package compliance
 
 import (
-	"k8s.io/apimachinery/pkg/labels"
 	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
@@ -51,123 +50,118 @@ func NewAffinityProcessor(config *affinityProcessorConfig) (*AffinityProcessor, 
 }
 
 // TODO if there is error, fail the whole discovery? currently, error is handle in place and won't affect other discovery results.
-func (am *AffinityProcessor) ProcessNodeAffinity(entityDTOs []*proto.EntityDTO) []*proto.EntityDTO {
+func (am *AffinityProcessor) ProcessAffinityRules(entityDTOs []*proto.EntityDTO) []*proto.EntityDTO {
 	am.GroupEntityDTOs(entityDTOs)
 	for _, pod := range am.pods {
-		am.processNodeAffinityPerPod(pod)
+		am.processAffinityPerPod(pod)
 	}
 	return am.GetAllEntityDTOs()
 }
 
-func (am *AffinityProcessor) processNodeAffinityPerPod(pod *api.Pod) {
+func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod) {
+	affinity := pod.Spec.Affinity
+	if affinity == nil {
+		return
+	}
+
+	nodeMap := make(map[string]*api.Node)
+	for _, currNode := range am.nodes {
+		nodeMap[currNode.Name] = currNode
+	}
+
+	podsNodesMap := make(map[*api.Pod]*api.Node)
+	for _, currPod := range am.pods {
+		hostingNode, exist := nodeMap[currPod.Spec.NodeName]
+		if !exist || hostingNode == nil {
+			continue
+		}
+		podsNodesMap[currPod] = hostingNode
+	}
+
+	nodeSelectorTerms := getAllNodeSelectors(affinity)
+	nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought, err := am.commManager.GetAccessCommoditiesForNodeAffinity(nodeSelectorTerms)
+	if err != nil {
+		glog.Errorf("Failed to build commodity: %s", err)
+		return
+	}
+
+	podAffinityTerms := getAllPodAffinityTerms(affinity)
+	podAffinityCommodityDTOsSold, podAffinityCommodityDTOsBought, err := am.commManager.GetAccessCommoditiesForPodAffinityAntiAffinity(podAffinityTerms)
+	if err != nil {
+		glog.Errorf("Failed to build commodity for pod affinity: %s", err)
+		return
+	}
+
 	for _, node := range am.nodes {
 		if matchesNodeSelector(pod, node) && matchesNodeAffinity(pod, node) {
-			am.addAffinityAccessCommodity(pod, node)
+			am.addAffinityAccessCommodities(pod, node, nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought)
+		}
+		if interPodAffinityMatches(pod, node, podsNodesMap) {
+			am.addAffinityAccessCommodities(pod, node, podAffinityCommodityDTOsSold, podAffinityCommodityDTOsBought)
 		}
 	}
 }
 
-func (am *AffinityProcessor) addAffinityAccessCommodity(pod *api.Pod, node *api.Node) {
-	affinity := pod.Spec.Affinity
-	if affinity != nil && affinity.NodeAffinity != nil {
-		nodeAffinity := affinity.NodeAffinity
-		glog.Infof("Add node affinity %s", nodeAffinity)
+func getAllNodeSelectors(affinity *api.Affinity) []api.NodeSelectorTerm {
+	nodeSelectorTerms := []api.NodeSelectorTerm{}
+	// TODO we only parse RequiredDuringSchedulingIgnoredDuringExecution for now.
+	if affinity.NodeAffinity != nil && affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+		nodeSelectorTerms = append(nodeSelectorTerms, affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms...)
+	}
+	//glog.Infof("node selectors are %++v", nodeSelectorTerms)
+	return nodeSelectorTerms
+}
 
-		if nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
-			nodeSelectorTerms := nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
-			for _, term := range nodeSelectorTerms {
-				affinityAccessCommodityDTOs, err := am.commManager.GetAccessCommoditiesForNodeAffinity(term.MatchExpressions)
-				if err != nil {
-					glog.Errorf("Failed to build commodity: %s", err)
-					continue
-				}
+func getAllPodAffinityTerms(affinity *api.Affinity) []api.PodAffinityTerm {
+	podAffinityTerms := []api.PodAffinityTerm{}
+	// TODO we only parse RequiredDuringSchedulingIgnoredDuringExecution for now.
+	if affinity.PodAffinity != nil && affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+		podAffinityTerms = append(podAffinityTerms, affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution...)
+	}
+	// TODO we only parse RequiredDuringSchedulingIgnoredDuringExecution for now.
+	if affinity.PodAntiAffinity != nil && affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+		podAffinityTerms = append(podAffinityTerms, affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution...)
+	}
+	//glog.Infof("pod selector terms are %++v", podAffinityTerms)
+	return podAffinityTerms
+}
 
-				// add commodity sold by matching nodes.
-				nodeEntityDTO, err := am.GetEntityDTO(proto.EntityDTO_VIRTUAL_MACHINE, string(node.UID))
-				if err != nil {
-					glog.Errorf("Cannot find the entityDTO: %s", err)
-					continue
-				}
-				err = am.AddCommoditiesSold(nodeEntityDTO, affinityAccessCommodityDTOs...)
-				if err != nil {
-					glog.Errorf("Failed to add commodityDTO to %s: %s", node.Name, err)
-					continue
-				} else {
-					err = am.UpdateEntityDTO(nodeEntityDTO)
-					if err != nil {
-						glog.Errorf("Failed to update node entityDTO: %s", err)
-						continue
-					}
-				}
+func (am *AffinityProcessor) addAffinityAccessCommodities(pod *api.Pod, node *api.Node,
+	affinityAccessCommoditiesSold, affinityAccessCommoditiesBought []*proto.CommodityDTO) {
 
-				// add commodity bought by pod.
-				if pod.Spec.NodeName == node.Name {
-					podEntityDTO, err := am.GetEntityDTO(proto.EntityDTO_CONTAINER_POD, string(pod.UID))
-					if err != nil {
-						glog.Errorf("Cannot find the entityDTO: %s", err)
-						continue
-					}
-					provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, string(node.UID))
-					err = am.AddCommoditiesBought(podEntityDTO, provider, affinityAccessCommodityDTOs...)
-					if err != nil {
-						glog.Errorf("Failed to add commodityDTOs to %s: %s", util.GetPodClusterID(pod), err)
-					} else {
-						err = am.UpdateEntityDTO(podEntityDTO)
-						if err != nil {
-							glog.Errorf("Failed to update pod entityDTO: %s", err)
-							continue
-						}
-					}
-				} // end if
-			} // end for
-		} // end if
+	// add commodity sold by matching nodes.
+	if affinityAccessCommoditiesSold != nil && len(affinityAccessCommoditiesSold) > 0 {
+		am.addCommoditySoldByNode(node, affinityAccessCommoditiesSold)
+	}
+
+	// add commodity bought by pod.
+	if pod.Spec.NodeName == node.Name &&
+		affinityAccessCommoditiesBought != nil && len(affinityAccessCommoditiesBought) > 0 {
+		am.addCommodityBoughtByPod(pod, node, affinityAccessCommoditiesBought)
 	} // end if
 }
 
-func matchesNodeSelector(pod *api.Pod, node *api.Node) bool {
-	// Check if node.Labels match pod.Spec.NodeSelector.
-	if len(pod.Spec.NodeSelector) > 0 {
-		selector := labels.SelectorFromSet(pod.Spec.NodeSelector)
-		if !selector.Matches(labels.Set(node.Labels)) {
-			return false
-		}
+func (am *AffinityProcessor) addCommoditySoldByNode(node *api.Node, affinityAccessCommodityDTOs []*proto.CommodityDTO) {
+	nodeEntityDTO, err := am.GetEntityDTO(proto.EntityDTO_VIRTUAL_MACHINE, string(node.UID))
+	if err != nil {
+		glog.Errorf("Cannot find the entityDTO: %s", err)
+		return
 	}
-	return true
+	err = am.AddCommoditiesSold(nodeEntityDTO, affinityAccessCommodityDTOs...)
+	if err != nil {
+		glog.Errorf("Failed to add commodityDTO to %s: %s", node.Name, err)
+	}
 }
 
-// The pod can only schedule onto nodes that satisfy requirements in both NodeAffinity and nodeSelector.
-func matchesNodeAffinity(pod *api.Pod, node *api.Node) bool {
-	nodeAffinityMatches := true
-	affinity := pod.Spec.Affinity
-	if affinity != nil && affinity.NodeAffinity != nil {
-		nodeAffinity := affinity.NodeAffinity
-		// if no required NodeAffinity requirements, will do no-op, means select all nodes.
-		if nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
-			return true
-		}
-
-		// Match node selector for requiredDuringSchedulingIgnoredDuringExecution.
-		if nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
-			nodeSelectorTerms := nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
-			glog.V(10).Infof("Match for RequiredDuringSchedulingIgnoredDuringExecution node selector terms %+v", nodeSelectorTerms)
-			nodeAffinityMatches = nodeAffinityMatches && nodeMatchesNodeSelectorTerms(node, nodeSelectorTerms)
-		}
+func (am *AffinityProcessor) addCommodityBoughtByPod(pod *api.Pod, node *api.Node, affinityAccessCommodityDTOs []*proto.CommodityDTO) {
+	podEntityDTO, err := am.GetEntityDTO(proto.EntityDTO_CONTAINER_POD, string(pod.UID))
+	if err != nil {
+		glog.Errorf("Cannot find the entityDTO: %s", err)
+		return
 	}
-	return nodeAffinityMatches
-}
-
-// nodeMatchesNodeSelectorTerms checks if a node's labels satisfy a list of node selector terms,
-// terms are ORed, and an empty list of terms will match nothing.
-func nodeMatchesNodeSelectorTerms(node *api.Node, nodeSelectorTerms []api.NodeSelectorTerm) bool {
-	for _, req := range nodeSelectorTerms {
-		nodeSelector, err := NodeSelectorRequirementsAsSelector(req.MatchExpressions)
-		if err != nil {
-			glog.V(10).Infof("Failed to parse MatchExpressions: %+v, regarding as not match.", req.MatchExpressions)
-			return false
-		}
-		if nodeSelector.Matches(labels.Set(node.Labels)) {
-			return true
-		}
+	provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, string(node.UID))
+	err = am.AddCommoditiesBought(podEntityDTO, provider, affinityAccessCommodityDTOs...)
+	if err != nil {
+		glog.Errorf("Failed to add commodityDTOs to %s: %s", util.GetPodClusterID(pod), err)
 	}
-	return false
 }

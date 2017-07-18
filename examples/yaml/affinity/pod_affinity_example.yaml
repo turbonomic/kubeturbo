@@ -1,0 +1,33 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: with-pod-affinity-2
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        goal: pod-affinity-2
+    spec:
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: tier
+                operator: In
+                values:
+                - backend
+            topologyKey: kubernetes.io/hostname
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: zone
+                operator: In
+                values:
+                - west
+            topologyKey: kubernetes.io/random
+      containers:
+      - name: with-pod-affinity
+        image: gcr.io/google_containers/pause:2.0

@@ -65,7 +65,7 @@ func (cp *ComplianceProcessor) AddCommoditiesSold(entityDTO *proto.EntityDTO, co
 		return errors.New("invalid input: entityDTO is nil.")
 	}
 	if commodities == nil {
-		return errors.New("invalid input: commodit is nil.")
+		return errors.New("invalid input: commodity is nil.")
 	}
 	commoditiesSold := entityDTO.GetCommoditiesSold()
 	for _, comm := range commodities {
@@ -73,7 +73,12 @@ func (cp *ComplianceProcessor) AddCommoditiesSold(entityDTO *proto.EntityDTO, co
 			commoditiesSold = append(commoditiesSold, comm)
 		}
 	}
+
 	entityDTO.CommoditiesSold = commoditiesSold
+	err := cp.UpdateEntityDTO(entityDTO)
+	if err != nil {
+		return fmt.Errorf("failed to update node entityDTO: %s", err)
+	}
 	return nil
 }
 
@@ -102,6 +107,11 @@ func (cp *ComplianceProcessor) AddCommoditiesBought(entityDTO *proto.EntityDTO, 
 		}
 		boughtType.Bought = append(boughtType.Bought, commodities...)
 		entityDTO.CommoditiesBought = append(entityDTO.GetCommoditiesBought(), boughtType)
+
+		err := cp.UpdateEntityDTO(entityDTO)
+		if err != nil {
+			return fmt.Errorf("failed to update node entityDTO: %s", err)
+		}
 	}
 	return nil
 }

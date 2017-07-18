@@ -153,7 +153,6 @@ func (dc *K8sDiscoveryClient) discoveryWithOldFramework() ([]*proto.EntityDTO, e
 	return entityDtos, nil
 }
 
-// A testing function for invoking discovery process with the new discovery framework.
 func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
 	nodes, err := dc.config.k8sClusterScraper.GetAllNodes()
 	if err != nil {
@@ -170,7 +169,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 	if err != nil {
 		glog.Errorf("Failed during process affinity rules: %s", err)
 	} else {
-		entityDTOs = affinityProcessor.ProcessNodeAffinity(entityDTOs)
+		entityDTOs = affinityProcessor.ProcessAffinityRules(entityDTOs)
 	}
 
 	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.config.k8sClusterScraper)
