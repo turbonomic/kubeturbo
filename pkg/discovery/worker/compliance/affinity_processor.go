@@ -12,7 +12,9 @@ import (
 	"github.com/golang/glog"
 )
 
+// affinityProcessorConfig defines necessary configuration for build an affinity processor.
 type affinityProcessorConfig struct {
+	// define how affinityProcessor accesses Kubernetes cluster.
 	k8sClusterScraper *cluster.ClusterScraper
 }
 
@@ -22,6 +24,7 @@ func NewAffinityProcessorConfig(k8sClusterScraper *cluster.ClusterScraper) *affi
 	}
 }
 
+// Affinity processor parses each affinity rule defined in pod and creates commodityDTOs for nodes and pods.
 type AffinityProcessor struct {
 	*ComplianceProcessor
 
@@ -49,7 +52,7 @@ func NewAffinityProcessor(config *affinityProcessorConfig) (*AffinityProcessor, 
 	}, nil
 }
 
-// TODO if there is error, fail the whole discovery? currently, error is handle in place and won't affect other discovery results.
+// TODO if there is an error, fail the whole discovery? currently, error is handle in place and won't affect other discovery results.
 func (am *AffinityProcessor) ProcessAffinityRules(entityDTOs []*proto.EntityDTO) []*proto.EntityDTO {
 	am.GroupEntityDTOs(entityDTOs)
 	for _, pod := range am.pods {

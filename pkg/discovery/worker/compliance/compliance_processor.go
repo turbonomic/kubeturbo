@@ -1,3 +1,5 @@
+// Package compliance parses different compliance rules in Kubernetes, creates commodityDTOs and
+// then updates corresponding entityDTOs.
 package compliance
 
 import (
@@ -8,6 +10,8 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
+// ComplianceProcessor provides methods to quickly find an entityDTO and updating its fields, such as commodities bought
+// and commodities sold based on different compliance rules.
 type ComplianceProcessor struct {
 	entityMaps map[proto.EntityDTO_EntityType]map[string]*proto.EntityDTO
 }
@@ -18,6 +22,7 @@ func NewComplianceProcessor() *ComplianceProcessor {
 	}
 }
 
+// Group the given entityDTOs based on entityTypes.
 func (cp *ComplianceProcessor) GroupEntityDTOs(entityDTOs []*proto.EntityDTO) {
 	for _, e := range entityDTOs {
 		eType := e.GetEntityType()
@@ -28,6 +33,7 @@ func (cp *ComplianceProcessor) GroupEntityDTOs(entityDTOs []*proto.EntityDTO) {
 	}
 }
 
+// Get all the entityDTOs from the compliance process.
 func (cp *ComplianceProcessor) GetAllEntityDTOs() []*proto.EntityDTO {
 	var entityDTOs []*proto.EntityDTO
 	for eType := range cp.entityMaps {
@@ -38,6 +44,7 @@ func (cp *ComplianceProcessor) GetAllEntityDTOs() []*proto.EntityDTO {
 	return entityDTOs
 }
 
+// Get one specific entityDTO based on given entity type and entity ID.
 func (cp *ComplianceProcessor) GetEntityDTO(eType proto.EntityDTO_EntityType, entityID string) (*proto.EntityDTO, error) {
 	if _, exist := cp.entityMaps[eType]; exist {
 		if _, found := cp.entityMaps[eType][entityID]; found {
@@ -50,6 +57,7 @@ func (cp *ComplianceProcessor) GetEntityDTO(eType proto.EntityDTO_EntityType, en
 	}
 }
 
+// Update the entry in the grouped entityDTOs stored in compliance processor.
 func (cp *ComplianceProcessor) UpdateEntityDTO(entityDTO *proto.EntityDTO) error {
 	eType := entityDTO.GetEntityType()
 	if _, exist := cp.entityMaps[eType]; !exist {
@@ -82,6 +90,7 @@ func (cp *ComplianceProcessor) AddCommoditiesSold(entityDTO *proto.EntityDTO, co
 	return nil
 }
 
+// Add a list of commodityDTOs bought from the given provider to the entityDTO.
 func (cp *ComplianceProcessor) AddCommoditiesBought(entityDTO *proto.EntityDTO, provider *sdkbuilder.ProviderDTO, commodities ...*proto.CommodityDTO) error {
 	if entityDTO == nil {
 		return errors.New("invalid input: entityDTO is nil.")
@@ -93,7 +102,11 @@ func (cp *ComplianceProcessor) AddCommoditiesBought(entityDTO *proto.EntityDTO, 
 	for _, commBoughtType := range entityDTO.GetCommoditiesBought() {
 		// TODO compare GetProviderType
 		if commBoughtType.GetProviderId() == provider.GetId() { // && commBoughtType.GetProviderType() == provider.GetProviderType() {
-			commBoughtType.Bought = append(commBoughtType.GetBought(), commodities...)
+			for _, comm := range commBoughtType.GetBought() {
+				if !hasCommodityBought(commBoughtType, comm) {
+					commBoughtType.Bought = append(commBoughtType.GetBought(), commodities...)
+				}
+			}
 			foundProvider = true
 		}
 	}
@@ -116,21 +129,20 @@ func (cp *ComplianceProcessor) AddCommoditiesBought(entityDTO *proto.EntityDTO, 
 	return nil
 }
 
-func (cp *ComplianceProcessor) getEntity(entityType proto.EntityDTO_EntityType, entityID string) (*proto.EntityDTO, error) {
-	entityMap, exist := cp.entityMaps[entityType]
-	if !exist {
-		return nil, fmt.Errorf("cannot find entityDTO with entity type %s", entityType)
-	}
-	entityDTO, exist := entityMap[entityID]
-	if !exist {
-		return nil, fmt.Errorf("cannot find entityDTO with given ID: %s", entityID)
-	}
-	return entityDTO, nil
-}
-
+// check if a commodity has already been sold by the entity.
 func hasCommoditySold(entityDTO *proto.EntityDTO, commDTO *proto.CommodityDTO) bool {
 	commoditiesSold := entityDTO.GetCommoditiesSold()
-	for _, commSold := range commoditiesSold {
+	return hasCommodity(commoditiesSold, commDTO)
+}
+
+// check if a commodity has already been bought by the entity
+func hasCommodityBought(commodityBought *proto.EntityDTO_CommodityBought, commDTO *proto.CommodityDTO) bool {
+	commoditiesBought := commodityBought.GetBought()
+	return hasCommodity(commoditiesBought, commDTO)
+}
+
+func hasCommodity(commodityDTOs []*proto.CommodityDTO, commDTO *proto.CommodityDTO) bool {
+	for _, commSold := range commodityDTOs {
 		if commDTO == commSold || commDTO.GetCommodityType() == commSold.GetCommodityType() &&
 			commDTO.GetKey() == commSold.GetKey() {
 			return true

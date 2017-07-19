@@ -64,13 +64,13 @@ func (acm *AffinityCommodityManager) getCommoditySoldAndBought(termString string
 	commSold, err := acm.getCommoditySold(key)
 	if err != nil {
 		// return immediately even if only one failed.
-		return nil, nil, fmt.Errorf("failed to get accessCommodityDTO based on given expressions: %s", err)
+		return nil, nil, fmt.Errorf("failed to get accessCommodityDTO sold based on given expressions: %s", err)
 	}
 
 	commBought, err := acm.getCommodityBought(key)
 	if err != nil {
 		// return immediately even if only one failed.
-		return nil, nil, fmt.Errorf("failed to get accessCommodityDTO based on given expressions: %s", err)
+		return nil, nil, fmt.Errorf("failed to get accessCommodityDTO bought based on given expressions: %s", err)
 	}
 
 	return commSold, commBought, nil
