@@ -10,15 +10,13 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
 
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-
-	"github.com/turbonomic/kubeturbo/pkg/discovery/old"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
 )
 
 const (
@@ -121,36 +119,7 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 	newFrameworkDiscTime := time.Now().Sub(currentTime).Nanoseconds()
 	glog.Infof("New framework discovery time: %dns", newFrameworkDiscTime)
 
-	//currentTime = time.Now()
-	//oldDiscoveryResult, err := dc.discoveryWithOldFramework()
-	//if err != nil {
-	//	glog.Errorf("Failed to discovery with the old framework: %s", err)
-	//} else {
-	//	oldFrameworkDiscTime := time.Now().Sub(currentTime).Nanoseconds()
-	//	glog.Infof("Old framework discovery time: %dns", oldFrameworkDiscTime)
-	//
-	//	compareDiscoveryResults(oldDiscoveryResult, newDiscoveryResultDTOs)
-	//}
-
 	return discoveryResponse, nil
-}
-
-func (dc *K8sDiscoveryClient) discoveryWithOldFramework() ([]*proto.EntityDTO, error) {
-	//Discover the Kubernetes topology
-	glog.V(2).Infof("Discovering Kubernetes cluster...")
-
-	kubeProbe, err := old.NewK8sProbe(dc.config.k8sClusterScraper, dc.config.probeConfig)
-	if err != nil {
-		// TODO make error dto
-		return nil, fmt.Errorf("Error creating Kubernetes discovery probe:%s", err.Error())
-	}
-
-	entityDtos, err := kubeProbe.Discovery()
-	if err != nil {
-		return nil, err
-	}
-
-	return entityDtos, nil
 }
 
 func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
