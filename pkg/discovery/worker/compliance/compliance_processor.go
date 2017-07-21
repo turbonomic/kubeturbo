@@ -63,7 +63,11 @@ func (cp *ComplianceProcessor) UpdateEntityDTO(entityDTO *proto.EntityDTO) error
 	if _, exist := cp.entityMaps[eType]; !exist {
 		return fmt.Errorf("given entity type %s does not exist.", eType)
 	}
-	cp.entityMaps[eType][entityDTO.GetId()] = entityDTO
+	eId := entityDTO.GetId()
+	if _ , exist :=  cp.entityMaps[eType][eId]; !exist {
+		return fmt.Errorf("given entity id %s does not exist.", eId)
+	}
+	cp.entityMaps[eType][eId] = entityDTO
 	return nil
 }
 
@@ -98,13 +102,16 @@ func (cp *ComplianceProcessor) AddCommoditiesBought(entityDTO *proto.EntityDTO, 
 	if commodities == nil {
 		return errors.New("invalid input: commodit is nil.")
 	}
+	if provider == nil {
+		return errors.New("invalid input: provider is nil.")
+	}
 	foundProvider := false
 	for _, commBoughtType := range entityDTO.GetCommoditiesBought() {
 		// TODO compare GetProviderType
 		if commBoughtType.GetProviderId() == provider.GetId() { // && commBoughtType.GetProviderType() == provider.GetProviderType() {
-			for _, comm := range commBoughtType.GetBought() {
+			for _, comm := range commodities {
 				if !hasCommodityBought(commBoughtType, comm) {
-					commBoughtType.Bought = append(commBoughtType.GetBought(), commodities...)
+					commBoughtType.Bought = append(commBoughtType.GetBought(), comm)
 				}
 			}
 			foundProvider = true
@@ -142,9 +149,9 @@ func hasCommodityBought(commodityBought *proto.EntityDTO_CommodityBought, commDT
 }
 
 func hasCommodity(commodityDTOs []*proto.CommodityDTO, commDTO *proto.CommodityDTO) bool {
-	for _, commSold := range commodityDTOs {
-		if commDTO == commSold || commDTO.GetCommodityType() == commSold.GetCommodityType() &&
-			commDTO.GetKey() == commSold.GetKey() {
+	for _, comm := range commodityDTOs {
+		if commDTO == comm || commDTO.GetCommodityType() == comm.GetCommodityType() &&
+			commDTO.GetKey() == comm.GetKey() {
 			return true
 		}
 	}

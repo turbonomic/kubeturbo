@@ -38,7 +38,7 @@ type StitchingPropertyType string
 type stitchingType string
 
 type StitchingManager struct {
-	// key: node name; value: node IP address for stitching.
+	// key: node name; value: node UID for stitching.
 	nodeStitchingUIDMap map[string]string
 
 	// key: node name; value: node IP address for stitching.

@@ -52,33 +52,21 @@ func NewAffinityProcessor(config *affinityProcessorConfig) (*AffinityProcessor, 
 	}, nil
 }
 
-// TODO if there is an error, fail the whole discovery? currently, error is handle in place and won't affect other discovery results.
+// TODO if there is an error, fail the whole discovery? currently, error is handled in place and won't affect other discovery results.
 func (am *AffinityProcessor) ProcessAffinityRules(entityDTOs []*proto.EntityDTO) []*proto.EntityDTO {
 	am.GroupEntityDTOs(entityDTOs)
+	podsNodesMap := buildPodsNodesMap(am.nodes, am.pods)
+
 	for _, pod := range am.pods {
-		am.processAffinityPerPod(pod)
+		am.processAffinityPerPod(pod, podsNodesMap)
 	}
 	return am.GetAllEntityDTOs()
 }
 
-func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod) {
+func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod, podsNodesMap map[*api.Pod]*api.Node) {
 	affinity := pod.Spec.Affinity
 	if affinity == nil {
 		return
-	}
-
-	nodeMap := make(map[string]*api.Node)
-	for _, currNode := range am.nodes {
-		nodeMap[currNode.Name] = currNode
-	}
-
-	podsNodesMap := make(map[*api.Pod]*api.Node)
-	for _, currPod := range am.pods {
-		hostingNode, exist := nodeMap[currPod.Spec.NodeName]
-		if !exist || hostingNode == nil {
-			continue
-		}
-		podsNodesMap[currPod] = hostingNode
 	}
 
 	nodeSelectorTerms := getAllNodeSelectors(affinity)
@@ -106,13 +94,11 @@ func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod) {
 }
 
 func getAllNodeSelectors(affinity *api.Affinity) []api.NodeSelectorTerm {
-	nodeSelectorTerms := []api.NodeSelectorTerm{}
 	// TODO we only parse RequiredDuringSchedulingIgnoredDuringExecution for now.
-	if affinity.NodeAffinity != nil && affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
-		nodeSelectorTerms = append(nodeSelectorTerms, affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms...)
+	if affinity.NodeAffinity == nil || affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+		return []api.NodeSelectorTerm{}
 	}
-	//glog.Infof("node selectors are %++v", nodeSelectorTerms)
-	return nodeSelectorTerms
+	return affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
 }
 
 func getAllPodAffinityTerms(affinity *api.Affinity) []api.PodAffinityTerm {
@@ -167,4 +153,20 @@ func (am *AffinityProcessor) addCommodityBoughtByPod(pod *api.Pod, node *api.Nod
 	if err != nil {
 		glog.Errorf("Failed to add commodityDTOs to %s: %s", util.GetPodClusterID(pod), err)
 	}
+}
+
+func buildPodsNodesMap(nodes []*api.Node, pods []*api.Pod) map[*api.Pod]*api.Node {
+	nodesMap := make(map[string]*api.Node)
+	for _, currNode := range nodes {
+		nodesMap[currNode.Name] = currNode
+	}
+	podsNodesMap := make(map[*api.Pod]*api.Node)
+	for _, currPod := range pods {
+		hostingNode, exist := nodesMap[currPod.Spec.NodeName]
+		if !exist || hostingNode == nil {
+			continue
+		}
+		podsNodesMap[currPod] = hostingNode
+	}
+	return podsNodesMap
 }
