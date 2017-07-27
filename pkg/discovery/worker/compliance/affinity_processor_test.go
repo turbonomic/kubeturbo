@@ -117,7 +117,7 @@ func TestProcessAffinityPerPod(t *testing.T) {
 		}
 		for _, nodeEntityDTO := range providerNodeEntityDTOs {
 			if pass, err := checkAccessCommodityBuyerSellerRelationship(podEntityDTO, nodeEntityDTO, accessCommBought); !pass {
-				t.Errorf("Consumer provider commodity doesn't match: %s", err)
+				t.Errorf("Test case %d failed. Consumer provider commodity doesn't match: %s", i, err)
 			}
 		}
 
