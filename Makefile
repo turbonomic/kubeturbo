@@ -12,3 +12,8 @@ test: clean
 .PHONY: clean
 clean:
 	@: if [ -f ${OUTPUT_DIR} ] then rm -rf ${OUTPUT_DIR} fi
+
+.PHONY: default test build
+default: clean build test
+
+.DEFAULT_GOAL := default
