@@ -91,7 +91,6 @@ func (m *KubeletMonitor) RetrieveResourceStat() error {
 				return
 			default:
 				m.scrapeKubelet(n)
-
 			}
 		}(node)
 	}
