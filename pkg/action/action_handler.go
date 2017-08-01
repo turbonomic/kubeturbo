@@ -3,6 +3,7 @@ package action
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	client "k8s.io/client-go/kubernetes"
@@ -10,6 +11,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/supervisor"
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
+	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	turboscheduler "github.com/turbonomic/kubeturbo/pkg/scheduler"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 
@@ -19,16 +21,27 @@ import (
 	"github.com/golang/glog"
 )
 
+const (
+	defaultActionCacheTTL = time.Second * 50
+)
+
 type ActionHandlerConfig struct {
 	kubeClient     *client.Clientset
 	broker         turbostore.Broker
 	StopEverything chan struct{}
+
+	//for moveAction
+	k8sVersion        string
+	noneSchedulerName string
 }
 
-func NewActionHandlerConfig(kubeClient *client.Clientset, broker turbostore.Broker) *ActionHandlerConfig {
+func NewActionHandlerConfig(kubeClient *client.Clientset, broker turbostore.Broker, k8sVersion, noneSchedulerName string) *ActionHandlerConfig {
 	config := &ActionHandlerConfig{
 		kubeClient: kubeClient,
 		broker:     broker,
+
+		k8sVersion:        k8sVersion,
+		noneSchedulerName: noneSchedulerName,
 
 		StopEverything: make(chan struct{}),
 	}
@@ -54,6 +67,9 @@ type ActionHandler struct {
 	failedActionChan chan *turboaction.TurboAction
 
 	resultChan chan *proto.ActionResult
+
+	//concurrency control
+	lockMap *util.ExpirationMap
 }
 
 // Build new ActionHandler and start it.
@@ -65,12 +81,15 @@ func NewActionHandler(config *ActionHandlerConfig, scheduler *turboscheduler.Tur
 	supervisorConfig := supervisor.NewActionSupervisorConfig(config.kubeClient, executedActionChan, succeededActionChan, failedActionChan)
 	actionSupervisor := supervisor.NewActionSupervisor(supervisorConfig)
 
+	lmap := util.NewExpirationMap(defaultActionCacheTTL)
+
 	handler := &ActionHandler{
 		config:           config,
 		actionExecutors:  make(map[turboaction.TurboActionType]executor.TurboActionExecutor),
 		actionSupervisor: actionSupervisor,
 
 		scheduler: scheduler,
+		lockMap:   lmap,
 
 		executedActionChan:  executedActionChan,
 		succeededActionChan: succeededActionChan,
@@ -87,7 +106,7 @@ func NewActionHandler(config *ActionHandlerConfig, scheduler *turboscheduler.Tur
 // Register supported action executor.
 // As action executor is stateless, they can be safely reused.
 func (h *ActionHandler) registerActionExecutors() {
-	reScheduler := executor.NewReScheduler(h.config.kubeClient, h.config.broker)
+	reScheduler := executor.NewReScheduler(h.config.kubeClient, h.config.broker, h.config.k8sVersion, h.config.noneSchedulerName, h.lockMap)
 	h.actionExecutors[turboaction.ActionMove] = reScheduler
 
 	horizontalScaler := executor.NewHorizontalScaler(h.config.kubeClient, h.config.broker, h.scheduler)
@@ -101,6 +120,7 @@ func (h *ActionHandler) Start() {
 	go wait.Until(h.getNextSucceededTurboAction, 0, h.config.StopEverything)
 	go wait.Until(h.getNextFailedTurboAction, 0, h.config.StopEverything)
 
+	go h.lockMap.Run(h.config.StopEverything)
 	h.actionSupervisor.Start()
 }
 
@@ -122,7 +142,8 @@ func (h *ActionHandler) getNextFailedTurboAction() {
 
 	glog.V(2).Infof("Action %s for %s-%s failed.", content.ActionType, content.TargetObject.TargetObjectType, content.TargetObject.TargetObjectName)
 	progress := int32(0)
-	h.sendActionResult(proto.ActionResponseState_FAILED, progress, "Failed 1")
+	msg := fmt.Sprintf("Action %s on %s failed.", content.ActionType, content.TargetObject.TargetObjectType)
+	h.sendActionResult(proto.ActionResponseState_FAILED, progress, msg)
 }
 
 // Implement ActionExecutorClient interface defined in Go SDK.
@@ -136,6 +157,10 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	actionItemDTO := actionItems[0]
 	go h.execute(actionItemDTO)
 
+	stop := make(chan struct{})
+	defer close(stop)
+	keepAlive(progressTracker, stop)
+
 	glog.V(3).Infof("Now wait for action result")
 	result := <-h.resultChan
 	glog.V(4).Infof("Action result is %++v", result)
@@ -144,29 +169,60 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	return result, nil
 }
 
+func keepAlive(tracker sdkprobe.ActionProgressTracker, stop chan struct{}) {
+
+	//TODO: add timeout
+	go func() {
+		var progress int32 = 0
+		state := proto.ActionResponseState_IN_PROGRESS
+
+		for {
+			progress = progress + 1
+			if progress > 99 {
+				progress = 99
+			}
+
+			tracker.UpdateProgress(state, "in progress", progress)
+
+			t := time.NewTimer(time.Second * 3)
+			select {
+			case <-stop:
+				return
+			case <-t.C:
+			}
+		}
+		glog.V(3).Infof("action keepAlive goroutine exit.")
+	}()
+}
+
 func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) {
 	actionType, err := getActionTypeFromActionItemDTO(actionItem)
 	if err != nil {
-		glog.Errorf("Failed to execute action: %s", err)
-		errorMsg := fmt.Sprintf("Failed to execute action: %s", err)
-		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), errorMsg)
+		glog.Errorf("Failed to execute action: %v", err)
+		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), err.Error())
 		return
 	}
 	executor, exist := h.actionExecutors[actionType]
 	if !exist {
 		glog.Errorf("action type %s is not support", actionType)
-		errorMsg := fmt.Sprintf("Failed to execute action. The action %s is currently not supported", actionType)
-		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), errorMsg)
+		msg := fmt.Sprintf("Action %s on %s is not supported.", actionType, actionItem.GetTargetSE().GetEntityType())
+		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), msg)
 		return
 	}
 
 	action, err := executor.Execute(actionItem)
 	if err != nil {
 		glog.Errorf("Failed to execute action: %s", err)
-		errorMsg := fmt.Sprintf("Failed to execute action: %s", err)
-		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), errorMsg)
+		msg := fmt.Sprintf("Action %s on %s failed.", actionType, actionItem.GetTargetSE().GetEntityType())
+		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), msg)
 		return
 	}
+	if action.Status == turboaction.Success {
+		h.sendActionResult(proto.ActionResponseState_SUCCEEDED, int32(100), "Success")
+		return
+	}
+
+	//send to channel to check the final status of the action if action.Status == turboaction.Executed
 	h.executedActionChan <- action
 }
 
@@ -198,7 +254,7 @@ func getActionTypeFromActionItemDTO(actionItem *proto.ActionItemDTO) (turboactio
 		actionType = turboaction.ActionProvision
 		break
 	default:
-		return actionType, fmt.Errorf("Action %s not supported", actionItem.GetActionType())
+		return actionType, fmt.Errorf("Action %s is not supported", actionItem.GetActionType())
 	}
 
 	return actionType, nil

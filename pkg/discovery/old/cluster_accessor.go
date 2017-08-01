@@ -8,7 +8,6 @@ import (
 	client "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
 
-
 	"github.com/golang/glog"
 )
 

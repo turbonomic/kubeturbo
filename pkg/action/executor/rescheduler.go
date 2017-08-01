@@ -1,42 +1,61 @@
 package executor
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	//"time"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	client "k8s.io/client-go/kubernetes"
-	api "k8s.io/client-go/pkg/api/v1"
-
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kclient "k8s.io/client-go/kubernetes"
+	api "k8s.io/client-go/pkg/api/v1"
+	"time"
 
+	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-	"strings"
 )
 
 const (
 	// Set the grace period to 0 for deleting the pod immediately.
-	podDeletionGracePeriod        int64 = 0
-	DefaultNoneExistSchedulerName       = "turbo-none-exist-scheduler"
-	KindReplicationController           = "ReplicationController"
-	KindReplicaSet                      = "ReplicaSet"
+	podDeletionGracePeriodDefault int64 = 0
+
+	//TODO: set podDeletionGracePeriodMax > 0
+	// currently, if grace > 0, there will be some retries and could cause timeout easily
+	podDeletionGracePeriodMax int64 = 0
+
+	DefaultNoneExistSchedulerName = "turbo-none-exist-scheduler"
+	kindReplicationController     = "ReplicationController"
+	kindReplicaSet                = "ReplicaSet"
+
+	HigherK8sVersion = "1.6.0"
+
+	defaultRetryLess       int = 2
+	defaultRetryMore       int = 5
+	defaultTimeOut             = time.Second * 32
+	defaultWaitLockTimeOut     = defaultTimeOut * 20
+
+	defaultSleep = time.Second * 3
 )
 
 type ReScheduler struct {
-	kubeClient *client.Clientset
-	broker     turbostore.Broker
+	kubeClient        *kclient.Clientset
+	broker            turbostore.Broker
+	k8sVersion        string
+	noneSchedulerName string
+
+	//a map for concurrent control of Actions
+	lockMap *util.ExpirationMap
 }
 
-func NewReScheduler(client *client.Clientset, broker turbostore.Broker) *ReScheduler {
+func NewReScheduler(client *kclient.Clientset, broker turbostore.Broker, k8sver, noschedulerName string, lmap *util.ExpirationMap) *ReScheduler {
 	return &ReScheduler{
-		kubeClient: client,
-		broker:     broker,
+		kubeClient:        client,
+		broker:            broker,
+		k8sVersion:        k8sver,
+		noneSchedulerName: noschedulerName,
+		lockMap:           lmap,
 	}
 }
 
@@ -53,6 +72,8 @@ func (r *ReScheduler) Execute(actionItem *proto.ActionItemDTO) (*turboaction.Tur
 
 func (r *ReScheduler) buildPendingReScheduleTurboAction(actionItem *proto.ActionItemDTO) (*turboaction.TurboAction,
 	error) {
+
+	glog.V(4).Infof("MoveActionItem: %++v", actionItem)
 	// Find out the pod to be re-scheduled.
 	targetPod := actionItem.GetTargetSE()
 	if targetPod == nil {
@@ -155,7 +176,7 @@ func (r *ReScheduler) preActionCheck(podName, namespace, nodeName string) (*api.
 
 	pod, err := podClient.Get(podName, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("re-schedule failed: get original pod:%v\n%v", fullName, err.Error())
+		return nil, fmt.Errorf("re-schedule failed: get original pod:%v\n%v", fullName, err)
 	}
 
 	// If Pod is terminated, then no need to move it.
@@ -164,12 +185,52 @@ func (r *ReScheduler) preActionCheck(podName, namespace, nodeName string) (*api.
 		return nil, fmt.Errorf("re-schedule failed: original pod termiated:%v phase:%v", fullName, pod.Status.Phase)
 	}
 
-	// If Pod is already in the destination Node, then no need to move it.
-	if strings.EqualFold(nodeName, pod.Spec.NodeName) {
-		return nil, fmt.Errorf("re-schedule failed: pod is already in Destination Pod-%v on %v", fullName, pod.Spec.NodeName)
+	return pod, nil
+}
+
+// move the pods controlled by ReplicationController/ReplicaSet
+func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, nodeName string) (*api.Pod, error) {
+	highver := true
+	if goutil.CompareVersion(r.k8sVersion, HigherK8sVersion) < 0 {
+		highver = false
 	}
 
-	return pod, nil
+	//1. set up
+	noexist := r.noneSchedulerName
+	helper, err := NewMoveHelper(r.kubeClient, pod.Namespace, pod.Name, parentKind, parentName, noexist, highver)
+	if err != nil {
+		return nil, err
+	}
+	helper.SetMap(r.lockMap)
+
+	//2. wait to get a lock
+	err = goutil.RetryDuring(1000, defaultWaitLockTimeOut, defaultSleep, func() error {
+		if !helper.Acquirelock() {
+			return fmt.Errorf("TryLater")
+		}
+		return nil
+	})
+	if err != nil {
+		glog.V(3).Infof("Move pod[%s] failed: Failed to acuire lock parent[%s]", pod.Name, parentName)
+		return nil, err
+	}
+	defer func() {
+		helper.CleanUp()
+		util.CleanPendingPod(r.kubeClient, pod.Namespace, noexist, parentKind, parentName, highver)
+	}()
+	glog.V(3).Infof("Get lock for pod[%s] parent[%s]", pod.Name, parentName)
+
+	//3. invalidate the scheduler of the parentController
+	preScheduler, err := helper.UpdateScheduler(noexist, defaultRetryLess)
+	if err != nil {
+		glog.Errorf("Move pod[%s] failed: failed to invalidate schedulerName parent[%s]", pod.Name, parentName)
+		return nil, fmt.Errorf("TryLater")
+	}
+
+	//4. set the original scheduler for restore
+	helper.SetScheduler(preScheduler)
+
+	return movePod(r.kubeClient, pod, nodeName, defaultRetryLess)
 }
 
 func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.TurboAction, error) {
@@ -179,285 +240,47 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 		return nil, fmt.Errorf("re-scheduler failed: destination is nil after pre-precess.")
 	}
 
-	//1. get original Pod
+	//1. get original Pod, and do some check
 	podName := actionContent.TargetObject.TargetObjectName
 	namespace := actionContent.TargetObject.TargetObjectNamespace
 	nodeName := moveSpec.Destination
-	fullName := fmt.Sprintf("%s/%s", namespace, podName)
 
 	pod, err := r.preActionCheck(podName, namespace, nodeName)
 	if err != nil {
 		return nil, err
 	}
 
-	//2. update schedulerName of parent object
-	parentKind, parentName, err := getParentInfo(pod)
+	// if the pod is already on the target node, then simply return success.
+	if pod.Spec.NodeName == nodeName {
+		action.Status = turboaction.Success
+		action.LastTimestamp = time.Now()
+		return action, nil
+	}
+
+	//2. move
+	fullName := util.BuildIdentifier(namespace, podName)
+	parentKind, parentName, err := util.ParseParentInfo(pod)
 	if err != nil {
-		return nil, fmt.Errorf("move-abort: cannot get pod-%v parent info: %v", fullName, err.Error())
+		return nil, fmt.Errorf("move-abort: cannot get pod-%v parent info: %v", fullName, err)
 	}
 
-	var f func(*client.Clientset, string, string, string, string) (string, error)
-	switch parentKind {
-	case "":
-		glog.V(3).Infof("pod-%v is a standalone Pod, move it directly.", fullName)
-		f = func(c *client.Clientset, ns, pname, cname, sname string) (string, error) { return "", nil }
-	case KindReplicationController:
-		glog.V(3).Infof("pod-%v parent is a ReplicationController-%v", fullName, parentName)
-		f = updateRCscheduler
-	case KindReplicaSet:
-		glog.V(3).Infof("pod-%v parent is a ReplicaSet-%v", fullName, parentName)
-		f = updateRSscheduler
-	default:
-		err = fmt.Errorf("unsupported parent-[%v] Kind-[%v]", parentName, parentKind)
-		glog.Warning(err.Error())
-		return nil, err
+	var npod *api.Pod
+	if parentKind == "" {
+		npod, err = movePod(r.kubeClient, pod, nodeName, defaultRetryLess)
+	} else {
+		npod, err = r.moveControllerPod(pod, parentKind, parentName, nodeName)
 	}
-
-	preScheduler, err := f(r.kubeClient, namespace, parentName, "", DefaultNoneExistSchedulerName)
-	restore := func() {
-		if preScheduler != "" {
-			f(r.kubeClient, namespace, parentName, DefaultNoneExistSchedulerName, preScheduler)
-		}
-	}
-	defer restore()
 	if err != nil {
-		err = fmt.Errorf("move-failed: update pod-%v parent-%v scheduler failed:%v", fullName, parentName, err.Error())
-		glog.Error(err.Error())
-		return nil, err
+		glog.Errorf("move pod [%s] failed: %v", fullName, err)
+		return nil, fmt.Errorf("move failed: %s", fullName)
 	}
 
-	//3. move the Pod
-	npod, err := movePod(r.kubeClient, pod, nodeName)
-	if err != nil {
-		return nil, fmt.Errorf("re-schedule failed: failed to create new Pod: %v\n%v", fullName, err.Error())
-	}
-
-	//4. update moveAction
+	//3. update moveAction
 	moveSpec.NewObjectName = npod.Name
 	moveSpec.NewObjectNamespace = npod.Namespace
 	action.Content.ActionSpec = moveSpec
 	action.Status = turboaction.Executed
+	action.LastTimestamp = time.Now()
 
 	return action, nil
-}
-
-//update the schedulerName of a ReplicaSet to schedulerName.
-// if condName is not empty, then only current schedulerName is same to condName, then will do the update.
-// return the previous schedulerName
-func updateRSscheduler(client *client.Clientset, nameSpace, rsName, condName, schedulerName string) (string, error) {
-	currentName := ""
-
-	rsClient := client.ExtensionsV1beta1().ReplicaSets(nameSpace)
-	if rsClient == nil {
-		return "", fmt.Errorf("failed to get ReplicaSet client in namespace: %v", nameSpace)
-	}
-
-	id := fmt.Sprintf("%v/%v", nameSpace, rsName)
-
-	//1. get ReplicaSet
-	option := metav1.GetOptions{}
-	rs, err := rsClient.Get(rsName, option)
-	if err != nil {
-		err = fmt.Errorf("failed to get ReplicaSet-%v: %v", id, err.Error())
-		glog.Error(err.Error())
-		return currentName, err
-	}
-
-	//2. check whether to do the update
-	currentName = rs.Spec.Template.Spec.SchedulerName
-	if currentName == schedulerName {
-		glog.V(3).Infof("No need to update: schedulerName is already is [%v]-[%v]", id, schedulerName)
-		return "", nil
-	}
-	if condName != "" && currentName != condName {
-		err := fmt.Errorf("abort to update schedulerName; [%v] - [%v] Vs. [%v]", id, condName, currentName)
-		glog.Warning(err.Error())
-		return "", err
-	}
-
-	//3. update schedulerName
-	rs.Spec.Template.Spec.SchedulerName = schedulerName
-	_, err = rsClient.Update(rs)
-	if err != nil {
-		err = fmt.Errorf("failed to update RC-%v:%v\n", id, err.Error())
-		glog.Error(err.Error())
-		return currentName, err
-	}
-
-	//4. check final status
-	rs, err = rsClient.Get(rsName, option)
-	if err != nil {
-		err = fmt.Errorf("failed to check ReplicaSet-%v: %v", id, err.Error())
-		return currentName, err
-	}
-
-	if rs.Spec.Template.Spec.SchedulerName != schedulerName {
-		err = fmt.Errorf("failed to update schedulerName for ReplicaSet-%v: %v", id, err.Error())
-		glog.Error(err.Error())
-		return "", err
-	}
-
-	glog.V(2).Infof("Successfully update ReplicationController:%v scheduler name [%v] -> [%v]", id, currentName,
-		schedulerName)
-
-	return currentName, nil
-}
-
-//update the schedulerName of a ReplicationController
-// if condName is not empty, then only current schedulerName is same to condName, then will do the update.
-// return the previous schedulerName
-func updateRCscheduler(client *client.Clientset, nameSpace, rcName, condName, schedulerName string) (string, error) {
-	currentName := ""
-
-	id := fmt.Sprintf("%v/%v", nameSpace, rcName)
-	rcClient := client.CoreV1().ReplicationControllers(nameSpace)
-
-	//1. get
-	option := metav1.GetOptions{}
-	rc, err := rcClient.Get(rcName, option)
-	if err != nil {
-		err = fmt.Errorf("failed to get ReplicationController-%v: %v\n", id, err.Error())
-		glog.Error(err.Error())
-		return currentName, err
-	}
-
-	//2. check whether to update
-	currentName = rc.Spec.Template.Spec.SchedulerName
-	if currentName == schedulerName {
-		glog.V(3).Infof("No need to update: schedulerName is already is [%v]-[%v]", id, schedulerName)
-		return "", nil
-	}
-	if condName != "" && currentName != condName {
-		err := fmt.Errorf("abort to update schedulerName; [%v] - [%v] Vs. [%v]", id, condName, currentName)
-		glog.Warning(err.Error())
-		return "", err
-	}
-
-	//3. update
-	rc.Spec.Template.Spec.SchedulerName = schedulerName
-	rc, err = rcClient.Update(rc)
-	if err != nil {
-		err = fmt.Errorf("failed to update RC-%v:%v\n", id, err.Error())
-		glog.Error(err.Error())
-		return currentName, err
-	}
-
-	//4. check final status
-	rc, err = rcClient.Get(rcName, option)
-	if err != nil {
-		err = fmt.Errorf("failed to get ReplicationController-%v: %v\n", id, err.Error())
-		glog.Error(err.Error())
-		return currentName, err
-	}
-
-	if rc.Spec.Template.Spec.SchedulerName != schedulerName {
-		err = fmt.Errorf("failed to update schedulerName for ReplicaController-%v: %v", id, err.Error())
-		glog.Error(err.Error())
-		return "", err
-	}
-
-	glog.V(2).Infof("Successfully update ReplicationController:%v scheduler name from [%v] to [%v]", id, currentName,
-		schedulerName)
-
-	return currentName, nil
-}
-
-// move pod nameSpace/podName to node nodeName
-func movePod(client *client.Clientset, pod *api.Pod, nodeName string) (*api.Pod, error) {
-	podClient := client.CoreV1().Pods(pod.Namespace)
-	if podClient == nil {
-		err := fmt.Errorf("cannot get Pod client for nameSpace:%v", pod.Namespace)
-		glog.Errorf(err.Error())
-		return nil, err
-	}
-
-	//1. copy the original pod, and set the nodeName
-	id := fmt.Sprintf("%v/%v", pod.Namespace, pod.Name)
-	glog.V(2).Infof("move-pod: begin to move %v from %v to %v", id, pod.Spec.NodeName, nodeName)
-
-	npod := &api.Pod{}
-	copyPodInfo(pod, npod)
-	npod.Spec.NodeName = nodeName
-
-	//2. kill original pod
-	//TODO: find the reason why it does not work when grace > 0
-	//var grace int64 = *pod.Spec.TerminationGracePeriodSeconds
-	var grace int64 = 0
-	delOption := &metav1.DeleteOptions{GracePeriodSeconds: &grace}
-	err := podClient.Delete(pod.Name, delOption)
-	if err != nil {
-		err = fmt.Errorf("move-failed: failed to delete original pod-%v: %v", id, err.Error())
-		glog.Error(err.Error())
-		return nil, err
-	}
-
-	//3. create (and bind) the new Pod
-	//time.Sleep(time.Duration(grace) * time.Second)
-	_, err = podClient.Create(npod)
-	if err != nil {
-		err = fmt.Errorf("move-failed: failed to create new pod-%v: %v", id, err.Error())
-		glog.Error(err.Error())
-		return nil, err
-	}
-
-	glog.V(2).Infof("move-finished: %v from %v to %v", id, pod.Spec.NodeName, nodeName)
-
-	return npod, nil
-}
-
-func getParentInfo(pod *api.Pod) (string, string, error) {
-	//1. check ownerReferences:
-	if pod.OwnerReferences != nil && len(pod.OwnerReferences) > 0 {
-		for _, owner := range pod.OwnerReferences {
-			if *owner.Controller {
-				return owner.Kind, owner.Name, nil
-			}
-		}
-	}
-
-	glog.V(4).Infof("cannot find pod-%v/%v parent by OwnerReferences.", pod.Namespace, pod.Name)
-
-	//2. check annotations:
-	if pod.Annotations != nil && len(pod.Annotations) > 0 {
-		key := "kubernetes.io/created-by"
-		if value, ok := pod.Annotations[key]; ok {
-
-			var ref api.SerializedReference
-
-			if err := json.Unmarshal([]byte(value), &ref); err != nil {
-				err = fmt.Errorf("failed to decode parent annoation:%v", err.Error())
-				glog.Errorf("%v\n%v", err.Error(), value)
-				return "", "", err
-			}
-
-			return ref.Reference.Kind, ref.Reference.Name, nil
-		}
-	}
-
-	glog.V(4).Infof("cannot find pod-%v/%v parent by Annotations.", pod.Namespace, pod.Name)
-
-	return "", "", nil
-}
-
-func copyPodInfo(oldPod, newPod *api.Pod) {
-	//1. typeMeta
-	newPod.TypeMeta = oldPod.TypeMeta
-
-	//2. objectMeta
-	newPod.ObjectMeta = oldPod.ObjectMeta
-	newPod.SelfLink = ""
-	newPod.ResourceVersion = ""
-	newPod.Generation = 0
-	newPod.CreationTimestamp = metav1.Time{}
-	newPod.DeletionTimestamp = nil
-	newPod.DeletionGracePeriodSeconds = nil
-
-	//3. podSpec
-	spec := oldPod.Spec
-	spec.Hostname = ""
-	spec.Subdomain = ""
-	spec.NodeName = ""
-
-	newPod.Spec = spec
-	return
 }
