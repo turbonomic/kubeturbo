@@ -7,6 +7,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"strconv"
+	goflag "flag"
 
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/client-go/kubernetes"
@@ -94,6 +95,10 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", kubelet.DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
 	fs.StringVar(&s.K8sVersion, "k8sVersion", executor.HigherK8sVersion, "the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&s.NoneSchedulerName, "noneSchedulerName", executor.DefaultNoneExistSchedulerName, "a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
+
+	//set default log level=2
+	goflag.Set("v", "2")
+	goflag.Set("alsologtostderr", "true")
 
 	//leaderelection.BindFlags(&s.LeaderElection, fs)
 }
