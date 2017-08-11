@@ -6,17 +6,13 @@ metadata:
     name: kubeturbo
 spec:
   nodeSelector:
-    role: master
+    role: kubeturbo
   containers:
   - name: kubeturbo
-    image: vmturbo/kubeturbo:lastest
-    command:
-      - /bin/kubeturbo
+    image: vmturbo/kubeturbo:os35
     args:
-      - --v=3
       - --kubeconfig=/etc/kubeturbo/admin.kubeconfig
       - --turboconfig=/etc/kubeturbo/config
-      - --cadvisor-port=9999
     volumeMounts:
     - name: vmt-config
       mountPath: /etc/kubeturbo
