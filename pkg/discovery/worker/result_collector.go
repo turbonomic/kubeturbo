@@ -30,6 +30,8 @@ func (rc *ResultCollector) Collect(count int) []*proto.EntityDTO {
 	discoveryResult := []*proto.EntityDTO{}
 	discoveryErrorString := []string{}
 
+	glog.V(2).Infof("Waiting for results from %d workers.", count)
+
 	stopChan := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(count)
@@ -50,7 +52,8 @@ func (rc *ResultCollector) Collect(count int) []*proto.EntityDTO {
 	}()
 	wg.Wait()
 	// stop the result waiting goroutine.
-	stopChan <- struct{}{}
+	close(stopChan)
+	glog.V(2).Infof("Got all the results from %d workers.", count)
 
 	if len(discoveryErrorString) > 0 {
 		glog.Errorf("One or more discovery worker failed: %s", strings.Join(discoveryErrorString, "\t\t"))

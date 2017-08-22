@@ -10,11 +10,12 @@ const (
 
 	appPropertyNameHostingPodNamespace = "Kubernetes-App-Pod-Namespace"
 
-	appPropertyNameHostingPodName = "Kubernetes-App-Pod-Name"
+	appPropertyNameHostingPodName        = "Kubernetes-App-Pod-Name"
+	appPropertyNameHostingContainerIndex = "Kubernetes-App-Container-Index"
 )
 
 // Build properties of an application. The namespace and name of the hosting pod is stored in the properties.
-func BuildAppProperties(podNamespace, podName string) []*proto.EntityDTO_EntityProperty {
+func BuildAppProperties(podNamespace, podName string, index int) []*proto.EntityDTO_EntityProperty {
 
 	var properties []*proto.EntityDTO_EntityProperty
 	propertyNamespace := appPropertyNamespace
@@ -35,6 +36,15 @@ func BuildAppProperties(podNamespace, podName string) []*proto.EntityDTO_EntityP
 		Value:     &hostingPodNamePropertyValue,
 	}
 	properties = append(properties, nameProperty)
+
+	containerIndexName := appPropertyNameHostingContainerIndex
+	containerIndexValue := string(index)
+	indexProperty := &proto.EntityDTO_EntityProperty{
+		Namespace: &propertyNamespace,
+		Name:      &containerIndexName,
+		Value:     &containerIndexValue,
+	}
+	properties = append(properties, indexProperty)
 
 	return properties
 }

@@ -67,7 +67,8 @@ func (svcDiscWorker *k8sServiceDiscoveryWorker) Do(entityDTOs []*proto.EntityDTO
 	if err != nil {
 		return task.NewTaskResult(svcDiscWorker.id, task.TaskFailed).WithErr(err)
 	}
-	glog.V(3).Infof("Service discovery result is: %++v", svcDiscoveryResult)
+	glog.V(4).Infof("Service discovery result is: %++v", svcDiscoveryResult)
+	glog.V(3).Infof("There are %d virtualApp entityDTOs", len(svcDiscoveryResult))
 	result := task.NewTaskResult(svcDiscWorker.id, task.TaskSucceeded).WithContent(svcDiscoveryResult)
 	return result
 }
@@ -124,7 +125,7 @@ func groupPodsAndServices(serviceList []*api.Service, endpointList []*api.Endpoi
 		serviceClusterID := util.GetServiceClusterID(service)
 		podClusterIDs := findPodEndpoints(service, endpointMap)
 		if len(podClusterIDs) < 1 {
-			glog.V(3).Infof("%s is a standalone service without any enpoint pod.", serviceClusterID)
+			glog.V(4).Infof("%s is a standalone service without any enpoint pod.", serviceClusterID)
 			continue
 		}
 		glog.V(4).Infof("service %s has the following pod as endpoints %v", serviceClusterID, podClusterIDs)

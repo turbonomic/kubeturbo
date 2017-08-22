@@ -135,6 +135,7 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 
 func (m *KubeletMonitor) parseNodeInfo(node *api.Node, machineInfo *cadvisorapi.MachineInfo) {
 	cpuFrequencyMHz := float64(machineInfo.CpuFrequency) / util.MegaToKilo
+	glog.V(4).Infof("node-%s cpuFrequency = %.2fMHz", node.Name, cpuFrequencyMHz)
 	cpuFrequencyMetric := metrics.NewEntityStateMetric(task.NodeType, util.NodeKeyFunc(node), metrics.CpuFrequency, cpuFrequencyMHz)
 	m.metricSink.AddNewMetricEntries(cpuFrequencyMetric)
 }
@@ -143,54 +144,68 @@ func (m *KubeletMonitor) parseNodeInfo(node *api.Node, machineInfo *cadvisorapi.
 func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats) {
 	// cpu
 	cpuUsageCore := float64(*nodeStats.CPU.UsageNanoCores) / util.NanoToUnit
-	glog.V(4).Infof("Cpu usage of node %s is %f core", nodeStats.NodeName, cpuUsageCore)
-	nodeCpuUsageCoreMetrics := metrics.NewEntityResourceMetric(task.NodeType, util.NodeStatsKeyFunc(nodeStats),
-		metrics.CPU, metrics.Used, cpuUsageCore)
-
-	// memory
 	memoryUsageKiloBytes := float64(*nodeStats.Memory.UsageBytes) / util.KilobytesToBytes
-	glog.V(4).Infof("Memory usage of node %s is %f Kb", nodeStats.NodeName, memoryUsageKiloBytes)
-	nodeMemoryUsageKiloBytesMetrics := metrics.NewEntityResourceMetric(task.NodeType,
-		util.NodeStatsKeyFunc(nodeStats), metrics.Memory, metrics.Used, memoryUsageKiloBytes)
 
-	m.metricSink.AddNewMetricEntries(nodeCpuUsageCoreMetrics, nodeMemoryUsageKiloBytesMetrics)
-
+	key := util.NodeStatsKeyFunc(nodeStats)
+	glog.V(3).Infof("CPU usage of node %s is %.3f core", nodeStats.NodeName, cpuUsageCore)
+	glog.V(3).Infof("Memory usage of node %s is %.3f KB", nodeStats.NodeName, memoryUsageKiloBytes)
+	m.genUsedMetrics(task.NodeType, key, cpuUsageCore, memoryUsageKiloBytes)
 }
 
 // Parse pod stats for every pod and put them into sink.
 func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats) {
-	for _, podStat := range podStats {
-		var cpuUsageNanoCoreSum uint64
-		var memoryUsageBytesSum uint64
-		for _, containerStat := range podStat.Containers {
-			if containerStat.CPU != nil && containerStat.CPU.UsageNanoCores != nil {
-				cpuUsageNanoCoreSum += *containerStat.CPU.UsageNanoCores
-			}
-			if containerStat.Memory != nil && containerStat.Memory.UsageBytes != nil {
-				memoryUsageBytesSum += *containerStat.Memory.UsageBytes
-			}
-		}
-		glog.V(4).Infof("Cpu usage of pod %s is %f core", util.PodStatsKeyFunc(podStat),
-			float64(cpuUsageNanoCoreSum)/util.NanoToUnit)
-		podCpuUsageCoreMetrics := metrics.NewEntityResourceMetric(task.PodType, util.PodStatsKeyFunc(podStat),
-			metrics.CPU, metrics.Used, float64(cpuUsageNanoCoreSum)/util.NanoToUnit)
+	for i := range podStats {
+		pod := &(podStats[i])
+		cpuUsed, memUsed := m.parseContainerStats(pod)
 
-		glog.V(4).Infof("Memory usage of pod %s is %f Kb", util.PodStatsKeyFunc(podStat),
-			float64(memoryUsageBytesSum)/util.KilobytesToBytes)
-		podMemoryUsageCoreMetrics := metrics.NewEntityResourceMetric(task.PodType, util.PodStatsKeyFunc(podStat),
-			metrics.Memory, metrics.Used, float64(memoryUsageBytesSum)/util.KilobytesToBytes)
+		key := util.PodStatsKeyFunc(pod)
+		glog.V(4).Infof("Cpu usage of pod %s is %.3f core", key, cpuUsed)
+		glog.V(4).Infof("Memory usage of pod %s is %.3f Kb", key, memUsed)
 
-		// application cpu and mem used are the same as pod's.
-		applicationCpuUsageCoreMetrics := metrics.NewEntityResourceMetric(task.ApplicationType,
-			util.PodStatsKeyFunc(podStat), metrics.CPU, metrics.Used,
-			float64(cpuUsageNanoCoreSum)/util.NanoToUnit)
-		applicationMemoryUsageCoreMetrics := metrics.NewEntityResourceMetric(task.ApplicationType,
-			util.PodStatsKeyFunc(podStat), metrics.Memory, metrics.Used,
-			float64(memoryUsageBytesSum)/util.KilobytesToBytes)
-
-		m.metricSink.AddNewMetricEntries(podCpuUsageCoreMetrics,
-			podMemoryUsageCoreMetrics,
-			applicationCpuUsageCoreMetrics,
-			applicationMemoryUsageCoreMetrics)
+		m.genUsedMetrics(task.PodType, key, cpuUsed, memUsed)
 	}
+}
+
+func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats) (float64, float64) {
+
+	totalUsedCPU := float64(0.0)
+	totalUsedMem := float64(0.0)
+
+	podId := pod.PodRef.UID
+	containers := pod.Containers
+
+	for i := range containers {
+		container := &containers[i]
+		if container.CPU == nil || container.CPU.UsageNanoCores == nil {
+			continue
+		}
+		if container.Memory == nil || container.Memory.UsageBytes == nil {
+			continue
+		}
+
+		cpuUsed := float64(*(container.CPU.UsageNanoCores)) / util.NanoToUnit
+		memUsed := float64(*(container.Memory.UsageBytes)) / util.KilobytesToBytes
+
+		totalUsedCPU += cpuUsed
+		totalUsedMem += memUsed
+
+		//1. container Used
+		containerId := util.ContainerIdFunc(podId, i)
+		m.genUsedMetrics(task.ContainerType, containerId, cpuUsed, memUsed)
+
+		containerName := fmt.Sprintf("%s-%s", pod.PodRef.Name, container.Name)
+		glog.V(4).Infof("container[%s] cpu/memory usage:%.3f, %.3f", containerName, cpuUsed, memUsed)
+
+		//2. app Used
+		appId := util.ApplicationIdFunc(containerId)
+		m.genUsedMetrics(task.ApplicationType, appId, cpuUsed, memUsed)
+	}
+
+	return totalUsedCPU, totalUsedMem
+}
+
+func (m *KubeletMonitor) genUsedMetrics(etype task.DiscoveredEntityType, key string, cpu, memory float64) {
+	cpuMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPU, metrics.Used, cpu)
+	memMetric := metrics.NewEntityResourceMetric(etype, key, metrics.Memory, metrics.Used, memory)
+	m.metricSink.AddNewMetricEntries(cpuMetric, memMetric)
 }

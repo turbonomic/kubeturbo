@@ -116,8 +116,8 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 		EntityDTO: newDiscoveryResultDTOs,
 	}
 
-	newFrameworkDiscTime := time.Now().Sub(currentTime).Nanoseconds()
-	glog.Infof("New framework discovery time: %dns", newFrameworkDiscTime)
+	newFrameworkDiscTime := time.Now().Sub(currentTime).Seconds()
+	glog.V(2).Infof("New framework discovery time: %.3f seconds", newFrameworkDiscTime)
 
 	return discoveryResponse, nil
 }
@@ -130,9 +130,10 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 
 	workerCount := dc.dispatcher.Dispatch(nodes)
 	entityDTOs := dc.resultCollector.Collect(workerCount)
-	glog.V(3).Infof("Discovery workers have finished discovery work with %d entityDTOs built. Now performing service discovery...", len(entityDTOs))
+	glog.V(2).Infof("Discovery workers have finished discovery work with %d entityDTOs built. Now performing service discovery...", len(entityDTOs))
 
 	// affinity process
+	glog.V(2).Infof("begin to process affinity.")
 	affinityProcessorConfig := compliance.NewAffinityProcessorConfig(dc.config.k8sClusterScraper)
 	affinityProcessor, err := compliance.NewAffinityProcessor(affinityProcessorConfig)
 	if err != nil {
@@ -141,6 +142,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 		entityDTOs = affinityProcessor.ProcessAffinityRules(entityDTOs)
 	}
 
+	glog.V(2).Infof("begin to generate service EntityDTOs.")
 	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.config.k8sClusterScraper)
 	svcDiscWorker, err := worker.NewK8sServiceDiscoveryWorker(svcWorkerConfig)
 	svcDiscResult := svcDiscWorker.Do(entityDTOs)
@@ -149,6 +151,8 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 	} else {
 		entityDTOs = append(entityDTOs, svcDiscResult.Content()...)
 	}
+
+	glog.V(2).Infof("There are %d entityDTOs.", len(entityDTOs))
 
 	return entityDTOs, nil
 }

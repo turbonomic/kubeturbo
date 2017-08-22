@@ -434,55 +434,55 @@ func TestAddCommodityBought(t *testing.T) {
 }
 
 func TestHasCommodity(t *testing.T) {
-	table := []struct{
+	table := []struct {
 		existingCommodities []*proto.CommodityDTO
-		commodity *proto.CommodityDTO
+		commodity           *proto.CommodityDTO
 
 		expects bool
 	}{
 		{
-			existingCommodities:[]*proto.CommodityDTO{
+			existingCommodities: []*proto.CommodityDTO{
 				{
-					CommodityType:getCommodityTypePointer(proto.CommodityDTO_CPU),
-					Key:getStringPointer("foo"),
+					CommodityType: getCommodityTypePointer(proto.CommodityDTO_CPU),
+					Key:           getStringPointer("foo"),
 				},
 			},
-			commodity:&proto.CommodityDTO{
-				CommodityType:getCommodityTypePointer(proto.CommodityDTO_CPU),
-				Key:getStringPointer("foo"),
+			commodity: &proto.CommodityDTO{
+				CommodityType: getCommodityTypePointer(proto.CommodityDTO_CPU),
+				Key:           getStringPointer("foo"),
 			},
 			expects: true,
 		},
 		{
-			existingCommodities:[]*proto.CommodityDTO{
+			existingCommodities: []*proto.CommodityDTO{
 				{
-					CommodityType:getCommodityTypePointer(proto.CommodityDTO_CPU),
-					Key:getStringPointer("foo"),
+					CommodityType: getCommodityTypePointer(proto.CommodityDTO_CPU),
+					Key:           getStringPointer("foo"),
 				},
 			},
-			commodity:&proto.CommodityDTO{
-				CommodityType:getCommodityTypePointer(proto.CommodityDTO_CPU),
-				Key:getStringPointer("bar"),
+			commodity: &proto.CommodityDTO{
+				CommodityType: getCommodityTypePointer(proto.CommodityDTO_CPU),
+				Key:           getStringPointer("bar"),
 			},
 			expects: false,
 		},
 		{
-			existingCommodities:[]*proto.CommodityDTO{
+			existingCommodities: []*proto.CommodityDTO{
 				{
-					CommodityType:getCommodityTypePointer(proto.CommodityDTO_CPU),
-					Key:getStringPointer("foo"),
+					CommodityType: getCommodityTypePointer(proto.CommodityDTO_CPU),
+					Key:           getStringPointer("foo"),
 				},
 			},
-			commodity:&proto.CommodityDTO{
-				CommodityType:getCommodityTypePointer(proto.CommodityDTO_MEM),
-				Key:getStringPointer("foo"),
+			commodity: &proto.CommodityDTO{
+				CommodityType: getCommodityTypePointer(proto.CommodityDTO_MEM),
+				Key:           getStringPointer("foo"),
 			},
 			expects: false,
 		},
 	}
 
 	for i, item := range table {
-		found :=hasCommodity(item.existingCommodities, item.commodity)
+		found := hasCommodity(item.existingCommodities, item.commodity)
 		if found != item.expects {
 			t.Errorf("Test case %d failed. Expects %t, got %t", i, item.expects, found)
 		}
