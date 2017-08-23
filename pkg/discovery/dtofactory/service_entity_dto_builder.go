@@ -94,7 +94,7 @@ func (svcEntityDTOBuilder *ServiceEntityDTOBuilder) getCommoditiesBought(appDTO 
 		if _, exist := commodityTypeBetweenAppAndService[commSold.GetCommodityType()]; exist {
 			commBoughtByService, err := sdkbuilder.NewCommodityDTOBuilder(commSold.GetCommodityType()).
 				Key(commSold.GetKey()).
-				Used(commSold.GetUsed() + 1.0).
+				Used(commSold.GetUsed()).
 				Create()
 			if err != nil {
 				return nil, err
