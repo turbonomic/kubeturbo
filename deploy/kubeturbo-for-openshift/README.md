@@ -3,10 +3,10 @@
 This guide is about how to deploy **Kubeturbo** service in **OpenShift**.
 
 ### Step One: Label Master Node
-As Kubeturbo is suggested to run on the master node, we need to create label for the Master node. To label the master node, simply execute the following command
+As Kubeturbo is suggested to run on the master nodes, please create a label to represent the master nodes, if there's no existed one. For example:
 
 ```console
-$oc label nodes <MASTER_NODE_NAME> role=kubeturbo
+$oc label nodes <MASTER_NODE_NAME> kubeturbo=deployable
 ```
 
 To see the labels on master node (*which is 10.10.174.81 in this example*),
@@ -14,7 +14,7 @@ To see the labels on master node (*which is 10.10.174.81 in this example*),
 ```console
 $oc get no --show-labels
 NAME           STATUS    AGE       LABELS
-10.10.174.81   Ready     62d       kubernetes.io/hostname=10.10.174.81,region=primary,role=kubeturbo
+10.10.174.81   Ready     62d       kubernetes.io/hostname=10.10.174.81,region=primary,kubeturbo=deployable
 10.10.174.82   Ready     62d       kubernetes.io/hostname=10.10.174.82,region=primary
 10.10.174.83   Ready     62d       kubernetes.io/hostname=10.10.174.83,region=primary
 ```
@@ -33,7 +33,7 @@ Create a file called **"config"** and put it under */etc/kubeturbo/*.
 {
 	"communicationConfig": {
 		"serverMeta": {
-			"turboServer": "<SERVER_ADDRESS>"
+			"turboServer": "https://<SERVER_IP_ADDRESS>:443"
 		},
 		"restAPIConfig": {
 			"opsManagerUserName": "<USERNAME>",
@@ -43,7 +43,7 @@ Create a file called **"config"** and put it under */etc/kubeturbo/*.
 	"targetConfig": {
 		"probeCategory":"CloudNative",
 		"targetType":"OpenShift",
-		"address":"<OPENSHIFT_MASTER_ADDRESS>",
+		"address":"https://<OPENSHIFT_MASTER_ADDRESS>:8443",
 		"username":"<OPENSHIFT_USERNAME>",
 		"password":"<OPENSHIFT_PASSWORD>"
 	}
@@ -66,7 +66,7 @@ metadata:
     name: kubeturbo
 spec:
   nodeSelector:
-    role: kubeturbo
+    kubeturbo: deployable
   containers:
   - name: kubeturbo
     image: vmturbo/kubeturbo:os35
@@ -89,7 +89,7 @@ spec:
 ##### Deploy Kubeturbo Pod
 
 ```console
-$oc create -f kubeturbo-openshift.yaml
+$oc create -f <kubeturbo_yaml>.yaml
 pod "kubeturbo" created
 
 $oc get pods --all-namespaces
