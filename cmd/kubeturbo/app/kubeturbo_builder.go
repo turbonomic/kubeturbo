@@ -113,7 +113,8 @@ func createRecorder(kubecli *kubernetes.Clientset) record.EventRecorder {
 func (s *VMTServer) createKubeConfigOrDie() *restclient.Config {
 	kubeConfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.KubeConfig)
 	if err != nil {
-		panic(fmt.Sprintf("Error getting kubeconfig:  %s", err))
+		glog.Errorf("Fatal error: failed to get kubeconfig:  %s", err)
+		os.Exit(1)
 	}
 	// This specifies the number and the max number of query per second to the api server.
 	kubeConfig.QPS = 20.0
@@ -125,7 +126,8 @@ func (s *VMTServer) createKubeConfigOrDie() *restclient.Config {
 func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubernetes.Clientset {
 	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to create kubeClient:%v", err))
+		glog.Errorf("Fatal error: failed to create kubeClient:%v", err)
+		os.Exit(1)
 	}
 
 	return kubeClient
@@ -138,18 +140,14 @@ func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config) *kub
 		//Timeout(to).
 		Create()
 	if err != nil {
-		panic(fmt.Sprintf("Failed to create kubeletClient: %v", err))
+		glog.Errorf("Fatal error: failed to create kubeletClient: %v", err)
+		os.Exit(1)
 	}
 
 	return kubeletClient
 }
 
-// panic on error
 func (s *VMTServer) createProbeConfigOrDie(kubeConfig *restclient.Config, kubeletClient *kubelet.KubeletClient) *configs.ProbeConfig {
-	if s.CAdvisorPort == 0 {
-		s.CAdvisorPort = K8sCadvisorPort
-	}
-
 	// The default property type for stitching is IP.
 	pType := stitching.IP
 	if s.UseVMWare {
@@ -164,8 +162,8 @@ func (s *VMTServer) createProbeConfigOrDie(kubeConfig *restclient.Config, kubele
 	// Create cluster monitoring
 	masterMonitoringConfig, err := master.NewClusterMonitorConfig(kubeConfig)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to build monitor-config for master topology mointor: %v", err)
-		panic(msg)
+		glog.Errorf("Failed to build monitor-config for master topology mointor: %v", err)
+		os.Exit(1)
 	}
 
 	// TODO for now kubelet is the only monitoring source. As we have more sources, we should choose what to be added into the slice here.
@@ -204,6 +202,14 @@ func (s *VMTServer) checkFlag() error {
 	ip := net.ParseIP(s.Address)
 	if ip == nil {
 		return fmt.Errorf("wrong ip format:%s", s.Address)
+	}
+
+	if s.Port < 1 {
+		return fmt.Errorf("Port[%d] should be bigger than 0.", s.Port)
+	}
+
+	if s.KubeletPort < 1 {
+		return fmt.Errorf("[KubeletPort[%d] should be bigger than 0.", s.KubeletPort)
 	}
 
 	return nil
