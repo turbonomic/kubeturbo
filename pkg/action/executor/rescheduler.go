@@ -31,12 +31,16 @@ const (
 
 	HigherK8sVersion = "1.6.0"
 
-	defaultRetryLess       int = 2
-	defaultRetryMore       int = 5
-	defaultTimeOut             = time.Second * 32
-	defaultWaitLockTimeOut     = defaultTimeOut * 20
+	defaultRetryLess       int = 3
+	defaultRetryMore       int = 6
 
-	defaultSleep = time.Second * 3
+	defaultWaitLockTimeOut     = time.Second * 300
+	defaultWaitLockSleep = time.Second * 10
+
+	defaultPodCreateSleep = time.Second * 30
+	defaultUpdateSchedulerSleep = time.Second * 20
+	defaultCheckSchedulerSleep = time.Second * 5
+	defaultMoreGrace = time.Second * 20
 )
 
 type ReScheduler struct {
@@ -204,7 +208,8 @@ func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, no
 	helper.SetMap(r.lockMap)
 
 	//2. wait to get a lock
-	err = goutil.RetryDuring(1000, defaultWaitLockTimeOut, defaultSleep, func() error {
+	interval := defaultWaitLockSleep
+	err = goutil.RetryDuring(1000, defaultWaitLockTimeOut, interval, func() error {
 		if !helper.Acquirelock() {
 			return fmt.Errorf("TryLater")
 		}
@@ -219,6 +224,7 @@ func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, no
 		util.CleanPendingPod(r.kubeClient, pod.Namespace, noexist, parentKind, parentName, highver)
 	}()
 	glog.V(3).Infof("Get lock for pod[%s] parent[%s]", pod.Name, parentName)
+	helper.KeepRenewLock()
 
 	//3. invalidate the scheduler of the parentController
 	preScheduler, err := helper.UpdateScheduler(noexist, defaultRetryLess)

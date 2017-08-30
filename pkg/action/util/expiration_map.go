@@ -163,3 +163,7 @@ func (s *ExpirationMap) Run(stop <-chan struct{}) {
 		}
 	}
 }
+
+func (s *ExpirationMap) GetTTL() time.Duration {
+	return s.ttl
+}

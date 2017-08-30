@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	defaultActionCacheTTL = time.Second * 50
+	defaultActionCacheTTL = time.Second * 100
 )
 
 type ActionHandlerConfig struct {
