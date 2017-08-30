@@ -1,15 +1,16 @@
 package property
 
 import (
+	"github.com/golang/glog"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"strconv"
 )
 
 const (
 	// TODO currently in the server side only properties in "DEFAULT" namespaces are respected, ideally, we should use "Kubernetes-Application".
 	appPropertyNamespace = "DEFAULT"
 
-	appPropertyNameHostingPodNamespace = "Kubernetes-App-Pod-Namespace"
-
+	appPropertyNameHostingPodNamespace   = "Kubernetes-App-Pod-Namespace"
 	appPropertyNameHostingPodName        = "Kubernetes-App-Pod-Name"
 	appPropertyNameHostingContainerIndex = "Kubernetes-App-Container-Index"
 )
@@ -38,7 +39,7 @@ func BuildAppProperties(podNamespace, podName string, index int) []*proto.Entity
 	properties = append(properties, nameProperty)
 
 	containerIndexName := appPropertyNameHostingContainerIndex
-	containerIndexValue := string(index)
+	containerIndexValue := strconv.Itoa(index)
 	indexProperty := &proto.EntityDTO_EntityProperty{
 		Namespace: &propertyNamespace,
 		Name:      &containerIndexName,
@@ -51,21 +52,45 @@ func BuildAppProperties(podNamespace, podName string, index int) []*proto.Entity
 
 // Get the namespace and name of the pod, which hosts the application, from the properties of the application.
 func GetApplicationHostingPodInfoFromProperty(properties []*proto.EntityDTO_EntityProperty) (
-	hostingPodNamespace string, hostingPodName string) {
+	hostingPodNamespace string, hostingPodName string, index int) {
 	if properties == nil {
 		return
 	}
+
+	index = 0
+	dict := make(map[string]struct{})
+	dict[appPropertyNameHostingPodNamespace] = struct{}{}
+	dict[appPropertyNameHostingPodName] = struct{}{}
+	dict[appPropertyNameHostingContainerIndex] = struct{}{}
+
 	for _, property := range properties {
 		if property.GetNamespace() != appPropertyNamespace {
 			continue
 		}
-		if hostingPodNamespace == "" && property.GetName() == appPropertyNameHostingPodNamespace {
-			hostingPodNamespace = property.GetValue()
+		name := property.GetName()
+		if _, exist := dict[name]; !exist {
+			continue
 		}
-		if hostingPodName == "" && property.GetName() == appPropertyNameHostingPodName {
-			hostingPodName = property.GetValue()
+		delete(dict, name)
+		value := property.GetValue()
+
+		switch name {
+		case appPropertyNameHostingPodNamespace:
+			hostingPodNamespace = value
+		case appPropertyNameHostingPodName:
+			hostingPodName = value
+		case appPropertyNameHostingContainerIndex:
+			tmp, err := strconv.Atoi(value)
+			if err != nil {
+				glog.Errorf("convert containerIndex[%s] failed: %v", value, err)
+				tmp = -1
+			}
+			index = tmp
+		default:
+			glog.Warningf("Potential bug: %s", name)
 		}
-		if hostingPodNamespace != "" && hostingPodName != "" {
+
+		if len(dict) < 1 {
 			return
 		}
 	}

@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	AppPrefix                 string = "App-"
-	defaultTransactionCapaciy        = float64(50.0)
+	AppPrefix                  string  = "App-"
+	defaultTransactionCapacity float64 = 50.0
 )
 
 var (
@@ -183,7 +183,7 @@ func (builder *applicationEntityDTOBuilder) getCommoditiesSold(appId string, ind
 
 	appTransactionUsed := builder.getAppTransactionUsage(index, pod)
 	ebuilder := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).Key(appId).
-		Capacity(defaultTransactionCapaciy).
+		Capacity(defaultTransactionCapacity).
 		Used(appTransactionUsed)
 
 	tranCommodity, err := ebuilder.Create()
