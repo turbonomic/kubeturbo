@@ -184,13 +184,6 @@ func (builder *applicationEntityDTOBuilder) getCommoditiesSold(appId string, ind
 	return result, nil
 }
 
-/*
-func FindTransactionCommodityKey(pod *api.Pod, clusterID string) string {
-	appType := util.GetAppType(pod)
-	return appType + "-" + clusterID
-}
-*/
-
 // Build the bought commodities by each application.
 // An application buys vCPU, vMem and Application commodity from a container.
 func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appId, containerId string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
