@@ -64,7 +64,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		entityDTOBuilder.DisplayName(displayName)
 		cpuFrequency, err := builder.getNodeCPUFrequency(pod)
 		if err != nil {
-			glog.Errorf("failed to build pod[%] EntityDTO: %v", displayName, err)
+			glog.Errorf("failed to build pod[%s] EntityDTO: %v", displayName, err)
 			continue
 		}
 

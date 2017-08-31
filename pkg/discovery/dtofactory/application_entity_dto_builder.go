@@ -61,9 +61,10 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 	var result []*proto.EntityDTO
 
 	for _, pod := range pods {
+		podFullName := util.GetPodClusterID(pod)
 		nodeCPUFrequency, err := builder.getNodeCPUFrequency(pod)
 		if err != nil {
-			glog.Errorf("failed to build ContainerDTOs for pod[%s]: %v", pod.Name, err)
+			glog.Errorf("failed to build ContainerDTOs for pod[%s]: %v", podFullName, err)
 			continue
 		}
 		podId := string(pod.UID)
@@ -72,7 +73,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 			//container := &(pod.Spec.Containers[i])
 			containerId := util.ContainerIdFunc(podId, i)
 			appId := util.ApplicationIdFunc(containerId)
-			displayName := AppPrefix + util.GetPodClusterID(pod)
+			displayName := AppPrefix + podFullName
 
 			ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_APPLICATION, appId).
 				DisplayName(displayName)
@@ -136,45 +137,32 @@ func (builder *applicationEntityDTOBuilder) getTransactionUsedValue(pod *api.Pod
 	return usedMetric.GetValue().(float64)
 }
 
-func (builder *applicationEntityDTOBuilder) getCPUUsedValue(etype task.DiscoveredEntityType, key string) float64 {
-	rtype := metrics.CPU
-	mtype := metrics.Used
-	metricsId := metrics.GenerateEntityResourceMetricUID(etype, key, rtype, mtype)
-
-	usedMetric, err := builder.metricsSink.GetMetric(metricsId)
-	if err != nil {
-		glog.Warningf("failed to get CPU usage for %v: %v", etype, err)
-		return 0.0
-	}
-
-	return usedMetric.GetValue().(float64)
-}
-
-// calculate app Transaction Use = (pod.Transaction.used * container.CPU.used)/pod.CPU.used
+// equally distribute Pod.Transaction.used to the hosted containers.
 func (builder *applicationEntityDTOBuilder) getAppTransactionUsage(index int, pod *api.Pod) float64 {
-
 	podTransactionUsage := builder.getTransactionUsedValue(pod)
 	if podTransactionUsage < 2.0 || len(pod.Spec.Containers) < 2 {
 		return podTransactionUsage
 	}
 
-	//1. get pod CPU usage
-	podkey := util.PodKeyFunc(pod)
-	podUsage := builder.getCPUUsedValue(task.PodType, podkey)
-	if podUsage < 0.001 {
-		podUsage = 0.001
+	containerNum := len(pod.Spec.Containers)
+	if containerNum < index {
+		glog.Errorf("potential bug: pod[%s] containerNum mismatch %d Vs. %d.", util.PodKeyFunc(pod), containerNum, index)
+		return 0.0
 	}
 
-	//2. get container CPU usage
-	containerKey := util.ContainerIdFunc(string(pod.UID), index)
-	containerUsage := builder.getCPUUsedValue(task.ContainerType, containerKey)
-
-	rate := containerUsage / podUsage
-	if rate > 1.0 {
-		rate = 1.0
+	// case1: if there is only one container, then it has all the transactions.
+	if containerNum == 1 {
+		return podTransactionUsage
 	}
 
-	return podTransactionUsage * rate
+	// case2: equally distribute transactions, the first container may have a little more
+	share := float64(int64(podTransactionUsage)/int64(containerNum))
+	if index == 0 {
+		residue := (podTransactionUsage - (share * float64(containerNum)))
+		share += residue
+	}
+
+	return share
 }
 
 // applicationEntity only sells transaction
