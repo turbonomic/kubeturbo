@@ -193,8 +193,7 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats) (float64, floa
 		containerId := util.ContainerIdFunc(podId, i)
 		m.genUsedMetrics(task.ContainerType, containerId, cpuUsed, memUsed)
 
-		containerName := fmt.Sprintf("%s-%s", pod.PodRef.Name, container.Name)
-		glog.V(4).Infof("container[%s] cpu/memory usage:%.3f, %.3f", containerName, cpuUsed, memUsed)
+		glog.V(4).Infof("container[%s-%s] cpu/memory usage:%.3f, %.3f", pod.PodRef.Name, container.Name, cpuUsed, memUsed)
 
 		//2. app Used
 		appId := util.ApplicationIdFunc(containerId)
