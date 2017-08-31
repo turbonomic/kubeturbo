@@ -2,7 +2,6 @@ package kubelet
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	api "k8s.io/client-go/pkg/api/v1"
@@ -22,7 +21,7 @@ import (
 type KubeletMonitor struct {
 	nodeList []*api.Node
 
-	kubeletClient *kubeletClient
+	kubeletClient *KubeletClient
 
 	metricSink *metrics.EntityMetricSink
 
@@ -32,13 +31,8 @@ type KubeletMonitor struct {
 }
 
 func NewKubeletMonitor(config *KubeletMonitorConfig) (*KubeletMonitor, error) {
-	kubeletClient, err := NewKubeletClient(config.KubeletClientConfig)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create Kubelet client based on given config: %s", err)
-	}
-
 	return &KubeletMonitor{
-		kubeletClient: kubeletClient,
+		kubeletClient: config.kubeletClient,
 		metricSink:    metrics.NewEntityMetricSink(),
 		stopCh:        make(chan struct{}, 1),
 	}, nil
@@ -107,12 +101,9 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 		glog.Errorf("Failed to get resource metrics from %s: %s", node.Name, err)
 		return
 	}
-	host := Host{
-		IP:   ip,
-		Port: m.kubeletClient.GetPort(),
-	}
+
 	// get machine information
-	machineInfo, err := m.kubeletClient.GetMachineInfo(host)
+	machineInfo, err := m.kubeletClient.GetMachineInfo(ip)
 	if err != nil {
 		glog.Errorf("Failed to get machine information from %s: %s", node.Name, err)
 		return
@@ -121,7 +112,7 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 	m.parseNodeInfo(node, machineInfo)
 
 	// get summary information about the given node and the pods running on it.
-	summary, err := m.kubeletClient.GetSummary(host)
+	summary, err := m.kubeletClient.GetSummary(ip)
 	if err != nil {
 		glog.Errorf("Failed to get resource metrics summary from %s: %s", node.Name, err)
 		return

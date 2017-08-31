@@ -3,10 +3,10 @@
 kubebin=/bin/kubeturbo
 
 logv=3
-k8sVersion=1.4.0
+k8sVersion=1.5.0
 kubelet_https=true
 kubelet_port=10250
-usevmware=true
+usevmware=false
 alsologtostderr=true
 
 master=""
