@@ -62,7 +62,7 @@ type VMTServer struct {
 	UseVMWare bool
 
 	// Kubelet related config
-	KubeletPort        uint
+	KubeletPort        int
 	EnableKubeletHttps bool
 
 	// for Move Action
@@ -90,7 +90,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.KubeConfig, "kubeconfig", s.KubeConfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.BoolVar(&s.EnableProfiling, "profiling", false, "Enable profiling via web interface host:port/debug/pprof/.")
 	fs.BoolVar(&s.UseVMWare, "usevmware", false, "If the underlying infrastructure is VMWare.")
-	fs.UintVar(&s.KubeletPort, "kubelet-port", kubelet.DefaultKubeletPort, "The port of the kubelet runs on")
+	fs.IntVar(&s.KubeletPort, "kubelet-port", kubelet.DefaultKubeletPort, "The port of the kubelet runs on")
 	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", kubelet.DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
 	fs.StringVar(&s.K8sVersion, "k8sVersion", executor.HigherK8sVersion, "the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&s.NoneSchedulerName, "noneSchedulerName", executor.DefaultNoneExistSchedulerName, "a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
@@ -110,33 +110,44 @@ func createRecorder(kubecli *kubernetes.Clientset) record.EventRecorder {
 	return eventBroadcaster.NewRecorder(scheme.Scheme, apiv1.EventSource{Component: "kubeturbo"})
 }
 
-func (s *VMTServer) createKubeConfig() (*restclient.Config, error) {
+func (s *VMTServer) createKubeConfigOrDie() *restclient.Config {
 	kubeConfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.KubeConfig)
 	if err != nil {
-		glog.Errorf("Error getting kubeconfig:  %s", err)
-		return nil, err
+		glog.Errorf("Fatal error: failed to get kubeconfig:  %s", err)
+		os.Exit(1)
 	}
 	// This specifies the number and the max number of query per second to the api server.
 	kubeConfig.QPS = 20.0
 	kubeConfig.Burst = 30
 
-	return kubeConfig, nil
+	return kubeConfig
 }
 
-func (s *VMTServer) createKubeClient(kubeConfig *restclient.Config) (*kubernetes.Clientset, error) {
+func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubernetes.Clientset {
 	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
-		glog.Fatalf("Invalid API configuration: %v", err)
+		glog.Errorf("Fatal error: failed to create kubeClient:%v", err)
+		os.Exit(1)
 	}
 
-	return kubeClient, nil
+	return kubeClient
 }
 
-func (s *VMTServer) createProbeConfig(kubeConfig *restclient.Config) (*configs.ProbeConfig, error) {
-	if s.CAdvisorPort == 0 {
-		s.CAdvisorPort = K8sCadvisorPort
+func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config) *kubelet.KubeletClient {
+	kubeletClient, err := kubelet.NewKubeletConfig(kubeConfig).
+		WithPort(s.KubeletPort).
+		EnableHttps(s.EnableKubeletHttps).
+		//Timeout(to).
+		Create()
+	if err != nil {
+		glog.Errorf("Fatal error: failed to create kubeletClient: %v", err)
+		os.Exit(1)
 	}
 
+	return kubeletClient
+}
+
+func (s *VMTServer) createProbeConfigOrDie(kubeConfig *restclient.Config, kubeletClient *kubelet.KubeletClient) *configs.ProbeConfig {
 	// The default property type for stitching is IP.
 	pType := stitching.IP
 	if s.UseVMWare {
@@ -146,12 +157,13 @@ func (s *VMTServer) createProbeConfig(kubeConfig *restclient.Config) (*configs.P
 	}
 
 	// Create Kubelet monitoring
-	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(kubeConfig).WithPort(s.KubeletPort).EnableHttps(s.EnableKubeletHttps)
+	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(kubeletClient)
 
 	// Create cluster monitoring
 	masterMonitoringConfig, err := master.NewClusterMonitorConfig(kubeConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build monitoring config for master topology monitor: %s", err)
+		glog.Errorf("Failed to build monitor-config for master topology mointor: %v", err)
+		os.Exit(1)
 	}
 
 	// TODO for now kubelet is the only monitoring source. As we have more sources, we should choose what to be added into the slice here.
@@ -171,7 +183,7 @@ func (s *VMTServer) createProbeConfig(kubeConfig *restclient.Config) (*configs.P
 		MonitoringConfigs:     monitoringConfigs,
 	}
 
-	return probeConfig, nil
+	return probeConfig
 }
 
 func (s *VMTServer) checkFlag() error {
@@ -192,6 +204,14 @@ func (s *VMTServer) checkFlag() error {
 		return fmt.Errorf("wrong ip format:%s", s.Address)
 	}
 
+	if s.Port < 1 {
+		return fmt.Errorf("Port[%d] should be bigger than 0.", s.Port)
+	}
+
+	if s.KubeletPort < 1 {
+		return fmt.Errorf("[KubeletPort[%d] should be bigger than 0.", s.KubeletPort)
+	}
+
 	return nil
 }
 
@@ -209,31 +229,24 @@ func (s *VMTServer) Run(_ []string) error {
 		os.Exit(1)
 	}
 
-	kubeConfig, err := s.createKubeConfig()
-	if err != nil {
-		glog.Error(err)
-	}
-
-	kubeClient, err := s.createKubeClient(kubeConfig)
-	if err != nil {
-		glog.Errorf("Failed to get kubeClient: %v", err.Error())
-		os.Exit(1)
-	}
-
-	probeConfig, err := s.createProbeConfig(kubeConfig)
-	if err != nil {
-		glog.Errorf("Failed to build probe config: %s")
-		os.Exit(1)
-	}
-
+	kubeConfig := s.createKubeConfigOrDie()
+	kubeClient := s.createKubeClientOrDie(kubeConfig)
+	kubeletClient := s.createKubeletClientOrDie(kubeConfig)
+	probeConfig := s.createProbeConfigOrDie(kubeConfig, kubeletClient)
 	broker := turbostore.NewPodBroker()
-	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, probeConfig, broker, k8sTAPSpec, s.K8sVersion, s.NoneSchedulerName)
+
+	vmtConfig := kubeturbo.NewVMTConfig2()
+	vmtConfig.WithTapSpec(k8sTAPSpec).
+		WithKubeClient(kubeClient).
+		WithKubeletClient(kubeletClient).
+		WithProbeConfig(probeConfig).
+		WithBroker(broker).
+		WithK8sVersion(s.K8sVersion).
+		WithNoneScheduler(s.NoneSchedulerName).
+		WithRecorder(createRecorder(kubeClient))
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
-	vmtConfig.Recorder = createRecorder(kubeClient)
-
 	vmtService := kubeturbo.NewKubeturboService(vmtConfig)
-
 	run := func(_ <-chan struct{}) {
 		vmtService.Run()
 		select {}
