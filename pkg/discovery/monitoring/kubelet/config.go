@@ -1,25 +1,12 @@
 package kubelet
 
 import (
-	restclient "k8s.io/client-go/rest"
-
-	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
-
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 )
 
-const (
-	APIVersion = "v1"
-
-	DefaultKubeletPort        uint = 10255
-	DefaultKubeletHttps            = false
-	defaultUseServiceAccount       = false
-	defaultServiceAccountFile      = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	defaultInClusterConfig         = true
-)
-
 type KubeletMonitorConfig struct {
-	*kubeletclient.KubeletClientConfig
+	//a kubeletClient or a kubeletConfig?
+	kubeletClient *KubeletClient
 }
 
 // Implement MonitoringWorkerConfig interface.
@@ -30,27 +17,8 @@ func (c KubeletMonitorConfig) GetMonitoringSource() types.MonitoringSource {
 	return types.KubeletSource
 }
 
-// Create a new Kubelet monitor config using kubeConfig.
-// TODO Add port and https later.
-func NewKubeletMonitorConfig(kubeConfig *restclient.Config) *KubeletMonitorConfig {
-	kubeletConfig := &kubeletclient.KubeletClientConfig{
-		Port:            uint(DefaultKubeletPort),
-		EnableHttps:     DefaultKubeletHttps,
-		TLSClientConfig: kubeConfig.TLSClientConfig,
-		BearerToken:     kubeConfig.BearerToken,
-	}
-
+func NewKubeletMonitorConfig(kclient *KubeletClient) *KubeletMonitorConfig {
 	return &KubeletMonitorConfig{
-		KubeletClientConfig: kubeletConfig,
+		kubeletClient: kclient,
 	}
-}
-
-func (kc *KubeletMonitorConfig) WithPort(port uint) *KubeletMonitorConfig {
-	kc.Port = port
-	return kc
-}
-
-func (kc *KubeletMonitorConfig) EnableHttps(enable bool) *KubeletMonitorConfig {
-	kc.KubeletClientConfig.EnableHttps = enable
-	return kc
 }

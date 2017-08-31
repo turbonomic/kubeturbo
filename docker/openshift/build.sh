@@ -1,7 +1,7 @@
 #!/bin/bash
 
 kubeturbo=../../_output/kubeturbo.linux
-img=vmturbo/kubeturbo:os34
+img=vmturbo/kubeturbo:os35
 
 cp $kubeturbo ./
 
