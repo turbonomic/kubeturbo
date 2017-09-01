@@ -88,7 +88,7 @@ func (r *ContainerResizer) addCPUCapacity(cpuMhz float64, host string, rlist k8s
 	return nil
 }
 
-//
+// get commodity type and new capacity, and convert it into a k8s.Quantity.
 func (r *ContainerResizer) buildNewCapacity(pod *k8sapi.Pod, actionItem *proto.ActionItemDTO) (k8sapi.ResourceList, error) {
 	result := make(k8sapi.ResourceList)
 
@@ -133,6 +133,14 @@ func (r *ContainerResizer) buildResizeAction(actionItem *proto.ActionItemDTO) (*
 		return nil, nil, err
 	}
 
+	podEntity := actionItem.GetHostedBySE()
+	podId2 := podEntity.GetId()
+	if podId2 != podId {
+		err = fmt.Errorf("hosting pod(%s) Id mismatch [%v Vs. %v]", podEntity.GetDisplayName(), podId, podId2)
+		glog.Error(err)
+		return nil, nil, err
+	}
+
 	pod, err := util.GetPodFromUUID(r.kubeClient, podId)
 	if err != nil {
 		glog.Errorf("failed to get hosting Pod to build resizeAction: %v", err)
@@ -161,7 +169,7 @@ func (r *ContainerResizer) buildResizeAction(actionItem *proto.ActionItemDTO) (*
 
 	var parentObjRef *turboaction.ParentObjectRef = nil
 
-	content := turboaction.NewTurboActionContentBuilder(turboaction.ActionResize, targetObj).
+	content := turboaction.NewTurboActionContentBuilder(turboaction.ActionContainerResize, targetObj).
 		ActionSpec(resizeSpec).
 		ParentObjectRef(parentObjRef).Build()
 

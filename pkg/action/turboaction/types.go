@@ -19,7 +19,7 @@ const (
 	ActionProvision TurboActionType = "provision"
 	ActionMove      TurboActionType = "move"
 	ActionUnbind    TurboActionType = "unbind"
-	ActionResize    TurboActionType = "resize"
+	ActionContainerResize TurboActionType = "resizeContainer"
 )
 
 // TypeMeta describes an individual object in an API response or request
@@ -120,11 +120,7 @@ type ContainerResizeSpec struct {
 	// the new capacity of the resources
 	NewCapacity k8sapi.ResourceList
 
-	// hosting pod's name and nameSpace
-	Namespace string
-	PodName   string
-
-	// container index
+	// index of Pod's containers
 	Index int
 }
 
