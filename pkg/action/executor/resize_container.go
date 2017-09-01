@@ -42,7 +42,7 @@ func getContainerPod(containerId string) (string, int, error) {
 	i := len(containerId) - 2
 
 	for ; i >= 0; i -- {
-		if containerId[0] == '-' {
+		if containerId[i] == '-' {
 			break
 		}
 	}
@@ -58,6 +58,7 @@ func getContainerPod(containerId string) (string, int, error) {
 	index, err := strconv.Atoi(tmp)
 	if err != nil {
 		rerr := fmt.Errorf("failed to convert container Index[%s:%s]: %v", containerId, tmp, err)
+		glog.Error(rerr)
 		return "", -1, rerr
 	}
 
