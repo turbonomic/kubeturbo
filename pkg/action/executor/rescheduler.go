@@ -205,7 +205,9 @@ func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, no
 	if err != nil {
 		return nil, err
 	}
-	helper.SetMap(r.lockMap)
+	if err := helper.SetMap(r.lockMap); err != nil {
+		return nil, err
+	}
 
 	//2. wait to get a lock
 	interval := defaultWaitLockSleep

@@ -3,6 +3,7 @@ package executor
 import (
 	"testing"
 	"fmt"
+	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/api/resource"
 	k8sapi "k8s.io/client-go/pkg/api/v1"
 )
@@ -60,23 +61,32 @@ func TestGenMemoryQuantity2(t *testing.T) {
 	}
 }
 
-func generateResourceList(cpuMillisecond, memMB int) k8sapi.ResourceList {
-
-	cpuQ := resource.MustParse(fmt.Sprintf("%dm", cpuMillisecond))
-	memQ := resource.MustParse(fmt.Sprintf("%dMi", memMB))
-
-	fmt.Printf("cpuQ: %+v\n", cpuQ)
-	fmt.Printf("memQ: %+v\n", memQ)
-
+func generateResourceList(cpuMillisecond, memMB int) (k8sapi.ResourceList, error) {
 	alist := make(k8sapi.ResourceList)
+
+	cpuQ, err := resource.ParseQuantity(fmt.Sprintf("%dm", cpuMillisecond))
+	if err != nil {
+		glog.Errorf("failed to parse cpu Quantity: %v", err)
+		return alist, err
+	}
+	memQ, err := resource.ParseQuantity(fmt.Sprintf("%dMi", memMB))
+	if err != nil {
+		glog.Errorf("failed to parse memory Quantity: %v", err)
+		return alist, err
+	}
+
 	alist[k8sapi.ResourceCPU] = cpuQ
 	alist[k8sapi.ResourceMemory] = memQ
 
-	return alist
+	return alist, nil
 }
 
 func setContainerResourceLimit(container *k8sapi.Container, cpuMillisecond, memMB int) {
-	rlist := generateResourceList(cpuMillisecond, memMB)
+	rlist, err := generateResourceList(cpuMillisecond, memMB)
+	if err != nil {
+		return
+	}
+
 	if container.Resources.Limits == nil {
 		container.Resources.Limits = make(k8sapi.ResourceList)
 	}
@@ -92,27 +102,52 @@ func printResourceList(rmap k8sapi.ResourceList) {
 	}
 }
 
+func compareResourceList(rmap k8sapi.ResourceList, cpuMillisecond, memMB int) error {
+	cpuQ := rmap[k8sapi.ResourceCPU]
+	memQ := rmap[k8sapi.ResourceMemory]
+
+	if cpuQ.MilliValue() != int64(cpuMillisecond) {
+		return fmt.Errorf("cpu value misMatch: %d Vs. %d", cpuQ.MilliValue(), cpuMillisecond)
+	}
+
+	mem := memQ.Value()/int64(1024*1024)
+	if mem != int64(memMB) {
+		return fmt.Errorf("memory value misMatch: %d Vs. %d", cpuQ.MilliValue(), cpuMillisecond)
+	}
+
+	return nil
+}
+
 func TestUpdateCapacity(t *testing.T) {
 	pod := &(k8sapi.Pod{})
 
-	fmt.Printf("containerNum: %d\n", len(pod.Spec.Containers))
 	pod.Spec.Containers = append(pod.Spec.Containers, k8sapi.Container{})
-	fmt.Printf("containerNum: %d\n", len(pod.Spec.Containers))
+	if len(pod.Spec.Containers) != 1 {
+		t.Errorf("unable to add container to Pod.")
+	}
 
 	container := &(pod.Spec.Containers[0])
 	container.Name = "hello"
 
-	fmt.Println(len(container.Resources.Limits))
+	//printResourceList(container.Resources.Limits)
 	setContainerResourceLimit(container, 300, 410)
-	fmt.Println(len(container.Resources.Limits))
-	printResourceList(container.Resources.Limits)
+	//printResourceList(container.Resources.Limits)
+	if err := compareResourceList(container.Resources.Limits, 300, 410); err != nil {
+		t.Error(err)
+	}
 
-	patch := generateResourceList(250, 500)
+	patch, err := generateResourceList(250, 500)
+	if err != nil {
+		t.Errorf("unable to test: %v", err)
+	}
 
 	//c := NewContainerResizer(nil, nil, "1.5", "aa", nil)
 	updateCapacity(pod, 0, patch)
+	if err := compareResourceList(container.Resources.Limits, 250, 500); err != nil {
+		t.Error(err)
+	}
 
-	fmt.Printf("after update\n")
-	printResourceList(container.Resources.Limits)
-	printResourceList(container.Resources.Requests)
+	//fmt.Printf("after update\n")
+	//printResourceList(container.Resources.Limits)
+	//printResourceList(container.Resources.Requests)
 }

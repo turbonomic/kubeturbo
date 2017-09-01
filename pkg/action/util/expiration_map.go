@@ -69,6 +69,8 @@ func (s *ExpirationMap) Add(key string, obj interface{}, fun expireCallBack) (in
 }
 
 func (s *ExpirationMap) Size() int {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	return len(s.items)
 }
 

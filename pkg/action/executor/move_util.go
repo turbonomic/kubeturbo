@@ -130,8 +130,9 @@ type moveHelper struct {
 	key     string
 	version int64
 
-	//stop
+	//stop Renewing
 	stop chan struct{}
+	isRenewing bool
 }
 
 func NewMoveHelper(client *kclient.Clientset, nameSpace, name, kind, parentName, noneScheduler string, highver bool) (*moveHelper, error) {
@@ -169,9 +170,15 @@ func NewMoveHelper(client *kclient.Clientset, nameSpace, name, kind, parentName,
 	return p, nil
 }
 
-func (h *moveHelper) SetMap(emap *actionUtil.ExpirationMap) {
+func (h *moveHelper) SetMap(emap *actionUtil.ExpirationMap) error {
 	h.emap = emap
 	h.key = fmt.Sprintf("%s-%s-%s", h.kind, h.nameSpace, h.controllerName)
+	if emap.GetTTL() < time.Second * 2 {
+		err := fmt.Errorf("TTL of concurrent control map should be larger than 2 seconds.")
+		glog.Error(err)
+		return err
+	}
+	return nil
 }
 
 // check whether the current scheduler is equal to the expected scheduler.
@@ -245,7 +252,7 @@ func (h *moveHelper) SetScheduler(schedulerName string) {
 // CleanUp: (1) restore scheduler Name, (2) Release lock
 func (h *moveHelper) CleanUp() {
 	defer h.Releaselock()
-	defer h.Stop()
+	defer h.StopRenew()
 
 	if !(h.flag) {
 		return
@@ -321,6 +328,7 @@ func (h *moveHelper) KeepRenewLock() {
 	if interval < time.Second {
 		interval = time.Second
 	}
+	h.isRenewing = true
 
 	go func() {
 		for {
@@ -337,6 +345,9 @@ func (h *moveHelper) KeepRenewLock() {
 	}()
 }
 
-func (h *moveHelper) Stop() {
-	close(h.stop)
+func (h *moveHelper) StopRenew() {
+	if h.isRenewing {
+		h.isRenewing = false
+		close(h.stop)
+	}
 }

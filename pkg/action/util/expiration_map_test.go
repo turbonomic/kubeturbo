@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 	"time"
+	"github.com/golang/glog"
 )
 
 const (
@@ -17,10 +18,10 @@ func printKey(obj interface{}) {
 
 	k, ok := obj.(string)
 	if !ok {
-		fmt.Println("not a string.")
+		glog.Warning("not a string.")
 	}
 
-	fmt.Printf("key:[%s] expired\n", k)
+	glog.V(3).Infof("key:[%s] expired\n", k)
 }
 
 func TestExpirationMap_Whole(t *testing.T) {

@@ -258,7 +258,9 @@ func (r *ContainerResizer) resizeControllerContainer(pod *k8sapi.Pod, parentKind
 		glog.Errorf("resizeContainer failed[%s]: failed to create helper: %v", id, err)
 		return err
 	}
-	helper.SetMap(r.lockMap)
+	if err := helper.SetMap(r.lockMap); err != nil {
+		return err
+	}
 
 	//2. wait to get a lock of the parent object
 	timeout := defaultWaitLockTimeOut
