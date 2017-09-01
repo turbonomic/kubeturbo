@@ -2,13 +2,13 @@ package executor
 
 import (
 	"fmt"
-	"time"
 	"github.com/golang/glog"
+	"time"
 
-	k8sapi "k8s.io/client-go/pkg/api/v1"
-	kclient "k8s.io/client-go/kubernetes"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kclient "k8s.io/client-go/kubernetes"
+	k8sapi "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/util"
 )
@@ -82,8 +82,8 @@ func updateRequests(container *k8sapi.Container, limits k8sapi.ResourceList) err
 // @newValue is from OpsMgr, in MHz
 // @cpuFrequency is from kubeletClient, in KHz
 func genCPUQuantity(newValue float64, cpuFrequency uint64) (resource.Quantity, error) {
-	tmp := uint64(newValue) * 1000 * 1000  //to KHz and to milliSeconds
-	cpuTime := tmp/cpuFrequency
+	tmp := uint64(newValue) * 1000 * 1000 //to KHz and to milliSeconds
+	cpuTime := tmp / cpuFrequency
 	if cpuTime < 1 {
 		cpuTime = 1
 	}
@@ -94,7 +94,7 @@ func genCPUQuantity(newValue float64, cpuFrequency uint64) (resource.Quantity, e
 		return result, err
 	}
 
-	return  result, nil
+	return result, nil
 }
 
 // generate a resource.Quantity for Memory
@@ -148,10 +148,10 @@ func resizeContainer(client *kclient.Clientset, pod *k8sapi.Pod, index int, capa
 
 	//4. create a new pod
 	// wait for the previous pod to be cleaned up.
-	time.Sleep(time.Duration(grace) * time.Second + defaultMoreGrace)
+	time.Sleep(time.Duration(grace)*time.Second + defaultMoreGrace)
 
 	interval := defaultPodCreateSleep
-	timeout := interval * time.Duration(retryNum) + time.Second * 10
+	timeout := interval*time.Duration(retryNum) + time.Second*10
 	err := util.RetryDuring(retryNum, timeout, interval, func() error {
 		_, inerr := podClient.Create(npod)
 		return inerr
@@ -165,4 +165,3 @@ func resizeContainer(client *kclient.Clientset, pod *k8sapi.Pod, index int, capa
 	glog.V(2).Infof("resizeContainer[%s] finished.", id)
 	return nil
 }
-

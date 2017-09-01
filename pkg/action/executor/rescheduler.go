@@ -31,16 +31,16 @@ const (
 
 	HigherK8sVersion = "1.6.0"
 
-	defaultRetryLess       int = 3
-	defaultRetryMore       int = 6
+	defaultRetryLess int = 3
+	defaultRetryMore int = 6
 
-	defaultWaitLockTimeOut     = time.Second * 300
-	defaultWaitLockSleep = time.Second * 10
+	defaultWaitLockTimeOut = time.Second * 300
+	defaultWaitLockSleep   = time.Second * 10
 
-	defaultPodCreateSleep = time.Second * 30
+	defaultPodCreateSleep       = time.Second * 30
 	defaultUpdateSchedulerSleep = time.Second * 20
-	defaultCheckSchedulerSleep = time.Second * 5
-	defaultMoreGrace = time.Second * 20
+	defaultCheckSchedulerSleep  = time.Second * 5
+	defaultMoreGrace            = time.Second * 20
 )
 
 type ReScheduler struct {

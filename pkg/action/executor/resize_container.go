@@ -4,16 +4,16 @@ import (
 	kclient "k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api/v1"
 
-	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
+	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"fmt"
+	"github.com/golang/glog"
 	"strconv"
 	"time"
-	"github.com/golang/glog"
 )
 
 type ContainerResizer struct {
@@ -41,7 +41,7 @@ func NewContainerResizer(client *kclient.Clientset, broker turbostore.Broker, k8
 func getContainerPod(containerId string) (string, int, error) {
 	i := len(containerId) - 2
 
-	for ; i >= 0; i -- {
+	for ; i >= 0; i-- {
 		if containerId[i] == '-' {
 			break
 		}
@@ -164,7 +164,7 @@ func (r *ContainerResizer) buildResizeAction(actionItem *proto.ActionItemDTO) (*
 	}
 
 	resizeSpec := turboaction.ContainerResizeSpec{
-		Index: containerIndex,
+		Index:       containerIndex,
 		NewCapacity: newCapacity,
 	}
 
@@ -237,7 +237,7 @@ func (r *ContainerResizer) executeAction(action *turboaction.TurboAction, pod *k
 	}
 
 	if err != nil {
-		glog.Errorf("resize Pod[%s]-%d container failed: %v", fullName, resizeSpec.Index, )
+		glog.Errorf("resize Pod[%s]-%d container failed: %v", fullName, resizeSpec.Index)
 	}
 
 	return nil

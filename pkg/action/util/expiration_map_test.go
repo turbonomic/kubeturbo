@@ -2,9 +2,9 @@ package util
 
 import (
 	"fmt"
+	"github.com/golang/glog"
 	"testing"
 	"time"
-	"github.com/golang/glog"
 )
 
 const (

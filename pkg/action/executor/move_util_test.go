@@ -82,17 +82,17 @@ func mockUpdateScheduler(client *kclient.Clientset, nameSpace, name, schedulerNa
 	return "defaultScheduler", nil
 }
 
-func buildHelper(store *util.ExpirationMap)  *moveHelper{
+func buildHelper(store *util.ExpirationMap) *moveHelper {
 	helper := &moveHelper{
-		flag: false,
-		nameSpace: "ns",
-		podName: "pod",
-		kind: "kind",
+		flag:           false,
+		nameSpace:      "ns",
+		podName:        "pod",
+		kind:           "kind",
 		controllerName: "controller",
-		schedulerNone: "nonexxx",
-		stop: make(chan struct{}),
+		schedulerNone:  "nonexxx",
+		stop:           make(chan struct{}),
 
-		getSchedulerName: mockGetScheduler,
+		getSchedulerName:    mockGetScheduler,
 		updateSchedulerName: mockUpdateScheduler,
 	}
 
@@ -115,7 +115,7 @@ func TestMoveHelper_CleanUp(t *testing.T) {
 	}
 	helper.KeepRenewLock()
 
-	time.Sleep(store.GetTTL() + time.Second * 5)
+	time.Sleep(store.GetTTL() + time.Second*5)
 
 	//2. try to renew lock
 	if success := helper.Renewlock(); !success {
@@ -151,7 +151,7 @@ func TestMoveHelper_KeepRenewLock(t *testing.T) {
 
 	//2. keepRenew it, and test it
 	helper.KeepRenewLock()
-	time.Sleep(store.GetTTL() + time.Second * 5)
+	time.Sleep(store.GetTTL() + time.Second*5)
 
 	if success := helper.Renewlock(); !success {
 		t.Errorf("failed to renew lock.")
@@ -159,7 +159,7 @@ func TestMoveHelper_KeepRenewLock(t *testing.T) {
 
 	//3. Stop keeping renew, and test it
 	helper.StopRenew()
-	time.Sleep(store.GetTTL() + time.Second * 5)
+	time.Sleep(store.GetTTL() + time.Second*5)
 	if success := helper.Renewlock(); success {
 		t.Error("failed to release lock.")
 	}

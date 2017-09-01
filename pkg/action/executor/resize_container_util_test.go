@@ -1,11 +1,11 @@
 package executor
 
 import (
-	"testing"
 	"fmt"
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/api/resource"
 	k8sapi "k8s.io/client-go/pkg/api/v1"
+	"testing"
 )
 
 func TestGenCPUQuantity(t *testing.T) {
@@ -29,7 +29,7 @@ func TestGenCPUQuantity(t *testing.T) {
 
 func TestGenMemoryQuantity(t *testing.T) {
 	mem := float64(1024) // KB
-	expect := int64(1024*1024)
+	expect := int64(1024 * 1024)
 
 	q, err := genMemoryQuantity(mem)
 	if err != nil {
@@ -42,10 +42,9 @@ func TestGenMemoryQuantity(t *testing.T) {
 	}
 }
 
-
 func TestGenMemoryQuantity2(t *testing.T) {
 	inputArray := []int64{1, 1024, 2048, 65536}
-	expectArray := []int64{1024, 1024*1024, 2048*1024, 65536*1024}
+	expectArray := []int64{1024, 1024 * 1024, 2048 * 1024, 65536 * 1024}
 
 	for i, input := range inputArray {
 		q, err := genMemoryQuantity(float64(input))
@@ -110,7 +109,7 @@ func compareResourceList(rmap k8sapi.ResourceList, cpuMillisecond, memMB int) er
 		return fmt.Errorf("cpu value misMatch: %d Vs. %d", cpuQ.MilliValue(), cpuMillisecond)
 	}
 
-	mem := memQ.Value()/int64(1024*1024)
+	mem := memQ.Value() / int64(1024*1024)
 	if mem != int64(memMB) {
 		return fmt.Errorf("memory value misMatch: %d Vs. %d", cpuQ.MilliValue(), cpuMillisecond)
 	}

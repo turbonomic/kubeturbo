@@ -16,9 +16,9 @@ const (
 	TypeReplicaSet            string = "ReplicaSet"
 	TypeDeployment            string = "Deployment"
 
-	ActionProvision TurboActionType = "provision"
-	ActionMove      TurboActionType = "move"
-	ActionUnbind    TurboActionType = "unbind"
+	ActionProvision       TurboActionType = "provision"
+	ActionMove            TurboActionType = "move"
+	ActionUnbind          TurboActionType = "unbind"
 	ActionContainerResize TurboActionType = "resizeContainer"
 )
 
