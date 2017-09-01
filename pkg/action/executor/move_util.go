@@ -79,7 +79,7 @@ func movePod(client *kclient.Clientset, pod *api.Pod, nodeName string, retryNum 
 	}
 
 	//3. create (and bind) the new Pod
-	time.Sleep(time.Duration(grace+defaultMoreGrace) * time.Second) //wait for the previous pod to be cleaned up.
+	time.Sleep(time.Duration(grace) * time.Second + defaultMoreGrace) //wait for the previous pod to be cleaned up.
 	interval := defaultPodCreateSleep
 	timeout := interval * time.Duration(retryNum) + time.Second * 10
 	err = util.RetryDuring(retryNum, timeout, interval, func() error {

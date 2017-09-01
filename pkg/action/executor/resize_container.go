@@ -38,7 +38,7 @@ func NewContainerResizer(client *kclient.Clientset, broker turbostore.Broker, k8
 
 //TODO: replace this with util.
 //containerId := string(pod.UID) + "-" + containerIndex
-func getContainerPod(containerId string) (string, string, error) {
+func getContainerPod(containerId string) (string, int, error) {
 	i := len(containerId) - 2
 
 	for ; i >= 0; i -- {
@@ -50,7 +50,7 @@ func getContainerPod(containerId string) (string, string, error) {
 	if i < 1 {
 		err := fmt.Errorf("failed to parse containerId: %s.", containerId)
 		glog.Error(err)
-		return "", "", err
+		return "", -1, err
 	}
 
 	podId := containerId[0:i]
@@ -58,7 +58,7 @@ func getContainerPod(containerId string) (string, string, error) {
 	index, err := strconv.Atoi(tmp)
 	if err != nil {
 		rerr := fmt.Errorf("failed to convert container Index[%s:%s]: %v", containerId, tmp, err)
-		return "", "", rerr
+		return "", -1, rerr
 	}
 
 	return podId, index, nil
@@ -66,31 +66,57 @@ func getContainerPod(containerId string) (string, string, error) {
 
 // a mocked function: get node cpu frequency, in KHz;
 // TODO: call kubeletClient.GetMachineCpuFrequency()
-func (r *ContainerResizer) getNodeCPUFrequency(host string) float64 {
-	freq := 2663195.0
-	return freq
+func (r *ContainerResizer) getNodeCPUFrequency(host string) (uint64, error) {
+	freq := uint64(2663195)
+	return freq, nil
 }
 
-// convert CPU Mhz to CPU millisecond.
-// nodeCPUfrequency is in KHz
-// Because the precision finer than 1m is not allowed, the result is converted into an integer.
-func (r *ContainerResizer) convertMhzToMillisecond(mhz, nodeCPUfrequency float64) int {
-
-	millicpu := (mhz * 1000) / nodeCPUfrequency
-	if millicpu < 1 {
-		millicpu = 1
+func (r *ContainerResizer) addCPUCapacity(cpuMhz float64, host string, rlist k8sapi.ResourceList) error {
+	cpuFrequency, err := r.getNodeCPUFrequency(host)
+	if err != nil {
+		glog.Errorf("failed to get node[%s] cpu frequency: %v", host, err)
+		return err
 	}
 
-	return int(millicpu)
+	cpuQuantity, err := genCPUQuantity(cpuMhz, cpuFrequency)
+	if err != nil {
+		glog.Errorf("failed to generate CPU quantity: %v", err)
+		return err
+	}
+
+	rlist[k8sapi.ResourceCPU] = cpuQuantity
+	return nil
 }
 
-//TODO: implement it
+//
 func (r *ContainerResizer) buildNewCapacity(pod *k8sapi.Pod, actionItem *proto.ActionItemDTO) (k8sapi.ResourceList, error) {
 	result := make(k8sapi.ResourceList)
 
-	//host := pod.Spec.NodeName
-	//cpuFreq := r.getNodeCPUFrequency(host)
+	comm := actionItem.GetNewComm()
+	ctype := comm.GetCommodityType()
 
+	switch ctype {
+	case proto.CommodityDTO_VCPU:
+		mhz := comm.GetCapacity()
+		host := pod.Spec.NodeName
+		err := r.addCPUCapacity(mhz, host, result)
+		if err != nil {
+			glog.Errorf("failed to build cpu.Capacity: %v", err)
+			return result, err
+		}
+	case proto.CommodityDTO_VMEM:
+		kb := comm.GetCapacity()
+		memory, err := genMemoryQuantity(kb)
+		if err != nil {
+			glog.Errorf("failed to build mem.Capacity: %v", err)
+			return result, err
+		}
+		result[k8sapi.ResourceMemory] = memory
+	default:
+		err := fmt.Errorf("Unsupport Commodity type[%v]", ctype)
+		glog.Error(err)
+		return result, err
+	}
 
 	return result, nil
 }
@@ -165,8 +191,12 @@ func (r *ContainerResizer) Execute(actionItem *proto.ActionItemDTO) (*turboactio
 		glog.Errorf("failed to execute Action: %v", err)
 		return nil, err
 	}
-	action.Status = turboaction.Executed
+
 	action.LastTimestamp = time.Now()
+	if action.Status == turboaction.Success {
+		return action, nil
+	}
+	action.Status = turboaction.Executed
 
 	return action, nil
 }
@@ -175,8 +205,12 @@ func (r *ContainerResizer) executeAction(action *turboaction.TurboAction, pod *k
 	//1. check
 	content := action.Content
 	resizeSpec, ok := content.ActionSpec.(turboaction.ContainerResizeSpec)
-	if !ok || len(resizeSpec.NewCapacity) < 1 {
+	if !ok {
 		return fmt.Errorf("resizeContainer failed")
+	}
+	if len(resizeSpec.NewCapacity) < 1 {
+		action.Status = turboaction.Success
+		return nil
 	}
 
 	//2. get parent controller
