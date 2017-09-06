@@ -6,18 +6,20 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
+	idutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"fmt"
 	"github.com/golang/glog"
-	"strconv"
 	"time"
 )
 
 type ContainerResizer struct {
 	kubeClient        *kclient.Clientset
+	kubeletClient     *kubelet.KubeletClient
 	broker            turbostore.Broker
 	k8sVersion        string
 	noneSchedulerName string
@@ -26,9 +28,10 @@ type ContainerResizer struct {
 	lockMap *util.ExpirationMap
 }
 
-func NewContainerResizer(client *kclient.Clientset, broker turbostore.Broker, k8sver, noschedulerName string, lmap *util.ExpirationMap) *ContainerResizer {
+func NewContainerResizer(client *kclient.Clientset, kubeletClient *kubelet.KubeletClient, broker turbostore.Broker, k8sver, noschedulerName string, lmap *util.ExpirationMap) *ContainerResizer {
 	return &ContainerResizer{
 		kubeClient:        client,
+		kubeletClient:     kubeletClient,
 		broker:            broker,
 		k8sVersion:        k8sver,
 		noneSchedulerName: noschedulerName,
@@ -36,6 +39,7 @@ func NewContainerResizer(client *kclient.Clientset, broker turbostore.Broker, k8
 	}
 }
 
+/*
 //TODO: replace this with util.
 //containerId := string(pod.UID) + "-" + containerIndex
 func getContainerPod(containerId string) (string, int, error) {
@@ -63,16 +67,14 @@ func getContainerPod(containerId string) (string, int, error) {
 	}
 
 	return podId, index, nil
-}
+}*/
 
-// a mocked function: get node cpu frequency, in KHz;
-// TODO: call kubeletClient.GetMachineCpuFrequency()
+// get node cpu frequency, in KHz;
 func (r *ContainerResizer) getNodeCPUFrequency(host string) (uint64, error) {
-	freq := uint64(2663195)
-	return freq, nil
+	return r.kubeletClient.GetMachineCpuFrequency(host)
 }
 
-func (r *ContainerResizer) addCPUCapacity(cpuMhz float64, host string, rlist k8sapi.ResourceList) error {
+func (r *ContainerResizer) setCPUCapacity(cpuMhz float64, host string, rlist k8sapi.ResourceList) error {
 	cpuFrequency, err := r.getNodeCPUFrequency(host)
 	if err != nil {
 		glog.Errorf("failed to get node[%s] cpu frequency: %v", host, err)
@@ -95,19 +97,31 @@ func (r *ContainerResizer) buildNewCapacity(pod *k8sapi.Pod, actionItem *proto.A
 
 	comm := actionItem.GetNewComm()
 	ctype := comm.GetCommodityType()
+	amount := comm.GetCapacity()
+
+	//TODO: currently only support resizeCapacity; resizeReservation may be supported later
+	if amount < 1 {
+		msg := ""
+		if comm.GetReservation() > 0 {
+			msg = fmt.Sprintf("resizeReservation() is not supported yet.")
+		} else {
+			msg = fmt.Sprintf("new capacity should be bigger than zero (current=%.4f)", amount)
+		}
+
+		glog.Error(msg)
+		return result, fmt.Errorf(msg)
+	}
 
 	switch ctype {
 	case proto.CommodityDTO_VCPU:
-		mhz := comm.GetCapacity()
 		host := pod.Spec.NodeName
-		err := r.addCPUCapacity(mhz, host, result)
+		err := r.setCPUCapacity(amount, host, result)
 		if err != nil {
 			glog.Errorf("failed to build cpu.Capacity: %v", err)
 			return result, err
 		}
 	case proto.CommodityDTO_VMEM:
-		kb := comm.GetCapacity()
-		memory, err := genMemoryQuantity(kb)
+		memory, err := genMemoryQuantity(amount)
 		if err != nil {
 			glog.Errorf("failed to build mem.Capacity: %v", err)
 			return result, err
@@ -128,7 +142,7 @@ func (r *ContainerResizer) buildResizeAction(actionItem *proto.ActionItemDTO) (*
 	entity := actionItem.GetTargetSE()
 	containerId := entity.GetId()
 
-	podId, containerIndex, err := getContainerPod(containerId)
+	podId, containerIndex, err := idutil.ParseContainerId(containerId)
 	if err != nil {
 		glog.Errorf("failed to parse podId to build resizeAction: %v", err)
 		return nil, nil, err

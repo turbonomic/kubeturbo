@@ -104,7 +104,7 @@ func movePod(client *kclient.Clientset, pod *api.Pod, nodeName string, retryNum 
 type getSchedulerNameFunc func(client *kclient.Clientset, nameSpace, name string) (string, error)
 type updateSchedulerFunc func(client *kclient.Clientset, nameSpace, name, scheduler string) (string, error)
 
-type moveHelper struct {
+type schedulerHelper struct {
 	client    *kclient.Clientset
 	nameSpace string
 	podName   string
@@ -135,9 +135,9 @@ type moveHelper struct {
 	isRenewing bool
 }
 
-func NewMoveHelper(client *kclient.Clientset, nameSpace, name, kind, parentName, noneScheduler string, highver bool) (*moveHelper, error) {
+func NewMoveHelper(client *kclient.Clientset, nameSpace, name, kind, parentName, noneScheduler string, highver bool) (*schedulerHelper, error) {
 
-	p := &moveHelper{
+	p := &schedulerHelper{
 		client:         client,
 		nameSpace:      nameSpace,
 		podName:        name,
@@ -170,7 +170,7 @@ func NewMoveHelper(client *kclient.Clientset, nameSpace, name, kind, parentName,
 	return p, nil
 }
 
-func (h *moveHelper) SetMap(emap *actionUtil.ExpirationMap) error {
+func (h *schedulerHelper) SetMap(emap *actionUtil.ExpirationMap) error {
 	h.emap = emap
 	h.key = fmt.Sprintf("%s-%s-%s", h.kind, h.nameSpace, h.controllerName)
 	if emap.GetTTL() < time.Second*2 {
@@ -183,7 +183,7 @@ func (h *moveHelper) SetMap(emap *actionUtil.ExpirationMap) error {
 
 // check whether the current scheduler is equal to the expected scheduler.
 // will renew lock.
-func (h *moveHelper) CheckScheduler(expectedScheduler string, retry int) (bool, error) {
+func (h *schedulerHelper) CheckScheduler(expectedScheduler string, retry int) (bool, error) {
 
 	flag := false
 
@@ -212,7 +212,7 @@ func (h *moveHelper) CheckScheduler(expectedScheduler string, retry int) (bool, 
 }
 
 // need to renew lock
-func (h *moveHelper) UpdateScheduler(schedulerName string, retry int) (string, error) {
+func (h *schedulerHelper) UpdateScheduler(schedulerName string, retry int) (string, error) {
 	result := ""
 	flag := true
 
@@ -240,7 +240,7 @@ func (h *moveHelper) UpdateScheduler(schedulerName string, retry int) (string, e
 	return result, err
 }
 
-func (h *moveHelper) SetScheduler(schedulerName string) {
+func (h *schedulerHelper) SetScheduler(schedulerName string) {
 	if h.flag {
 		glog.Warningf("schedulerName has already been set.")
 	}
@@ -250,7 +250,7 @@ func (h *moveHelper) SetScheduler(schedulerName string) {
 }
 
 // CleanUp: (1) restore scheduler Name, (2) Release lock
-func (h *moveHelper) CleanUp() {
+func (h *schedulerHelper) CleanUp() {
 	defer h.Releaselock()
 	defer h.StopRenew()
 
@@ -269,7 +269,7 @@ func (h *moveHelper) CleanUp() {
 }
 
 // acquire a lock before manipulate the scheduler of the parentController
-func (h *moveHelper) Acquirelock() bool {
+func (h *schedulerHelper) Acquirelock() bool {
 	version, flag := h.emap.Add(h.key, nil, func(obj interface{}) {
 		h.lockCallBack()
 	})
@@ -285,12 +285,12 @@ func (h *moveHelper) Acquirelock() bool {
 }
 
 // update the lock to prevent timeout
-func (h *moveHelper) Renewlock() bool {
+func (h *schedulerHelper) Renewlock() bool {
 	return h.emap.Touch(h.key, h.version)
 }
 
 // release the lock of the parentController
-func (h *moveHelper) Releaselock() {
+func (h *schedulerHelper) Releaselock() {
 	h.emap.Del(h.key, h.version)
 	glog.V(3).Infof("Released lock for pod[%s], parent[%s]", h.podName, h.controllerName)
 }
@@ -298,7 +298,7 @@ func (h *moveHelper) Releaselock() {
 // the call back function, the lock should have already be acquired;
 // This callback function should do the minimum thing: restore the original scheduler
 // the pending pods should be deleted by other things.
-func (h *moveHelper) lockCallBack() {
+func (h *schedulerHelper) lockCallBack() {
 	glog.V(3).Infof("lockCallBack--Expired lock for pod[%s], parent[%s]", h.podName, h.controllerName)
 	// check whether need to do reset scheduler
 	if !(h.flag) {
@@ -322,7 +322,7 @@ func (h *moveHelper) lockCallBack() {
 	return
 }
 
-func (h *moveHelper) KeepRenewLock() {
+func (h *schedulerHelper) KeepRenewLock() {
 	ttl := h.emap.GetTTL()
 	interval := ttl / 2
 	if interval < time.Second {
@@ -345,7 +345,7 @@ func (h *moveHelper) KeepRenewLock() {
 	}()
 }
 
-func (h *moveHelper) StopRenew() {
+func (h *schedulerHelper) StopRenew() {
 	if h.isRenewing {
 		h.isRenewing = false
 		close(h.stop)

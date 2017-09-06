@@ -11,6 +11,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/action/supervisor"
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	turboscheduler "github.com/turbonomic/kubeturbo/pkg/scheduler"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 
@@ -26,6 +27,7 @@ const (
 
 type ActionHandlerConfig struct {
 	kubeClient     *client.Clientset
+	kubeletClient  *kubelet.KubeletClient
 	broker         turbostore.Broker
 	StopEverything chan struct{}
 
@@ -34,10 +36,11 @@ type ActionHandlerConfig struct {
 	noneSchedulerName string
 }
 
-func NewActionHandlerConfig(kubeClient *client.Clientset, broker turbostore.Broker, k8sVersion, noneSchedulerName string) *ActionHandlerConfig {
+func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubelet.KubeletClient, broker turbostore.Broker, k8sVersion, noneSchedulerName string) *ActionHandlerConfig {
 	config := &ActionHandlerConfig{
-		kubeClient: kubeClient,
-		broker:     broker,
+		kubeClient:    kubeClient,
+		kubeletClient: kubeletClient,
+		broker:        broker,
 
 		k8sVersion:        k8sVersion,
 		noneSchedulerName: noneSchedulerName,
@@ -113,7 +116,7 @@ func (h *ActionHandler) registerActionExecutors() {
 	h.actionExecutors[turboaction.ActionUnbind] = horizontalScaler
 
 	//TODO: add kubeletClient for containerResizer
-	containerResizer := executor.NewContainerResizer(h.config.kubeClient, h.config.broker, h.config.k8sVersion, h.config.noneSchedulerName, h.lockMap)
+	containerResizer := executor.NewContainerResizer(h.config.kubeClient, h.config.kubeletClient, h.config.broker, h.config.k8sVersion, h.config.noneSchedulerName, h.lockMap)
 	h.actionExecutors[turboaction.ActionContainerResize] = containerResizer
 }
 

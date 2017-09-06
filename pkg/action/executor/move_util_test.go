@@ -82,8 +82,8 @@ func mockUpdateScheduler(client *kclient.Clientset, nameSpace, name, schedulerNa
 	return "defaultScheduler", nil
 }
 
-func buildHelper(store *util.ExpirationMap) *moveHelper {
-	helper := &moveHelper{
+func buildHelper(store *util.ExpirationMap) *schedulerHelper {
+	helper := &schedulerHelper{
 		flag:           false,
 		nameSpace:      "ns",
 		podName:        "pod",
