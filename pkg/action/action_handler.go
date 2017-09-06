@@ -1,7 +1,6 @@
 package action
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/action/supervisor"
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	turboscheduler "github.com/turbonomic/kubeturbo/pkg/scheduler"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 
@@ -22,11 +22,12 @@ import (
 )
 
 const (
-	defaultActionCacheTTL = time.Second * 50
+	defaultActionCacheTTL = time.Second * 100
 )
 
 type ActionHandlerConfig struct {
 	kubeClient     *client.Clientset
+	kubeletClient  *kubelet.KubeletClient
 	broker         turbostore.Broker
 	StopEverything chan struct{}
 
@@ -35,10 +36,11 @@ type ActionHandlerConfig struct {
 	noneSchedulerName string
 }
 
-func NewActionHandlerConfig(kubeClient *client.Clientset, broker turbostore.Broker, k8sVersion, noneSchedulerName string) *ActionHandlerConfig {
+func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubelet.KubeletClient, broker turbostore.Broker, k8sVersion, noneSchedulerName string) *ActionHandlerConfig {
 	config := &ActionHandlerConfig{
-		kubeClient: kubeClient,
-		broker:     broker,
+		kubeClient:    kubeClient,
+		kubeletClient: kubeletClient,
+		broker:        broker,
 
 		k8sVersion:        k8sVersion,
 		noneSchedulerName: noneSchedulerName,
@@ -112,6 +114,10 @@ func (h *ActionHandler) registerActionExecutors() {
 	horizontalScaler := executor.NewHorizontalScaler(h.config.kubeClient, h.config.broker, h.scheduler)
 	h.actionExecutors[turboaction.ActionProvision] = horizontalScaler
 	h.actionExecutors[turboaction.ActionUnbind] = horizontalScaler
+
+	//TODO: add kubeletClient for containerResizer
+	containerResizer := executor.NewContainerResizer(h.config.kubeClient, h.config.kubeletClient, h.config.broker, h.config.k8sVersion, h.config.noneSchedulerName, h.lockMap)
+	h.actionExecutors[turboaction.ActionContainerResize] = containerResizer
 }
 
 // Start watching succeeded and failed turbo actions.
@@ -230,34 +236,33 @@ func getActionTypeFromActionItemDTO(actionItem *proto.ActionItemDTO) (turboactio
 	var actionType turboaction.TurboActionType
 
 	if actionItem == nil {
-		return actionType, errors.New("ActionItem received in is null")
+		return actionType, fmt.Errorf("ActionItem received in is null")
 	}
 	glog.V(3).Infof("Receive a %s action request.", actionItem.GetActionType())
+	objectType := actionItem.GetTargetSE().GetEntityType()
 
 	switch actionItem.GetActionType() {
 	case proto.ActionItemDTO_MOVE:
 		// Here we must make sure the TargetSE is a Pod and NewSE is either a VirtualMachine or a PhysicalMachine.
-		if actionItem.GetTargetSE().GetEntityType() == proto.EntityDTO_CONTAINER_POD {
+		if objectType == proto.EntityDTO_CONTAINER_POD {
 			// A regular MOVE action
-			actionType = turboaction.ActionMove
-		} else if actionItem.GetTargetSE().GetEntityType() == proto.EntityDTO_VIRTUAL_APPLICATION {
+			return turboaction.ActionMove, nil
+		} else if objectType == proto.EntityDTO_VIRTUAL_APPLICATION {
 			// An UnBind action
-			actionType = turboaction.ActionUnbind
-		} else {
-			// NOT Supported
-			return actionType, fmt.Errorf("The service entity to be moved is not a "+
-				"Pod. Got %s", actionItem.GetTargetSE().GetEntityType())
+			return turboaction.ActionUnbind, nil
 		}
-		break
 	case proto.ActionItemDTO_PROVISION:
 		// A Provision action
-		actionType = turboaction.ActionProvision
-		break
-	default:
-		return actionType, fmt.Errorf("Action %s is not supported", actionItem.GetActionType())
+		return turboaction.ActionProvision, nil
+	case proto.ActionItemDTO_RIGHT_SIZE:
+		if objectType == proto.EntityDTO_CONTAINER {
+			return turboaction.ActionContainerResize, nil
+		}
 	}
 
-	return actionType, nil
+	err := fmt.Errorf("Unsupported action[%v] for objectType[%v]", actionItem.GetActionType(), objectType)
+	glog.Error(err)
+	return actionType, err
 }
 
 // Send action response to Turbonomic server.
