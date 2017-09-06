@@ -1,7 +1,6 @@
 package dtofactory
 
 import (
-	"errors"
 	"fmt"
 
 	api "k8s.io/client-go/pkg/api/v1"
@@ -18,7 +17,8 @@ import (
 )
 
 const (
-	AppPrefix string = "App-"
+	AppPrefix                  string  = "App-"
+	defaultTransactionCapacity float64 = 500.0
 )
 
 var (
@@ -34,7 +34,6 @@ var (
 
 type applicationEntityDTOBuilder struct {
 	generalBuilder
-	nodeNameUIDMap map[string]string
 }
 
 func NewApplicationEntityDTOBuilder(sink *metrics.EntityMetricSink) *applicationEntityDTOBuilder {
@@ -43,122 +42,154 @@ func NewApplicationEntityDTOBuilder(sink *metrics.EntityMetricSink) *application
 	}
 }
 
-// Build entityDTOs based on the given pod list.
+// get hosting node cpu frequency
+func (builder *applicationEntityDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, error) {
+	key := util.NodeKeyFromPodFunc(pod)
+	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(task.NodeType, key, metrics.CpuFrequency)
+	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
+	if err != nil {
+		err := fmt.Errorf("Failed to get cpu frequency from sink for node %s: %v", key, err)
+		glog.Error(err)
+		return 0.0, err
+	}
+
+	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
+	return cpuFrequency, nil
+}
+
 func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
+
 	for _, pod := range pods {
-		// id. Application entity dto ID is consisted of appPrefix and pod UID.
-		appID := getApplicationID(string(pod.UID))
-		entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_APPLICATION, appID)
-
-		// display name
-		displayName := AppPrefix + util.GetPodClusterID(pod)
-		entityDTOBuilder.DisplayName(displayName)
-
-		// commodity sold
-		commoditiesSold, err := builder.getApplicationCommoditiesSold(pod)
+		podFullName := util.GetPodClusterID(pod)
+		nodeCPUFrequency, err := builder.getNodeCPUFrequency(pod)
 		if err != nil {
-			glog.Errorf("Failed to create commodities sold by application %s: %s", displayName, err)
+			glog.Errorf("failed to build ContainerDTOs for pod[%s]: %v", podFullName, err)
 			continue
 		}
-		entityDTOBuilder.SellsCommodities(commoditiesSold)
+		podId := string(pod.UID)
+		for i := range pod.Spec.Containers {
+			//1. Id and Name
+			//container := &(pod.Spec.Containers[i])
+			containerId := util.ContainerIdFunc(podId, i)
+			appId := util.ApplicationIdFunc(containerId)
+			displayName := AppPrefix + podFullName
 
-		// commodity bought
-		provider := sdkbuilder.CreateProvider(proto.EntityDTO_CONTAINER_POD, string(pod.UID))
-		entityDTOBuilder = entityDTOBuilder.Provider(provider)
-		commoditiesBought, err := builder.getApplicationCommoditiesBought(pod)
-		if err != nil {
-			glog.Errorf("Failed to create commodities bought by application %s: %s", displayName, err)
-			continue
+			ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_APPLICATION, appId).
+				DisplayName(displayName)
+
+			//2. sold commodities: transaction
+			commoditiesSold, err := builder.getCommoditiesSold(appId, i, pod)
+			if err != nil {
+				glog.Errorf("Failed to create Application(%s) entityDTO: %v", displayName, err)
+				continue
+			}
+			ebuilder.SellsCommodities(commoditiesSold)
+
+			//3. bought commodities: vcpu/vmem/application
+			commoditiesBought, err := builder.getApplicationCommoditiesBought(appId, containerId, nodeCPUFrequency)
+			if err != nil {
+				glog.Errorf("Failed to create Application(%s) entityDTO: %v", displayName, err)
+				continue
+			}
+			provider := sdkbuilder.CreateProvider(proto.EntityDTO_CONTAINER, containerId)
+			ebuilder.Provider(provider).BuysCommodities(commoditiesBought)
+
+			//4. set properties
+			properties := builder.getApplicationProperties(pod, i)
+			ebuilder.WithProperties(properties)
+
+			if !util.Monitored(pod) {
+				ebuilder.Monitored(false)
+			}
+
+			appType := util.GetAppType(pod)
+			ebuilder.ApplicationData(&proto.EntityDTO_ApplicationData{
+				Type: &appType,
+			})
+
+			//5. build the entityDTO
+			entityDTO, err := ebuilder.Create()
+			if err != nil {
+				glog.Errorf("Failed to build Application entityDTO based on application %s: %s", displayName, err)
+				continue
+			}
+			result = append(result, entityDTO)
 		}
-		entityDTOBuilder.BuysCommodities(commoditiesBought)
-
-		// entities' properties.
-		properties := builder.getApplicationProperties(pod)
-		entityDTOBuilder.WithProperties(properties)
-
-		if !util.Monitored(pod) {
-			entityDTOBuilder.Monitored(false)
-		}
-
-		appType := util.GetAppType(pod)
-		entityDTOBuilder.ApplicationData(&proto.EntityDTO_ApplicationData{
-			Type: &appType,
-		})
-
-		// build entityDTO
-		entityDTO, err := entityDTOBuilder.Create()
-		if err != nil {
-			glog.Errorf("Failed to build Application entityDTO based on application %s: %s", displayName, err)
-			continue
-		}
-
-		result = append(result, entityDTO)
 	}
 
 	return result, nil
 }
 
-// Build the sold commodityDTOs by each application.
-// An application sells: Transaction commodity.
-func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesSold(pod *api.Pod) ([]*proto.CommodityDTO, error) {
-
-	// Cluster commodity.
-	clusterMetricUID := metrics.GenerateEntityStateMetricUID(task.ClusterType, "", metrics.Cluster)
-	clusterInfo, err := builder.metricsSink.GetMetric(clusterMetricUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get %s used for current Kubernetes Cluster", metrics.Cluster)
-	}
-	clusterCommodityKey, ok := clusterInfo.GetValue().(string)
-	if !ok {
-		return nil, errors.New("Failed to get cluster ID")
-	}
-	glog.V(4).Infof("Cluster key is %s", clusterCommodityKey)
-
-	var commoditiesSold []*proto.CommodityDTO
-	// As all the application commodities are actually retrieved from pods, so the key is also from pod.
+func (builder *applicationEntityDTOBuilder) getTransactionUsedValue(pod *api.Pod) float64 {
 	key := util.PodKeyFunc(pod)
+	etype := task.PodType
+	rtype := metrics.Transaction
+	mtype := metrics.Used
+	metricsId := metrics.GenerateEntityResourceMetricUID(etype, key, rtype, mtype)
 
-	// attr
-	attributeSetter := NewCommodityAttrSetter()
-	transactionCommKey := FindTransactionCommodityKey(pod, clusterCommodityKey)
-	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Key(transactionCommKey) }, metrics.Transaction)
-
-	// transaction
-	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(task.ApplicationType, key, applicationResourceCommoditySold, nil, attributeSetter)
+	usedMetric, err := builder.metricsSink.GetMetric(metricsId)
 	if err != nil {
-		return nil, err
+		glog.V(3).Infof("failed to get Pod[%s] transaction usage: %v", key, err)
+		return 0.0
 	}
-	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
 
-	return commoditiesSold, nil
+	return usedMetric.GetValue().(float64)
 }
 
-func FindTransactionCommodityKey(pod *api.Pod, clusterID string) string {
-	appType := util.GetAppType(pod)
-	return appType + "-" + clusterID
+// equally distribute Pod.Transaction.used to the hosted containers.
+func (builder *applicationEntityDTOBuilder) getAppTransactionUsage(index int, pod *api.Pod) float64 {
+	podTransactionUsage := builder.getTransactionUsedValue(pod)
+	containerNum := len(pod.Spec.Containers)
+
+	// case1: if there is only one container, then it has all the transactions.
+	if containerNum < 2 {
+		return podTransactionUsage
+	}
+
+	// case2: equally distribute transactions, the first container may have a little more
+	if containerNum < index {
+		glog.Errorf("potential bug: pod[%s] containerNum mismatch %d Vs. %d.", util.PodKeyFunc(pod), containerNum, index)
+		return 0.0
+	}
+
+	share := float64(int64(podTransactionUsage) / int64(containerNum))
+	if index == 0 {
+		residue := (podTransactionUsage - (share * float64(containerNum)))
+		share += residue
+	}
+
+	return share
+}
+
+// applicationEntity only sells transaction
+func (builder *applicationEntityDTOBuilder) getCommoditiesSold(appId string, index int, pod *api.Pod) ([]*proto.CommodityDTO, error) {
+	var result []*proto.CommodityDTO
+
+	appTransactionUsed := builder.getAppTransactionUsage(index, pod)
+	ebuilder := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).Key(appId).
+		Capacity(defaultTransactionCapacity).
+		Used(appTransactionUsed)
+
+	tranCommodity, err := ebuilder.Create()
+	if err != nil {
+		glog.Errorf("Failed to get application(%s) commodities sold:%v", appId, err)
+		return nil, err
+	}
+	result = append(result, tranCommodity)
+
+	return result, nil
 }
 
 // Build the bought commodities by each application.
-// An application buys vCPU, vMem and Application commodity from a pod.
-func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(pod *api.Pod) ([]*proto.CommodityDTO, error) {
+// An application buys vCPU, vMem and Application commodity from a container.
+func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appId, containerId string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
-	// As all the application commodities are actually retrieved from pods, so the key is also from pod.
-	key := util.PodKeyFunc(pod)
 
-	// get cpu frequency
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(task.NodeType, util.NodeKeyFromPodFunc(pod), metrics.CpuFrequency)
-	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
-	if err != nil {
-		// TODO acceptable return? To get cpu, frequency is required.
-		return nil, fmt.Errorf("Failed to get cpu frequency from sink for node %s: %s", util.NodeKeyFromPodFunc(pod), err)
-	}
-	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
-	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU)
 
 	// Resource commodities.
-	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(task.ApplicationType, key, applicationResourceCommodityBought, converter, nil)
+	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(task.ApplicationType, appId, applicationResourceCommodityBought, converter, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +197,7 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(pod 
 
 	// Application commodity
 	applicationCommBought, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
-		Key(string(pod.UID)).
+		Key(containerId).
 		Create()
 	if err != nil {
 		return nil, err
@@ -176,16 +207,11 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(pod 
 }
 
 // Get the properties of the pod. This includes property related to application cluster property.
-func (builder *applicationEntityDTOBuilder) getApplicationProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
+func (builder *applicationEntityDTOBuilder) getApplicationProperties(pod *api.Pod, index int) []*proto.EntityDTO_EntityProperty {
 	var properties []*proto.EntityDTO_EntityProperty
 	// additional node cluster info property.
-	appProperties := property.BuildAppProperties(pod.Namespace, pod.Name)
+	appProperties := property.BuildAppProperties(pod.Namespace, pod.Name, index)
 	properties = append(properties, appProperties...)
 
 	return properties
-}
-
-// the uuid that is used to create entityDTO and is unique in Turbonomic system.
-func getApplicationID(id string) string {
-	return AppPrefix + id
 }

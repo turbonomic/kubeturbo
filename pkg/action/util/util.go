@@ -160,7 +160,7 @@ func GetPodFromProperties(kubeClient *client.Clientset, entityType proto.EntityD
 	var podNamespace, podName string
 	switch entityType {
 	case proto.EntityDTO_APPLICATION:
-		podNamespace, podName = property.GetApplicationHostingPodInfoFromProperty(properties)
+		podNamespace, podName, _ = property.GetApplicationHostingPodInfoFromProperty(properties)
 	case proto.EntityDTO_CONTAINER_POD:
 		podNamespace, podName = property.GetPodInfoFromProperty(properties)
 	default:

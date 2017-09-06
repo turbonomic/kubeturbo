@@ -29,6 +29,7 @@ var (
 	applicationTemplateComm    *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
 	clusterTemplateComm        *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
 	transactionTemplateComm    *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
+	vmpmAccessTemplateComm     *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
 )
 
 type SupplyChainFactory struct {
@@ -55,6 +56,12 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 		return nil, err
 	}
 
+	// Container suplly chain builder
+	containerSupplyChainNodeBuilder, err := f.buildContainer()
+	if err != nil {
+		return nil, err
+	}
+
 	// Application supply chain builder
 	appSupplyChainNodeBuilder, err := f.buildApplicationSupplyBuilder()
 	if err != nil {
@@ -70,6 +77,7 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	supplyChainBuilder := supplychain.NewSupplyChainBuilder()
 	supplyChainBuilder.Top(vAppSupplyChainNodeBuilder)
 	supplyChainBuilder.Entity(appSupplyChainNodeBuilder)
+	supplyChainBuilder.Entity(containerSupplyChainNodeBuilder)
 	supplyChainBuilder.Entity(podSupplyChainNodeBuilder)
 	supplyChainBuilder.Entity(nodeSupplyChainNodeBuilder)
 
@@ -95,7 +103,7 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 	podSupplyChainNodeBuilder = podSupplyChainNodeBuilder.
 		Sells(vCpuTemplateComm).
 		Sells(vMemTemplateComm).
-		Sells(applicationTemplateComm).
+		Sells(vmpmAccessTemplateComm).
 		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_HOSTING).
 		// TODO we will re-include provisioned commodities bought by pod later.
 		//Buys(cpuProvisionedTemplateComm).
@@ -133,12 +141,25 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 	return podSupplyChainNodeBuilder.ConnectsTo(vmPodExternalLink).Create()
 }
 
+func (f *SupplyChainFactory) buildContainer() (*proto.TemplateDTO, error) {
+	builder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER).
+		Sells(vCpuTemplateComm).
+		Sells(vMemTemplateComm).
+		Sells(applicationTemplateComm).
+		Provider(proto.EntityDTO_CONTAINER_POD, proto.Provider_HOSTING).
+		Buys(vCpuTemplateComm).
+		Buys(vMemTemplateComm).
+		Buys(vmpmAccessTemplateComm)
+
+	return builder.Create()
+}
+
 func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
 	// Application supply chain builder
 	appSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_APPLICATION)
 	appSupplyChainNodeBuilder = appSupplyChainNodeBuilder.
 		Sells(transactionTemplateComm).
-		Provider(proto.EntityDTO_CONTAINER_POD, proto.Provider_HOSTING).
+		Provider(proto.EntityDTO_CONTAINER, proto.Provider_HOSTING).
 		Buys(vCpuTemplateComm).
 		Buys(vMemTemplateComm).
 		Buys(applicationTemplateComm)

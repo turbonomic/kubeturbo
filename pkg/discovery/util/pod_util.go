@@ -58,7 +58,7 @@ func FindParentReferenceObject(pod *api.Pod) (*api.ObjectReference, error) {
 	}
 	createdByRef, exist := annotations["kubernetes.io/created-by"]
 	if !exist {
-		glog.Warningf("Cannot find createdBy reference for Pod %s/%s", pod.Namespace, pod.Name)
+		glog.V(3).Infof("Warning Cannot find createdBy reference for Pod %s/%s", pod.Namespace, pod.Name)
 		return nil, nil
 	}
 

@@ -8,6 +8,7 @@ import (
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
+	"fmt"
 	"github.com/golang/glog"
 )
 
@@ -23,59 +24,70 @@ var (
 
 type ServiceEntityDTOBuilder struct{}
 
-func (svcEntityDTOBuilder *ServiceEntityDTOBuilder) BuildSvcEntityDTO(servicePodMap map[*api.Service][]*api.Pod, clusterID string, appDTOs map[string]*proto.EntityDTO) ([]*proto.EntityDTO, error) {
+func (builder *ServiceEntityDTOBuilder) BuildSvcEntityDTO(servicePodMap map[*api.Service][]*api.Pod, clusterID string, appDTOs map[string]*proto.EntityDTO) ([]*proto.EntityDTO, error) {
 	result := []*proto.EntityDTO{}
+
 	for service, pods := range servicePodMap {
-		serviceClusterID := util.GetServiceClusterID(service)
-		serviceEntityType := proto.EntityDTO_VIRTUAL_APPLICATION
 		id := string(service.UID)
-		displayName := vAppPrefix + "-" + serviceClusterID + "-" + clusterID
-		entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(serviceEntityType, id)
+		serviceName := util.GetServiceClusterID(service)
+		displayName := fmt.Sprintf("%s-%s", vAppPrefix, serviceName)
 
-		entityDTOBuilder = entityDTOBuilder.DisplayName(displayName)
+		ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_APPLICATION, id).
+			DisplayName(displayName)
 
-		// commodities bought.
-		hasErr := false
-		for _, pod := range pods {
-			// Here it is consisted with the ID when we build the application entityDTO in ApplicationProbe
-			appID := AppPrefix + string(pod.UID)
-			appDTO, exist := appDTOs[appID]
-			if !exist {
-				glog.Errorf("Cannot find app %s in the application entityDTOs", appID)
-				hasErr = true
-				continue
-			}
-			appProvider := sdkbuilder.CreateProvider(proto.EntityDTO_APPLICATION, appID)
-			commoditiesBoughtFromApp, err := svcEntityDTOBuilder.getCommoditiesBought(pod, appDTO)
-			if err != nil {
-				glog.Errorf("Failed to get commodity bought from %s.", appID)
-				hasErr = true
-				continue
-			}
-			entityDTOBuilder.Provider(appProvider)
-			entityDTOBuilder.BuysCommodities(commoditiesBoughtFromApp)
-		}
-		if hasErr {
+		//1. commodities bought
+		if err := builder.createCommodityBought(ebuilder, pods, appDTOs); err != nil {
+			glog.Errorf("failed to create server[%s] EntityDTO: %v", serviceName, err)
 			continue
 		}
 
-		// virtual application data.
+		//2. virtual application data.
 		vAppData := &proto.EntityDTO_VirtualApplicationData{
 			ServiceType: &service.Name,
 		}
-		entityDTOBuilder.VirtualApplicationData(vAppData)
+		ebuilder.VirtualApplicationData(vAppData)
 
-		entityDto, err := entityDTOBuilder.Create()
+		//3. create it
+		entityDto, err := ebuilder.Create()
 		if err != nil {
-			glog.Errorf("Failed to build entityDTO for service %s: %s", serviceClusterID, err)
+			glog.Errorf("failed to create service[%s] EntityDTO: %v", serviceName, err)
 			continue
 		}
 		result = append(result, entityDto)
 	}
+
 	return result, nil
 }
 
-func (svcEntityDTOBuilder *ServiceEntityDTOBuilder) getCommoditiesBought(pod *api.Pod, appDTO *proto.EntityDTO) ([]*proto.CommodityDTO, error) {
+func (builder *ServiceEntityDTOBuilder) createCommodityBought(ebuilder *sdkbuilder.EntityDTOBuilder, pods []*api.Pod, appDTOs map[string]*proto.EntityDTO) error {
+
+	for _, pod := range pods {
+		podId := string(pod.UID)
+		for i := range pod.Spec.Containers {
+			containerName := util.ContainerNameFunc(pod, &(pod.Spec.Containers[i]))
+			containerId := util.ContainerIdFunc(podId, i)
+			appId := util.ApplicationIdFunc(containerId)
+
+			appDTO, exist := appDTOs[appId]
+			if !exist {
+				glog.Errorf("Cannot find app[%s] entityDTO of container[%s].", appId, containerName)
+				continue
+			}
+
+			bought, err := builder.getCommoditiesBought(appDTO)
+			if err != nil {
+				glog.Errorf("failed to get commodity bought from container[%s]: %v", containerName, err)
+				continue
+			}
+			provider := sdkbuilder.CreateProvider(proto.EntityDTO_APPLICATION, appId)
+			ebuilder.Provider(provider).BuysCommodities(bought)
+		}
+	}
+
+	return nil
+}
+
+func (svcEntityDTOBuilder *ServiceEntityDTOBuilder) getCommoditiesBought(appDTO *proto.EntityDTO) ([]*proto.CommodityDTO, error) {
 	commoditiesSoldByApp := appDTO.GetCommoditiesSold()
 	var commoditiesBoughtFromApp []*proto.CommodityDTO
 	for _, commSold := range commoditiesSoldByApp {
@@ -90,5 +102,10 @@ func (svcEntityDTOBuilder *ServiceEntityDTOBuilder) getCommoditiesBought(pod *ap
 			commoditiesBoughtFromApp = append(commoditiesBoughtFromApp, commBoughtByService)
 		}
 	}
+
+	if len(commoditiesBoughtFromApp) < 1 {
+		return nil, fmt.Errorf("no commodity found.")
+	}
+
 	return commoditiesBoughtFromApp, nil
 }
