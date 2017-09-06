@@ -18,7 +18,7 @@ import (
 
 const (
 	AppPrefix                  string  = "App-"
-	defaultTransactionCapacity float64 = 50.0
+	defaultTransactionCapacity float64 = 500.0
 )
 
 var (
@@ -140,23 +140,20 @@ func (builder *applicationEntityDTOBuilder) getTransactionUsedValue(pod *api.Pod
 // equally distribute Pod.Transaction.used to the hosted containers.
 func (builder *applicationEntityDTOBuilder) getAppTransactionUsage(index int, pod *api.Pod) float64 {
 	podTransactionUsage := builder.getTransactionUsedValue(pod)
-	if podTransactionUsage < 2.0 || len(pod.Spec.Containers) < 2 {
+	containerNum := len(pod.Spec.Containers)
+
+	// case1: if there is only one container, then it has all the transactions.
+	if containerNum < 2 {
 		return podTransactionUsage
 	}
 
-	containerNum := len(pod.Spec.Containers)
+	// case2: equally distribute transactions, the first container may have a little more
 	if containerNum < index {
 		glog.Errorf("potential bug: pod[%s] containerNum mismatch %d Vs. %d.", util.PodKeyFunc(pod), containerNum, index)
 		return 0.0
 	}
 
-	// case1: if there is only one container, then it has all the transactions.
-	if containerNum == 1 {
-		return podTransactionUsage
-	}
-
-	// case2: equally distribute transactions, the first container may have a little more
-	share := float64(int64(podTransactionUsage)/int64(containerNum))
+	share := float64(int64(podTransactionUsage) / int64(containerNum))
 	if index == 0 {
 		residue := (podTransactionUsage - (share * float64(containerNum)))
 		share += residue
