@@ -12,6 +12,7 @@ const (
 	ClusterType     DiscoveredEntityType = "Cluster"
 	NodeType        DiscoveredEntityType = "Node"
 	PodType         DiscoveredEntityType = "Pod"
+	ContainerType   DiscoveredEntityType = "Container"
 	ApplicationType DiscoveredEntityType = "Application"
 	ServiceType     DiscoveredEntityType = "Service"
 

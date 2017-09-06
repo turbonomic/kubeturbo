@@ -62,9 +62,14 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		// display name.
 		displayName := util.GetPodClusterID(pod)
 		entityDTOBuilder.DisplayName(displayName)
+		cpuFrequency, err := builder.getNodeCPUFrequency(pod)
+		if err != nil {
+			glog.Errorf("failed to build pod[%s] EntityDTO: %v", displayName, err)
+			continue
+		}
 
 		// commodities sold.
-		commoditiesSold, err := builder.getPodCommoditiesSold(pod)
+		commoditiesSold, err := builder.getPodCommoditiesSold(pod, cpuFrequency)
 		if err != nil {
 			glog.Errorf("Error when create commoditiesSold for pod %s: %s", displayName, err)
 			continue
@@ -72,7 +77,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 		// commodities bought.
-		commoditiesBought, err := builder.getPodCommoditiesBought(pod)
+		commoditiesBought, err := builder.getPodCommoditiesBought(pod, cpuFrequency)
 		if err != nil {
 			glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
 			continue
@@ -112,25 +117,30 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 	return result, nil
 }
 
-// Build the sold commodityDTO by each pod. They are:
-// vCPU, vMem, ApplicationCommodity.
-func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod) ([]*proto.CommodityDTO, error) {
-	var commoditiesSold []*proto.CommodityDTO
-	key := util.PodKeyFunc(pod)
-
-	// get cpu frequency
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(task.NodeType, util.NodeKeyFromPodFunc(pod), metrics.CpuFrequency)
+// get cpu frequency
+func (builder *podEntityDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, error) {
+	key := util.NodeKeyFromPodFunc(pod)
+	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(task.NodeType, key, metrics.CpuFrequency)
 	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
 	if err != nil {
-		// TODO acceptable return? To get cpu, frequency is required.
-		return nil, fmt.Errorf("Failed to get cpu frequency from sink for node %s: %s", key, err)
+		err := fmt.Errorf("Failed to get cpu frequency from sink for node %s: %v", key, err)
+		glog.Error(err)
+		return 0.0, err
 	}
 
 	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
+	return cpuFrequency, nil
+}
+
+// Build the sold commodityDTO by each pod. They are:
+// vCPU, vMem and VMPMAccess; VMPMAccess is used to bind container to the hosting pod (no move).
+func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+	var commoditiesSold []*proto.CommodityDTO
+	key := util.PodKeyFunc(pod)
+
 	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPUProvisioned)
 
-	// attr
 	attributeSetter := NewCommodityAttrSetter()
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)
 
@@ -141,41 +151,32 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod) ([]*prot
 	}
 	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
 
-	// Application commodity
-	applicationComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
-		Key(string(pod.UID)).
-		Capacity(applicationCommodityDefaultCapacity).
-		Create()
+	// vmpmAccess commodity
+	podAccessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
+		Key(string(pod.UID)).Create()
 	if err != nil {
 		return nil, err
 	}
-	commoditiesSold = append(commoditiesSold, applicationComm)
+	commoditiesSold = append(commoditiesSold, podAccessComm)
 
 	return commoditiesSold, nil
 }
 
 // Build the bought commodityDTO by each pod. They are:
 // vCPU, vMem, cpuProvisioned, memProvisioned, access, cluster.
-func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod) ([]*proto.CommodityDTO, error) {
+func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 	key := util.PodKeyFunc(pod)
 
-	// get cpu frequency
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(task.NodeType, util.NodeKeyFromPodFunc(pod), metrics.CpuFrequency)
-	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
-	if err != nil {
-		glog.Errorf("Failed to get cpu frequency from sink for node %s: %s", util.NodeKeyFromPodFunc(pod), err)
-	}
-	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
 	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPUProvisioned)
 
-	// attr
-	attributeSetter := NewCommodityAttrSetter()
-	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)
+	//// attr TODO: pod is movable, but not resizable.
+	//attributeSetter := NewCommodityAttrSetter()
+	//attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)
 
 	// Resource Commodities.
-	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(task.PodType, key, podResourceCommodityBought, converter, attributeSetter)
+	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(task.PodType, key, podResourceCommodityBought, converter, nil)
 	if err != nil {
 		return nil, err
 	}

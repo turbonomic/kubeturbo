@@ -9,6 +9,7 @@ import (
 
 	vmtcache "github.com/turbonomic/kubeturbo/pkg/cache"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 )
 
@@ -19,7 +20,11 @@ type Config struct {
 	//turboStore *turbostore.TurboStore
 	broker turbostore.Broker
 
-	Client    *client.Clientset
+	Client        *client.Clientset
+	KubeletClient *kubelet.KubeletClient
+
+	//TODO: delete these two
+	// they were used for rescheduler, but they are useless now.
 	NodeQueue *vmtcache.HashedFIFO
 	PodQueue  *vmtcache.HashedFIFO
 
@@ -38,7 +43,57 @@ type Config struct {
 	StopEverything chan struct{}
 }
 
-func NewVMTConfig(client *client.Clientset, probeConfig *configs.ProbeConfig, broker turbostore.Broker,
+func NewVMTConfig2() *Config {
+	cfg := &Config{
+		StopEverything: make(chan struct{}),
+		NodeQueue:      vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
+		PodQueue:       vmtcache.NewHashedFIFO(cache.MetaNamespaceKeyFunc),
+	}
+
+	return cfg
+}
+
+func (c *Config) WithKubeClient(client *client.Clientset) *Config {
+	c.Client = client
+	return c
+}
+
+func (c *Config) WithKubeletClient(client *kubelet.KubeletClient) *Config {
+	c.KubeletClient = client
+	return c
+}
+
+func (c *Config) WithProbeConfig(pconfig *configs.ProbeConfig) *Config {
+	c.ProbeConfig = pconfig
+	return c
+}
+
+func (c *Config) WithK8sVersion(k8sVer string) *Config {
+	c.k8sVersion = k8sVer
+	return c
+}
+
+func (c *Config) WithNoneScheduler(noneScheduler string) *Config {
+	c.noneSchedulerName = noneScheduler
+	return c
+}
+
+func (c *Config) WithBroker(broker turbostore.Broker) *Config {
+	c.broker = broker
+	return c
+}
+
+func (c *Config) WithTapSpec(spec *K8sTAPServiceSpec) *Config {
+	c.tapSpec = spec
+	return c
+}
+
+func (c *Config) WithRecorder(rc record.EventRecorder) *Config {
+	c.Recorder = rc
+	return c
+}
+
+func NewVMTConfig(client *client.Clientset, kubeletClient *kubelet.KubeletClient, probeConfig *configs.ProbeConfig, broker turbostore.Broker,
 	spec *K8sTAPServiceSpec, k8sVer, noneScheduler string) *Config {
 	config := &Config{
 		tapSpec:           spec,

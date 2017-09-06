@@ -64,7 +64,7 @@ func (cp *ComplianceProcessor) UpdateEntityDTO(entityDTO *proto.EntityDTO) error
 		return fmt.Errorf("given entity type %s does not exist.", eType)
 	}
 	eId := entityDTO.GetId()
-	if _ , exist :=  cp.entityMaps[eType][eId]; !exist {
+	if _, exist := cp.entityMaps[eType][eId]; !exist {
 		return fmt.Errorf("given entity id %s does not exist.", eId)
 	}
 	cp.entityMaps[eType][eId] = entityDTO

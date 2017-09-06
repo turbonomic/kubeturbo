@@ -15,11 +15,11 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-	"github.com/pborman/uuid"
 )
 
 const (
-	defaultMonitoringWorkerTimeout time.Duration = time.Minute * 5
+	defaultMonitoringWorkerTimeout time.Duration = time.Minute * 3
+	defaultMaxTimeout              time.Duration = time.Minute * 20
 )
 
 type k8sDiscoveryWorkerConfig struct {
@@ -72,9 +72,8 @@ type k8sDiscoveryWorker struct {
 	taskChan chan *task.Task
 }
 
-func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig) (*k8sDiscoveryWorker, error) {
-	id := uuid.NewUUID().String()
-
+func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string) (*k8sDiscoveryWorker, error) {
+	//id := uuid.NewUUID().String()
 	if len(config.monitoringSourceConfigs) == 0 {
 		return nil, errors.New("No monitoring source config found in config.")
 	}
@@ -99,7 +98,7 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig) (*k8sDiscoveryWorke
 	}
 
 	return &k8sDiscoveryWorker{
-		id:               id,
+		id:               wid,
 		config:           config,
 		monitoringWorker: monitoringWorkerMap,
 		sink:             metrics.NewEntityMetricSink(),
@@ -113,10 +112,10 @@ func (worker *k8sDiscoveryWorker) RegisterAndRun(dispatcher *Dispatcher, collect
 	for {
 		select {
 		case currTask := <-worker.taskChan:
-			glog.V(3).Infof("Worker %s has received a discovery task.", worker.id)
+			glog.V(2).Infof("Worker %s has received a discovery task.", worker.id)
 			result := worker.executeTask(currTask)
 			collector.ResultPool() <- result
-			glog.V(3).Infof("Worker %s has finished the discovery task.", worker.id)
+			glog.V(2).Infof("Worker %s has finished the discovery task.", worker.id)
 
 			dispatcher.RegisterWorker(worker)
 		}
@@ -133,6 +132,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 
 	// wait group to make sure metrics scraping finishes.
 	var wg sync.WaitGroup
+	timeout := calcTimeOut(len(currTask.NodeList()))
 
 	// Resource monitoring
 	resourceMonitorTask := currTask
@@ -148,7 +148,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 				defer wg.Done()
 
 				w.ReceiveTask(resourceMonitorTask)
-				t := time.NewTimer(defaultMonitoringWorkerTimeout)
+				t := time.NewTimer(timeout)
 				go func() {
 					glog.V(2).Infof("A %s monitoring worker is invoked.", w.GetMonitoringSource())
 					// Assign task to monitoring worker.
@@ -186,9 +186,18 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 
 	wg.Wait()
 
-	var discoveryResult []*proto.EntityDTO
-	// Build EntityDTO
-	// node
+	entityDTOs, err := worker.buildDTOs(currTask)
+	if err != nil {
+		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
+	}
+	result := task.NewTaskResult(worker.id, task.TaskSucceeded).WithContent(entityDTOs)
+	return result
+}
+
+func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.EntityDTO, error) {
+	var result []*proto.EntityDTO
+
+	//0. setUp nodeName to nodeId mapping
 	stitchingManager := stitching.NewStitchingManager(worker.config.stitchingPropertyType)
 
 	nodes := currTask.NodeList()
@@ -198,39 +207,56 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		stitchingManager.StoreStitchingValue(node)
 	}
 
+	//1. build entityDTOs for nodes
 	nodeEntityDTOBuilder := dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager)
 	nodeEntityDTOs, err := nodeEntityDTOBuilder.BuildEntityDTOs(nodes)
 	if err != nil {
 		glog.Errorf("Error while creating node entityDTOs: %v", err)
 		// TODO Node discovery fails, directly return?
 	}
-	glog.V(2).Infof("Worker %s builds %d node entityDTOs.", worker.id, len(nodeEntityDTOs))
-	discoveryResult = append(discoveryResult, nodeEntityDTOs...)
+	glog.V(3).Infof("Worker %s builds %d node entityDTOs.", worker.id, len(nodeEntityDTOs))
+	result = append(result, nodeEntityDTOs...)
 
-	// pod
+	//2. build entityDTOs for pods
 	pods := currTask.PodList()
 	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager, nodeNameUIDMap)
 	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods)
 	if err != nil {
 		glog.Errorf("Error while creating pod entityDTOs: %v", err)
-		// TODO Pod discovery fails, directly return?
 	}
-	discoveryResult = append(discoveryResult, podEntityDTOs...)
-	glog.V(2).Infof("Worker %s builds %d pod entityDTOs.", worker.id, len(podEntityDTOs))
+	result = append(result, podEntityDTOs...)
+	glog.V(3).Infof("Worker %s builds %d pod entityDTOs.", worker.id, len(podEntityDTOs))
 
-	// application
+	//3. build entityDTOs for containers
+	containerDTOBuilder := dtofactory.NewContainerDTOBuilder(worker.sink)
+	containerDTOs, err := containerDTOBuilder.BuildDTOs(pods)
+	if err != nil {
+		glog.Errorf("Error while createing container entityDTOs: %v", err)
+	}
+	result = append(result, containerDTOs...)
+	glog.V(3).Infof("Worker %s builds %d container entityDTOs.", worker.id, len(containerDTOs))
+
+	//4. build entityDTOs for applications
 	applicationEntityDTOBuilder := dtofactory.NewApplicationEntityDTOBuilder(worker.sink)
 	appEntityDTOs, err := applicationEntityDTOBuilder.BuildEntityDTOs(pods)
 	if err != nil {
 		glog.Errorf("Error while creating application entityDTOs: %v", err)
-		// TODO Application discovery fails, return?
 	}
-	discoveryResult = append(discoveryResult, appEntityDTOs...)
-	glog.V(2).Infof("Worker %s builds %d application entityDTOs.", worker.id, len(appEntityDTOs))
+	result = append(result, appEntityDTOs...)
+	glog.V(3).Infof("Worker %s builds %d application entityDTOs.", worker.id, len(appEntityDTOs))
 
-	// Send result
-	glog.V(3).Infof("Discovery result of worker %s is: %++v", worker.id, discoveryResult)
+	//result := task.NewTaskResult(worker.id, task.TaskSucceeded).WithContent(discoveryResult)
+	glog.V(2).Infof("Worker %s builds %d entityDTOs.", worker.id, len(result))
+	return result, nil
+}
 
-	result := task.NewTaskResult(worker.id, task.TaskSucceeded).WithContent(discoveryResult)
+func calcTimeOut(nodeNum int) time.Duration {
+	result := defaultMonitoringWorkerTimeout
+
+	result = result + time.Second*time.Duration(nodeNum)
+	if result > defaultMaxTimeout {
+		result = defaultMaxTimeout
+	}
+
 	return result
 }
