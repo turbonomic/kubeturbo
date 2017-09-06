@@ -6,7 +6,7 @@ metadata:
     name: kubeturbo
 spec:
   nodeSelector:
-    role: kubeturbo
+    kubeturbo: deployable
   containers:
   - name: kubeturbo
     image: vmturbo/kubeturbo:os35
