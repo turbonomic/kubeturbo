@@ -22,7 +22,8 @@ NAME           STATUS    AGE       LABELS
 ### Step Two: Create Kubeturbo config
 
 A Kubeturbo config is required for Kubeturbo service to connect to Ops Manager server remotely. You need to specify correct **Turbonomic Server address**, **username** and **password**.
-**NOTE**: Turbonomic server address is "**IP address of your ops manager**".
+> The `<SERVER_IP_ADDRESS>` is "**IP address of your ops manager**".
+> The `<TURBONOMIC_SERVER_VERSION>` is Turbonomic release version, e.g. `5.9.0` or `6.0.0`
 
 Create a file called **"config"** and put it under */etc/kubeturbo/*.
 
@@ -30,6 +31,7 @@ Create a file called **"config"** and put it under */etc/kubeturbo/*.
 {
 	"communicationConfig": {
 		"serverMeta": {
+                        "version": "<TURBONOMIC_SERVER_VERSION>",
 			"turboServer": "https://<SERVER_IP_ADDRESS>:443"
 		},
 		"restAPIConfig": {
