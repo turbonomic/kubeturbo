@@ -53,8 +53,6 @@ Create a file called `config` in the `/etc/kubeturbo/` directory in the same nod
 
 ### Step Three: Creating Kubeturbo Pod
 
-> NOTE: Ensure that you have completed Step One.
-
 Assume you have `kubeconfig` and `config` under `/etc/kubeturbo`.
 Define and run Kubeturbo pod using the following yaml.
 
