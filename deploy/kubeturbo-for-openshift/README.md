@@ -2,14 +2,14 @@
 
 This guide is about how to deploy **Kubeturbo** service in **OpenShift**.
 
-### Step One: Label Master Node
-As Kubeturbo is suggested to run on the master nodes, please create a label to represent the master nodes, if there's no existed one. For example:
+### Step One: Label Node
+kubeconfig with proper permission is required for Kubeturbo service to interact with kube-apiserver. If you have successfully started up your OpenShift cluster, you will find admin.kubeconfig under /etc/origin/master. Please copy this file to /etc/kubeturbo on the node Kubeturbo will be running on. You can label the node as following to make sure Kubeturbo will be deployed on that node.
 
 ```console
-$oc label nodes <MASTER_NODE_NAME> kubeturbo=deployable
+$oc label nodes <NODE_NAME> kubeturbo=deployable
 ```
 
-To see the labels on master node (*which is 10.10.174.81 in this example*),
+To see the labels on node (*which is 10.10.174.81 in this example*),
 
 ```console
 $oc get no --show-labels
@@ -19,10 +19,7 @@ NAME           STATUS    AGE       LABELS
 10.10.174.83   Ready     62d       kubernetes.io/hostname=10.10.174.83,region=primary
 ```
 
-### Step Two: Get Kubeconfig
-A kubeconfig with proper permission is required for Kubeturbo service to interact with kube-apiserver. If you have successfully started up your OpenShift cluster, you will find admin.kubeconfig under /etc/origin/master. Copy this kubeconfig file to /etc/kubeturbo/.
-
-### Step Three: Create Kubeturbo config
+### Step Two: Create Kubeturbo config
 
 A Kubeturbo config is required for Kubeturbo service to connect to Ops Manager server remotely. You need to specify correct **Turbonomic Server address**, **username** and **password**.
 **NOTE**: Turbonomic server address is "**IP address of your ops manager**".
@@ -51,7 +48,7 @@ Create a file called **"config"** and put it under */etc/kubeturbo/*.
 ```
 you can find an example [here](../config).
 
-### Step Four: Create Kubeturbo Pod
+### Step Three: Create Kubeturbo Pod
 
 Make sure you have **admin.kubeconfig** and **config** under */etc/kubeturbo*.
 
