@@ -92,9 +92,3 @@ $oc get pods --all-namespaces
 NAME                         READY     STATUS    RESTARTS   AGE
 kubeturbo                    1/1       Running   0          54s
 ```
-
-### Deploy K8sconntrack
-
-By following previous steps, Kubeturbo service should be running and starting to collect resource consumption metrics from each node, pod and application. Those metrics are continuously sent back to Turbonomic server. If you want Kubeturbo to collect network related metrics, such as service transaction counts and network flow information between pods inside current Kubernetes cluster, you need to deploy K8sConntrack monitoring service.
-
-K8sConntrack monitoring service should be running on each node inside cluster. A detailed guide about how to deploy K8sConntrack onto an OpenShift cluster can be found [here](https://github.com/DongyiYang/k8sconnection/blob/master/deploy/openshift_deploy/README.md).
