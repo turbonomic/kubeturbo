@@ -33,7 +33,7 @@ Create a file called `config` in the `/etc/kubeturbo/` directory in the same nod
 {
 	"communicationConfig": {
 		"serverMeta": {
-            "version": "<TURBONOMIC_SERVER_VERSION>",
+                    "version": "<TURBONOMIC_SERVER_VERSION>",
 		    "turboServer": "<TURBONOMIC_SERVER_URL>"
 		},
 		"restAPIConfig": {
