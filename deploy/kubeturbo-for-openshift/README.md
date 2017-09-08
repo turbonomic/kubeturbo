@@ -2,14 +2,14 @@
 
 This guide is about how to deploy **Kubeturbo** service in **OpenShift**.
 
-### Step One: Label Master Node
-As Kubeturbo is suggested to run on the master nodes, please create a label to represent the master nodes, if there's no existed one. For example:
+### Step One: Copy kubeconfig for kubeturbo
+kubeconfig with proper permission is required for Kubeturbo service to interact with kube-apiserver. If you have successfully started up your OpenShift cluster, mostly you will find admin.kubeconfig under /etc/origin/master. Please copy this file to /etc/kubeturbo on the node Kubeturbo will be running on. You can label the node as following to make sure Kubeturbo will be deployed on that node.
 
 ```console
-$oc label nodes <MASTER_NODE_NAME> kubeturbo=deployable
+$oc label nodes <NODE_NAME> kubeturbo=deployable
 ```
 
-To see the labels on master node (*which is 10.10.174.81 in this example*),
+To see the labels on node (*which is 10.10.174.81 in this example*),
 
 ```console
 $oc get no --show-labels
@@ -19,10 +19,7 @@ NAME           STATUS    AGE       LABELS
 10.10.174.83   Ready     62d       kubernetes.io/hostname=10.10.174.83,region=primary
 ```
 
-### Step Two: Get Kubeconfig
-A kubeconfig with proper permission is required for Kubeturbo service to interact with kube-apiserver. If you have successfully started up your OpenShift cluster, you will find admin.kubeconfig under /etc/origin/master. Copy this kubeconfig file to /etc/kubeturbo/.
-
-### Step Three: Create Kubeturbo config
+### Step Two: Create Kubeturbo config
 
 A Kubeturbo config is required for Kubeturbo service to connect to Ops Manager server remotely. You need to specify correct **Turbonomic Server address**, **username** and **password**.
 **NOTE**: Turbonomic server address is "**IP address of your ops manager**".
@@ -49,9 +46,8 @@ Create a file called **"config"** and put it under */etc/kubeturbo/*.
 	}
 }
 ```
-you can find an example [here](../config).
 
-### Step Four: Create Kubeturbo Pod
+### Step Three: Create Kubeturbo Pod
 
 Make sure you have **admin.kubeconfig** and **config** under */etc/kubeturbo*.
 
@@ -69,7 +65,7 @@ spec:
     kubeturbo: deployable
   containers:
   - name: kubeturbo
-    image: vmturbo/kubeturbo:os35
+    image: vmturbo/kubeturbo:59os
     args:
       - --kubeconfig=/etc/kubeturbo/admin.kubeconfig
       - --turboconfig=/etc/kubeturbo/config
@@ -96,9 +92,3 @@ $oc get pods --all-namespaces
 NAME                         READY     STATUS    RESTARTS   AGE
 kubeturbo                    1/1       Running   0          54s
 ```
-
-### Deploy K8sconntrack
-
-By following previous steps, Kubeturbo service should be running and starting to collect resource consumption metrics from each node, pod and application. Those metrics are continuously sent back to Turbonomic server. If you want Kubeturbo to collect network related metrics, such as service transaction counts and network flow information between pods inside current Kubernetes cluster, you need to deploy K8sConntrack monitoring service.
-
-K8sConntrack monitoring service should be running on each node inside cluster. A detailed guide about how to deploy K8sConntrack onto an OpenShift cluster can be found [here](https://github.com/DongyiYang/k8sconnection/blob/master/deploy/openshift_deploy/README.md).
