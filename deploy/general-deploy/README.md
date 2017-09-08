@@ -2,11 +2,29 @@
 * Turbonomic 5.9+
 * Running Kubernetes 1.4+ cluster 
 
-### <a name="configFile"></a>Step One: Creating the Kubeturbo Configuration Files
+### <a name="configFile"></a>Step One: Copy kubeconfig for kubeturbo
+`kubeconfig` with proper permission is required for Kubeturbo service to interact with kube-apiserver. 
+Please copy `kubeconfig` to `/etc/kubeturbo` on the node Kubeturbo will be running on. You can label the node as following to make sure Kubeturbo will be deployed on that node.
 
+```console
+$oc label nodes <NODE_NAME> kubeturbo=deployable
+```
+
+To see the labels on node (*which is 10.10.174.81 in this example*),
+
+```console
+$oc get no --show-labels
+NAME           STATUS    AGE       LABELS
+10.10.174.81   Ready     62d       kubernetes.io/hostname=10.10.174.81,region=primary,kubeturbo=deployable
+10.10.174.82   Ready     62d       kubernetes.io/hostname=10.10.174.82,region=primary
+10.10.174.83   Ready     62d       kubernetes.io/hostname=10.10.174.83,region=primary
+```
+
+
+### Step Two: Creating Kubeturbo Pod
 In order to connect to your Turbonomic installation, a Kubeturbo configuration file must be created. 
 
-Create a file called `config` in the `/etc/kubeturbo/` directory, with the following contents:
+Create a file called `config` in the `/etc/kubeturbo/` directory in the same node labeled in previous step, with the following contents:
 
 > The `<TURBONOMIC_SERVER_URL>` is typically `https://<TURBO_SERVER_IP>:443`
 > The `<TURBONOMIC_SERVER_VERSION>` is Turbonomic release version, e.g. `5.9.0` or `6.0.0`
@@ -33,16 +51,12 @@ Create a file called `config` in the `/etc/kubeturbo/` directory, with the follo
 }
 ```
 
-### Step Two: Creating Kubeturbo Pod
+### Step Three: Creating Kubeturbo Pod
 
 > NOTE: Ensure that you have completed Step One.
 
-Make sure you have `kubeconfig` and `config` under `/etc/kubeturbo`. Please copy them to `/etc/kubeturbo` on the node Kubeturbo will be running on. You can label the node as following to make sure Kubeturbo will be deployed on that node.
-
-```console
-$oc label nodes <NODE_NAME> kubeturbo=deployable
-```
-Define Kubeturbo pod
+Assume you have `kubeconfig` and `config` under `/etc/kubeturbo`.
+Define and run Kubeturbo pod using the following yaml.
 
 ```yaml
 apiVersion: v1
