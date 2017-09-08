@@ -31,7 +31,7 @@ Create a file called **"config"** and put it under */etc/kubeturbo/*.
 {
 	"communicationConfig": {
 		"serverMeta": {
-      "version": "<TURBONOMIC_SERVER_VERSION>",
+                        "version": "<TURBONOMIC_SERVER_VERSION>",
 			"turboServer": "https://<SERVER_IP_ADDRESS>:443"
 		},
 		"restAPIConfig": {
