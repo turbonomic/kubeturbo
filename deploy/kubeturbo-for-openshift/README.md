@@ -2,8 +2,8 @@
 
 This guide is about how to deploy **Kubeturbo** service in **OpenShift**.
 
-### Step One: Label Node
-kubeconfig with proper permission is required for Kubeturbo service to interact with kube-apiserver. If you have successfully started up your OpenShift cluster, you will find admin.kubeconfig under /etc/origin/master. Please copy this file to /etc/kubeturbo on the node Kubeturbo will be running on. You can label the node as following to make sure Kubeturbo will be deployed on that node.
+### Step One: Copy kubeconfig for kubeturbo
+kubeconfig with proper permission is required for Kubeturbo service to interact with kube-apiserver. If you have successfully started up your OpenShift cluster, mostly you will find admin.kubeconfig under /etc/origin/master. Please copy this file to /etc/kubeturbo on the node Kubeturbo will be running on. You can label the node as following to make sure Kubeturbo will be deployed on that node.
 
 ```console
 $oc label nodes <NODE_NAME> kubeturbo=deployable
@@ -46,7 +46,6 @@ Create a file called **"config"** and put it under */etc/kubeturbo/*.
 	}
 }
 ```
-you can find an example [here](../config).
 
 ### Step Three: Create Kubeturbo Pod
 
@@ -66,7 +65,7 @@ spec:
     kubeturbo: deployable
   containers:
   - name: kubeturbo
-    image: vmturbo/kubeturbo:os35
+    image: vmturbo/kubeturbo:59os
     args:
       - --kubeconfig=/etc/kubeturbo/admin.kubeconfig
       - --turboconfig=/etc/kubeturbo/config
