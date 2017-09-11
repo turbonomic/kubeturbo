@@ -69,7 +69,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 				DisplayName(name)
 
 			//1. commodities sold
-			commoditiesSold, err := builder.getCommoditiesSold(containerId, nodeCPUFrequency)
+			commoditiesSold, err := builder.getCommoditiesSold(name, containerId, nodeCPUFrequency)
 			if err != nil {
 				glog.Errorf("failed to create commoditiesSold for container[%s]: %v", name, err)
 				continue
@@ -77,7 +77,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			ebuilder.SellsCommodities(commoditiesSold)
 
 			//2. commodities bought
-			commoditiesBought, err := builder.getCommoditiesBought(podId, containerId, nodeCPUFrequency)
+			commoditiesBought, err := builder.getCommoditiesBought(podId, name, containerId, nodeCPUFrequency)
 			if err != nil {
 				glog.Errorf("failed to create commoditiesBought for container[%s]: %v", name, err)
 				continue
@@ -104,7 +104,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 }
 
 //vCPU, vMem, Application are sold by Container to Application
-func (builder *containerDTOBuilder) getCommoditiesSold(containerKey string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerKey string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var result []*proto.CommodityDTO
 
 	//1. vCPU & vMem
@@ -116,6 +116,11 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerKey string, cpuF
 	commodities, err := builder.getResourceCommoditiesSold(task.ContainerType, containerKey, commoditySold, converter, attributeSetter)
 	if err != nil {
 		return nil, err
+	}
+	if len(commodities) != len(commoditySold) {
+		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for container:%s, %s", len(commodities), len(commoditySold), containerName, containerKey)
+		glog.Error(err)
+		// return nil, err
 	}
 	result = append(result, commodities...)
 
@@ -134,7 +139,7 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerKey string, cpuF
 
 // vCPU, vMem and VMPMAccess are bought by Container from Pod;
 // the VMPMAccess is to bind the container to the hosting pod.
-func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerId string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, containerId string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var result []*proto.CommodityDTO
 
 	//1. vCPU & vMem
@@ -146,6 +151,11 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerId stri
 	commodities, err := builder.getResourceCommoditiesBought(task.ContainerType, containerId, commodityBought, converter, attributeSetter)
 	if err != nil {
 		return nil, err
+	}
+	if len(commodities) != len(commodityBought) {
+		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for container:%s, %s", len(commodities), len(commodityBought), containerName, containerId)
+		glog.Error(err)
+		//return nil, err
 	}
 	result = append(result, commodities...)
 

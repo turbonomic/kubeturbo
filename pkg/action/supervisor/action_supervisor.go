@@ -18,7 +18,7 @@ import (
 
 const (
 	//TODO: set timeout for each Action
-	defaultTimeOut = time.Duration(30) * time.Second
+	defaultTimeOut = time.Duration(70) * time.Second
 )
 
 type CheckActionFunc func(event *turboaction.TurboAction) (bool, error)
@@ -68,14 +68,19 @@ func (s *ActionSupervisor) Start() {
 
 func (s *ActionSupervisor) getNextExecutedTurboAction() {
 	action := <-s.config.executedActionChan
-	glog.V(3).Infof("Executed action is %v", action)
+	glog.V(3).Infof("Executed action is %++v", action)
+	atype := action.Content.ActionType
 	switch {
-	case action.Content.ActionType == "move":
+	case atype == turboaction.ActionMove:
 		s.updateAction(action, s.checkMoveAction)
-	case action.Content.ActionType == "provision":
+	case atype == turboaction.ActionProvision:
 		s.updateAction(action, s.checkProvisionAction)
-	case action.Content.ActionType == "unbind":
+	case atype == turboaction.ActionUnbind:
 		s.updateAction(action, s.checkUnbindAction)
+	case atype == turboaction.ActionContainerResize:
+		s.updateAction(action, s.checkResizeAction)
+	default:
+		glog.Errorf("Unknown action type[%v]: %++v", atype, action)
 	}
 }
 
@@ -201,4 +206,33 @@ func checkExpired(action *turboaction.TurboAction) bool {
 		return true
 	}
 	return false
+}
+
+// only do liveness checking
+func (s *ActionSupervisor) checkResizeAction(action *turboaction.TurboAction) (bool, error) {
+	glog.V(2).Infof("Checking a resize action")
+	if action.Content.ActionType != turboaction.ActionContainerResize {
+		glog.Error("Not a resize action")
+		return false, errors.New("Not a resize action")
+	}
+	target := &(action.Content.TargetObject)
+	podName := target.TargetObjectName
+	podNamespace := target.TargetObjectNamespace
+	podIdentifier := util.BuildIdentifier(podNamespace, podName)
+
+	targetPod, err := s.config.kubeClient.CoreV1().Pods(podNamespace).Get(podName, metav1.GetOptions{})
+	if err != nil {
+		err = fmt.Errorf("resize-check failed: cannot find pod %v: %v", podIdentifier, err.Error())
+		glog.Error(err.Error())
+		return false, err
+	}
+
+	phase := targetPod.Status.Phase
+	if phase == api.PodRunning || (phase == api.PodPending && targetPod.DeletionGracePeriodSeconds == nil) {
+		return true, nil
+	}
+
+	err = fmt.Errorf("resize-check failed: new pod status is %v", targetPod.Status.Phase)
+	glog.Error(err.Error())
+	return false, err
 }

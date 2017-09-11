@@ -1,6 +1,7 @@
 package turboaction
 
 import (
+	k8sapi "k8s.io/client-go/pkg/api/v1"
 	"time"
 )
 
@@ -15,9 +16,10 @@ const (
 	TypeReplicaSet            string = "ReplicaSet"
 	TypeDeployment            string = "Deployment"
 
-	ActionProvision TurboActionType = "provision"
-	ActionMove      TurboActionType = "move"
-	ActionUnbind    TurboActionType = "unbind"
+	ActionProvision       TurboActionType = "provision"
+	ActionMove            TurboActionType = "move"
+	ActionUnbind          TurboActionType = "unbind"
+	ActionContainerResize TurboActionType = "resizeContainer"
 )
 
 // TypeMeta describes an individual object in an API response or request
@@ -107,11 +109,19 @@ type MoveSpec struct {
 }
 
 type ScaleSpec struct {
-	// the origin of the move action. Should be the name of the original node.
+	// the origin number of replicas
 	OriginalReplicas int32 `json:"originalReplicas,omitempty"`
 
-	// the destination of the move action. Should be the name of the new node.
+	// the requested number of replicas
 	NewReplicas int32 `json:"newReplicas,omitempty"`
+}
+
+type ContainerResizeSpec struct {
+	// the new capacity of the resources
+	NewCapacity k8sapi.ResourceList
+
+	// index of Pod's containers
+	Index int
 }
 
 type TargetObject struct {
@@ -130,5 +140,6 @@ type ParentObjectRef struct {
 	ParentObjectType      string `json:"parentObjectType,omitempty"`
 }
 
-func (MoveSpec) IsActionSpec()  {}
-func (ScaleSpec) IsActionSpec() {}
+func (MoveSpec) IsActionSpec()            {}
+func (ScaleSpec) IsActionSpec()           {}
+func (ContainerResizeSpec) IsActionSpec() {}

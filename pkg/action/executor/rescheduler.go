@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
-	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
@@ -31,17 +30,20 @@ const (
 
 	HigherK8sVersion = "1.6.0"
 
-	defaultRetryLess       int = 2
-	defaultRetryMore       int = 5
-	defaultTimeOut             = time.Second * 32
-	defaultWaitLockTimeOut     = defaultTimeOut * 20
+	defaultRetryLess int = 3
+	defaultRetryMore int = 6
 
-	defaultSleep = time.Second * 3
+	defaultWaitLockTimeOut = time.Second * 300
+	defaultWaitLockSleep   = time.Second * 10
+
+	defaultPodCreateSleep       = time.Second * 30
+	defaultUpdateSchedulerSleep = time.Second * 20
+	defaultCheckSchedulerSleep  = time.Second * 5
+	defaultMoreGrace            = time.Second * 20
 )
 
 type ReScheduler struct {
 	kubeClient        *kclient.Clientset
-	broker            turbostore.Broker
 	k8sVersion        string
 	noneSchedulerName string
 
@@ -49,10 +51,9 @@ type ReScheduler struct {
 	lockMap *util.ExpirationMap
 }
 
-func NewReScheduler(client *kclient.Clientset, broker turbostore.Broker, k8sver, noschedulerName string, lmap *util.ExpirationMap) *ReScheduler {
+func NewReScheduler(client *kclient.Clientset, k8sver, noschedulerName string, lmap *util.ExpirationMap) *ReScheduler {
 	return &ReScheduler{
 		kubeClient:        client,
-		broker:            broker,
 		k8sVersion:        k8sver,
 		noneSchedulerName: noschedulerName,
 		lockMap:           lmap,
@@ -197,14 +198,17 @@ func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, no
 
 	//1. set up
 	noexist := r.noneSchedulerName
-	helper, err := NewMoveHelper(r.kubeClient, pod.Namespace, pod.Name, parentKind, parentName, noexist, highver)
+	helper, err := NewSchedulerHelper(r.kubeClient, pod.Namespace, pod.Name, parentKind, parentName, noexist, highver)
 	if err != nil {
 		return nil, err
 	}
-	helper.SetMap(r.lockMap)
+	if err := helper.SetMap(r.lockMap); err != nil {
+		return nil, err
+	}
 
 	//2. wait to get a lock
-	err = goutil.RetryDuring(1000, defaultWaitLockTimeOut, defaultSleep, func() error {
+	interval := defaultWaitLockSleep
+	err = goutil.RetryDuring(1000, defaultWaitLockTimeOut, interval, func() error {
 		if !helper.Acquirelock() {
 			return fmt.Errorf("TryLater")
 		}
@@ -219,6 +223,7 @@ func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, no
 		util.CleanPendingPod(r.kubeClient, pod.Namespace, noexist, parentKind, parentName, highver)
 	}()
 	glog.V(3).Infof("Get lock for pod[%s] parent[%s]", pod.Name, parentName)
+	helper.KeepRenewLock()
 
 	//3. invalidate the scheduler of the parentController
 	preScheduler, err := helper.UpdateScheduler(noexist, defaultRetryLess)
