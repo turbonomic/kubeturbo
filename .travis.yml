@@ -5,3 +5,7 @@ go:
   - tip
 
 go_import_path: github.com/turbonomic/kubeturbo
+
+script:
+  - make product
+  - make test
