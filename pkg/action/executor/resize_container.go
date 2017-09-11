@@ -8,7 +8,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	idutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
@@ -20,7 +19,6 @@ import (
 type ContainerResizer struct {
 	kubeClient        *kclient.Clientset
 	kubeletClient     *kubelet.KubeletClient
-	broker            turbostore.Broker
 	k8sVersion        string
 	noneSchedulerName string
 
@@ -28,11 +26,10 @@ type ContainerResizer struct {
 	lockMap *util.ExpirationMap
 }
 
-func NewContainerResizer(client *kclient.Clientset, kubeletClient *kubelet.KubeletClient, broker turbostore.Broker, k8sver, noschedulerName string, lmap *util.ExpirationMap) *ContainerResizer {
+func NewContainerResizer(client *kclient.Clientset, kubeletClient *kubelet.KubeletClient, k8sver, noschedulerName string, lmap *util.ExpirationMap) *ContainerResizer {
 	return &ContainerResizer{
 		kubeClient:        client,
 		kubeletClient:     kubeletClient,
-		broker:            broker,
 		k8sVersion:        k8sver,
 		noneSchedulerName: noschedulerName,
 		lockMap:           lmap,
@@ -237,7 +234,7 @@ func (r *ContainerResizer) resizeControllerContainer(pod *k8sapi.Pod, parentKind
 		highver = false
 	}
 	noexist := r.noneSchedulerName
-	helper, err := NewMoveHelper(r.kubeClient, pod.Namespace, pod.Name, parentKind, parentName, noexist, highver)
+	helper, err := NewSchedulerHelper(r.kubeClient, pod.Namespace, pod.Name, parentKind, parentName, noexist, highver)
 	if err != nil {
 		glog.Errorf("resizeContainer failed[%s]: failed to create helper: %v", id, err)
 		return err

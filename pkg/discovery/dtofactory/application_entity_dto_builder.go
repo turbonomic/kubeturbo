@@ -87,7 +87,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 			ebuilder.SellsCommodities(commoditiesSold)
 
 			//3. bought commodities: vcpu/vmem/application
-			commoditiesBought, err := builder.getApplicationCommoditiesBought(appId, containerId, nodeCPUFrequency)
+			commoditiesBought, err := builder.getApplicationCommoditiesBought(appId, podFullName, containerId, nodeCPUFrequency)
 			if err != nil {
 				glog.Errorf("Failed to create Application(%s) entityDTO: %v", displayName, err)
 				continue
@@ -183,7 +183,7 @@ func (builder *applicationEntityDTOBuilder) getCommoditiesSold(appId string, ind
 
 // Build the bought commodities by each application.
 // An application buys vCPU, vMem and Application commodity from a container.
-func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appId, containerId string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appId, podName, containerId string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 
 	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU)
@@ -192,6 +192,11 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appI
 	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(task.ApplicationType, appId, applicationResourceCommodityBought, converter, nil)
 	if err != nil {
 		return nil, err
+	}
+	if len(resourceCommoditiesBought) != len(applicationResourceCommodityBought) {
+		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for application:%s, %s", len(resourceCommoditiesBought), len(applicationResourceCommodityBought), podName, appId)
+		glog.Error(err)
+		//return nil, err
 	}
 	commoditiesBought = append(commoditiesBought, resourceCommoditiesBought...)
 

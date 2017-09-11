@@ -3,6 +3,7 @@ package executor
 import (
 	"fmt"
 	"github.com/golang/glog"
+	"math"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -15,7 +16,7 @@ import (
 
 // update the Pod.Containers[index]'s Resources.Limits and Resources.Requests.
 func updateCapacity(pod *k8sapi.Pod, index int, patchCapacity k8sapi.ResourceList) (bool, error) {
-	glog.V(2).Infof("begin to update Capacity.")
+	glog.V(4).Infof("begin to update Capacity.")
 	changed := false
 
 	if index >= len(pod.Spec.Containers) {
@@ -82,8 +83,9 @@ func updateRequests(container *k8sapi.Container, limits k8sapi.ResourceList) err
 // @newValue is from OpsMgr, in MHz
 // @cpuFrequency is from kubeletClient, in KHz
 func genCPUQuantity(newValue float64, cpuFrequency uint64) (resource.Quantity, error) {
-	tmp := uint64(newValue) * 1000 * 1000 //to KHz and to milliSeconds
-	cpuTime := tmp / cpuFrequency
+	tmp := newValue * 1000 * 1000 //to KHz and to milliSeconds
+	tmp = tmp / float64(cpuFrequency)
+	cpuTime := int(math.Ceil(tmp))
 	if cpuTime < 1 {
 		cpuTime = 1
 	}

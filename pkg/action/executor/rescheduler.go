@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
-	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
@@ -45,7 +44,6 @@ const (
 
 type ReScheduler struct {
 	kubeClient        *kclient.Clientset
-	broker            turbostore.Broker
 	k8sVersion        string
 	noneSchedulerName string
 
@@ -53,10 +51,9 @@ type ReScheduler struct {
 	lockMap *util.ExpirationMap
 }
 
-func NewReScheduler(client *kclient.Clientset, broker turbostore.Broker, k8sver, noschedulerName string, lmap *util.ExpirationMap) *ReScheduler {
+func NewReScheduler(client *kclient.Clientset, k8sver, noschedulerName string, lmap *util.ExpirationMap) *ReScheduler {
 	return &ReScheduler{
 		kubeClient:        client,
-		broker:            broker,
 		k8sVersion:        k8sver,
 		noneSchedulerName: noschedulerName,
 		lockMap:           lmap,
@@ -201,7 +198,7 @@ func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, no
 
 	//1. set up
 	noexist := r.noneSchedulerName
-	helper, err := NewMoveHelper(r.kubeClient, pod.Namespace, pod.Name, parentKind, parentName, noexist, highver)
+	helper, err := NewSchedulerHelper(r.kubeClient, pod.Namespace, pod.Name, parentKind, parentName, noexist, highver)
 	if err != nil {
 		return nil, err
 	}

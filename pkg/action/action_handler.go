@@ -108,15 +108,15 @@ func NewActionHandler(config *ActionHandlerConfig, scheduler *turboscheduler.Tur
 // Register supported action executor.
 // As action executor is stateless, they can be safely reused.
 func (h *ActionHandler) registerActionExecutors() {
-	reScheduler := executor.NewReScheduler(h.config.kubeClient, h.config.broker, h.config.k8sVersion, h.config.noneSchedulerName, h.lockMap)
+	c := h.config
+	reScheduler := executor.NewReScheduler(c.kubeClient, c.k8sVersion, c.noneSchedulerName, h.lockMap)
 	h.actionExecutors[turboaction.ActionMove] = reScheduler
 
-	horizontalScaler := executor.NewHorizontalScaler(h.config.kubeClient, h.config.broker, h.scheduler)
+	horizontalScaler := executor.NewHorizontalScaler(c.kubeClient, c.broker, h.scheduler)
 	h.actionExecutors[turboaction.ActionProvision] = horizontalScaler
 	h.actionExecutors[turboaction.ActionUnbind] = horizontalScaler
 
-	//TODO: add kubeletClient for containerResizer
-	containerResizer := executor.NewContainerResizer(h.config.kubeClient, h.config.kubeletClient, h.config.broker, h.config.k8sVersion, h.config.noneSchedulerName, h.lockMap)
+	containerResizer := executor.NewContainerResizer(c.kubeClient, c.kubeletClient, c.k8sVersion, c.noneSchedulerName, h.lockMap)
 	h.actionExecutors[turboaction.ActionContainerResize] = containerResizer
 }
 
