@@ -7,13 +7,13 @@
 Please copy `kubeconfig` to `/etc/kubeturbo` on the node Kubeturbo will be running on. You can label the node as following to make sure Kubeturbo will be deployed on that node.
 
 ```console
-$oc label nodes <NODE_NAME> kubeturbo=deployable
+$kubectl label nodes <NODE_NAME> kubeturbo=deployable
 ```
 
 To see the labels on node (*which is 10.10.174.81 in this example*),
 
 ```console
-$oc get no --show-labels
+$kubectl get nodes --show-labels
 NAME           STATUS    AGE       LABELS
 10.10.174.81   Ready     62d       kubernetes.io/hostname=10.10.174.81,region=primary,kubeturbo=deployable
 10.10.174.82   Ready     62d       kubernetes.io/hostname=10.10.174.82,region=primary
