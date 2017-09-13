@@ -212,7 +212,7 @@ func (r *ContainerResizer) executeAction(action *turboaction.TurboAction, pod *k
 	}
 
 	if parentKind == "" {
-		err = resizeContainer(r.kubeClient, pod, resizeSpec.Index, resizeSpec.NewCapacity, defaultRetryMore)
+		err = r.resizeBarePodContainer(pod, resizeSpec.Index, resizeSpec.NewCapacity)
 	} else {
 		err = r.resizeControllerContainer(pod, parentKind, parentName, resizeSpec.Index, resizeSpec.NewCapacity)
 	}
@@ -281,4 +281,28 @@ func (r *ContainerResizer) resizeControllerContainer(pod *k8sapi.Pod, parentKind
 	}
 
 	return nil
+}
+
+func (r *ContainerResizer) resizeBarePodContainer(pod *k8sapi.Pod, index int, capacity k8sapi.ResourceList) error {
+	podkey := util.BuildIdentifier(pod.Namespace, pod.Name)
+	// 1. setup lockHelper
+	helper, err := util.NewLockHelper(podkey, r.lockMap)
+	if err != nil {
+		return err
+	}
+
+	// 2. wait to get a lock of current Pod
+	timeout := defaultWaitLockTimeOut
+	interval := defaultWaitLockSleep
+	err = helper.Trylock(timeout, interval)
+	if err != nil {
+		glog.Errorf("resizeContainer failed[%s]: failed to acquire lock of pod[%s]", podkey)
+		return err
+	}
+	defer helper.ReleaseLock()
+
+	// 3. resize Pod.container
+	helper.KeepRenewLock()
+	err = resizeContainer(r.kubeClient, pod, index, capacity, defaultRetryMore)
+	return err
 }

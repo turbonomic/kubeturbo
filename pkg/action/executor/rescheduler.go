@@ -271,7 +271,7 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 
 	var npod *api.Pod
 	if parentKind == "" {
-		npod, err = movePod(r.kubeClient, pod, nodeName, defaultRetryLess)
+		npod, err = r.moveBarePod(pod, nodeName)
 	} else {
 		npod, err = r.moveControllerPod(pod, parentKind, parentName, nodeName)
 	}
@@ -288,4 +288,30 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 	action.LastTimestamp = time.Now()
 
 	return action, nil
+}
+
+// as there may be concurrent actions on the same bare pod:
+//   one action is to move Pod, and the other is to Resize Pod.container;
+// thus, concurrent control should also be applied to bare pods.
+func (r *ReScheduler) moveBarePod(pod *api.Pod, nodeName string) (*api.Pod, error) {
+	podkey := util.BuildIdentifier(pod.Namespace, pod.Name)
+	// 1. setup lockHelper
+	helper, err := util.NewLockHelper(podkey, r.lockMap)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. wait to get a lock of current Pod
+	timeout := defaultWaitLockTimeOut
+	interval := defaultWaitLockSleep
+	err = helper.Trylock(timeout, interval)
+	if err != nil {
+		glog.Errorf("move pod[%s] failed: failed to acquire lock of pod[%s]", podkey)
+		return nil, err
+	}
+	defer helper.ReleaseLock()
+
+	// 3. move the Pod
+	helper.KeepRenewLock()
+	return movePod(r.kubeClient, pod, nodeName, defaultRetryLess)
 }

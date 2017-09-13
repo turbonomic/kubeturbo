@@ -81,7 +81,7 @@ func movePod(client *kclient.Clientset, pod *api.Pod, nodeName string, retryNum 
 	//3. create (and bind) the new Pod
 	time.Sleep(time.Duration(grace)*time.Second + defaultMoreGrace) //wait for the previous pod to be cleaned up.
 	interval := defaultPodCreateSleep
-	timeout := time.Duration(retryNum + 1) * interval
+	timeout := time.Duration(retryNum+1) * interval
 	err = util.RetryDuring(retryNum, timeout, interval, func() error {
 		_, inerr := podClient.Create(npod)
 		return inerr
@@ -188,7 +188,7 @@ func (h *schedulerHelper) CheckScheduler(expectedScheduler string, retry int) (b
 	flag := false
 
 	interval := defaultCheckSchedulerSleep
-	timeout := time.Duration(retry + 1) * interval
+	timeout := time.Duration(retry+1) * interval
 	err := util.RetryDuring(retry, timeout, interval, func() error {
 		if flag = h.Renewlock(); !flag {
 			glog.Warningf("failed to renew lock to updateScheduler pod[%s], parent[%s].", h.podName, h.controllerName)
@@ -217,7 +217,7 @@ func (h *schedulerHelper) UpdateScheduler(schedulerName string, retry int) (stri
 	flag := true
 
 	interval := defaultUpdateSchedulerSleep
-	timeout := time.Duration(retry + 1) * interval
+	timeout := time.Duration(retry+1) * interval
 	err := util.RetryDuring(retry, timeout, interval, func() error {
 		if flag = h.Renewlock(); !flag {
 			glog.Warningf("failed to renew lock to updateScheduler pod[%s], parent[%s].", h.podName, h.controllerName)
@@ -254,7 +254,7 @@ func (h *schedulerHelper) CleanUp() {
 	defer func() {
 		h.Releaselock()
 		h.StopRenew()
-	} ()
+	}()
 
 	if !(h.flag) {
 		return
@@ -315,7 +315,7 @@ func (h *schedulerHelper) lockCallBack() {
 
 	// restore the original scheduler
 	interval := defaultUpdateSchedulerSleep
-	timeout := time.Duration(defaultRetryMore + 1) * interval
+	timeout := time.Duration(defaultRetryMore+1) * interval
 	util.RetryDuring(defaultRetryMore, timeout, interval, func() error {
 		_, err := h.updateSchedulerName(h.client, h.nameSpace, h.controllerName, h.scheduler)
 		return err
