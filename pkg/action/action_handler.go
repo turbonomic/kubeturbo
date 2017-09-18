@@ -106,7 +106,7 @@ func NewActionHandler(config *ActionHandlerConfig, scheduler *turboscheduler.Tur
 // Register supported action executor.
 // As action executor is stateless, they can be safely reused.
 func (h *ActionHandler) registerActionExecutors() {
-	reScheduler := executor.NewReScheduler(h.config.kubeClient, h.config.broker, h.config.k8sVersion, h.config.noneSchedulerName, h.lockMap)
+	reScheduler := executor.NewReScheduler(h.config.kubeClient, h.config.k8sVersion, h.config.noneSchedulerName, h.lockMap)
 	h.actionExecutors[turboaction.ActionMove] = reScheduler
 
 	horizontalScaler := executor.NewHorizontalScaler(h.config.kubeClient, h.config.broker, h.scheduler)
