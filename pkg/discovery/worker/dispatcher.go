@@ -48,8 +48,10 @@ func (d *Dispatcher) Init(c *ResultCollector) {
 		for _, mc := range d.config.probeConfig.MonitoringConfigs {
 			workerConfig.WithMonitoringWorkerConfig(mc)
 		}
+
 		// create workers
-		discoveryWorker, err := NewK8sDiscoveryWorker(workerConfig)
+		wid := fmt.Sprintf("w%d", i)
+		discoveryWorker, err := NewK8sDiscoveryWorker(workerConfig, wid)
 		if err != nil {
 			fmt.Errorf("failed to build discovery worker %s", err)
 		}
@@ -78,9 +80,10 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node) int {
 
 		assignedWorkerCount++
 	}
-	if assignedNodesCount < len(nodes)-1 {
+	if assignedNodesCount < len(nodes) {
 		currNodes := nodes[assignedNodesCount:]
-		currTask := task.NewTask().WithNodes(currNodes)
+		currPods := d.config.clusterInfoScraper.GetRunningPodsOnNodes(currNodes)
+		currTask := task.NewTask().WithNodes(currNodes).WithPods(currPods)
 		d.assignTask(currTask)
 
 		assignedWorkerCount++

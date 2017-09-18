@@ -116,8 +116,8 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 		EntityDTO: newDiscoveryResultDTOs,
 	}
 
-	newFrameworkDiscTime := time.Now().Sub(currentTime).Nanoseconds()
-	glog.Infof("New framework discovery time: %dns", newFrameworkDiscTime)
+	newFrameworkDiscTime := time.Now().Sub(currentTime).Seconds()
+	glog.Infof("New framework discovery time: %.3f seconds", newFrameworkDiscTime)
 
 	return discoveryResponse, nil
 }

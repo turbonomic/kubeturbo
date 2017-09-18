@@ -15,7 +15,6 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-	"github.com/pborman/uuid"
 )
 
 const (
@@ -72,9 +71,7 @@ type k8sDiscoveryWorker struct {
 	taskChan chan *task.Task
 }
 
-func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig) (*k8sDiscoveryWorker, error) {
-	id := uuid.NewUUID().String()
-
+func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string) (*k8sDiscoveryWorker, error) {
 	if len(config.monitoringSourceConfigs) == 0 {
 		return nil, errors.New("No monitoring source config found in config.")
 	}
@@ -99,7 +96,7 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig) (*k8sDiscoveryWorke
 	}
 
 	return &k8sDiscoveryWorker{
-		id:               id,
+		id:               wid,
 		config:           config,
 		monitoringWorker: monitoringWorkerMap,
 		sink:             metrics.NewEntityMetricSink(),
