@@ -153,7 +153,9 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequ
 
 	// vmpmAccess commodity
 	podAccessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
-		Key(string(pod.UID)).Create()
+		Key(string(pod.UID)).
+		Capacity(accessCommodityDefaultCapacity).
+		Create()
 	if err != nil {
 		return nil, err
 	}
