@@ -4,22 +4,23 @@ import (
 	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"fmt"
 )
 
 const (
 	// TODO currently in the server side only properties in "DEFAULT" namespaces are respected. Ideally we should use "Kubernetes-Pod".
-	podPropertyNamespace = "DEFAULT"
-
-	podPropertyNamePodNamespace = "KubernetesPodNamespace"
-
-	podPropertyNamePodName = "KubernetesPodName"
+	k8sPropertyNamespace = "DEFAULT"
+	k8sNamespace = "KubernetesNamespace"
+	k8sPodName = "KubernetesPodName"
+	k8sNodeName = "KubernetesNodeName"
+	k8sContainerIndex = "Kubernetes-Container-Index"
 )
 
 // Build entity properties of a pod. The properties are consisted of name and namespace of a pod.
 func BuildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
 	var properties []*proto.EntityDTO_EntityProperty
-	propertyNamespace := podPropertyNamespace
-	podNamespacePropertyName := podPropertyNamePodNamespace
+	propertyNamespace := k8sPropertyNamespace
+	podNamespacePropertyName := k8sNamespace
 	podNamespacePropertyValue := pod.Namespace
 	namespaceProperty := &proto.EntityDTO_EntityProperty{
 		Namespace: &propertyNamespace,
@@ -28,7 +29,7 @@ func BuildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
 	}
 	properties = append(properties, namespaceProperty)
 
-	podNamePropertyName := podPropertyNamePodName
+	podNamePropertyName := k8sPodName
 	podNamePropertyValue := pod.Name
 	nameProperty := &proto.EntityDTO_EntityProperty{
 		Namespace: &propertyNamespace,
@@ -41,23 +42,36 @@ func BuildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
 }
 
 // Get the namespace and name of a pod from entity property.
-func GetPodInfoFromProperty(properties []*proto.EntityDTO_EntityProperty) (podNamespace string, podName string) {
+func GetPodInfoFromProperty(properties []*proto.EntityDTO_EntityProperty) (string, string, error) {
+	podNamespace := ""
+	podName := ""
+
 	if properties == nil {
-		return
+		return podNamespace, podName, fmt.Errorf("empty")
 	}
+
 	for _, property := range properties {
-		if property.GetNamespace() != podPropertyNamespace {
+		if property.GetNamespace() != k8sPropertyNamespace {
 			continue
 		}
-		if podNamespace == "" && property.GetName() == podPropertyNamePodNamespace {
+		if podNamespace == "" && property.GetName() == k8sNamespace {
 			podNamespace = property.GetValue()
 		}
-		if podName == "" && property.GetName() == podPropertyNamePodName {
+		if podName == "" && property.GetName() == k8sPodName {
 			podName = property.GetValue()
 		}
 		if podNamespace != "" && podName != "" {
-			return
+			return podNamespace, podName, nil
 		}
 	}
-	return
+
+	if len(podNamespace) < 1 {
+		return "", "", fmt.Errorf("podNamespace is empty")
+	}
+
+	if len(podName) < 1 {
+		return "", "", fmt.Errorf("podName is empty")
+	}
+
+	return podNamespace, podName, nil
 }

@@ -5,6 +5,7 @@ import (
 	"github.com/golang/glog"
 	api "k8s.io/client-go/pkg/api/v1"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -86,6 +87,9 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			ebuilder.Provider(provider).BuysCommodities(commoditiesBought)
 
 			//3. set properties
+			properties := builder.addPodProperties(pod, i)
+			ebuilder.WithProperties(properties)
+
 			if !util.Monitored(pod) {
 				ebuilder.Monitored(false)
 			}
@@ -169,4 +173,14 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 	result = append(result, podAccessComm)
 
 	return result, nil
+}
+
+
+// Get the properties of the hosting pod.
+func (builder *containerDTOBuilder) addPodProperties(pod *api.Pod, index int) []*proto.EntityDTO_EntityProperty {
+	var properties []*proto.EntityDTO_EntityProperty
+	podProperties := property.AddHostingPodProperties(pod.Namespace, pod.Name, index)
+	properties = append(properties, podProperties...)
+
+	return properties
 }

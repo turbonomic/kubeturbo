@@ -215,7 +215,7 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appI
 func (builder *applicationEntityDTOBuilder) getApplicationProperties(pod *api.Pod, index int) []*proto.EntityDTO_EntityProperty {
 	var properties []*proto.EntityDTO_EntityProperty
 	// additional node cluster info property.
-	appProperties := property.BuildAppProperties(pod.Namespace, pod.Name, index)
+	appProperties := property.AddHostingPodProperties(pod.Namespace, pod.Name, index)
 	properties = append(properties, appProperties...)
 
 	return properties

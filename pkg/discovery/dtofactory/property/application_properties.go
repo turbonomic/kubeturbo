@@ -6,21 +6,12 @@ import (
 	"strconv"
 )
 
-const (
-	// TODO currently in the server side only properties in "DEFAULT" namespaces are respected, ideally, we should use "Kubernetes-Application".
-	appPropertyNamespace = "DEFAULT"
-
-	appPropertyNameHostingPodNamespace   = "Kubernetes-App-Pod-Namespace"
-	appPropertyNameHostingPodName        = "Kubernetes-App-Pod-Name"
-	appPropertyNameHostingContainerIndex = "Kubernetes-App-Container-Index"
-)
-
 // Build properties of an application. The namespace and name of the hosting pod is stored in the properties.
-func BuildAppProperties(podNamespace, podName string, index int) []*proto.EntityDTO_EntityProperty {
+func AddHostingPodProperties(podNamespace, podName string, index int) []*proto.EntityDTO_EntityProperty {
 
 	var properties []*proto.EntityDTO_EntityProperty
-	propertyNamespace := appPropertyNamespace
-	hostingPodNamespacePropertyName := appPropertyNameHostingPodNamespace
+	propertyNamespace := k8sPropertyNamespace
+	hostingPodNamespacePropertyName := k8sNamespace
 	hostingPodNamespacePropertyValue := podNamespace
 	namespaceProperty := &proto.EntityDTO_EntityProperty{
 		Namespace: &propertyNamespace,
@@ -29,7 +20,7 @@ func BuildAppProperties(podNamespace, podName string, index int) []*proto.Entity
 	}
 	properties = append(properties, namespaceProperty)
 
-	hostingPodNamePropertyName := appPropertyNameHostingPodName
+	hostingPodNamePropertyName := k8sPodName
 	hostingPodNamePropertyValue := podName
 	nameProperty := &proto.EntityDTO_EntityProperty{
 		Namespace: &propertyNamespace,
@@ -38,7 +29,7 @@ func BuildAppProperties(podNamespace, podName string, index int) []*proto.Entity
 	}
 	properties = append(properties, nameProperty)
 
-	containerIndexName := appPropertyNameHostingContainerIndex
+	containerIndexName := k8sContainerIndex
 	containerIndexValue := strconv.Itoa(index)
 	indexProperty := &proto.EntityDTO_EntityProperty{
 		Namespace: &propertyNamespace,
@@ -51,7 +42,7 @@ func BuildAppProperties(podNamespace, podName string, index int) []*proto.Entity
 }
 
 // Get the namespace and name of the pod, which hosts the application, from the properties of the application.
-func GetApplicationHostingPodInfoFromProperty(properties []*proto.EntityDTO_EntityProperty) (
+func GetHostingPodInfoFromProperty(properties []*proto.EntityDTO_EntityProperty) (
 	hostingPodNamespace string, hostingPodName string, index int) {
 	if properties == nil {
 		return
@@ -59,12 +50,12 @@ func GetApplicationHostingPodInfoFromProperty(properties []*proto.EntityDTO_Enti
 
 	index = 0
 	dict := make(map[string]struct{})
-	dict[appPropertyNameHostingPodNamespace] = struct{}{}
-	dict[appPropertyNameHostingPodName] = struct{}{}
-	dict[appPropertyNameHostingContainerIndex] = struct{}{}
+	dict[k8sNamespace] = struct{}{}
+	dict[k8sPodName] = struct{}{}
+	dict[k8sContainerIndex] = struct{}{}
 
 	for _, property := range properties {
-		if property.GetNamespace() != appPropertyNamespace {
+		if property.GetNamespace() != k8sPropertyNamespace {
 			continue
 		}
 		name := property.GetName()
@@ -75,11 +66,11 @@ func GetApplicationHostingPodInfoFromProperty(properties []*proto.EntityDTO_Enti
 		value := property.GetValue()
 
 		switch name {
-		case appPropertyNameHostingPodNamespace:
+		case k8sNamespace:
 			hostingPodNamespace = value
-		case appPropertyNameHostingPodName:
+		case k8sPodName:
 			hostingPodName = value
-		case appPropertyNameHostingContainerIndex:
+		case k8sContainerIndex:
 			tmp, err := strconv.Atoi(value)
 			if err != nil {
 				glog.Errorf("convert containerIndex[%s] failed: %v", value, err)
