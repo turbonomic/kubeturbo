@@ -90,13 +90,12 @@ func buildHelper(store *util.ExpirationMap) *schedulerHelper {
 		kind:           "kind",
 		controllerName: "controller",
 		schedulerNone:  "nonexxx",
-		stop:           make(chan struct{}),
 
 		getSchedulerName:    mockGetScheduler,
 		updateSchedulerName: mockUpdateScheduler,
 	}
 
-	helper.SetMap(store)
+	helper.SetupLock(store)
 	return helper
 }
 
@@ -118,7 +117,7 @@ func TestMoveHelper_CleanUp(t *testing.T) {
 	time.Sleep(store.GetTTL() + time.Second*5)
 
 	//2. try to renew lock
-	if success := helper.Renewlock(); !success {
+	if success := helper.locker.RenewLock(); !success {
 		t.Errorf("failed to renew lock.")
 	}
 
@@ -126,7 +125,7 @@ func TestMoveHelper_CleanUp(t *testing.T) {
 	helper.CleanUp()
 
 	//4. try to renew lock again, should fail.
-	if success := helper.Renewlock(); success {
+	if success := helper.locker.RenewLock(); success {
 		t.Error("failed to release lock.")
 	}
 
@@ -153,14 +152,14 @@ func TestMoveHelper_KeepRenewLock(t *testing.T) {
 	helper.KeepRenewLock()
 	time.Sleep(store.GetTTL() + time.Second*5)
 
-	if success := helper.Renewlock(); !success {
+	if success := helper.locker.RenewLock(); !success {
 		t.Errorf("failed to renew lock.")
 	}
 
 	//3. Stop keeping renew, and test it
 	helper.StopRenew()
 	time.Sleep(store.GetTTL() + time.Second*5)
-	if success := helper.Renewlock(); success {
+	if success := helper.locker.RenewLock(); success {
 		t.Error("failed to release lock.")
 	}
 
