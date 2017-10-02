@@ -39,6 +39,7 @@ const (
 	defaultPodCreateSleep       = time.Second * 30
 	defaultUpdateSchedulerSleep = time.Second * 20
 	defaultCheckSchedulerSleep  = time.Second * 5
+	defaultUpdateReplicaSleep  = time.Second * 20
 	defaultMoreGrace            = time.Second * 20
 )
 

@@ -29,11 +29,10 @@ func NewKubeturboService(c *Config) *KubeturboService {
 		c.tapSpec.OpsManagerUsername, c.tapSpec.OpsManagerPassword)
 
 	// Create action handler.
-	actionHandlerConfig := action.NewActionHandlerConfig(c.Client, c.KubeletClient, c.broker, c.k8sVersion, c.noneSchedulerName)
-	actionHandler := action.NewActionHandler(actionHandlerConfig, turboScheduler)
+	actionHandlerConfig := action.NewActionHandlerConfig(c.Client, c.KubeletClient, c.k8sVersion, c.noneSchedulerName)
+	actionHandler := action.NewActionHandler(actionHandlerConfig)
 
 	k8sTAPServiceConfig := NewK8sTAPServiceConfig(c.Client, c.ProbeConfig, c.tapSpec)
-
 	k8sTAPService, err := NewKubernetesTAPService(k8sTAPServiceConfig, actionHandler)
 	if err != nil {
 		glog.Fatalf("Unexpected error while creating Kuberntes TAP service: %s", err)

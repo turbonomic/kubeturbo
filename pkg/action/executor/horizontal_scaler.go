@@ -1,24 +1,20 @@
 package executor
 
 import (
-	"errors"
 	"fmt"
 	"time"
+	"github.com/golang/glog"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	client "k8s.io/client-go/kubernetes"
+	kclient "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/apis/apps/v1beta1"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
-	discutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	turboscheduler "github.com/turbonomic/kubeturbo/pkg/scheduler"
-	"github.com/turbonomic/kubeturbo/pkg/turbostore"
-
+	dutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	goutil "github.com/turbonomic/kubeturbo/pkg/util"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-
-	"github.com/golang/glog"
 )
 
 var (
@@ -26,323 +22,436 @@ var (
 )
 
 type HorizontalScaler struct {
-	kubeClient *client.Clientset
-	broker     turbostore.Broker
-	scheduler  *turboscheduler.TurboScheduler
+	kubeClient *kclient.Clientset
+	lockmap *util.ExpirationMap
 }
 
-func NewHorizontalScaler(client *client.Clientset, broker turbostore.Broker,
-	scheduler *turboscheduler.TurboScheduler) *HorizontalScaler {
-	return &HorizontalScaler{
+func NewHorizontalScaler(client *kclient.Clientset, lmap *util.ExpirationMap) *HorizontalScaler {
+	return &HorizontalScaler {
 		kubeClient: client,
-		broker:     broker,
-		scheduler:  scheduler,
+		lockmap: lmap,
 	}
 }
 
 func (h *HorizontalScaler) Execute(actionItem *proto.ActionItemDTO) (*turboaction.TurboAction, error) {
-	if actionItem == nil {
-		return nil, errors.New("ActionItem passed in is nil")
+	//1. check
+	if err := h.preActionCheck(actionItem); err != nil {
+		glog.Errorf("check action failed, abort action:%++v", actionItem)
+		return nil, err
 	}
-	action, err := h.buildPendingScalingTurboAction(actionItem)
+
+	//2. prepare
+	helper, err := h.prepareHelper(actionItem)
+	if err != nil {
+		glog.Errorf("Failed to prepare action:%v, abort action %++v", err, actionItem)
+		return nil, fmt.Errorf("aborted")
+	}
+
+	if err = h.do(helper); err != nil {
+		glog.Errorf("Failed to execute action: %v, abort action %++v", err, actionItem)
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func (h *HorizontalScaler) preActionCheck(action *proto.ActionItemDTO) error {
+	if action == nil {
+		return fmt.Errorf("ActionItem is nil")
+	}
+
+	targetSE := action.GetTargetSE()
+	targetEntityType := targetSE.GetEntityType()
+	if targetEntityType != proto.EntityDTO_CONTAINER_POD && targetEntityType != proto.EntityDTO_APPLICATION {
+		msg := fmt.Sprintf("The target type[%v] for scaling action is neither a Pod nor an Application.", targetEntityType.String())
+		glog.Errorf(msg)
+		return fmt.Errorf("unsupported target type")
+	}
+	return nil
+}
+
+func (h *HorizontalScaler) prepareHelper(action *proto.ActionItemDTO) (*scaleHelper, error) {
+	//1. get pod
+	pod, err := h.getProviderPod_hard(action)
+	if err != nil {
+		glog.Errorf("Failed to find pod: %v", err)
+		return nil, err
+	}
+	helper, _ := NewScaleHelper(h.kubeClient, pod.Namespace, pod.Name)
+
+	//2. get replica diff
+	diff, err := h.getReplicaDiff(action)
+	if err != nil {
+		glog.Errorf("Failed to get ReplicaDiff: %v", err)
+		return nil, err
+	}
+	helper.diff = diff
+
+	//3. find parent info
+	parentKind, parentName, err := util.ParseParentInfo(pod)
+	if err != nil {
+		glog.Errorf("Failed to get parent info for pod: %s/%s", pod.Namespace, pod.Name)
+		return nil, err
+	}
+	if err = helper.SetParent(parentKind, parentName); err != nil {
+		return nil, err
+	}
+
+	//4. set lock info
+	if err = helper.SetMap(h.lockmap); err != nil {
+		glog.Errorf("Failed to set lock: %v", err)
+		return nil, err
+	}
+
+	return helper, nil
+}
+
+func (h *HorizontalScaler) getReplicaDiff(action *proto.ActionItemDTO) (int32, error) {
+	atype := action.GetActionType()
+	if atype == proto.ActionItemDTO_PROVISION {
+		// Scale out, increase the replica. diff = 1.
+		return 1, nil
+	} else if atype == proto.ActionItemDTO_MOVE {
+		// TODO, unbind action is send as MOVE. This requires server side change.
+		// Scale in, decrease the replica. diff = -1.
+		return -1, nil
+	} else {
+		err := fmt.Errorf("Action[%v] is not a scaling action.", atype.String())
+		glog.Errorf(err.Error())
+		return 0, err
+	}
+}
+
+func (h * HorizontalScaler) do(helper *scaleHelper) error {
+	fullName := fmt.Sprintf("%s-%s/%s", helper.kind, helper.nameSpace, helper.controllerName)
+
+	//1. get lock for parentController
+	timeout := defaultWaitLockTimeOut
+	interval := defaultWaitLockSleep
+	err := goutil.RetryDuring(1000, timeout, interval, func() error {
+		if !helper.Acquirelock() {
+			return fmt.Errorf("TryLayer")
+		}
+		return nil
+	})
+	if err != nil {
+		glog.Errorf("scaleControler[%s] failed: failed to acquire lock.", fullName)
+		return err
+	}
+	defer helper.CleanUp()
+	helper.KeepRenewLock()
+
+	//2. update replica number
+	retryNum := defaultRetryLess
+	interval = defaultUpdateReplicaSleep
+	timeout = time.Duration(retryNum + 1) * interval
+	err = goutil.RetryDuring(retryNum, timeout, interval, func() error {
+		inerr := helper.updateReplicaNum(h.kubeClient, helper.nameSpace, helper.controllerName, helper.diff)
+		if inerr != nil {
+			glog.Errorf("[%s] failed to update replica num: %v", fullName, inerr)
+			return fmt.Errorf("Failed")
+		}
+		return inerr
+	})
+
+	//4. check result
+	if err = h.checkResult(helper); err != nil {
+		return fmt.Errorf("check Failed.")
+	}
+	return nil
+}
+
+func (h *HorizontalScaler) checkResult(helper *scaleHelper) error {
+	// do nothing
+	return nil
+}
+
+// getProviderPod, "hard" means that we will use brute-force method to find the Pod by UUID
+// TODO: build a indexed.cache of the Pods by UUID
+func (h *HorizontalScaler) getProviderPod_hard(action *proto.ActionItemDTO) (*api.Pod, error) {
+	targetType := action.GetTargetSE().GetEntityType()
+	sId := action.GetTargetSE().GetId()
+	glog.V(3).Infof("Horizontal-Scale target type is %v", targetType.String())
+
+	podId := sId
+	var err error = nil
+
+	switch (targetType) {
+	case proto.EntityDTO_CONTAINER_POD:
+		podId = sId
+	case proto.EntityDTO_CONTAINER:
+		containerId := sId
+		podId, _, err = dutil.ParseContainerId(containerId)
+		if err != nil {
+			glog.Errorf("Failed to get podId from containerId[%s]: %v", containerId, err)
+			return nil, fmt.Errorf("Failed to parse containerId.")
+		}
+	case proto.EntityDTO_APPLICATION:
+		appId := sId
+		podId, err = dutil.PodIdFromApp(appId)
+		if err != nil {
+			glog.Errorf("Failed to get podId from appId[%s]: %v", appId, err)
+			return nil, fmt.Errorf("Failed to parse appId.")
+		}
+	case proto.EntityDTO_VIRTUAL_APPLICATION:
+		currentSE := action.GetCurrentSE()
+		seType := currentSE.GetEntityType()
+		if seType != proto.EntityDTO_APPLICATION {
+			err := fmt.Errorf("Unexpected Entity Type[%v] Vs. EntityDTO_APPLICATION", seType.String())
+			glog.Errorf(err.Error())
+			return nil, err
+		}
+		appId := currentSE.GetId()
+		podId, err = dutil.PodIdFromApp(appId)
+		if err != nil {
+			glog.Errorf("Failed to get podId from appId[%s]: %v", appId, err)
+			return nil, fmt.Errorf("Failed to parse appId.")
+		}
+	default:
+		err = fmt.Errorf("Illegal target type [%v] for horizontal scaling.", targetType.String())
+		glog.Errorf(err.Error())
+		return nil, err
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	return h.horizontalScale(action)
+	return util.GetPodFromUUID(h.kubeClient, podId)
 }
 
-func (h *HorizontalScaler) buildPendingScalingTurboAction(actionItem *proto.ActionItemDTO) (*turboaction.TurboAction,
-	error) {
-	targetSE := actionItem.GetTargetSE()
-	targetEntityType := targetSE.GetEntityType()
-	if targetEntityType != proto.EntityDTO_CONTAINER_POD && targetEntityType != proto.EntityDTO_APPLICATION {
-		return nil, errors.New("The target service entity for scaling action is " +
-			"neither a Pod nor an Application.")
-	}
 
-	providerPod, err := h.getProviderPod(actionItem)
-	if err != nil {
-		return nil, fmt.Errorf("Try to scaling %s, but cannot find a pod related to it in the cluster: %s",
-			targetSE.GetId(), err)
-	}
-	glog.V(3).Infof("Got the provider pod %s/%s", providerPod.Namespace, providerPod.Name)
+// getProviderPod, "easy" means that we will get Pod info from Entity properties
+// TODO: ask sdk-team to fix the bug, the entity properties are missing in the action.
+func (h *HorizontalScaler) getProviderPod_easy(action *proto.ActionItemDTO) (*api.Pod, error) {
+	targetType := action.GetTargetSE().GetEntityType()
+	glog.V(3).Infof("Horizontal-Scale target type is %v", targetType.String())
 
-	targetObject := &turboaction.TargetObject{
-		TargetObjectUID:       string(providerPod.UID),
-		TargetObjectNamespace: providerPod.Namespace,
-		TargetObjectName:      providerPod.Name,
-		TargetObjectType:      turboaction.TypePod,
-	}
-
-	var parentObjRef *turboaction.ParentObjectRef
-	parentRefObject, _ := discutil.FindParentReferenceObject(providerPod)
-	if parentRefObject != nil {
-		parentObjRef = &turboaction.ParentObjectRef{
-			ParentObjectUID:       string(parentRefObject.UID),
-			ParentObjectNamespace: parentRefObject.Namespace,
-			ParentObjectName:      parentRefObject.Name,
-			ParentObjectType:      parentRefObject.Kind,
+	//1. get Entity Properties
+	var properties  []*proto.EntityDTO_EntityProperty
+	switch (targetType) {
+	case proto.EntityDTO_CONTAINER_POD:
+		properties = action.GetTargetSE().GetEntityProperties()
+	case proto.EntityDTO_CONTAINER:
+		properties = action.GetTargetSE().GetEntityProperties()
+	case proto.EntityDTO_APPLICATION:
+		properties = action.GetTargetSE().GetEntityProperties()
+	case proto.EntityDTO_VIRTUAL_APPLICATION:
+		currentSE := action.GetCurrentSE()
+		seType := currentSE.GetEntityType()
+		if seType != proto.EntityDTO_APPLICATION {
+			err := fmt.Errorf("Unexpected Entity Type[%v] Vs. EntityDTO_APPLICATION", seType.String())
+			glog.Errorf(err.Error())
+			return nil, err
 		}
-	} else {
-		return nil, errors.New("Cannot perform auto-scale, please make sure the pod is connected to " +
-			"a replication controller or replica set.")
-	}
-
-	// Get diff and action type according scale in or scale out.
-	var diff int32
-	var actionType turboaction.TurboActionType
-	if actionItem.GetActionType() == proto.ActionItemDTO_PROVISION {
-		// Scale out, increase the replica. diff = 1.
-		diff = 1
-		actionType = turboaction.ActionProvision
-	} else if actionItem.GetActionType() == proto.ActionItemDTO_MOVE {
-		// TODO, unbind action is send as MOVE. This requires server side change.
-		// Scale in, decrease the replica. diff = -1.
-		diff = -1
-		actionType = turboaction.ActionUnbind
-	} else {
-		return nil, errors.New("Not a scaling action.")
-	}
-
-	var scaleSpec turboaction.ScaleSpec
-	switch parentRefObject.Kind {
-	case turboaction.TypeReplicationController:
-		rc, err := util.FindReplicationControllerForPod(h.kubeClient, providerPod)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to find replication controller for finishing the scaling "+
-				"action: %s", err)
-		}
-		scaleSpec = turboaction.ScaleSpec{
-			OriginalReplicas: *rc.Spec.Replicas,
-			NewReplicas:      *rc.Spec.Replicas + diff,
-		}
-		break
-
-	case turboaction.TypeReplicaSet:
-		deployment, err := util.FindDeploymentForPod(h.kubeClient, providerPod)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to find deployment for finishing the scaling "+
-				"action: %s", err)
-		}
-		scaleSpec = turboaction.ScaleSpec{
-			OriginalReplicas: *deployment.Spec.Replicas,
-			NewReplicas:      *deployment.Spec.Replicas + diff,
-		}
-		break
-
+		properties = currentSE.GetEntityProperties()
 	default:
-		return nil, fmt.Errorf("Error Scale Pod for %s-%s: Not Supported.",
-			parentObjRef.ParentObjectType, parentObjRef.ParentObjectName)
+		err := fmt.Errorf("Illegal target type [%v] for horizontal scaling.", targetType.String())
+		glog.Errorf(err.Error())
+		return nil, err
 	}
 
-	// Invalid new replica.
-	if scaleSpec.NewReplicas < 0 {
-		return nil, fmt.Errorf("Invalid new replica %d for %s/%s", scaleSpec.NewReplicas,
-			parentRefObject.Namespace, parentRefObject.Name)
-	}
-
-	content := turboaction.NewTurboActionContentBuilder(actionType, targetObject).
-		ActionSpec(scaleSpec).
-		ParentObjectRef(parentObjRef).
-		Build()
-	action := turboaction.NewTurboActionBuilder(parentObjRef.ParentObjectNamespace, *actionItem.Uuid).
-		Content(content).
-		Create()
-	glog.V(4).Infof("Horizontal scaling action is built as %v", action)
-
-	return &action, nil
-}
-
-func (h *HorizontalScaler) getProviderPod(actionItem *proto.ActionItemDTO) (*api.Pod, error) {
-	targetEntityType := actionItem.GetTargetSE().GetEntityType()
-	var providerPod *api.Pod
-	if targetEntityType == proto.EntityDTO_CONTAINER_POD {
-		targetPod := actionItem.GetTargetSE()
-
-		// TODO, as there is issue in server, find pod based on entity properties is not supported right now. Once the issue in server gets resolved, we should use the following code to find the pod.
-		//podProperties := targetPod.GetEntityProperties()
-		//foundPod, err:= util.GetPodFromProperties(h.kubeClient, targetEntityType, podProperties)
-
-		// TODO the following is a temporary fix.
-		foundPod, err := util.GetPodFromUUID(h.kubeClient, targetPod.GetId())
-		if err != nil {
-			return nil, fmt.Errorf("failed to find pod %s in Kubernetes: %s", targetPod.GetDisplayName(),
-				err)
-		}
-		providerPod = foundPod
-	} else if targetEntityType == proto.EntityDTO_APPLICATION {
-		// TODO, as there is issue in server, find pod based on entity properties is not supported right now. Once the issue in server gets resolved, we should use the following code to find the pod.
-		// As we store hosting pod information inside entity properties of an application entity, so we can get
-		// the application provider directly from there.
-		//appProperties := actionItem.GetTargetSE().GetEntityProperties()
-		//foundPod, err:= util.GetPodFromProperties(h.kubeClient, targetEntityType, appProperties)
-
-		// TODO the following is a temporary fix.
-		providers := actionItem.GetProviders()
-		foundPod, err := util.FindApplicationPodProvider(h.kubeClient, providers)
-		if err != nil {
-			return nil, fmt.Errorf("failed to find provider pod for %s in Kubernetes: %s",
-				actionItem.GetTargetSE().GetDisplayName(), err)
-		}
-		providerPod = foundPod
-	} else if targetEntityType == proto.EntityDTO_VIRTUAL_APPLICATION {
-		// Get the current application provider.
-		currentSE := actionItem.GetCurrentSE()
-		currentEntityType := currentSE.GetEntityType()
-		if currentEntityType != proto.EntityDTO_APPLICATION {
-			return nil, fmt.Errorf("Unexpected entity type for a Unbind action: %s", currentEntityType)
-		}
-
-		// TODO, as there is issue in server, find pod based on entity properties is not supported right now. Once the issue in server resolve, we should use the following code to find the pod.
-		// As we store hosting pod information inside entity properties of an application entity, so we can get
-		// the application provider directly from there.
-		//appProperties := currentSE.GetEntityProperties()
-		//foundPod, err:= util.GetPodFromProperties(h.kubeClient, targetEntityType, appProperties)
-
-		// TODO the following is a temporary fix.
-		// Here we need to find the ID of the provider pod from commodity bought of application.
-		commoditiesBought := currentSE.GetCommoditiesBought()
-		var podID string
-		for _, cb := range commoditiesBought {
-			if cb.GetProviderType() == proto.EntityDTO_CONTAINER_POD {
-				podID = cb.GetProviderId()
-			}
-		}
-		if podID == "" {
-			return nil, fmt.Errorf("cannot find provider pod for application %s based on commodities "+
-				"bought map %++v", currentSE.GetDisplayName(), commoditiesBought)
-		}
-		foundPod, err := util.GetPodFromUUID(h.kubeClient, podID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to find pod with ID %s in Kubernetes: %s", podID, err)
-		}
-		providerPod = foundPod
-	}
-	return providerPod, nil
-}
-
-func (h *HorizontalScaler) horizontalScale(action *turboaction.TurboAction) (*turboaction.TurboAction, error) {
-	// 1. Setup consumer
-	actionContent := action.Content
-	scaleSpec, ok := actionContent.ActionSpec.(turboaction.ScaleSpec)
-	if !ok || scaleSpec.NewReplicas < 0 {
-		return nil, errors.New("Failed to setup horizontal scaler as the provided scale spec is invalid.")
-	}
-
-	var key string
-	if actionContent.ParentObjectRef.ParentObjectUID != "" {
-		key = actionContent.ParentObjectRef.ParentObjectUID
-	} else {
-		return nil, errors.New("Failed to setup horizontal scaler consumer: failed to retrieve the UID of " +
-			"replication controller or replica set.")
-	}
-	glog.V(3).Infof("The current horizontal scaler consumer is listening on pod created by replication "+
-		"controller or replica set with key %s", key)
-	podConsumer := turbostore.NewPodConsumer(string(action.UID), key, h.broker)
-
-	// 2. scale up and down by changing the replica of replication controller or deployment.
-	err := h.updateReplica(actionContent.TargetObject, actionContent.ParentObjectRef, actionContent.ActionSpec)
+	//2. get podInfo from Entity Properties
+	nameSpace, podName, err := property.GetPodInfoFromProperty(properties)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to update replica: %s", err)
+			glog.Errorf("Failed to get podInfo from appEntity (%v), properties: %++v", err, properties)
+			return nil, fmt.Errorf("Failed to find PodInfo")
 	}
 
-	// 3. If this is an unbind action, it means it is an action with only one stage.
-	// So after changing the replica it can return immediately.
-	if action.Content.ActionType == turboaction.ActionUnbind {
-		// Update turbo action.
-		action.Status = turboaction.Executed
-		return action, nil
+	//3. get Pod from k8s.API
+	pod, err := h.kubeClient.CoreV1().Pods(nameSpace).Get(podName, getOption)
+	if err != nil {
+		glog.Errorf("Failed to get Pod(%s/%s): %v", nameSpace, podName, err)
+		return nil, fmt.Errorf("Failed to get Pod from k8sAPI.")
 	}
-
-	// 4. Wait for desired pending pod
-	// Set a timeout for 5 minutes.
-	t := time.NewTimer(secondPhaseTimeoutLimit)
-	for {
-		select {
-		case pod, ok := <-podConsumer.WaitPod():
-			if !ok {
-				return nil, errors.New("Failed to receive the pending pod generated as a result of " +
-					"auto scaling.")
-			}
-			podConsumer.Leave(key, h.broker)
-
-			// 5. Schedule the pod.
-			// TODO: we don't have a destination to provision a pod yet. So here we need to call scheduler. Or we can post back the pod to be scheduled
-			err = h.scheduler.Schedule(pod)
-			if err != nil {
-				return nil, fmt.Errorf("Error scheduling the new provisioned pod: %s", err)
-			}
-
-			// 6. Update turbo action.
-			action.Status = turboaction.Executed
-
-			return action, nil
-
-		case <-t.C:
-			// timeout
-			return nil, errors.New("Timed out at the second phase when try to finish the horizontal scale" +
-				" process")
-		}
-	}
-
+	return pod, nil
 }
 
-func (h *HorizontalScaler) updateReplica(targetObject turboaction.TargetObject, parentObjRef turboaction.ParentObjectRef,
-	actionSpec turboaction.ActionSpec) error {
-	scaleSpec, ok := actionSpec.(turboaction.ScaleSpec)
-	if !ok {
-		return fmt.Errorf("%++v is not a scale spec", actionSpec)
-	}
-	providerType := parentObjRef.ParentObjectType
-	switch providerType {
-	case turboaction.TypeReplicationController:
-		rc, err := h.kubeClient.CoreV1().ReplicationControllers(parentObjRef.ParentObjectNamespace).
-			Get(parentObjRef.ParentObjectName, getOption)
-		if err != nil {
-			return fmt.Errorf("Failed to find replication controller for finishing the scaling "+
-				"action: %s", err)
-		}
-		return h.updateReplicationControllerReplicas(rc, scaleSpec.NewReplicas)
+// ----------------------- for scaleHelper ---------------------------------
+//TODO: use the latest lock helper once PR106 is merged
+// update the number of pod replicas for ReplicationController
+// return (retry, error)
+func updateRCReplicaNum(client *kclient.Clientset, namespace, name string, diff int32) error {
+	rcClient := client.CoreV1().ReplicationControllers(namespace)
 
-	case turboaction.TypeReplicaSet:
-		providerPod, err := h.kubeClient.CoreV1().Pods(targetObject.TargetObjectNamespace).Get(targetObject.TargetObjectName, getOption)
-		if err != nil {
-			return fmt.Errorf("Failed to find deployemnet for finishing the scaling action: %s", err)
-		}
-		// TODO, here we only support ReplicaSet created by Deployment.
-		deployment, err := util.FindDeploymentForPod(h.kubeClient, providerPod)
-		if err != nil {
-			return fmt.Errorf("Failed to find deployment for finishing the scaling action: %s", err)
-		}
-		return h.updateDeploymentReplicas(deployment, scaleSpec.NewReplicas)
-		break
+	//1. get
+	fullName := fmt.Sprintf("%s/%s", namespace, name)
+	rc, err := rcClient.Get(name, getOption)
+	if err != nil {
+		glog.Errorf("Failed to get ReplicationController: %s: %v", fullName, err)
+		return err
+	}
+
+	//2. modify it
+	num := *(rc.Spec.Replicas) + diff
+	if num < 1 {
+		glog.Warningf("RC-%s resulting replica num[%v] less than 1. (diff=%v)", fullName, num, diff)
+		return fmt.Errorf("Aborted")
+	}
+	rc.Spec.Replicas = &num
+
+	//3. update it
+	_, err = rcClient.Update(rc)
+	if err != nil {
+		glog.Errorf("Failed to update ReplicationController[%s]: %v", fullName, err)
+		return fmt.Errorf("Failed")
+	}
+
+	return nil
+}
+
+// update the number of pod replicas for ReplicaSet
+// return (retry, error)
+func updateRSReplicaNum(client *kclient.Clientset, namespace, name string, diff int32) error {
+	rsClient := client.ExtensionsV1beta1().ReplicaSets(namespace)
+
+	//1. get it
+	fullName := fmt.Sprintf("%s/%s", namespace, name)
+	rs, err := rsClient.Get(name, getOption)
+	if err != nil {
+		glog.Errorf("Failed to get ReplicaSet: %s: %v", fullName, err)
+		return err
+	}
+
+	//2. modify it
+	num := *(rs.Spec.Replicas) + diff
+	if num < 1 {
+		glog.Warningf("RC-%s resulting replica num[%v] less than 1. (diff=%v)", fullName, num, diff)
+		return fmt.Errorf("Aborted")
+	}
+	rs.Spec.Replicas = &num
+
+	//3. update it
+	_, err = rsClient.Update(rs)
+	if err != nil {
+		glog.Errorf("Failed to update ReplicaSet[%s]: %v", fullName, err)
+		return fmt.Errorf("Failed")
+	}
+
+	return nil
+}
+
+type updateReplicaNumFunc func(client *kclient.Clientset, nameSpace, name string, diff int32) error
+
+type scaleHelper struct {
+	client           *kclient.Clientset
+	nameSpace        string
+	podName          string
+
+	//parent controller's kind: ReplicationController/ReplicaSet
+	kind             string
+	//parent controller's name
+	controllerName   string
+	diff             int32
+
+	// update number of Replicas of parent controller
+	updateReplicaNum updateReplicaNumFunc
+
+	//concurrent control lock.map
+	emap *util.ExpirationMap
+	key string
+	version int64
+
+	//stop Renewing
+	stop chan struct{}
+	isRenewing bool
+}
+
+func NewScaleHelper(client *kclient.Clientset, nameSpace, podName string) (*scaleHelper, error) {
+	p := &scaleHelper{
+		client: client,
+		nameSpace: nameSpace,
+		podName: podName,
+	}
+
+	return p, nil
+}
+
+func (helper *scaleHelper) SetParent(kind, name string) error {
+	helper.kind = kind
+	helper.controllerName = name
+
+	switch kind {
+	case kindReplicationController:
+		helper.updateReplicaNum = updateRCReplicaNum
+	case kindReplicaSet:
+		helper.updateReplicaNum = updateRSReplicaNum
 	default:
-		return fmt.Errorf("Unsupported provider type %s", providerType)
+		err := fmt.Errorf("Unsupport ControllerType[%s] for scaling Pod.", kind)
+		glog.Errorf(err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func (helper *scaleHelper)  SetMap(emap *util.ExpirationMap) error {
+	helper.emap = emap
+	helper.key = fmt.Sprintf("%s-%s-%s", helper.kind, helper.nameSpace, helper.controllerName)
+	if emap.GetTTL() < time.Second*2 {
+		err := fmt.Errorf("TTL of concurrent control map should be larger than 2 seconds.")
+		glog.Error(err)
+		return err
 	}
 	return nil
 }
 
-func (h *HorizontalScaler) updateReplicationControllerReplicas(rc *api.ReplicationController, newReplicas int32) error {
-	rc.Spec.Replicas = &newReplicas
-	namespace := rc.Namespace
-	newRC, err := h.kubeClient.CoreV1().ReplicationControllers(namespace).Update(rc)
-	if err != nil {
-		return fmt.Errorf("Error updating replication controller %s/%s: %s", rc.Namespace, rc.Name, err)
+func (helper *scaleHelper) Acquirelock() bool {
+	version, flag := helper.emap.Add(helper.key, nil, func(obj interface{}) {
+	})
+
+	if !flag {
+		glog.V(3).Infof("Failed to get lock for contoller [%s]", helper.controllerName)
+		return false
 	}
-	glog.V(4).Infof("New replicas of %s/%s is %d", newRC.Namespace, newRC.Name, newRC.Spec.Replicas)
-	return nil
+
+	glog.V(3).Infof("Get lock for pod[%s], parent[%s]", helper.podName, helper.controllerName)
+	helper.version = version
+	return true
 }
 
-func (h *HorizontalScaler) updateDeploymentReplicas(deployment *v1beta1.Deployment, newReplicas int32) error {
-	deployment.Spec.Replicas = &newReplicas
-	namespace := deployment.Namespace
-	newDeployment, err := h.kubeClient.AppsV1beta1().Deployments(namespace).Update(deployment)
-	if err != nil {
-		return fmt.Errorf("Error updating replication controller %s/%s: %s",
-			deployment.Namespace, deployment.Name, err)
+func (helper *scaleHelper) Releaselock() {
+	helper.emap.Del(helper.key, helper.version)
+	glog.V(3).Infof("Released lock for pod[%s], parent[%s]",
+		helper.podName, helper.controllerName)
+}
+
+// update the lock to prevent timeout
+func (h *scaleHelper) Renewlock() bool {
+	return h.emap.Touch(h.key, h.version)
+}
+
+func (h *scaleHelper) KeepRenewLock() {
+	ttl := h.emap.GetTTL()
+	interval := ttl / 2
+	if interval < time.Second {
+		interval = time.Second
 	}
-	glog.V(4).Infof("New replicas of %s/%s is %v", newDeployment.Namespace, newDeployment.Name,
-		newDeployment.Spec.Replicas)
-	return nil
+	h.isRenewing = true
+
+	go func() {
+		for {
+			select {
+			case <-h.stop:
+				glog.V(2).Infof("schedulerHelper stop renewlock.")
+				return
+			default:
+				h.Renewlock()
+				time.Sleep(interval)
+				glog.V(3).Infof("schedulerHelper renewlock.")
+			}
+		}
+	}()
+}
+
+func (h *scaleHelper) StopRenew() {
+	if h.isRenewing {
+		h.isRenewing = false
+		close(h.stop)
+	}
+}
+
+func (h *scaleHelper) CleanUp() {
+	h.Releaselock()
+	h.StopRenew()
 }
