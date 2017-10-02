@@ -2,6 +2,7 @@ package util
 
 import (
 	// "github.com/golang/glog"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -22,11 +23,37 @@ func TestLockHelper_Acquirelock(t *testing.T) {
 	key := "default/pod1"
 	helper, _ := NewLockHelper(key, store)
 
-	if !helper.Acquirelock() {
+	if !helper.AcquireLock(nil) {
 		t.Errorf("failed to acquire lock.")
 	}
 
 	helper.ReleaseLock()
+}
+
+func TestLockHelper_Acquirelock_expire(t *testing.T) {
+	ttl := time.Second * 2
+	stop := make(chan struct{})
+	store := getLockMap(ttl, stop)
+	defer close(stop)
+
+	key := "default/pod1"
+	helper, _ := NewLockHelper(key, store)
+
+	callback := func(obj interface{}) {
+		k, ok := obj.(string)
+		if !ok {
+			fmt.Println("not a string.")
+		}
+
+		fmt.Printf("key[%s] expired.\n", k)
+	}
+
+	if !helper.AcquireLock(callback) {
+		t.Errorf("failed to acquire lock.")
+	}
+
+	// lock will be expired.
+	time.Sleep(ttl + ttl)
 }
 
 func TestLockHelper_Acquirelock2(t *testing.T) {
@@ -39,12 +66,12 @@ func TestLockHelper_Acquirelock2(t *testing.T) {
 	helper, _ := NewLockHelper(key, store)
 
 	// 1. should be able to acquire lock
-	if !helper.Acquirelock() {
+	if !helper.AcquireLock(nil) {
 		t.Errorf("failed to acquire lock.")
 	}
 
 	// 2. should be not able to get lock
-	if helper.Acquirelock() {
+	if helper.AcquireLock(nil) {
 		t.Errorf("should not be able to get lock.")
 	}
 
@@ -61,7 +88,7 @@ func TestLockHelper_Acquirelock3(t *testing.T) {
 	helper, _ := NewLockHelper(key, store)
 
 	// 1. should be able to acquire lock
-	if !helper.Acquirelock() {
+	if !helper.AcquireLock(nil) {
 		t.Errorf("failed to acquire lock.")
 	}
 
@@ -69,7 +96,7 @@ func TestLockHelper_Acquirelock3(t *testing.T) {
 	time.Sleep(ttl + ttl)
 
 	// 3. should be able to get lock
-	if !helper.Acquirelock() {
+	if !helper.AcquireLock(nil) {
 		t.Errorf("failed to acquire lock.")
 	}
 
@@ -86,7 +113,7 @@ func TestLockHelper_Trylock(t *testing.T) {
 	helper, _ := NewLockHelper(key, store)
 
 	// 1. p1 can get lock
-	if !helper.Acquirelock() {
+	if !helper.AcquireLock(nil) {
 		t.Errorf("failed to get lock.")
 	}
 
@@ -98,7 +125,7 @@ func TestLockHelper_Trylock(t *testing.T) {
 	}
 
 	//3. p3 should not be able to get lock
-	if helper.Acquirelock() {
+	if helper.AcquireLock(nil) {
 		t.Errorf("Should not get lock.")
 	}
 
@@ -115,7 +142,7 @@ func TestLockHelper_Trylock2(t *testing.T) {
 	helper, _ := NewLockHelper(key, store)
 
 	// 1. p1 can get lock
-	if !helper.Acquirelock() {
+	if !helper.AcquireLock(nil) {
 		t.Errorf("failed to get lock.")
 	}
 
@@ -139,7 +166,7 @@ func TestLockHelper_KeepRenewLock(t *testing.T) {
 	helper, _ := NewLockHelper(key, store)
 
 	// 1. p1 can get lock
-	if !helper.Acquirelock() {
+	if !helper.AcquireLock(nil) {
 		t.Errorf("failed to get lock.")
 	}
 	helper.KeepRenewLock()

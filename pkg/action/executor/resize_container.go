@@ -239,7 +239,7 @@ func (r *ContainerResizer) resizeControllerContainer(pod *k8sapi.Pod, parentKind
 		glog.Errorf("resizeContainer failed[%s]: failed to create helper: %v", id, err)
 		return err
 	}
-	if err := helper.SetMap(r.lockMap); err != nil {
+	if err := helper.SetupLock(r.lockMap); err != nil {
 		return err
 	}
 

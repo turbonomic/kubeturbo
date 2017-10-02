@@ -202,7 +202,7 @@ func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, no
 	if err != nil {
 		return nil, err
 	}
-	if err := helper.SetMap(r.lockMap); err != nil {
+	if err := helper.SetupLock(r.lockMap); err != nil {
 		return nil, err
 	}
 
