@@ -1,7 +1,6 @@
 package util
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/golang/glog"
@@ -255,41 +254,6 @@ func UpdateRSscheduler15(client *kclient.Clientset, nameSpace, rsName, scheduler
 	return currentName, nil
 }
 
-//get kind and name of pod's parent Controller
-func ParseParentInfo(pod *api.Pod) (string, string, error) {
-	//1. check ownerReferences:
-	if pod.OwnerReferences != nil && len(pod.OwnerReferences) > 0 {
-		for _, owner := range pod.OwnerReferences {
-			if *owner.Controller {
-				return owner.Kind, owner.Name, nil
-			}
-		}
-	}
-
-	glog.V(4).Infof("no parent-info for pod-%v/%v in OwnerReferences.", pod.Namespace, pod.Name)
-
-	//2. check annotations:
-	if pod.Annotations != nil && len(pod.Annotations) > 0 {
-		key := "kubernetes.io/created-by"
-		if value, ok := pod.Annotations[key]; ok {
-
-			var ref api.SerializedReference
-
-			if err := json.Unmarshal([]byte(value), &ref); err != nil {
-				err = fmt.Errorf("failed to decode parent annoation:%v", err)
-				glog.Errorf("%v\n%v", err, value)
-				return "", "", err
-			}
-
-			return ref.Reference.Kind, ref.Reference.Name, nil
-		}
-	}
-
-	glog.V(4).Infof("no parent-info for pod-%v/%v in Annotations.", pod.Namespace, pod.Name)
-
-	return "", "", nil
-}
-
 func parsePodSchedulerName(pod *api.Pod, highver bool) string {
 
 	if highver {
@@ -352,7 +316,7 @@ func CleanPendingPod(client *kclient.Clientset, nameSpace, schedulerName, parent
 			continue
 		}
 
-		kind, pname, err1 := ParseParentInfo(pod)
+		kind, pname, err1 := GetPodParentInfo(pod)
 		if err1 != nil || pname == "" {
 			continue
 		}

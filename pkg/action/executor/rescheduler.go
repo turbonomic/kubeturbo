@@ -1,192 +1,216 @@
 package executor
 
 import (
-	"errors"
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
 	"time"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-)
-
-const (
-	// Set the grace period to 0 for deleting the pod immediately.
-	podDeletionGracePeriodDefault int64 = 0
-
-	//TODO: set podDeletionGracePeriodMax > 0
-	// currently, if grace > 0, there will be some retries and could cause timeout easily
-	podDeletionGracePeriodMax int64 = 0
-
-	DefaultNoneExistSchedulerName = "turbo-none-exist-scheduler"
-	kindReplicationController     = "ReplicationController"
-	kindReplicaSet                = "ReplicaSet"
-
-	HigherK8sVersion = "1.6.0"
-
-	defaultRetryLess int = 3
-	defaultRetryMore int = 6
-
-	defaultWaitLockTimeOut = time.Second * 300
-	defaultWaitLockSleep   = time.Second * 10
-
-	defaultPodCreateSleep       = time.Second * 30
-	defaultUpdateSchedulerSleep = time.Second * 20
-	defaultCheckSchedulerSleep  = time.Second * 5
-	defaultMoreGrace            = time.Second * 20
+	"strings"
 )
 
 type ReScheduler struct {
 	kubeClient        *kclient.Clientset
 	k8sVersion        string
 	noneSchedulerName string
+	stitchType        stitching.StitchingPropertyType
 
-	//a map for concurrent control of Actions
 	lockMap *util.ExpirationMap
 }
 
-func NewReScheduler(client *kclient.Clientset, k8sver, noschedulerName string, lmap *util.ExpirationMap) *ReScheduler {
+func NewReScheduler(client *kclient.Clientset, k8sver, noschedulerName string, lmap *util.ExpirationMap, stype stitching.StitchingPropertyType) *ReScheduler {
 	return &ReScheduler{
 		kubeClient:        client,
 		k8sVersion:        k8sver,
 		noneSchedulerName: noschedulerName,
 		lockMap:           lmap,
+		stitchType:        stype,
 	}
 }
 
-func (r *ReScheduler) Execute(actionItem *proto.ActionItemDTO) (*turboaction.TurboAction, error) {
+func (r *ReScheduler) Execute(actionItem *proto.ActionItemDTO) error {
 	if actionItem == nil {
-		return nil, errors.New("ActionItem passed in is nil")
+		return fmt.Errorf("ActionItem passed in is nil")
 	}
-	action, err := r.buildPendingReScheduleTurboAction(actionItem)
+
+	//1. get target Pod and new hosting Node
+	pod, node, err := r.getPodNode(actionItem)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return r.reSchedule(action)
+
+	//2. move pod to the node
+	return r.reSchedule(pod, node)
 }
 
-func (r *ReScheduler) buildPendingReScheduleTurboAction(actionItem *proto.ActionItemDTO) (*turboaction.TurboAction,
-	error) {
-
-	glog.V(4).Infof("MoveActionItem: %++v", actionItem)
-	// Find out the pod to be re-scheduled.
-	targetPod := actionItem.GetTargetSE()
-	if targetPod == nil {
-		return nil, errors.New("Target pod in actionItem is nil")
+func (r *ReScheduler) checkActionItem(action *proto.ActionItemDTO) error {
+	//1. check target
+	targetSE := action.GetTargetSE()
+	if targetSE == nil {
+		err := fmt.Errorf("move target is empty.")
+		glog.Error(err.Error())
+		return err
 	}
 
-	// TODO, as there is issue in server, find pod based on entity properties is not supported right now. Once the issue in server gets resolved, we should use the following code to find the pod.
-	//podProperties := targetPod.GetEntityProperties()
-	//foundPod, err:= util.GetPodFromProperties(h.kubeClient, targetEntityType, podProperties)
-
-	// TODO the following is a temporary fix.
-	originalPod, err := util.GetPodFromUUID(r.kubeClient, targetPod.GetId())
-	if err != nil {
-		glog.Errorf("Cannot not find pod %s in the cluster: %s", targetPod.GetDisplayName(), err)
-		return nil, fmt.Errorf("Try to move pod %s, but could not find it in the cluster.",
-			targetPod.GetDisplayName())
+	if targetSE.GetEntityType() != proto.EntityDTO_CONTAINER_POD {
+		err := fmt.Errorf("Unexpected target type: %v Vs. %v.",
+			targetSE.GetEntityType().String(), proto.EntityDTO_CONTAINER_POD.String())
+		glog.Errorf(err.Error())
+		return err
 	}
 
-	// Find out where to re-schedule the pod.
-	newSEType := actionItem.GetNewSE().GetEntityType()
-	if newSEType != proto.EntityDTO_VIRTUAL_MACHINE && newSEType != proto.EntityDTO_PHYSICAL_MACHINE {
-		return nil, errors.New("The target service entity for move destiantion is neither a VM nor a PM.")
+	//2. check new hosting node
+	destSE := action.GetNewSE()
+	if destSE == nil {
+		err := fmt.Errorf("new hosting node is empty.")
+		glog.Error(err.Error())
+		return err
 	}
-	targetNode := actionItem.GetNewSE()
 
-	var machineIPs []string
-	switch newSEType {
-	case proto.EntityDTO_VIRTUAL_MACHINE:
-		// K8s uses Ip address as the Identifier. The VM name passed by actionItem is the display name
-		// that discovered by hypervisor. So here we must get the ip address from virtualMachineData in
-		// targetNode entityDTO.
-		vmData := targetNode.GetVirtualMachineData()
-		if vmData == nil {
-			return nil, errors.New("Missing VirtualMachineData in ActionItemDTO from server")
+	nodeType := destSE.GetEntityType()
+	if nodeType != proto.EntityDTO_VIRTUAL_MACHINE && nodeType != proto.EntityDTO_PHYSICAL_MACHINE {
+		err := fmt.Errorf("hosting node type[%v] is not a virtual machine, nor a phsical machine.", nodeType.String())
+		glog.Error(err.Error())
+		return err
+	}
+
+	return nil
+}
+
+// get k8s.nodeName of the node
+// TODO: get node info via EntityProperty
+func (r *ReScheduler) getNode(action *proto.ActionItemDTO) (*api.Node, error) {
+	hostSE := action.GetNewSE()
+
+	var err error = nil
+	var node *api.Node = nil
+
+	if r.stitchType == stitching.UUID {
+		node, err = util.GetNodebyUUID(r.kubeClient, hostSE.GetId())
+	} else if r.stitchType == stitching.IP {
+		var machineIPs []string
+		if hostSE.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE {
+			vmData := hostSE.GetVirtualMachineData()
+			if vmData == nil {
+				err := fmt.Errorf("Missing virtualMachineData[%v] in targetSE.", hostSE.GetDisplayName())
+				glog.Error(err.Error())
+				return nil, err
+			}
+			machineIPs = vmData.GetIpAddress()
+		} else {
+			err := fmt.Errorf("Unable to get IP of physicalMachine[%v] service entity.", hostSE.GetDisplayName())
+			glog.Error(err.Error())
+			return nil, err
 		}
-		machineIPs = vmData.GetIpAddress()
-		break
-	case proto.EntityDTO_PHYSICAL_MACHINE:
-		// TODO
-		// machineIPS = <valid physical machine IP>
-		break
-	}
-	if machineIPs == nil || len(machineIPs) == 0 {
-		return nil, errors.New("Miss IP addresses in ActionItemDTO.")
-	}
-	glog.V(3).Infof("The IPs of targetNode is %v", machineIPs)
 
-	// Get the actual node name from Kubernetes cluster based on IP address.
-	nodeIdentifier, err := util.GetNodeNameFromIP(r.kubeClient, machineIPs)
+		node, err = util.GetNodebyIP(r.kubeClient, machineIPs)
+	} else {
+		err = fmt.Errorf("Unknown stitching type: %v", r.stitchType)
+	}
+
 	if err != nil {
+		err = fmt.Errorf("failed to find hosting node[%v]: %v", hostSE.GetDisplayName(), err)
+		glog.Error(err.Error())
 		return nil, err
 	}
+	return node, nil
+}
 
-	// Build action content.
-	var parentObjRef *turboaction.ParentObjectRef = nil
-	// parent info is not necessary for current binding-on-creation method
-
-	//// TODO, Ignore error?
-	//parentRefObject, err := probe.FindParentReferenceObject(originalPod)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//if parentRefObject != nil {
-	//	parentObjRef = &turboaction.ParentObjectRef{
-	//		ParentObjectUID:       string(parentRefObject.UID),
-	//		ParentObjectNamespace: parentRefObject.Namespace,
-	//		ParentObjectName:      parentRefObject.Name,
-	//		ParentObjectType:      parentRefObject.Kind,
-	//	}
-	//}
-	targetObj := &turboaction.TargetObject{
-		TargetObjectUID:       string(originalPod.UID),
-		TargetObjectNamespace: originalPod.Namespace,
-		TargetObjectName:      originalPod.Name,
-		TargetObjectType:      turboaction.TypePod,
+func (r *ReScheduler) getPodNode(action *proto.ActionItemDTO) (*api.Pod, *api.Node, error) {
+	//1. check
+	glog.V(4).Infof("MoveActionItem: %++v", action)
+	if err := r.checkActionItem(action); err != nil {
+		err = fmt.Errorf("Move Action aborted: check action item failed: %v", err)
+		glog.Errorf(err.Error())
+		return nil, nil, err
 	}
-	moveSpec := turboaction.MoveSpec{
-		Source:      originalPod.Spec.NodeName,
-		Destination: nodeIdentifier,
-	}
-	content := turboaction.NewTurboActionContentBuilder(turboaction.ActionMove, targetObj).
-		ActionSpec(moveSpec).
-		ParentObjectRef(parentObjRef).
-		Build()
 
-	// Build TurboAction.
-	action := turboaction.NewTurboActionBuilder(originalPod.Namespace, *actionItem.Uuid).
-		Content(content).
-		Create()
-	return &action, nil
+	//2. get pod from k8s
+	target := action.GetTargetSE()
+	pod, err := util.GetPodFromUUID(r.kubeClient, target.GetId())
+	if err != nil {
+		err = fmt.Errorf("Move Action aborted: failed to find pod(%v) in k8s: %v", target.GetDisplayName(), err)
+		glog.Errorf(err.Error())
+		return nil, nil, err
+	}
+
+	//3. find the new hosting node for the pod.
+	node, err := r.getNode(action)
+	if err != nil {
+		err = fmt.Errorf("Move action aborted: failed to get new hosting node: %v", err)
+		glog.Error(err.Error())
+		return nil, nil, err
+	}
+
+	return pod, node, nil
 }
 
 // Check whether the action should be executed.
-func (r *ReScheduler) preActionCheck(podName, namespace, nodeName string) (*api.Pod, error) {
-	fullName := fmt.Sprintf("%s/%s", namespace, podName)
-	podClient := r.kubeClient.CoreV1().Pods(namespace)
-	if podClient == nil {
-		return nil, fmt.Errorf("re-schedule failed: fail to get pod client in namespace [%v]", namespace)
-	}
+// TODO: find a reliable way to check node's status; current checking has no actual effect.
+func (r *ReScheduler) preActionCheck(pod *api.Pod, node *api.Node) error {
+	fullName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 
-	pod, err := podClient.Get(podName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("re-schedule failed: get original pod:%v\n%v", fullName, err)
-	}
-
-	// If Pod is terminated, then no need to move it.
+	//1. If Pod is terminated, then no need to move it.
 	// if pod.Status.Phase != api.PodRunning {
 	if pod.Status.Phase == api.PodSucceeded {
-		return nil, fmt.Errorf("re-schedule failed: original pod termiated:%v phase:%v", fullName, pod.Status.Phase)
+		glog.Errorf("Move action should be aborted: original pod termiated:%v phase:%v", fullName, pod.Status.Phase)
 	}
 
-	return pod, nil
+	//2. if Node is out of condition
+	if node.Status.Phase != api.NodeRunning {
+		glog.Errorf("Move action should be aborted: pod[%v]'s new destination host is not running: %v", fullName, node.Status.Phase)
+	}
+
+	return nil
+}
+
+func (r *ReScheduler) reSchedule(pod *api.Pod, node *api.Node) error {
+	//1. do some check
+	if err := r.preActionCheck(pod, node); err != nil {
+		glog.Errorf("Move action aborted: %v", err)
+		return fmt.Errorf("Failed")
+	}
+
+	nodeName := node.Name
+	fullName := util.BuildIdentifier(pod.Namespace, pod.Name)
+	// if the pod is already on the target node, then simply return success.
+	if pod.Spec.NodeName == nodeName {
+		glog.V(2).Infof("Move action aborted: pod[%v] is already on host[%v].", fullName, nodeName)
+		return nil
+	}
+
+	//2. move
+	parentKind, parentName, err := util.GetPodParentInfo(pod)
+	if err != nil {
+		glog.Errorf("Move action aborted: cannot get pod-%v parent info: %v", fullName, err)
+		return fmt.Errorf("Failed")
+	}
+
+	if parentKind == "" {
+		_, err = r.moveBarePod(pod, nodeName)
+	} else {
+		_, err = r.moveControllerPod(pod, parentKind, parentName, nodeName)
+	}
+	if err != nil {
+		glog.Errorf("move pod [%s] failed: %v", fullName, err)
+		return fmt.Errorf("Failed")
+	}
+
+	//3. check
+	glog.V(2).Infof("Begin to check moveAction for pod[%v]", fullName)
+	if err = r.checkPod(pod, nodeName); err != nil {
+		glog.Errorf("Checking moveAction failed: pod[%v] failed: %v", fullName, err)
+		return fmt.Errorf("Failed")
+	}
+	glog.V(2).Infof("Checking moveAction succeeded: pod[%v] is on node[%v].", fullName, nodeName)
+
+	return nil
 }
 
 // move the pods controlled by ReplicationController/ReplicaSet
@@ -238,58 +262,6 @@ func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, no
 	return movePod(r.kubeClient, pod, nodeName, defaultRetryLess)
 }
 
-func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.TurboAction, error) {
-	actionContent := action.Content
-	moveSpec, ok := actionContent.ActionSpec.(turboaction.MoveSpec)
-	if !ok || moveSpec.Destination == "" {
-		return nil, fmt.Errorf("re-scheduler failed: destination is nil after pre-precess.")
-	}
-
-	//1. get original Pod, and do some check
-	podName := actionContent.TargetObject.TargetObjectName
-	namespace := actionContent.TargetObject.TargetObjectNamespace
-	nodeName := moveSpec.Destination
-
-	pod, err := r.preActionCheck(podName, namespace, nodeName)
-	if err != nil {
-		return nil, err
-	}
-
-	// if the pod is already on the target node, then simply return success.
-	if pod.Spec.NodeName == nodeName {
-		action.Status = turboaction.Success
-		action.LastTimestamp = time.Now()
-		return action, nil
-	}
-
-	//2. move
-	fullName := util.BuildIdentifier(namespace, podName)
-	parentKind, parentName, err := util.ParseParentInfo(pod)
-	if err != nil {
-		return nil, fmt.Errorf("move-abort: cannot get pod-%v parent info: %v", fullName, err)
-	}
-
-	var npod *api.Pod
-	if parentKind == "" {
-		npod, err = r.moveBarePod(pod, nodeName)
-	} else {
-		npod, err = r.moveControllerPod(pod, parentKind, parentName, nodeName)
-	}
-	if err != nil {
-		glog.Errorf("move pod [%s] failed: %v", fullName, err)
-		return nil, fmt.Errorf("move failed: %s", fullName)
-	}
-
-	//3. update moveAction
-	moveSpec.NewObjectName = npod.Name
-	moveSpec.NewObjectNamespace = npod.Namespace
-	action.Content.ActionSpec = moveSpec
-	action.Status = turboaction.Executed
-	action.LastTimestamp = time.Now()
-
-	return action, nil
-}
-
 // as there may be concurrent actions on the same bare pod:
 //   one action is to move Pod, and the other is to Resize Pod.container;
 // thus, concurrent control should also be applied to bare pods.
@@ -314,4 +286,42 @@ func (r *ReScheduler) moveBarePod(pod *api.Pod, nodeName string) (*api.Pod, erro
 	// 3. move the Pod
 	helper.KeepRenewLock()
 	return movePod(r.kubeClient, pod, nodeName, defaultRetryLess)
+}
+
+// check the liveness of pod, and the hosting Node
+// return (retry, error)
+func doCheckPodNode(client *kclient.Clientset, namespace, name, nodeName string) (bool, error) {
+	pod, err := util.GetPod(client, namespace, name)
+	if err != nil {
+		return true, err
+	}
+
+	phase := pod.Status.Phase
+	if phase == api.PodRunning {
+		if strings.EqualFold(pod.Spec.NodeName, nodeName) {
+			return false, nil
+		}
+		return false, fmt.Errorf("running on a unexpected node[%v].", pod.Spec.NodeName)
+	}
+
+	if pod.DeletionGracePeriodSeconds != nil {
+		return false, fmt.Errorf("Pod is being deleted.")
+	}
+
+	return true, fmt.Errorf("pod is not in running phase[%v] yet.", phase)
+}
+
+func (r *ReScheduler) checkPod(pod *api.Pod, nodeName string) error {
+	retryNum := defaultRetryMore
+	interval := defaultPodCreateSleep
+	timeout := time.Duration(retryNum+1) * interval
+	err := goutil.RetrySimple(retryNum, timeout, interval, func() (bool, error) {
+		return doCheckPodNode(r.kubeClient, pod.Namespace, pod.Name, nodeName)
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

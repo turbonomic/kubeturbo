@@ -134,7 +134,7 @@ func (m *ClusterMonitor) genNodeResourceMetrics(node *api.Node) error {
 	glog.V(3).Infof("Now get resouce metrics for node %s", key)
 
 	//1. Capacity of cpu and memory
-	cpuCapacityCore, memoryCapacityKiloBytes := util.GetCpuAndMemoryValues(node.Status.Capacity)
+	cpuCapacityCore, memoryCapacityKiloBytes := util.GetCpuAndMemoryValues(node.Status.Allocatable)
 	glog.V(4).Infof("Cpu capacity of node %s is %f core", node.Name, cpuCapacityCore)
 	glog.V(4).Infof("Memory capacity of node %s is %f Kb", node.Name, memoryCapacityKiloBytes)
 	m.genCapacityMetrics(task.NodeType, key, cpuCapacityCore, memoryCapacityKiloBytes)

@@ -1,6 +1,7 @@
 package util
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	"strings"
 )
 
 var (
@@ -134,24 +136,41 @@ func GetAllNodes(kubeClient *client.Clientset) ([]api.Node, error) {
 
 // Iterate all nodes to find the name of the node which has the provided IP address.
 // TODO. We can also create a IP->NodeName map to save time. But it consumes space.
-func GetNodeNameFromIP(kubeClient *client.Clientset, machineIPs []string) (string, error) {
+func GetNodebyIP(kubeClient *client.Clientset, machineIPs []string) (*api.Node, error) {
 	ipAddresses := machineIPs
 	allNodes, err := GetAllNodes(kubeClient)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	for _, node := range allNodes {
+	for i := range allNodes {
+		node := &allNodes[i]
 		nodeAddresses := node.Status.Addresses
 		for _, nodeAddress := range nodeAddresses {
 			for _, machineIP := range ipAddresses {
 				if nodeAddress.Address == machineIP {
-					// find node, return immediately
-					return node.Name, nil
+					return node, nil
 				}
 			}
 		}
 	}
-	return "", fmt.Errorf("Cannot find node with IPs %s", ipAddresses)
+	return nil, fmt.Errorf("Cannot find node with IPs %s", ipAddresses)
+}
+
+// Iterate all nodes to find the name of the node which has the provided IP address.
+func GetNodebyUUID(kubeClient *client.Clientset, uuid string) (*api.Node, error) {
+	allNodes, err := GetAllNodes(kubeClient)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range allNodes {
+		node := &allNodes[i]
+		if strings.EqualFold(uuid, node.Status.NodeInfo.SystemUUID) {
+			return node, nil
+		}
+	}
+
+	return nil, fmt.Errorf("Cannot find node with UUID %s", uuid)
 }
 
 // Get a pod based on received entity properties.
@@ -160,9 +179,9 @@ func GetPodFromProperties(kubeClient *client.Clientset, entityType proto.EntityD
 	var podNamespace, podName string
 	switch entityType {
 	case proto.EntityDTO_APPLICATION:
-		podNamespace, podName, _ = property.GetApplicationHostingPodInfoFromProperty(properties)
+		podNamespace, podName, _ = property.GetHostingPodInfoFromProperty(properties)
 	case proto.EntityDTO_CONTAINER_POD:
-		podNamespace, podName = property.GetPodInfoFromProperty(properties)
+		podNamespace, podName, _ = property.GetPodInfoFromProperty(properties)
 	default:
 		return nil, fmt.Errorf("cannot find pod based on properties of an entity with type: %s", entityType)
 	}
@@ -217,4 +236,85 @@ func FindApplicationPodProvider(kubeClient *client.Clientset, providers []*proto
 // Given namespace and name, return an identifier in the format, namespace/name
 func BuildIdentifier(namespace, name string) string {
 	return namespace + "/" + name
+}
+
+func GetPod(kubeClient *client.Clientset, namespace, name string) (*api.Pod, error) {
+	return kubeClient.CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
+}
+
+func parseOwnerReferences(owners []metav1.OwnerReference) (string, string) {
+	for i := range owners {
+		owner := &owners[i]
+		if *(owner.Controller) && len(owner.Kind) > 0 && len(owner.Name) > 0 {
+			return owner.Kind, owner.Name
+		}
+	}
+
+	return "", ""
+}
+
+func GetPodParentInfo(pod *api.Pod) (string, string, error) {
+	//1. check ownerReferences:
+
+	if pod.OwnerReferences != nil && len(pod.OwnerReferences) > 0 {
+		kind, name := parseOwnerReferences(pod.OwnerReferences)
+		if len(kind) > 0 && len(name) > 0 {
+			return kind, name, nil
+		}
+	}
+
+	glog.V(4).Infof("no parent-info for pod-%v/%v in OwnerReferences.", pod.Namespace, pod.Name)
+
+	//2. check annotations:
+	if pod.Annotations != nil && len(pod.Annotations) > 0 {
+		key := "kubernetes.io/created-by"
+		if value, ok := pod.Annotations[key]; ok {
+
+			var ref api.SerializedReference
+
+			if err := json.Unmarshal([]byte(value), &ref); err != nil {
+				err = fmt.Errorf("failed to decode parent annoation:%v", err)
+				glog.Errorf("%v\n%v", err, value)
+				return "", "", err
+			}
+
+			return ref.Reference.Kind, ref.Reference.Name, nil
+		}
+	}
+
+	glog.V(4).Infof("no parent-info for pod-%v/%v in Annotations.", pod.Namespace, pod.Name)
+
+	return "", "", nil
+}
+
+// get grandParent(parent's parent) information of a pod: kind, name
+// If parent does not have parent, then return parent info.
+// Note: if parent kind is "ReplicaSet", then its parent's parent can be a "Deployment"
+func GetPodGrandInfo(kclient *client.Clientset, pod *api.Pod) (string, string, error) {
+	//1. get Parent info: kind and name;
+	kind, name, err := GetPodParentInfo(pod)
+	if err != nil {
+		return "", "", err
+	}
+
+	//2. if parent is "ReplicaSet", check parent's parent
+	if strings.EqualFold(kind, "ReplicaSet") {
+		//2.1 get parent object
+		rs, err := kclient.ExtensionsV1beta1().ReplicaSets(pod.Namespace).Get(name, metav1.GetOptions{})
+		if err != nil {
+			err = fmt.Errorf("Failed to get ReplicaSet[%v/%v]: %v", pod.Namespace, name, err)
+			glog.Error(err.Error())
+			return "", "", err
+		}
+
+		//2.2 get parent's parent info by parsing ownerReferences:
+		if rs.OwnerReferences != nil && len(rs.OwnerReferences) > 0 {
+			gkind, gname := parseOwnerReferences(rs.OwnerReferences)
+			if len(gkind) > 0 && len(gname) > 0 {
+				return gkind, gname, nil
+			}
+		}
+	}
+
+	return kind, name, nil
 }

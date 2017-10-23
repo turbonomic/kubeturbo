@@ -4,16 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/wait"
 	client "k8s.io/client-go/kubernetes"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
-	"github.com/turbonomic/kubeturbo/pkg/action/supervisor"
-	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
-	turboscheduler "github.com/turbonomic/kubeturbo/pkg/scheduler"
-	"github.com/turbonomic/kubeturbo/pkg/turbostore"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -21,29 +17,35 @@ import (
 	"github.com/golang/glog"
 )
 
+type turboActionType string
+
 const (
-	defaultActionCacheTTL = time.Second * 100
+	defaultActionCacheTTL                      = time.Second * 100
+	turboActionProvision       turboActionType = "provision"
+	turboActionMove            turboActionType = "move"
+	turboActionUnbind          turboActionType = "unbind"
+	turboActionContainerResize turboActionType = "resizeContainer"
 )
 
 type ActionHandlerConfig struct {
 	kubeClient     *client.Clientset
 	kubeletClient  *kubelet.KubeletClient
-	broker         turbostore.Broker
 	StopEverything chan struct{}
 
 	//for moveAction
 	k8sVersion        string
 	noneSchedulerName string
+	stitchType        stitching.StitchingPropertyType
 }
 
-func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubelet.KubeletClient, broker turbostore.Broker, k8sVersion, noneSchedulerName string) *ActionHandlerConfig {
+func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubelet.KubeletClient, k8sVersion, noneSchedulerName string, stype stitching.StitchingPropertyType) *ActionHandlerConfig {
 	config := &ActionHandlerConfig{
 		kubeClient:    kubeClient,
 		kubeletClient: kubeletClient,
-		broker:        broker,
 
 		k8sVersion:        k8sVersion,
 		noneSchedulerName: noneSchedulerName,
+		stitchType:        stype,
 
 		StopEverything: make(chan struct{}),
 	}
@@ -54,54 +56,23 @@ func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubelet
 type ActionHandler struct {
 	config *ActionHandlerConfig
 
-	actionExecutors map[turboaction.TurboActionType]executor.TurboActionExecutor
-
-	actionSupervisor *supervisor.ActionSupervisor
-
-	scheduler *turboscheduler.TurboScheduler
-
-	// The following three channels are used between action handler and action supervisor to pass action information.
-	// handler -> supervisor
-	executedActionChan chan *turboaction.TurboAction
-	// supervisor -> handler
-	succeededActionChan chan *turboaction.TurboAction
-	// supervisor -> handler
-	failedActionChan chan *turboaction.TurboAction
-
-	resultChan chan *proto.ActionResult
+	actionExecutors map[turboActionType]executor.TurboActionExecutor
 
 	//concurrency control
 	lockMap *util.ExpirationMap
 }
 
 // Build new ActionHandler and start it.
-func NewActionHandler(config *ActionHandlerConfig, scheduler *turboscheduler.TurboScheduler) *ActionHandler {
-	executedActionChan := make(chan *turboaction.TurboAction)
-	succeededActionChan := make(chan *turboaction.TurboAction)
-	failedActionChan := make(chan *turboaction.TurboAction)
-
-	supervisorConfig := supervisor.NewActionSupervisorConfig(config.kubeClient, executedActionChan, succeededActionChan, failedActionChan)
-	actionSupervisor := supervisor.NewActionSupervisor(supervisorConfig)
-
+func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 	lmap := util.NewExpirationMap(defaultActionCacheTTL)
-
 	handler := &ActionHandler{
-		config:           config,
-		actionExecutors:  make(map[turboaction.TurboActionType]executor.TurboActionExecutor),
-		actionSupervisor: actionSupervisor,
-
-		scheduler: scheduler,
-		lockMap:   lmap,
-
-		executedActionChan:  executedActionChan,
-		succeededActionChan: succeededActionChan,
-		failedActionChan:    failedActionChan,
-
-		resultChan: make(chan *proto.ActionResult),
+		config:          config,
+		actionExecutors: make(map[turboActionType]executor.TurboActionExecutor),
+		lockMap:         lmap,
 	}
 
+	go lmap.Run(config.StopEverything)
 	handler.registerActionExecutors()
-	handler.Start()
 	return handler
 }
 
@@ -109,70 +80,131 @@ func NewActionHandler(config *ActionHandlerConfig, scheduler *turboscheduler.Tur
 // As action executor is stateless, they can be safely reused.
 func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
-	reScheduler := executor.NewReScheduler(c.kubeClient, c.k8sVersion, c.noneSchedulerName, h.lockMap)
-	h.actionExecutors[turboaction.ActionMove] = reScheduler
+	reScheduler := executor.NewReScheduler(c.kubeClient, c.k8sVersion, c.noneSchedulerName, h.lockMap, c.stitchType)
+	h.actionExecutors[turboActionMove] = reScheduler
 
-	horizontalScaler := executor.NewHorizontalScaler(c.kubeClient, c.broker, h.scheduler)
-	h.actionExecutors[turboaction.ActionProvision] = horizontalScaler
-	h.actionExecutors[turboaction.ActionUnbind] = horizontalScaler
+	horizontalScaler := executor.NewHorizontalScaler(c.kubeClient, h.lockMap)
+	h.actionExecutors[turboActionProvision] = horizontalScaler
+	h.actionExecutors[turboActionUnbind] = horizontalScaler
 
 	containerResizer := executor.NewContainerResizer(c.kubeClient, c.kubeletClient, c.k8sVersion, c.noneSchedulerName, h.lockMap)
-	h.actionExecutors[turboaction.ActionContainerResize] = containerResizer
-}
-
-// Start watching succeeded and failed turbo actions.
-// Also start ActionSupervisor to determine the final status of executed VMTEvents.
-func (h *ActionHandler) Start() {
-	go wait.Until(h.getNextSucceededTurboAction, 0, h.config.StopEverything)
-	go wait.Until(h.getNextFailedTurboAction, 0, h.config.StopEverything)
-
-	go h.lockMap.Run(h.config.StopEverything)
-	h.actionSupervisor.Start()
-}
-
-func (h *ActionHandler) getNextSucceededTurboAction() {
-	event := <-h.succeededActionChan
-	glog.V(3).Infof("Succeeded event is %v", event)
-	content := event.Content
-
-	glog.V(2).Infof("Action %s for %s-%s succeeded.", content.ActionType, content.TargetObject.TargetObjectType, content.TargetObject.TargetObjectName)
-	progress := int32(100)
-	h.sendActionResult(proto.ActionResponseState_SUCCEEDED, progress, "Success")
-}
-
-func (h *ActionHandler) getNextFailedTurboAction() {
-	event := <-h.failedActionChan
-
-	glog.V(3).Infof("Failed event is %v", event)
-	content := event.Content
-
-	glog.V(2).Infof("Action %s for %s-%s failed.", content.ActionType, content.TargetObject.TargetObjectType, content.TargetObject.TargetObjectName)
-	progress := int32(0)
-	msg := fmt.Sprintf("Action %s on %s failed.", content.ActionType, content.TargetObject.TargetObjectType)
-	h.sendActionResult(proto.ActionResponseState_FAILED, progress, msg)
+	h.actionExecutors[turboActionContainerResize] = containerResizer
 }
 
 // Implement ActionExecutorClient interface defined in Go SDK.
-// Execute the current action and return the action result.
+// Execute the current action and return the action result to SDK.
 func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionDTO,
 	accountValues []*proto.AccountValue,
 	progressTracker sdkprobe.ActionProgressTracker) (*proto.ActionResult, error) {
 
+	// 1. get the action, NOTE: only deal with one action item in current implementation.
 	actionItems := actionExecutionDTO.GetActionItem()
-	// TODO: only deal with one action item.
 	actionItemDTO := actionItems[0]
-	go h.execute(actionItemDTO)
 
+	// 2. keep sending fake progress to prevent timeout
 	stop := make(chan struct{})
 	defer close(stop)
-	keepAlive(progressTracker, stop)
+	go keepAlive(progressTracker, stop)
 
+	// 3. execute the action
 	glog.V(3).Infof("Now wait for action result")
-	result := <-h.resultChan
-	glog.V(4).Infof("Action result is %++v", result)
-	// TODO: currently the code in SDK make it share the actionExecution client between different workers. Once it is changed, need to close the channel.
-	//close(h.config.StopEverything)
-	return result, nil
+	err := h.execute(actionItemDTO)
+	if err != nil {
+		return h.failedResult(err.Error()), nil
+	}
+
+	return h.goodResult(), nil
+}
+
+func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
+	actionType, err := getActionTypeFromActionItemDTO(actionItem)
+	if err != nil {
+		glog.Errorf("Failed to execute action: %v", err)
+		return err
+	}
+
+	worker, exist := h.actionExecutors[actionType]
+	if !exist {
+		msg := fmt.Errorf("Action %s on %s is not supported.", actionType, actionItem.GetTargetSE().GetEntityType())
+		glog.Errorf(msg.Error())
+		return msg
+	}
+
+	err = worker.Execute(actionItem)
+	if err != nil {
+		msg := fmt.Errorf("Action %s on %s failed.", actionType, actionItem.GetTargetSE().GetEntityType())
+		glog.Errorf(msg.Error())
+		return err
+	}
+
+	return nil
+}
+
+func getActionTypeFromActionItemDTO(actionItem *proto.ActionItemDTO) (turboActionType, error) {
+	var actionType turboActionType
+
+	if actionItem == nil {
+		return actionType, fmt.Errorf("ActionItem received in is null")
+	}
+	glog.V(3).Infof("Receive a %s action request.", actionItem.GetActionType())
+	objectType := actionItem.GetTargetSE().GetEntityType()
+
+	switch actionItem.GetActionType() {
+	case proto.ActionItemDTO_MOVE:
+		// Here we must make sure the TargetSE is a Pod and NewSE is either a VirtualMachine or a PhysicalMachine.
+		if objectType == proto.EntityDTO_CONTAINER_POD {
+			// A regular MOVE action
+			return turboActionMove, nil
+		} else if objectType == proto.EntityDTO_VIRTUAL_APPLICATION {
+			// An UnBind action
+			return turboActionUnbind, nil
+		}
+	case proto.ActionItemDTO_PROVISION:
+		// A Provision action
+		return turboActionProvision, nil
+	case proto.ActionItemDTO_RIGHT_SIZE:
+		if objectType == proto.EntityDTO_CONTAINER {
+			return turboActionContainerResize, nil
+		}
+	}
+
+	err := fmt.Errorf("Unsupported action[%v] for objectType[%v]", actionItem.GetActionType(), objectType)
+	glog.Error(err)
+	return actionType, err
+}
+
+func (h *ActionHandler) goodResult() *proto.ActionResult {
+
+	state := proto.ActionResponseState_SUCCEEDED
+	progress := int32(100)
+	msg := "Success"
+
+	res := &proto.ActionResponse{
+		ActionResponseState: &state,
+		Progress:            &progress,
+		ResponseDescription: &msg,
+	}
+
+	return &proto.ActionResult{
+		Response: res,
+	}
+}
+
+func (h *ActionHandler) failedResult(msg string) *proto.ActionResult {
+
+	state := proto.ActionResponseState_FAILED
+	progress := int32(0)
+	msg = "Failed"
+
+	res := &proto.ActionResponse{
+		ActionResponseState: &state,
+		Progress:            &progress,
+		ResponseDescription: &msg,
+	}
+
+	return &proto.ActionResult{
+		Response: res,
+	}
 }
 
 func keepAlive(tracker sdkprobe.ActionProgressTracker, stop chan struct{}) {
@@ -199,83 +231,4 @@ func keepAlive(tracker sdkprobe.ActionProgressTracker, stop chan struct{}) {
 		}
 		glog.V(3).Infof("action keepAlive goroutine exit.")
 	}()
-}
-
-func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) {
-	actionType, err := getActionTypeFromActionItemDTO(actionItem)
-	if err != nil {
-		glog.Errorf("Failed to execute action: %v", err)
-		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), err.Error())
-		return
-	}
-	executor, exist := h.actionExecutors[actionType]
-	if !exist {
-		glog.Errorf("action type %s is not support", actionType)
-		msg := fmt.Sprintf("Action %s on %s is not supported.", actionType, actionItem.GetTargetSE().GetEntityType())
-		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), msg)
-		return
-	}
-
-	action, err := executor.Execute(actionItem)
-	if err != nil {
-		glog.Errorf("Failed to execute action: %s", err)
-		msg := fmt.Sprintf("Action %s on %s failed.", actionType, actionItem.GetTargetSE().GetEntityType())
-		h.sendActionResult(proto.ActionResponseState_FAILED, int32(0), msg)
-		return
-	}
-	if action.Status == turboaction.Success {
-		h.sendActionResult(proto.ActionResponseState_SUCCEEDED, int32(100), "Success")
-		return
-	}
-
-	//send to channel to check the final status of the action if action.Status == turboaction.Executed
-	h.executedActionChan <- action
-}
-
-func getActionTypeFromActionItemDTO(actionItem *proto.ActionItemDTO) (turboaction.TurboActionType, error) {
-	var actionType turboaction.TurboActionType
-
-	if actionItem == nil {
-		return actionType, fmt.Errorf("ActionItem received in is null")
-	}
-	glog.V(3).Infof("Receive a %s action request.", actionItem.GetActionType())
-	objectType := actionItem.GetTargetSE().GetEntityType()
-
-	switch actionItem.GetActionType() {
-	case proto.ActionItemDTO_MOVE:
-		// Here we must make sure the TargetSE is a Pod and NewSE is either a VirtualMachine or a PhysicalMachine.
-		if objectType == proto.EntityDTO_CONTAINER_POD {
-			// A regular MOVE action
-			return turboaction.ActionMove, nil
-		} else if objectType == proto.EntityDTO_VIRTUAL_APPLICATION {
-			// An UnBind action
-			return turboaction.ActionUnbind, nil
-		}
-	case proto.ActionItemDTO_PROVISION:
-		// A Provision action
-		return turboaction.ActionProvision, nil
-	case proto.ActionItemDTO_RIGHT_SIZE:
-		if objectType == proto.EntityDTO_CONTAINER {
-			return turboaction.ActionContainerResize, nil
-		}
-	}
-
-	err := fmt.Errorf("Unsupported action[%v] for objectType[%v]", actionItem.GetActionType(), objectType)
-	glog.Error(err)
-	return actionType, err
-}
-
-// Send action response to Turbonomic server.
-func (handler *ActionHandler) sendActionResult(state proto.ActionResponseState, progress int32, description string) {
-	// 1. build response
-	response := &proto.ActionResponse{
-		ActionResponseState: &state,
-		Progress:            &progress,
-		ResponseDescription: &description,
-	}
-	// 2. built action result.
-	result := &proto.ActionResult{
-		Response: response,
-	}
-	handler.resultChan <- result
 }
