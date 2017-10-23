@@ -4,7 +4,6 @@ import (
 	kclient "k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api/v1"
 
-	"github.com/turbonomic/kubeturbo/pkg/action/turboaction"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	idutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -16,12 +15,21 @@ import (
 	"time"
 )
 
+type containerResizeSpec struct {
+	// the new capacity of the resources
+	NewCapacity k8sapi.ResourceList
+
+	// index of Pod's containers
+	Index int
+}
+
 type ContainerResizer struct {
 	kubeClient        *kclient.Clientset
 	kubeletClient     *kubelet.KubeletClient
 	k8sVersion        string
 	noneSchedulerName string
 
+	spec *containerResizeSpec
 	//a map for concurrent control of Actions
 	lockMap *util.ExpirationMap
 }
@@ -103,7 +111,7 @@ func (r *ContainerResizer) buildNewCapacity(pod *k8sapi.Pod, actionItem *proto.A
 	return result, nil
 }
 
-func (r *ContainerResizer) buildResizeAction(actionItem *proto.ActionItemDTO) (*turboaction.TurboAction, *k8sapi.Pod, error) {
+func (r *ContainerResizer) buildResizeAction(actionItem *proto.ActionItemDTO) (*containerResizeSpec, *k8sapi.Pod, error) {
 
 	//1. get hosting Pod and containerIndex
 	entity := actionItem.GetTargetSE()
@@ -137,75 +145,56 @@ func (r *ContainerResizer) buildResizeAction(actionItem *proto.ActionItemDTO) (*
 	}
 
 	//3. build the turboAction object
-	targetObj := &turboaction.TargetObject{
-		TargetObjectUID:       string(pod.UID),
-		TargetObjectNamespace: pod.Namespace,
-		TargetObjectName:      pod.Name,
-		TargetObjectType:      turboaction.TypePod,
-	}
-
-	resizeSpec := turboaction.ContainerResizeSpec{
+	resizeSpec := &containerResizeSpec{
 		Index:       containerIndex,
 		NewCapacity: newCapacity,
 	}
 
-	var parentObjRef *turboaction.ParentObjectRef = nil
-
-	content := turboaction.NewTurboActionContentBuilder(turboaction.ActionContainerResize, targetObj).
-		ActionSpec(resizeSpec).
-		ParentObjectRef(parentObjRef).Build()
-
-	action := turboaction.NewTurboActionBuilder(pod.Namespace, *actionItem.Uuid).
-		Content(content).
-		Create()
-
-	return &action, pod, nil
+	return resizeSpec, pod, nil
 }
 
-func (r *ContainerResizer) Execute(actionItem *proto.ActionItemDTO) (*turboaction.TurboAction, error) {
+func (r *ContainerResizer) Execute(actionItem *proto.ActionItemDTO) error {
 	if actionItem == nil {
 		glog.Errorf("potential bug: actionItem is null.")
-		return nil, fmt.Errorf("ActionItem is null.")
+		return fmt.Errorf("ActionItem is null.")
 	}
 
 	//1. build turboAction
-	action, pod, err := r.buildResizeAction(actionItem)
+	spec, pod, err := r.buildResizeAction(actionItem)
 	if err != nil {
 		glog.Errorf("failed to execute container resize: %v", err)
-		return nil, err
+		return fmt.Errorf("Failed.")
 	}
 
-	//2. execute the turboAction
-	err = r.executeAction(action, pod)
+	//2. execute the Action
+	err = r.executeAction(spec, pod)
 	if err != nil {
 		glog.Errorf("failed to execute Action: %v", err)
-		return nil, err
+		return fmt.Errorf("Failed.")
 	}
 
-	action.LastTimestamp = time.Now()
-	if action.Status == turboaction.Success {
-		return action, nil
+	//3. check action result
+	fullName := util.BuildIdentifier(pod.Namespace, pod.Name)
+	glog.V(2).Infof("begin to check result of resizeContainer[%v].", fullName)
+	if err = r.checkPod(pod); err != nil {
+		glog.Errorf("failed to check pod[%v] for resize action: %v", fullName, err)
+		return fmt.Errorf("Failed")
 	}
-	action.Status = turboaction.Executed
+	glog.V(2).Infof("Action resizeContainer[%v] succeeded.", fullName)
 
-	return action, nil
+	return nil
 }
 
-func (r *ContainerResizer) executeAction(action *turboaction.TurboAction, pod *k8sapi.Pod) error {
+func (r *ContainerResizer) executeAction(resizeSpec *containerResizeSpec, pod *k8sapi.Pod) error {
 	//1. check
-	content := action.Content
-	resizeSpec, ok := content.ActionSpec.(turboaction.ContainerResizeSpec)
-	if !ok {
-		return fmt.Errorf("resizeContainer failed")
-	}
 	if len(resizeSpec.NewCapacity) < 1 {
-		action.Status = turboaction.Success
+		glog.Warningf("Resize specification is empty.")
 		return nil
 	}
 
 	//2. get parent controller
 	fullName := util.BuildIdentifier(pod.Namespace, pod.Name)
-	parentKind, parentName, err := util.ParseParentInfo(pod)
+	parentKind, parentName, err := util.GetPodParentInfo(pod)
 	if err != nil {
 		glog.Errorf("failed to get pod[%s] parent info: %v", fullName, err)
 		return err
@@ -305,4 +294,39 @@ func (r *ContainerResizer) resizeBarePodContainer(pod *k8sapi.Pod, index int, ca
 	helper.KeepRenewLock()
 	err = resizeContainer(r.kubeClient, pod, index, capacity, defaultRetryMore)
 	return err
+}
+
+// check the liveness of pod
+// return (retry, error)
+func doCheckPod(client *kclient.Clientset, namespace, name string) (bool, error) {
+	pod, err := util.GetPod(client, namespace, name)
+	if err != nil {
+		return true, err
+	}
+
+	phase := pod.Status.Phase
+	if phase == k8sapi.PodRunning {
+		return false, nil
+	}
+
+	if pod.DeletionGracePeriodSeconds != nil {
+		return false, fmt.Errorf("Pod is being deleted.")
+	}
+
+	return true, fmt.Errorf("pod is not in running phase[%v] yet.", phase)
+}
+
+func (r *ContainerResizer) checkPod(pod *k8sapi.Pod) error {
+	retryNum := defaultRetryMore
+	interval := defaultPodCreateSleep
+	timeout := time.Duration(retryNum+1) * interval
+	err := goutil.RetrySimple(retryNum, timeout, interval, func() (bool, error) {
+		return doCheckPod(r.kubeClient, pod.Namespace, pod.Name)
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

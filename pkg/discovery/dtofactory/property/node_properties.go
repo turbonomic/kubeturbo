@@ -6,17 +6,10 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
-const (
-	// TODO currently in the server side only properties in "DEFAULT" namespaces are respected, ideally, we should use "Kubernetes-Node".
-	nodePropertyNamespace = "DEFAULT"
-
-	nodePropertyNameNodeName = "KubernetesNodeName"
-)
-
 // Build entity properties for a node. The name is the name of the node shown inside Kubernetes cluster.
 func BuildNodeProperties(node *api.Node) *proto.EntityDTO_EntityProperty {
-	propertyNamespace := nodePropertyNamespace
-	propertyName := nodePropertyNameNodeName
+	propertyNamespace := k8sPropertyNamespace
+	propertyName := k8sNodeName
 	propertyValue := node.Name
 	return &proto.EntityDTO_EntityProperty{
 		Namespace: &propertyNamespace,
@@ -31,10 +24,10 @@ func GetNodeNameFromProperty(properties []*proto.EntityDTO_EntityProperty) (node
 		return
 	}
 	for _, property := range properties {
-		if property.GetNamespace() != nodePropertyNamespace {
+		if property.GetNamespace() != k8sNamespace {
 			continue
 		}
-		if property.GetName() == nodePropertyNameNodeName {
+		if property.GetName() == k8sNodeName {
 			nodeName = property.GetValue()
 			return
 		}

@@ -78,3 +78,37 @@ func RetryDuring(attempts int, timeout time.Duration, sleep time.Duration, myfun
 	glog.Error(err)
 	return err
 }
+
+//retry to execute a function with a timeout
+func RetrySimple(attempts int, timeout, sleep time.Duration, myfunc func() (bool, error)) error {
+	t0 := time.Now()
+
+	var err error
+	for i := 0; ; i++ {
+		retry := false
+		if retry, err = myfunc(); !retry {
+			return err
+		}
+
+		glog.V(4).Infof("[retry-%d/%d] Warning %v", i+1, attempts, err)
+		if i >= (attempts - 1) {
+			break
+		}
+
+		if timeout > 0 {
+			if delta := time.Now().Sub(t0); delta > timeout {
+				err = fmt.Errorf("failed after %d attepmts (during %v) last error: %v", i+1, delta, err)
+				glog.Error(err)
+				return err
+			}
+		}
+
+		if sleep > 0 {
+			time.Sleep(sleep)
+		}
+	}
+
+	err = fmt.Errorf("failed after %d attepmts, last error: %v", attempts, err)
+	glog.Error(err)
+	return err
+}
