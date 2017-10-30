@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	appIdPrefix = "app"
+	appIdPrefix = "App"
 )
 
 // PodStatsKeyFunc and PodKeyFunc should return the same value.
@@ -55,6 +55,20 @@ func ParseContainerId(containerId string) (string, int, error) {
 	}
 
 	return podId, index, nil
+}
+
+// Application's displayName = "App-namespace/podName"
+//podFullName should be "namespace/podName"
+func ApplicationDisplayName(podFullName string) string {
+	return fmt.Sprintf("%s-%s", appIdPrefix, podFullName)
+}
+
+func GetPodFullNameFromAppName(appName string) string {
+	i := len(appIdPrefix) + 1
+	if len(appName) < i+1 {
+		return ""
+	}
+	return appName[i:]
 }
 
 func ApplicationIdFunc(containerId string) string {

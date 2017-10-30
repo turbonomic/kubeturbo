@@ -1,6 +1,11 @@
 package executor
 
 import (
+	"fmt"
+	"github.com/golang/glog"
+	"math"
+	"time"
+
 	kclient "k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api/v1"
 
@@ -9,15 +14,17 @@ import (
 	idutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+)
 
-	"fmt"
-	"github.com/golang/glog"
-	"time"
+const (
+	epsilon        float64 = 0.001
+	smallestAmount float64 = 1.0
 )
 
 type containerResizeSpec struct {
 	// the new capacity of the resources
 	NewCapacity k8sapi.ResourceList
+	NewRequest  k8sapi.ResourceList
 
 	// index of Pod's containers
 	Index int
@@ -32,6 +39,14 @@ type ContainerResizer struct {
 	spec *containerResizeSpec
 	//a map for concurrent control of Actions
 	lockMap *util.ExpirationMap
+}
+
+func NewContainerResizeSpec(idx int) *containerResizeSpec {
+	return &containerResizeSpec{
+		Index:       idx,
+		NewCapacity: make(k8sapi.ResourceList),
+		NewRequest:  make(k8sapi.ResourceList),
+	}
 }
 
 func NewContainerResizer(client *kclient.Clientset, kubeletClient *kubelet.KubeletClient, k8sver, noschedulerName string, lmap *util.ExpirationMap) *ContainerResizer {
@@ -49,7 +64,7 @@ func (r *ContainerResizer) getNodeCPUFrequency(host string) (uint64, error) {
 	return r.kubeletClient.GetMachineCpuFrequency(host)
 }
 
-func (r *ContainerResizer) setCPUCapacity(cpuMhz float64, host string, rlist k8sapi.ResourceList) error {
+func (r *ContainerResizer) setCPUQuantity(cpuMhz float64, host string, rlist k8sapi.ResourceList) error {
 	cpuFrequency, err := r.getNodeCPUFrequency(host)
 	if err != nil {
 		glog.Errorf("failed to get node[%s] cpu frequency: %v", host, err)
@@ -66,49 +81,82 @@ func (r *ContainerResizer) setCPUCapacity(cpuMhz float64, host string, rlist k8s
 	return nil
 }
 
-// get commodity type and new capacity, and convert it into a k8s.Quantity.
-func (r *ContainerResizer) buildNewCapacity(pod *k8sapi.Pod, actionItem *proto.ActionItemDTO) (k8sapi.ResourceList, error) {
-	result := make(k8sapi.ResourceList)
-
-	comm := actionItem.GetNewComm()
-	ctype := comm.GetCommodityType()
-	amount := comm.GetCapacity()
-
-	//TODO: currently only support resizeCapacity; resizeReservation may be supported later
-	if amount < 1 {
-		msg := ""
-		if comm.GetReservation() > 0 {
-			msg = fmt.Sprintf("resizeReservation() is not supported yet.")
-		} else {
-			msg = fmt.Sprintf("new capacity should be bigger than zero (current=%.4f)", amount)
-		}
-
-		glog.Error(msg)
-		return result, fmt.Errorf(msg)
-	}
-
+func (r *ContainerResizer) buildResourceList(pod *k8sapi.Pod, ctype proto.CommodityDTO_CommodityType, amount float64, result k8sapi.ResourceList) error {
 	switch ctype {
 	case proto.CommodityDTO_VCPU:
 		host := pod.Spec.NodeName
-		err := r.setCPUCapacity(amount, host, result)
+		err := r.setCPUQuantity(amount, host, result)
 		if err != nil {
 			glog.Errorf("failed to build cpu.Capacity: %v", err)
-			return result, err
+			return err
 		}
 	case proto.CommodityDTO_VMEM:
 		memory, err := genMemoryQuantity(amount)
 		if err != nil {
 			glog.Errorf("failed to build mem.Capacity: %v", err)
-			return result, err
+			return err
 		}
 		result[k8sapi.ResourceMemory] = memory
 	default:
 		err := fmt.Errorf("Unsupport Commodity type[%v]", ctype)
 		glog.Error(err)
-		return result, err
+		return err
 	}
 
-	return result, nil
+	return nil
+}
+
+// get commodity type and new capacity, and convert it into a k8s.Quantity.
+func (r *ContainerResizer) buildResourceLists(pod *k8sapi.Pod, actionItem *proto.ActionItemDTO, spec *containerResizeSpec) error {
+	glog.V(4).Infof("action=%+++v", actionItem)
+	comm1 := actionItem.GetCurrentComm()
+	comm2 := actionItem.GetNewComm()
+
+	if comm1.GetCommodityType() != comm2.GetCommodityType() {
+		err := fmt.Errorf("commodity type dis.match %v Vs. %v", comm1.CommodityType.String(), comm2.CommodityType.String())
+		glog.Error(err.Error())
+		return err
+	}
+
+	ctype := comm2.GetCommodityType()
+
+	//1. check capacity change
+	delta := math.Abs(comm1.GetCapacity() - comm2.GetCapacity())
+	if delta >= epsilon {
+		amount := comm2.GetCapacity()
+		if amount < smallestAmount {
+			err := fmt.Errorf("commodity amount is too small %v, reset to %v", amount, smallestAmount)
+			glog.Errorf(err.Error())
+			amount = smallestAmount
+		}
+
+		if err := r.buildResourceList(pod, ctype, amount, spec.NewCapacity); err != nil {
+			err = fmt.Errorf("Failed to build resource list when ResizeCapacity %v %v: %v", ctype.String(), amount, err)
+			glog.Error(err.Error())
+			return err
+		}
+		glog.V(3).Infof("Resize %v Capacity to %v", ctype.String(), amount)
+	}
+
+	//2. check reservation
+	delta = math.Abs(comm1.GetReservation() - comm2.GetReservation())
+	if delta >= epsilon {
+		amount := comm2.GetReservation()
+		if amount < smallestAmount {
+			err := fmt.Errorf("commodity amount is too small %v, reset to %v", amount, smallestAmount)
+			glog.Errorf(err.Error())
+			amount = smallestAmount
+		}
+
+		if err := r.buildResourceList(pod, ctype, amount, spec.NewRequest); err != nil {
+			err = fmt.Errorf("Failed to build resource list when ResizeReservation %v %v: %v", ctype.String(), amount, err)
+			glog.Error(err.Error())
+			return err
+		}
+		glog.V(3).Infof("Resize %v Reservation to %v", ctype.String(), amount)
+	}
+
+	return nil
 }
 
 func (r *ContainerResizer) buildResizeAction(actionItem *proto.ActionItemDTO) (*containerResizeSpec, *k8sapi.Pod, error) {
@@ -131,23 +179,18 @@ func (r *ContainerResizer) buildResizeAction(actionItem *proto.ActionItemDTO) (*
 		return nil, nil, err
 	}
 
-	pod, err := util.GetPodFromUUID(r.kubeClient, podId)
+	// the displayName is "namespace/podName"
+	pod, err := util.GetPodFromDisplayName(r.kubeClient, podEntity.GetDisplayName(), podId)
 	if err != nil {
 		glog.Errorf("failed to get hosting Pod to build resizeAction: %v", err)
 		return nil, nil, err
 	}
 
 	//2. build the new resource Capacity
-	newCapacity, err := r.buildNewCapacity(pod, actionItem)
-	if err != nil {
+	resizeSpec := NewContainerResizeSpec(containerIndex)
+	if err = r.buildResourceLists(pod, actionItem, resizeSpec); err != nil {
 		glog.Errorf("failed to build NewCapacity to build resizeAction: %v", err)
 		return nil, nil, err
-	}
-
-	//3. build the turboAction object
-	resizeSpec := &containerResizeSpec{
-		Index:       containerIndex,
-		NewCapacity: newCapacity,
 	}
 
 	return resizeSpec, pod, nil
@@ -187,7 +230,7 @@ func (r *ContainerResizer) Execute(actionItem *proto.ActionItemDTO) error {
 
 func (r *ContainerResizer) executeAction(resizeSpec *containerResizeSpec, pod *k8sapi.Pod) error {
 	//1. check
-	if len(resizeSpec.NewCapacity) < 1 {
+	if len(resizeSpec.NewCapacity) < 1 && len(resizeSpec.NewRequest) < 1 {
 		glog.Warningf("Resize specification is empty.")
 		return nil
 	}
@@ -201,9 +244,9 @@ func (r *ContainerResizer) executeAction(resizeSpec *containerResizeSpec, pod *k
 	}
 
 	if parentKind == "" {
-		err = r.resizeBarePodContainer(pod, resizeSpec.Index, resizeSpec.NewCapacity)
+		err = r.resizeBarePodContainer(pod, resizeSpec)
 	} else {
-		err = r.resizeControllerContainer(pod, parentKind, parentName, resizeSpec.Index, resizeSpec.NewCapacity)
+		err = r.resizeControllerContainer(pod, parentKind, parentName, resizeSpec)
 	}
 
 	if err != nil {
@@ -213,8 +256,8 @@ func (r *ContainerResizer) executeAction(resizeSpec *containerResizeSpec, pod *k
 	return nil
 }
 
-func (r *ContainerResizer) resizeControllerContainer(pod *k8sapi.Pod, parentKind, parentName string, index int, capacity k8sapi.ResourceList) error {
-	id := fmt.Sprintf("%s/%s-%d", pod.Namespace, pod.Name, index)
+func (r *ContainerResizer) resizeControllerContainer(pod *k8sapi.Pod, parentKind, parentName string, spec *containerResizeSpec) error {
+	id := fmt.Sprintf("%s/%s-%d", pod.Namespace, pod.Name, spec.Index)
 	glog.V(2).Infof("begin to resizeContainer[%s] parent=%s/%s.", id, parentKind, parentName)
 
 	//1. set up
@@ -263,7 +306,7 @@ func (r *ContainerResizer) resizeControllerContainer(pod *k8sapi.Pod, parentKind
 
 	//5.resize Container and restore parent's scheduler
 	helper.SetScheduler(preScheduler)
-	err = resizeContainer(r.kubeClient, pod, index, capacity, defaultRetryLess)
+	err = resizeContainer(r.kubeClient, pod, spec, defaultRetryLess)
 	if err != nil {
 		glog.Errorf("resizeContainer failed[%s]: %v", id, err)
 		return fmt.Errorf("TryLater")
@@ -272,7 +315,7 @@ func (r *ContainerResizer) resizeControllerContainer(pod *k8sapi.Pod, parentKind
 	return nil
 }
 
-func (r *ContainerResizer) resizeBarePodContainer(pod *k8sapi.Pod, index int, capacity k8sapi.ResourceList) error {
+func (r *ContainerResizer) resizeBarePodContainer(pod *k8sapi.Pod, spec *containerResizeSpec) error {
 	podkey := util.BuildIdentifier(pod.Namespace, pod.Name)
 	// 1. setup lockHelper
 	helper, err := util.NewLockHelper(podkey, r.lockMap)
@@ -292,7 +335,7 @@ func (r *ContainerResizer) resizeBarePodContainer(pod *k8sapi.Pod, index int, ca
 
 	// 3. resize Pod.container
 	helper.KeepRenewLock()
-	err = resizeContainer(r.kubeClient, pod, index, capacity, defaultRetryMore)
+	err = resizeContainer(r.kubeClient, pod, spec, defaultRetryMore)
 	return err
 }
 

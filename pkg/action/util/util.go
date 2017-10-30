@@ -18,6 +18,10 @@ import (
 	"strings"
 )
 
+const (
+	maxDisplayNameLen = 256
+)
+
 var (
 	listOption = metav1.ListOptions{}
 )
@@ -207,6 +211,57 @@ func GetPodFromUUID(kubeClient *client.Clientset, podUUID string) (*api.Pod, err
 	return nil, fmt.Errorf("cannot find pod based on given uuid: %s", podUUID)
 }
 
+// Get k8s.Pod through OpsMgr.ServiceEntity.DisplayName (Entity can be ContainerPod or Container)
+//      if serviceEntity is a containerPod, then displayName is "namespace/podName";
+//      if serviceEntity is a container, then displayName is "namespace/podName/containerName";
+// uuid is the pod's UUID
+// Note: displayName for application is "App-namespace/podName", the pods info can be got by the provider's displayname
+func GetPodFromDisplayName(kclient *client.Clientset, displayname, uuid string) (*api.Pod, error) {
+	sep := "/"
+	items := strings.Split(displayname, sep)
+	if len(items) < 2 {
+		err := fmt.Errorf("Cannot get namespace/podname from %v", displayname)
+		glog.Error(err.Error())
+		return nil, err
+	}
+
+	//1. get Namespace
+	namespace := strings.TrimSpace(items[0])
+	if len(namespace) < 1 {
+		err := fmt.Errorf("Parsed namespace is empty from %v", displayname)
+		glog.Errorf(err.Error())
+		return nil, err
+	}
+
+	//2. get PodName
+	name := strings.TrimSpace(items[1])
+	if len(name) < 1 {
+		err := fmt.Errorf("Parsed name is empty from %v", displayname)
+		glog.Errorf(err.Error())
+		return nil, err
+	}
+
+	//3. get Pod
+	pod, err := GetPod(kclient, namespace, name)
+	if err != nil {
+		err = fmt.Errorf("Failed to get Pod by %v/%v: %v", namespace, name, err)
+		glog.Errorf(err.Error())
+		return nil, err
+	}
+
+	//4. if displayName is short, or it contains part of the containerName
+	if len(displayname) < maxDisplayNameLen || len(items) > 2 {
+		return pod, nil
+	}
+	// otherwise check the pod's UID
+	if string(pod.UID) == uuid {
+		return pod, nil
+	}
+
+	//5. finally, try to get the Pod by UUID
+	return GetPodFromUUID(kclient, uuid)
+}
+
 // Find which pod is the app running based on the received action request.
 func FindApplicationPodProvider(kubeClient *client.Clientset, providers []*proto.ActionItemDTO_ProviderInfo) (*api.Pod, error) {
 	if providers == nil || len(providers) < 1 {
@@ -240,6 +295,15 @@ func BuildIdentifier(namespace, name string) string {
 
 func GetPod(kubeClient *client.Clientset, namespace, name string) (*api.Pod, error) {
 	return kubeClient.CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
+}
+
+func CreatePod(kubeClient *client.Clientset, pod *api.Pod) (*api.Pod, error) {
+	return kubeClient.CoreV1().Pods(pod.Namespace).Create(pod)
+}
+
+func DeletePod(kubeClient *client.Clientset, namespace, name string, grace int64) error {
+	opt := &metav1.DeleteOptions{GracePeriodSeconds: &grace}
+	return kubeClient.CoreV1().Pods(namespace).Delete(name, opt)
 }
 
 func parseOwnerReferences(owners []metav1.OwnerReference) (string, string) {

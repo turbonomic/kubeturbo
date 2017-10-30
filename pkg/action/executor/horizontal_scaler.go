@@ -174,6 +174,7 @@ func (h *HorizontalScaler) getProviderPod_hard(action *proto.ActionItemDTO) (*ap
 	glog.V(3).Infof("Horizontal-Scale target type is %v", targetType.String())
 
 	podId := sId
+	displayName := action.GetTargetSE().GetDisplayName()
 	var err error = nil
 
 	switch targetType {
@@ -193,6 +194,9 @@ func (h *HorizontalScaler) getProviderPod_hard(action *proto.ActionItemDTO) (*ap
 			glog.Errorf("Failed to get podId from appId[%s]: %v", appId, err)
 			return nil, fmt.Errorf("Failed to parse appId.")
 		}
+
+		// get container's DisplayName
+		displayName = action.GetHostedBySE().GetDisplayName()
 	case proto.EntityDTO_VIRTUAL_APPLICATION:
 		currentSE := action.GetCurrentSE()
 		seType := currentSE.GetEntityType()
@@ -207,6 +211,7 @@ func (h *HorizontalScaler) getProviderPod_hard(action *proto.ActionItemDTO) (*ap
 			glog.Errorf("Failed to get podId from appId[%s]: %v", appId, err)
 			return nil, fmt.Errorf("Failed to parse appId.")
 		}
+		displayName = dutil.GetPodFullNameFromAppName(currentSE.GetDisplayName())
 	default:
 		err = fmt.Errorf("Illegal target type [%v] for horizontal scaling.", targetType.String())
 		glog.Errorf(err.Error())
@@ -217,7 +222,7 @@ func (h *HorizontalScaler) getProviderPod_hard(action *proto.ActionItemDTO) (*ap
 		return nil, err
 	}
 
-	return util.GetPodFromUUID(h.kubeClient, podId)
+	return util.GetPodFromDisplayName(h.kubeClient, displayName, podId)
 }
 
 // getProviderPod, "easy" means that we will get Pod info from Entity properties
