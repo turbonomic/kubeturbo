@@ -7,24 +7,44 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api/v1"
 
+	autil "github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 )
 
-// update the Pod.Containers[index]'s Resources.Limits and Resources.Requests.
-func updateCapacity(pod *k8sapi.Pod, index int, patchCapacity k8sapi.ResourceList) (bool, error) {
-	glog.V(4).Infof("begin to update Capacity.")
+// update the Pod.Containers[index]'s Resources.Requests
+func updateReservation(container *k8sapi.Container, patchCapacity k8sapi.ResourceList) (bool, error) {
+	glog.V(4).Infof("begin to update Request(Reservation).")
 	changed := false
 
-	if index >= len(pod.Spec.Containers) {
-		err := fmt.Errorf("Cannot find container[%d] in pod[%s]", index, pod.Name)
-		glog.Error(err)
-		return false, err
+	//1. get the original capacities
+	result := make(k8sapi.ResourceList)
+	for k, v := range container.Resources.Requests {
+		result[k] = v
 	}
-	container := &(pod.Spec.Containers[index])
+
+	//2. apply the patch
+	for k, v := range patchCapacity {
+		oldv, exist := result[k]
+		if !exist || oldv.Cmp(v) != 0 {
+			result[k] = v
+			changed = true
+		}
+	}
+
+	if !changed {
+		return false, nil
+	}
+	container.Resources.Requests = result
+	return true, nil
+}
+
+// update the Pod.Containers[index]'s Resources.Limits
+func updateCapacity(container *k8sapi.Container, patchCapacity k8sapi.ResourceList) (bool, error) {
+	glog.V(4).Infof("begin to update Capacity.")
+	changed := false
 
 	//1. get the original capacities
 	result := make(k8sapi.ResourceList)
@@ -46,15 +66,83 @@ func updateCapacity(pod *k8sapi.Pod, index int, patchCapacity k8sapi.ResourceLis
 	}
 	container.Resources.Limits = result
 
-	//3. adjust the requirements: if new capacity is less than requirement, reduce the requirement
-	// TODO 1: discuss reduce the requirement, or increase the limit?
-	// TODO 2: If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
-	//      we have to set a value for the requests; how to decide the value?
-	updateRequests(container, result)
-	return changed, nil
+	return true, nil
 }
 
-func updateRequests(container *k8sapi.Container, limits k8sapi.ResourceList) error {
+// make sure that the Request.Value is not bigger than the Limit.Value
+// Note: It is certain that OpsMgr will make sure reservation is less than capacity.
+func checkLimitsRequests(container *k8sapi.Container) error {
+	if container.Resources.Limits == nil || container.Resources.Requests == nil {
+		return nil
+	}
+
+	limits := container.Resources.Limits
+	requests := container.Resources.Requests
+
+	for k, v := range limits {
+		rv, exist := requests[k]
+		if !exist {
+			continue
+		}
+
+		if rv.Cmp(v) > 0 {
+			err := fmt.Errorf("Rquested resource is larger than limits: %v %v Vs. %v", k.String(), v.String(), rv.String())
+			glog.Errorf(err.Error())
+			return err
+		}
+	}
+
+	return nil
+}
+
+func updateResourceAmount(pod *k8sapi.Pod, spec *containerResizeSpec) (bool, error) {
+	index := spec.Index
+	fullName := fmt.Sprintf("%s/%s-%d", pod.Namespace, pod.Name, index)
+	glog.V(4).Infof("Begin to update container %v resources.", fullName)
+
+	//1. get container
+	if index >= len(pod.Spec.Containers) {
+		err := fmt.Errorf("Cannot find container[%d] in pod[%s]", index, pod.Name)
+		glog.Error(err)
+		return false, err
+	}
+	container := &(pod.Spec.Containers[index])
+
+	//2. update Limits
+	flag := false
+	if spec.NewCapacity != nil && len(spec.NewCapacity) > 0 {
+		cflag, err := updateCapacity(container, spec.NewCapacity)
+		if err != nil {
+			glog.Errorf("Failed to set new Limits for container %v: %v", fullName, err)
+			return false, err
+		}
+		glog.V(4).Infof("Set Limits for container %v successfully.", fullName)
+		flag = flag || cflag
+	}
+
+	//3. update Requests
+	if spec.NewRequest != nil && len(spec.NewRequest) > 0 {
+		rflag, err := updateReservation(container, spec.NewRequest)
+		if err != nil {
+			glog.Errorf("Failed to set new Requests for container %v: %v", fullName, err)
+			return false, err
+		}
+
+		glog.V(4).Infof("Set Requests for container %v successfully.", fullName)
+		flag = flag || rflag
+	}
+
+	//4. check the new Limits vs. Requests, make sure Limits >= Requests
+	if err := checkLimitsRequests(container); err != nil {
+		glog.Errorf("Failed to check Limits Vs. Requests for container %v: %++v", fullName, spec)
+		return false, err
+	}
+
+	return flag, nil
+}
+
+/* make sure Capacity >= Request */
+func adjustRequests(container *k8sapi.Container, limits k8sapi.ResourceList) error {
 	zero := resource.NewQuantity(0, resource.BinarySI)
 	glog.V(4).Infof("zero=%++v", zero)
 
@@ -114,14 +202,15 @@ func genMemoryQuantity(newValue float64) (resource.Quantity, error) {
 	return result, nil
 }
 
-func resizeContainer(client *kclient.Clientset, pod *k8sapi.Pod, index int, capacity k8sapi.ResourceList, retryNum int) error {
+func resizeContainer(client *kclient.Clientset, pod *k8sapi.Pod, spec *containerResizeSpec, retryNum int) error {
+	index := spec.Index
 	id := fmt.Sprintf("%s/%s-%d", pod.Namespace, pod.Name, index)
 	glog.V(2).Infof("begin to resize Pod container[%s].", id)
 
-	podClient := client.CoreV1().Pods(pod.Namespace)
-	if podClient == nil {
-		err := fmt.Errorf("resizeContainer failed [%s]: cannot get Pod client for nameSpace:%v", id, pod.Namespace)
-		glog.Error(err)
+	// 0. get the latest Pod
+	var err error
+	if pod, err = autil.GetPod(client, pod.Namespace, pod.Name); err != nil {
+		glog.Errorf("Failed to get latest pod %v: %v", id, err)
 		return err
 	}
 
@@ -131,7 +220,7 @@ func resizeContainer(client *kclient.Clientset, pod *k8sapi.Pod, index int, capa
 	npod.Spec.NodeName = pod.Spec.NodeName
 
 	//2. update resource capacity
-	if flag, err := updateCapacity(npod, index, capacity); err != nil {
+	if flag, err := updateResourceAmount(npod, spec); err != nil {
 		glog.Errorf("resizeContainer failed [%s]: failed to update container Capacity: %v", id, err)
 		return err
 	} else if !flag {
@@ -141,9 +230,8 @@ func resizeContainer(client *kclient.Clientset, pod *k8sapi.Pod, index int, capa
 
 	//3. kill the original pod
 	grace := calcGracePeriod(pod)
-	delOption := &metav1.DeleteOptions{GracePeriodSeconds: &grace}
-	if err := podClient.Delete(pod.Name, delOption); err != nil {
-		err := fmt.Errorf("resizeContainer failed [%s]: failed to delete orginial pod: %v", id, err)
+	if err = autil.DeletePod(client, pod.Namespace, pod.Name, grace); err != nil {
+		err = fmt.Errorf("resizeContainer failed [%s]: failed to delete orginial pod: %v", id, err)
 		glog.Error(err)
 		return err
 	}
@@ -154,8 +242,8 @@ func resizeContainer(client *kclient.Clientset, pod *k8sapi.Pod, index int, capa
 
 	interval := defaultPodCreateSleep
 	timeout := interval*time.Duration(retryNum) + time.Second*10
-	err := util.RetryDuring(retryNum, timeout, interval, func() error {
-		_, inerr := podClient.Create(npod)
+	err = util.RetryDuring(retryNum, timeout, interval, func() error {
+		_, inerr := autil.CreatePod(client, npod)
 		return inerr
 	})
 	if err != nil {

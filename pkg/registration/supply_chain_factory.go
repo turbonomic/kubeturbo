@@ -89,6 +89,7 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 	nodeSupplyChainNodeBuilder = nodeSupplyChainNodeBuilder.
 		Sells(vCpuTemplateComm).
 		Sells(vMemTemplateComm).
+		Sells(vmpmAccessTemplateComm).
 		// TODO we will re-include provisioned commodities sold by node later.
 		//Sells(cpuProvisionedTemplateComm).
 		//Sells(memProvisionedTemplateComm)

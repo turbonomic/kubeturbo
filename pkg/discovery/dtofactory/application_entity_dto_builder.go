@@ -17,7 +17,6 @@ import (
 )
 
 const (
-	AppPrefix                  string  = "App-"
 	defaultTransactionCapacity float64 = 500.0
 )
 
@@ -73,7 +72,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 			//container := &(pod.Spec.Containers[i])
 			containerId := util.ContainerIdFunc(podId, i)
 			appId := util.ApplicationIdFunc(containerId)
-			displayName := AppPrefix + podFullName
+			displayName := util.ApplicationDisplayName(podFullName)
 
 			ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_APPLICATION, appId).
 				DisplayName(displayName)

@@ -2,6 +2,9 @@ package executor
 
 import (
 	"fmt"
+	"github.com/golang/glog"
+	"strings"
+
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	kclient "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
@@ -10,9 +13,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-
-	"github.com/golang/glog"
-	"strings"
 )
 
 type ReScheduler struct {
@@ -133,7 +133,7 @@ func (r *ReScheduler) getPodNode(action *proto.ActionItemDTO) (*api.Pod, *api.No
 
 	//2. get pod from k8s
 	target := action.GetTargetSE()
-	pod, err := util.GetPodFromUUID(r.kubeClient, target.GetId())
+	pod, err := util.GetPodFromDisplayName(r.kubeClient, target.GetDisplayName(), target.GetId())
 	if err != nil {
 		err = fmt.Errorf("Move Action aborted: failed to find pod(%v) in k8s: %v", target.GetDisplayName(), err)
 		glog.Errorf(err.Error())
