@@ -6,6 +6,14 @@ go:
 
 go_import_path: github.com/turbonomic/kubeturbo
 
+before_install:
+  - go get github.com/mattn/goveralls
+
+
+##TODO: goveralls is not compatible with -race for "go tip",
+#       so the 'make test' is still here. 
+#       Will remove 'make test' if the goveralls with -race can success  
 script:
   - make product
   - make test
+  - $HOME/gopath/bin/goveralls -v -service=travis-ci 
