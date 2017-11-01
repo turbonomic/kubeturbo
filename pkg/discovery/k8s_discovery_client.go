@@ -7,7 +7,6 @@ import (
 
 	kubeClient "k8s.io/client-go/kubernetes"
 
-	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
@@ -17,6 +16,8 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
 )
 
 const (
@@ -40,6 +41,7 @@ func NewDiscoveryConfig(kubeClient *kubeClient.Clientset, probeConfig *configs.P
 	}
 }
 
+// Implements the go sdk discovery client interface
 type K8sDiscoveryClient struct {
 	config *DiscoveryClientConfig
 
@@ -55,7 +57,7 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 
 	dispatcherConfig := worker.NewDispatcherConfig(config.k8sClusterScraper, config.probeConfig, workerCount)
 	dispatcher := worker.NewDispatcher(dispatcherConfig)
-	dispatcher.Init(resultCollector)
+	//TODO: dispatcher.Init(resultCollector) - moved to discoverWithNewFramework() after the cluster discovery is completed
 
 	dc := &K8sDiscoveryClient{
 		config:          config,
@@ -123,14 +125,30 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 }
 
 func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
-	nodes, err := dc.config.k8sClusterScraper.GetAllNodes()
+	// CREATE CLUSTER, NODES, NAMESPACES AND QUOTAS HERE
+	clusterProcessor := &processor.ClusterProcessor{
+				ClusterInfoScraper: dc.config.k8sClusterScraper,
+				}
+	kubeCluster, err := clusterProcessor.ProcessCluster()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get all nodes in the cluster: %s", err)
+		return nil, fmt.Errorf("Failed to process cluster: %s", err)
 	}
 
+	// Initialize the Dispatcher to create discovery workers
+	dc.dispatcher.Init(dc.resultCollector, kubeCluster)	//need to pass the cluster object to the discovery workers
+
+	nodes := kubeCluster.GetNodes()
 	workerCount := dc.dispatcher.Dispatch(nodes)
-	entityDTOs := dc.resultCollector.Collect(workerCount)
+	entityDTOs, quotaMetricsList := dc.resultCollector.Collect(workerCount)
+	fmt.Printf("EntityDTOs = %d, quota metrics = %d\n", len(entityDTOs), len(quotaMetricsList))
+
+	quotasDiscoveryWorker := worker.Newk8sResourceQuotasDiscoveryWorker(kubeCluster)
+	quotaDtos, _ := quotasDiscoveryWorker.Do(quotaMetricsList)
+
+	entityDTOs = append(entityDTOs, quotaDtos...)
+
 	glog.V(2).Infof("Discovery workers have finished discovery work with %d entityDTOs built. Now performing service discovery...", len(entityDTOs))
+	fmt.Printf("Updated number of entityDTOs = %d\n", len(entityDTOs))
 
 	// affinity process
 	glog.V(2).Infof("begin to process affinity.")
@@ -141,6 +159,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 	} else {
 		entityDTOs = affinityProcessor.ProcessAffinityRules(entityDTOs)
 	}
+
 
 	glog.V(2).Infof("begin to generate service EntityDTOs.")
 	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.config.k8sClusterScraper)

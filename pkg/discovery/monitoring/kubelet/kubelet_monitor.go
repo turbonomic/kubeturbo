@@ -127,7 +127,7 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 func (m *KubeletMonitor) parseNodeInfo(node *api.Node, machineInfo *cadvisorapi.MachineInfo) {
 	cpuFrequencyMHz := float64(machineInfo.CpuFrequency) / util.MegaToKilo
 	glog.V(4).Infof("node-%s cpuFrequency = %.2fMHz", node.Name, cpuFrequencyMHz)
-	cpuFrequencyMetric := metrics.NewEntityStateMetric(task.NodeType, util.NodeKeyFunc(node), metrics.CpuFrequency, cpuFrequencyMHz)
+	cpuFrequencyMetric := metrics.NewEntityStateMetric(metrics.NodeType, util.NodeKeyFunc(node), metrics.CpuFrequency, cpuFrequencyMHz)
 	m.metricSink.AddNewMetricEntries(cpuFrequencyMetric)
 }
 
@@ -140,7 +140,7 @@ func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats) {
 	key := util.NodeStatsKeyFunc(nodeStats)
 	glog.V(3).Infof("CPU usage of node %s is %.3f core", nodeStats.NodeName, cpuUsageCore)
 	glog.V(3).Infof("Memory usage of node %s is %.3f KB", nodeStats.NodeName, memoryUsageKiloBytes)
-	m.genUsedMetrics(task.NodeType, key, cpuUsageCore, memoryUsageKiloBytes)
+	m.genUsedMetrics(metrics.NodeType, key, cpuUsageCore, memoryUsageKiloBytes)
 }
 
 // Parse pod stats for every pod and put them into sink.
@@ -153,7 +153,8 @@ func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats) {
 		glog.V(4).Infof("Cpu usage of pod %s is %.3f core", key, cpuUsed)
 		glog.V(4).Infof("Memory usage of pod %s is %.3f Kb", key, memUsed)
 
-		m.genUsedMetrics(task.PodType, key, cpuUsed, memUsed)
+		//fmt.Printf("**** generated pod used metric %s cpuUsed=%f memUsed=%f\n", key, cpuUsed, memUsed)
+		m.genUsedMetrics(metrics.PodType, key, cpuUsed, memUsed)
 	}
 }
 
@@ -182,19 +183,19 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats) (float64, floa
 
 		//1. container Used
 		containerId := util.ContainerIdFunc(podId, i)
-		m.genUsedMetrics(task.ContainerType, containerId, cpuUsed, memUsed)
+		m.genUsedMetrics(metrics.ContainerType, containerId, cpuUsed, memUsed)
 
 		glog.V(4).Infof("container[%s-%s] cpu/memory usage:%.3f, %.3f", pod.PodRef.Name, container.Name, cpuUsed, memUsed)
 
 		//2. app Used
 		appId := util.ApplicationIdFunc(containerId)
-		m.genUsedMetrics(task.ApplicationType, appId, cpuUsed, memUsed)
+		m.genUsedMetrics(metrics.ApplicationType, appId, cpuUsed, memUsed)
 	}
 
 	return totalUsedCPU, totalUsedMem
 }
 
-func (m *KubeletMonitor) genUsedMetrics(etype task.DiscoveredEntityType, key string, cpu, memory float64) {
+func (m *KubeletMonitor) genUsedMetrics(etype metrics.DiscoveredEntityType, key string, cpu, memory float64) {
 	cpuMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPU, metrics.Used, cpu)
 	memMetric := metrics.NewEntityResourceMetric(etype, key, metrics.Memory, metrics.Used, memory)
 	m.metricSink.AddNewMetricEntries(cpuMetric, memMetric)

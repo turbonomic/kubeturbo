@@ -6,21 +6,15 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/pborman/uuid"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
-const (
-	ClusterType     DiscoveredEntityType = "Cluster"
-	NodeType        DiscoveredEntityType = "Node"
-	PodType         DiscoveredEntityType = "Pod"
-	ContainerType   DiscoveredEntityType = "Container"
-	ApplicationType DiscoveredEntityType = "Application"
-	ServiceType     DiscoveredEntityType = "Service"
 
+
+const (
 	TaskSucceeded TaskResultState = "Succeeded"
 	TaskFailed    TaskResultState = "Failed"
 )
-
-type DiscoveredEntityType string
 
 type Task struct {
 	uid string
@@ -66,8 +60,8 @@ type TaskResult struct {
 	workerID string
 	state    TaskResultState
 	err      error
-
 	content []*proto.EntityDTO
+	quotaMetrics []*repository.QuotaMetrics
 }
 
 func NewTaskResult(workerID string, state TaskResultState) *TaskResult {
@@ -85,6 +79,10 @@ func (r *TaskResult) Content() []*proto.EntityDTO {
 	return r.content
 }
 
+func (r *TaskResult) QuotaMetrics() []*repository.QuotaMetrics {
+	return r.quotaMetrics
+}
+
 func (r *TaskResult) Err() error {
 	return r.err
 }
@@ -96,5 +94,10 @@ func (r *TaskResult) WithErr(err error) *TaskResult {
 
 func (r *TaskResult) WithContent(entityDTOs []*proto.EntityDTO) *TaskResult {
 	r.content = entityDTOs
+	return r
+}
+
+func (r *TaskResult) WithQuotaMetrics(quotaMetrics []*repository.QuotaMetrics) *TaskResult {
+	r.quotaMetrics = quotaMetrics
 	return r
 }

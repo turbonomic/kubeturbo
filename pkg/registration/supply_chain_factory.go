@@ -14,6 +14,8 @@ var (
 	vMemType           proto.CommodityDTO_CommodityType = proto.CommodityDTO_VMEM
 	cpuProvisionedType proto.CommodityDTO_CommodityType = proto.CommodityDTO_CPU_PROVISIONED
 	memProvisionedType proto.CommodityDTO_CommodityType = proto.CommodityDTO_MEM_PROVISIONED
+	cpuAllocationType proto.CommodityDTO_CommodityType = proto.CommodityDTO_CPU_ALLOCATION
+	memAllocationType proto.CommodityDTO_CommodityType = proto.CommodityDTO_MEM_ALLOCATION
 	transactionType    proto.CommodityDTO_CommodityType = proto.CommodityDTO_TRANSACTION
 
 	clusterType    proto.CommodityDTO_CommodityType = proto.CommodityDTO_CLUSTER
@@ -24,8 +26,8 @@ var (
 
 	vCpuTemplateComm           *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vCpuType}
 	vMemTemplateComm           *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vMemType}
-	cpuProvisionedTemplateComm *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &cpuProvisionedType}
-	memProvisionedTemplateComm *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &memProvisionedType}
+	cpuAllocationTemplateComm *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &cpuAllocationType}
+	memAllocationTemplateComm *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &memAllocationType}
 	applicationTemplateComm    *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
 	clusterTemplateComm        *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
 	transactionTemplateComm    *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
@@ -56,6 +58,12 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 		return nil, err
 	}
 
+	// Resource Quota template
+	quotaSupplyChainNodeBuilder, err := f.buildQuotaSupplyBuilder()
+	if err != nil {
+		return nil, err
+	}
+
 	// Container suplly chain builder
 	containerSupplyChainNodeBuilder, err := f.buildContainer()
 	if err != nil {
@@ -79,9 +87,24 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	supplyChainBuilder.Entity(appSupplyChainNodeBuilder)
 	supplyChainBuilder.Entity(containerSupplyChainNodeBuilder)
 	supplyChainBuilder.Entity(podSupplyChainNodeBuilder)
+	supplyChainBuilder.Entity(quotaSupplyChainNodeBuilder)
 	supplyChainBuilder.Entity(nodeSupplyChainNodeBuilder)
 
+	dtos, _ := supplyChainBuilder.Create()
+	fmt.Printf("Supply chain DTOs =========> %++v\n", dtos)
 	return supplyChainBuilder.Create()
+}
+
+func (f *SupplyChainFactory) buildQuotaSupplyBuilder() (*proto.TemplateDTO, error) {
+	nodeSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_VIRTUAL_DATACENTER)
+	nodeSupplyChainNodeBuilder = nodeSupplyChainNodeBuilder.
+	Sells(cpuAllocationTemplateComm).
+		Sells(memAllocationTemplateComm).
+	Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
+		Buys(cpuAllocationTemplateComm).
+		Buys(memAllocationTemplateComm)
+
+	return nodeSupplyChainNodeBuilder.Create()
 }
 
 func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error) {
@@ -93,6 +116,8 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 		// TODO we will re-include provisioned commodities sold by node later.
 		//Sells(cpuProvisionedTemplateComm).
 		//Sells(memProvisionedTemplateComm)
+		Sells(cpuAllocationTemplateComm).
+		Sells(memAllocationTemplateComm).
 		Sells(clusterTemplateComm)
 
 	return nodeSupplyChainNodeBuilder.Create()
@@ -109,7 +134,10 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		// TODO we will re-include provisioned commodities bought by pod later.
 		//Buys(cpuProvisionedTemplateComm).
 		//Buys(memProvisionedTemplateComm).
-		Buys(clusterTemplateComm)
+		Buys(clusterTemplateComm).
+		Provider(proto.EntityDTO_VIRTUAL_DATACENTER, proto.Provider_LAYERED_OVER).
+		Buys(cpuAllocationTemplateComm).
+		Buys(memAllocationTemplateComm)
 
 	// Link from Pod to VM
 	vmPodExtLinkBuilder := supplychain.NewExternalEntityLinkBuilder()

@@ -9,6 +9,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 type ResultCollector struct {
@@ -26,8 +27,9 @@ func (rc *ResultCollector) ResultPool() chan *task.TaskResult {
 	return rc.resultPool
 }
 
-func (rc *ResultCollector) Collect(count int) []*proto.EntityDTO {
+func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository.QuotaMetrics) {
 	discoveryResult := []*proto.EntityDTO{}
+	quotaMetricsList := []*repository.QuotaMetrics{}
 	discoveryErrorString := []string{}
 
 	glog.V(2).Infof("Waiting for results from %d workers.", count)
@@ -45,6 +47,8 @@ func (rc *ResultCollector) Collect(count int) []*proto.EntityDTO {
 					discoveryErrorString = append(discoveryErrorString, err.Error())
 				} else {
 					discoveryResult = append(discoveryResult, result.Content()...)
+					quotaMetricsList = append(quotaMetricsList, result.QuotaMetrics()...)
+
 				}
 				wg.Done()
 			}
@@ -59,5 +63,5 @@ func (rc *ResultCollector) Collect(count int) []*proto.EntityDTO {
 		glog.Errorf("One or more discovery worker failed: %s", strings.Join(discoveryErrorString, "\t\t"))
 	}
 
-	return discoveryResult
+	return discoveryResult, quotaMetricsList
 }

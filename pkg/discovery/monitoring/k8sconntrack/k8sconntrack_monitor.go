@@ -172,15 +172,15 @@ func (m *K8sConntrackMonitor) parseTransactionData(pods []*api.Pod, podIPMap map
 					util.GetPodClusterID(pod), transactionUsedCount)
 
 				// application transaction used
-				appTransactionUsedCountMetrics := metrics.NewEntityResourceMetric(task.ApplicationType,
+				appTransactionUsedCountMetrics := metrics.NewEntityResourceMetric(metrics.ApplicationType,
 					util.PodKeyFunc(pod), metrics.Transaction, metrics.Used, transactionUsedCount)
 
 				// application transaction capacity
-				appTransactionCapacityCountMetrics := metrics.NewEntityResourceMetric(task.ApplicationType,
+				appTransactionCapacityCountMetrics := metrics.NewEntityResourceMetric(metrics.ApplicationType,
 					util.PodKeyFunc(pod), metrics.Transaction, metrics.Capacity,
 					defaultTransactionCapacity)
 
-				serviceTransactionUsedCountMetrics := metrics.NewEntityResourceMetric(task.ServiceType,
+				serviceTransactionUsedCountMetrics := metrics.NewEntityResourceMetric(metrics.ServiceType,
 					util.PodKeyFunc(pod), metrics.Transaction, metrics.Used, transactionUsedCount)
 
 				// service transaction used
@@ -198,14 +198,14 @@ func (m *K8sConntrackMonitor) parseTransactionData(pods []*api.Pod, podIPMap map
 	// TODO for now, if we don't find transaction value for a pod, we assign it to 0.
 	for pod := range runningPodSet {
 		glog.V(4).Infof("Assign 0 transaction to pod %s", util.GetPodClusterID(pod))
-		podTransactionUsedCountMetrics := metrics.NewEntityResourceMetric(task.ApplicationType,
+		podTransactionUsedCountMetrics := metrics.NewEntityResourceMetric(metrics.ApplicationType,
 			util.PodKeyFunc(pod), metrics.Transaction, metrics.Used, zeroTransactionUsed)
 
-		podTransactionCapacityCountMetrics := metrics.NewEntityResourceMetric(task.ApplicationType,
+		podTransactionCapacityCountMetrics := metrics.NewEntityResourceMetric(metrics.ApplicationType,
 			util.PodKeyFunc(pod), metrics.Transaction, metrics.Capacity,
 			defaultTransactionCapacity)
 
-		serviceTransactionUsedCountMetrics := metrics.NewEntityResourceMetric(task.ServiceType,
+		serviceTransactionUsedCountMetrics := metrics.NewEntityResourceMetric(metrics.ServiceType,
 			util.PodKeyFunc(pod), metrics.Transaction, metrics.Used, zeroTransactionUsed)
 
 		m.metricSink.AddNewMetricEntries(podTransactionUsedCountMetrics,

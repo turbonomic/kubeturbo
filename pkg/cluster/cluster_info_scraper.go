@@ -40,6 +40,34 @@ func NewClusterInfoScraper(kubeConfig *restclient.Config) (*ClusterScraper, erro
 	}, nil
 }
 
+func (s *ClusterScraper) GetNamespaces() ([]*api.Namespace, error){
+	namespaceList, err := s.Core().Namespaces().List(metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list all namespaces in the cluster: %s", err)
+	}
+	fmt.Printf("There are %d namespaces\n", len(namespaceList.Items))
+	namespaces := make([]*api.Namespace, len(namespaceList.Items))
+	for i := 0; i < len(namespaceList.Items); i++ {
+		namespaces[i] = &namespaceList.Items[i]
+	}
+	return namespaces, nil
+}
+
+func (s *ClusterScraper) GetResourceQuotas() ([]*api.ResourceQuota, error){
+	namespace := api.NamespaceAll
+	quotaList, err := s.Core().ResourceQuotas(namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list all quotas in the cluster: %s", err)
+	}
+	fmt.Printf("There are %d resource quotas\n", len(quotaList.Items))
+	quotas := make([]*api.ResourceQuota, len(quotaList.Items))
+	for i := 0; i < len(quotaList.Items); i++ {
+		quotas[i] = &quotaList.Items[i]
+	}
+	return quotas, nil
+}
+
+
 func (s *ClusterScraper) GetAllNodes() ([]*api.Node, error) {
 	listOption := metav1.ListOptions{
 		LabelSelector: labelSelectEverything,
@@ -130,6 +158,8 @@ func (s *ClusterScraper) GetKubernetesServiceID() (svcID string, err error) {
 	svcID = string(svc.UID)
 	return
 }
+
+
 
 func (s *ClusterScraper) GetRunningPodsOnNodes(nodeList []*api.Node) []*api.Pod {
 	pods := []*api.Pod{}

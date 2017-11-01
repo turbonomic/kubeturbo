@@ -2,7 +2,6 @@ package dtofactory
 
 import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -19,6 +18,8 @@ var (
 		metrics.CPUProvisioned:    proto.CommodityDTO_CPU_PROVISIONED,
 		metrics.MemoryProvisioned: proto.CommodityDTO_MEM_PROVISIONED,
 		metrics.Transaction:       proto.CommodityDTO_TRANSACTION,
+		metrics.CPULimit:	   proto.CommodityDTO_CPU_ALLOCATION,
+		metrics.MemoryLimit:	   proto.CommodityDTO_MEM_ALLOCATION,
 	}
 )
 
@@ -98,7 +99,7 @@ func newGeneralBuilder(sink *metrics.EntityMetricSink) generalBuilder {
 }
 
 // TODO cpuFrequency is passed in as a parameter. We need special handling for cpu related metric as the value collected by Kubernetes is in number of cores. We need to convert it to MHz.
-func (builder generalBuilder) getResourceCommoditiesSold(entityType task.DiscoveredEntityType, entityID string,
+func (builder generalBuilder) getResourceCommoditiesSold(entityType metrics.DiscoveredEntityType, entityID string,
 	resourceTypesList []metrics.ResourceType, converter *converter, commodityAttrSetter *attributeSetter) ([]*proto.CommodityDTO, error) {
 
 	var resourceCommoditiesSold []*proto.CommodityDTO
@@ -156,7 +157,7 @@ func (builder generalBuilder) getResourceCommoditiesSold(entityType task.Discove
 	return resourceCommoditiesSold, nil
 }
 
-func (builder generalBuilder) getResourceCommoditiesBought(entityType task.DiscoveredEntityType, entityID string,
+func (builder generalBuilder) getResourceCommoditiesBought(entityType metrics.DiscoveredEntityType, entityID string,
 	resourceTypesList []metrics.ResourceType, converter *converter, commodityAttrSetter *attributeSetter) ([]*proto.CommodityDTO, error) {
 	var resourceCommoditiesSold []*proto.CommodityDTO
 	for _, rType := range resourceTypesList {

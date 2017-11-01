@@ -102,7 +102,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFrameworkWithoutCompliance() ([]*pr
 	}
 
 	workerCount := dc.dispatcher.Dispatch(nodes)
-	entityDTOs := dc.resultCollector.Collect(workerCount)
+	entityDTOs, _ := dc.resultCollector.Collect(workerCount)
 	glog.V(3).Infof("Discovery workers have finished discovery work with %d entityDTOs built. Now performing service discovery...", len(entityDTOs))
 
 	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.config.k8sClusterScraper)
