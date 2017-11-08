@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/turbonomic/kubeturbo/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	client "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
@@ -15,6 +16,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/labels"
 	"strings"
 )
 
@@ -372,6 +374,7 @@ func GetPodGrandInfo(kclient *client.Clientset, pod *api.Pod) (string, string, e
 		}
 
 		//2.2 get parent's parent info by parsing ownerReferences:
+		// TODO: The ownerReferences of ReplicaSet is supported only in 1.6.0 and afetr
 		if rs.OwnerReferences != nil && len(rs.OwnerReferences) > 0 {
 			gkind, gname := parseOwnerReferences(rs.OwnerReferences)
 			if len(gkind) > 0 && len(gname) > 0 {
@@ -381,4 +384,133 @@ func GetPodGrandInfo(kclient *client.Clientset, pod *api.Pod) (string, string, e
 	}
 
 	return kind, name, nil
+}
+
+// Updates replica of a controller.
+// Currently, it supports replication controllers, replica sets, and deployments
+func UpdateReplicas(kubeClient *client.Clientset, namespace, contName, contKind string, newReplicas int) error {
+	newValue := int32(newReplicas)
+	switch contKind {
+	case util.KindReplicationController:
+		cont, err := kubeClient.CoreV1().ReplicationControllers(namespace).Get(contName, metav1.GetOptions{})
+		if err != nil {
+			glog.Errorf("Get %s failed: %v", contKind, err)
+			return err
+		}
+		cont.Spec.Replicas = &newValue
+
+		_, err = kubeClient.CoreV1().ReplicationControllers(namespace).Update(cont)
+		return err
+	case util.KindReplicaSet:
+		cont, err := kubeClient.ExtensionsV1beta1().ReplicaSets(namespace).Get(contName, metav1.GetOptions{})
+		if err != nil {
+			glog.Errorf("Get %s failed: %v", contKind, err)
+			return err
+		}
+		cont.Spec.Replicas = &newValue
+
+		_, err = kubeClient.ExtensionsV1beta1().ReplicaSets(namespace).Update(cont)
+		return err
+	case util.KindDeployment:
+		cont, err := kubeClient.ExtensionsV1beta1().Deployments(namespace).Get(contName, metav1.GetOptions{})
+		if err != nil {
+			glog.Errorf("Get %s failed: %v", contKind, err)
+			return err
+		}
+		cont.Spec.Replicas = &newValue
+
+		_, err = kubeClient.ExtensionsV1beta1().Deployments(namespace).Update(cont)
+		return err
+	default:
+		return fmt.Errorf("unsupported kind: %s", contKind)
+	}
+}
+
+// Gets status of replicas and ready replicas of a controller.
+// Currently, it supports replication controllers, replica sets, and deployments
+func GetReplicaStatus(kubeClient *client.Clientset, namespace, contName, contKind string) (int, int, error) {
+	switch contKind {
+	case util.KindReplicationController:
+		if cont, err := kubeClient.CoreV1().ReplicationControllers(namespace).Get(contName, metav1.GetOptions{}); err != nil {
+			glog.Errorf("Get %s failed: %v", contKind, err)
+			return 0, 0, err
+		} else {
+			return int(cont.Status.Replicas), int(cont.Status.ReadyReplicas), nil
+		}
+	case util.KindReplicaSet:
+		if cont, err := kubeClient.ExtensionsV1beta1().ReplicaSets(namespace).Get(contName, metav1.GetOptions{}); err != nil {
+			glog.Errorf("Get %s failed: %v", contKind, err)
+			return 0, 0, err
+		} else {
+			return int(cont.Status.Replicas), int(cont.Status.ReadyReplicas), nil
+		}
+	case util.KindDeployment:
+		if cont, err := kubeClient.ExtensionsV1beta1().Deployments(namespace).Get(contName, metav1.GetOptions{}); err != nil {
+			glog.Errorf("Get %s failed: %v", contKind, err)
+			return 0, 0, err
+		} else {
+			return int(cont.Status.Replicas), int(cont.Status.ReadyReplicas), nil
+		}
+	default:
+		return 0, 0, fmt.Errorf("unsupported kind: %s", contKind)
+	}
+}
+
+func getSelectorFromController(kubeClient *client.Clientset, namespace, contName, contKind string) (map[string]string, error) {
+	switch contKind {
+	case util.KindReplicationController:
+		if cont, err := kubeClient.CoreV1().ReplicationControllers(namespace).Get(contName, metav1.GetOptions{}); err != nil {
+			glog.Errorf("Get %s failed: %v", contKind, err)
+			return nil, err
+		} else {
+			return cont.Spec.Selector, nil
+		}
+	case util.KindReplicaSet:
+		if cont, err := kubeClient.ExtensionsV1beta1().ReplicaSets(namespace).Get(contName, metav1.GetOptions{}); err != nil {
+			glog.Errorf("Get %s failed: %v", contKind, err)
+			return nil, err
+		} else {
+			return cont.Spec.Selector.MatchLabels, nil
+		}
+	case util.KindDeployment:
+		if cont, err := kubeClient.ExtensionsV1beta1().Deployments(namespace).Get(contName, metav1.GetOptions{}); err != nil {
+			glog.Errorf("Get %s failed: %v", contKind, err)
+			return nil, err
+		} else {
+			return cont.Spec.Selector.MatchLabels, nil
+		}
+	default:
+		return nil, fmt.Errorf("unsupported kind: %s", contKind)
+	}
+}
+
+// Finds all child pods of a controller.
+// Currently, it supports replication controllers, replica sets, and deployments
+func FindPodsByController(kubeClient *client.Clientset, namespace, contName, contKind string) ([]*api.Pod, error) {
+	selector, err := getSelectorFromController(kubeClient, namespace, contName, contKind)
+	if err != nil {
+		return nil, err
+	}
+
+	// Finds all pods with the labels of the controller
+	podList, err := kubeClient.CoreV1().Pods(namespace).List(metav1.ListOptions{
+		LabelSelector: labels.Set(selector).AsSelector().String(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error getting all pods by %s %s/%s: %s", contKind, namespace, contName, err)
+	}
+
+	pods := []*api.Pod{}
+
+	for i := range podList.Items {
+		pod := &(podList.Items[i])
+		_, name, err := GetPodParentInfo(pod)
+		if err != nil {
+			continue
+		}
+		if name == contName {
+			pods = append(pods, pod)
+		}
+	}
+	return pods, nil
 }

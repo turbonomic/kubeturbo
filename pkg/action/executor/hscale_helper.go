@@ -5,7 +5,8 @@ import (
 	"github.com/golang/glog"
 	"time"
 
-	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	autil "github.com/turbonomic/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "k8s.io/client-go/kubernetes"
 )
@@ -27,7 +28,7 @@ type scaleHelper struct {
 	updateReplicaNum updateReplicaNumFunc
 
 	//concurrent control lock.map
-	locker *util.LockHelper
+	locker *autil.LockHelper
 	key    string
 }
 
@@ -46,11 +47,11 @@ func (helper *scaleHelper) SetParent(kind, name string) error {
 	helper.controllerName = name
 
 	switch kind {
-	case kindReplicationController:
+	case util.KindReplicationController:
 		helper.updateReplicaNum = updateRCReplicaNum
-	case kindReplicaSet:
+	case util.KindReplicaSet:
 		helper.updateReplicaNum = updateRSReplicaNum
-	case kindDeployment:
+	case util.KindDeployment:
 		helper.updateReplicaNum = updateDeploymentReplicaNum
 	default:
 		err := fmt.Errorf("Unsupport ControllerType[%s] for scaling Pod.", kind)
@@ -61,14 +62,14 @@ func (helper *scaleHelper) SetParent(kind, name string) error {
 	return nil
 }
 
-func (helper *scaleHelper) SetupLock(emap *util.ExpirationMap) error {
+func (helper *scaleHelper) SetupLock(emap *autil.ExpirationMap) error {
 	helper.key = fmt.Sprintf("%s-%s-%s", helper.kind, helper.nameSpace, helper.controllerName)
 	if emap.GetTTL() < time.Second*2 {
 		err := fmt.Errorf("TTL of concurrent control map should be larger than 2 seconds.")
 		glog.Error(err.Error())
 		return err
 	}
-	helper.locker, _ = util.NewLockHelper(helper.key, emap)
+	helper.locker, _ = autil.NewLockHelper(helper.key, emap)
 	return nil
 }
 
