@@ -218,7 +218,15 @@ func GetPodFromUUID(kubeClient *client.Clientset, podUUID string) (*api.Pod, err
 //      if serviceEntity is a container, then displayName is "namespace/podName/containerName";
 // uuid is the pod's UUID
 // Note: displayName for application is "App-namespace/podName", the pods info can be got by the provider's displayname
-func GetPodFromDisplayName(kclient *client.Clientset, displayname, uuid string) (*api.Pod, error) {
+func GetPodFromDisplayNameOrUUID(kclient *client.Clientset, displayname, uuid string) (*api.Pod, error) {
+	if pod, err := getaPodFromDisplayName(kclient, displayname, uuid); err == nil {
+		return pod, err
+	}
+
+	return GetPodFromUUID(kclient, uuid)
+}
+
+func getaPodFromDisplayName(kclient *client.Clientset, displayname, uuid string) (*api.Pod, error) {
 	sep := "/"
 	items := strings.Split(displayname, sep)
 	if len(items) < 2 {
@@ -260,8 +268,7 @@ func GetPodFromDisplayName(kclient *client.Clientset, displayname, uuid string) 
 		return pod, nil
 	}
 
-	//5. finally, try to get the Pod by UUID
-	return GetPodFromUUID(kclient, uuid)
+	return nil, fmt.Errorf("Failed getting pod from DisplayName %s", displayname)
 }
 
 // Find which pod is the app running based on the received action request.

@@ -133,7 +133,7 @@ func (r *ReScheduler) getPodNode(action *proto.ActionItemDTO) (*api.Pod, *api.No
 
 	//2. get pod from k8s
 	target := action.GetTargetSE()
-	pod, err := util.GetPodFromDisplayName(r.kubeClient, target.GetDisplayName(), target.GetId())
+	pod, err := util.GetPodFromDisplayNameOrUUID(r.kubeClient, target.GetDisplayName(), target.GetId())
 	if err != nil {
 		err = fmt.Errorf("Move Action aborted: failed to find pod(%v) in k8s: %v", target.GetDisplayName(), err)
 		glog.Errorf(err.Error())

@@ -180,7 +180,7 @@ func (r *ContainerResizer) buildResizeAction(actionItem *proto.ActionItemDTO) (*
 	}
 
 	// the displayName is "namespace/podName"
-	pod, err := util.GetPodFromDisplayName(r.kubeClient, podEntity.GetDisplayName(), podId)
+	pod, err := util.GetPodFromDisplayNameOrUUID(r.kubeClient, podEntity.GetDisplayName(), podId)
 	if err != nil {
 		glog.Errorf("failed to get hosting Pod to build resizeAction: %v", err)
 		return nil, nil, err
