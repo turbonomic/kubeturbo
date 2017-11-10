@@ -425,7 +425,7 @@ func TestAddCommodityBought(t *testing.T) {
 						}
 					}
 					if !found {
-						t.Errorf("Test case %d failed: didn't find the expected provider %s", i, item.provider)
+						t.Errorf("Test case %d failed: didn't find the expected provider %v", i, item.provider)
 					}
 				}
 			}

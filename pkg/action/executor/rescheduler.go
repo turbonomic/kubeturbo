@@ -133,7 +133,7 @@ func (r *ReScheduler) getPodNode(action *proto.ActionItemDTO) (*api.Pod, *api.No
 
 	//2. get pod from k8s
 	target := action.GetTargetSE()
-	pod, err := util.GetPodFromDisplayName(r.kubeClient, target.GetDisplayName(), target.GetId())
+	pod, err := util.GetPodFromDisplayNameOrUUID(r.kubeClient, target.GetDisplayName(), target.GetId())
 	if err != nil {
 		err = fmt.Errorf("Move Action aborted: failed to find pod(%v) in k8s: %v", target.GetDisplayName(), err)
 		glog.Errorf(err.Error())
@@ -242,6 +242,22 @@ func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, no
 		glog.V(3).Infof("Move pod[%s] failed: Failed to acuire lock parent[%s]", pod.Name, parentName)
 		return nil, err
 	}
+
+	// Performs operations for actions to be non-disruptive (when the pod is the only one for the controller)
+	// NOTE: It doesn't support the case of the pod associated to Deployment in version lower than 1.6.0.
+	//       In such case, the action execution will fail.
+	contKind, contName, err := util.GetPodGrandInfo(r.kubeClient, pod)
+	nonDisruptiveHelper := NewNonDisruptiveHelper(r.kubeClient, pod.Namespace, contKind, contName, pod.Name)
+
+	// Performs operations for non-disruptive move actions
+	if err := nonDisruptiveHelper.OperateForNonDisruption(); err != nil {
+		glog.V(3).Infof("Move pod[%s] failed: Failed to perform non-disruptive operations", pod.Name)
+		return nil, err
+	}
+
+	// Performs cleanup for non-disruptive move actions
+	defer nonDisruptiveHelper.CleanUp()
+
 	defer func() {
 		helper.CleanUp()
 		util.CleanPendingPod(r.kubeClient, pod.Namespace, noexist, parentKind, parentName, highver)
@@ -278,7 +294,7 @@ func (r *ReScheduler) moveBarePod(pod *api.Pod, nodeName string) (*api.Pod, erro
 	interval := defaultWaitLockSleep
 	err = helper.Trylock(timeout, interval)
 	if err != nil {
-		glog.Errorf("move pod[%s] failed: failed to acquire lock of pod[%s]", podkey)
+		glog.Errorf("move pod[%s] failed: failed to acquire lock of pod[%s]", podkey, podkey)
 		return nil, err
 	}
 	defer helper.ReleaseLock()

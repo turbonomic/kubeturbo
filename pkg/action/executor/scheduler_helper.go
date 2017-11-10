@@ -54,14 +54,14 @@ func NewSchedulerHelper(client *kclient.Clientset, nameSpace, name, kind, parent
 	}
 
 	switch p.kind {
-	case kindReplicationController:
+	case util.KindReplicationController:
 		p.getSchedulerName = autil.GetRCschedulerName
 		p.updateSchedulerName = autil.UpdateRCscheduler
 		if !highver {
 			p.getSchedulerName = autil.GetRCschedulerName15
 			p.updateSchedulerName = autil.UpdateRCscheduler15
 		}
-	case kindReplicaSet:
+	case util.KindReplicaSet:
 		p.getSchedulerName = autil.GetRSschedulerName
 		p.updateSchedulerName = autil.UpdateRSscheduler
 		if !highver {

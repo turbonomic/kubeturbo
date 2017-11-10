@@ -46,7 +46,7 @@ func TestParseContainerId(t *testing.T) {
 		}
 
 		if podId != test.podId || index != test.index {
-			t.Error("mismatch: [%s, %d] Vs. [%s, %d]", podId, index, test.podId, test.index)
+			t.Errorf("mismatch: [%s, %d] Vs. [%s, %d]", podId, index, test.podId, test.index)
 		}
 	}
 }
@@ -62,7 +62,7 @@ func TestParseContainerID2(t *testing.T) {
 	}
 
 	if podId != expectPodId || index != expectIndex {
-		t.Error("mismatch: [%s, %d] Vs. [%s, %d]", podId, index, expectPodId, expectIndex)
+		t.Errorf("mismatch: [%s, %d] Vs. [%s, %d]", podId, index, expectPodId, expectIndex)
 	}
 
 	//2. bad
