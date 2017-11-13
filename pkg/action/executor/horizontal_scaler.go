@@ -222,7 +222,7 @@ func (h *HorizontalScaler) getProviderPod_hard(action *proto.ActionItemDTO) (*ap
 		return nil, err
 	}
 
-	return util.GetPodFromDisplayName(h.kubeClient, displayName, podId)
+	return util.GetPodFromDisplayNameOrUUID(h.kubeClient, displayName, podId)
 }
 
 // getProviderPod, "easy" means that we will get Pod info from Entity properties

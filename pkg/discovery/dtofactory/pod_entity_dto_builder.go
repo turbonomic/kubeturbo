@@ -96,7 +96,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		providerNodeUID, exist := builder.nodeNameUIDMap[pod.Spec.NodeName]
 		if !exist {
 			glog.Errorf("Error when create commoditiesBought for pod %s: Cannot find uuid for provider "+
-				"node.", displayName, err)
+				"node.", displayName)
 			continue
 		}
 		provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, providerNodeUID)
@@ -240,7 +240,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 	clusterMetricUID := metrics.GenerateEntityStateMetricUID(metrics.ClusterType, "", metrics.Cluster)
 	clusterInfo, err := builder.metricsSink.GetMetric(clusterMetricUID)
 	if err != nil {
-		glog.Errorf("Failed to get %s used for current Kubernetes Cluster%s", metrics.Cluster)
+		glog.Errorf("Failed to get %s used for current Kubernetes Cluster %s", metrics.Cluster, clusterInfo)
 	} else {
 		clusterCommodityKey, ok := clusterInfo.GetValue().(string)
 		if !ok {

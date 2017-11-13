@@ -175,7 +175,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 	clusterMetricUID := metrics.GenerateEntityStateMetricUID(metrics.ClusterType, "", metrics.Cluster)
 	clusterInfo, err := builder.metricsSink.GetMetric(clusterMetricUID)
 	if err != nil {
-		glog.Errorf("Failed to get %s used for current Kubernetes Cluster%s", metrics.Cluster)
+		glog.Errorf("Failed to get %s used for current Kubernetes Cluster %s", metrics.Cluster, clusterInfo)
 	} else {
 		clusterCommodityKey, ok := clusterInfo.GetValue().(string)
 		if !ok {

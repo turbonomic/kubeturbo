@@ -11,21 +11,23 @@ const (
 	podDeletionGracePeriodMax int64 = 0
 
 	DefaultNoneExistSchedulerName = "turbo-none-exist-scheduler"
-	kindReplicationController     = "ReplicationController"
-	kindReplicaSet                = "ReplicaSet"
-	kindDeployment                = "Deployment"
 
 	HigherK8sVersion = "1.6.0"
 
-	defaultRetryLess int = 3
-	defaultRetryMore int = 6
+	defaultRetryLess = 3
+	defaultRetryMore = 6
 
 	defaultWaitLockTimeOut = time.Second * 300
 	defaultWaitLockSleep   = time.Second * 10
 
-	defaultPodCreateSleep       = time.Second * 30
-	defaultUpdateSchedulerSleep = time.Second * 20
-	defaultCheckSchedulerSleep  = time.Second * 5
-	defaultUpdateReplicaSleep   = time.Second * 20
-	defaultMoreGrace            = time.Second * 20
+	defaultPodCreateSleep            = time.Second * 30
+	defaultUpdateSchedulerSleep      = time.Second * 20
+	defaultCheckSchedulerSleep       = time.Second * 5
+	defaultCheckUpdateReplicaSleep   = time.Second * 5
+	defaultCheckUpdateReplicaTimeout = time.Second * 180
+	defaultCheckUpdateReplicaRetry   = 36
+	defaultUpdateReplicaSleep        = time.Second * 20
+	defaultUpdateReplicaTimeout      = time.Second * 180
+	defaultUpdateReplicaRetry        = 10
+	defaultMoreGrace                 = time.Second * 20
 )
