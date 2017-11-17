@@ -8,7 +8,7 @@ Create a file called `config`, with the following contents:
 
 > The `<TURBONOMIC_SERVER_URL>` is typically `https://<TURBO_SERVER_IP>:443`
 
-> The `<TURBONOMIC_SERVER_VERSION>` is Turbonomic release version, e.g. `6.0`
+> The `<TURBONOMIC_SERVER_VERSION>` is Turbonomic release version, e.g. `6.0.0`
 
 ```json
 {
