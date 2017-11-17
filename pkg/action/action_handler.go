@@ -36,16 +36,20 @@ type ActionHandlerConfig struct {
 	k8sVersion        string
 	noneSchedulerName string
 	stitchType        stitching.StitchingPropertyType
+
+	// Flag for supporting non-disruptive action
+	disableNonDisruptiveSupport bool
 }
 
-func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubelet.KubeletClient, k8sVersion, noneSchedulerName string, stype stitching.StitchingPropertyType) *ActionHandlerConfig {
+func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubelet.KubeletClient, k8sVersion, noneSchedulerName string, stype stitching.StitchingPropertyType, disableNonDisruptiveSupport bool) *ActionHandlerConfig {
 	config := &ActionHandlerConfig{
 		kubeClient:    kubeClient,
 		kubeletClient: kubeletClient,
 
-		k8sVersion:        k8sVersion,
-		noneSchedulerName: noneSchedulerName,
-		stitchType:        stype,
+		k8sVersion:                  k8sVersion,
+		noneSchedulerName:           noneSchedulerName,
+		stitchType:                  stype,
+		disableNonDisruptiveSupport: disableNonDisruptiveSupport,
 
 		StopEverything: make(chan struct{}),
 	}
@@ -80,14 +84,14 @@ func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 // As action executor is stateless, they can be safely reused.
 func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
-	reScheduler := executor.NewReScheduler(c.kubeClient, c.k8sVersion, c.noneSchedulerName, h.lockMap, c.stitchType)
+	reScheduler := executor.NewReScheduler(c.kubeClient, c.k8sVersion, c.noneSchedulerName, h.lockMap, c.stitchType, c.disableNonDisruptiveSupport)
 	h.actionExecutors[turboActionMove] = reScheduler
 
 	horizontalScaler := executor.NewHorizontalScaler(c.kubeClient, h.lockMap)
 	h.actionExecutors[turboActionProvision] = horizontalScaler
 	h.actionExecutors[turboActionUnbind] = horizontalScaler
 
-	containerResizer := executor.NewContainerResizer(c.kubeClient, c.kubeletClient, c.k8sVersion, c.noneSchedulerName, h.lockMap)
+	containerResizer := executor.NewContainerResizer(c.kubeClient, c.kubeletClient, c.k8sVersion, c.noneSchedulerName, h.lockMap, c.disableNonDisruptiveSupport)
 	h.actionExecutors[turboActionContainerResize] = containerResizer
 }
 

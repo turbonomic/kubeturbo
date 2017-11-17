@@ -20,17 +20,19 @@ type ReScheduler struct {
 	k8sVersion        string
 	noneSchedulerName string
 	stitchType        stitching.StitchingPropertyType
+	disableNonDisruptiveSupport bool
 
 	lockMap *util.ExpirationMap
 }
 
-func NewReScheduler(client *kclient.Clientset, k8sver, noschedulerName string, lmap *util.ExpirationMap, stype stitching.StitchingPropertyType) *ReScheduler {
+func NewReScheduler(client *kclient.Clientset, k8sver, noschedulerName string, lmap *util.ExpirationMap, stype stitching.StitchingPropertyType, disableNonDisruptiveSupport bool) *ReScheduler {
 	return &ReScheduler{
 		kubeClient:        client,
 		k8sVersion:        k8sver,
 		noneSchedulerName: noschedulerName,
 		lockMap:           lmap,
 		stitchType:        stype,
+		disableNonDisruptiveSupport: disableNonDisruptiveSupport,
 	}
 }
 
@@ -243,20 +245,25 @@ func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, no
 		return nil, err
 	}
 
-	// Performs operations for actions to be non-disruptive (when the pod is the only one for the controller)
-	// NOTE: It doesn't support the case of the pod associated to Deployment in version lower than 1.6.0.
-	//       In such case, the action execution will fail.
-	contKind, contName, err := util.GetPodGrandInfo(r.kubeClient, pod)
-	nonDisruptiveHelper := NewNonDisruptiveHelper(r.kubeClient, pod.Namespace, contKind, contName, pod.Name)
+	if !r.disableNonDisruptiveSupport {
+		// Performs operations for actions to be non-disruptive (when the pod is the only one for the controller)
+		// NOTE: It doesn't support the case of the pod associated to Deployment in version lower than 1.6.0.
+		//       In such case, the action execution will fail.
+		contKind, contName, err := util.GetPodGrandInfo(r.kubeClient, pod)
+		if err != nil {
+			return nil, err
+		}
+		nonDisruptiveHelper := NewNonDisruptiveHelper(r.kubeClient, pod.Namespace, contKind, contName, pod.Name)
 
-	// Performs operations for non-disruptive move actions
-	if err := nonDisruptiveHelper.OperateForNonDisruption(); err != nil {
-		glog.V(3).Infof("Move pod[%s] failed: Failed to perform non-disruptive operations", pod.Name)
-		return nil, err
+		// Performs operations for non-disruptive move actions
+		if err := nonDisruptiveHelper.OperateForNonDisruption(); err != nil {
+			glog.V(3).Infof("Move pod[%s] failed: Failed to perform non-disruptive operations", pod.Name)
+			return nil, err
+		}
+
+		// Performs cleanup for non-disruptive move actions
+		defer nonDisruptiveHelper.CleanUp()
 	}
-
-	// Performs cleanup for non-disruptive move actions
-	defer nonDisruptiveHelper.CleanUp()
 
 	defer func() {
 		helper.CleanUp()
