@@ -511,7 +511,8 @@ func FindPodsByController(kubeClient *client.Clientset, namespace, contName, con
 
 	for i := range podList.Items {
 		pod := &(podList.Items[i])
-		_, name, err := GetPodParentInfo(pod)
+		_, name, err := GetPodGrandInfo(kubeClient, pod)
+
 		if err != nil {
 			continue
 		}

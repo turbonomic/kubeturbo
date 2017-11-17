@@ -31,10 +31,10 @@ type containerResizeSpec struct {
 }
 
 type ContainerResizer struct {
-	kubeClient        *kclient.Clientset
-	kubeletClient     *kubelet.KubeletClient
-	k8sVersion        string
-	noneSchedulerName string
+	kubeClient                  *kclient.Clientset
+	kubeletClient               *kubelet.KubeletClient
+	k8sVersion                  string
+	noneSchedulerName           string
 	disableNonDisruptiveSupport bool
 
 	spec *containerResizeSpec
@@ -52,12 +52,12 @@ func NewContainerResizeSpec(idx int) *containerResizeSpec {
 
 func NewContainerResizer(client *kclient.Clientset, kubeletClient *kubelet.KubeletClient, k8sver, noschedulerName string, lmap *util.ExpirationMap, disableNonDisruptiveSupport bool) *ContainerResizer {
 	return &ContainerResizer{
-		kubeClient:        client,
-		kubeletClient:     kubeletClient,
-		k8sVersion:        k8sver,
-		noneSchedulerName: noschedulerName,
+		kubeClient:                  client,
+		kubeletClient:               kubeletClient,
+		k8sVersion:                  k8sver,
+		noneSchedulerName:           noschedulerName,
 		disableNonDisruptiveSupport: disableNonDisruptiveSupport,
-		lockMap:           lmap,
+		lockMap:                     lmap,
 	}
 }
 
@@ -301,7 +301,7 @@ func (r *ContainerResizer) resizeControllerContainer(pod *k8sapi.Pod, parentKind
 		if err != nil {
 			return err
 		}
-		nonDisruptiveHelper := NewNonDisruptiveHelper(r.kubeClient, pod.Namespace, contKind, contName, pod.Name)
+		nonDisruptiveHelper := NewNonDisruptiveHelper(r.kubeClient, pod.Namespace, contKind, contName, pod.Name, r.k8sVersion)
 
 		// Performs operations for non-disruptive resize actions
 		if err := nonDisruptiveHelper.OperateForNonDisruption(); err != nil {

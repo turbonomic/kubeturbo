@@ -16,10 +16,10 @@ import (
 )
 
 type ReScheduler struct {
-	kubeClient        *kclient.Clientset
-	k8sVersion        string
-	noneSchedulerName string
-	stitchType        stitching.StitchingPropertyType
+	kubeClient                  *kclient.Clientset
+	k8sVersion                  string
+	noneSchedulerName           string
+	stitchType                  stitching.StitchingPropertyType
 	disableNonDisruptiveSupport bool
 
 	lockMap *util.ExpirationMap
@@ -27,11 +27,11 @@ type ReScheduler struct {
 
 func NewReScheduler(client *kclient.Clientset, k8sver, noschedulerName string, lmap *util.ExpirationMap, stype stitching.StitchingPropertyType, disableNonDisruptiveSupport bool) *ReScheduler {
 	return &ReScheduler{
-		kubeClient:        client,
-		k8sVersion:        k8sver,
-		noneSchedulerName: noschedulerName,
-		lockMap:           lmap,
-		stitchType:        stype,
+		kubeClient:                  client,
+		k8sVersion:                  k8sver,
+		noneSchedulerName:           noschedulerName,
+		lockMap:                     lmap,
+		stitchType:                  stype,
 		disableNonDisruptiveSupport: disableNonDisruptiveSupport,
 	}
 }
@@ -253,7 +253,7 @@ func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, no
 		if err != nil {
 			return nil, err
 		}
-		nonDisruptiveHelper := NewNonDisruptiveHelper(r.kubeClient, pod.Namespace, contKind, contName, pod.Name)
+		nonDisruptiveHelper := NewNonDisruptiveHelper(r.kubeClient, pod.Namespace, contKind, contName, pod.Name, r.k8sVersion)
 
 		// Performs operations for non-disruptive move actions
 		if err := nonDisruptiveHelper.OperateForNonDisruption(); err != nil {
