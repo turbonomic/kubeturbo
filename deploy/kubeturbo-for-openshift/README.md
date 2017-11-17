@@ -23,7 +23,7 @@ NAME           STATUS    AGE       LABELS
 
 A Kubeturbo config is required for Kubeturbo service to connect to Ops Manager server remotely. You need to specify correct **Turbonomic Server address**, **username** and **password**.
 > The `<SERVER_IP_ADDRESS>` is "**IP address of your ops manager**".
-> The `<TURBONOMIC_SERVER_VERSION>` is Turbonomic release version, e.g. `5.9.0` or `6.0.0`
+> The `<TURBONOMIC_SERVER_VERSION>` is Turbonomic release version, e.g. `59os` or `60os`
 
 Create a file called **"config"** and put it under */etc/kubeturbo/*.
 
@@ -67,7 +67,7 @@ spec:
     kubeturbo: deployable
   containers:
   - name: kubeturbo
-    image: vmturbo/kubeturbo:59os
+    image: vmturbo/kubeturbo:60os
     args:
       - --kubeconfig=/etc/kubeturbo/admin.kubeconfig
       - --turboconfig=/etc/kubeturbo/config

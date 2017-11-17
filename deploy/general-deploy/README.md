@@ -27,7 +27,7 @@ In order to connect to your Turbonomic installation, a Kubeturbo configuration f
 Create a file called `config` in the `/etc/kubeturbo/` directory in the same node labeled in previous step, with the following contents:
 
 > The `<TURBONOMIC_SERVER_URL>` is typically `https://<TURBO_SERVER_IP>:443`
-> The `<TURBONOMIC_SERVER_VERSION>` is Turbonomic release version, e.g. `5.9.0` or `6.0.0`
+> The `<TURBONOMIC_SERVER_VERSION>` is Turbonomic release version, e.g. `5.9` or `6.0`
 
 ```json
 {
@@ -68,9 +68,7 @@ spec:
     kubeturbo: deployable
   containers:
   - name: kubeturbo
-    image: vmturbo/kubeturbo:5.9
-    command:
-      - /bin/kubeturbo
+    image: vmturbo/kubeturbo:6.0
     args:
       - --kubeconfig=/etc/kubeturbo/kubeconfig
       - --turboconfig=/etc/kubeturbo/config

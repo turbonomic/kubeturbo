@@ -10,12 +10,12 @@ spec:
   containers:
   - name: kubeturbo
 #   change version
-    image: vmturbo/kubeturbo:v5.9.0
+    image: vmturbo/kubeturbo:6.0
     command:
       - /bin/kubeturbo
     args:
       - --v=2
-#     change master url
+#     change master url; for kubernetes 1.6+, master parameter can be omitted.
       - --master=http://1.2.3.4:8080
       - --turboconfig=/etc/kubeturbo/config
     volumeMounts:
