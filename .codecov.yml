@@ -1,6 +1,0 @@
-codecov:
-  token: secret:7x/2HmbgCVvRZIh7mKyBC2gYyC/EhEJvcMC72Qq6Baelb7wBiBbZ1PyAtR9P0nVdHGx5SL3WH6xZrl4lDbDwyqcHAB38NSp9wc9lbdFjJtk=
-  
-coverage:
-  ignore:
-  - "pkg/discovery/old"
