@@ -18,6 +18,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 const (
@@ -133,22 +134,21 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 	if err != nil {
 		return nil, fmt.Errorf("Failed to process cluster: %s", err)
 	}
+	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 
 	// Initialize the Dispatcher to create discovery workers
-	dc.dispatcher.Init(dc.resultCollector, kubeCluster)	//need to pass the cluster object to the discovery workers
+	dc.dispatcher.Init(dc.resultCollector, clusterSummary)	//need to pass the cluster object to the discovery workers
 
-	nodes := kubeCluster.GetNodes()
+	nodes := clusterSummary.NodeList
 	workerCount := dc.dispatcher.Dispatch(nodes)
 	entityDTOs, quotaMetricsList := dc.resultCollector.Collect(workerCount)
-	fmt.Printf("EntityDTOs = %d, quota metrics = %d\n", len(entityDTOs), len(quotaMetricsList))
 
-	quotasDiscoveryWorker := worker.Newk8sResourceQuotasDiscoveryWorker(kubeCluster)
+	quotasDiscoveryWorker := worker.Newk8sResourceQuotasDiscoveryWorker(clusterSummary)
 	quotaDtos, _ := quotasDiscoveryWorker.Do(quotaMetricsList)
 
 	entityDTOs = append(entityDTOs, quotaDtos...)
 
 	glog.V(2).Infof("Discovery workers have finished discovery work with %d entityDTOs built. Now performing service discovery...", len(entityDTOs))
-	fmt.Printf("Updated number of entityDTOs = %d\n", len(entityDTOs))
 
 	// affinity process
 	glog.V(2).Infof("begin to process affinity.")
@@ -159,7 +159,6 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 	} else {
 		entityDTOs = affinityProcessor.ProcessAffinityRules(entityDTOs)
 	}
-
 
 	glog.V(2).Infof("begin to generate service EntityDTOs.")
 	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.config.k8sClusterScraper)

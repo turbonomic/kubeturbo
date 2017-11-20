@@ -34,8 +34,6 @@ var (
 	allocationResourceCommoditiesSold = []metrics.ResourceType{
 		metrics.CPULimit,
 		metrics.MemoryLimit,
-		//metrics.CPURequest,
-		//metrics.MemoryRequest,
 	}
 )
 
@@ -64,20 +62,19 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		displayName := node.Name
 		entityDTOBuilder.DisplayName(displayName)
 
-		// commodities sold.
+		// compute and constraint commodities sold.
 		commoditiesSold, err := builder.getNodeCommoditiesSold(node)
 		if err != nil {
 			glog.Errorf("Error when create commoditiesSold for %s: %s", node.Name, err)
 			continue
 		}
-		//if len(builder.NamespaceList) > 0 {
-			quotaCommoditiesSold, err := builder.getNodeAllocationCommoditiesSold(node)
-			if err != nil {
-				glog.Errorf("Error when creating allocation commoditiesSold for %s: %s", node.Name, err)
-				continue
-			}
-			commoditiesSold = append(commoditiesSold, quotaCommoditiesSold...)
-		//}
+		// allocation commodities sold
+		allocationCommoditiesSold, err := builder.getAllocationCommoditiesSold(node)
+		if err != nil {
+			glog.Errorf("Error when creating allocation commoditiesSold for %s: %s", node.Name, err)
+			continue
+		}
+		commoditiesSold = append(commoditiesSold, allocationCommoditiesSold...)
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 		// entities' properties.
@@ -107,8 +104,6 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		}
 
 		result = append(result, entityDto)
-
-		//fmt.Printf("Node DTO :%++v\n", entityDto)
 	}
 
 	return result, nil
@@ -194,7 +189,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 	return commoditiesSold, nil
 }
 
-func (builder *nodeEntityDTOBuilder) getNodeAllocationCommoditiesSold(node *api.Node) ([]*proto.CommodityDTO, error) {
+func (builder *nodeEntityDTOBuilder) getAllocationCommoditiesSold(node *api.Node) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
 	key := util.NodeKeyFunc(node)
 
@@ -202,12 +197,11 @@ func (builder *nodeEntityDTOBuilder) getNodeAllocationCommoditiesSold(node *api.
 	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
 	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
 	if err != nil {
-		// TODO acceptable return? To get cpu, frequency is required.
 		return nil, fmt.Errorf("Failed to get cpu frequency from sink for node %s: %s", key, err)
 	}
 	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
 	glog.V(4).Infof("Frequency is %f", cpuFrequency)
-	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
+	// cpu limit needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(
 		func(input float64) float64 {
 			return input * cpuFrequency

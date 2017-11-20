@@ -37,8 +37,6 @@ var (
 	podResourceCommodityBoughtFromQuota = []metrics.ResourceType{
 		metrics.CPULimit,
 		metrics.MemoryLimit,
-		//metrics.CPURequest,
-		//metrics.MemoryRequest,
 	}
 )
 
@@ -65,7 +63,6 @@ func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *st
 func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
 	for _, pod := range pods {
-
 		// id.
 		podID := string(pod.UID)
 		entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, podID)
@@ -78,7 +75,6 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 			glog.Errorf("failed to build pod[%s] EntityDTO: %v", displayName, err)
 			continue
 		}
-
 		// commodities sold.
 		commoditiesSold, err := builder.getPodCommoditiesSold(pod, cpuFrequency)
 		if err != nil {
@@ -103,18 +99,18 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		entityDTOBuilder = entityDTOBuilder.Provider(provider)
 		entityDTOBuilder.BuysCommodities(commoditiesBought)
 
+		glog.Infof("%s now building comm bought from quota \n", pod.Name)
 		quotaUID, exists := builder.quotaNameUIDMap[pod.Namespace]
 		if exists {
 			commoditiesBoughtQuota, err := builder.getPodCommoditiesBoughtFromQuota(pod, cpuFrequency)
 			if err != nil {
 				glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
-				break
+				continue
 			}
 
 			provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_DATACENTER, quotaUID)
 			entityDTOBuilder = entityDTOBuilder.Provider(provider)
 			entityDTOBuilder.BuysCommodities(commoditiesBoughtQuota)
-			break;
 		}
 
 		// entities' properties.
@@ -137,10 +133,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		}
 
 		result = append(result, entityDto)
-
-		//if pod.Namespace == "pdnrq" {
-		//	fmt.Printf("Pod DTO : %++v\n", entityDto)
-		//}
+		glog.Infof("POD DTO : %++v\n", entityDto)
 	}
 
 	return result, nil

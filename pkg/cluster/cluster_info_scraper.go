@@ -45,7 +45,6 @@ func (s *ClusterScraper) GetNamespaces() ([]*api.Namespace, error){
 	if err != nil {
 		return nil, fmt.Errorf("failed to list all namespaces in the cluster: %s", err)
 	}
-	fmt.Printf("There are %d namespaces\n", len(namespaceList.Items))
 	namespaces := make([]*api.Namespace, len(namespaceList.Items))
 	for i := 0; i < len(namespaceList.Items); i++ {
 		namespaces[i] = &namespaceList.Items[i]
@@ -59,7 +58,6 @@ func (s *ClusterScraper) GetResourceQuotas() ([]*api.ResourceQuota, error){
 	if err != nil {
 		return nil, fmt.Errorf("failed to list all quotas in the cluster: %s", err)
 	}
-	fmt.Printf("There are %d resource quotas\n", len(quotaList.Items))
 	quotas := make([]*api.ResourceQuota, len(quotaList.Items))
 	for i := 0; i < len(quotaList.Items); i++ {
 		quotas[i] = &quotaList.Items[i]

@@ -4,6 +4,10 @@ import (
 	"k8s.io/client-go/pkg/api/v1"
 )
 
+type DiscoveredEntityType string
+
+type ResourceType string
+
 const (
 	ClusterType     DiscoveredEntityType = "Cluster"
 	QuotaType    	DiscoveredEntityType = "Quota"
@@ -13,10 +17,6 @@ const (
 	ApplicationType DiscoveredEntityType = "Application"
 	ServiceType     DiscoveredEntityType = "Service"
 )
-
-type DiscoveredEntityType string
-
-type ResourceType string
 
 const (
 	CPU               ResourceType = "CPU"
@@ -37,14 +37,18 @@ const (
 )
 
 var (
-	KubeResourceTypes = map[v1.ResourceName]ResourceType {
+	// Mapping of Kubernetes API Server resource names to the compute resource types
+	KubeComputeResourceTypes = map[v1.ResourceName]ResourceType {
+		v1.ResourceCPU:			CPU,
+		v1.ResourceMemory: 		Memory,
+	}
+
+	// Mapping of Kubernetes API Server resource names to the allocation resource types
+	KubeAllocatonResourceTypes = map[v1.ResourceName]ResourceType {
 		v1.ResourceLimitsCPU: 	 	CPULimit,
 		v1.ResourceLimitsMemory: 	MemoryLimit,
 		v1.ResourceRequestsCPU:  	CPURequest,
 		v1.ResourceRequestsMemory: 	MemoryRequest,
-		v1.ResourcePods: 		ObjectCount,
-		v1.ResourceCPU:			CPU,
-		v1.ResourceMemory: 		Memory,
 	}
 
 	ReverseKubeResourceTypes = map[ResourceType]v1.ResourceName {
@@ -56,10 +60,14 @@ var (
 		CPU: 		v1.ResourceCPU,
 		Memory: 	v1.ResourceMemory,
 	}
-	ComputeResources = []ResourceType{CPU, Memory}
-	ComputeAllocationResources = []ResourceType{CPULimit, MemoryLimit, CPURequest, MemoryRequest}
-	ObjectCountResources = []ResourceType{ObjectCount}
 
+	// List of Compute resources
+	ComputeResources = []ResourceType{CPU, Memory}
+
+	// List of Allocation resources
+	ComputeAllocationResources = []ResourceType{CPULimit, MemoryLimit, CPURequest, MemoryRequest}
+
+	// Mapping of allocation to compute resources
 	AllocationToComputeMap = map[ResourceType]ResourceType {
 		CPULimit: 	CPU,
 		MemoryLimit: 	Memory,
@@ -68,6 +76,7 @@ var (
 	}
 )
 
+// Returns true if the given resource type argument belongs to the list of allocation resources
 func IsAllocationType(resourceType ResourceType) (bool) {
 	for _, rt := range ComputeAllocationResources {
 		if rt == resourceType {
@@ -77,6 +86,7 @@ func IsAllocationType(resourceType ResourceType) (bool) {
 	return false
 }
 
+// Returns true if the given resource type argument belongs to the list of compute resources
 func IsComputeType(resourceType ResourceType) (bool) {
 	for _, rt := range ComputeResources {
 		if rt == resourceType {

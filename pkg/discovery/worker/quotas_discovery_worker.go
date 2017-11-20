@@ -3,7 +3,6 @@ package worker
 import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"fmt"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/golang/glog"
@@ -16,10 +15,10 @@ const (
 // Converts the cluster quotaEntity and QuotaMetrics objects to create Quota DTOs
 type k8sResourceQuotasDiscoveryWorker struct {
 	id string
-	Cluster *repository.KubeCluster
+	Cluster *repository.ClusterSummary
 }
 
-func Newk8sResourceQuotasDiscoveryWorker(cluster *repository.KubeCluster) *k8sResourceQuotasDiscoveryWorker{
+func Newk8sResourceQuotasDiscoveryWorker(cluster *repository.ClusterSummary) *k8sResourceQuotasDiscoveryWorker{
 	return &k8sResourceQuotasDiscoveryWorker{
 		Cluster: cluster,
 		id: k8sQuotasWorkerID,
@@ -42,25 +41,40 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 		}
 	}
 
-	// Missing nodes
 	kubeNodes := worker.Cluster.Nodes
-	for _, quotaMetrics := range quotaMetricsMap {
-		for nodeName, _ := range kubeNodes {
-			_, hasNode := quotaMetrics.AllocationBoughtMap[nodeName]
-			if !hasNode {
-				glog.V(4).Infof("%s : missing metrics for node %s\n", quotaMetrics.QuotaName, nodeName)
-				quotaMetrics.CreateNodeMetrics(nodeName, metrics.ComputeAllocationResources)
-			}
-		}
+	var nodeUIDs []string
+	for _, node := range kubeNodes {
+		nodeUIDs = append(nodeUIDs, node.UID)
 	}
 
-	for quotaName, quotaMetric := range quotaMetricsMap {
-		fmt.Printf("Combined quota metrics %s\n", quotaName)
-		for node, resources := range quotaMetric.AllocationBoughtMap {
-			fmt.Printf("\t allocation map %s --> %++v\n", node, resources)
+	// Add the allocation metrics for each quota entity
+	for quotaName, quotaEntity := range worker.Cluster.QuotaMap {
+		quotaMetrics, exists := quotaMetricsMap[quotaName]
+		// add default allocation metrics if not found
+		if !exists {
+			// metrics will not be created for a quota if there are pods running in the namespace
+			glog.V(4).Infof("%s : missing allocation metrics for quota\n", quotaName)
+			quotaMetrics = repository.CreateDefaultQuotaMetrics(quotaName, nodeUIDs)
+		}
+		// create provider entity for each node
+		for _, node := range kubeNodes {
+			nodeUID := node.UID
+			_, hasNode := quotaMetrics.AllocationBoughtMap[nodeUID]
+			// add allocation metrics for missing node providers
+			if !hasNode {
+				glog.V(4).Infof("%s : missing metrics for node %s\n", quotaMetrics.QuotaName, node.Name)
+				quotaMetrics.CreateNodeMetrics(nodeUID, metrics.ComputeAllocationResources)
+			}
+			allocationMap, _ := quotaMetrics.AllocationBoughtMap[nodeUID]
+			quotaEntity.AddNodeProvider(nodeUID, allocationMap)
 		}
 	}
-	quotaDtoBuilder := dtofactory.NewQuotaEntityDTOBuilder(worker.Cluster)
-	quotaDtos, _ := quotaDtoBuilder.BuildEntityDTOs(quotaMetricsMap)
+	for _, quotaEntity := range worker.Cluster.QuotaMap {
+		glog.V(4).Infof("*************** DISCOVERED quota entity %s\n", quotaEntity)
+	}
+
+	// Create DTOs for each quota entity
+	quotaDtoBuilder := dtofactory.NewQuotaEntityDTOBuilder(worker.Cluster.QuotaMap)
+	quotaDtos, _ := quotaDtoBuilder.BuildEntityDTOs()
 	return quotaDtos, nil
 }

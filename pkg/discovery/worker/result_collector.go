@@ -48,7 +48,6 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository
 				} else {
 					discoveryResult = append(discoveryResult, result.Content()...)
 					quotaMetricsList = append(quotaMetricsList, result.QuotaMetrics()...)
-
 				}
 				wg.Done()
 			}

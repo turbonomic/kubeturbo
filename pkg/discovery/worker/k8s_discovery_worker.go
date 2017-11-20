@@ -16,7 +16,6 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"k8s.io/client-go/pkg/api/v1"
 )
 
 const (
@@ -71,11 +70,11 @@ type k8sDiscoveryWorker struct {
 	// sink is a central place to store all the monitored data.
 	sink *metrics.EntityMetricSink
 
-	//TODO:
-	Cluster *repository.KubeCluster
+	Cluster *repository.ClusterSummary
 
 	taskChan chan *task.Task
 }
+
 // Create new instance of k8sDiscoveryWorker.
 // Also creates instances of MonitoringWorkers for each MonitorType.
 func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string) (*k8sDiscoveryWorker, error) {
@@ -193,33 +192,23 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	}
 	wg.Wait()
 
-	// TODO: Update the sink with new capacities for Pods, allocation commodities for pod, nodes
-	nodes := currTask.NodeList()
-	nodeNameUIDMap := make(map[string]string)
-	for _, node := range nodes {
-		nodeNameUIDMap[node.Name] = string(node.UID)
-	}
-	nodeNameMap := make(map[string]*v1.Node)
-	for _, node := range nodes {
-		nodeNameMap[node.Name] = node
-	}
+	// Update the sink with allocation metrics for pod, nodes
+	// Collect usages for pods in different quotas and create used and capacity
+	// metrics for the allocation resources of the nodes, quotas and pods
 	metricsCollector := &MetricsCollector{
 		PodList: currTask.PodList(),
 		Cluster: worker.Cluster,
 		MetricsSink: worker.sink,
-		NodeNameMap: nodeNameMap,
 	}
 
-	// Create metrics objects for nodes, quotas and pods
-	// containing the used and capacity values for the allocation resources
 	podMetricsCollection := metricsCollector.CollectPodMetrics()
 	nodeMetricsCollection := metricsCollector.CollectNodeMetrics(podMetricsCollection)
 	quotaMetricsCollection := metricsCollector.CollectQuotaMetrics(podMetricsCollection)
 
+	// Add the allocation metrics in the sink for the pods and the nodes
 	worker.addPodAllocationMetrics(podMetricsCollection)
 	worker.addNodeAllocationMetrics(nodeMetricsCollection)
 
-	// TODO: add the allocation metrics in the sink for the pods and the nodes
 	// Build DTOs after getting the metrics
 	entityDTOs, err := worker.buildDTOs(currTask)
 	if err != nil {
@@ -272,6 +261,7 @@ func (worker *k8sDiscoveryWorker) addNodeAllocationMetrics(nodeMetricsCollection
 			glog.V(4).Infof("Node:%s : created new allocation %s --> cap=%f  used=%f\n",
 					nodeMetrics.NodeName, allocationResource, capValue, usedValue)
 		}
+		// TODO: copy the allocation metrics to the KubeNode entity, so it can be used for dto generation
 	}
 }
 
@@ -284,21 +274,12 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 
 	// Node providers
 	nodes := currTask.NodeList()
-	nodeNameUIDMap := make(map[string]string)
 	for _, node := range nodes {
-		nodeNameUIDMap[node.Name] = string(node.UID)
 		stitchingManager.StoreStitchingValue(node)
 	}
 
-	// Quota Providers
-	quotas := worker.Cluster.GetQuotas()
-	quotaNameUIDMap := make(map[string]string)
-	for _, quota := range quotas {
-		quotaNameUIDMap[quota.Name] = quota.UID
-	}
 	//1. build entityDTOs for nodes
 	nodeEntityDTOBuilder := dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager)
-	//nodeEntityDTOBuilder.NamespaceList = nsList
 	nodeEntityDTOs, err := nodeEntityDTOBuilder.BuildEntityDTOs(nodes)
 	if err != nil {
 		glog.Errorf("Error while creating node entityDTOs: %v", err)
@@ -308,6 +289,8 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	result = append(result, nodeEntityDTOs...)
 
 	//2. build entityDTOs for pods
+	quotaNameUIDMap := worker.Cluster.QuotaNameUIDMap	// quota providers
+	nodeNameUIDMap := worker.Cluster.NodeNameUIDMap		// node providers
 	pods := currTask.PodList()
 	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager,
 							nodeNameUIDMap, quotaNameUIDMap)
@@ -351,5 +334,3 @@ func calcTimeOut(nodeNum int) time.Duration {
 
 	return result
 }
-
-

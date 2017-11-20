@@ -42,7 +42,7 @@ func NewDispatcher(config *DispatcherConfig) *Dispatcher {
 }
 // Creates workerCount number of k8sDiscoveryWorker, each with multiple MonitoringWorkers for different types of monitorings/sources
 // Each is registered with the Dispatcher
-func (d *Dispatcher) Init(c *ResultCollector, cluster *repository.KubeCluster) {
+func (d *Dispatcher) Init(c *ResultCollector, cluster *repository.ClusterSummary) {
 	// Create discovery workers
 	for i := 0; i < d.config.workerCount; i++ {
 		// Create the worker instance

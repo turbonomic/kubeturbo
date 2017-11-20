@@ -1,26 +1,29 @@
 package processor
 
 import (
-	"fmt"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"k8s.io/client-go/pkg/api/v1"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/golang/glog"
 )
 
-// Query the Kubernetes API server to get ResourceQuota objects. Parse them to create QuotaEntity.
+// Class to query the multiple resource quota objects data from the Kubernetes API server
+// and create a single KubeQuota entity per namespace.
 type QuotaProcessor struct {
 	clusterInfoScraper *cluster.ClusterScraper
+	clusterName string
 }
 
-// Query the Kubernetes API Server and get the Resource Quota objects per Namespace
+// Query the Kubernetes API Server and create a Resource Quota object per Namespace.
 func (processor *QuotaProcessor) ProcessResourceQuotas() map[string]*repository.KubeQuota {
 	quotaList, err := processor.clusterInfoScraper.GetResourceQuotas()
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Printf("There are %d resource quotas\n", len(quotaList))
+	glog.Infof("There are %d resource quotas\n", len(quotaList))
 
+	// map containing namespace and the list of quotas defined in the namesapce
 	quotaMap := processor.collectNamespaceQuotas(quotaList)
 
 	// Create one reconciled Quota Entity per namespace
@@ -28,21 +31,13 @@ func (processor *QuotaProcessor) ProcessResourceQuotas() map[string]*repository.
 	for namespace, _ := range quotaMap {
 		reconciledQuota := processor.reconcileQuotas(namespace, quotaMap[namespace])
 		quotaEntityMap[namespace] = reconciledQuota
-		fmt.Printf("%s::%s\n", reconciledQuota.Name, reconciledQuota.Namespace);
 	}
 	return quotaEntityMap
 }
 
-func printQuota(quota *repository.KubeQuota) {
-	fmt.Printf("%s::%s::%s::%s\n", quota.KubeEntity.ClusterName, quota.Namespace, quota.Name, quota.UID)
-	for _, resource := range quota.ComputeResources {
-		fmt.Printf("\t---> %s Capacity=%f, Used=%f\n",
-			resource.Type, resource.Capacity, resource.Used)
-	}
-}
-
-func (processor *QuotaProcessor) collectNamespaceQuotas(quotaList []*v1.ResourceQuota) map[string][]*v1.ResourceQuota {
-	// Quota Map organized by Namespace
+// Return a map containing namespace and the list of quotas defined in the namespace.
+func (processor *QuotaProcessor) collectNamespaceQuotas(
+				quotaList []*v1.ResourceQuota) map[string][]*v1.ResourceQuota {
 	quotaMap := make(map[string][]*v1.ResourceQuota)
 	for _, item := range quotaList {
 		quotaList, exists := quotaMap[item.Namespace]
@@ -55,28 +50,38 @@ func (processor *QuotaProcessor) collectNamespaceQuotas(quotaList []*v1.Resource
 	return quotaMap
 }
 
-func (processor *QuotaProcessor) reconcileQuotas(namespace string, quotas []*v1.ResourceQuota) *repository.KubeQuota {
+// Return a single quota entity for the namespace by combining the quota limits for various
+// resources from multiple quota objects defined in the namesapce.
+// Multiple quota limits for the same resource, if any, are reconciled by selecting the
+// most restrictive limit value.
+func (processor *QuotaProcessor) reconcileQuotas(
+			namespace string, quotas []*v1.ResourceQuota) *repository.KubeQuota {
 
-	quota := &repository.KubeQuota{
-		KubeEntity: repository.NewKubeEntity(),
-	}
+	quota := repository.NewKubeQuota(processor.clusterName, namespace)
+	quota.QuotaList = quotas
+	quotaListStr := ""
+	// Quota resources by collecting resources from the list of resource quota objects
 	finalResourceMap := make(map[metrics.ResourceType]*repository.KubeDiscoveredResource)
 	for _, item := range quotas {
+		quotaListStr = quotaListStr + item.Name +","
 		// Resources in each quota
 		resourceStatus := item.Status
 		resourceHardList := resourceStatus.Hard
 		resourceUsedList := resourceStatus.Used
-		for resource, _:= range resourceHardList {	//mix of allocation and object count resources
+		for resource, _:= range resourceHardList {
+			resourceType, isAllocationType := metrics.KubeAllocatonResourceTypes[resource]
+			if !isAllocationType {	// skip if it is not a allocation type resource
+				continue
+			}
 			quantity := resourceHardList[resource]
 			capacityValue := quantity.MilliValue()
 			used := resourceUsedList[resource]
 			usedValue := used.MilliValue()
 
-			resourceType := metrics.KubeResourceTypes[resource]
 			_, exists := finalResourceMap[resourceType]
 			if !exists {
 				r := &repository.KubeDiscoveredResource{
-					Type: metrics.KubeResourceTypes[resource],
+					Type: resourceType,
 					Capacity: float64(capacityValue),
 					Used: float64(usedValue),
 				}
@@ -91,29 +96,13 @@ func (processor *QuotaProcessor) reconcileQuotas(namespace string, quotas []*v1.
 			}
 		}
 	}
-
-	for _, resource := range finalResourceMap {
-		r := &repository.KubeDiscoveredResource{
-			Type: resource.Type,
-			Capacity: resource.Capacity,
-			Used: resource.Used,
-		}
-		quota.ComputeResources[r.Type] = r
-	}
-	quota.ComputeResources = finalResourceMap
-	quota.Name = namespace
-	quota.Namespace = namespace
-	quota.UID = namespace
-	quota.QuotaList = quotas
-	fmt.Printf("****** Reconciled Quota ===> %s\n", quota.Name)
-	for _, resource := range quota.ComputeResources {
-		fmt.Printf("\t ****** resource %s: cap=%f used=%f\n", resource.Type, resource.Capacity, resource.Used)
-	}
+	quota.AllocationResources = finalResourceMap
+	glog.Infof("Reconciled Quota %s from ===> %s \n", quota.Name, quotaListStr)
 	return quota
 }
 
 func (processor *QuotaProcessor) reconcileResource(newResource *repository.KubeDiscoveredResource,
-							oldResource *repository.KubeDiscoveredResource) *repository.KubeDiscoveredResource {
+				oldResource *repository.KubeDiscoveredResource) *repository.KubeDiscoveredResource {
 	if newResource.Capacity < oldResource.Capacity {
 		return newResource
 	}

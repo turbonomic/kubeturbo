@@ -90,8 +90,6 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	supplyChainBuilder.Entity(quotaSupplyChainNodeBuilder)
 	supplyChainBuilder.Entity(nodeSupplyChainNodeBuilder)
 
-	dtos, _ := supplyChainBuilder.Create()
-	fmt.Printf("Supply chain DTOs =========> %++v\n", dtos)
 	return supplyChainBuilder.Create()
 }
 
