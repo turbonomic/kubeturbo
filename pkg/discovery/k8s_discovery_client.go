@@ -34,7 +34,7 @@ type DiscoveryClientConfig struct {
 
 func NewDiscoveryConfig(kubeClient *kubeClient.Clientset, probeConfig *configs.ProbeConfig, targetConfig *configs.K8sTargetConfig) *DiscoveryClientConfig {
 	return &DiscoveryClientConfig{
-		k8sClusterScraper: &cluster.ClusterScraper{kubeClient},
+		k8sClusterScraper: cluster.NewClusterScraper(kubeClient),
 		probeConfig:       probeConfig,
 		targetConfig:      targetConfig,
 	}

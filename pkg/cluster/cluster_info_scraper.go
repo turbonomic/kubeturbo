@@ -29,6 +29,12 @@ type ClusterScraper struct {
 	*client.Clientset
 }
 
+func NewClusterScraper(kclient *client.Clientset) *ClusterScraper {
+	return &ClusterScraper{
+		Clientset: kclient,
+	}
+}
+
 func NewClusterInfoScraper(kubeConfig *restclient.Config) (*ClusterScraper, error) {
 	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {

@@ -225,10 +225,10 @@ func keepAlive(tracker sdkprobe.ActionProgressTracker, stop chan struct{}) {
 			t := time.NewTimer(time.Second * 3)
 			select {
 			case <-stop:
+				glog.V(3).Infof("action keepAlive goroutine exit.")
 				return
 			case <-t.C:
 			}
 		}
-		glog.V(3).Infof("action keepAlive goroutine exit.")
 	}()
 }

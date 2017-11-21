@@ -1,19 +1,20 @@
 language: go
 
 go:
-  - 1.8
+  - 1.9
   - tip
 
 go_import_path: github.com/turbonomic/kubeturbo
 
 before_install:
-  - go get github.com/mattn/goveralls
+  - go get -v github.com/mattn/goveralls
 
-##TODO: goveralls is not compatible with -race for "go tip",
-#       so the 'make test' is still here. 
-#       Will remove 'make test' if the goveralls with -race can success  
+matrix:
+  allow_failures:
+    - go: tip
+
 script:
+  - make fmtcheck 
+  - make vet
   - make product
-  - make test
-  - $HOME/gopath/bin/goveralls -v -service=travis-ci 
-
+  - if [ "$TRAVIS_GO_VERSION" == "tip" ] ; then make test ; else $HOME/gopath/bin/goveralls -v -race -service=travis-ci ; fi
