@@ -60,7 +60,9 @@ func (b *PodBroker) UnSubscribe(key string, consumer Consumer) error {
 		}
 	}
 	if foundIndex == -1 {
-		fmt.Errorf("Consumer %v is not subscribed to listen on %s", consumer, key)
+		err := fmt.Errorf("Consumer %v is not subscribed to listen on %s", consumer, key)
+		glog.Error(err.Error())
+		return err
 	}
 	consumerList = append(consumerList[:foundIndex], consumerList[foundIndex+1:]...)
 	if len(consumerList) == 0 {

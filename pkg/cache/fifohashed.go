@@ -73,7 +73,7 @@ func (f *HashedFIFO) HasSynced() bool {
 func (f *HashedFIFO) Add(obj interface{}) error {
 	id, err := f.keyFunc(obj)
 	if err != nil {
-		return cache.KeyError{obj, err}
+		return cache.KeyError{Obj: obj, Err: err}
 	}
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -95,7 +95,7 @@ func (f *HashedFIFO) Add(obj interface{}) error {
 func (f *HashedFIFO) AddIfNotPresent(obj interface{}) error {
 	id, err := f.keyFunc(obj)
 	if err != nil {
-		return cache.KeyError{obj, err}
+		return cache.KeyError{Obj: obj, Err: err}
 	}
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -121,7 +121,7 @@ func (f *HashedFIFO) Update(obj interface{}) error {
 func (f *HashedFIFO) Delete(obj interface{}) error {
 	id, err := f.keyFunc(obj)
 	if err != nil {
-		return cache.KeyError{obj, err}
+		return cache.KeyError{Obj: obj, Err: err}
 	}
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -159,7 +159,7 @@ func (f *HashedFIFO) ListKeys() []string {
 func (f *HashedFIFO) Get(obj interface{}) (item interface{}, exists bool, err error) {
 	key, err := f.keyFunc(obj)
 	if err != nil {
-		return nil, false, cache.KeyError{obj, err}
+		return nil, false, cache.KeyError{Obj: obj, Err: err}
 	}
 	return f.GetByKey(key)
 }
@@ -211,7 +211,7 @@ func (f *HashedFIFO) Replace(list []interface{}, resourceVersion string) error {
 	for _, item := range list {
 		key, err := f.keyFunc(item)
 		if err != nil {
-			return cache.KeyError{item, err}
+			return cache.KeyError{Obj: item, Err: err}
 		}
 		items[key] = item
 	}

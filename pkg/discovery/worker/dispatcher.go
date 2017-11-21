@@ -52,7 +52,7 @@ func (d *Dispatcher) Init(c *ResultCollector) {
 		wid := fmt.Sprintf("w%d", i)
 		discoveryWorker, err := NewK8sDiscoveryWorker(workerConfig, wid)
 		if err != nil {
-			fmt.Errorf("failed to build discovery worker %s", err)
+			glog.Fatalf("failed to build discovery worker %s", err)
 		}
 
 		go discoveryWorker.RegisterAndRun(d, c)

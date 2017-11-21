@@ -106,7 +106,7 @@ func (m *K8sConntrackMonitor) RetrieveResourceStat() error {
 			case <-m.stopCh:
 				return
 			default:
-				m.scrapeK8sConntrack(node)
+				m.scrapeK8sConntrack(n)
 			}
 		}(node)
 	}
