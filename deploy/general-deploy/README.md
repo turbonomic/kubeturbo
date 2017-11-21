@@ -68,9 +68,7 @@ spec:
     kubeturbo: deployable
   containers:
   - name: kubeturbo
-    image: vmturbo/kubeturbo:5.9
-    command:
-      - /bin/kubeturbo
+    image: vmturbo/kubeturbo:6.0
     args:
       - --kubeconfig=/etc/kubeturbo/kubeconfig
       - --turboconfig=/etc/kubeturbo/config
