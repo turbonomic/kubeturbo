@@ -53,7 +53,7 @@ func (d *Dispatcher) Init(c *ResultCollector, cluster *repository.ClusterSummary
 		wid := fmt.Sprintf("w%d", i)
 		discoveryWorker, err := NewK8sDiscoveryWorker(workerConfig, wid)
 		if err != nil {
-			fmt.Errorf("failed to build discovery worker %s", err)
+			glog.Fatalf("failed to build discovery worker %s", err)
 		}
 		// Pass the cluster object to each worker
 		discoveryWorker.Cluster = cluster
