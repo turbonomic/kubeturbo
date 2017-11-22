@@ -47,20 +47,23 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 		nodeUIDs = append(nodeUIDs, node.UID)
 	}
 
-	// Add the allocation metrics for each quota entity
+	// Create the allocation resources for all quota entities using the metrics object
+	// If the metrics is not collected for a
 	for quotaName, quotaEntity := range worker.Cluster.QuotaMap {
 		quotaMetrics, exists := quotaMetricsMap[quotaName]
 		// add default allocation metrics if not found
 		if !exists {
-			// metrics will not be created for a quota if there are pods running in the namespace
+			// metrics will not be created for a quota if there are pods running
+			// in the namespace, so create a default metrics
 			glog.V(4).Infof("%s : missing allocation metrics for quota\n", quotaName)
 			quotaMetrics = repository.CreateDefaultQuotaMetrics(quotaName, nodeUIDs)
 		}
+
 		// create provider entity for each node
 		for _, node := range kubeNodes {
 			nodeUID := node.UID
 			_, hasNode := quotaMetrics.AllocationBoughtMap[nodeUID]
-			// add allocation metrics for missing node providers
+			// add empty allocation usage metrics for missing node providers
 			if !hasNode {
 				glog.V(4).Infof("%s : missing metrics for node %s\n", quotaMetrics.QuotaName, node.Name)
 				quotaMetrics.CreateNodeMetrics(nodeUID, metrics.ComputeAllocationResources)

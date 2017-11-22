@@ -2,13 +2,10 @@ package repository
 
 import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"k8s.io/client-go/pkg/api/v1"
 )
 
 // Collection of allocation metrics for a pod
 type PodMetrics struct {
-	Pod 		*v1.Pod
-	Node		*v1.Node
 	PodName 	string
 	QuotaName 	string
 	NodeName 	string
@@ -16,8 +13,13 @@ type PodMetrics struct {
 	AllocationUsed 	map[metrics.ResourceType]float64
 }
 
-func (metrics *PodMetrics) GetAllocationUsageMap() map[metrics.ResourceType]float64 {
-	return metrics.AllocationUsed
+func NewPodMetrics(podName, quotaName, nodeName string) *PodMetrics {
+	return &PodMetrics {
+		PodName: podName,
+		QuotaName: quotaName,
+		NodeName: nodeName,
+		AllocationUsed: make(map[metrics.ResourceType]float64),
+	}
 }
 
 // Collection of allocation metrics for a node
@@ -28,10 +30,25 @@ type NodeMetrics struct {
 	AllocationCap 	map[metrics.ResourceType]float64
 }
 
+func NewNodeMetrics(nodeName string) *NodeMetrics {
+	return &NodeMetrics {
+		NodeName: nodeName,
+		AllocationUsed: make(map[metrics.ResourceType]float64),
+		AllocationCap: make(map[metrics.ResourceType]float64),
+	}
+}
+
 // Collection of allocation metrics for a quota
 type QuotaMetrics struct {
 	QuotaName           string
 	AllocationBoughtMap map[string]map[metrics.ResourceType]float64
+}
+
+func NewQuotaMetrics(nodeName string) *QuotaMetrics {
+	return &QuotaMetrics {
+		QuotaName: nodeName,
+		AllocationBoughtMap: make(map[string]map[metrics.ResourceType]float64),
+	}
 }
 
 func (quotaMetric *QuotaMetrics) CreateNodeMetrics(nodeUID string, expectedQuotaResources []metrics.ResourceType) {

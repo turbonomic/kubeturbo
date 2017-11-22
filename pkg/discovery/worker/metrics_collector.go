@@ -31,41 +31,43 @@ func (podList PodMetricsList) GetPods() string {
 	return podNames
 }
 // Returns the sum of allocation resources for all the pods in the collection
-func (podList PodMetricsList) GetAllocationUsage() map[metrics.ResourceType]float64 {
-	allocationResources := make(map[metrics.ResourceType]float64)
+func (podMetricsList PodMetricsList) SumAllocationUsage() map[metrics.ResourceType]float64 {
+	allocationResourcesSum := make(map[metrics.ResourceType]float64)
 
 	podNames := ""
-	for _, pod := range podList {
-		if pod == nil {
+	for _, podMetrics := range podMetricsList {
+		if podMetrics == nil {
 			fmt.Printf("null pod")
 			continue
 		}
-		podNames = podNames + "," + pod.PodName	//TODO: dependency on podName
-		allocationMap := pod.AllocationUsed
-		for _, resourceType := range metrics.ComputeAllocationResources {
-			used, exists := allocationMap[resourceType]
+		if podMetrics.PodName != "" {
+			podNames = podNames + "," + podMetrics.PodName
+		}
+		allocationMap := podMetrics.AllocationUsed
+		for _, allocationType := range metrics.ComputeAllocationResources {
+			used, exists := allocationMap[allocationType]
 			if !exists {	//cannot find allocation resource usage,
-				fmt.Printf("%s: cannot find usage for resource %s\n", pod.PodName, resourceType)
 				used = 0.0
 			}
-			usedSum, found := allocationResources[resourceType]
+			usedSum, found := allocationResourcesSum[allocationType]
 			if !found {
 				usedSum = used
 			} else {
 				usedSum += used
 			}
-			allocationResources[resourceType] = usedSum
+			allocationResourcesSum[allocationType] = usedSum
 		}
 	}
 
 	glog.V(4).Infof("Collected allocation resources for pod collection %s\n", podNames)
-	for rt, used := range allocationResources {
+	for rt, used := range allocationResourcesSum {
 		glog.V(4).Infof("\t rt=%s used=%f\n", rt, used)
 	}
-	return allocationResources
+	return allocationResourcesSum
 }
 
 // -------------------------------------------------------------------------------------------------
+//
 func (collector *MetricsCollector) CollectPodMetrics() PodMetricsByNodeAndQuota {
 	podCollectionMap := make(PodMetricsByNodeAndQuota)
 	for _, pod := range collector.PodList {
@@ -75,7 +77,7 @@ func (collector *MetricsCollector) CollectPodMetrics() PodMetricsByNodeAndQuota 
 			//ignore the pod not associated with a quota
 			continue //eg. default namespace
 		}
-		podMetrics := collector.createPodMetrics(pod, quota.Name)
+		podMetrics := createPodMetrics(pod, quota.Name, collector.MetricsSink)
 
 		// Get Map by node
 		nodeName := pod.Spec.NodeName
@@ -88,19 +90,12 @@ func (collector *MetricsCollector) CollectPodMetrics() PodMetricsByNodeAndQuota 
 	return podCollectionMap
 }
 
-// TODO: unit test this
-func (collector *MetricsCollector) createPodMetrics(pod *v1.Pod, quotaName string) *repository.PodMetrics {
+func createPodMetrics(pod *v1.Pod, quotaName string, metricsSink *metrics.EntityMetricSink) *repository.PodMetrics {
 	etype := metrics.PodType
 	podKey := util.PodKeyFunc(pod)
 
-	podMetrics := &repository.PodMetrics{
-		Pod: pod,
-		PodName: pod.Name,
-		QuotaName: quotaName,
-		NodeName: pod.Spec.NodeName,
-		PodKey: podKey,
-		AllocationUsed: make(map[metrics.ResourceType]float64),
-	}
+	podMetrics := repository.NewPodMetrics(pod.Name, quotaName, pod.Spec.NodeName)
+	podMetrics.PodKey = podKey
 
 	// pod allocation metrics for the pod
 	for _, resourceType  := range metrics.ComputeAllocationResources {
@@ -111,19 +106,20 @@ func (collector *MetricsCollector) createPodMetrics(pod *v1.Pod, quotaName strin
 		// allocation used is same as compute used
 		computeUsedMetricUID := metrics.GenerateEntityResourceMetricUID(etype, podKey,
 			computeType, metrics.Used)
-		computeUsedMetric, _ := collector.MetricsSink.GetMetric(computeUsedMetricUID)
+		computeUsedMetric, _ := metricsSink.GetMetric(computeUsedMetricUID)
 		if computeUsedMetric != nil && computeUsedMetric.GetValue() != nil {
 			podMetrics.AllocationUsed[resourceType] =
 				computeUsedMetric.GetValue().(float64)
 		} else {
 			podMetrics.AllocationUsed[resourceType] = 0.0
-			fmt.Printf("[[[[[ %s: cannot find usage for compute resource %s ]]]]]\n", pod.Name, resourceType)
+			fmt.Printf("[[[[[ %s: cannot find usage for compute resource %s ]]]]]\n", pod.Name, computeType)
 		}
 	}
 	return podMetrics
 }
 
-func (podCollectionMap PodMetricsByNodeAndQuota) addPodMetric(podName, nodeName, quotaName string, podMetrics *repository.PodMetrics) {
+func (podCollectionMap PodMetricsByNodeAndQuota) addPodMetric(podName, nodeName, quotaName string,
+									podMetrics *repository.PodMetrics) {
 	podsByQuotaMap, exists := podCollectionMap[nodeName]
 	if !exists {
 		podCollectionMap[nodeName] = make(map[string]PodMetricsList)
@@ -157,39 +153,40 @@ func (collector *MetricsCollector) CollectNodeMetrics(podCollection PodMetricsBy
 			collectivePodMetricsList = append(collectivePodMetricsList, podMetricsList...)
 		}
 		glog.V(4).Infof("collecting pod allocation metrics for Node %s\n", nodeName)
-		nodeMetrics := collector.createNodeMetrics(node, collectivePodMetricsList)
+		nodeMetrics := createNodeMetrics(node, collectivePodMetricsList, collector.MetricsSink)
 
 		nodeMetricsCollection[nodeName] = nodeMetrics
 	}
 	return nodeMetricsCollection
 }
 
-func (collector *MetricsCollector) createNodeMetrics(node *v1.Node, collectivePodMetricsList PodMetricsList) *repository.NodeMetrics {
+func createNodeMetrics(node *v1.Node, collectivePodMetricsList PodMetricsList, metricsSink *metrics.EntityMetricSink) *repository.NodeMetrics {
 	// allocation used by the pods running on the node
-	podAllocationUsed := collectivePodMetricsList.GetAllocationUsage()
+	podAllocationUsed := collectivePodMetricsList.SumAllocationUsage()
 
-	// Create new metrics in the sink for the allocation sold by this node
+	// allocation sold by this node is same as the compute resource capacity
 	entityType := metrics.NodeType
 	nodeKey := util.NodeKeyFunc(node)
 
 	allocationCap := make(map[metrics.ResourceType]float64)
 	for _, allocationResource := range metrics.ComputeAllocationResources {
+		// get the corresponding compute type resource
 		computeType, exists := metrics.AllocationToComputeMap[allocationResource]
 		if !exists {
 			continue
 		}
 
 		computeCapMetricUID := metrics.GenerateEntityResourceMetricUID(
-			entityType, nodeKey, computeType, metrics.Capacity)
-		computeCapMetric, _ := collector.MetricsSink.GetMetric(computeCapMetricUID)
+						entityType, nodeKey, computeType, metrics.Capacity)
+		computeCapMetric, _ := metricsSink.GetMetric(computeCapMetricUID)
 		if computeCapMetric != nil &&  computeCapMetric.GetValue() != nil {
 			allocationCap[allocationResource] = computeCapMetric.GetValue().(float64)
 		} else {
 			allocationCap[allocationResource] = 0.0
-			fmt.Printf("[[[[[ %s: cannot find usage for compute resource %s ]]]]]\n", node.Name, computeType)
+			glog.Warningf("[%s: cannot find usage for compute resource %s ]\n", node.Name, computeType)
 		}
-
 	}
+
 	nodeMetric := &repository.NodeMetrics{
 		NodeName: node.Name,
 		NodeKey: nodeKey,
@@ -202,25 +199,34 @@ func (collector *MetricsCollector) createNodeMetrics(node *v1.Node, collectivePo
 func (collector *MetricsCollector) CollectQuotaMetrics(podCollection PodMetricsByNodeAndQuota) []*repository.QuotaMetrics {
 	var quotaMetricsList []*repository.QuotaMetrics
 
+	quotaMetricsMap := make(map[string]*repository.QuotaMetrics)
+	// get the allocation bought by the quota from each node provider
 	for nodeName, podsByQuotaMap  := range podCollection {
 		for quotaName, podMetricsList := range podsByQuotaMap {
 			glog.V(4).Infof("collecting pod allocation metrics for Node:%s Quota:%s\n",
 						nodeName, quotaName)
 			// sum the usages for all the pods in this quota
-			podAllocationUsed := podMetricsList.GetAllocationUsage()
+			podAllocationUsed := podMetricsList.SumAllocationUsage()
 
-			quotaMetrics := &repository.QuotaMetrics{
-				QuotaName: quotaName,
-				AllocationBoughtMap: make(map[string]map[metrics.ResourceType]float64),
+			_, exists := quotaMetricsMap[quotaName]
+			if ! exists {
+				quotaMetrics := &repository.QuotaMetrics{
+					QuotaName: quotaName,
+					AllocationBoughtMap: make(map[string]map[metrics.ResourceType]float64),
+				}
+				quotaMetricsMap[quotaName] = quotaMetrics
 			}
+			quotaMetrics, _ := quotaMetricsMap[quotaName]
 			nodeUID, exists := collector.Cluster.NodeNameUIDMap[nodeName]
 			if exists {
 				quotaMetrics.AllocationBoughtMap[nodeUID] = podAllocationUsed
 			}
-			quotaMetricsList = append(quotaMetricsList, quotaMetrics)
 		}
 	}
 
+	for _, quotaMetrics := range quotaMetricsMap {
+		quotaMetricsList = append(quotaMetricsList, quotaMetrics)
+	}
 	return quotaMetricsList
 }
 

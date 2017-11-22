@@ -133,7 +133,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		}
 
 		result = append(result, entityDto)
-		glog.Infof("POD DTO : %++v\n", entityDto)
+		glog.V(4).Infof("POD DTO : %++v\n", entityDto)
 	}
 
 	return result, nil
