@@ -235,7 +235,7 @@ func (s *VMTServer) Run(_ []string) error {
 	broker := turbostore.NewPodBroker()
 
 	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
-	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec, kubeConfig)
+	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec, kubeConfig.Host)
 	if err != nil {
 		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
 		os.Exit(1)

@@ -25,7 +25,7 @@ type K8sTAPServiceSpec struct {
 	*configs.K8sTargetConfig          `json:"targetConfig,omitempty"`
 }
 
-func ParseK8sTAPServiceSpec(configFile string, kubeConfig *restclient.Config) (*K8sTAPServiceSpec, error) {
+func ParseK8sTAPServiceSpec(configFile, defaultTargetName string) (*K8sTAPServiceSpec, error) {
 	// load the config
 	tapSpec, err := readK8sTAPServiceSpec(configFile)
 	if err != nil {
@@ -34,17 +34,17 @@ func ParseK8sTAPServiceSpec(configFile string, kubeConfig *restclient.Config) (*
 	glog.V(3).Infof("K8sTapSericeSpec is: %+v", tapSpec)
 
 	if tapSpec.TurboCommunicationConfig == nil {
-		return nil, errors.New("Communication config is missing")
+		return nil, errors.New("communication config is missing")
 	}
 	if err := tapSpec.ValidateTurboCommunicationConfig(); err != nil {
 		return nil, err
 	}
 
 	if tapSpec.K8sTargetConfig == nil {
-		if kubeConfig == nil {
-			return nil, errors.New("KubeConfig is nil")
+		if defaultTargetName == "" {
+			return nil, errors.New("target name is empty")
 		}
-		tapSpec.K8sTargetConfig = createTargetConfig(kubeConfig)
+		tapSpec.K8sTargetConfig = &configs.K8sTargetConfig{TargetIdentifier: defaultTargetName}
 	}
 	if err := tapSpec.ValidateK8sTargetConfig(); err != nil {
 		return nil, err
