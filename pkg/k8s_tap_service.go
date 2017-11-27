@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 
 	client "k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 
 	"github.com/turbonomic/kubeturbo/pkg/action"
 	"github.com/turbonomic/kubeturbo/pkg/discovery"
@@ -24,7 +25,7 @@ type K8sTAPServiceSpec struct {
 	*configs.K8sTargetConfig          `json:"targetConfig,omitempty"`
 }
 
-func ParseK8sTAPServiceSpec(configFile string) (*K8sTAPServiceSpec, error) {
+func ParseK8sTAPServiceSpec(configFile string, kubeConfig *restclient.Config) (*K8sTAPServiceSpec, error) {
 	// load the config
 	tapSpec, err := readK8sTAPServiceSpec(configFile)
 	if err != nil {
@@ -40,7 +41,10 @@ func ParseK8sTAPServiceSpec(configFile string) (*K8sTAPServiceSpec, error) {
 	}
 
 	if tapSpec.K8sTargetConfig == nil {
-		return nil, errors.New("Target config is missing")
+		if kubeConfig == nil {
+			return nil, errors.New("KubeConfig is nil")
+		}
+		tapSpec.K8sTargetConfig = createTargetConfig(kubeConfig)
 	}
 	if err := tapSpec.ValidateK8sTargetConfig(); err != nil {
 		return nil, err
@@ -59,6 +63,10 @@ func readK8sTAPServiceSpec(path string) (*K8sTAPServiceSpec, error) {
 		return nil, fmt.Errorf("Unmarshall error :%v", err.Error())
 	}
 	return &spec, nil
+}
+
+func createTargetConfig(kubeConfig *restclient.Config) *configs.K8sTargetConfig {
+	return &configs.K8sTargetConfig{TargetIdentifier: kubeConfig.Host}
 }
 
 type K8sTAPServiceConfig struct {
