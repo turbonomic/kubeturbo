@@ -16,23 +16,23 @@ import (
 )
 
 type ReScheduler struct {
-	kubeClient                  *kclient.Clientset
-	k8sVersion                  string
-	noneSchedulerName           string
-	stitchType                  stitching.StitchingPropertyType
-	disableNonDisruptiveSupport bool
+	kubeClient                 *kclient.Clientset
+	k8sVersion                 string
+	noneSchedulerName          string
+	stitchType                 stitching.StitchingPropertyType
+	enableNonDisruptiveSupport bool
 
 	lockMap *util.ExpirationMap
 }
 
-func NewReScheduler(client *kclient.Clientset, k8sver, noschedulerName string, lmap *util.ExpirationMap, stype stitching.StitchingPropertyType, disableNonDisruptiveSupport bool) *ReScheduler {
+func NewReScheduler(client *kclient.Clientset, k8sver, noschedulerName string, lmap *util.ExpirationMap, stype stitching.StitchingPropertyType, enableNonDisruptiveSupport bool) *ReScheduler {
 	return &ReScheduler{
-		kubeClient:                  client,
-		k8sVersion:                  k8sver,
-		noneSchedulerName:           noschedulerName,
-		lockMap:                     lmap,
-		stitchType:                  stype,
-		disableNonDisruptiveSupport: disableNonDisruptiveSupport,
+		kubeClient:                 client,
+		k8sVersion:                 k8sver,
+		noneSchedulerName:          noschedulerName,
+		lockMap:                    lmap,
+		stitchType:                 stype,
+		enableNonDisruptiveSupport: enableNonDisruptiveSupport,
 	}
 }
 
@@ -245,7 +245,7 @@ func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, no
 		return nil, err
 	}
 
-	if !r.disableNonDisruptiveSupport {
+	if r.enableNonDisruptiveSupport {
 		// Performs operations for actions to be non-disruptive (when the pod is the only one for the controller)
 		// NOTE: It doesn't support the case of the pod associated to Deployment in version lower than 1.6.0.
 		//       In such case, the action execution will fail.

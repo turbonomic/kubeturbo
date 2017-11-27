@@ -31,11 +31,11 @@ type containerResizeSpec struct {
 }
 
 type ContainerResizer struct {
-	kubeClient                  *kclient.Clientset
-	kubeletClient               *kubelet.KubeletClient
-	k8sVersion                  string
-	noneSchedulerName           string
-	disableNonDisruptiveSupport bool
+	kubeClient                 *kclient.Clientset
+	kubeletClient              *kubelet.KubeletClient
+	k8sVersion                 string
+	noneSchedulerName          string
+	enableNonDisruptiveSupport bool
 
 	spec *containerResizeSpec
 	//a map for concurrent control of Actions
@@ -50,14 +50,14 @@ func NewContainerResizeSpec(idx int) *containerResizeSpec {
 	}
 }
 
-func NewContainerResizer(client *kclient.Clientset, kubeletClient *kubelet.KubeletClient, k8sver, noschedulerName string, lmap *util.ExpirationMap, disableNonDisruptiveSupport bool) *ContainerResizer {
+func NewContainerResizer(client *kclient.Clientset, kubeletClient *kubelet.KubeletClient, k8sver, noschedulerName string, lmap *util.ExpirationMap, enableNonDisruptiveSupport bool) *ContainerResizer {
 	return &ContainerResizer{
-		kubeClient:                  client,
-		kubeletClient:               kubeletClient,
-		k8sVersion:                  k8sver,
-		noneSchedulerName:           noschedulerName,
-		disableNonDisruptiveSupport: disableNonDisruptiveSupport,
-		lockMap:                     lmap,
+		kubeClient:                 client,
+		kubeletClient:              kubeletClient,
+		k8sVersion:                 k8sver,
+		noneSchedulerName:          noschedulerName,
+		enableNonDisruptiveSupport: enableNonDisruptiveSupport,
+		lockMap:                    lmap,
 	}
 }
 
@@ -293,7 +293,7 @@ func (r *ContainerResizer) resizeControllerContainer(pod *k8sapi.Pod, parentKind
 	glog.V(3).Infof("resizeContainer [%s]: got lock for parent[%s]", id, parentName)
 	helper.KeepRenewLock()
 
-	if !r.disableNonDisruptiveSupport {
+	if r.enableNonDisruptiveSupport {
 		// Performs operations for actions to be non-disruptive (when the pod is the only one for the controller)
 		// NOTE: It doesn't support the case of the pod associated to Deployment in version lower than 1.6.0.
 		//       In such case, the action execution will fail.

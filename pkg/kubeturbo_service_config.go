@@ -40,7 +40,7 @@ type Config struct {
 	noneSchedulerName string
 
 	// Flag for supporting non-disruptive action
-	disableNonDisruptiveSupport bool
+	enableNonDisruptiveSupport bool
 
 	// Close this to stop all reflectors
 	StopEverything chan struct{}
@@ -96,8 +96,8 @@ func (c *Config) WithRecorder(rc record.EventRecorder) *Config {
 	return c
 }
 
-func (c *Config) WithDisableNonDisruptiveFlag(disableNonDisruptiveSupport bool) *Config {
-	c.disableNonDisruptiveSupport = disableNonDisruptiveSupport
+func (c *Config) WithEnableNonDisruptiveFlag(enableNonDisruptiveSupport bool) *Config {
+	c.enableNonDisruptiveSupport = enableNonDisruptiveSupport
 	return c
 }
 

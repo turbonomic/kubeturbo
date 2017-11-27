@@ -70,7 +70,7 @@ type VMTServer struct {
 	NoneSchedulerName string
 
 	// Flag for supporting non-disruptive action
-	disableNonDisruptiveSupport bool
+	enableNonDisruptiveSupport bool
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -97,7 +97,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", kubelet.DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
 	fs.StringVar(&s.K8sVersion, "k8sVersion", executor.HigherK8sVersion, "the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&s.NoneSchedulerName, "noneSchedulerName", executor.DefaultNoneExistSchedulerName, "a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
-	fs.BoolVar(&s.disableNonDisruptiveSupport, "disable-non-disruptive-support", false, "Indicate if nondisruptive action support is disabled")
+	fs.BoolVar(&s.enableNonDisruptiveSupport, "enable-non-disruptive-support", false, "Indicate if nondisruptive action support is enabled")
 
 	//leaderelection.BindFlags(&s.LeaderElection, fs)
 }
@@ -248,7 +248,7 @@ func (s *VMTServer) Run(_ []string) error {
 		WithK8sVersion(s.K8sVersion).
 		WithNoneScheduler(s.NoneSchedulerName).
 		WithRecorder(createRecorder(kubeClient)).
-		WithDisableNonDisruptiveFlag(s.disableNonDisruptiveSupport)
+		WithEnableNonDisruptiveFlag(s.enableNonDisruptiveSupport)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	vmtService := kubeturbo.NewKubeturboService(vmtConfig)
