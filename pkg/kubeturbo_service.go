@@ -30,7 +30,7 @@ func NewKubeturboService(c *Config) *KubeturboService {
 
 	// Create action handler.
 	stype := c.ProbeConfig.StitchingPropertyType
-	actionHandlerConfig := action.NewActionHandlerConfig(c.Client, c.KubeletClient, c.k8sVersion, c.noneSchedulerName, stype)
+	actionHandlerConfig := action.NewActionHandlerConfig(c.Client, c.KubeletClient, c.k8sVersion, c.noneSchedulerName, stype, c.enableNonDisruptiveSupport)
 	actionHandler := action.NewActionHandler(actionHandlerConfig)
 
 	k8sTAPServiceConfig := NewK8sTAPServiceConfig(c.Client, c.ProbeConfig, c.tapSpec)

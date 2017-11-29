@@ -39,6 +39,9 @@ type Config struct {
 	k8sVersion        string
 	noneSchedulerName string
 
+	// Flag for supporting non-disruptive action
+	enableNonDisruptiveSupport bool
+
 	// Close this to stop all reflectors
 	StopEverything chan struct{}
 }
@@ -90,6 +93,11 @@ func (c *Config) WithTapSpec(spec *K8sTAPServiceSpec) *Config {
 
 func (c *Config) WithRecorder(rc record.EventRecorder) *Config {
 	c.Recorder = rc
+	return c
+}
+
+func (c *Config) WithEnableNonDisruptiveFlag(enableNonDisruptiveSupport bool) *Config {
+	c.enableNonDisruptiveSupport = enableNonDisruptiveSupport
 	return c
 }
 
