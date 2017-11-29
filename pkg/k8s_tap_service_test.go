@@ -12,7 +12,7 @@ func TestParseK8sTAPServiceSpec(t *testing.T) {
 	got, err := ParseK8sTAPServiceSpec(configPath, defaultTargetName)
 
 	if err != nil {
-		t.Errorf("Error while parsing the spec file %s: %v", configPath, err)
+		t.Fatalf("Error while parsing the spec file %s: %v", configPath, err)
 	}
 
 	// Check target config
@@ -35,7 +35,7 @@ func TestParseK8sTAPServiceSpecWithTargetConfig(t *testing.T) {
 	got, err := ParseK8sTAPServiceSpec(configPath, defaultTargetName)
 
 	if err != nil {
-		t.Errorf("Error while parsing the spec file %s: %v", configPath, err)
+		t.Fatalf("Error while parsing the spec file %s: %v", configPath, err)
 	}
 
 	// Check target config
