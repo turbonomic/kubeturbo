@@ -6,6 +6,7 @@ import (
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/golang/glog"
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 )
 
 type quotaEntityDTOBuilder struct {
@@ -71,10 +72,26 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.
 			//glog.Errorf("Commodity type %s sold by %s is not supported", resourceType, entityType)
 			continue
 		}
-		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
-		usedValue := resource.Used
-		commSoldBuilder.Used(usedValue)
 		capacityValue := resource.Capacity
+		usedValue := resource.Used
+		if metrics.IsCPUType(resourceType) && quota.AverageNodeCpuFrequency > 0.0 {
+			// modify the capacity value
+			newVal := capacityValue * quota.AverageNodeCpuFrequency
+			glog.V(4).Infof("%s: changed %s capacity from %f -> %f\n",
+				quota.Name, resourceType, capacityValue, newVal)
+			capacityValue = newVal
+
+			// modify the used value that is obtained from the resource quota objects
+			if len(quota.QuotaList) > 0 {
+				newVal := usedValue * quota.AverageNodeCpuFrequency
+				glog.V(4).Infof("%s: changed %s usedValue from %f -> %f\n",
+					quota.Name, resourceType, usedValue, newVal)
+				usedValue = newVal
+			}
+		}
+
+		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
+		commSoldBuilder.Used(usedValue)
 		commSoldBuilder.Capacity(capacityValue)
 		commSoldBuilder.Resizable(true)
 
@@ -101,6 +118,7 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesBought(provider *reposi
 			//glog.Errorf("Commodity type %s bought by %s is not supported", resourceType, entityType)
 			continue
 		}
+
 
 		commBoughtBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
 		usedValue := resource.Used

@@ -36,46 +36,19 @@ func (processor *NamespaceProcessor) ProcessNamespaces() (map[string]*repository
 			ClusterName: processor.clusterName,
 			Name: item.Name,
 		}
-		var quotaEntity *repository.KubeQuota
+		// the default quota object
+		quotaEntity := repository.CreateDefaultQuota(processor.clusterName,
+								namespace.Name,
+								processor.ClusterResources)
+
+		// update the default quota limits using the defined resource quota objects
 		quotaList, hasQuota := quotaMap[item.Name]
-		if !hasQuota { //Create default quota
-			quotaEntity = processor.createDefaultQuota(processor.clusterName, namespace.Name,
-				processor.ClusterResources)
-		} else {
-			quotaEntity = repository.CreateKubeQuota(processor.clusterName, namespace.Name, quotaList)
+		if hasQuota {
+			quotaEntity.QuotaList = quotaList
+			quotaEntity.ReconcileQuotas(quotaList)
 		}
 		namespace.Quota = quotaEntity
 		namespaces[item.Name] = namespace
 	}
 	return namespaces, nil
-}
-
-
-// Create a Quota object for namespaces that do have resource quota objects defined.
-// The resource quota limits are based on the cluster compute resource limits.
-func (processor *NamespaceProcessor) createDefaultQuota(clusterName, namespace string,
-							clusterResources map[metrics.ResourceType]*repository.
-									KubeDiscoveredResource,
-							) *repository.KubeQuota {
-	quota := repository.NewKubeQuota(clusterName, namespace)
-
-	// create quota allocation resources based on the cluster compute resources
-	finalResourceMap := make(map[metrics.ResourceType]*repository.KubeDiscoveredResource)
-	for _, rt := range metrics.ComputeAllocationResources {
-		r := &repository.KubeDiscoveredResource{
-			Type: rt,
-		}
-		finalResourceMap[r.Type] = r
-		computeType, exists := metrics.AllocationToComputeMap[rt] //corresponding compute resource
-		if exists {
-			computeResource, hasCompute := clusterResources[computeType]
-			if hasCompute {
-				r.Capacity = computeResource.Capacity
-			}
-		}
-	}
-	quota.AllocationResources = finalResourceMap
-
-	glog.V(2).Infof("Created default quota for namespace : %s\n", namespace)
-	return quota
 }

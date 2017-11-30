@@ -17,20 +17,20 @@ func TestPodMetricsListAllocationUsage(t *testing.T) {
 
 	var podMetricsList PodMetricsList
 	allocation1 := map[metrics.ResourceType]float64{
-		metrics.CPULimit: 4.0,
-		metrics.MemoryLimit: 4,
+		metrics.CPU: 4.0,
+		metrics.Memory: 4,
 	}
 	allocation2 := map[metrics.ResourceType]float64{
-		metrics.CPULimit: 6.0,
-		metrics.MemoryLimit: 6,
+		metrics.CPU: 6.0,
+		metrics.Memory: 6,
 	}
 	podMetrics1 := &repository.PodMetrics {
 		PodName: "pod1",
-		AllocationUsed: allocation1,
+		ComputeUsed: allocation1,
 	}
 	podMetrics2 := &repository.PodMetrics {
 		PodName: "pod1",
-		AllocationUsed: allocation2,
+		ComputeUsed: allocation2,
 	}
 
 	podMetricsList = append(podMetricsList, podMetrics1)
@@ -39,8 +39,8 @@ func TestPodMetricsListAllocationUsage(t *testing.T) {
 	resourceMap := podMetricsList.SumAllocationUsage()
 	assert.Equal(t, 10.0, resourceMap[metrics.CPULimit])
 	assert.Equal(t, 10.0, resourceMap[metrics.MemoryLimit])
-	assert.Equal(t, 0.0, resourceMap[metrics.CPURequest])
-	assert.Equal(t, 0.0, resourceMap[metrics.MemoryRequest])
+	assert.Equal(t, 10.0, resourceMap[metrics.CPURequest])
+	assert.Equal(t, 10.0, resourceMap[metrics.MemoryRequest])
 }
 
 type MockPod struct {
@@ -136,17 +136,14 @@ var (
 		},
 	}
 
-	kubeNode1 = &repository.KubeNode {
-		Node: n1,
-	}
-	kubeNode2 = &repository.KubeNode {
-		Node: n2,
-	}
+	kubeNode1 = repository.NewKubeNode(n1,"cluster1")
+	kubeNode2 = repository.NewKubeNode(n2,"cluster1")
 
-	kubeQuota1 = repository.NewKubeQuota("cluster1", ns1)
-	kubeQuota2 = repository.NewKubeQuota("cluster1", ns2)
-	kubeQuota3 = repository.NewKubeQuota("cluster1", ns3)
-	kubeQuota4 = repository.NewKubeQuota("cluster1", ns4)
+	clusterResources map[metrics.ResourceType]*repository.KubeDiscoveredResource
+	kubeQuota1 = repository.CreateDefaultQuota("cluster1", ns1, clusterResources)
+	kubeQuota2 = repository.CreateDefaultQuota("cluster1", ns2, clusterResources)
+	kubeQuota3 = repository.CreateDefaultQuota("cluster1", ns3, clusterResources)
+	kubeQuota4 = repository.CreateDefaultQuota("cluster1", ns4, clusterResources)
 
 	kubens1 = &repository.KubeNamespace {
 		ClusterName: "cluster1",
@@ -206,9 +203,12 @@ func TestPodMetrics(t *testing.T) {
 	metricsSink.AddNewMetricEntries(cpuUsed)
 
 	pm := createPodMetrics(pod11, quotaName, metricsSink)
-	fmt.Printf("pod metrics %++v\n", pm.AllocationUsed)
-	assert.Equal(t, pm.AllocationUsed[metrics.CPULimit], 2.0)
-	assert.Equal(t, pm.AllocationUsed[metrics.CPURequest], 2.0)
+	fmt.Printf("pod metrics %++v\n", pm.AllocationBought)
+	assert.Equal(t, pm.AllocationBought[metrics.CPULimit], 2.0)
+	assert.Equal(t, pm.AllocationBought[metrics.CPURequest], 2.0)
+
+	assert.Equal(t, pm.AllocationBought[metrics.MemoryLimit], 0.0)
+	assert.Equal(t, pm.AllocationBought[metrics.MemoryRequest], 0.0)
 }
 
 func TestCreateNodeMetricsMap(t *testing.T) {
@@ -241,6 +241,9 @@ func TestCreateNodeMetricsMap(t *testing.T) {
 	fmt.Printf("pod metrics %++v\n", nm.AllocationUsed)
 	assert.Equal(t, nm.AllocationUsed[metrics.CPULimit], 3.0)
 	assert.Equal(t, nm.AllocationUsed[metrics.CPURequest], 3.0)
+	assert.Equal(t, nm.AllocationUsed[metrics.MemoryLimit], 0.0)
+	assert.Equal(t, nm.AllocationUsed[metrics.MemoryRequest], 0.0)
+
 	assert.Equal(t, nm.AllocationCap[metrics.CPULimit], 4.0)
 	assert.Equal(t, nm.AllocationCap[metrics.CPURequest], 4.0)
 }
@@ -252,6 +255,7 @@ func TestCreatePodMetricsMap(t *testing.T) {
 		Cluster: clusterSummary,
 		MetricsSink: metricsSink,
 		PodList: []*v1.Pod{pod11,pod12,pod21, pod22, pod31, pod32},
+		NodeList: []*v1.Node{n1, n2},
 	}
 
 	metricsSink.AddNewMetricEntries(cpuUsed_pod11, cpuUsed_pod12,
@@ -263,7 +267,7 @@ func TestCreatePodMetricsMap(t *testing.T) {
 		for quotaName, podList := range quotaMap {
 			fmt.Printf("\t%s \n", quotaName)
 			for _, pod := range podList {
-				fmt.Printf("\t\t%s:%++v \n", pod.PodName, pod.AllocationUsed)
+				fmt.Printf("\t\t%s:%++v \n", pod.PodName, pod.AllocationBought)
 			}
 		}
 	}
@@ -295,17 +299,23 @@ func TestCreatePodMetricsMap(t *testing.T) {
 			fmt.Printf("qm4 %++v\n", qm4)
 		}
 	}
+	assert.NotNil(t, qm1)
 	qm1Map := qm1.AllocationBoughtMap
 	assert.Equal(t, qm1Map[node1][metrics.CPULimit], 2.0)
 	assert.Equal(t, qm1Map[node2][metrics.CPULimit], 2.0)
 
+	assert.NotNil(t, qm2)
 	qm2Map := qm2.AllocationBoughtMap
 	assert.Equal(t, qm2Map[node1][metrics.CPULimit], 2.0)
 	assert.Equal(t, qm2Map[node2][metrics.CPULimit], 2.0)
 
+	assert.NotNil(t, qm3)
 	qm3Map := qm3.AllocationBoughtMap
 	assert.Equal(t, qm3Map[node1][metrics.CPULimit], 2.0)
 	assert.Equal(t, qm3Map[node2][metrics.CPULimit], 0.0)
 
-	assert.Nil(t, qm4)
+	assert.NotNil(t, qm4)
+	qm4Map := qm4.AllocationBoughtMap
+	assert.Equal(t, qm4Map[node1][metrics.CPULimit], 0.0)
+	assert.Equal(t, qm4Map[node2][metrics.CPULimit], 0.0)
 }

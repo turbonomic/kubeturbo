@@ -139,16 +139,19 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 	// Initialize the Dispatcher to create discovery workers
 	dc.dispatcher.Init(dc.resultCollector, clusterSummary)	//need to pass the cluster object to the discovery workers
 
+	// Multiple discovery workers to create node and pod DTOs
 	nodes := clusterSummary.NodeList
 	workerCount := dc.dispatcher.Dispatch(nodes)
 	entityDTOs, quotaMetricsList := dc.resultCollector.Collect(workerCount)
 
+	// Quota discovery worker to create quota DTOs
 	quotasDiscoveryWorker := worker.Newk8sResourceQuotasDiscoveryWorker(clusterSummary)
 	quotaDtos, _ := quotasDiscoveryWorker.Do(quotaMetricsList)
 
+	// All the DTO's
 	entityDTOs = append(entityDTOs, quotaDtos...)
-
-	glog.V(2).Infof("Discovery workers have finished discovery work with %d entityDTOs built. Now performing service discovery...", len(entityDTOs))
+	glog.V(2).Infof("Discovery workers have finished discovery work with %d entityDTOs built. " +
+		"		Now performing service discovery...", len(entityDTOs))
 
 	// affinity process
 	glog.V(2).Infof("begin to process affinity.")

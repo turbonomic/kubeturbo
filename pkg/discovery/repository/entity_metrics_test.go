@@ -42,8 +42,8 @@ var TestQuotaAllocations= []struct {
 func TestPodMetrics(t *testing.T) {
 	podMetrics := NewPodMetrics("p11", "n1", "q1")
 	for _, testAllocation := range TestPodAllocations {
-		podMetrics.AllocationUsed[testAllocation.resourceType] = testAllocation.used
-		assert.Equal(t,  testAllocation.used, podMetrics.AllocationUsed[testAllocation.resourceType])
+		podMetrics.AllocationBought[testAllocation.resourceType] = testAllocation.used
+		assert.Equal(t,  testAllocation.used, podMetrics.AllocationBought[testAllocation.resourceType])
 	}
 }
 

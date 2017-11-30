@@ -67,6 +67,9 @@ var (
 	// List of Allocation resources
 	ComputeAllocationResources = []ResourceType{CPULimit, MemoryLimit, CPURequest, MemoryRequest}
 
+	// List of cpu related metrics
+	CPUResources = []ResourceType{CPULimit, CPURequest, CPU}
+
 	// Mapping of allocation to compute resources
 	AllocationToComputeMap = map[ResourceType]ResourceType {
 		CPULimit: 	CPU,
@@ -89,6 +92,15 @@ func IsAllocationType(resourceType ResourceType) (bool) {
 // Returns true if the given resource type argument belongs to the list of compute resources
 func IsComputeType(resourceType ResourceType) (bool) {
 	for _, rt := range ComputeResources {
+		if rt == resourceType {
+			return true
+		}
+	}
+	return false
+}
+
+func IsCPUType(resourceType ResourceType) (bool) {
+	for _, rt := range CPUResources {
 		if rt == resourceType {
 			return true
 		}

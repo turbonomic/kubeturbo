@@ -14,7 +14,8 @@ type ClusterProcessor struct {
 	ClusterInfoScraper *cluster.ClusterScraper
 }
 
-// Query the Kubernetes API Server and Get the Namespace objects
+// Query the Kubernetes API Server to get the cluster nodes and namespaces.
+// Creates a KubeCluster entity to represent the cluster and its entities and resources
 func (processor *ClusterProcessor) ProcessCluster() (*repository.KubeCluster, error) {
 	svcID, err := processor.ClusterInfoScraper.GetKubernetesServiceID()
 	if err != nil {
@@ -36,9 +37,9 @@ func (processor *ClusterProcessor) ProcessCluster() (*repository.KubeCluster, er
 
 	// Namespaces and Quotas
 	// sum of cluster compute resources
-	clusterResources := processor.computeClusterResources(kubeCluster.Nodes)
+	clusterResources := computeClusterResources(kubeCluster.Nodes)
 	for rt, cap := range clusterResources {
-		glog.Infof("cluster resource %s has capacity = %f\n", rt, cap)
+		glog.Infof("cluster resource %s has capacity = %f\n", rt, cap.Capacity)
 	}
 
 	namespaceProcessor := &NamespaceProcessor{
@@ -62,30 +63,29 @@ func (processor *ClusterProcessor) processNodes(clusterName string) (map[string]
 	nodes := make(map[string]*repository.KubeNode)
 	for _, item := range nodeList{
 		nodeEntity := repository.NewKubeNode(item, clusterName)
-		glog.V(2).Infof("Discovered node entity : %s\n", nodeEntity.KubeEntity.String())
 		nodes[item.Name] = nodeEntity
 	}
 
 	return nodes, nil
 }
 
-func (processor *ClusterProcessor) computeClusterResources(nodes map[string]*repository.KubeNode) (map[metrics.ResourceType]*repository.KubeDiscoveredResource){
+// Sum the compute resource capacities from all the nodes to create the cluster resource capacities
+func computeClusterResources(nodes map[string]*repository.KubeNode) (map[metrics.ResourceType]*repository.KubeDiscoveredResource){
+	// sum the capacities of the node resources
 	computeResources := make(map[metrics.ResourceType]float64)
 	for _, node := range nodes {
-		for rt, resource := range node.ComputeResources {
-			if !metrics.IsComputeType(rt) {
-				continue
-			}
+		for rt, nodeResource := range node.ComputeResources {
 			computeCap, exists := computeResources[rt]
 			if !exists {
-				computeCap = resource.Capacity
+				computeCap = nodeResource.Capacity
 			} else {
-				computeCap = computeCap + resource.Capacity
+				computeCap = computeCap + nodeResource.Capacity
 			}
 			computeResources[rt] = computeCap
 		}
 	}
 
+	// convert to KubeDiscoveredResource objects
 	clusterResources := make(map[metrics.ResourceType]*repository.KubeDiscoveredResource)
 	for rt, capacity := range computeResources {
 		r := &repository.KubeDiscoveredResource{

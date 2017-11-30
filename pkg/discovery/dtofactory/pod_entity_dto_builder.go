@@ -99,7 +99,6 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		entityDTOBuilder = entityDTOBuilder.Provider(provider)
 		entityDTOBuilder.BuysCommodities(commoditiesBought)
 
-		glog.Infof("%s now building comm bought from quota \n", pod.Name)
 		quotaUID, exists := builder.quotaNameUIDMap[pod.Namespace]
 		if exists {
 			commoditiesBoughtQuota, err := builder.getPodCommoditiesBoughtFromQuota(pod, cpuFrequency)

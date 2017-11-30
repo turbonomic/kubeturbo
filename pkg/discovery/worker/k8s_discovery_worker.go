@@ -192,10 +192,10 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	}
 	wg.Wait()
 
-	// Update the sink with allocation metrics for pod, nodes
 	// Collect usages for pods in different quotas and create used and capacity
 	// metrics for the allocation resources of the nodes, quotas and pods
 	metricsCollector := &MetricsCollector{
+		NodeList: currTask.NodeList(),
 		PodList: currTask.PodList(),
 		Cluster: worker.Cluster,
 		MetricsSink: worker.sink,
@@ -215,6 +215,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
 	result := task.NewTaskResult(worker.id, task.TaskSucceeded).WithContent(entityDTOs)
+	// return the quota metrics created by this worker
 	if len(quotaMetricsCollection) > 0 {
 		result.WithQuotaMetrics(quotaMetricsCollection)
 	}
@@ -228,15 +229,23 @@ func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection P
 		for _, podMetricsList := range podsByQuotaMap {
 			for _, podMetrics := range podMetricsList {
 				podKey := podMetrics.PodKey
-				allocationBought := podMetrics.AllocationUsed
-				for resourceType, usedValue := range allocationBought {
+				for resourceType, usedValue := range podMetrics.AllocationBought {
 					// Generate the metrics in the sink
 					allocationUsedMetric := metrics.NewEntityResourceMetric(etype,
 								podKey, resourceType,
 								metrics.Used, usedValue)
 					worker.sink.AddNewMetricEntries(allocationUsedMetric)
-					glog.V(4).Infof("%s: created new allocation %s --> used=%f\n",
+					glog.V(4).Infof("%s: created bought allocation %s --> used=%f\n",
 						podMetrics.PodName, allocationUsedMetric.GetUID(), usedValue)
+				}
+
+				for resourceType, capValue := range podMetrics.ComputeCapacity {
+					computeCapMetric := metrics.NewEntityResourceMetric(etype,
+						podKey, resourceType,
+						metrics.Capacity, capValue)
+					worker.sink.AddNewMetricEntries(computeCapMetric)
+					glog.V(4).Infof("%s: updated compute capacity %s --> cap=%f\n",
+						podMetrics.PodName, computeCapMetric.GetUID(), capValue)
 				}
 			}
 		}
@@ -258,10 +267,9 @@ func (worker *k8sDiscoveryWorker) addNodeAllocationMetrics(nodeMetricsCollection
 				allocationResource, metrics.Used, usedValue)
 			worker.sink.AddNewMetricEntries(allocationUsedMetric)
 
-			glog.V(4).Infof("Node:%s : created new allocation %s --> cap=%f  used=%f\n",
+			glog.V(4).Infof("Node:%s : created allocation sold %s --> cap=%f  used=%f\n",
 					nodeMetrics.NodeName, allocationResource, capValue, usedValue)
 		}
-		// TODO: copy the allocation metrics to the KubeNode entity, so it can be used for dto generation
 	}
 }
 
