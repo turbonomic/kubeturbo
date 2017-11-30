@@ -15,22 +15,24 @@ import (
 //  - delete p1 (pod p2 created by controller)
 //  - update the replicas to 1 (p2 deleted by controller)
 type NonDisruptiveHelper struct {
-	namespace string
-	contKind  string
-	contName  string
-	targetPod string
-	client    *kclient.Clientset
+	namespace  string
+	contKind   string
+	contName   string
+	targetPod  string
+	k8sVersion string
+	client     *kclient.Clientset
 
 	podToClean string
 }
 
-func NewNonDisruptiveHelper(client *kclient.Clientset, namespace, contKind, contName, targetPod string) *NonDisruptiveHelper {
+func NewNonDisruptiveHelper(client *kclient.Clientset, namespace, contKind, contName, targetPod, k8sVersion string) *NonDisruptiveHelper {
 	p := &NonDisruptiveHelper{
-		namespace: namespace,
-		contKind:  contKind,
-		contName:  contName,
-		targetPod: targetPod,
-		client:    client,
+		namespace:  namespace,
+		contKind:   contKind,
+		contName:   contName,
+		targetPod:  targetPod,
+		k8sVersion: k8sVersion,
+		client:     client,
 	}
 
 	return p
@@ -48,6 +50,10 @@ func (h *NonDisruptiveHelper) OperateForNonDisruption() error {
 
 	if replicas != 1 {
 		return nil
+	}
+
+	if !h.isOperationSupported() {
+		return fmt.Errorf("non-disruptive action is not supported for %s %s/%s", h.contKind, h.namespace, h.contName)
 	}
 
 	glog.V(2).Infof("Started non-disruptive operations on %s %s/%s", h.contKind, h.namespace, h.contName)
@@ -184,4 +190,23 @@ func (h *NonDisruptiveHelper) updateReplicaWithRetry(newReplicas int) error {
 	}
 
 	return nil
+}
+
+func (h *NonDisruptiveHelper) isOperationSupported() bool {
+	switch h.contKind {
+	case util.KindReplicationController:
+		return true
+	case util.KindReplicaSet:
+		return true
+	case util.KindDeployment:
+		if util.CompareVersion(h.k8sVersion, HigherK8sVersion) < 0 {
+			glog.Errorf("The non-disruptive operation is not supported for Deployment controllers in version %s", h.k8sVersion)
+			return false
+		}
+
+		return true
+	default:
+		glog.Errorf("unsupported controller kind: %s", h.contKind)
+		return false
+	}
 }
