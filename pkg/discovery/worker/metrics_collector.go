@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"fmt"
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -59,7 +58,7 @@ func (podMetricsList PodMetricsList) SumAllocationUsage() map[metrics.ResourceTy
 	for _, allocationType := range metrics.ComputeAllocationResources {
 		computeType, exists := metrics.AllocationToComputeMap[allocationType]
 		if !exists {
-			fmt.Errorf("cannot find corresponding compute type for %s", allocationType)
+			glog.Errorf("cannot find corresponding compute type for %s", allocationType)
 			continue
 		}
 		allocationResourcesSum[allocationType] = computeResourcesSum[computeType]
@@ -185,7 +184,7 @@ func createPodMetrics(pod *v1.Pod, quotaName string, metricsSink *metrics.Entity
 	for _, resourceType := range metrics.ComputeAllocationResources {
 		computeType, exists := metrics.AllocationToComputeMap[resourceType]
 		if !exists {
-			fmt.Errorf("cannot find corresponding compute type for %s", resourceType)
+			glog.Errorf("cannot find corresponding compute type for %s", resourceType)
 			continue
 		}
 		allocationBought, exists := podMetrics.ComputeUsed[computeType]
@@ -331,7 +330,7 @@ func (collector *MetricsCollector) collectNodeFrequencies() {
 		cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
 		cpuFrequencyMetric, err := collector.MetricsSink.GetMetric(cpuFrequencyUID)
 		if err != nil {
-			fmt.Errorf("Failed to get cpu frequency from sink for node %s: %s\n", key, err)
+			glog.Errorf("Failed to get cpu frequency from sink for node %s: %s\n", key, err)
 		}
 		if cpuFrequencyMetric != nil {
 			cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
@@ -340,7 +339,7 @@ func (collector *MetricsCollector) collectNodeFrequencies() {
 			glog.V(4).Infof("%s : kubenode cpu frequency is %f",
 				kubeNode.Name, kubeNode.NodeCpuFrequency)
 		} else {
-			fmt.Printf("null cpu frequency from sink for node %s\n", key)
+			glog.Errorf("null cpu frequency from sink for node %s\n", key)
 		}
 	}
 }

@@ -295,8 +295,12 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	result = append(result, nodeEntityDTOs...)
 
 	//2. build entityDTOs for pods
-	quotaNameUIDMap := cluster.QuotaNameUIDMap	// quota providers
-	nodeNameUIDMap := cluster.NodeNameUIDMap		// node providers
+	quotaNameUIDMap := make(map[string]string)
+	nodeNameUIDMap := make(map[string]string)
+	if cluster != nil {
+		quotaNameUIDMap = cluster.QuotaNameUIDMap        // quota providers
+		nodeNameUIDMap = cluster.NodeNameUIDMap                // node providers
+	}
 	pods := currTask.PodList()
 	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager,
 							nodeNameUIDMap, quotaNameUIDMap)

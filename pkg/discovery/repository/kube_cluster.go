@@ -165,7 +165,8 @@ func CreateDefaultQuota(clusterName, namespace string,
 			// used values for the sold resources are obtained while parsing the quota objects
 			// or by adding the usages of pod compute resources running in the namespace
 		} else {
-			glog.Errorf("%s : cannot find cluster compute resource type for allocation %s\n", rt)
+			glog.Errorf("%s : cannot find cluster compute resource type for allocation %s\n",
+						quota.Name, rt)
 		}
 	}
 
