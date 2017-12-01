@@ -110,6 +110,8 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 			provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_DATACENTER, quotaUID)
 			entityDTOBuilder = entityDTOBuilder.Provider(provider)
 			entityDTOBuilder.BuysCommodities(commoditiesBoughtQuota)
+		} else {
+			glog.Errorf("Failed to get quota for pod: %s", pod.Namespace)
 		}
 
 		// entities' properties.
@@ -132,7 +134,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		}
 
 		result = append(result, entityDto)
-		glog.V(4).Infof("POD DTO : %++v\n", entityDto)
+		glog.V(4).Infof("pod dto: %++v\n", entityDto)
 	}
 
 	return result, nil
@@ -153,8 +155,8 @@ func (builder *podEntityDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, 
 	return cpuFrequency, nil
 }
 
-// Build the sold commodityDTO by each pod. They are:
-// vCPU, vMem and VMPMAccess; VMPMAccess is used to bind container to the hosting pod (no move).
+// Build the CommodityDTOs sold  by the pod for vCPU, vMem and VMPMAcces.
+// VMPMAccess is used to bind container to the hosting pod so the container is not moved out of the pod
 func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
 	key := util.PodKeyFunc(pod)
@@ -185,8 +187,8 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequ
 	return commoditiesSold, nil
 }
 
-// Build the bought commodityDTO by each pod. They are:
-// vCPU, vMem, cpuProvisioned, memProvisioned, access, cluster.
+// Build the CommodityDTOs bought by the pod from the node provider.
+// Commodities bought are vCPU, vMem, cpuProvisioned, memProvisioned, access, cluster
 func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 	key := util.PodKeyFunc(pod)
@@ -250,8 +252,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 	return commoditiesBought, nil
 }
 
-// Build the bought commodityDTO by each pod. They are:
-// vCPU, vMem, cpuProvisioned, memProvisioned, access, cluster.
+// Build the CommodityDTOs bought by the pod from the quota provider.
 func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromQuota(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 	key := util.PodKeyFunc(pod)

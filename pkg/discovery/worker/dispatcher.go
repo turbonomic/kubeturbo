@@ -42,7 +42,7 @@ func NewDispatcher(config *DispatcherConfig) *Dispatcher {
 }
 // Creates workerCount number of k8sDiscoveryWorker, each with multiple MonitoringWorkers for different types of monitorings/sources
 // Each is registered with the Dispatcher
-func (d *Dispatcher) Init(c *ResultCollector, cluster *repository.ClusterSummary) {
+func (d *Dispatcher) Init(c *ResultCollector) {
 	// Create discovery workers
 	for i := 0; i < d.config.workerCount; i++ {
 		// Create the worker instance
@@ -55,8 +55,6 @@ func (d *Dispatcher) Init(c *ResultCollector, cluster *repository.ClusterSummary
 		if err != nil {
 			glog.Fatalf("failed to build discovery worker %s", err)
 		}
-		// Pass the cluster object to each worker
-		discoveryWorker.Cluster = cluster
 		// Register the worker and let it wait on a separate thread for a task to be submitted
 		go discoveryWorker.RegisterAndRun(d, c)
 	}
@@ -71,7 +69,7 @@ func (d *Dispatcher) RegisterWorker(worker *k8sDiscoveryWorker) {
 // Dispatch the task to the pool, task will be picked by the k8sDiscoveryWorker
 // Receives the complete list of nodes in the cluster that are divided in groups and submitted as
 // Tasks to the DiscoveryWorkers to carry out the discovery of the pods, containers and resources
-func (d *Dispatcher) Dispatch(nodes []*api.Node) int {
+func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSummary) int {
 
 	// make sure when len(node) < workerCount, worker will receive at most 1 node to discover
 	perTaskNodeLength := int(math.Ceil(float64(len(nodes)) / float64(d.config.workerCount)))
@@ -84,7 +82,7 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node) int {
 
 		currPods := d.config.clusterInfoScraper.GetRunningPodsOnNodes(currNodes)
 
-		currTask := task.NewTask().WithNodes(currNodes).WithPods(currPods)
+		currTask := task.NewTask().WithNodes(currNodes).WithPods(currPods).WithCluster(cluster)
 		d.assignTask(currTask)
 
 		assignedNodesCount += perTaskNodeLength

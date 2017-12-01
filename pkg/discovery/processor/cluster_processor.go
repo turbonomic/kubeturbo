@@ -2,10 +2,10 @@ package processor
 
 import (
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/cluster"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 // Class to query the cluster data from the Kubernetes API server and create the KubeCluster entity
@@ -23,8 +23,8 @@ func (processor *ClusterProcessor) ProcessCluster() (*repository.KubeCluster, er
 	}
 
 	kubeCluster := &repository.KubeCluster{
-		Name: svcID,
-		Nodes: make(map[string]*repository.KubeNode),
+		Name:       svcID,
+		Nodes:      make(map[string]*repository.KubeNode),
 		Namespaces: make(map[string]*repository.KubeNamespace),
 	}
 
@@ -39,13 +39,13 @@ func (processor *ClusterProcessor) ProcessCluster() (*repository.KubeCluster, er
 	// sum of cluster compute resources
 	clusterResources := computeClusterResources(kubeCluster.Nodes)
 	for rt, cap := range clusterResources {
-		glog.Infof("cluster resource %s has capacity = %f\n", rt, cap.Capacity)
+		glog.V(2).Infof("cluster resource %s has capacity = %f\n", rt, cap.Capacity)
 	}
 
 	namespaceProcessor := &NamespaceProcessor{
 		ClusterInfoScraper: processor.ClusterInfoScraper,
-		clusterName: kubeCluster.Name,
-		ClusterResources: clusterResources,
+		clusterName:        kubeCluster.Name,
+		ClusterResources:   clusterResources,
 	}
 	kubeCluster.Namespaces, err = namespaceProcessor.ProcessNamespaces()
 
@@ -53,15 +53,15 @@ func (processor *ClusterProcessor) ProcessCluster() (*repository.KubeCluster, er
 }
 
 // Query the Kubernetes API Server and Get the Node objects
-func (processor *ClusterProcessor) processNodes(clusterName string) (map[string]*repository.KubeNode, error)  {
+func (processor *ClusterProcessor) processNodes(clusterName string) (map[string]*repository.KubeNode, error) {
 	nodeList, err := processor.ClusterInfoScraper.GetAllNodes()
 	if err != nil {
 		return nil, fmt.Errorf("Error getting nodes for cluster %s:%s\n", clusterName, err)
 	}
-	glog.Infof("There are %d nodes\n", len(nodeList))
+	glog.V(2).Infof("There are %d nodes\n", len(nodeList))
 
 	nodes := make(map[string]*repository.KubeNode)
-	for _, item := range nodeList{
+	for _, item := range nodeList {
 		nodeEntity := repository.NewKubeNode(item, clusterName)
 		nodes[item.Name] = nodeEntity
 	}
@@ -70,7 +70,7 @@ func (processor *ClusterProcessor) processNodes(clusterName string) (map[string]
 }
 
 // Sum the compute resource capacities from all the nodes to create the cluster resource capacities
-func computeClusterResources(nodes map[string]*repository.KubeNode) (map[metrics.ResourceType]*repository.KubeDiscoveredResource){
+func computeClusterResources(nodes map[string]*repository.KubeNode) map[metrics.ResourceType]*repository.KubeDiscoveredResource {
 	// sum the capacities of the node resources
 	computeResources := make(map[metrics.ResourceType]float64)
 	for _, node := range nodes {
@@ -89,11 +89,10 @@ func computeClusterResources(nodes map[string]*repository.KubeNode) (map[metrics
 	clusterResources := make(map[metrics.ResourceType]*repository.KubeDiscoveredResource)
 	for rt, capacity := range computeResources {
 		r := &repository.KubeDiscoveredResource{
-			Type: rt,
+			Type:     rt,
 			Capacity: capacity,
 		}
 		clusterResources[rt] = r
 	}
 	return clusterResources
 }
-

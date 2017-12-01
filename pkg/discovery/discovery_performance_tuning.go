@@ -10,6 +10,8 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 type DiscoverTestElement struct {
@@ -101,7 +103,16 @@ func (dc *K8sDiscoveryClient) discoverWithNewFrameworkWithoutCompliance() ([]*pr
 		return nil, fmt.Errorf("Failed to get all nodes in the cluster: %s", err)
 	}
 
-	workerCount := dc.dispatcher.Dispatch(nodes)
+	clusterProcessor := &processor.ClusterProcessor{
+		ClusterInfoScraper: dc.config.k8sClusterScraper,
+	}
+	kubeCluster, err := clusterProcessor.ProcessCluster()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to process cluster: %s", err)
+	}
+	clusterSummary := repository.CreateClusterSummary(kubeCluster)
+
+	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
 	entityDTOs, _ := dc.resultCollector.Collect(workerCount)
 	glog.V(3).Infof("Discovery workers have finished discovery work with %d entityDTOs built. Now performing service discovery...", len(entityDTOs))
 

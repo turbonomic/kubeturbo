@@ -21,6 +21,7 @@ type Task struct {
 
 	nodeList []*api.Node
 	podList  []*api.Pod
+	cluster *repository.ClusterSummary
 }
 
 // Worker task is consisted of a list of nodes the worker must discover.
@@ -42,6 +43,13 @@ func (t *Task) WithPods(podList []*api.Pod) *Task {
 	return t
 }
 
+
+// Assign cluster summary to the task.
+func (t *Task) WithCluster(cluster *repository.ClusterSummary) *Task {
+	t.cluster = cluster
+	return t
+}
+
 // Get node list from the task.
 func (t *Task) NodeList() []*api.Node {
 	return t.nodeList
@@ -50,6 +58,10 @@ func (t *Task) NodeList() []*api.Node {
 // Get pod list from the task.
 func (t *Task) PodList() []*api.Pod {
 	return t.podList
+}
+
+func (t *Task) Cluster() *repository.ClusterSummary {
+	return t.cluster
 }
 
 type TaskResultState string

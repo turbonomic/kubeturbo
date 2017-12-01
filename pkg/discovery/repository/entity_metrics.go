@@ -10,8 +10,6 @@ type PodMetrics struct {
 	QuotaName        string
 	NodeName         string
 	PodKey           string
-	CPUUsed		float64
-	MemUsed		float64
 	// Compute resource used and capacity
 	ComputeUsed 	map[metrics.ResourceType]float64
 	ComputeCapacity map[metrics.ResourceType]float64

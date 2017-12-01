@@ -15,7 +15,6 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 const (
@@ -69,8 +68,6 @@ type k8sDiscoveryWorker struct {
 
 	// sink is a central place to store all the monitored data.
 	sink *metrics.EntityMetricSink
-
-	Cluster *repository.ClusterSummary
 
 	taskChan chan *task.Task
 }
@@ -197,7 +194,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	metricsCollector := &MetricsCollector{
 		NodeList: currTask.NodeList(),
 		PodList: currTask.PodList(),
-		Cluster: worker.Cluster,
+		Cluster: currTask.Cluster(),
 		MetricsSink: worker.sink,
 	}
 
@@ -282,6 +279,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 
 	// Node providers
 	nodes := currTask.NodeList()
+	cluster := currTask.Cluster()
 	for _, node := range nodes {
 		stitchingManager.StoreStitchingValue(node)
 	}
@@ -297,8 +295,8 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	result = append(result, nodeEntityDTOs...)
 
 	//2. build entityDTOs for pods
-	quotaNameUIDMap := worker.Cluster.QuotaNameUIDMap	// quota providers
-	nodeNameUIDMap := worker.Cluster.NodeNameUIDMap		// node providers
+	quotaNameUIDMap := cluster.QuotaNameUIDMap	// quota providers
+	nodeNameUIDMap := cluster.NodeNameUIDMap		// node providers
 	pods := currTask.PodList()
 	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager,
 							nodeNameUIDMap, quotaNameUIDMap)

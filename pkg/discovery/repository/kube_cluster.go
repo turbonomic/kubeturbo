@@ -4,7 +4,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"k8s.io/client-go/pkg/api/v1"
 	"github.com/golang/glog"
-	"fmt"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 )
 
@@ -166,7 +165,7 @@ func CreateDefaultQuota(clusterName, namespace string,
 			// used values for the sold resources are obtained while parsing the quota objects
 			// or by adding the usages of pod compute resources running in the namespace
 		} else {
-			fmt.Errorf("%s : cannot find cluster compute resource for allocation %s\n", rt)
+			glog.Errorf("%s : cannot find cluster compute resource type for allocation %s\n", rt)
 		}
 	}
 

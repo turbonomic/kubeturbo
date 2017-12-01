@@ -10,7 +10,7 @@ type ResourceType string
 
 const (
 	ClusterType     DiscoveredEntityType = "Cluster"
-	QuotaType    	DiscoveredEntityType = "Quota"
+	QuotaType       DiscoveredEntityType = "Quota"
 	NodeType        DiscoveredEntityType = "Node"
 	PodType         DiscoveredEntityType = "Pod"
 	ContainerType   DiscoveredEntityType = "Container"
@@ -30,35 +30,35 @@ const (
 	Transaction       ResourceType = "Transaction"
 	ObjectCount       ResourceType = "ObjectCount"
 
-	Access       	  ResourceType = "Access"
-	Cluster      	  ResourceType = "Cluster"
-	Schedulable  	  ResourceType = "Schedulable"
-	CpuFrequency 	  ResourceType = "CpuFrequency"
+	Access       ResourceType = "Access"
+	Cluster      ResourceType = "Cluster"
+	Schedulable  ResourceType = "Schedulable"
+	CpuFrequency ResourceType = "CpuFrequency"
 )
 
 var (
 	// Mapping of Kubernetes API Server resource names to the compute resource types
-	KubeComputeResourceTypes = map[v1.ResourceName]ResourceType {
-		v1.ResourceCPU:			CPU,
-		v1.ResourceMemory: 		Memory,
+	KubeComputeResourceTypes = map[v1.ResourceName]ResourceType{
+		v1.ResourceCPU:    CPU,
+		v1.ResourceMemory: Memory,
 	}
 
 	// Mapping of Kubernetes API Server resource names to the allocation resource types
-	KubeAllocatonResourceTypes = map[v1.ResourceName]ResourceType {
-		v1.ResourceLimitsCPU: 	 	CPULimit,
-		v1.ResourceLimitsMemory: 	MemoryLimit,
-		v1.ResourceRequestsCPU:  	CPURequest,
-		v1.ResourceRequestsMemory: 	MemoryRequest,
+	KubeAllocatonResourceTypes = map[v1.ResourceName]ResourceType{
+		v1.ResourceLimitsCPU:      CPULimit,
+		v1.ResourceLimitsMemory:   MemoryLimit,
+		v1.ResourceRequestsCPU:    CPURequest,
+		v1.ResourceRequestsMemory: MemoryRequest,
 	}
 
-	ReverseKubeResourceTypes = map[ResourceType]v1.ResourceName {
-		CPULimit: 	v1.ResourceLimitsCPU,
-		MemoryLimit: 	v1.ResourceLimitsMemory,
-		CPURequest: 	v1.ResourceRequestsCPU,
-		MemoryRequest: 	v1.ResourceRequestsMemory,
-		ObjectCount: 	v1.ResourcePods,
-		CPU: 		v1.ResourceCPU,
-		Memory: 	v1.ResourceMemory,
+	ReverseKubeResourceTypes = map[ResourceType]v1.ResourceName{
+		CPULimit:      v1.ResourceLimitsCPU,
+		MemoryLimit:   v1.ResourceLimitsMemory,
+		CPURequest:    v1.ResourceRequestsCPU,
+		MemoryRequest: v1.ResourceRequestsMemory,
+		ObjectCount:   v1.ResourcePods,
+		CPU:           v1.ResourceCPU,
+		Memory:        v1.ResourceMemory,
 	}
 
 	// List of Compute resources
@@ -71,16 +71,16 @@ var (
 	CPUResources = []ResourceType{CPULimit, CPURequest, CPU}
 
 	// Mapping of allocation to compute resources
-	AllocationToComputeMap = map[ResourceType]ResourceType {
-		CPULimit: 	CPU,
-		MemoryLimit: 	Memory,
-		CPURequest: 	CPU,
-		MemoryRequest: 	Memory,
+	AllocationToComputeMap = map[ResourceType]ResourceType{
+		CPULimit:      CPU,
+		MemoryLimit:   Memory,
+		CPURequest:    CPU,
+		MemoryRequest: Memory,
 	}
 )
 
 // Returns true if the given resource type argument belongs to the list of allocation resources
-func IsAllocationType(resourceType ResourceType) (bool) {
+func IsAllocationType(resourceType ResourceType) bool {
 	for _, rt := range ComputeAllocationResources {
 		if rt == resourceType {
 			return true
@@ -90,7 +90,7 @@ func IsAllocationType(resourceType ResourceType) (bool) {
 }
 
 // Returns true if the given resource type argument belongs to the list of compute resources
-func IsComputeType(resourceType ResourceType) (bool) {
+func IsComputeType(resourceType ResourceType) bool {
 	for _, rt := range ComputeResources {
 		if rt == resourceType {
 			return true
@@ -99,7 +99,7 @@ func IsComputeType(resourceType ResourceType) (bool) {
 	return false
 }
 
-func IsCPUType(resourceType ResourceType) (bool) {
+func IsCPUType(resourceType ResourceType) bool {
 	for _, rt := range CPUResources {
 		if rt == resourceType {
 			return true

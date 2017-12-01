@@ -1,12 +1,12 @@
 package worker
 
 import (
-	"k8s.io/client-go/pkg/api/v1"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"fmt"
+	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"github.com/golang/glog"
+	"k8s.io/client-go/pkg/api/v1"
 )
 
 // Collects allocation metrics for quotas, nodes and pods using the compute resource usages for pods
@@ -73,7 +73,7 @@ func (podMetricsList PodMetricsList) SumAllocationUsage() map[metrics.ResourceTy
 }
 
 func (podCollectionMap PodMetricsByNodeAndQuota) addPodMetric(podName, nodeName, quotaName string,
-								podMetrics *repository.PodMetrics) {
+	podMetrics *repository.PodMetrics) {
 	podsByQuotaMap, exists := podCollectionMap[nodeName]
 	if !exists {
 		// create the map for this node
@@ -105,6 +105,7 @@ func (collector *MetricsCollector) CollectPodMetrics() PodMetricsByNodeAndQuota 
 		quota := collector.Cluster.GetQuota(pod.ObjectMeta.Namespace)
 		if quota == nil {
 			//ignore the pod not associated with a quota
+			glog.Errorf("Nil quota for the pod %s:%s\n", pod.Name, pod.ObjectMeta.Namespace)
 			continue
 		}
 		// pod allocation metrics for the pod
@@ -113,10 +114,10 @@ func (collector *MetricsCollector) CollectPodMetrics() PodMetricsByNodeAndQuota 
 		// collect pod compute capacities when the namespace
 		// has defined quota limits for the compute resources
 		etype := metrics.PodType
-		for _, computeType  := range metrics.ComputeResources {
+		for _, computeType := range metrics.ComputeResources {
 			computeCapMetricUID := metrics.GenerateEntityResourceMetricUID(etype,
-								podMetrics.PodKey,
-								computeType, metrics.Capacity)
+				podMetrics.PodKey,
+				computeType, metrics.Capacity)
 			computeCapMetric, _ := collector.MetricsSink.GetMetric(computeCapMetricUID)
 			if computeCapMetric != nil && computeCapMetric.GetValue() != nil {
 				podCpuCap := computeCapMetric.GetValue().(float64)
@@ -131,8 +132,8 @@ func (collector *MetricsCollector) CollectPodMetrics() PodMetricsByNodeAndQuota 
 
 		// Set the metrics in the map by node and quota
 		nodeName := pod.Spec.NodeName
-		if nodeName == "" {//ignore the pod whose node name is not found
-			fmt.Printf("Unknown node for the pod %s:%s\n", pod.Name, nodeName)
+		if nodeName == "" { //ignore the pod whose node name is not found
+			glog.Errorf("Unknown node for the pod %s:%s\n", pod.Name, nodeName)
 			continue
 		}
 		podCollectionMap.addPodMetric(pod.Name, nodeName, quota.Name, podMetrics)
@@ -141,7 +142,7 @@ func (collector *MetricsCollector) CollectPodMetrics() PodMetricsByNodeAndQuota 
 }
 
 func getQuotaComputeCapacity(quotaEntity *repository.KubeQuota, computeType metrics.ResourceType,
-							) (float64, error) {
+) (float64, error) {
 	var allocationType metrics.ResourceType
 	if computeType == metrics.CPU {
 		allocationType = metrics.CPULimit
@@ -159,7 +160,7 @@ func getQuotaComputeCapacity(quotaEntity *repository.KubeQuota, computeType metr
 // Amount of Allocation resources bought from the quota is equal to the compute resource usages
 // of the pod that is obtained from the metrics sink
 func createPodMetrics(pod *v1.Pod, quotaName string, metricsSink *metrics.EntityMetricSink,
-								) *repository.PodMetrics {
+) *repository.PodMetrics {
 	etype := metrics.PodType
 	podKey := util.PodKeyFunc(pod)
 
@@ -170,18 +171,18 @@ func createPodMetrics(pod *v1.Pod, quotaName string, metricsSink *metrics.Entity
 	// get the compute resource usages
 	for _, computeType := range metrics.ComputeResources {
 		computeUsedMetricUID := metrics.GenerateEntityResourceMetricUID(etype, podKey,
-							computeType, metrics.Used)
+			computeType, metrics.Used)
 		computeUsedMetric, _ := metricsSink.GetMetric(computeUsedMetricUID)
 		if computeUsedMetric != nil && computeUsedMetric.GetValue() != nil {
 			podMetrics.ComputeUsed[computeType] =
-					computeUsedMetric.GetValue().(float64)
+				computeUsedMetric.GetValue().(float64)
 		} else {
 			glog.Errorf("%s: cannot find usage for compute resource %s\n",
-						pod.Name, computeType)
+				pod.Name, computeType)
 		}
 	}
 	// assign compute resource usages to allocation resources
-	for _, resourceType  := range metrics.ComputeAllocationResources {
+	for _, resourceType := range metrics.ComputeAllocationResources {
 		computeType, exists := metrics.AllocationToComputeMap[resourceType]
 		if !exists {
 			fmt.Errorf("cannot find corresponding compute type for %s", resourceType)
@@ -199,11 +200,11 @@ func createPodMetrics(pod *v1.Pod, quotaName string, metricsSink *metrics.Entity
 
 // Create Node metrics by adding the pod compute resource usages from the metrics sink.
 func (collector *MetricsCollector) CollectNodeMetrics(podCollection PodMetricsByNodeAndQuota,
-									) NodeMetricsCollection {
+) NodeMetricsCollection {
 	nodeMetricsCollection := make(map[string]*repository.NodeMetrics)
 
 	//Iterate over all the nodes in the collection
-	for  nodeName, podsByQuotaMap  := range podCollection {
+	for nodeName, podsByQuotaMap := range podCollection {
 		node := collector.Cluster.NodeMap[nodeName]
 		if node == nil {
 			continue
@@ -215,7 +216,7 @@ func (collector *MetricsCollector) CollectNodeMetrics(podCollection PodMetricsBy
 			collectivePodMetricsList = append(collectivePodMetricsList, podMetricsList...)
 		}
 		glog.V(4).Infof("collecting metrics for Node %s Pods:%s\n",
-					nodeName, collectivePodMetricsList.GetPods())
+			nodeName, collectivePodMetricsList.GetPods())
 
 		nodeMetrics := createNodeMetrics(node, collectivePodMetricsList, collector.MetricsSink)
 		nodeMetricsCollection[nodeName] = nodeMetrics
@@ -243,9 +244,9 @@ func createNodeMetrics(node *v1.Node, collectivePodMetricsList PodMetricsList, m
 		}
 
 		computeCapMetricUID := metrics.GenerateEntityResourceMetricUID(
-						entityType, nodeKey, computeType, metrics.Capacity)
+			entityType, nodeKey, computeType, metrics.Capacity)
 		computeCapMetric, _ := metricsSink.GetMetric(computeCapMetricUID)
-		if computeCapMetric != nil &&  computeCapMetric.GetValue() != nil {
+		if computeCapMetric != nil && computeCapMetric.GetValue() != nil {
 			allocationCap[allocationResource] = computeCapMetric.GetValue().(float64)
 		} else {
 			allocationCap[allocationResource] = 0.0
@@ -254,10 +255,10 @@ func createNodeMetrics(node *v1.Node, collectivePodMetricsList PodMetricsList, m
 	}
 
 	nodeMetric := &repository.NodeMetrics{
-		NodeName: node.Name,
-		NodeKey: nodeKey,
+		NodeName:       node.Name,
+		NodeKey:        nodeKey,
 		AllocationUsed: podAllocationUsed,
-		AllocationCap: allocationCap,
+		AllocationCap:  allocationCap,
 	}
 	return nodeMetric
 }
@@ -269,6 +270,7 @@ func createNodeMetrics(node *v1.Node, collectivePodMetricsList PodMetricsList, m
 // Allocation resources sold usage of a quota is equal to the sum of allocation resource usages
 // for all the pods running in the quota
 func (collector *MetricsCollector) CollectQuotaMetrics(podCollection PodMetricsByNodeAndQuota) []*repository.QuotaMetrics {
+	// collect the cpu frequency metric for the nodes
 	collector.collectNodeFrequencies()
 
 	var nodeUIDs []string
@@ -278,6 +280,9 @@ func (collector *MetricsCollector) CollectQuotaMetrics(podCollection PodMetricsB
 	var quotaMetricsList []*repository.QuotaMetrics
 
 	// Create quota metrics for each quota in the cluster
+	// This will ensure that the metrics object is created for
+	// -- namespaces that have no pods running on some of the nodes
+	// -- namespace that have not pods deployed in them
 	for quotaName, _ := range collector.Cluster.QuotaMap {
 		quotaMetrics := repository.CreateDefaultQuotaMetrics(quotaName, nodeUIDs)
 		// create allocation bought for each node provider handled by this metric collector
@@ -302,7 +307,7 @@ func (collector *MetricsCollector) CollectQuotaMetrics(podCollection PodMetricsB
 			// conversion for cpu resource usages from cores to MHz for this list of pods
 			for rt, val := range podAllocationUsed {
 				if metrics.IsCPUType(rt) && kubeNode.NodeCpuFrequency > 0.0 {
-					newVal := val*kubeNode.NodeCpuFrequency
+					newVal := val * kubeNode.NodeCpuFrequency
 					podAllocationUsed[rt] = newVal
 				}
 			}
@@ -333,11 +338,9 @@ func (collector *MetricsCollector) collectNodeFrequencies() {
 			kubeNode := kubeNodes[node.Name]
 			kubeNode.NodeCpuFrequency = cpuFrequency
 			glog.V(4).Infof("%s : kubenode cpu frequency is %f",
-				kubeNode.Name, kubeNode.NodeCpuFrequency )
+				kubeNode.Name, kubeNode.NodeCpuFrequency)
 		} else {
 			fmt.Printf("null cpu frequency from sink for node %s\n", key)
 		}
 	}
 }
-
-

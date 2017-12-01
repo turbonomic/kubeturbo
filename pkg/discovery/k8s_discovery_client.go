@@ -58,7 +58,7 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 
 	dispatcherConfig := worker.NewDispatcherConfig(config.k8sClusterScraper, config.probeConfig, workerCount)
 	dispatcher := worker.NewDispatcher(dispatcherConfig)
-	//TODO: dispatcher.Init(resultCollector) - moved to discoverWithNewFramework() after the cluster discovery is completed
+	dispatcher.Init(resultCollector)
 
 	dc := &K8sDiscoveryClient{
 		config:          config,
@@ -136,12 +136,9 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 	}
 	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 
-	// Initialize the Dispatcher to create discovery workers
-	dc.dispatcher.Init(dc.resultCollector, clusterSummary)	//need to pass the cluster object to the discovery workers
-
 	// Multiple discovery workers to create node and pod DTOs
 	nodes := clusterSummary.NodeList
-	workerCount := dc.dispatcher.Dispatch(nodes)
+	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
 	entityDTOs, quotaMetricsList := dc.resultCollector.Collect(workerCount)
 
 	// Quota discovery worker to create quota DTOs

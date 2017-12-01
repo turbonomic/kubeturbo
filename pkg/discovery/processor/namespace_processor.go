@@ -1,19 +1,19 @@
 package processor
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"fmt"
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 // Class to query the multiple namespace objects data from the Kubernetes API server
 // and create the resource quota for each
 type NamespaceProcessor struct {
 	ClusterInfoScraper *cluster.ClusterScraper
-	clusterName string
-	ClusterResources map[metrics.ResourceType]*repository.KubeDiscoveredResource
+	clusterName        string
+	ClusterResources   map[metrics.ResourceType]*repository.KubeDiscoveredResource
 }
 
 // Query the Kubernetes API Server and Get the Namespace objects
@@ -22,24 +22,24 @@ func (processor *NamespaceProcessor) ProcessNamespaces() (map[string]*repository
 	if err != nil {
 		return nil, fmt.Errorf("Error getting namespaces for cluster %s:%s\n", processor.clusterName, err)
 	}
-	glog.Infof("There are %d namespaces\n", len(namespaceList))
+	glog.V(2).Infof("There are %d namespaces\n", len(namespaceList))
 
-	quotaMap, err :=  processor.ClusterInfoScraper.GetNamespaceQuotas()
+	quotaMap, err := processor.ClusterInfoScraper.GetNamespaceQuotas()
 	if err != nil {
-		fmt.Errorf("failed to list all quotas in the cluster %s: %s", processor.clusterName, err)
+		glog.Errorf("failed to list all quotas in the cluster %s: %s", processor.clusterName, err)
 	}
-	glog.Infof("There are %d resource quotas\n", len(quotaMap))
+	glog.V(2).Infof("There are %d resource quotas\n", len(quotaMap))
 
 	namespaces := make(map[string]*repository.KubeNamespace)
-	for _, item := range namespaceList{
+	for _, item := range namespaceList {
 		namespace := &repository.KubeNamespace{
 			ClusterName: processor.clusterName,
-			Name: item.Name,
+			Name:        item.Name,
 		}
 		// the default quota object
 		quotaEntity := repository.CreateDefaultQuota(processor.clusterName,
-								namespace.Name,
-								processor.ClusterResources)
+			namespace.Name,
+			processor.ClusterResources)
 
 		// update the default quota limits using the defined resource quota objects
 		quotaList, hasQuota := quotaMap[item.Name]

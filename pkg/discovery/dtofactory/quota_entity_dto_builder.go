@@ -40,7 +40,7 @@ func (builder *quotaEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, err
 
 		// commodities bought.
 		for _, kubeProvider := range quota.ProviderMap{
-			commoditiesBought, err := builder.getQuotaCommoditiesBought(kubeProvider)
+			commoditiesBought, err := builder.getQuotaCommoditiesBought(displayName, kubeProvider)
 			if err != nil {
 				glog.Errorf("Error creating commoditiesBought for quota %s: %s", displayName, err)
 				continue
@@ -59,7 +59,7 @@ func (builder *quotaEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, err
 		}
 
 		result = append(result, entityDto)
-		//fmt.Printf("QUOTA DTO : %++v\n", entityDto)
+		glog.V(4).Infof("quota dto : %++v\n", entityDto)
 	}
 	return result, nil
 }
@@ -69,6 +69,8 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.
 	for resourceType, resource := range quota.AllocationResources {
 		cType, exist := rTypeMapping[resourceType]
 		if !exist {
+			// this error message is commented out because the commodity
+			// for cpu and mem request is not currently supported
 			//glog.Errorf("Commodity type %s sold by %s is not supported", resourceType, entityType)
 			continue
 		}
@@ -97,7 +99,7 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.
 
 		commSold, err := commSoldBuilder.Create()
 		if err != nil {
-			glog.Errorf("Failed to build commodity sold: %s", err)
+			glog.Errorf("%s : Failed to build commodity sold: %s", quota.Name, err)
 			continue
 		}
 		resourceCommoditiesSold = append(resourceCommoditiesSold, commSold)
@@ -105,20 +107,21 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.
 	return resourceCommoditiesSold, nil
 }
 
-func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesBought(provider *repository.KubeResourceProvider) ([]*proto.CommodityDTO, error) {
+func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesBought(quotaName string, provider *repository.KubeResourceProvider) ([]*proto.CommodityDTO, error) {
 
 	if provider == nil {
-		return nil, fmt.Errorf("null provider\n")
+		return nil, fmt.Errorf("%s: null provider\n", quotaName)
 	}
 
 	var commoditiesBought []*proto.CommodityDTO
 	for resourceType, resource:= range provider.BoughtAllocation {
 		cType, exist := rTypeMapping[resourceType]
 		if !exist {
+			// this error message is commented out because the commodity
+			// for cpu and mem request is not currently supported
 			//glog.Errorf("Commodity type %s bought by %s is not supported", resourceType, entityType)
 			continue
 		}
-
 
 		commBoughtBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
 		usedValue := resource.Used
@@ -127,7 +130,7 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesBought(provider *reposi
 
 		commBought, err := commBoughtBuilder.Create()
 		if err != nil {
-			glog.Errorf("Failed to build commodity sold: %s", err)
+			glog.Errorf("%s : Failed to build commodity bought: %s", quotaName, err)
 			continue
 		}
 		commoditiesBought = append(commoditiesBought, commBought)
