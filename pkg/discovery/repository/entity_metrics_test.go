@@ -1,14 +1,14 @@
 package repository
 
 import (
+	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"testing"
-	"github.com/stretchr/testify/assert"
 )
 
-var TestPodAllocations= []struct {
+var TestPodAllocations = []struct {
 	resourceType metrics.ResourceType
-	used   float64
+	used         float64
 }{
 	{metrics.CPULimit, 2.0},
 	{metrics.MemoryLimit, 2.0},
@@ -16,11 +16,10 @@ var TestPodAllocations= []struct {
 	{metrics.MemoryRequest, 1.0},
 }
 
-var TestNodeAllocations= []struct {
+var TestNodeAllocations = []struct {
 	resourceType metrics.ResourceType
-	capacity  float64
-	used float64
-
+	capacity     float64
+	used         float64
 }{
 	{metrics.CPULimit, 2.0, 1.0},
 	{metrics.MemoryLimit, 2.0, 1.0},
@@ -28,11 +27,10 @@ var TestNodeAllocations= []struct {
 	{metrics.MemoryRequest, 1.0, 1.0},
 }
 
-var TestQuotaAllocations= []struct {
-	nodeName string
+var TestQuotaAllocations = []struct {
+	nodeName     string
 	resourceType metrics.ResourceType
-	used float64
-
+	used         float64
 }{
 	{"node1", metrics.CPULimit, 1.0},
 	{"node2", metrics.CPULimit, 2.0},
@@ -43,18 +41,17 @@ func TestPodMetrics(t *testing.T) {
 	podMetrics := NewPodMetrics("p11", "n1", "q1")
 	for _, testAllocation := range TestPodAllocations {
 		podMetrics.AllocationBought[testAllocation.resourceType] = testAllocation.used
-		assert.Equal(t,  testAllocation.used, podMetrics.AllocationBought[testAllocation.resourceType])
+		assert.Equal(t, testAllocation.used, podMetrics.AllocationBought[testAllocation.resourceType])
 	}
 }
-
 
 func TestNodeMetrics(t *testing.T) {
 	nodeMetrics := NewNodeMetrics("node1")
 	for _, testAllocation := range TestNodeAllocations {
 		nodeMetrics.AllocationUsed[testAllocation.resourceType] = testAllocation.used
 		nodeMetrics.AllocationCap[testAllocation.resourceType] = testAllocation.capacity
-		assert.Equal(t,  testAllocation.used, nodeMetrics.AllocationUsed[testAllocation.resourceType])
-		assert.Equal(t,  testAllocation.capacity, nodeMetrics.AllocationCap[testAllocation.resourceType])
+		assert.Equal(t, testAllocation.used, nodeMetrics.AllocationUsed[testAllocation.resourceType])
+		assert.Equal(t, testAllocation.capacity, nodeMetrics.AllocationCap[testAllocation.resourceType])
 	}
 }
 
@@ -75,6 +72,6 @@ func TestQuotaMetrics(t *testing.T) {
 		_, exists := quotaMetrics.AllocationBoughtMap[node]
 		assert.Equal(t, true, exists)
 		nodeMap, _ := quotaMetrics.AllocationBoughtMap[node]
-		assert.Equal(t,  testAllocation.used, nodeMap[testAllocation.resourceType])
+		assert.Equal(t, testAllocation.used, nodeMap[testAllocation.resourceType])
 	}
 }

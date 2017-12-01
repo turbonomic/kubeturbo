@@ -1,19 +1,19 @@
 package repository
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"k8s.io/client-go/pkg/api/v1"
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"k8s.io/client-go/pkg/api/v1"
 )
 
 // Kube Cluster represents the Kubernetes cluster. This object is immutable between discoveries.
 // New discovery will bring in changes to the nodes and namespaces
 // Aggregate structure for nodes, namespaces and quotas
 type KubeCluster struct {
-	Name             string
-	Nodes            map[string]*KubeNode
-	Namespaces       map[string]*KubeNamespace
+	Name       string
+	Nodes      map[string]*KubeNode
+	Namespaces map[string]*KubeNamespace
 }
 
 // Summary object to get the nodes, quotas and namespaces in the cluster
@@ -91,16 +91,16 @@ type KubeNode struct {
 // Create a KubeNode entity with compute resources to represent a node in the cluster
 func NewKubeNode(apiNode *v1.Node, clusterName string) *KubeNode {
 	entity := NewKubeEntity(metrics.NodeType, clusterName,
-		apiNode.ObjectMeta.Namespace,apiNode.ObjectMeta.Name,
+		apiNode.ObjectMeta.Namespace, apiNode.ObjectMeta.Name,
 		string(apiNode.ObjectMeta.UID))
 
 	nodeEntity := &KubeNode{
 		KubeEntity: entity,
-		Node: apiNode,
+		Node:       apiNode,
 	}
 	// node compute resources
 	resourceAllocatableList := apiNode.Status.Allocatable
-	for resource, _:= range resourceAllocatableList {
+	for resource, _ := range resourceAllocatableList {
 		computeResourceType, isComputeType := metrics.KubeComputeResourceTypes[resource]
 		if !isComputeType {
 			continue
@@ -112,7 +112,7 @@ func NewKubeNode(apiNode *v1.Node, clusterName string) *KubeNode {
 	return nodeEntity
 }
 
-func parseResourceValue(computeResourceType metrics.ResourceType, resourceList v1.ResourceList) float64  {
+func parseResourceValue(computeResourceType metrics.ResourceType, resourceList v1.ResourceList) float64 {
 	if computeResourceType == metrics.CPU {
 		ctnCpuCapacityMilliCore := resourceList.Cpu().MilliValue()
 		cpuCapacityCore := float64(ctnCpuCapacityMilliCore) / util.MilliToUnit
@@ -138,18 +138,18 @@ type KubeNamespace struct {
 // The quota defined for a namespace
 type KubeQuota struct {
 	*KubeEntity
-	QuotaList []*v1.ResourceQuota
+	QuotaList               []*v1.ResourceQuota
 	AverageNodeCpuFrequency float64
 }
 
 // Create a Quota object for a namespace.
 // The resource quota limits are based on the cluster compute resource limits.
 func CreateDefaultQuota(clusterName, namespace string,
-			clusterResources map[metrics.ResourceType]*KubeDiscoveredResource) *KubeQuota {
+	clusterResources map[metrics.ResourceType]*KubeDiscoveredResource) *KubeQuota {
 	quota := &KubeQuota{
 		KubeEntity: NewKubeEntity(metrics.QuotaType, clusterName,
 			namespace, namespace, namespace),
-		QuotaList:  []*v1.ResourceQuota{},
+		QuotaList: []*v1.ResourceQuota{},
 	}
 
 	// create quota allocation resources
@@ -166,7 +166,7 @@ func CreateDefaultQuota(clusterName, namespace string,
 			// or by adding the usages of pod compute resources running in the namespace
 		} else {
 			glog.Errorf("%s : cannot find cluster compute resource type for allocation %s\n",
-						quota.Name, rt)
+				quota.Name, rt)
 		}
 	}
 
@@ -182,24 +182,24 @@ func (quotaEntity *KubeQuota) ReconcileQuotas(quotas []*v1.ResourceQuota) {
 	quotaListStr := ""
 	// Quota resources by collecting resources from the list of resource quota objects
 	for _, item := range quotas {
-		quotaListStr = quotaListStr + item.Name +","
+		quotaListStr = quotaListStr + item.Name + ","
 		// Resources in each quota
 		resourceStatus := item.Status
 		resourceHardList := resourceStatus.Hard
 		resourceUsedList := resourceStatus.Used
 
-		for resource, _:= range resourceHardList {
+		for resource, _ := range resourceHardList {
 			resourceType, isAllocationType := metrics.KubeAllocatonResourceTypes[resource]
-			if !isAllocationType {	// skip if it is not a allocation type resource
+			if !isAllocationType { // skip if it is not a allocation type resource
 				continue
 			}
 			capacityValue := parseAllocationResourceValue(resource, resourceType, resourceHardList)
 			usedValue := parseAllocationResourceValue(resource, resourceType, resourceUsedList)
 
 			existingResource, err := quotaEntity.GetAllocationResource(resourceType)
-			if err == nil  {
+			if err == nil {
 				// update the existing resource with the one in this quota
-				if existingResource.Capacity == DEFAULT_METRIC_VALUE || capacityValue < existingResource.Capacity  {
+				if existingResource.Capacity == DEFAULT_METRIC_VALUE || capacityValue < existingResource.Capacity {
 					existingResource.Capacity = capacityValue
 					existingResource.Used = usedValue
 				}
@@ -213,7 +213,7 @@ func (quotaEntity *KubeQuota) ReconcileQuotas(quotas []*v1.ResourceQuota) {
 	glog.V(2).Infof("Reconciled Quota %s from ===> %s \n", quotaEntity.Name, quotaListStr)
 }
 
-func parseAllocationResourceValue(resource v1.ResourceName, allocationResourceType metrics.ResourceType, resourceList v1.ResourceList) float64  {
+func parseAllocationResourceValue(resource v1.ResourceName, allocationResourceType metrics.ResourceType, resourceList v1.ResourceList) float64 {
 
 	if allocationResourceType == metrics.CPULimit || allocationResourceType == metrics.CPURequest {
 		quantity := resourceList[resource]
@@ -232,7 +232,7 @@ func parseAllocationResourceValue(resource v1.ResourceName, allocationResourceTy
 }
 
 func (quotaEntity *KubeQuota) AddNodeProvider(nodeUID string,
-						allocationBought map[metrics.ResourceType]float64) {
+	allocationBought map[metrics.ResourceType]float64) {
 	if allocationBought == nil {
 		glog.V(2).Infof("%s : missing metrics for node %s\n", quotaEntity.Name, nodeUID)
 		allocationBought := make(map[metrics.ResourceType]float64)

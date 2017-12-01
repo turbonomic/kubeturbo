@@ -2,11 +2,11 @@ package worker
 
 import (
 	"fmt"
-	"math"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	api "k8s.io/client-go/pkg/api/v1"
+	"math"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -40,6 +40,7 @@ func NewDispatcher(config *DispatcherConfig) *Dispatcher {
 		workerPool: make(chan chan *task.Task, config.workerCount),
 	}
 }
+
 // Creates workerCount number of k8sDiscoveryWorker, each with multiple MonitoringWorkers for different types of monitorings/sources
 // Each is registered with the Dispatcher
 func (d *Dispatcher) Init(c *ResultCollector) {
@@ -105,6 +106,6 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSumm
 // Assign task to the k8sDiscoveryWorker
 func (d *Dispatcher) assignTask(t *task.Task) {
 	// assignTask to a task channel of a worker.
-	taskChannel := <-d.workerPool	// pick a free worker from the worker pool, when its channel frees up
+	taskChannel := <-d.workerPool // pick a free worker from the worker pool, when its channel frees up
 	taskChannel <- t
 }

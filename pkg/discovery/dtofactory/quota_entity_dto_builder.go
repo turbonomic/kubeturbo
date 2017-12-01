@@ -1,20 +1,20 @@
 package dtofactory
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
-	"github.com/golang/glog"
 	"fmt"
+	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 type quotaEntityDTOBuilder struct {
-	QuotaMap	map[string]*repository.KubeQuota
+	QuotaMap map[string]*repository.KubeQuota
 }
 
 func NewQuotaEntityDTOBuilder(quotaMap map[string]*repository.KubeQuota) *quotaEntityDTOBuilder {
-	return &quotaEntityDTOBuilder{QuotaMap: quotaMap,}
+	return &quotaEntityDTOBuilder{QuotaMap: quotaMap}
 }
 
 // Build entityDTOs based on the given node list.
@@ -39,7 +39,7 @@ func (builder *quotaEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, err
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 		// commodities bought.
-		for _, kubeProvider := range quota.ProviderMap{
+		for _, kubeProvider := range quota.ProviderMap {
 			commoditiesBought, err := builder.getQuotaCommoditiesBought(displayName, kubeProvider)
 			if err != nil {
 				glog.Errorf("Error creating commoditiesBought for quota %s: %s", displayName, err)
@@ -64,7 +64,7 @@ func (builder *quotaEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, err
 	return result, nil
 }
 
-func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.KubeQuota) ([]*proto.CommodityDTO, error){
+func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.KubeQuota) ([]*proto.CommodityDTO, error) {
 	var resourceCommoditiesSold []*proto.CommodityDTO
 	for resourceType, resource := range quota.AllocationResources {
 		cType, exist := rTypeMapping[resourceType]
@@ -114,7 +114,7 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesBought(quotaName string
 	}
 
 	var commoditiesBought []*proto.CommodityDTO
-	for resourceType, resource:= range provider.BoughtAllocation {
+	for resourceType, resource := range provider.BoughtAllocation {
 		cType, exist := rTypeMapping[resourceType]
 		if !exist {
 			// this error message is commented out because the commodity

@@ -26,7 +26,7 @@ var (
 		metrics.Memory,
 	}
 
-	podResourceCommodityBoughtFromNode = []metrics.ResourceType {
+	podResourceCommodityBoughtFromNode = []metrics.ResourceType{
 		metrics.CPU,
 		metrics.Memory,
 		// TODO, add back provisioned commodity later.
@@ -44,17 +44,15 @@ type podEntityDTOBuilder struct {
 	generalBuilder
 	stitchingManager *stitching.StitchingManager
 	nodeNameUIDMap   map[string]string
-	quotaNameUIDMap map[string]string
+	quotaNameUIDMap  map[string]string
 }
-
-
 
 func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager,
 	nodeNameUIDMap, quotaNameUIDMap map[string]string) *podEntityDTOBuilder {
 	return &podEntityDTOBuilder{
 		generalBuilder:   newGeneralBuilder(sink),
 		nodeNameUIDMap:   nodeNameUIDMap,
-		quotaNameUIDMap: quotaNameUIDMap,
+		quotaNameUIDMap:  quotaNameUIDMap,
 		stitchingManager: stitchingManager,
 	}
 }

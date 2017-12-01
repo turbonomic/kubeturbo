@@ -192,9 +192,9 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	// Collect usages for pods in different quotas and create used and capacity
 	// metrics for the allocation resources of the nodes, quotas and pods
 	metricsCollector := &MetricsCollector{
-		NodeList: currTask.NodeList(),
-		PodList: currTask.PodList(),
-		Cluster: currTask.Cluster(),
+		NodeList:    currTask.NodeList(),
+		PodList:     currTask.PodList(),
+		Cluster:     currTask.Cluster(),
 		MetricsSink: worker.sink,
 	}
 
@@ -222,15 +222,15 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 // =================================================================================================
 func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection PodMetricsByNodeAndQuota) {
 	etype := metrics.PodType
-	for _, podsByQuotaMap  := range podMetricsCollection {
+	for _, podsByQuotaMap := range podMetricsCollection {
 		for _, podMetricsList := range podsByQuotaMap {
 			for _, podMetrics := range podMetricsList {
 				podKey := podMetrics.PodKey
 				for resourceType, usedValue := range podMetrics.AllocationBought {
 					// Generate the metrics in the sink
 					allocationUsedMetric := metrics.NewEntityResourceMetric(etype,
-								podKey, resourceType,
-								metrics.Used, usedValue)
+						podKey, resourceType,
+						metrics.Used, usedValue)
 					worker.sink.AddNewMetricEntries(allocationUsedMetric)
 					glog.V(4).Infof("%s: created bought allocation %s --> used=%f\n",
 						podMetrics.PodName, allocationUsedMetric.GetUID(), usedValue)
@@ -265,7 +265,7 @@ func (worker *k8sDiscoveryWorker) addNodeAllocationMetrics(nodeMetricsCollection
 			worker.sink.AddNewMetricEntries(allocationUsedMetric)
 
 			glog.V(4).Infof("Node:%s : created allocation sold %s --> cap=%f  used=%f\n",
-					nodeMetrics.NodeName, allocationResource, capValue, usedValue)
+				nodeMetrics.NodeName, allocationResource, capValue, usedValue)
 		}
 	}
 }
@@ -298,12 +298,12 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	quotaNameUIDMap := make(map[string]string)
 	nodeNameUIDMap := make(map[string]string)
 	if cluster != nil {
-		quotaNameUIDMap = cluster.QuotaNameUIDMap        // quota providers
-		nodeNameUIDMap = cluster.NodeNameUIDMap                // node providers
+		quotaNameUIDMap = cluster.QuotaNameUIDMap // quota providers
+		nodeNameUIDMap = cluster.NodeNameUIDMap   // node providers
 	}
 	pods := currTask.PodList()
 	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager,
-							nodeNameUIDMap, quotaNameUIDMap)
+		nodeNameUIDMap, quotaNameUIDMap)
 	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods)
 	if err != nil {
 		glog.Errorf("Error while creating pod entityDTOs: %v", err)

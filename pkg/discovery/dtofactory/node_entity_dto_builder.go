@@ -217,7 +217,6 @@ func (builder *nodeEntityDTOBuilder) getAllocationCommoditiesSold(node *api.Node
 	return commoditiesSold, nil
 }
 
-
 // Get the properties of the node. This includes property related to stitching process and node cluster property.
 func (builder *nodeEntityDTOBuilder) getNodeProperties(node *api.Node) ([]*proto.EntityDTO_EntityProperty, error) {
 	var properties []*proto.EntityDTO_EntityProperty

@@ -1,10 +1,10 @@
 package worker
 
 import (
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 const (
@@ -13,20 +13,20 @@ const (
 
 // Converts the cluster quotaEntity and QuotaMetrics objects to create Quota DTOs
 type k8sResourceQuotasDiscoveryWorker struct {
-	id string
+	id      string
 	Cluster *repository.ClusterSummary
 }
 
 func Newk8sResourceQuotasDiscoveryWorker(cluster *repository.ClusterSummary,
-						) *k8sResourceQuotasDiscoveryWorker{
+) *k8sResourceQuotasDiscoveryWorker {
 	return &k8sResourceQuotasDiscoveryWorker{
 		Cluster: cluster,
-		id: k8sQuotasWorkerID,
+		id:      k8sQuotasWorkerID,
 	}
 }
 
 func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repository.QuotaMetrics,
-							) ([]*proto.EntityDTO, error) {
+) ([]*proto.EntityDTO, error) {
 	// Combine quota discovery results from different nodes
 	quotaMetricsMap := make(map[string]*repository.QuotaMetrics)
 
@@ -35,7 +35,7 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 	// the allocation used for the pods running on those nodes
 	for _, quotaMetrics := range quotaMetricsList {
 		glog.V(4).Infof("%s : merging metrics for nodes %s\n",
-					quotaMetrics.QuotaName, quotaMetrics.NodeProviders)
+			quotaMetrics.QuotaName, quotaMetrics.NodeProviders)
 		_, exists := quotaMetricsMap[quotaMetrics.QuotaName]
 		if !exists {
 			quotaMetricsMap[quotaMetrics.QuotaName] = quotaMetrics
@@ -79,7 +79,7 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 
 		// Set for allocation sold usage if it is not available from the namespace quota objects
 		for resourceType, used := range quotaMetrics.AllocationSold {
-			existingResource,  _ := quotaEntity.GetResource(resourceType)
+			existingResource, _ := quotaEntity.GetResource(resourceType)
 			// allocation usage is available from the namespace resource quota objects
 			if existingResource.Used != 0.0 {
 				glog.V(4).Infof("%s:%s : *** not change existingUsed = %f, used %f\n",

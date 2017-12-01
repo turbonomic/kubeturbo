@@ -14,8 +14,8 @@ var (
 	vMemType           proto.CommodityDTO_CommodityType = proto.CommodityDTO_VMEM
 	cpuProvisionedType proto.CommodityDTO_CommodityType = proto.CommodityDTO_CPU_PROVISIONED
 	memProvisionedType proto.CommodityDTO_CommodityType = proto.CommodityDTO_MEM_PROVISIONED
-	cpuAllocationType proto.CommodityDTO_CommodityType = proto.CommodityDTO_CPU_ALLOCATION
-	memAllocationType proto.CommodityDTO_CommodityType = proto.CommodityDTO_MEM_ALLOCATION
+	cpuAllocationType  proto.CommodityDTO_CommodityType = proto.CommodityDTO_CPU_ALLOCATION
+	memAllocationType  proto.CommodityDTO_CommodityType = proto.CommodityDTO_MEM_ALLOCATION
 	transactionType    proto.CommodityDTO_CommodityType = proto.CommodityDTO_TRANSACTION
 
 	clusterType    proto.CommodityDTO_CommodityType = proto.CommodityDTO_CLUSTER
@@ -24,14 +24,14 @@ var (
 
 	fakeKey string = "fake"
 
-	vCpuTemplateComm           *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vCpuType}
-	vMemTemplateComm           *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vMemType}
+	vCpuTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vCpuType}
+	vMemTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vMemType}
 	cpuAllocationTemplateComm *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &cpuAllocationType}
 	memAllocationTemplateComm *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &memAllocationType}
-	applicationTemplateComm    *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
-	clusterTemplateComm        *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
-	transactionTemplateComm    *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
-	vmpmAccessTemplateComm     *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
+	applicationTemplateComm   *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
+	clusterTemplateComm       *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
+	transactionTemplateComm   *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
+	vmpmAccessTemplateComm    *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
 )
 
 type SupplyChainFactory struct {
@@ -96,9 +96,9 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 func (f *SupplyChainFactory) buildQuotaSupplyBuilder() (*proto.TemplateDTO, error) {
 	nodeSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_VIRTUAL_DATACENTER)
 	nodeSupplyChainNodeBuilder = nodeSupplyChainNodeBuilder.
-	Sells(cpuAllocationTemplateComm).
+		Sells(cpuAllocationTemplateComm).
 		Sells(memAllocationTemplateComm).
-	Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
+		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
 		Buys(cpuAllocationTemplateComm).
 		Buys(memAllocationTemplateComm)
 

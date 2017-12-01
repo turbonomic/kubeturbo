@@ -128,8 +128,8 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES AND QUOTAS HERE
 	clusterProcessor := &processor.ClusterProcessor{
-				ClusterInfoScraper: dc.config.k8sClusterScraper,
-				}
+		ClusterInfoScraper: dc.config.k8sClusterScraper,
+	}
 	kubeCluster, err := clusterProcessor.ProcessCluster()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to process cluster: %s", err)
@@ -147,7 +147,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 
 	// All the DTO's
 	entityDTOs = append(entityDTOs, quotaDtos...)
-	glog.V(2).Infof("Discovery workers have finished discovery work with %d entityDTOs built. " +
+	glog.V(2).Infof("Discovery workers have finished discovery work with %d entityDTOs built. "+
 		"		Now performing service discovery...", len(entityDTOs))
 
 	// affinity process

@@ -1,26 +1,26 @@
 package repository
 
 import (
+	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"testing"
-	"github.com/stretchr/testify/assert"
 )
 
 var TestEntities = []struct {
 	entityType metrics.DiscoveredEntityType
-	name string
-	uid string
+	name       string
+	uid        string
 }{
-	{metrics.NodeType, 	"node1", 	"node1"},
-	{metrics.PodType, 	"pod1", 	"pod1"},
-	{metrics.ContainerType, "container1", 	"container1"},
-	{metrics.QuotaType, 	"quota1", 	"quota1"},
+	{metrics.NodeType, "node1", "node1"},
+	{metrics.PodType, "pod1", "pod1"},
+	{metrics.ContainerType, "container1", "container1"},
+	{metrics.QuotaType, "quota1", "quota1"},
 }
 
 var TestSoldResources = []struct {
 	resourceType metrics.ResourceType
-	capacity float64
-} {
+	capacity     float64
+}{
 	{metrics.CPU, 200},
 	{metrics.Memory, 2},
 	{metrics.MemoryLimit, 1},
@@ -28,10 +28,10 @@ var TestSoldResources = []struct {
 }
 
 var TestProvider = []struct {
-	providerType metrics.DiscoveredEntityType
-	providerId string
+	providerType   metrics.DiscoveredEntityType
+	providerId     string
 	boughtResource map[metrics.ResourceType]float64
-} {
+}{
 	{metrics.NodeType, "node1", map[metrics.ResourceType]float64{metrics.CPU: 500, metrics.Memory: 3}},
 	{metrics.NodeType, "node2", map[metrics.ResourceType]float64{metrics.CPU: 500, metrics.Memory: 3}},
 	{metrics.NodeType, "node3", map[metrics.ResourceType]float64{metrics.CPULimit: 500}},
@@ -42,7 +42,7 @@ func TestKubeEntity(t *testing.T) {
 	cluster := "cluster1"
 	for _, testEntity := range TestEntities {
 		kubeEntity := NewKubeEntity(testEntity.entityType, cluster, namespace,
-						testEntity.name, testEntity.uid)
+			testEntity.name, testEntity.uid)
 		assert.Equal(t, kubeEntity.Namespace, namespace)
 		assert.Equal(t, kubeEntity.ClusterName, cluster)
 		assert.Equal(t, kubeEntity.Name, testEntity.name)
@@ -55,9 +55,9 @@ func TestKubeEntityAddResource(t *testing.T) {
 	cluster := "cluster1"
 	var testEntity = struct {
 		entityType metrics.DiscoveredEntityType
-		name string
-		uid string
-	} {metrics.PodType, "pod1", "pod1"}
+		name       string
+		uid        string
+	}{metrics.PodType, "pod1", "pod1"}
 
 	kubeEntity := NewKubeEntity(testEntity.entityType, cluster, namespace,
 		testEntity.name, testEntity.uid)
@@ -77,9 +77,9 @@ func TestKubeEntityAddProvider(t *testing.T) {
 	cluster := "cluster1"
 	var testEntity = struct {
 		entityType metrics.DiscoveredEntityType
-		name string
-		uid string
-	} {metrics.PodType, "pod1", "pod1"}
+		name       string
+		uid        string
+	}{metrics.PodType, "pod1", "pod1"}
 
 	kubeEntity := NewKubeEntity(testEntity.entityType, cluster, namespace,
 		testEntity.name, testEntity.uid)
@@ -87,8 +87,8 @@ func TestKubeEntityAddProvider(t *testing.T) {
 	for _, testProvider := range TestProvider {
 		for resourceType, used := range testProvider.boughtResource {
 			kubeEntity.AddProviderResource(testProvider.providerType,
-									testProvider.providerId,
-							resourceType, used)
+				testProvider.providerId,
+				resourceType, used)
 		}
 	}
 

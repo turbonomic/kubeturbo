@@ -9,8 +9,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
-
-
 const (
 	TaskSucceeded TaskResultState = "Succeeded"
 	TaskFailed    TaskResultState = "Failed"
@@ -21,7 +19,7 @@ type Task struct {
 
 	nodeList []*api.Node
 	podList  []*api.Pod
-	cluster *repository.ClusterSummary
+	cluster  *repository.ClusterSummary
 }
 
 // Worker task is consisted of a list of nodes the worker must discover.
@@ -42,7 +40,6 @@ func (t *Task) WithPods(podList []*api.Pod) *Task {
 	t.podList = podList
 	return t
 }
-
 
 // Assign cluster summary to the task.
 func (t *Task) WithCluster(cluster *repository.ClusterSummary) *Task {
@@ -69,10 +66,10 @@ type TaskResultState string
 // A TaskResult contains a state, indicate whether the task is finished successfully; a err if there is any; a list of
 // EntityDTO.
 type TaskResult struct {
-	workerID string
-	state    TaskResultState
-	err      error
-	content []*proto.EntityDTO
+	workerID     string
+	state        TaskResultState
+	err          error
+	content      []*proto.EntityDTO
 	quotaMetrics []*repository.QuotaMetrics
 }
 

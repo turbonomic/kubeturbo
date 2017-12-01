@@ -1,35 +1,35 @@
 package worker
 
 import (
-	"testing"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"fmt"
-	"k8s.io/client-go/pkg/api/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/pkg/api/v1"
+	"testing"
 )
 
 func TestPodMetricsListAllocationUsage(t *testing.T) {
 
 	var podMetricsList PodMetricsList
 	allocation1 := map[metrics.ResourceType]float64{
-		metrics.CPU: 4.0,
+		metrics.CPU:    4.0,
 		metrics.Memory: 4,
 	}
 	allocation2 := map[metrics.ResourceType]float64{
-		metrics.CPU: 6.0,
+		metrics.CPU:    6.0,
 		metrics.Memory: 6,
 	}
-	podMetrics1 := &repository.PodMetrics {
-		PodName: "pod1",
+	podMetrics1 := &repository.PodMetrics{
+		PodName:     "pod1",
 		ComputeUsed: allocation1,
 	}
-	podMetrics2 := &repository.PodMetrics {
-		PodName: "pod1",
+	podMetrics2 := &repository.PodMetrics{
+		PodName:     "pod1",
 		ComputeUsed: allocation2,
 	}
 
@@ -45,7 +45,6 @@ func TestPodMetricsListAllocationUsage(t *testing.T) {
 
 type MockPod struct {
 	*v1.Pod
-
 }
 
 type MockSink struct {
@@ -55,15 +54,15 @@ type MockSink struct {
 var (
 	node1 = "node1"
 	node2 = "node2"
-	ns1 = "ns1"
-	ns2 = "ns2"
-	ns3 = "ns3"	// all pods on one node
-	ns4 = "ns4"	// no pods
+	ns1   = "ns1"
+	ns2   = "ns2"
+	ns3   = "ns3" // all pods on one node
+	ns4   = "ns4" // no pods
 
 	n1 = &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: node1,
-			UID: types.UID(node1),
+			UID:  types.UID(node1),
 			// Resources TODO:
 		},
 	}
@@ -71,14 +70,14 @@ var (
 	n2 = &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: node2,
-			UID: types.UID(node2),
+			UID:  types.UID(node2),
 			// Resources TODO:
 		},
 	}
 
 	pod11 = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "pod11",
+			Name:      "pod11",
 			Namespace: ns1,
 		},
 		Spec: v1.PodSpec{
@@ -88,7 +87,7 @@ var (
 
 	pod12 = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "pod12",
+			Name:      "pod12",
 			Namespace: ns1,
 		},
 		Spec: v1.PodSpec{
@@ -98,7 +97,7 @@ var (
 
 	pod21 = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "pod21",
+			Name:      "pod21",
 			Namespace: ns2,
 		},
 		Spec: v1.PodSpec{
@@ -108,7 +107,7 @@ var (
 
 	pod22 = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "pod22",
+			Name:      "pod22",
 			Namespace: ns2,
 		},
 		Spec: v1.PodSpec{
@@ -118,7 +117,7 @@ var (
 
 	pod31 = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "pod31",
+			Name:      "pod31",
 			Namespace: ns3,
 		},
 		Spec: v1.PodSpec{
@@ -128,7 +127,7 @@ var (
 
 	pod32 = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "pod32",
+			Name:      "pod32",
 			Namespace: ns3,
 		},
 		Spec: v1.PodSpec{
@@ -136,46 +135,46 @@ var (
 		},
 	}
 
-	kubeNode1 = repository.NewKubeNode(n1,"cluster1")
-	kubeNode2 = repository.NewKubeNode(n2,"cluster1")
+	kubeNode1 = repository.NewKubeNode(n1, "cluster1")
+	kubeNode2 = repository.NewKubeNode(n2, "cluster1")
 
 	clusterResources map[metrics.ResourceType]*repository.KubeDiscoveredResource
-	kubeQuota1 = repository.CreateDefaultQuota("cluster1", ns1, clusterResources)
-	kubeQuota2 = repository.CreateDefaultQuota("cluster1", ns2, clusterResources)
-	kubeQuota3 = repository.CreateDefaultQuota("cluster1", ns3, clusterResources)
-	kubeQuota4 = repository.CreateDefaultQuota("cluster1", ns4, clusterResources)
+	kubeQuota1       = repository.CreateDefaultQuota("cluster1", ns1, clusterResources)
+	kubeQuota2       = repository.CreateDefaultQuota("cluster1", ns2, clusterResources)
+	kubeQuota3       = repository.CreateDefaultQuota("cluster1", ns3, clusterResources)
+	kubeQuota4       = repository.CreateDefaultQuota("cluster1", ns4, clusterResources)
 
-	kubens1 = &repository.KubeNamespace {
+	kubens1 = &repository.KubeNamespace{
 		ClusterName: "cluster1",
-		Name: ns1,
-		Quota: kubeQuota1,
+		Name:        ns1,
+		Quota:       kubeQuota1,
 	}
 
-	kubens2 = &repository.KubeNamespace {
+	kubens2 = &repository.KubeNamespace{
 		ClusterName: "cluster1",
-		Name: ns2,
-		Quota: kubeQuota2,
+		Name:        ns2,
+		Quota:       kubeQuota2,
 	}
 
-	kubens3 = &repository.KubeNamespace {
+	kubens3 = &repository.KubeNamespace{
 		ClusterName: "cluster1",
-		Name: ns3,
-		Quota: kubeQuota3,
+		Name:        ns3,
+		Quota:       kubeQuota3,
 	}
 
-	kubens4 = &repository.KubeNamespace {
+	kubens4 = &repository.KubeNamespace{
 		ClusterName: "cluster1",
-		Name: ns4,
-		Quota: kubeQuota4,
+		Name:        ns4,
+		Quota:       kubeQuota4,
 	}
 
 	kubeCluster = &repository.KubeCluster{
 		Name: "cluster1",
-		Nodes: map[string]*repository.KubeNode {
+		Nodes: map[string]*repository.KubeNode{
 			node1: kubeNode1,
 			node2: kubeNode2,
 		},
-		Namespaces: map[string]*repository.KubeNamespace {
+		Namespaces: map[string]*repository.KubeNamespace{
 			ns1: kubens1,
 			ns2: kubens2,
 			ns3: kubens3,
@@ -183,8 +182,8 @@ var (
 		},
 	}
 
-	metricsSink = metrics.NewEntityMetricSink()
-	etype = metrics.PodType
+	metricsSink   = metrics.NewEntityMetricSink()
+	etype         = metrics.PodType
 	cpuUsed_pod11 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod11), metrics.CPU, metrics.Used, 2.0)
 	cpuUsed_pod12 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod12), metrics.CPU, metrics.Used, 2.0)
 	cpuUsed_pod21 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod21), metrics.CPU, metrics.Used, 2.0)
@@ -252,15 +251,15 @@ func TestCreatePodMetricsMap(t *testing.T) {
 	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 
 	collector := &MetricsCollector{
-		Cluster: clusterSummary,
+		Cluster:     clusterSummary,
 		MetricsSink: metricsSink,
-		PodList: []*v1.Pod{pod11,pod12,pod21, pod22, pod31, pod32},
-		NodeList: []*v1.Node{n1, n2},
+		PodList:     []*v1.Pod{pod11, pod12, pod21, pod22, pod31, pod32},
+		NodeList:    []*v1.Node{n1, n2},
 	}
 
 	metricsSink.AddNewMetricEntries(cpuUsed_pod11, cpuUsed_pod12,
-						cpuUsed_pod21, cpuUsed_pod22,
-						cpuUsed_pod31, cpuUsed_pod32,)
+		cpuUsed_pod21, cpuUsed_pod22,
+		cpuUsed_pod31, cpuUsed_pod32)
 	podMetricsMap := collector.CollectPodMetrics()
 	for nodeName, quotaMap := range podMetricsMap {
 		fmt.Printf("%s \n", nodeName)

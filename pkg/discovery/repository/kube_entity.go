@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"fmt"
 	"bytes"
+	"fmt"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 )
 
@@ -18,7 +18,7 @@ type KubeEntity struct {
 	ProviderMap         map[string]*KubeResourceProvider
 }
 
-// Abstraction for a resource that the kubernetes entity will sell to its consumers 
+// Abstraction for a resource that the kubernetes entity will sell to its consumers
 // in the Turbonomic server supply chain
 type KubeDiscoveredResource struct {
 	Type     metrics.ResourceType
@@ -34,7 +34,7 @@ type KubeResourceProvider struct {
 	BoughtAllocation map[metrics.ResourceType]*KubeBoughtResource
 }
 
-// Abstraction for a resource that a kubernetes entity will be buy from its provider 
+// Abstraction for a resource that a kubernetes entity will be buy from its provider
 // in the Turbonomic server supply chain
 type KubeBoughtResource struct {
 	Type        metrics.ResourceType
@@ -44,7 +44,7 @@ type KubeBoughtResource struct {
 
 // Creates a new entity for the given entity type and uid.
 func NewKubeEntity(entityType metrics.DiscoveredEntityType,
-			clusterName, namespaceName, displayName, uid string) *KubeEntity {
+	clusterName, namespaceName, displayName, uid string) *KubeEntity {
 	return &KubeEntity{
 		EntityType:          entityType,
 		ClusterName:         clusterName,
@@ -91,7 +91,7 @@ func (entity *KubeEntity) String() string {
 }
 
 func (kubeEntity *KubeEntity) AddResource(resourceType metrics.ResourceType,
-						capValue, usedValue float64) {
+	capValue, usedValue float64) {
 	if metrics.IsComputeType(resourceType) {
 		kubeEntity.AddComputeResource(resourceType, capValue, usedValue)
 	} else if metrics.IsAllocationType(resourceType) {
@@ -100,7 +100,7 @@ func (kubeEntity *KubeEntity) AddResource(resourceType metrics.ResourceType,
 }
 
 func (kubeEntity *KubeEntity) GetResource(resourceType metrics.ResourceType,
-						) (*KubeDiscoveredResource, error) {
+) (*KubeDiscoveredResource, error) {
 	if metrics.IsComputeType(resourceType) {
 		return kubeEntity.GetComputeResource(resourceType)
 	} else if metrics.IsAllocationType(resourceType) {
@@ -110,7 +110,7 @@ func (kubeEntity *KubeEntity) GetResource(resourceType metrics.ResourceType,
 }
 
 func (kubeEntity *KubeEntity) SetResourceCapacity(resourceType metrics.ResourceType,
-							computeCap float64) (error) {
+	computeCap float64) error {
 	resource, err := getResource(resourceType, kubeEntity.ComputeResources)
 	if err != nil {
 		return err
@@ -120,7 +120,7 @@ func (kubeEntity *KubeEntity) SetResourceCapacity(resourceType metrics.ResourceT
 }
 
 func (kubeEntity *KubeEntity) SetResourceUsed(resourceType metrics.ResourceType,
-							computeUsed float64) (error) {
+	computeUsed float64) error {
 	resource, err := getResource(resourceType, kubeEntity.ComputeResources)
 	if err != nil {
 		return err
@@ -130,31 +130,31 @@ func (kubeEntity *KubeEntity) SetResourceUsed(resourceType metrics.ResourceType,
 }
 
 func (kubeEntity *KubeEntity) AddComputeResource(resourceType metrics.ResourceType,
-							computeCap, computeUsed float64) {
+	computeCap, computeUsed float64) {
 	r := &KubeDiscoveredResource{
-		Type: resourceType,
+		Type:     resourceType,
 		Capacity: computeCap,
 	}
 	kubeEntity.ComputeResources[resourceType] = r
 }
 
 func (kubeEntity *KubeEntity) AddAllocationResource(resourceType metrics.ResourceType,
-							capValue, usedValue float64) {
+	capValue, usedValue float64) {
 	r := &KubeDiscoveredResource{
-		Type: resourceType,
+		Type:     resourceType,
 		Capacity: capValue,
-		Used: usedValue,
+		Used:     usedValue,
 	}
 	kubeEntity.AllocationResources[resourceType] = r
 }
 
 func (kubeEntity *KubeEntity) GetComputeResource(resourceType metrics.ResourceType,
-							) (*KubeDiscoveredResource, error) {
+) (*KubeDiscoveredResource, error) {
 	return getResource(resourceType, kubeEntity.ComputeResources)
 }
 
 func (kubeEntity *KubeEntity) GetAllocationResource(resourceType metrics.ResourceType,
-							) (*KubeDiscoveredResource, error) {
+) (*KubeDiscoveredResource, error) {
 	return getResource(resourceType, kubeEntity.AllocationResources)
 }
 
@@ -175,9 +175,9 @@ func (kubeEntity *KubeEntity) GetResourceUsed(resourceType metrics.ResourceType)
 }
 
 func (kubeEntity *KubeEntity) AddProviderResource(providerType metrics.DiscoveredEntityType,
-							providerId string,
-							resourceType metrics.ResourceType,
-							usedValue float64) {
+	providerId string,
+	resourceType metrics.ResourceType,
+	usedValue float64) {
 	_, exists := kubeEntity.ProviderMap[providerId]
 	if !exists {
 		provider := &KubeResourceProvider{
@@ -206,8 +206,8 @@ func (kubeEntity *KubeEntity) GetProvider(providerId string) *KubeResourceProvid
 }
 
 func (kubeEntity *KubeEntity) GetBoughtResource(providerId string,
-						resourceType metrics.ResourceType,
-							) (*KubeBoughtResource, error) {
+	resourceType metrics.ResourceType,
+) (*KubeBoughtResource, error) {
 	provider, exists := kubeEntity.ProviderMap[providerId]
 	if !exists {
 		return nil, fmt.Errorf("%s missing\n", resourceType)
@@ -226,8 +226,8 @@ func (kubeEntity *KubeEntity) GetBoughtResource(providerId string,
 }
 
 func getResource(resourceType metrics.ResourceType,
-		resourceMap map[metrics.ResourceType]*KubeDiscoveredResource,
-			)(*KubeDiscoveredResource, error) {
+	resourceMap map[metrics.ResourceType]*KubeDiscoveredResource,
+) (*KubeDiscoveredResource, error) {
 	resource, exists := resourceMap[resourceType]
 	if !exists {
 		return nil, fmt.Errorf("%s missing\n", resourceType)
