@@ -49,6 +49,23 @@ Create a file called **"config"** and put it under */etc/kubeturbo/*.
 }
 ```
 
+`UPDATE`: Starting from version 6.1.0, there is no need to specify `targetConfig` so that the `config` file looks like:
+
+```json
+{
+	"communicationConfig": {
+		"serverMeta": {
+                    "version": "<TURBONOMIC_SERVER_VERSION>",
+		    "turboServer": "<TURBONOMIC_SERVER_URL>"
+		},
+		"restAPIConfig": {
+			"opsManagerUserName": "<TURBONOMIC_USERNAME>",
+			"opsManagerPassword": "<TURBONOMIC_PASSWORD>"
+		}
+	}
+}
+```
+
 ### Step Three: Create Kubeturbo Pod
 
 Make sure you have **admin.kubeconfig** and **config** under */etc/kubeturbo*.
