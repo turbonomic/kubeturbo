@@ -39,6 +39,22 @@ Create a file called `config` in the `/etc/kubeturbo/` directory, with the follo
 ```
 you can find an example with values [here](../config).
 
+`UPDATE`: Starting from version 6.1.0, there is no need to specify `targetConfig` so that the `config` file looks like:
+
+```json
+{
+	"communicationConfig": {
+		"serverMeta": {
+		    "version": "<TURBONOMIC_SERVER_VERSION>",
+		    "turboServer": "<TURBONOMIC_SERVER_URL>"
+		},
+		"restAPIConfig": {
+		    "opsManagerUserName": "<TURBONOMIC_USERNAME>",
+		    "opsManagerPassword": "<TURBONOMIC_PASSWORD>"
+		}
+	}
+}
+```
 
 ### Step Two: Creating the Kubeturbo Static Pod
 

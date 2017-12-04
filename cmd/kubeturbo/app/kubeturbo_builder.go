@@ -202,13 +202,6 @@ func (s *VMTServer) Run(_ []string) error {
 		os.Exit(1)
 	}
 
-	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
-	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec)
-	if err != nil {
-		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
-		os.Exit(1)
-	}
-
 	kubeConfig, err := s.createKubeConfig()
 	if err != nil {
 		glog.Error(err)
@@ -227,7 +220,16 @@ func (s *VMTServer) Run(_ []string) error {
 	}
 
 	broker := turbostore.NewPodBroker()
+
+	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
+	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec, kubeConfig.Host)
+	if err != nil {
+		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
+		os.Exit(1)
+	}
+
 	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, probeConfig, broker, k8sTAPSpec, s.K8sVersion, s.NoneSchedulerName)
+
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	vmtConfig.Recorder = createRecorder(kubeClient)
