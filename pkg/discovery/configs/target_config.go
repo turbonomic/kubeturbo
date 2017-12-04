@@ -20,6 +20,9 @@ type K8sTargetConfig struct {
 	TargetIdentifier string `json:"targetName,omitempty"`
 	TargetUsername   string `json:"-"`
 	TargetPassword   string `json:"-"`
+
+	// TODO: Remove it when backward compatibility is not needed
+	TargetAddress string `json:"address,omitempty"`
 }
 
 func NewK8sTargetConfig(probeCategory, targetType, id, username, password string) *K8sTargetConfig {
@@ -34,7 +37,11 @@ func NewK8sTargetConfig(probeCategory, targetType, id, username, password string
 
 func (config *K8sTargetConfig) ValidateK8sTargetConfig() error {
 	if config.TargetIdentifier == "" {
-		return errors.New("targetIdentifier is not provided")
+		if config.TargetAddress != "" { // TODO: Remove it when backward compatibility is not needed
+			config.TargetIdentifier = config.TargetAddress
+		} else {
+			return errors.New("targetIdentifier is not provided")
+		}
 	}
 	if config.TargetUsername == "" {
 		config.TargetUsername = defaultUsername

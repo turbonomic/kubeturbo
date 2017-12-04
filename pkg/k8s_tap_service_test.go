@@ -47,6 +47,25 @@ func TestParseK8sTAPServiceSpecWithTargetConfig(t *testing.T) {
 	check(got.TargetUsername, "defaultUser", t)
 }
 
+func TestParseK8sTAPServiceSpecWithOldConfig(t *testing.T) {
+	defaultTargetName := "target-foo"
+	configPath := "../test/config/turbo-config-old"
+
+	got, err := ParseK8sTAPServiceSpec(configPath, defaultTargetName)
+
+	if err != nil {
+		t.Fatalf("Error while parsing the spec file %s: %v", configPath, err)
+	}
+
+	// Check target config
+	checkStartWith(got.TargetType, "tt1", t)
+	checkStartWith(got.ProbeCategory, "pc1", t)
+	check(got.TargetIdentifier, "addr1", t)
+	// The files of username and password are ignored when parsing the json file
+	check(got.TargetPassword, "defaultPassword", t)
+	check(got.TargetUsername, "defaultUser", t)
+}
+
 func check(got, want string, t *testing.T) {
 	if got != want {
 		t.Errorf("got: %v, want: %v", got, want)
