@@ -32,6 +32,23 @@ Create a file called `config`, with the following contents:
 }
 ```
 
+`UPDATE`: Starting from version 6.1.0, there is no need to specify `targetConfig` so that the `config` file looks like:
+
+```json
+{
+	"communicationConfig": {
+		"serverMeta": {
+                    "version": "<TURBONOMIC_SERVER_VERSION>",
+		    "turboServer": "<TURBONOMIC_SERVER_URL>"
+		},
+		"restAPIConfig": {
+			"opsManagerUserName": "<TURBONOMIC_USERNAME>",
+			"opsManagerPassword": "<TURBONOMIC_PASSWORD>"
+		}
+	}
+}
+```
+
 Create a [`secret`](https://kubernetes.io/docs/concepts/configuration/secret/) with the configuration file:
 ```console
 kubectl create secret generic vmt-config --from-file=path/to/config

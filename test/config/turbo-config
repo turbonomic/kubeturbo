@@ -1,7 +1,7 @@
 {
 	"communicationConfig": {
 		"serverMeta": {
-			"turboServer": "https://127.0.0.1:9400"
+			"turboServer": "https://127.1.1.1:9444"
 		},
 		"restAPIConfig": {
 			"opsManagerUserName": "foo",
