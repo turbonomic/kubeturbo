@@ -7,7 +7,6 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
@@ -44,7 +43,7 @@ func NewApplicationEntityDTOBuilder(sink *metrics.EntityMetricSink) *application
 // get hosting node cpu frequency
 func (builder *applicationEntityDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, error) {
 	key := util.NodeKeyFromPodFunc(pod)
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(task.NodeType, key, metrics.CpuFrequency)
+	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
 	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
 	if err != nil {
 		err := fmt.Errorf("Failed to get cpu frequency from sink for node %s: %v", key, err)
@@ -122,7 +121,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 
 func (builder *applicationEntityDTOBuilder) getTransactionUsedValue(pod *api.Pod) float64 {
 	key := util.PodKeyFunc(pod)
-	etype := task.PodType
+	etype := metrics.PodType
 	rtype := metrics.Transaction
 	mtype := metrics.Used
 	metricsId := metrics.GenerateEntityResourceMetricUID(etype, key, rtype, mtype)
@@ -188,7 +187,7 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appI
 	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU)
 
 	// Resource commodities.
-	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(task.ApplicationType, appId, applicationResourceCommodityBought, converter, nil)
+	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.ApplicationType, appId, applicationResourceCommodityBought, converter, nil)
 	if err != nil {
 		return nil, err
 	}

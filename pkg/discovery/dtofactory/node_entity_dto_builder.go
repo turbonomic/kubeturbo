@@ -8,7 +8,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
@@ -30,6 +29,11 @@ var (
 		metrics.Memory,
 		//metrics.CPUProvisioned,
 		//metrics.MemoryProvisioned,
+	}
+
+	allocationResourceCommoditiesSold = []metrics.ResourceType{
+		metrics.CPULimit,
+		metrics.MemoryLimit,
 	}
 )
 
@@ -58,12 +62,19 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		displayName := node.Name
 		entityDTOBuilder.DisplayName(displayName)
 
-		// commodities sold.
+		// compute and constraint commodities sold.
 		commoditiesSold, err := builder.getNodeCommoditiesSold(node)
 		if err != nil {
 			glog.Errorf("Error when create commoditiesSold for %s: %s", node.Name, err)
 			continue
 		}
+		// allocation commodities sold
+		allocationCommoditiesSold, err := builder.getAllocationCommoditiesSold(node)
+		if err != nil {
+			glog.Errorf("Error when creating allocation commoditiesSold for %s: %s", node.Name, err)
+			continue
+		}
+		commoditiesSold = append(commoditiesSold, allocationCommoditiesSold...)
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 		// entities' properties.
@@ -106,7 +117,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 	key := util.NodeKeyFunc(node)
 
 	// get cpu frequency
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(task.NodeType, key, metrics.CpuFrequency)
+	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
 	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
 	if err != nil {
 		// TODO acceptable return? To get cpu, frequency is required.
@@ -122,7 +133,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 		metrics.CPU, metrics.CPUProvisioned)
 
 	// Resource Commodities
-	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(task.NodeType, key, nodeResourceCommoditiesSold, converter, nil)
+	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.NodeType, key, nodeResourceCommoditiesSold, converter, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +167,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 	}
 
 	// Cluster commodity.
-	clusterMetricUID := metrics.GenerateEntityStateMetricUID(task.ClusterType, "", metrics.Cluster)
+	clusterMetricUID := metrics.GenerateEntityStateMetricUID(metrics.ClusterType, "", metrics.Cluster)
 	clusterInfo, err := builder.metricsSink.GetMetric(clusterMetricUID)
 	if err != nil {
 		glog.Errorf("Failed to get %s used for current Kubernetes Cluster %s", metrics.Cluster, clusterInfo)
@@ -175,6 +186,34 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 		commoditiesSold = append(commoditiesSold, clusterComm)
 	}
 
+	return commoditiesSold, nil
+}
+
+func (builder *nodeEntityDTOBuilder) getAllocationCommoditiesSold(node *api.Node) ([]*proto.CommodityDTO, error) {
+	var commoditiesSold []*proto.CommodityDTO
+	key := util.NodeKeyFunc(node)
+
+	// get cpu frequency
+	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
+	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get cpu frequency from sink for node %s: %s", key, err)
+	}
+	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
+	glog.V(4).Infof("Frequency is %f", cpuFrequency)
+	// cpu limit needs to be converted from number of cores to frequency.
+	converter := NewConverter().Set(
+		func(input float64) float64 {
+			return input * cpuFrequency
+		},
+		metrics.CPU, metrics.CPULimit)
+
+	// Resource Commodities
+	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.NodeType, key, allocationResourceCommoditiesSold, converter, nil)
+	if err != nil {
+		return nil, err
+	}
+	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
 	return commoditiesSold, nil
 }
 

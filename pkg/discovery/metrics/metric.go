@@ -1,21 +1,112 @@
 package metrics
 
-import "github.com/turbonomic/kubeturbo/pkg/discovery/task"
+import (
+	"k8s.io/client-go/pkg/api/v1"
+)
+
+type DiscoveredEntityType string
 
 type ResourceType string
 
 const (
+	ClusterType     DiscoveredEntityType = "Cluster"
+	QuotaType       DiscoveredEntityType = "Quota"
+	NodeType        DiscoveredEntityType = "Node"
+	PodType         DiscoveredEntityType = "Pod"
+	ContainerType   DiscoveredEntityType = "Container"
+	ApplicationType DiscoveredEntityType = "Application"
+	ServiceType     DiscoveredEntityType = "Service"
+)
+
+const (
 	CPU               ResourceType = "CPU"
 	Memory            ResourceType = "Memory"
+	CPULimit          ResourceType = "CPULimit"
+	MemoryLimit       ResourceType = "MemoryLimit"
+	CPURequest        ResourceType = "CPURequest"
+	MemoryRequest     ResourceType = "MemoryRequest"
 	CPUProvisioned    ResourceType = "CPUProvisioned"
 	MemoryProvisioned ResourceType = "MemoryProvisioned"
 	Transaction       ResourceType = "Transaction"
+	ObjectCount       ResourceType = "ObjectCount"
 
 	Access       ResourceType = "Access"
 	Cluster      ResourceType = "Cluster"
 	Schedulable  ResourceType = "Schedulable"
 	CpuFrequency ResourceType = "CpuFrequency"
 )
+
+var (
+	// Mapping of Kubernetes API Server resource names to the compute resource types
+	KubeComputeResourceTypes = map[v1.ResourceName]ResourceType{
+		v1.ResourceCPU:    CPU,
+		v1.ResourceMemory: Memory,
+	}
+
+	// Mapping of Kubernetes API Server resource names to the allocation resource types
+	KubeAllocatonResourceTypes = map[v1.ResourceName]ResourceType{
+		v1.ResourceLimitsCPU:      CPULimit,
+		v1.ResourceLimitsMemory:   MemoryLimit,
+		v1.ResourceRequestsCPU:    CPURequest,
+		v1.ResourceRequestsMemory: MemoryRequest,
+	}
+
+	ReverseKubeResourceTypes = map[ResourceType]v1.ResourceName{
+		CPULimit:      v1.ResourceLimitsCPU,
+		MemoryLimit:   v1.ResourceLimitsMemory,
+		CPURequest:    v1.ResourceRequestsCPU,
+		MemoryRequest: v1.ResourceRequestsMemory,
+		ObjectCount:   v1.ResourcePods,
+		CPU:           v1.ResourceCPU,
+		Memory:        v1.ResourceMemory,
+	}
+
+	// List of Compute resources
+	ComputeResources = []ResourceType{CPU, Memory}
+
+	// List of Allocation resources
+	ComputeAllocationResources = []ResourceType{CPULimit, MemoryLimit, CPURequest, MemoryRequest}
+
+	// List of cpu related metrics
+	CPUResources = []ResourceType{CPULimit, CPURequest, CPU}
+
+	// Mapping of allocation to compute resources
+	AllocationToComputeMap = map[ResourceType]ResourceType{
+		CPULimit:      CPU,
+		MemoryLimit:   Memory,
+		CPURequest:    CPU,
+		MemoryRequest: Memory,
+	}
+)
+
+// Returns true if the given resource type argument belongs to the list of allocation resources
+func IsAllocationType(resourceType ResourceType) bool {
+	for _, rt := range ComputeAllocationResources {
+		if rt == resourceType {
+			return true
+		}
+	}
+	return false
+}
+
+// Returns true if the given resource type argument belongs to the list of compute resources
+func IsComputeType(resourceType ResourceType) bool {
+	for _, rt := range ComputeResources {
+		if rt == resourceType {
+			return true
+		}
+	}
+	return false
+}
+
+func IsCPUType(resourceType ResourceType) bool {
+	for _, rt := range CPUResources {
+		if rt == resourceType {
+			return true
+		}
+	}
+	return false
+}
 
 type MetricProp string
 
@@ -26,6 +117,8 @@ const (
 )
 
 type Metric interface {
+	GetResourceType() ResourceType
+	GetMetricProp() MetricProp
 	GetUID() string
 	GetValue() interface{}
 }
@@ -50,13 +143,13 @@ func NewResourceMetric(rType ResourceType, mProp MetricProp, v float64) Resource
 type EntityResourceMetric struct {
 	metricUID string
 
-	entityType task.DiscoveredEntityType
+	entityType DiscoveredEntityType
 	entityID   string
 
 	ResourceMetric
 }
 
-func NewEntityResourceMetric(eType task.DiscoveredEntityType, id string, rType ResourceType, mProp MetricProp,
+func NewEntityResourceMetric(eType DiscoveredEntityType, id string, rType ResourceType, mProp MetricProp,
 	v float64) EntityResourceMetric {
 	return EntityResourceMetric{
 		metricUID:      GenerateEntityResourceMetricUID(eType, id, rType, mProp),
@@ -64,6 +157,14 @@ func NewEntityResourceMetric(eType task.DiscoveredEntityType, id string, rType R
 		entityID:       id,
 		ResourceMetric: NewResourceMetric(rType, mProp, v),
 	}
+}
+
+func (m EntityResourceMetric) GetResourceType() ResourceType {
+	return m.resourceType
+}
+
+func (m EntityResourceMetric) GetMetricProp() MetricProp {
+	return m.metricProp
 }
 
 func (m EntityResourceMetric) GetUID() string {
@@ -75,21 +176,22 @@ func (m EntityResourceMetric) GetValue() interface{} {
 }
 
 // Generate the UID for each metric entry based on entityType, entityID, resourceType and metricType.
-func GenerateEntityResourceMetricUID(eType task.DiscoveredEntityType, id string, rType ResourceType, mType MetricProp) string {
+func GenerateEntityResourceMetricUID(eType DiscoveredEntityType, id string, rType ResourceType, mType MetricProp) string {
 	return string(eType) + "-" + id + "-" + string(rType) + "-" + string(mType)
 }
 
 type EntityStateMetric struct {
 	metricUID string
 
-	entityType task.DiscoveredEntityType
+	entityType DiscoveredEntityType
 	entityID   string
 
 	resourceType ResourceType
 	value        interface{}
+	metricProp   MetricProp
 }
 
-func NewEntityStateMetric(eType task.DiscoveredEntityType, id string, rType ResourceType, v interface{}) EntityStateMetric {
+func NewEntityStateMetric(eType DiscoveredEntityType, id string, rType ResourceType, v interface{}) EntityStateMetric {
 	return EntityStateMetric{
 		metricUID:    GenerateEntityStateMetricUID(eType, id, rType),
 		entityType:   eType,
@@ -97,6 +199,14 @@ func NewEntityStateMetric(eType task.DiscoveredEntityType, id string, rType Reso
 		resourceType: rType,
 		value:        v,
 	}
+}
+
+func (m EntityStateMetric) GetResourceType() ResourceType {
+	return m.resourceType
+}
+
+func (m EntityStateMetric) GetMetricProp() MetricProp {
+	return m.metricProp
 }
 
 func (m EntityStateMetric) GetUID() string {
@@ -108,6 +218,6 @@ func (m EntityStateMetric) GetValue() interface{} {
 }
 
 // Generate the UID for each metric entry based on entityType, entityID and resourceType.
-func GenerateEntityStateMetricUID(eType task.DiscoveredEntityType, id string, rType ResourceType) string {
+func GenerateEntityStateMetricUID(eType DiscoveredEntityType, id string, rType ResourceType) string {
 	return string(eType) + "-" + id + "-" + string(rType)
 }

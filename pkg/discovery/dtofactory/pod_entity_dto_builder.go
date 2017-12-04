@@ -8,7 +8,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
@@ -27,12 +26,17 @@ var (
 		metrics.Memory,
 	}
 
-	podResourceCommodityBought = []metrics.ResourceType{
+	podResourceCommodityBoughtFromNode = []metrics.ResourceType{
 		metrics.CPU,
 		metrics.Memory,
 		// TODO, add back provisioned commodity later.
 		//metrics.CPUProvisioned,
 		//metrics.MemoryProvisioned,
+	}
+
+	podResourceCommodityBoughtFromQuota = []metrics.ResourceType{
+		metrics.CPULimit,
+		metrics.MemoryLimit,
 	}
 )
 
@@ -40,12 +44,15 @@ type podEntityDTOBuilder struct {
 	generalBuilder
 	stitchingManager *stitching.StitchingManager
 	nodeNameUIDMap   map[string]string
+	quotaNameUIDMap  map[string]string
 }
 
-func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager, nodeNameUIDMap map[string]string) *podEntityDTOBuilder {
+func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager,
+	nodeNameUIDMap, quotaNameUIDMap map[string]string) *podEntityDTOBuilder {
 	return &podEntityDTOBuilder{
 		generalBuilder:   newGeneralBuilder(sink),
 		nodeNameUIDMap:   nodeNameUIDMap,
+		quotaNameUIDMap:  quotaNameUIDMap,
 		stitchingManager: stitchingManager,
 	}
 }
@@ -54,7 +61,6 @@ func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *st
 func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
 	for _, pod := range pods {
-
 		// id.
 		podID := string(pod.UID)
 		entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, podID)
@@ -67,7 +73,6 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 			glog.Errorf("failed to build pod[%s] EntityDTO: %v", displayName, err)
 			continue
 		}
-
 		// commodities sold.
 		commoditiesSold, err := builder.getPodCommoditiesSold(pod, cpuFrequency)
 		if err != nil {
@@ -92,6 +97,21 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		entityDTOBuilder = entityDTOBuilder.Provider(provider)
 		entityDTOBuilder.BuysCommodities(commoditiesBought)
 
+		quotaUID, exists := builder.quotaNameUIDMap[pod.Namespace]
+		if exists {
+			commoditiesBoughtQuota, err := builder.getPodCommoditiesBoughtFromQuota(pod, cpuFrequency)
+			if err != nil {
+				glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
+				continue
+			}
+
+			provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_DATACENTER, quotaUID)
+			entityDTOBuilder = entityDTOBuilder.Provider(provider)
+			entityDTOBuilder.BuysCommodities(commoditiesBoughtQuota)
+		} else {
+			glog.Errorf("Failed to get quota for pod: %s", pod.Namespace)
+		}
+
 		// entities' properties.
 		properties, err := builder.getPodProperties(pod)
 		if err != nil {
@@ -112,6 +132,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		}
 
 		result = append(result, entityDto)
+		glog.V(4).Infof("pod dto: %++v\n", entityDto)
 	}
 
 	return result, nil
@@ -120,7 +141,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 // get cpu frequency
 func (builder *podEntityDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, error) {
 	key := util.NodeKeyFromPodFunc(pod)
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(task.NodeType, key, metrics.CpuFrequency)
+	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
 	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
 	if err != nil {
 		err := fmt.Errorf("Failed to get cpu frequency from sink for node %s: %v", key, err)
@@ -132,8 +153,8 @@ func (builder *podEntityDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, 
 	return cpuFrequency, nil
 }
 
-// Build the sold commodityDTO by each pod. They are:
-// vCPU, vMem and VMPMAccess; VMPMAccess is used to bind container to the hosting pod (no move).
+// Build the CommodityDTOs sold  by the pod for vCPU, vMem and VMPMAcces.
+// VMPMAccess is used to bind container to the hosting pod so the container is not moved out of the pod
 func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
 	key := util.PodKeyFunc(pod)
@@ -145,7 +166,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequ
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(false) }, metrics.CPU, metrics.Memory)
 
 	// Resource Commodities
-	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(task.PodType, key, podResourceCommoditySold, converter, attributeSetter)
+	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.PodType, key, podResourceCommoditySold, converter, attributeSetter)
 	if err != nil {
 		return nil, err
 	}
@@ -164,8 +185,8 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequ
 	return commoditiesSold, nil
 }
 
-// Build the bought commodityDTO by each pod. They are:
-// vCPU, vMem, cpuProvisioned, memProvisioned, access, cluster.
+// Build the CommodityDTOs bought by the pod from the node provider.
+// Commodities bought are vCPU, vMem, cpuProvisioned, memProvisioned, access, cluster
 func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 	key := util.PodKeyFunc(pod)
@@ -178,7 +199,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 	//attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)
 
 	// Resource Commodities.
-	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(task.PodType, key, podResourceCommodityBought, converter, nil)
+	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.PodType, key, podResourceCommodityBoughtFromNode, converter, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +229,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 	}
 
 	// Cluster commodity.
-	clusterMetricUID := metrics.GenerateEntityStateMetricUID(task.ClusterType, "", metrics.Cluster)
+	clusterMetricUID := metrics.GenerateEntityStateMetricUID(metrics.ClusterType, "", metrics.Cluster)
 	clusterInfo, err := builder.metricsSink.GetMetric(clusterMetricUID)
 	if err != nil {
 		glog.Errorf("Failed to get %s used for current Kubernetes Cluster %s", metrics.Cluster, clusterInfo)
@@ -226,6 +247,25 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 		commoditiesBought = append(commoditiesBought, clusterComm)
 	}
 
+	return commoditiesBought, nil
+}
+
+// Build the CommodityDTOs bought by the pod from the quota provider.
+func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromQuota(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+	var commoditiesBought []*proto.CommodityDTO
+	key := util.PodKeyFunc(pod)
+
+	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
+	converter := NewConverter().Set(func(input float64) float64 {
+		return input * cpuFrequency
+	}, metrics.CPU, metrics.CPULimit)
+
+	// Resource Commodities.
+	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.PodType, key, podResourceCommodityBoughtFromQuota, converter, nil)
+	if err != nil {
+		return nil, err
+	}
+	commoditiesBought = append(commoditiesBought, resourceCommoditiesBought...)
 	return commoditiesBought, nil
 }
 

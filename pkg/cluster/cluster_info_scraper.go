@@ -46,6 +46,50 @@ func NewClusterInfoScraper(kubeConfig *restclient.Config) (*ClusterScraper, erro
 	}, nil
 }
 
+func (s *ClusterScraper) GetNamespaces() ([]*api.Namespace, error) {
+	namespaceList, err := s.Core().Namespaces().List(metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list all namespaces in the cluster: %s", err)
+	}
+	namespaces := make([]*api.Namespace, len(namespaceList.Items))
+	for i := 0; i < len(namespaceList.Items); i++ {
+		namespaces[i] = &namespaceList.Items[i]
+	}
+	return namespaces, nil
+}
+
+func (s *ClusterScraper) GetResourceQuotas() ([]*api.ResourceQuota, error) {
+	namespace := api.NamespaceAll
+	quotaList, err := s.Core().ResourceQuotas(namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list all quotas in the cluster: %s", err)
+	}
+	quotas := make([]*api.ResourceQuota, len(quotaList.Items))
+	for i := 0; i < len(quotaList.Items); i++ {
+		quotas[i] = &quotaList.Items[i]
+	}
+	return quotas, nil
+}
+
+// Return a map containing namespace and the list of quotas defined in the namespace.
+func (s *ClusterScraper) GetNamespaceQuotas() (map[string][]*api.ResourceQuota, error) {
+	quotaList, err := s.GetResourceQuotas()
+	if err != nil {
+		return nil, fmt.Errorf("%s", err)
+	}
+
+	quotaMap := make(map[string][]*api.ResourceQuota)
+	for _, item := range quotaList {
+		quotaList, exists := quotaMap[item.Namespace]
+		if !exists {
+			quotaList = []*api.ResourceQuota{}
+		}
+		quotaList = append(quotaList, item)
+		quotaMap[item.Namespace] = quotaList
+	}
+	return quotaMap, nil
+}
+
 func (s *ClusterScraper) GetAllNodes() ([]*api.Node, error) {
 	listOption := metav1.ListOptions{
 		LabelSelector: labelSelectEverything,

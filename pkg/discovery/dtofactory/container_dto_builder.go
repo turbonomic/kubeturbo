@@ -7,7 +7,6 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -38,7 +37,7 @@ func NewContainerDTOBuilder(sink *metrics.EntityMetricSink) *containerDTOBuilder
 // get cpu frequency
 func (builder *containerDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, error) {
 	key := util.NodeKeyFromPodFunc(pod)
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(task.NodeType, key, metrics.CpuFrequency)
+	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
 	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
 	if err != nil {
 		err := fmt.Errorf("Failed to get cpu frequency from sink for node %s: %v", key, err)
@@ -117,7 +116,7 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerK
 	attributeSetter := NewCommodityAttrSetter()
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)
 
-	commodities, err := builder.getResourceCommoditiesSold(task.ContainerType, containerKey, commoditySold, converter, attributeSetter)
+	commodities, err := builder.getResourceCommoditiesSold(metrics.ContainerType, containerKey, commoditySold, converter, attributeSetter)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +151,7 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 	attributeSetter := NewCommodityAttrSetter()
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)
 
-	commodities, err := builder.getResourceCommoditiesBought(task.ContainerType, containerId, commodityBought, converter, attributeSetter)
+	commodities, err := builder.getResourceCommoditiesBought(metrics.ContainerType, containerId, commodityBought, converter, attributeSetter)
 	if err != nil {
 		return nil, err
 	}

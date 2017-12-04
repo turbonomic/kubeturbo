@@ -7,7 +7,6 @@ import (
 
 	kubeClient "k8s.io/client-go/kubernetes"
 
-	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
@@ -17,6 +16,9 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 const (
@@ -40,6 +42,7 @@ func NewDiscoveryConfig(kubeClient *kubeClient.Clientset, probeConfig *configs.P
 	}
 }
 
+// Implements the go sdk discovery client interface
 type K8sDiscoveryClient struct {
 	config *DiscoveryClientConfig
 
@@ -123,14 +126,29 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 }
 
 func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
-	nodes, err := dc.config.k8sClusterScraper.GetAllNodes()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get all nodes in the cluster: %s", err)
+	// CREATE CLUSTER, NODES, NAMESPACES AND QUOTAS HERE
+	clusterProcessor := &processor.ClusterProcessor{
+		ClusterInfoScraper: dc.config.k8sClusterScraper,
 	}
+	kubeCluster, err := clusterProcessor.ProcessCluster()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to process cluster: %s", err)
+	}
+	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 
-	workerCount := dc.dispatcher.Dispatch(nodes)
-	entityDTOs := dc.resultCollector.Collect(workerCount)
-	glog.V(2).Infof("Discovery workers have finished discovery work with %d entityDTOs built. Now performing service discovery...", len(entityDTOs))
+	// Multiple discovery workers to create node and pod DTOs
+	nodes := clusterSummary.NodeList
+	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
+	entityDTOs, quotaMetricsList := dc.resultCollector.Collect(workerCount)
+
+	// Quota discovery worker to create quota DTOs
+	quotasDiscoveryWorker := worker.Newk8sResourceQuotasDiscoveryWorker(clusterSummary)
+	quotaDtos, _ := quotasDiscoveryWorker.Do(quotaMetricsList)
+
+	// All the DTO's
+	entityDTOs = append(entityDTOs, quotaDtos...)
+	glog.V(2).Infof("Discovery workers have finished discovery work with %d entityDTOs built. "+
+		"		Now performing service discovery...", len(entityDTOs))
 
 	// affinity process
 	glog.V(2).Infof("begin to process affinity.")
