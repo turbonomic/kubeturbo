@@ -207,6 +207,8 @@ func (s *VMTServer) Run(_ []string) error {
 		glog.Error(err)
 	}
 
+	glog.V(3).Infof("kubeConfig: %+v", kubeConfig)
+
 	kubeClient, err := s.createKubeClient(kubeConfig)
 	if err != nil {
 		glog.Errorf("Failed to get kubeClient: %v", err.Error())
@@ -215,7 +217,7 @@ func (s *VMTServer) Run(_ []string) error {
 
 	probeConfig, err := s.createProbeConfig(kubeConfig)
 	if err != nil {
-		glog.Errorf("Failed to build probe config: %s")
+		glog.Errorf("Failed to build probe config")
 		os.Exit(1)
 	}
 
