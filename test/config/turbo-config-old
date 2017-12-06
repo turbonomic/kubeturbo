@@ -1,0 +1,18 @@
+{
+	"communicationConfig": {
+		"serverMeta": {
+			"turboServer": "https://127.1.1.1:9444"
+		},
+		"restAPIConfig": {
+			"opsManagerUserName": "foo",
+			"opsManagerPassword": "bar"
+		}
+	},
+                      "targetConfig": {
+                              "probeCategory":"pc1",
+                              "targetType":"tt1",
+                              "address":"addr1",
+                              "username":"user1",
+                              "password":"passwd1"
+                      }
+}

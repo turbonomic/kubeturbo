@@ -202,17 +202,12 @@ func (s *VMTServer) Run(_ []string) error {
 		os.Exit(1)
 	}
 
-	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
-	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec)
-	if err != nil {
-		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
-		os.Exit(1)
-	}
-
 	kubeConfig, err := s.createKubeConfig()
 	if err != nil {
 		glog.Error(err)
 	}
+
+	glog.V(3).Infof("kubeConfig: %+v", kubeConfig)
 
 	kubeClient, err := s.createKubeClient(kubeConfig)
 	if err != nil {
@@ -222,12 +217,21 @@ func (s *VMTServer) Run(_ []string) error {
 
 	probeConfig, err := s.createProbeConfig(kubeConfig)
 	if err != nil {
-		glog.Errorf("Failed to build probe config: %s")
+		glog.Errorf("Failed to build probe config: %v", err.Error())
 		os.Exit(1)
 	}
 
 	broker := turbostore.NewPodBroker()
+
+	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
+	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec, kubeConfig.Host)
+	if err != nil {
+		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
+		os.Exit(1)
+	}
+
 	vmtConfig := kubeturbo.NewVMTConfig(kubeClient, probeConfig, broker, k8sTAPSpec, s.K8sVersion, s.NoneSchedulerName)
+
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	vmtConfig.Recorder = createRecorder(kubeClient)
