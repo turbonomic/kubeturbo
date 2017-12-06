@@ -217,7 +217,7 @@ func (s *VMTServer) Run(_ []string) error {
 
 	probeConfig, err := s.createProbeConfig(kubeConfig)
 	if err != nil {
-		glog.Errorf("Failed to build probe config")
+		glog.Errorf("Failed to build probe config: %v", err.Error())
 		os.Exit(1)
 	}
 
