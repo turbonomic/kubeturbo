@@ -85,12 +85,9 @@ spec:
   containers:
   - name: kubeturbo
     # The image is the same one as used in non-OpenShift k8s distributions
-    image: vmturbo/kubeturbo:60
+    image: vmturbo/kubeturbo:6.0
     args:
-      # Need specify the admin.kubeconfig file only for OpenShift version before 3.6
-      # - --kubeconfig=/etc/kubeturbo/admin.kubeconfig
       - --turboconfig=/etc/kubeturbo/config
-      - --k8sVersion=1.6
       # Need specify the kubelet port and https enabled
       - --kubelet-https=true
       - --kubelet-port=10250
