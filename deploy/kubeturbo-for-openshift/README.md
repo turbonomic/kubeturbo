@@ -84,10 +84,16 @@ spec:
     kubeturbo: deployable
   containers:
   - name: kubeturbo
-    image: vmturbo/kubeturbo:60os
+    # The image is the same one as used in non-OpenShift k8s distributions
+    image: vmturbo/kubeturbo:60
     args:
-      - --kubeconfig=/etc/kubeturbo/admin.kubeconfig
+      # Need specify the admin.kubeconfig file only for OpenShift version before 3.6
+      # - --kubeconfig=/etc/kubeturbo/admin.kubeconfig
       - --turboconfig=/etc/kubeturbo/config
+      - --k8sVersion=1.6
+      # Need specify the kubelet port and https enabled
+      - --kubelet-https=true
+      - --kubelet-port=10250
     volumeMounts:
     - name: turbo-config
       mountPath: /etc/kubeturbo
