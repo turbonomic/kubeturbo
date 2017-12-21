@@ -164,10 +164,8 @@ func (builder *applicationEntityDTOBuilder) getAppTransactionUsage(index int, po
 func (builder *applicationEntityDTOBuilder) getCommoditiesSold(appId string, index int, pod *api.Pod) ([]*proto.CommodityDTO, error) {
 	var result []*proto.CommodityDTO
 
-	appTransactionUsed := builder.getAppTransactionUsage(index, pod)
 	ebuilder := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).Key(appId).
-		Capacity(defaultTransactionCapacity).
-		Used(appTransactionUsed)
+		Capacity(defaultTransactionCapacity)
 
 	tranCommodity, err := ebuilder.Create()
 	if err != nil {
