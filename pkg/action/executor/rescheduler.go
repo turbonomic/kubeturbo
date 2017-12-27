@@ -15,6 +15,7 @@ import (
 
 	"github.com/golang/glog"
 )
+
 const (
 	// Set the grace period to 0 for deleting the pod immediately.
 	podDeletionGracePeriodDefault int64 = 0
@@ -70,80 +71,108 @@ func (r *ReScheduler) Execute(actionItem *proto.ActionItemDTO) (*turboaction.Tur
 	return r.reSchedule(action)
 }
 
+func (r *ReScheduler) getTargetPod(podEntity *proto.EntityDTO) (*api.Pod, error) {
+	//1. try to get pod from properties
+	// TODO, as there is issue in server, find pod based on entity properties is not supported right now.
+	// Once the issue in server gets resolved, we can get rid of finding pod by name or uuid.
+	etype := podEntity.GetEntityType()
+	properties := podEntity.GetEntityProperties()
+	pod, err := util.GetPodFromProperties(r.kubeClient, etype, properties)
+	if err != nil {
+		glog.Warningf("Failed to get pod from podEntity properites: %++v", podEntity)
+	} else {
+		return pod, nil
+	}
+
+	//2. try to get pod from UUID
+	return util.GetPodFromUUID(r.kubeClient, podEntity.GetId())
+}
+
+func (r *ReScheduler) getTargetNode(action *proto.ActionItemDTO) (string, error) {
+	hostSE := action.GetNewSE()
+	if hostSE == nil {
+		glog.Errorf("hostSE is empty: %++v", action)
+		return "", fmt.Errorf("hostSE is empty")
+	}
+
+	glog.V(4).Infof("HostSE: %++v", hostSE)
+
+	var err error = nil
+	var node *api.Node = nil
+
+	//0. check entity type
+	etype := hostSE.GetEntityType()
+	if etype != proto.EntityDTO_VIRTUAL_MACHINE && etype != proto.EntityDTO_PHYSICAL_MACHINE {
+		err = fmt.Errorf("The target entity(%v) for move destiantion is neither a VM nor a PM.", etype)
+		glog.Error(err.Error())
+		return "", err
+	}
+
+	//1. get node from properties
+	node, err = util.GetNodeFromProperties(r.kubeClient, hostSE.GetEntityProperties())
+	if err == nil {
+		glog.V(2).Infof("Get node(%v) from properties.", node.Name)
+		return node.Name, nil
+	}
+
+	//2. get node by displayName
+	node, err = util.GetNodebyName(r.kubeClient, hostSE.GetDisplayName())
+	if err == nil {
+		glog.V(2).Infof("Get node(%v) by displayName.", node.Name)
+		return node.Name, nil
+	}
+
+	//3. get node by UUID
+	node, err = util.GetNodebyUUID(r.kubeClient, hostSE.GetId())
+	if err == nil {
+		glog.V(2).Infof("Get node(%v) by UUID(%v).", node.Name, hostSE.GetId())
+		return node.Name, nil
+	}
+
+	//4. get node by IP
+	vmIPs := getVMIps(hostSE)
+	if len(vmIPs) > 0 {
+		nodename, err := util.GetNodeNameFromIP(r.kubeClient, vmIPs)
+		if err == nil {
+			glog.V(2).Infof("Get node(%v) by IP.", nodename)
+			return nodename, nil
+		} else {
+			glog.Errorf("Failed to get node by IP(%+v): %v", vmIPs, err)
+		}
+	} else {
+		glog.Warningf("VMIPs are empty: %++v", hostSE)
+	}
+
+	err = fmt.Errorf("Failed to get node(%v) %++v", hostSE.GetDisplayName(), hostSE)
+	glog.Errorf(err.Error())
+	return "", err
+}
+
 func (r *ReScheduler) buildPendingReScheduleTurboAction(actionItem *proto.ActionItemDTO) (*turboaction.TurboAction,
-error) {
+	error) {
 
 	glog.V(4).Infof("MoveActionItem: %++v", actionItem)
-	// Find out the pod to be re-scheduled.
+
+	//1. Find out the pod to be re-scheduled.
 	targetPod := actionItem.GetTargetSE()
 	if targetPod == nil {
 		return nil, errors.New("Target pod in actionItem is nil")
 	}
-
-	// TODO, as there is issue in server, find pod based on entity properties is not supported right now. Once the issue in server gets resolved, we should use the following code to find the pod.
-	//podProperties := targetPod.GetEntityProperties()
-	//foundPod, err:= util.GetPodFromProperties(h.kubeClient, targetEntityType, podProperties)
-
-	// TODO the following is a temporary fix.
-	originalPod, err := util.GetPodFromUUID(r.kubeClient, targetPod.GetId())
+	originalPod, err := r.getTargetPod(targetPod)
 	if err != nil {
-		glog.Errorf("Cannot not find pod %s in the cluster: %s", targetPod.GetDisplayName(), err)
-		return nil, fmt.Errorf("Try to move pod %s, but could not find it in the cluster.",
-			targetPod.GetDisplayName())
+		err = fmt.Errorf("Move failed: Cannot not find pod %v in the cluster: %v", targetPod.GetDisplayName(), err)
+		glog.Error(err.Error())
+		return nil, err
 	}
 
-	// Find out where to re-schedule the pod.
-	newSEType := actionItem.GetNewSE().GetEntityType()
-	if newSEType != proto.EntityDTO_VIRTUAL_MACHINE && newSEType != proto.EntityDTO_PHYSICAL_MACHINE {
-		return nil, errors.New("The target service entity for move destiantion is neither a VM nor a PM.")
-	}
-	targetNode := actionItem.GetNewSE()
-
-	var machineIPs []string
-	switch newSEType {
-	case proto.EntityDTO_VIRTUAL_MACHINE:
-		// K8s uses Ip address as the Identifier. The VM name passed by actionItem is the display name
-		// that discovered by hypervisor. So here we must get the ip address from virtualMachineData in
-		// targetNode entityDTO.
-		vmData := targetNode.GetVirtualMachineData()
-		if vmData == nil {
-			return nil, errors.New("Missing VirtualMachineData in ActionItemDTO from server")
-		}
-		machineIPs = vmData.GetIpAddress()
-		break
-	case proto.EntityDTO_PHYSICAL_MACHINE:
-		// TODO
-		// machineIPS = <valid physical machine IP>
-		break
-	}
-	if machineIPs == nil || len(machineIPs) == 0 {
-		return nil, errors.New("Miss IP addresses in ActionItemDTO.")
-	}
-	glog.V(3).Infof("The IPs of targetNode is %v", machineIPs)
-
-	// Get the actual node name from Kubernetes cluster based on IP address.
-	nodeIdentifier, err := util.GetNodeNameFromIP(r.kubeClient, machineIPs)
+	//2. Find out where to re-schedule the pod.
+	nodeIdentifier, err := r.getTargetNode(actionItem)
 	if err != nil {
 		return nil, err
 	}
 
-	// Build action content.
+	//3. Build action content.
 	var parentObjRef *turboaction.ParentObjectRef = nil
-	// parent info is not necessary for current binding-on-creation method
-
-	//// TODO, Ignore error?
-	//parentRefObject, err := probe.FindParentReferenceObject(originalPod)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//if parentRefObject != nil {
-	//	parentObjRef = &turboaction.ParentObjectRef{
-	//		ParentObjectUID:       string(parentRefObject.UID),
-	//		ParentObjectNamespace: parentRefObject.Namespace,
-	//		ParentObjectName:      parentRefObject.Name,
-	//		ParentObjectType:      parentRefObject.Kind,
-	//	}
-	//}
 	targetObj := &turboaction.TargetObject{
 		TargetObjectUID:       string(originalPod.UID),
 		TargetObjectNamespace: originalPod.Namespace,
@@ -287,4 +316,26 @@ func (r *ReScheduler) reSchedule(action *turboaction.TurboAction) (*turboaction.
 	action.LastTimestamp = time.Now()
 
 	return action, nil
+}
+
+func getVMIps(entity *proto.EntityDTO) []string {
+	result := []string{}
+
+	if entity.GetEntityType() != proto.EntityDTO_VIRTUAL_MACHINE {
+		glog.Errorf("hosting node is a not virtual machine: %++v", entity.GetEntityType())
+		return result
+	}
+
+	vmData := entity.GetVirtualMachineData()
+	if vmData == nil {
+		err := fmt.Errorf("Missing virtualMachineData[%v] in targetSE.", entity.GetDisplayName())
+		glog.Error(err.Error())
+		return result
+	}
+
+	if len(vmData.GetIpAddress()) < 1 {
+		glog.Warningf("machine IPs are empty: %++v", vmData)
+	}
+
+	return vmData.GetIpAddress()
 }
