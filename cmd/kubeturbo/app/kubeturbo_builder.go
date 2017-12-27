@@ -226,18 +226,20 @@ func (s *VMTServer) Run(_ []string) error {
 		os.Exit(1)
 	}
 
-	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
-	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec)
-	if err != nil {
-		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
-		os.Exit(1)
-	}
-
 	kubeConfig := s.createKubeConfigOrDie()
+	glog.V(3).Infof("kubeConfig: %+v", kubeConfig)
+
 	kubeClient := s.createKubeClientOrDie(kubeConfig)
 	kubeletClient := s.createKubeletClientOrDie(kubeConfig)
 	probeConfig := s.createProbeConfigOrDie(kubeConfig, kubeletClient)
 	broker := turbostore.NewPodBroker()
+
+	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
+	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec, kubeConfig.Host)
+	if err != nil {
+		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
+		os.Exit(1)
+	}
 
 	vmtConfig := kubeturbo.NewVMTConfig2()
 	vmtConfig.WithTapSpec(k8sTAPSpec).

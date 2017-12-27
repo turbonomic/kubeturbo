@@ -49,6 +49,23 @@ Create a file called **"config"** and put it under */etc/kubeturbo/*.
 }
 ```
 
+`UPDATE`: Starting from version 6.1.0, there is no need to specify `targetConfig` so that the `config` file looks like:
+
+```json
+{
+	"communicationConfig": {
+		"serverMeta": {
+                    "version": "<TURBONOMIC_SERVER_VERSION>",
+		    "turboServer": "<TURBONOMIC_SERVER_URL>"
+		},
+		"restAPIConfig": {
+			"opsManagerUserName": "<TURBONOMIC_USERNAME>",
+			"opsManagerPassword": "<TURBONOMIC_PASSWORD>"
+		}
+	}
+}
+```
+
 ### Step Three: Create Kubeturbo Pod
 
 Make sure you have **admin.kubeconfig** and **config** under */etc/kubeturbo*.
@@ -67,10 +84,13 @@ spec:
     kubeturbo: deployable
   containers:
   - name: kubeturbo
-    image: vmturbo/kubeturbo:60os
+    # The image is the same one as used in non-OpenShift k8s distributions
+    image: vmturbo/kubeturbo:6.0
     args:
-      - --kubeconfig=/etc/kubeturbo/admin.kubeconfig
       - --turboconfig=/etc/kubeturbo/config
+      # Need specify the kubelet port and https enabled
+      - --kubelet-https=true
+      - --kubelet-port=10250
     volumeMounts:
     - name: turbo-config
       mountPath: /etc/kubeturbo
