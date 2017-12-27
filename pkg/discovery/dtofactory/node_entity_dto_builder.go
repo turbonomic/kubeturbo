@@ -96,6 +96,11 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		// power state.
 		entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
+		vmdata := &proto.EntityDTO_VirtualMachineData{
+			IpAddress: getNodeIPs(node),
+		}
+		entityDTOBuilder = entityDTOBuilder.VirtualMachineData(vmdata)
+
 		// build entityDTO.
 		entityDto, err := entityDTOBuilder.Create()
 		if err != nil {
@@ -235,4 +240,14 @@ func (builder *nodeEntityDTOBuilder) getNodeProperties(node *api.Node) ([]*proto
 	properties = append(properties, nodeProperty)
 
 	return properties, nil
+}
+
+func getNodeIPs(node *api.Node) []string {
+	result := []string{}
+
+	addrs := node.Status.Addresses
+	for i := range addrs {
+		result = append(result, addrs[i].Address)
+	}
+	return result
 }
