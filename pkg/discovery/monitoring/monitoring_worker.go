@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/k8sconntrack"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/master"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
@@ -49,14 +48,6 @@ func BuildMonitorWorker(source types.MonitoringSource, config MonitorWorkerConfi
 			return nil, errors.New("Failed to build a cluster monitoring client as the provided config was not a ClusterMonitorConfig")
 		}
 		return master.NewClusterMonitor(clusterMonitorConfig)
-	case types.K8sConntrackSource:
-		k8sconntrackMonitoring, ok := config.(*k8sconntrack.K8sConntrackMonitorConfig)
-		if !ok {
-			return nil, errors.New("Failed to build a k8sconntrack monitoring client as the provided config was not a K8sConntrackConfig")
-		}
-		return k8sconntrack.NewK8sConntrackMonitor(k8sconntrackMonitoring)
-
-	//case "Prometheus":
 	default:
 		return nil, fmt.Errorf("Unsupported monitoring source %s", source)
 	}
