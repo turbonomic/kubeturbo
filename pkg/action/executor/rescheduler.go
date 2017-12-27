@@ -85,45 +85,84 @@ func (r *ReScheduler) checkActionItem(action *proto.ActionItemDTO) error {
 	return nil
 }
 
-// get k8s.nodeName of the node
-// TODO: get node info via EntityProperty
+// get k8s.node of the new hosting node
 func (r *ReScheduler) getNode(action *proto.ActionItemDTO) (*api.Node, error) {
 	hostSE := action.GetNewSE()
+	if hostSE == nil {
+		err := fmt.Errorf("new host pod entity is empty")
+		glog.Error(err.Error())
+		return nil, err
+	}
 
 	var err error = nil
 	var node *api.Node = nil
 
-	if r.stitchType == stitching.UUID {
-		node, err = util.GetNodebyUUID(r.kubeClient, hostSE.GetId())
-	} else if r.stitchType == stitching.IP {
-		var machineIPs []string
-		if hostSE.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE {
-			vmData := hostSE.GetVirtualMachineData()
-			if vmData == nil {
-				err := fmt.Errorf("Missing virtualMachineData[%v] in targetSE.", hostSE.GetDisplayName())
-				glog.Error(err.Error())
-				return nil, err
-			}
-			machineIPs = vmData.GetIpAddress()
-		} else {
-			err := fmt.Errorf("Unable to get IP of physicalMachine[%v] service entity.", hostSE.GetDisplayName())
-			glog.Error(err.Error())
-			return nil, err
-		}
-
-		node, err = util.GetNodebyIP(r.kubeClient, machineIPs)
-	} else {
-		err = fmt.Errorf("Unknown stitching type: %v", r.stitchType)
-	}
-
-	if err != nil {
-		err = fmt.Errorf("failed to find hosting node[%v]: %v", hostSE.GetDisplayName(), err)
+	//0. check entity type
+	etype := hostSE.GetEntityType()
+	if etype != proto.EntityDTO_VIRTUAL_MACHINE && etype != proto.EntityDTO_PHYSICAL_MACHINE {
+		err = fmt.Errorf("The target entity(%v) for move destiantion is neither a VM nor a PM.", etype)
 		glog.Error(err.Error())
 		return nil, err
 	}
-	return node, nil
+
+	//1. get node from properties
+	node, err = util.GetNodeFromProperties(r.kubeClient, hostSE.GetEntityProperties())
+	if err == nil {
+		glog.V(2).Infof("Get node(%v) from properties.", node.Name)
+		return node, nil
+	}
+
+	//2. get node by displayName
+	node, err = util.GetNodebyName(r.kubeClient, hostSE.GetDisplayName())
+	if err == nil {
+		glog.V(2).Infof("Get node(%v) by displayName.", node.Name)
+		return node, nil
+	}
+
+	//3. get node by UUID
+	node, err = util.GetNodebyUUID(r.kubeClient, hostSE.GetId())
+	if err == nil {
+		glog.V(2).Infof("Get node(%v) by UUID(%v).", node.Name, hostSE.GetId())
+		return node, nil
+	}
+
+	//4. get node by IP
+	vmIPs := getVMIps(hostSE)
+	if len(vmIPs) > 0 {
+		node, err = util.GetNodebyIP(r.kubeClient, vmIPs)
+		if err == nil {
+			glog.V(2).Infof("Get node(%v) by IP.", hostSE.GetDisplayName())
+			return node, nil
+		} else {
+			glog.Errorf("Failed to get node by IP(%+v): %v", vmIPs, err)
+		}
+	} else {
+		glog.Warningf("VMIPs are empty: %++v", hostSE)
+	}
+
+	glog.Errorf("Failed to get node(%v) %++v", hostSE.GetDisplayName(), hostSE)
+	err = fmt.Errorf("Failed to get node(%v)", hostSE.GetDisplayName())
+	return nil, err
 }
 
+func (r *ReScheduler) getTargetPod(podEntity *proto.EntityDTO) (*api.Pod, error) {
+	//1. try to get pod from properties
+	// TODO, as there is issue in server, find pod based on entity properties is not supported right now.
+	// Once the issue in server gets resolved, we can get rid of finding pod by name or uuid.
+	etype := podEntity.GetEntityType()
+	properties := podEntity.GetEntityProperties()
+	pod, err := util.GetPodFromProperties(r.kubeClient, etype, properties)
+	if err != nil {
+		glog.Warningf("Failed to get pod from podEntity properites: %++v", podEntity)
+	} else {
+		return pod, nil
+	}
+
+	//2. try to get pod from UUID
+	return util.GetPodFromDisplayNameOrUUID(r.kubeClient, podEntity.GetDisplayName(), podEntity.GetId())
+}
+
+// get kubernetes pod, and the new hosting kubernetes node
 func (r *ReScheduler) getPodNode(action *proto.ActionItemDTO) (*api.Pod, *api.Node, error) {
 	//1. check
 	glog.V(4).Infof("MoveActionItem: %++v", action)
@@ -135,7 +174,7 @@ func (r *ReScheduler) getPodNode(action *proto.ActionItemDTO) (*api.Pod, *api.No
 
 	//2. get pod from k8s
 	target := action.GetTargetSE()
-	pod, err := util.GetPodFromDisplayNameOrUUID(r.kubeClient, target.GetDisplayName(), target.GetId())
+	pod, err := r.getTargetPod(target)
 	if err != nil {
 		err = fmt.Errorf("Move Action aborted: failed to find pod(%v) in k8s: %v", target.GetDisplayName(), err)
 		glog.Errorf(err.Error())
@@ -347,4 +386,26 @@ func (r *ReScheduler) checkPod(pod *api.Pod, nodeName string) error {
 	}
 
 	return nil
+}
+
+func getVMIps(entity *proto.EntityDTO) []string {
+	result := []string{}
+
+	if entity.GetEntityType() != proto.EntityDTO_VIRTUAL_MACHINE {
+		glog.Errorf("hosting node is a not virtual machine: %++v", entity.GetEntityType())
+		return result
+	}
+
+	vmData := entity.GetVirtualMachineData()
+	if vmData == nil {
+		err := fmt.Errorf("Missing virtualMachineData[%v] in targetSE.", entity.GetDisplayName())
+		glog.Error(err.Error())
+		return result
+	}
+
+	if len(vmData.GetIpAddress()) < 1 {
+		glog.Warningf("machine IPs are empty: %++v", vmData)
+	}
+
+	return vmData.GetIpAddress()
 }
