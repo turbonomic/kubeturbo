@@ -18,6 +18,7 @@ package main
 
 import (
 	"runtime"
+	goflag "flag"
 
 	"k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/kubernetes/pkg/util/logs"
@@ -32,12 +33,18 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	glog.V(2).Infof("*** Run Kubeturbo service ***")
 
+	logs.InitLogs()
+	defer logs.FlushLogs()
+
+	// The default is to log to both of stderr and file
+	// These arguments can be overloaded from the command-line args
+	goflag.Set("logtostderr", "false")
+	goflag.Set("alsologtostderr", "true")
+	goflag.Set("log_dir", "/var/log")
+
 	s := app.NewVMTServer()
 	s.AddFlags(pflag.CommandLine)
 	flag.InitFlags()
-
-	logs.InitLogs()
-	defer logs.FlushLogs()
 
 	s.Run(pflag.CommandLine.Args())
 }
