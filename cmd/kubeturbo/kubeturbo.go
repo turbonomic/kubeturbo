@@ -17,8 +17,8 @@ limitations under the License.
 package main
 
 import (
-	"runtime"
 	goflag "flag"
+	"runtime"
 
 	"k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/kubernetes/pkg/util/logs"
