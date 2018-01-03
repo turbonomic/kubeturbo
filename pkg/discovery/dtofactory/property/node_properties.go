@@ -24,7 +24,7 @@ func GetNodeNameFromProperty(properties []*proto.EntityDTO_EntityProperty) (node
 		return
 	}
 	for _, property := range properties {
-		if property.GetNamespace() != k8sNamespace {
+		if property.GetNamespace() != k8sPropertyNamespace {
 			continue
 		}
 		if property.GetName() == k8sNodeName {
