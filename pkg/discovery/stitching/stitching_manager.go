@@ -225,7 +225,9 @@ func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_Re
 	}
 	propertyNames := []string{builder.PropertyCapacity, builder.PropertyUsed}
 	replacementEntityMetaDataBuilder.PatchSellingWithProperty(proto.CommodityDTO_CLUSTER, propertyNames).
-		PatchSellingWithProperty(proto.CommodityDTO_VMPM_ACCESS, propertyNames)
+		PatchSellingWithProperty(proto.CommodityDTO_VMPM_ACCESS, propertyNames).
+		PatchSellingWithProperty(proto.CommodityDTO_CPU_ALLOCATION, propertyNames).
+		PatchSellingWithProperty(proto.CommodityDTO_MEM_ALLOCATION, propertyNames)
 	meta := replacementEntityMetaDataBuilder.Build()
 	return meta, nil
 }

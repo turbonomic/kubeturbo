@@ -7,14 +7,21 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"github.com/turbonomic/turbo-go-sdk/pkg/supplychain"
+	"strings"
 )
 
 type quotaEntityDTOBuilder struct {
-	QuotaMap map[string]*repository.KubeQuota
+	QuotaMap     map[string]*repository.KubeQuota
+	nodeMapByUID map[string]*repository.KubeNode
 }
 
-func NewQuotaEntityDTOBuilder(quotaMap map[string]*repository.KubeQuota) *quotaEntityDTOBuilder {
-	return &quotaEntityDTOBuilder{QuotaMap: quotaMap}
+func NewQuotaEntityDTOBuilder(quotaMap map[string]*repository.KubeQuota, nodeMap map[string]*repository.KubeNode) *quotaEntityDTOBuilder {
+	quotaDtoBuilder := &quotaEntityDTOBuilder{QuotaMap: quotaMap, nodeMapByUID: make(map[string]*repository.KubeNode)}
+	for _, node := range nodeMap {
+		quotaDtoBuilder.nodeMapByUID[node.UID] = node
+	}
+	return quotaDtoBuilder
 }
 
 // Build entityDTOs based on the given node list.
@@ -50,6 +57,39 @@ func (builder *quotaEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, err
 			entityDTOBuilder = entityDTOBuilder.Provider(provider)
 			entityDTOBuilder.BuysCommodities(commoditiesBought)
 		}
+
+		// Quota properties for stitching with nodes
+		var properties []*proto.EntityDTO_EntityProperty
+		propertyNamespace := "DEFAULT"
+		propertyIdName := supplychain.SUPPLY_CHAIN_CONSTANT_UUID //uuid
+		var nodeIds []string
+		for _, node := range builder.nodeMapByUID {
+			nodeIds = append(nodeIds, node.SystemUUID)
+		}
+		propertyIdValue := strings.Join(nodeIds, ",")
+
+		nodeIdProperty := &proto.EntityDTO_EntityProperty{
+			Namespace: &propertyNamespace,
+			Name:      &propertyIdName,
+			Value:     &propertyIdValue,
+		}
+		properties = append(properties, nodeIdProperty)
+
+		propertyIPName := supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS //ip address
+		var nodeIPs []string
+		for _, node := range builder.nodeMapByUID {
+			nodeIPs = append(nodeIPs, node.IPAddress)
+		}
+		propertyIPValue := strings.Join(nodeIPs, ",")
+
+		nodeIPProperty := &proto.EntityDTO_EntityProperty{
+			Namespace: &propertyNamespace,
+			Name:      &propertyIPName,
+			Value:     &propertyIPValue,
+		}
+		properties = append(properties, nodeIPProperty)
+
+		entityDTOBuilder = entityDTOBuilder.WithProperties(properties)
 
 		// build entityDTO.
 		entityDto, err := entityDTOBuilder.Create()
@@ -127,6 +167,7 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesBought(quotaName string
 		usedValue := resource.Used
 		commBoughtBuilder.Used(usedValue)
 		commBoughtBuilder.Resizable(true)
+		commBoughtBuilder.Key(provider.UID)
 
 		commBought, err := commBoughtBuilder.Create()
 		if err != nil {

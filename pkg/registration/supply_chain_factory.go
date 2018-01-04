@@ -24,14 +24,16 @@ var (
 
 	fakeKey string = "fake"
 
-	vCpuTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vCpuType}
-	vMemTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vMemType}
-	cpuAllocationTemplateComm *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &cpuAllocationType}
-	memAllocationTemplateComm *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &memAllocationType}
-	applicationTemplateComm   *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
-	clusterTemplateComm       *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
-	transactionTemplateComm   *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
-	vmpmAccessTemplateComm    *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
+	vCpuTemplateComm                 *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vCpuType}
+	vMemTemplateComm                 *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vMemType}
+	cpuAllocationTemplateCommWithKey *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuAllocationType}
+	memAllocationTemplateCommWithKey *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memAllocationType}
+	cpuAllocationTemplateComm        *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &cpuAllocationType}
+	memAllocationTemplateComm        *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &memAllocationType}
+	applicationTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
+	clusterTemplateComm              *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
+	transactionTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
+	vmpmAccessTemplateComm           *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
 )
 
 type SupplyChainFactory struct {
@@ -99,10 +101,34 @@ func (f *SupplyChainFactory) buildQuotaSupplyBuilder() (*proto.TemplateDTO, erro
 		Sells(cpuAllocationTemplateComm).
 		Sells(memAllocationTemplateComm).
 		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
-		Buys(cpuAllocationTemplateComm).
-		Buys(memAllocationTemplateComm)
+		Buys(cpuAllocationTemplateCommWithKey).
+		Buys(memAllocationTemplateCommWithKey)
 
-	return nodeSupplyChainNodeBuilder.Create()
+	// Link from Quota to VM
+	vmQuotaExtLinkBuilder := supplychain.NewExternalEntityLinkBuilder()
+	vmQuotaExtLinkBuilder.Link(proto.EntityDTO_VIRTUAL_DATACENTER, proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
+		Commodity(cpuAllocationType, true).
+		Commodity(memAllocationType, true)
+
+	switch f.stitchingPropertyType {
+	case stitching.UUID:
+		vmQuotaExtLinkBuilder.
+			ProbeEntityPropertyDef(supplychain.SUPPLY_CHAIN_CONSTANT_UUID, "UUID of the Node").
+			ExternalEntityPropertyDef(supplychain.VM_UUID)
+	case stitching.IP:
+		vmQuotaExtLinkBuilder.
+			ProbeEntityPropertyDef(supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS, "IP of the Node").
+			ExternalEntityPropertyDef(supplychain.VM_IP)
+	default:
+		return nil, fmt.Errorf("Stitching property type %s is not supported.", f.stitchingPropertyType)
+	}
+
+	vmQuotaExternalLink, err := vmQuotaExtLinkBuilder.Build()
+	if err != nil {
+		return nil, err
+	}
+
+	return nodeSupplyChainNodeBuilder.ConnectsTo(vmQuotaExternalLink).Create()
 }
 
 func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error) {
@@ -114,8 +140,8 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 		// TODO we will re-include provisioned commodities sold by node later.
 		//Sells(cpuProvisionedTemplateComm).
 		//Sells(memProvisionedTemplateComm)
-		Sells(cpuAllocationTemplateComm).
-		Sells(memAllocationTemplateComm).
+		Sells(cpuAllocationTemplateCommWithKey).
+		Sells(memAllocationTemplateCommWithKey).
 		Sells(clusterTemplateComm)
 
 	return nodeSupplyChainNodeBuilder.Create()
