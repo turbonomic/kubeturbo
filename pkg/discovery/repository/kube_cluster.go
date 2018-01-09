@@ -1,10 +1,13 @@
 package repository
 
 import (
+	"bytes"
+	"fmt"
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"k8s.io/client-go/pkg/api/v1"
+	"strings"
 )
 
 // Kube Cluster represents the Kubernetes cluster. This object is immutable between discoveries.
@@ -85,7 +88,11 @@ const DEFAULT_METRIC_VALUE float64 = 0.0
 type KubeNode struct {
 	*KubeEntity
 	*v1.Node
-	NodeCpuFrequency float64
+
+	// node properties
+	NodeCpuFrequency float64 // Set by the metrics collector which processes this node
+	SystemUUID       string
+	IPAddress        string
 }
 
 // Create a KubeNode entity with compute resources to represent a node in the cluster
@@ -108,8 +115,46 @@ func NewKubeNode(apiNode *v1.Node, clusterName string) *KubeNode {
 		capacityValue := parseResourceValue(computeResourceType, resourceAllocatableList)
 		nodeEntity.AddComputeResource(computeResourceType, float64(capacityValue), DEFAULT_METRIC_VALUE)
 	}
-	glog.V(2).Infof("Created node entity : %s\n", nodeEntity.KubeEntity.String())
+
+	nodeSystemUUID := apiNode.Status.NodeInfo.SystemUUID
+	if nodeSystemUUID == "" {
+		glog.Errorf("Invalid SystemUUID for node %s", apiNode.Name)
+	} else {
+		nodeEntity.SystemUUID = strings.ToLower(nodeSystemUUID)
+	}
+
+	var nodeStitchingIP string
+	nodeAddresses := apiNode.Status.Addresses
+	// Use external IP if it is available. Otherwise use legacy host IP.
+	for _, nodeAddress := range nodeAddresses {
+		if nodeAddress.Type == v1.NodeExternalIP && nodeAddress.Address != "" {
+			nodeStitchingIP = nodeAddress.Address
+		}
+		if nodeStitchingIP == "" && nodeAddress.Address != "" && nodeAddress.Type == v1.NodeInternalIP {
+			nodeStitchingIP = nodeAddress.Address
+		}
+	}
+
+	if nodeStitchingIP == "" {
+		glog.Errorf("Failed to find stitching IP for node %s: it does not have either external IP or legacy "+
+			"host IP.", apiNode.Name)
+	} else {
+		nodeEntity.IPAddress = nodeStitchingIP
+	}
+	glog.V(2).Infof("Created node entity : %s\n", nodeEntity.String())
 	return nodeEntity
+}
+
+func (nodeEntity *KubeNode) String() string {
+	var buffer bytes.Buffer
+	buffer.WriteString(nodeEntity.KubeEntity.String())
+	line := fmt.Sprintf("SystemUUID:%s\n", nodeEntity.SystemUUID)
+	buffer.WriteString(line)
+	line = fmt.Sprintf("IPAddress:%s\n", nodeEntity.IPAddress)
+	buffer.WriteString(line)
+	line = fmt.Sprintf("CPU Frequency:%f\n", nodeEntity.NodeCpuFrequency)
+	buffer.WriteString(line)
+	return buffer.String()
 }
 
 func parseResourceValue(computeResourceType metrics.ResourceType, resourceList v1.ResourceList) float64 {

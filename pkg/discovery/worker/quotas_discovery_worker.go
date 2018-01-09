@@ -71,13 +71,14 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 		}
 		quotaEntity.AverageNodeCpuFrequency = averageNodeFrequency
 
+		// Bought resources from each node
 		// create provider entity for each node
 		for _, node := range kubeNodes {
 			nodeUID := node.UID
 			quotaEntity.AddNodeProvider(nodeUID, quotaMetrics.AllocationBoughtMap[nodeUID])
 		}
 
-		// Set for allocation sold usage if it is not available from the namespace quota objects
+		// Create sold allocation commodity for the types that are not defined in the namespace quota objects
 		for resourceType, used := range quotaMetrics.AllocationSold {
 			existingResource, _ := quotaEntity.GetResource(resourceType)
 			// allocation usage is available from the namespace resource quota objects
@@ -99,7 +100,7 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 	}
 
 	// Create DTOs for each quota entity
-	quotaDtoBuilder := dtofactory.NewQuotaEntityDTOBuilder(worker.Cluster.QuotaMap)
+	quotaDtoBuilder := dtofactory.NewQuotaEntityDTOBuilder(worker.Cluster.QuotaMap, worker.Cluster.Nodes)
 	quotaDtos, _ := quotaDtoBuilder.BuildEntityDTOs()
 	return quotaDtos, nil
 }

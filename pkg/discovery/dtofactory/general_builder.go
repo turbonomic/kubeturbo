@@ -6,6 +6,7 @@ import (
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
+	"fmt"
 	"github.com/golang/glog"
 )
 
@@ -104,9 +105,78 @@ func (builder generalBuilder) getResourceCommoditiesSold(entityType metrics.Disc
 
 	var resourceCommoditiesSold []*proto.CommodityDTO
 	for _, rType := range resourceTypesList {
+		commSold, err := builder.getSoldResourceCommodityWithKey(entityType, entityID, rType, "", converter, commodityAttrSetter)
+		if err != nil {
+			glog.Errorf("Failed to build commodity sold: %s", err)
+			continue
+		}
+		resourceCommoditiesSold = append(resourceCommoditiesSold, commSold)
+	}
+	return resourceCommoditiesSold, nil
+}
+
+func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics.DiscoveredEntityType, entityID string,
+	resourceType metrics.ResourceType, commKey string, converter *converter, commodityAttrSetter *attributeSetter) (*proto.CommodityDTO, error) {
+
+	var resourceCommoditySold *proto.CommodityDTO
+	cType, exist := rTypeMapping[resourceType]
+	if !exist {
+		glog.Errorf("Commodity type %s sold by %s is not supported", resourceType, entityType)
+		return nil, fmt.Errorf("Commodity type %s sold by %s is not supported", resourceType, entityType)
+	}
+	commBoughtBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
+
+	usedMetricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, resourceType, metrics.Used)
+	usedMetric, err := builder.metricsSink.GetMetric(usedMetricUID)
+	if err != nil {
+		glog.Errorf("Failed to get %s used for %s %s: %s", resourceType, entityType, entityID, err)
+		return nil, fmt.Errorf("Failed to get %s used for %s %s: %s", resourceType, entityType, entityID, err)
+	}
+	usedValue := usedMetric.GetValue().(float64)
+	if converter != nil && converter.Convertible(resourceType) {
+		oldValue := usedValue
+		usedValue = converter.Convert(resourceType, usedValue)
+		glog.V(4).Infof("Convert %s used value from %f to %f for %s - %s", resourceType, oldValue, usedValue, entityType, entityID)
+	}
+	commBoughtBuilder.Used(usedValue)
+
+	capacityUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, resourceType, metrics.Capacity)
+	capacityMetric, err := builder.metricsSink.GetMetric(capacityUID)
+	if err != nil {
+		glog.Errorf("Failed to get %s capacity for %s %s: %s", resourceType, entityType, entityID, err)
+		return nil, fmt.Errorf("Failed to get %s capacity for %s %s: %s", resourceType, entityType, entityID, err)
+	}
+	capacityValue := capacityMetric.GetValue().(float64)
+	if converter != nil && converter.Convertible(resourceType) {
+		oldValue := capacityValue
+		capacityValue = converter.Convert(resourceType, capacityValue)
+		glog.V(4).Infof("Convert %s capacity value from %f to %f for %s - %s", resourceType, oldValue, capacityValue, entityType, entityID)
+
+	}
+	commBoughtBuilder.Capacity(capacityValue)
+
+	// set additional attribute
+	if commodityAttrSetter != nil && commodityAttrSetter.Settable(resourceType) {
+		commodityAttrSetter.Set(resourceType, commBoughtBuilder)
+	}
+	if commKey != "" {
+		commBoughtBuilder.Key(commKey)
+	}
+	resourceCommoditySold, err = commBoughtBuilder.Create()
+	if err != nil {
+		glog.Errorf("Failed to build commodity sold: %s", err)
+		return nil, err
+	}
+	return resourceCommoditySold, nil
+}
+
+func (builder generalBuilder) getResourceCommoditiesBought(entityType metrics.DiscoveredEntityType, entityID string,
+	resourceTypesList []metrics.ResourceType, converter *converter, commodityAttrSetter *attributeSetter) ([]*proto.CommodityDTO, error) {
+	var resourceCommoditiesBought []*proto.CommodityDTO
+	for _, rType := range resourceTypesList {
 		cType, exist := rTypeMapping[rType]
 		if !exist {
-			glog.Errorf("Commodity type %s sold by %s is not supported", rType, entityType)
+			glog.Errorf("Commodity type %s bought by %s is not supported", rType, entityType)
 			continue
 		}
 		commBoughtBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
@@ -120,66 +190,9 @@ func (builder generalBuilder) getResourceCommoditiesSold(entityType metrics.Disc
 		}
 		usedValue := usedMetric.GetValue().(float64)
 		if converter != nil && converter.Convertible(rType) {
-			oldValue := usedValue
 			usedValue = converter.Convert(rType, usedValue)
-			glog.V(4).Infof("Convert %s used value from %f to %f for %s - %s", rType, oldValue, usedValue, entityType, entityID)
 		}
 		commBoughtBuilder.Used(usedValue)
-
-		capacityUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, rType, metrics.Capacity)
-		capacityMetric, err := builder.metricsSink.GetMetric(capacityUID)
-		if err != nil {
-			// TODO return?
-			glog.Errorf("Failed to get %s capacity for %s %s: %s", rType, entityType, entityID, err)
-			continue
-		}
-		capacityValue := capacityMetric.GetValue().(float64)
-		if converter != nil && converter.Convertible(rType) {
-			oldValue := capacityValue
-			capacityValue = converter.Convert(rType, capacityValue)
-			glog.V(4).Infof("Convert %s capacity value from %f to %f for %s - %s", rType, oldValue, capacityValue, entityType, entityID)
-
-		}
-		commBoughtBuilder.Capacity(capacityValue)
-
-		// set additional attribute
-		if commodityAttrSetter != nil && commodityAttrSetter.Settable(rType) {
-			commodityAttrSetter.Set(rType, commBoughtBuilder)
-		}
-		commSold, err := commBoughtBuilder.Create()
-		if err != nil {
-			// TODO return?
-			glog.Errorf("Failed to build commodity sold: %s", err)
-			continue
-		}
-		resourceCommoditiesSold = append(resourceCommoditiesSold, commSold)
-	}
-	return resourceCommoditiesSold, nil
-}
-
-func (builder generalBuilder) getResourceCommoditiesBought(entityType metrics.DiscoveredEntityType, entityID string,
-	resourceTypesList []metrics.ResourceType, converter *converter, commodityAttrSetter *attributeSetter) ([]*proto.CommodityDTO, error) {
-	var resourceCommoditiesSold []*proto.CommodityDTO
-	for _, rType := range resourceTypesList {
-		cType, exist := rTypeMapping[rType]
-		if !exist {
-			glog.Errorf("Commodity type %s bought by %s is not supported", rType, entityType)
-			continue
-		}
-		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
-
-		usedMetricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, rType, metrics.Used)
-		usedMetric, err := builder.metricsSink.GetMetric(usedMetricUID)
-		if err != nil {
-			// TODO return?
-			glog.Errorf("Failed to get %s used for %s %s: %s", rType, entityType, entityID, err)
-			continue
-		}
-		usedValue := usedMetric.GetValue().(float64)
-		if converter != nil && converter.Convertible(rType) {
-			usedValue = converter.Convert(rType, usedValue)
-		}
-		commSoldBuilder.Used(usedValue)
 
 		reservedMetricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, rType, metrics.Reservation)
 		reservedMetric, err := builder.metricsSink.GetMetric(reservedMetricUID)
@@ -193,22 +206,22 @@ func (builder generalBuilder) getResourceCommoditiesBought(entityType metrics.Di
 				if converter != nil && converter.Convertible(rType) {
 					reservedValue = converter.Convert(rType, reservedValue)
 				}
-				commSoldBuilder.Reservation(reservedValue)
+				commBoughtBuilder.Reservation(reservedValue)
 			}
 		}
 
 		// set additional attribute
 		if commodityAttrSetter != nil && commodityAttrSetter.Settable(rType) {
-			commodityAttrSetter.Set(rType, commSoldBuilder)
+			commodityAttrSetter.Set(rType, commBoughtBuilder)
 		}
 
-		commSold, err := commSoldBuilder.Create()
+		commBought, err := commBoughtBuilder.Create()
 		if err != nil {
 			// TODO return?
 			glog.Errorf("Failed to build commodity bought: %s", err)
 			continue
 		}
-		resourceCommoditiesSold = append(resourceCommoditiesSold, commSold)
+		resourceCommoditiesBought = append(resourceCommoditiesBought, commBought)
 	}
-	return resourceCommoditiesSold, nil
+	return resourceCommoditiesBought, nil
 }
