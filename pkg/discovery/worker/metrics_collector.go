@@ -203,10 +203,12 @@ func (collector *MetricsCollector) CollectNodeMetrics(podCollection PodMetricsBy
 	nodeMetricsCollection := make(map[string]*repository.NodeMetrics)
 
 	//Iterate over all the nodes in the collection
-	for nodeName, podsByQuotaMap := range podCollection {
-		node := collector.Cluster.NodeMap[nodeName]
-		if node == nil {
-			continue
+	for _, node := range collector.NodeList {
+		nodeName := node.Name
+		podsByQuotaMap, exists := podCollection[nodeName]
+		if !exists {
+			glog.V(4).Infof("cannot find pod metrics for node %s", nodeName)
+			podsByQuotaMap = make(map[string]PodMetricsList)
 		}
 
 		// collect the metrics for all the pods running on this node across all quotas
