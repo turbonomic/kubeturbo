@@ -29,7 +29,7 @@ func TestPodMetricsListAllocationUsage(t *testing.T) {
 		ComputeUsed: allocation1,
 	}
 	podMetrics2 := &repository.PodMetrics{
-		PodName:     "pod1",
+		PodName:     "pod1", //TODO:
 		ComputeUsed: allocation2,
 	}
 
@@ -75,7 +75,7 @@ var (
 		},
 	}
 
-	pod11 = &v1.Pod{
+	pod_ns1_n1 = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pod11",
 			Namespace: ns1,
@@ -85,7 +85,7 @@ var (
 		},
 	}
 
-	pod12 = &v1.Pod{
+	pod_ns1_n2 = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pod12",
 			Namespace: ns1,
@@ -95,7 +95,7 @@ var (
 		},
 	}
 
-	pod21 = &v1.Pod{
+	pod_ns2_n1 = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pod21",
 			Namespace: ns2,
@@ -105,7 +105,7 @@ var (
 		},
 	}
 
-	pod22 = &v1.Pod{
+	pod_ns2_n2 = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pod22",
 			Namespace: ns2,
@@ -115,7 +115,7 @@ var (
 		},
 	}
 
-	pod31 = &v1.Pod{
+	pod1_ns3_n1 = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pod31",
 			Namespace: ns3,
@@ -125,7 +125,7 @@ var (
 		},
 	}
 
-	pod32 = &v1.Pod{
+	pod2_ns3_n1 = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pod32",
 			Namespace: ns3,
@@ -181,30 +181,33 @@ var (
 			ns4: kubens4,
 		},
 	}
+	cpuUsed_pod_n1_ns1 = 2.0
+	cpuUsed_pod_n1_ns2 = 2.0
+	cpuUsed_pod_n1_ns3 = 2.0
+	cpuUsed_pod_n2_ns1 = 2.0
+	cpuUsed_pod_n2_ns2 = 2.0
+	cpuUsed_pod_n2_ns3 = 0.0
 
-	metricsSink   = metrics.NewEntityMetricSink()
-	etype         = metrics.PodType
-	cpuUsed_pod11 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod11), metrics.CPU, metrics.Used, 2.0)
-	cpuUsed_pod12 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod12), metrics.CPU, metrics.Used, 2.0)
-	cpuUsed_pod21 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod21), metrics.CPU, metrics.Used, 2.0)
-	cpuUsed_pod22 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod22), metrics.CPU, metrics.Used, 2.0)
-	cpuUsed_pod31 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod31), metrics.CPU, metrics.Used, 1.0)
-	cpuUsed_pod32 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod32), metrics.CPU, metrics.Used, 1.0)
+	metricsSink                = metrics.NewEntityMetricSink()
+	etype                      = metrics.PodType
+	metric_cpuUsed_pod_ns1_n1  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPU, metrics.Used, cpuUsed_pod_n1_ns1) //2.0)
+	metric_cpuUsed_pod_ns1_n2  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n2), metrics.CPU, metrics.Used, cpuUsed_pod_n2_ns1)
+	metric_cpuUsed_pod_ns2_n1  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPU, metrics.Used, cpuUsed_pod_n1_ns2)
+	metric_cpuUsed_pod_ns2_n2  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n2), metrics.CPU, metrics.Used, cpuUsed_pod_n2_ns2)
+	metric_cpuUsed_pod1_ns3_n1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPU, metrics.Used, cpuUsed_pod_n1_ns3/2)
+	metric_cpuUsed_pod2_ns3_n1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod2_ns3_n1), metrics.CPU, metrics.Used, cpuUsed_pod_n1_ns3/2)
+
+	cpuUsed_pod_n1 = cpuUsed_pod_n1_ns1 + cpuUsed_pod_n1_ns2 + cpuUsed_pod_n1_ns3
 )
 
 func TestPodMetrics(t *testing.T) {
-
-	etype := metrics.PodType
-	podKey := util.PodKeyFunc(pod11)
 	quotaName := "Quota1"
+	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_ns1_n1)
 
-	cpuUsed := metrics.NewEntityResourceMetric(etype, podKey, metrics.CPU, metrics.Used, 2.0)
-	metricsSink.AddNewMetricEntries(cpuUsed)
-
-	pm := createPodMetrics(pod11, quotaName, metricsSink)
+	pm := createPodMetrics(pod_ns1_n1, quotaName, metricsSink)
 	fmt.Printf("pod metrics %++v\n", pm.AllocationBought)
-	assert.Equal(t, pm.AllocationBought[metrics.CPULimit], 2.0)
-	assert.Equal(t, pm.AllocationBought[metrics.CPURequest], 2.0)
+	assert.Equal(t, pm.AllocationBought[metrics.CPULimit], cpuUsed_pod_n1_ns1)
+	assert.Equal(t, pm.AllocationBought[metrics.CPURequest], cpuUsed_pod_n1_ns1)
 
 	assert.Equal(t, pm.AllocationBought[metrics.MemoryLimit], 0.0)
 	assert.Equal(t, pm.AllocationBought[metrics.MemoryRequest], 0.0)
@@ -223,23 +226,50 @@ func TestCreateNodeMetricsMap(t *testing.T) {
 
 	etype = metrics.PodType
 
-	podKey := util.PodKeyFunc(pod11)
+	// Pods in two different namespaces and with only CPU metrics
 	quotaName := "Quota1"
-	cpuUsed = metrics.NewEntityResourceMetric(etype, podKey, metrics.CPU, metrics.Used, 1.5)
-	metricsSink.AddNewMetricEntries(cpuUsed)
-	pm1 := createPodMetrics(pod11, quotaName, metricsSink)
+	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_ns1_n1)
+	pm1 := createPodMetrics(pod_ns1_n1, quotaName, metricsSink)
 
-	podKey = util.PodKeyFunc(pod21)
 	quotaName = "Quota2"
-	cpuUsed = metrics.NewEntityResourceMetric(etype, podKey, metrics.CPU, metrics.Used, 1.5)
-	metricsSink.AddNewMetricEntries(cpuUsed)
-	pm2 := createPodMetrics(pod21, quotaName, metricsSink)
+	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_ns2_n1)
+	pm2 := createPodMetrics(pod_ns2_n1, quotaName, metricsSink)
 
-	pmList := []*repository.PodMetrics{pm1, pm2}
+	quotaName = "Quota3"
+	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod1_ns3_n1)
+	pm3 := createPodMetrics(pod1_ns3_n1, quotaName, metricsSink)
+	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod2_ns3_n1)
+	pm4 := createPodMetrics(pod2_ns3_n1, quotaName, metricsSink)
+
+	pmList := []*repository.PodMetrics{pm1, pm2, pm3, pm4}
 	nm := createNodeMetrics(n1, pmList, metricsSink)
-	fmt.Printf("pod metrics %++v\n", nm.AllocationUsed)
-	assert.Equal(t, nm.AllocationUsed[metrics.CPULimit], 3.0)
-	assert.Equal(t, nm.AllocationUsed[metrics.CPURequest], 3.0)
+	assert.Equal(t, nm.AllocationUsed[metrics.CPULimit], cpuUsed_pod_n1) // used is sum of pod usages
+	assert.Equal(t, nm.AllocationUsed[metrics.CPURequest], cpuUsed_pod_n1)
+	assert.Equal(t, nm.AllocationUsed[metrics.MemoryLimit], 0.0) // pod usages is not available
+	assert.Equal(t, nm.AllocationUsed[metrics.MemoryRequest], 0.0)
+
+	assert.Equal(t, nm.AllocationCap[metrics.CPULimit], 4.0)
+	assert.Equal(t, nm.AllocationCap[metrics.CPURequest], 4.0)
+}
+
+func TestCreateMetricsMapForNodeWithEmptyPodList(t *testing.T) {
+	//allocation cap
+	//allocation used
+	etype := metrics.NodeType
+	nodeKey := util.NodeKeyFunc(n1)
+
+	cpuCap := metrics.NewEntityResourceMetric(etype, nodeKey, metrics.CPU, metrics.Capacity, 4.0)
+	metricsSink.AddNewMetricEntries(cpuCap)
+	cpuUsed := metrics.NewEntityResourceMetric(etype, nodeKey, metrics.CPU, metrics.Used, 2.0)
+	metricsSink.AddNewMetricEntries(cpuUsed)
+
+	etype = metrics.PodType
+
+	// emoty pod list for the node
+	pmList := []*repository.PodMetrics{}
+	nm := createNodeMetrics(n1, pmList, metricsSink)
+	assert.Equal(t, nm.AllocationUsed[metrics.CPULimit], 0.0)
+	assert.Equal(t, nm.AllocationUsed[metrics.CPURequest], 0.0)
 	assert.Equal(t, nm.AllocationUsed[metrics.MemoryLimit], 0.0)
 	assert.Equal(t, nm.AllocationUsed[metrics.MemoryRequest], 0.0)
 
@@ -247,29 +277,20 @@ func TestCreateNodeMetricsMap(t *testing.T) {
 	assert.Equal(t, nm.AllocationCap[metrics.CPURequest], 4.0)
 }
 
-func TestCreatePodMetricsMap(t *testing.T) {
+func TestQuotaMetricsMapAllNodes(t *testing.T) {
 	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 
 	collector := &MetricsCollector{
 		Cluster:     clusterSummary,
 		MetricsSink: metricsSink,
-		PodList:     []*v1.Pod{pod11, pod12, pod21, pod22, pod31, pod32},
+		PodList:     []*v1.Pod{pod_ns1_n1, pod_ns1_n2, pod_ns2_n1, pod_ns2_n2, pod1_ns3_n1, pod1_ns3_n1},
 		NodeList:    []*v1.Node{n1, n2},
 	}
 
-	metricsSink.AddNewMetricEntries(cpuUsed_pod11, cpuUsed_pod12,
-		cpuUsed_pod21, cpuUsed_pod22,
-		cpuUsed_pod31, cpuUsed_pod32)
+	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_ns1_n1, metric_cpuUsed_pod_ns1_n2,
+		metric_cpuUsed_pod_ns2_n1, metric_cpuUsed_pod_ns2_n2,
+		metric_cpuUsed_pod1_ns3_n1, metric_cpuUsed_pod2_ns3_n1)
 	podMetricsMap := collector.CollectPodMetrics()
-	for nodeName, quotaMap := range podMetricsMap {
-		fmt.Printf("%s \n", nodeName)
-		for quotaName, podList := range quotaMap {
-			fmt.Printf("\t%s \n", quotaName)
-			for _, pod := range podList {
-				fmt.Printf("\t\t%s:%++v \n", pod.PodName, pod.AllocationBought)
-			}
-		}
-	}
 
 	nodeMetricsMap := collector.CollectNodeMetrics(podMetricsMap)
 	nm1 := nodeMetricsMap[node1]
@@ -283,38 +304,101 @@ func TestCreatePodMetricsMap(t *testing.T) {
 	for _, qm := range quotaMetricsMap {
 		if qm.QuotaName == ns1 {
 			qm1 = qm
-			fmt.Printf("qm1 %++v\n", qm1)
 		}
 		if qm.QuotaName == ns3 {
 			qm3 = qm
-			fmt.Printf("qm3 %++v\n", qm3)
 		}
 		if qm.QuotaName == ns2 {
 			qm2 = qm
-			fmt.Printf("qm2 %++v\n", qm2)
 		}
 		if qm.QuotaName == ns4 {
 			qm4 = qm
-			fmt.Printf("qm4 %++v\n", qm4)
 		}
 	}
+	// Assert that the quota metrics map is created for all quotas in the cluster
+	// Assert that the allocation bought map is created for each node handled by the metrics collector
 	assert.NotNil(t, qm1)
 	qm1Map := qm1.AllocationBoughtMap
-	assert.Equal(t, qm1Map[node1][metrics.CPULimit], 2.0)
-	assert.Equal(t, qm1Map[node2][metrics.CPULimit], 2.0)
+	assert.NotNil(t, qm1Map[node1])
+	assert.NotNil(t, qm1Map[node2])
+	assert.Equal(t, qm1Map[node1][metrics.CPULimit], cpuUsed_pod_n1_ns1)
+	assert.Equal(t, qm1Map[node2][metrics.CPULimit], cpuUsed_pod_n2_ns1)
 
 	assert.NotNil(t, qm2)
 	qm2Map := qm2.AllocationBoughtMap
-	assert.Equal(t, qm2Map[node1][metrics.CPULimit], 2.0)
-	assert.Equal(t, qm2Map[node2][metrics.CPULimit], 2.0)
+	assert.NotNil(t, qm2Map[node1])
+	assert.NotNil(t, qm2Map[node2])
+	assert.Equal(t, qm2Map[node1][metrics.CPULimit], cpuUsed_pod_n1_ns2)
+	assert.Equal(t, qm2Map[node2][metrics.CPULimit], cpuUsed_pod_n2_ns2)
 
 	assert.NotNil(t, qm3)
 	qm3Map := qm3.AllocationBoughtMap
-	assert.Equal(t, qm3Map[node1][metrics.CPULimit], 2.0)
-	assert.Equal(t, qm3Map[node2][metrics.CPULimit], 0.0)
+	assert.NotNil(t, qm3Map[node1])
+	assert.NotNil(t, qm3Map[node2])
+	assert.Equal(t, qm3Map[node1][metrics.CPULimit], cpuUsed_pod_n1_ns3)
+	assert.Equal(t, qm3Map[node2][metrics.CPULimit], cpuUsed_pod_n2_ns3)
 
 	assert.NotNil(t, qm4)
 	qm4Map := qm4.AllocationBoughtMap
+	assert.NotNil(t, qm4Map[node1])
+	assert.NotNil(t, qm4Map[node2])
 	assert.Equal(t, qm4Map[node1][metrics.CPULimit], 0.0)
 	assert.Equal(t, qm4Map[node2][metrics.CPULimit], 0.0)
+}
+
+func TestQuotaMetricsMapSingleNode(t *testing.T) {
+	clusterSummary := repository.CreateClusterSummary(kubeCluster)
+
+	collector := &MetricsCollector{
+		Cluster:     clusterSummary,
+		MetricsSink: metricsSink,
+		PodList:     []*v1.Pod{},
+		NodeList:    []*v1.Node{n1}, // Metrics collector handles only one one node in the cluster
+	}
+
+	podMetricsMap := collector.CollectPodMetrics()
+
+	var qm1, qm2, qm3, qm4 *repository.QuotaMetrics
+	quotaMetricsMap := collector.CollectQuotaMetrics(podMetricsMap)
+
+	for _, qm := range quotaMetricsMap {
+		if qm.QuotaName == ns1 {
+			qm1 = qm
+		}
+		if qm.QuotaName == ns3 {
+			qm3 = qm
+		}
+		if qm.QuotaName == ns2 {
+			qm2 = qm
+		}
+		if qm.QuotaName == ns4 {
+			qm4 = qm
+		}
+	}
+
+	// Assert that the quota metrics map is created for all quotas in the cluster
+	// Assert that the allocation bought map is created only for the node handled by the metrics collector
+	assert.NotNil(t, qm1)
+	qm1Map := qm1.AllocationBoughtMap
+	assert.NotNil(t, qm1Map[node1])
+	assert.Equal(t, qm1Map[node1][metrics.CPULimit], 0.0)
+	assert.Nil(t, qm1Map[node2])
+
+	assert.NotNil(t, qm2)
+	qm2Map := qm2.AllocationBoughtMap
+	assert.NotNil(t, qm2Map[node1])
+	assert.Equal(t, qm2Map[node1][metrics.CPULimit], 0.0)
+	assert.Nil(t, qm2Map[node2])
+
+	assert.NotNil(t, qm3)
+	qm3Map := qm3.AllocationBoughtMap
+	assert.NotNil(t, qm3Map[node1])
+	assert.Equal(t, qm3Map[node1][metrics.CPULimit], 0.0)
+	assert.Nil(t, qm3Map[node2])
+
+	assert.NotNil(t, qm4)
+	qm4Map := qm4.AllocationBoughtMap
+	assert.NotNil(t, qm4Map[node1])
+	assert.Equal(t, qm4Map[node1][metrics.CPULimit], 0.0)
+	assert.Nil(t, qm4Map[node2])
 }
