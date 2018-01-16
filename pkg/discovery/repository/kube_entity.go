@@ -111,7 +111,7 @@ func (kubeEntity *KubeEntity) GetResource(resourceType metrics.ResourceType,
 
 func (kubeEntity *KubeEntity) SetResourceCapacity(resourceType metrics.ResourceType,
 	computeCap float64) error {
-	resource, err := getResource(resourceType, kubeEntity.ComputeResources)
+	resource, err := kubeEntity.GetResource(resourceType)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (kubeEntity *KubeEntity) SetResourceCapacity(resourceType metrics.ResourceT
 
 func (kubeEntity *KubeEntity) SetResourceUsed(resourceType metrics.ResourceType,
 	computeUsed float64) error {
-	resource, err := getResource(resourceType, kubeEntity.ComputeResources)
+	resource, err := kubeEntity.GetResource(resourceType)
 	if err != nil {
 		return err
 	}
@@ -129,6 +129,7 @@ func (kubeEntity *KubeEntity) SetResourceUsed(resourceType metrics.ResourceType,
 	return nil
 }
 
+// Create the KubeDiscoveredResource for the given compute resource type
 func (kubeEntity *KubeEntity) AddComputeResource(resourceType metrics.ResourceType,
 	computeCap, computeUsed float64) {
 	r := &KubeDiscoveredResource{
@@ -138,6 +139,7 @@ func (kubeEntity *KubeEntity) AddComputeResource(resourceType metrics.ResourceTy
 	kubeEntity.ComputeResources[resourceType] = r
 }
 
+// Create the KubeDiscoveredResource for the given allocation resource type
 func (kubeEntity *KubeEntity) AddAllocationResource(resourceType metrics.ResourceType,
 	capValue, usedValue float64) {
 	r := &KubeDiscoveredResource{

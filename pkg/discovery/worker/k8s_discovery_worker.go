@@ -134,6 +134,9 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
 
+	for _, node := range currTask.NodeList() {
+		glog.V(4).Infof("%s : Node %s with %d pods\n", worker.id, node.Name, len(currTask.PodList()))
+	}
 	// wait group to make sure metrics scraping finishes.
 	var wg sync.WaitGroup
 	timeout := calcTimeOut(len(currTask.NodeList()))
@@ -198,7 +201,10 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		MetricsSink: worker.sink,
 	}
 
-	podMetricsCollection := metricsCollector.CollectPodMetrics()
+	podMetricsCollection, err := metricsCollector.CollectPodMetrics()
+	if err != nil {
+		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
+	}
 	nodeMetricsCollection := metricsCollector.CollectNodeMetrics(podMetricsCollection)
 	quotaMetricsCollection := metricsCollector.CollectQuotaMetrics(podMetricsCollection)
 

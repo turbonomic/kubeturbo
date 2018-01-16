@@ -93,7 +93,7 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSumm
 	if assignedNodesCount < len(nodes) {
 		currNodes := nodes[assignedNodesCount:]
 		currPods := d.config.clusterInfoScraper.GetRunningPodsOnNodes(currNodes)
-		currTask := task.NewTask().WithNodes(currNodes).WithPods(currPods)
+		currTask := task.NewTask().WithNodes(currNodes).WithPods(currPods).WithCluster(cluster)
 		d.assignTask(currTask)
 
 		assignedWorkerCount++
