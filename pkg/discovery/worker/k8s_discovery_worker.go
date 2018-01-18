@@ -134,6 +134,11 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
 
+	if glog.V(4) {
+		for _, node := range currTask.NodeList() {
+			glog.Infof("%s : Node %s with %d pods\n", worker.id, node.Name, len(currTask.PodList()))
+		}
+	}
 	// wait group to make sure metrics scraping finishes.
 	var wg sync.WaitGroup
 	timeout := calcTimeOut(len(currTask.NodeList()))
@@ -191,14 +196,12 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 
 	// Collect usages for pods in different quotas and create used and capacity
 	// metrics for the allocation resources of the nodes, quotas and pods
-	metricsCollector := &MetricsCollector{
-		NodeList:    currTask.NodeList(),
-		PodList:     currTask.PodList(),
-		Cluster:     currTask.Cluster(),
-		MetricsSink: worker.sink,
-	}
+	metricsCollector := NewMetricsCollector(worker, currTask)
 
-	podMetricsCollection := metricsCollector.CollectPodMetrics()
+	podMetricsCollection, err := metricsCollector.CollectPodMetrics()
+	if err != nil {
+		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
+	}
 	nodeMetricsCollection := metricsCollector.CollectNodeMetrics(podMetricsCollection)
 	quotaMetricsCollection := metricsCollector.CollectQuotaMetrics(podMetricsCollection)
 
