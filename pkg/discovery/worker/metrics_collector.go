@@ -7,6 +7,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"k8s.io/client-go/pkg/api/v1"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 )
 
 // Collects allocation metrics for quotas, nodes and pods using the compute resource usages for pods
@@ -15,6 +16,18 @@ type MetricsCollector struct {
 	PodList     []*v1.Pod
 	MetricsSink *metrics.EntityMetricSink
 	Cluster     *repository.ClusterSummary
+	workerId	string
+}
+
+func NewMetricsCollector(discoveryWorker *k8sDiscoveryWorker, currTask *task.Task) *MetricsCollector {
+	metricsCollector := &MetricsCollector{
+		NodeList:    currTask.NodeList(),
+		PodList:     currTask.PodList(),
+		Cluster:     currTask.Cluster(),
+		MetricsSink: discoveryWorker.sink,
+		workerId:  discoveryWorker.id,
+	}
+	return metricsCollector
 }
 
 // Abstraction for a list of PodMetrics
@@ -99,7 +112,8 @@ func (podCollectionMap PodMetricsByNodeAndQuota) addPodMetric(podName, nodeName,
 // The PodMetrics are organized in a map by node and quota
 func (collector *MetricsCollector) CollectPodMetrics() (PodMetricsByNodeAndQuota, error) {
 	if collector.Cluster == nil {
-		return nil, fmt.Errorf("Cluster summary object is null")
+		glog.Errorf("Cluster summary object is null for discovery worker %s", collector.workerId)
+		return nil, fmt.Errorf("Cluster summary object is nullfor discovery worker %s", collector.workerId)
 	}
 	podCollectionMap := make(PodMetricsByNodeAndQuota)
 	// Iterate over all pods
@@ -115,21 +129,22 @@ func (collector *MetricsCollector) CollectPodMetrics() (PodMetricsByNodeAndQuota
 		// pod allocation metrics for the pod
 		podMetrics := createPodMetrics(pod, quota.Name, collector.MetricsSink)
 
-		// find if the pod quota has limits for compute capacities
-		// if true, then the pod compute capacity which defaults to node compute capacity
-		// should be replaced with the correspondng quota limit
+		// Find if the pod's resource quota has limits defined for compute resources.
+		// If true, then the pod compute capacity which defaults to node compute capacity
+		// should be replaced with the corresponding quota limit.
+		// The new compute capacity is set in the PodMetrics and the discovery worker
+		// will add it to the metrics sink
 		etype := metrics.PodType
 		for _, computeType := range metrics.ComputeResources {
 			computeCapMetricUID := metrics.GenerateEntityResourceMetricUID(etype,
-				podMetrics.PodKey,
-				computeType, metrics.Capacity)
+				podMetrics.PodKey, computeType, metrics.Capacity)
 			computeCapMetric, _ := collector.MetricsSink.GetMetric(computeCapMetricUID)
 			if computeCapMetric != nil && computeCapMetric.GetValue() != nil {
 				podCpuCap := computeCapMetric.GetValue().(float64)
 
 				var quotaComputeCap float64
-				quotaComputeCap, err := getQuotaComputeCapacity(quota, computeType)
-				if err == nil && quotaComputeCap != repository.DEFAULT_METRIC_VALUE && quotaComputeCap < podCpuCap {
+				quotaComputeCap = getQuotaComputeCapacity(quota, computeType)
+				if quotaComputeCap != repository.DEFAULT_METRIC_VALUE && quotaComputeCap < podCpuCap {
 					podMetrics.ComputeCapacity[computeType] = quotaComputeCap
 				}
 			}
@@ -146,8 +161,9 @@ func (collector *MetricsCollector) CollectPodMetrics() (PodMetricsByNodeAndQuota
 	return podCollectionMap, nil
 }
 
+// Return the Limits set for compute resources in a namespace resource quota
 func getQuotaComputeCapacity(quotaEntity *repository.KubeQuota, computeType metrics.ResourceType,
-) (float64, error) {
+) float64 {
 	var allocationType metrics.ResourceType
 	if computeType == metrics.CPU {
 		allocationType = metrics.CPULimit
@@ -155,10 +171,10 @@ func getQuotaComputeCapacity(quotaEntity *repository.KubeQuota, computeType metr
 		allocationType = metrics.MemoryLimit
 	}
 	quotaCompute, err := quotaEntity.GetAllocationResource(allocationType)
-	if err != nil {
-		return 0.0, err
+	if err != nil { //compute limit is not set
+		return 0.0
 	}
-	return quotaCompute.Capacity, nil
+	return quotaCompute.Capacity
 }
 
 // Create PodMetrics for the given pod.
