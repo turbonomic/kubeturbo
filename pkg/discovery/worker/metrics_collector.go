@@ -5,9 +5,9 @@ import (
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"k8s.io/client-go/pkg/api/v1"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 )
 
 // Collects allocation metrics for quotas, nodes and pods using the compute resource usages for pods
@@ -16,7 +16,7 @@ type MetricsCollector struct {
 	PodList     []*v1.Pod
 	MetricsSink *metrics.EntityMetricSink
 	Cluster     *repository.ClusterSummary
-	workerId	string
+	workerId    string
 }
 
 func NewMetricsCollector(discoveryWorker *k8sDiscoveryWorker, currTask *task.Task) *MetricsCollector {
@@ -25,7 +25,7 @@ func NewMetricsCollector(discoveryWorker *k8sDiscoveryWorker, currTask *task.Tas
 		PodList:     currTask.PodList(),
 		Cluster:     currTask.Cluster(),
 		MetricsSink: discoveryWorker.sink,
-		workerId:  discoveryWorker.id,
+		workerId:    discoveryWorker.id,
 	}
 	return metricsCollector
 }
