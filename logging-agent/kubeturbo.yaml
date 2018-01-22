@@ -1,0 +1,43 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: kubeturbo
+  labels:
+    app: kubeturbo
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: kubeturbo
+    spec:
+      containers:
+        - name: kubeturbo
+          # Replace the image with desired version
+          image: vmturbo/kubeturbo:6.1dev
+          imagePullPolicy: Always
+          args:
+            - --turboconfig=/etc/kubeturbo/turbo.config
+            - --v=3
+            # Uncomment the following two args if running in Openshift
+            #- --kubelet-https=true
+            #- --kubelet-port=10250
+          volumeMounts:
+          - name: turbo-config
+            mountPath: /etc/kubeturbo
+            readOnly: true
+          - name: varlog
+            mountPath: /var/log
+        - name: logging-agent
+          image: vmturbo/logging-agent:dev
+          imagePullPolicy: Always
+          volumeMounts:
+          - name: varlog
+            mountPath: /var/log
+      volumes:
+      - name: turbo-config
+        configMap:
+          name: turbo-config
+      - name: varlog
+        emptyDir: {}
+      restartPolicy: Always
