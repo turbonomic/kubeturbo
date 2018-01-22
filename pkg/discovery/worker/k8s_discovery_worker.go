@@ -23,8 +23,6 @@ const (
 )
 
 type k8sDiscoveryWorkerConfig struct {
-	//k8sClusterScraper *cluster.ClusterScraper
-
 	// a collection of all configs for building different monitoring clients.
 	// key: monitor type; value: monitor worker config.
 	monitoringSourceConfigs map[types.MonitorType][]monitoring.MonitorWorkerConfig

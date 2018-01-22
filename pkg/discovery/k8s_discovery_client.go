@@ -5,8 +5,6 @@ import (
 	"sync"
 	"time"
 
-	kubeClient "k8s.io/client-go/kubernetes"
-
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
@@ -27,24 +25,22 @@ const (
 )
 
 type DiscoveryClientConfig struct {
-	k8sClusterScraper *cluster.ClusterScraper
-
-	probeConfig *configs.ProbeConfig
-
+	probeConfig  *configs.ProbeConfig
 	targetConfig *configs.K8sTargetConfig
 }
 
-func NewDiscoveryConfig(kubeClient *kubeClient.Clientset, probeConfig *configs.ProbeConfig, targetConfig *configs.K8sTargetConfig) *DiscoveryClientConfig {
+func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
+	targetConfig *configs.K8sTargetConfig) *DiscoveryClientConfig {
 	return &DiscoveryClientConfig{
-		k8sClusterScraper: cluster.NewClusterScraper(kubeClient),
-		probeConfig:       probeConfig,
-		targetConfig:      targetConfig,
+		probeConfig:  probeConfig,
+		targetConfig: targetConfig,
 	}
 }
 
 // Implements the go sdk discovery client interface
 type K8sDiscoveryClient struct {
-	config *DiscoveryClientConfig
+	config            *DiscoveryClientConfig
+	k8sClusterScraper *cluster.ClusterScraper
 
 	dispatcher      *worker.Dispatcher
 	resultCollector *worker.ResultCollector
@@ -55,15 +51,17 @@ type K8sDiscoveryClient struct {
 func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	// make maxWorkerCount of result collector twice the worker count.
 	resultCollector := worker.NewResultCollector(workerCount * 2)
+	k8sClusterScraper := cluster.NewClusterScraper(config.probeConfig.ClusterClient)
 
-	dispatcherConfig := worker.NewDispatcherConfig(config.k8sClusterScraper, config.probeConfig, workerCount)
+	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig, workerCount)
 	dispatcher := worker.NewDispatcher(dispatcherConfig)
 	dispatcher.Init(resultCollector)
 
 	dc := &K8sDiscoveryClient{
-		config:          config,
-		dispatcher:      dispatcher,
-		resultCollector: resultCollector,
+		k8sClusterScraper: k8sClusterScraper,
+		config:            config,
+		dispatcher:        dispatcher,
+		resultCollector:   resultCollector,
 	}
 	return dc
 }
@@ -93,7 +91,9 @@ func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTargetInfo {
 	}
 	accountValues = append(accountValues, accVal)
 
-	targetInfo := sdkprobe.NewTurboTargetInfoBuilder(targetConf.ProbeCategory, targetConf.TargetType, targetID, accountValues).Create()
+	targetInfo := sdkprobe.NewTurboTargetInfoBuilder(targetConf.ProbeCategory,
+		targetConf.TargetType, targetID, accountValues).
+		Create()
 	return targetInfo
 }
 
@@ -101,9 +101,33 @@ func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTargetInfo {
 func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*proto.ValidationResponse, error) {
 	glog.V(2).Infof("Validating Kubernetes target...")
 
-	// TODO: connect to the client and get validation response
 	validationResponse := &proto.ValidationResponse{}
 
+	// Check connection to the cluster
+	nodeList, err := dc.k8sClusterScraper.GetAllNodes()
+	if err != nil {
+		return nil, fmt.Errorf("Error connecting to cluster %s\n", err)
+	}
+	glog.V(2).Infof("There are %d nodes\n", len(nodeList))
+
+	// Check connection to all nodes
+	nodeClient := dc.config.probeConfig.NodeClient
+	err = nodeClient.ConnectToNodes(nodeList)
+
+	if err != nil {
+		errStr := fmt.Sprintf("%s\n", err)
+		severity := proto.ErrorDTO_CRITICAL
+		var errorDtos []*proto.ErrorDTO
+		errorDto := &proto.ErrorDTO{
+			Severity:    &severity,
+			Description: &errStr,
+		}
+		errorDtos = append(errorDtos, errorDto)
+		validationResponse.ErrorDTO = errorDtos
+	} else {
+		glog.V(2).Infof("##### Validation response - Connected to all nodes\n")
+	}
+	glog.V(2).Infof("Validation response %v\n", validationResponse)
 	return validationResponse, nil
 }
 
@@ -128,7 +152,7 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES AND QUOTAS HERE
 	clusterProcessor := &processor.ClusterProcessor{
-		ClusterInfoScraper: dc.config.k8sClusterScraper,
+		ClusterInfoScraper: dc.k8sClusterScraper,
 	}
 	kubeCluster, err := clusterProcessor.ProcessCluster()
 	if err != nil {
@@ -152,7 +176,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 
 	// affinity process
 	glog.V(2).Infof("begin to process affinity.")
-	affinityProcessorConfig := compliance.NewAffinityProcessorConfig(dc.config.k8sClusterScraper)
+	affinityProcessorConfig := compliance.NewAffinityProcessorConfig(dc.k8sClusterScraper)
 	affinityProcessor, err := compliance.NewAffinityProcessor(affinityProcessorConfig)
 	if err != nil {
 		glog.Errorf("Failed during process affinity rules: %s", err)
@@ -161,7 +185,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 	}
 
 	glog.V(2).Infof("begin to generate service EntityDTOs.")
-	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.config.k8sClusterScraper)
+	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.k8sClusterScraper)
 	svcDiscWorker, err := worker.NewK8sServiceDiscoveryWorker(svcWorkerConfig)
 	svcDiscResult := svcDiscWorker.Do(entityDTOs)
 	if svcDiscResult.Err() != nil {

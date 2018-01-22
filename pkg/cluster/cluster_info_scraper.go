@@ -6,17 +6,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/kubernetes"
 	client "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
-	restclient "k8s.io/client-go/rest"
 
 	"github.com/golang/glog"
 )
 
 const (
-	k8sDefaultNamespace = "default"
-
+	k8sDefaultNamespace   = "default"
 	kubernetesServiceName = "kubernetes"
 )
 
@@ -33,17 +30,6 @@ func NewClusterScraper(kclient *client.Clientset) *ClusterScraper {
 	return &ClusterScraper{
 		Clientset: kclient,
 	}
-}
-
-func NewClusterInfoScraper(kubeConfig *restclient.Config) (*ClusterScraper, error) {
-	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create kubeClient: %s", err)
-	}
-
-	return &ClusterScraper{
-		Clientset: kubeClient,
-	}, nil
 }
 
 func (s *ClusterScraper) GetNamespaces() ([]*api.Namespace, error) {

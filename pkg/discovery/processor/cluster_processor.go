@@ -5,6 +5,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
@@ -12,6 +13,30 @@ import (
 // to represent the cluster, the nodes and the namespaces.
 type ClusterProcessor struct {
 	ClusterInfoScraper *cluster.ClusterScraper
+	NodeClient         *kubelet.KubeletClient
+}
+
+type ClusterConnector struct {
+	ClusterInfoScraper *cluster.ClusterScraper
+	NodeClient         *kubelet.KubeletClient
+}
+
+// Query the Kubernetes API Server to get the cluster nodes and namespaces.
+// Creates a KubeCluster entity to represent the cluster and its entities and resources
+func (connector *ClusterConnector) ConnectCluster() error {
+	nodeList, err := connector.ClusterInfoScraper.GetAllNodes()
+	if err != nil {
+		return fmt.Errorf("Error connecting to cluster %s\n", err)
+	}
+	glog.V(2).Infof("There are %d nodes\n", len(nodeList))
+
+	err = connector.NodeClient.ConnectToNodes(nodeList)
+	//if err == nil {
+	//	glog.V(2).Infof("Connected to all nodes in the cluster")
+	//} else {
+	//	glog.V(2).Infof("Connection errors : [%s]\n", err)
+	//}
+	return err
 }
 
 // Query the Kubernetes API Server to get the cluster nodes and namespaces.
