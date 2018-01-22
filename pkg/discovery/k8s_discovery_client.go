@@ -101,33 +101,9 @@ func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTargetInfo {
 func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*proto.ValidationResponse, error) {
 	glog.V(2).Infof("Validating Kubernetes target...")
 
+	// TODO: connect to the client and get validation response
 	validationResponse := &proto.ValidationResponse{}
 
-	// Check connection to the cluster
-	nodeList, err := dc.k8sClusterScraper.GetAllNodes()
-	if err != nil {
-		return nil, fmt.Errorf("Error connecting to cluster %s\n", err)
-	}
-	glog.V(2).Infof("There are %d nodes\n", len(nodeList))
-
-	// Check connection to all nodes
-	nodeClient := dc.config.probeConfig.NodeClient
-	err = nodeClient.ConnectToNodes(nodeList)
-
-	if err != nil {
-		errStr := fmt.Sprintf("%s\n", err)
-		severity := proto.ErrorDTO_CRITICAL
-		var errorDtos []*proto.ErrorDTO
-		errorDto := &proto.ErrorDTO{
-			Severity:    &severity,
-			Description: &errStr,
-		}
-		errorDtos = append(errorDtos, errorDto)
-		validationResponse.ErrorDTO = errorDtos
-	} else {
-		glog.V(2).Infof("##### Validation response - Connected to all nodes\n")
-	}
-	glog.V(2).Infof("Validation response %v\n", validationResponse)
 	return validationResponse, nil
 }
 

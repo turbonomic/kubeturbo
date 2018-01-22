@@ -10,11 +10,9 @@ import (
 	cadvisorapi "github.com/google/cadvisor/info/v1"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util/httputil"
 	netutil "k8s.io/apimachinery/pkg/util/net"
-	api "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
-	"strings"
 )
 
 const (
@@ -34,37 +32,6 @@ type KubeletClient struct {
 	client *http.Client
 	scheme string
 	port   int
-}
-
-func (kc *KubeletClient) ConnectToNodes(nodeList []*api.Node) error {
-	var connectionErrors []error
-	for _, node := range nodeList {
-		var ip string
-		for _, addr := range node.Status.Addresses {
-			if addr.Type == api.NodeInternalIP && addr.Address != "" {
-				ip = addr.Address
-				break
-			}
-		}
-
-		summary, err := kc.GetSummary(ip)
-		glog.V(2).Infof("node:%s::%s ---> node name: %v\n", node.Name, ip, summary.Node.NodeName)
-		if err != nil {
-			connectionErrors = append(connectionErrors, fmt.Errorf("%s:%s", node.Name, err))
-		}
-	}
-
-	if len(connectionErrors) == 0 {
-		glog.V(2).Infof("Successfully connected to all nodes\n")
-		return nil
-	}
-	var errorStr []string
-	for i, err := range connectionErrors {
-		errorStr = append(errorStr, fmt.Sprintf("Error %d: %s", i, err.Error()))
-	}
-	errStr := strings.Join(errorStr, "\n")
-	glog.V(3).Infof("Errors connecting to nodes : %s\n", errStr)
-	return fmt.Errorf(errStr)
 }
 
 func (kc *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
