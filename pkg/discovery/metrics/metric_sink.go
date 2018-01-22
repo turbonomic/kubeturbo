@@ -35,7 +35,7 @@ func (s *EntityMetricSink) UpdateMetricEntry(metric Metric) {
 
 func (s *EntityMetricSink) GetMetric(metricUID string) (Metric, error) {
 	if m, exist := s.data.Get(metricUID); !exist {
-		return nil, fmt.Errorf("Cannot find resource metric for %s", metricUID)
+		return nil, fmt.Errorf("Missing metric %s", metricUID)
 	} else {
 		return m.(Metric), nil
 	}
