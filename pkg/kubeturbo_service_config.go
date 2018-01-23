@@ -6,7 +6,7 @@ import (
 	client "k8s.io/client-go/kubernetes"
 )
 
-// Meta stores VMT Metadata.
+// Configuration created using the parameters passed to the kubeturbo service container.
 type Config struct {
 	tapSpec *K8sTAPServiceSpec
 
@@ -65,6 +65,7 @@ func (c *Config) WithEnableNonDisruptiveFlag(enableNonDisruptiveSupport bool) *C
 	return c
 }
 
+// Create the StitchingPropertyType for reconciling the kubernetes cluster nodes with the infrastructure VMs
 func (c *Config) UsingVMWare(useVMWare bool) *Config {
 	stitchingPropType := stitching.IP
 	if useVMWare {

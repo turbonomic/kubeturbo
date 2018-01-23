@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	//"github.com/turbonomic/kubeturbo/pkg/discovery/old"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -64,10 +63,6 @@ func compareDifferentDiscoveryTime(testElems []*DiscoverTestElement) {
 
 func (dc *K8sDiscoveryClient) discTimeCompare() {
 	compareDifferentDiscoveryTime([]*DiscoverTestElement{
-		//{
-		//	name:     "Old Framework",
-		//	discFunc: dc.discoveryWithOldFramework,
-		//},
 		{
 			name:     "New Framework",
 			discFunc: dc.discoverWithNewFramework,
