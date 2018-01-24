@@ -19,7 +19,7 @@ func TestParseK8sTAPServiceSpec(t *testing.T) {
 
 	// Check target config
 	checkStartWith(got.TargetType, "Kubernetes-", t)
-	checkStartWith(got.ProbeCategory, "CloudNative-", t)
+	checkStartWith(got.ProbeCategory, "Cloud Native", t)
 	check(got.TargetIdentifier, "Kubernetes-"+defaultTargetName, t)
 	check(got.TargetPassword, "defaultPassword", t)
 	check(got.TargetUsername, "defaultUser", t)
@@ -42,7 +42,7 @@ func TestParseK8sTAPServiceSpecWithTargetConfig(t *testing.T) {
 
 	// Check target config
 	checkStartWith(got.TargetType, "Kubernetes-", t)
-	checkStartWith(got.ProbeCategory, "CloudNative-", t)
+	checkStartWith(got.ProbeCategory, "Cloud Native", t)
 	// The target name should be the one from the config file
 	check(got.TargetIdentifier, "Kubernetes-cluster-foo", t)
 	check(got.TargetPassword, "defaultPassword", t)

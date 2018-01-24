@@ -10,7 +10,7 @@ const (
 	// When user doesn't specify username and password, the default username and password will be used.
 	defaultUsername      = "defaultUser"
 	defaultPassword      = "defaultPassword"
-	defaultProbeCategory = "CloudNative"
+	defaultProbeCategory = "Cloud Native"
 	defaultTargetType    = "Kubernetes"
 )
 
@@ -55,9 +55,7 @@ func (config *K8sTargetConfig) ValidateK8sTargetConfig() error {
 		config.TargetPassword = defaultPassword
 	}
 	if config.ProbeCategory == "" {
-		// Append a random string to avoid communication issues when there are multiple k8s clusters
-		// (as a workaround)
-		config.ProbeCategory = appendRandomName(defaultProbeCategory, config.TargetIdentifier)
+		config.ProbeCategory = defaultProbeCategory
 	}
 	if config.TargetType == "" {
 		// Append a random string to avoid communication issues when there are multiple k8s clusters
