@@ -9,7 +9,8 @@ LOG_COPIES="${LOG_COPIES:-30}"
 # The log rotation period. Default is 24 hours.
 LOG_ROTATION_PERIOD="${LOG_ROTATION_PERIOD:-86400}"
 
-echo "Performing log rotatation with parameters: LOG_DIR: $LOG_DIR, LOG_COPIES: $LOG_COPIES, LOG_ROTATION_PERIOD: $LOG_ROTATION_PERIOD"
+echo "Performing periodic log rotatation with parameters: LOG_DIR: $LOG_DIR, \
+LOG_COPIES: $LOG_COPIES, LOG_ROTATION_PERIOD: $LOG_ROTATION_PERIOD seconds"
 
 
 
@@ -24,6 +25,8 @@ LOG_FILES=$LOG_DIR/*.log.[INFO,ERROR,WARNING]*[0-9]
 # Keep running log rotation with period of $PERIOD seconds
 # Compress the rotated files except for the latest one (i.e., delay compression)
 while true; do
+  sleep $LOG_ROTATION_PERIOD
+
   for file in $LOG_FILES; do
     # Check if the file exists
     [ -e "$file" ] || continue
@@ -47,5 +50,5 @@ while true; do
     >$file
   done
 
-  sleep $LOG_ROTATION_PERIOD
+  echo "Finished log rotation at $(date)"
 done

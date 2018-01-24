@@ -14,7 +14,7 @@ spec:
       containers:
         - name: kubeturbo
           # Replace the image with desired version
-          image: vmturbo/kubeturbo:6.1dev
+          image: vmturbo/kubeturbo:redhat-6.1dev
           imagePullPolicy: Always
           args:
             - --turboconfig=/etc/kubeturbo/turbo.config
@@ -29,7 +29,7 @@ spec:
           - name: varlog
             mountPath: /var/log
         - name: logging-agent
-          image: vmturbo/logging-agent:dev
+          image: vmturbo/logging-agent:redhat-dev
           imagePullPolicy: Always
           volumeMounts:
           - name: varlog

@@ -5,7 +5,7 @@ The logging agent by default performs daily rotation and compression to the `kub
 
 ### Deploy `kubeturbo` with the sidecar container
 
-To deploy `kubeturbo` with the sidecar container, add the container of logging agent in the `kubeturbo` yaml file as follows. In this yaml file, there is one additional volume `varlog`. `varlog` is shared between `kubeturbo` and `sidecar` containers and is mounted to `/var/log` as shown in their container config (`volumeMounts`).
+To deploy `kubeturbo` with the sidecar container, add the container of logging agent in the `kubeturbo` yaml file as in the following example. In this yaml file, there is one additional volume `varlog`. `varlog` is shared between `kubeturbo` and `sidecar` containers and is mounted to `/var/log` as shown in their container config (see `volumeMounts`).
 
 ```yaml
 apiVersion: extensions/v1beta1
@@ -24,7 +24,7 @@ spec:
       containers:
         - name: kubeturbo
           # Replace the image with desired version
-          image: vmturbo/kubeturbo:6.1dev
+          image: vmturbo/kubeturbo:redhat-6.1dev
           imagePullPolicy: IfNotPresent
           args:
             - --turboconfig=/etc/kubeturbo/turbo.config
@@ -39,7 +39,7 @@ spec:
           - name: varlog
             mountPath: /var/log
         - name: logging-agent
-          image: vmturbo/logging-agent:dev
+          image: vmturbo/logging-agent:redhat-dev
           imagePullPolicy: IfNotPresent
           volumeMounts:
           - name: varlog
@@ -57,6 +57,6 @@ spec:
 
 Use the following `kubectl` command to retrieve the log files created by `kubeturbo`
 
-``
+```console
 $kubectl cp <POD_NAME>:/var/log -c kubeturbo <DESTINATION_DIR>
-``
+```

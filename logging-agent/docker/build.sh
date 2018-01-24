@@ -1,5 +1,5 @@
 #!/bin/bash
 
 repo="vmturbo/logging-agent"
-tag="dev"
+tag="redhat-dev"
 docker build -t $repo:$tag .

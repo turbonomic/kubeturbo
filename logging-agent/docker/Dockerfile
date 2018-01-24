@@ -1,4 +1,4 @@
-FROM alpine:3.7
+FROM registry.access.redhat.com/rhel-atomic:7.4-97
 
 COPY logrotate.sh /
 
