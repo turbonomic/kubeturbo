@@ -1,6 +1,8 @@
 package kubeturbo
 
 import (
+	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"strings"
 	"testing"
 )
@@ -75,5 +77,38 @@ func check(got, want string, t *testing.T) {
 func checkStartWith(got, want string, t *testing.T) {
 	if !strings.HasPrefix(got, want) {
 		t.Errorf("got: %v doesn't start with %v", got, want)
+	}
+}
+
+func TestCreateProbeConfigOrDie(t *testing.T) {
+	tests := []struct {
+		name                      string
+		UseVMWare                 bool
+		wantStitchingPropertyType stitching.StitchingPropertyType
+	}{
+		{
+			name:                      "test-use-vmware",
+			UseVMWare:                 false,
+			wantStitchingPropertyType: stitching.IP,
+		},
+		{
+			name:                      "test-not-use-vmware",
+			UseVMWare:                 true,
+			wantStitchingPropertyType: stitching.UUID,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vmtConfig := NewVMTConfig2().UsingVMWare(tt.UseVMWare)
+			got := createProbeConfigOrDie(vmtConfig)
+			checkProbeConfig(t, got, tt.wantStitchingPropertyType)
+		})
+	}
+}
+
+func checkProbeConfig(t *testing.T, pc *configs.ProbeConfig, stitchingPropertyType stitching.StitchingPropertyType) {
+
+	if pc.StitchingPropertyType != stitchingPropertyType {
+		t.Errorf("StitchingPropertyType = %v, want %v", pc.StitchingPropertyType, stitchingPropertyType)
 	}
 }

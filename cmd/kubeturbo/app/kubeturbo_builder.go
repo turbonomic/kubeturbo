@@ -19,23 +19,20 @@ import (
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/master"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
-	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	"github.com/turbonomic/kubeturbo/test/flag"
 
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/pflag"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 )
 
 const (
 	// The default port for vmt service server
-	KubeturboPort   = 10265
-	K8sCadvisorPort = 4194
+	KubeturboPort       = 10265
+	K8sCadvisorPort     = 4194
+	DefaultKubeletPort  = 10255
+	DefaultKubeletHttps = false
 )
 
 // VMTServer has all the context and params needed to run a Scheduler
@@ -49,14 +46,16 @@ type VMTServer struct {
 	KubeConfig      string
 	BindPodsQPS     float32
 	BindPodsBurst   int
-	CAdvisorPort    int
 
 	//LeaderElection componentconfig.LeaderElectionConfiguration
 
 	EnableProfiling bool
 
-	// If the underlying infrastructure is VMWare, we cannot reply on IP address for stitching. Instead we use the
-	// systemUUID of each node, which is equal to UUID of corresponding VM discovered by VM probe.
+	// To stitch the Nodes in Kubernetes cluster with the VM from the underlying cloud or
+	// hypervisor infrastructure, Node IP is used.
+	// If the underlying infrastructure is VMWare, we cannot reply on IP address for stitching.
+	// Instead we use the systemUUID of each node, which is equal to UUID of corresponding
+	// VM discovered by VM probe.
 	// The default value is false.
 	UseVMWare bool
 
@@ -85,20 +84,18 @@ func NewVMTServer() *VMTServer {
 func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.Port, "port", s.Port, "The port that kubeturbo's http service runs on")
 	fs.StringVar(&s.Address, "ip", s.Address, "the ip address that kubeturbo's http service runs on")
-	fs.IntVar(&s.CAdvisorPort, "cadvisor-port", K8sCadvisorPort, "The port of the cadvisor service runs on")
 	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
 	fs.StringVar(&s.K8sTAPSpec, "turboconfig", s.K8sTAPSpec, "Path to the config file.")
 	fs.StringVar(&s.TestingFlagPath, "testingflag", s.TestingFlagPath, "Path to the testing flag.")
 	fs.StringVar(&s.KubeConfig, "kubeconfig", s.KubeConfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.BoolVar(&s.EnableProfiling, "profiling", false, "Enable profiling via web interface host:port/debug/pprof/.")
 	fs.BoolVar(&s.UseVMWare, "usevmware", false, "If the underlying infrastructure is VMWare.")
-	fs.IntVar(&s.KubeletPort, "kubelet-port", kubelet.DefaultKubeletPort, "The port of the kubelet runs on")
-	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", kubelet.DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
+	fs.IntVar(&s.KubeletPort, "kubelet-port", DefaultKubeletPort, "The port of the kubelet runs on")
+	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
 	fs.StringVar(&s.K8sVersion, "k8sVersion", executor.HigherK8sVersion, "the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&s.NoneSchedulerName, "noneSchedulerName", executor.DefaultNoneExistSchedulerName, "a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
 	fs.BoolVar(&s.enableNonDisruptiveSupport, "enable-non-disruptive-support", false, "Indicate if nondisruptive action support is enabled")
 
-	//leaderelection.BindFlags(&s.LeaderElection, fs)
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -150,40 +147,6 @@ func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config) *kub
 	return kubeletClient
 }
 
-func (s *VMTServer) createProbeConfigOrDie(kubeConfig *restclient.Config, kubeletClient *kubelet.KubeletClient) *configs.ProbeConfig {
-	// The default property type for stitching is IP.
-	pType := stitching.IP
-	if s.UseVMWare {
-		// If the underlying hypervisor is vCenter, use UUID.
-		// Refer to Bug: https://vmturbo.atlassian.net/browse/OM-18139
-		pType = stitching.UUID
-	}
-
-	// Create Kubelet monitoring
-	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(kubeletClient)
-
-	// Create cluster monitoring
-	masterMonitoringConfig, err := master.NewClusterMonitorConfig(kubeConfig)
-	if err != nil {
-		glog.Errorf("Failed to build monitor-config for master topology mointor: %v", err)
-		os.Exit(1)
-	}
-
-	// TODO for now kubelet is the only monitoring source. As we have more sources, we should choose what to be added into the slice here.
-	monitoringConfigs := []monitoring.MonitorWorkerConfig{
-		kubeletMonitoringConfig,
-		masterMonitoringConfig,
-	}
-
-	probeConfig := &configs.ProbeConfig{
-		CadvisorPort:          s.CAdvisorPort,
-		StitchingPropertyType: pType,
-		MonitoringConfigs:     monitoringConfigs,
-	}
-
-	return probeConfig
-}
-
 func (s *VMTServer) checkFlag() error {
 	if s.KubeConfig == "" && s.Master == "" {
 		glog.Warningf("Neither --kubeconfig nor --master was specified.  Using default API client.  This might not work.")
@@ -225,8 +188,6 @@ func (s *VMTServer) Run(_ []string) error {
 
 	kubeClient := s.createKubeClientOrDie(kubeConfig)
 	kubeletClient := s.createKubeletClientOrDie(kubeConfig)
-	probeConfig := s.createProbeConfigOrDie(kubeConfig, kubeletClient)
-	broker := turbostore.NewPodBroker()
 
 	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
 	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec, kubeConfig.Host)
@@ -235,27 +196,33 @@ func (s *VMTServer) Run(_ []string) error {
 		os.Exit(1)
 	}
 
+	// Configuration for creating the Kubeturbo TAP service
 	vmtConfig := kubeturbo.NewVMTConfig2()
 	vmtConfig.WithTapSpec(k8sTAPSpec).
 		WithKubeClient(kubeClient).
 		WithKubeletClient(kubeletClient).
-		WithProbeConfig(probeConfig).
-		WithBroker(broker).
+		UsingVMWare(s.UseVMWare).
 		WithK8sVersion(s.K8sVersion).
 		WithNoneScheduler(s.NoneSchedulerName).
-		WithRecorder(createRecorder(kubeClient)).
 		WithEnableNonDisruptiveFlag(s.enableNonDisruptiveSupport)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
-	vmtService := kubeturbo.NewKubeturboService(vmtConfig)
+	// The KubeTurbo TAP service
+	k8sTAPService, err := kubeturbo.NewKubernetesTAPService(vmtConfig)
+	if err != nil {
+		glog.Fatalf("Unexpected error while creating Kuberntes TAP service: %s", err)
+	}
+
+	// Start the KubeTurbo TAP service
 	run := func(_ <-chan struct{}) {
-		vmtService.Run()
+		glog.V(2).Infof("********** Start runnning Kubeturbo Service **********")
+		k8sTAPService.ConnectToTurbo()
 		select {}
 	}
 
+	// The client for healthz, debug, and prometheus
 	go s.startHttp()
 
-	//if !s.LeaderElection.LeaderElect {
 	glog.V(2).Infof("No leader election")
 	run(nil)
 
