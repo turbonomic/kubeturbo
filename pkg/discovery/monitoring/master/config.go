@@ -1,27 +1,21 @@
 package master
 
 import (
-	"fmt"
-
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 
-	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/kubernetes"
 )
 
 type ClusterMonitorConfig struct {
 	clusterInfoScraper *cluster.ClusterScraper
 }
 
-func NewClusterMonitorConfig(kubeConfig *restclient.Config) (*ClusterMonitorConfig, error) {
-	clusterInfoScraper, err := cluster.NewClusterInfoScraper(kubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("Invalid API configuration: %v", err)
-	}
-
+func NewClusterMonitorConfig(kclient *kubernetes.Clientset) *ClusterMonitorConfig {
+	k8sClusterScraper := cluster.NewClusterScraper(kclient)
 	return &ClusterMonitorConfig{
-		clusterInfoScraper: clusterInfoScraper,
-	}, nil
+		clusterInfoScraper: k8sClusterScraper,
+	}
 }
 
 // Implement MonitoringWorkerConfig interface.

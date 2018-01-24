@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	client "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 
 	"github.com/turbonomic/kubeturbo/pkg/action"
@@ -18,6 +17,9 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/service"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/master"
 )
 
 type K8sTAPServiceSpec struct {
@@ -69,43 +71,65 @@ func createTargetConfig(kubeConfig *restclient.Config) *configs.K8sTargetConfig 
 	return &configs.K8sTargetConfig{TargetIdentifier: kubeConfig.Host}
 }
 
-type K8sTAPServiceConfig struct {
-	spec                     *K8sTAPServiceSpec
-	probeConfig              *configs.ProbeConfig
-	registrationClientConfig *registration.RegistrationConfig
-	discoveryClientConfig    *discovery.DiscoveryClientConfig
-}
+func createProbeConfigOrDie(c *Config) *configs.ProbeConfig {
+	// Create Kubelet monitoring
+	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(c.KubeletClient)
 
-func NewK8sTAPServiceConfig(kubeClient *client.Clientset, probeConfig *configs.ProbeConfig,
-	spec *K8sTAPServiceSpec) *K8sTAPServiceConfig {
-	registrationClientConfig := registration.NewRegistrationClientConfig(probeConfig.StitchingPropertyType)
-	discoveryClientConfig := discovery.NewDiscoveryConfig(kubeClient, probeConfig, spec.K8sTargetConfig)
-	return &K8sTAPServiceConfig{
-		spec: spec,
-		registrationClientConfig: registrationClientConfig,
-		discoveryClientConfig:    discoveryClientConfig,
+	// Create cluster monitoring
+	masterMonitoringConfig := master.NewClusterMonitorConfig(c.Client)
+
+	// TODO for now kubelet is the only monitoring source. As we have more sources, we should choose what to be added into the slice here.
+	monitoringConfigs := []monitoring.MonitorWorkerConfig{
+		kubeletMonitoringConfig,
+		masterMonitoringConfig,
 	}
+
+	probeConfig := &configs.ProbeConfig{
+		StitchingPropertyType: c.StitchingPropType,
+		MonitoringConfigs:     monitoringConfigs,
+		ClusterClient:         c.Client,
+		NodeClient:            c.KubeletClient,
+	}
+
+	return probeConfig
 }
 
 type K8sTAPService struct {
 	*service.TAPService
 }
 
-func NewKubernetesTAPService(config *K8sTAPServiceConfig, actionHandler *action.ActionHandler) (*K8sTAPService, error) {
-	if config == nil || config.spec == nil {
+func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
+	if config == nil || config.tapSpec == nil {
 		return nil, errors.New("Invalid K8sTAPServiceConfig")
 	}
-	// Kubernetes Probe Registration Client
-	registrationClient := registration.NewK8sRegistrationClient(config.registrationClientConfig)
-	// Kubernetes Probe Discovery Client
-	discoveryClient := discovery.NewK8sDiscoveryClient(config.discoveryClientConfig)
 
+	// Create the configurations for the registration, discovery and action clients
+	registrationClientConfig := registration.NewRegistrationClientConfig(config.StitchingPropType)
+
+	probeConfig := createProbeConfigOrDie(config)
+	discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, config.tapSpec.K8sTargetConfig)
+
+	actionHandlerConfig := action.NewActionHandlerConfig(config.Client,
+		config.KubeletClient, config.k8sVersion,
+		config.noneSchedulerName, config.StitchingPropType, config.enableNonDisruptiveSupport)
+
+	// Kubernetes Probe Registration Client
+	registrationClient := registration.NewK8sRegistrationClient(registrationClientConfig)
+
+	// Kubernetes Probe Discovery Client
+	discoveryClient := discovery.NewK8sDiscoveryClient(discoveryClientConfig)
+
+	// Kubernetes Probe Action Execution Client
+	actionHandler := action.NewActionHandler(actionHandlerConfig)
+
+	// The KubeTurbo TAP Service that will register the kubernetes target with the
+	// Turbonomic server and await for validation, discovery, action execution requests
 	tapService, err :=
 		service.NewTAPServiceBuilder().
-			WithTurboCommunicator(config.spec.TurboCommunicationConfig).
-			WithTurboProbe(probe.NewProbeBuilder(config.spec.TargetType, config.spec.ProbeCategory).
+			WithTurboCommunicator(config.tapSpec.TurboCommunicationConfig).
+			WithTurboProbe(probe.NewProbeBuilder(config.tapSpec.TargetType, config.tapSpec.ProbeCategory).
 				RegisteredBy(registrationClient).
-				DiscoversTarget(config.spec.TargetIdentifier, discoveryClient).
+				DiscoversTarget(config.tapSpec.TargetIdentifier, discoveryClient).
 				ExecutesActionsBy(actionHandler)).
 			Create()
 	if err != nil {
