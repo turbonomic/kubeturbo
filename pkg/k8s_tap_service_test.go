@@ -20,7 +20,7 @@ func TestParseK8sTAPServiceSpec(t *testing.T) {
 	// Check target config
 	checkStartWith(got.TargetType, "Kubernetes-", t)
 	checkStartWith(got.ProbeCategory, "CloudNative-", t)
-	check(got.TargetIdentifier, defaultTargetName, t)
+	check(got.TargetIdentifier, "Kubernetes-"+defaultTargetName, t)
 	check(got.TargetPassword, "defaultPassword", t)
 	check(got.TargetUsername, "defaultUser", t)
 
@@ -44,7 +44,7 @@ func TestParseK8sTAPServiceSpecWithTargetConfig(t *testing.T) {
 	checkStartWith(got.TargetType, "Kubernetes-", t)
 	checkStartWith(got.ProbeCategory, "CloudNative-", t)
 	// The target name should be the one from the config file
-	check(got.TargetIdentifier, "cluster-foo", t)
+	check(got.TargetIdentifier, "Kubernetes-cluster-foo", t)
 	check(got.TargetPassword, "defaultPassword", t)
 	check(got.TargetUsername, "defaultUser", t)
 }
@@ -62,7 +62,7 @@ func TestParseK8sTAPServiceSpecWithOldConfig(t *testing.T) {
 	// Check target config
 	checkStartWith(got.TargetType, "tt1", t)
 	checkStartWith(got.ProbeCategory, "pc1", t)
-	check(got.TargetIdentifier, "addr1", t)
+	check(got.TargetIdentifier, "Kubernetes-addr1", t)
 	// The files of username and password are ignored when parsing the json file
 	check(got.TargetPassword, "defaultPassword", t)
 	check(got.TargetUsername, "defaultUser", t)

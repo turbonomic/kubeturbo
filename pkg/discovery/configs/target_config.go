@@ -43,6 +43,11 @@ func (config *K8sTargetConfig) ValidateK8sTargetConfig() error {
 			return errors.New("targetIdentifier is not provided")
 		}
 	}
+
+	// Prefix target id (address) with the target type (i.e., "Kubernetes-") to
+	// avoid duplicate target id with other types of targets (e.g., aws).
+	config.TargetIdentifier = defaultTargetType + "-" + config.TargetIdentifier
+
 	if config.TargetUsername == "" {
 		config.TargetUsername = defaultUsername
 	}
