@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/rhel-atomic:7.4-97
+FROM registry.access.redhat.com/rhel7:7.4-129
 
 COPY logrotate.sh /
 

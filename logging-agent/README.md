@@ -39,7 +39,7 @@ spec:
           - name: varlog
             mountPath: /var/log
         - name: logging-agent
-          image: vmturbo/logging-agent:redhat-dev
+          image: vmturbo/logging-agent:redhat-6.1dev
           imagePullPolicy: IfNotPresent
           volumeMounts:
           - name: varlog
@@ -58,5 +58,6 @@ spec:
 Use the following `kubectl` command to retrieve the log files created by `kubeturbo`
 
 ```console
-$kubectl cp <POD_NAME>:/var/log -c kubeturbo <DESTINATION_DIR>
+$kubectl cp <POD_NAME>:/var/log -c kubeturbo <LOCAL_DIR>
 ```
+
