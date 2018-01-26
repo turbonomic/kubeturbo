@@ -60,31 +60,42 @@ func NewKubeEntity(entityType metrics.DiscoveredEntityType,
 func (entity *KubeEntity) String() string {
 	var buffer bytes.Buffer
 	var line string
-	line = fmt.Sprintf("Type:%s %s::%s::%s::%s\n", entity.EntityType,
-		entity.ClusterName, entity.Namespace, entity.Name, entity.UID)
+	line = fmt.Sprintf("%s %s::%s\n", entity.EntityType, entity.Name, entity.UID)
 	buffer.WriteString(line)
-	for _, resource := range entity.AllocationResources {
-		line := fmt.Sprintf("\tallocation resource:%s Capacity=%f, Used=%f\n",
-			resource.Type, resource.Capacity, resource.Used)
-		buffer.WriteString(line)
-	}
-	for _, resource := range entity.ComputeResources {
-		line := fmt.Sprintf("\tcompute resource:%s Capacity=%f, Used=%f\n",
-			resource.Type, resource.Capacity, resource.Used)
-		buffer.WriteString(line)
-	}
-	for _, provider := range entity.ProviderMap {
-		line := fmt.Sprintf("\tprovider:%s:%s\n", provider.EntityType, provider.UID)
-		buffer.WriteString(line)
-		for _, resource := range provider.BoughtCompute {
-			line := fmt.Sprintf("\t\tcompute bought:%s Used=%f\n",
-				resource.Type, resource.Used)
+	line = fmt.Sprintf("Cluster:%s Namespace:%s\n", entity.ClusterName, entity.Namespace)
+	buffer.WriteString(line)
+	if len(entity.AllocationResources) > 0 {
+		buffer.WriteString("Allocation resource:\n")
+		for _, resource := range entity.AllocationResources {
+			line := fmt.Sprintf("\t%s Capacity=%f, Used=%f\n",
+				resource.Type, resource.Capacity, resource.Used)
 			buffer.WriteString(line)
 		}
-		for _, resource := range provider.BoughtAllocation {
-			line := fmt.Sprintf("\t\tallocation bought:%s Used=%f\n",
-				resource.Type, resource.Used)
+	}
+	if len(entity.ComputeResources) > 0 {
+		buffer.WriteString("Compute resource:\n")
+		for _, resource := range entity.ComputeResources {
+			line := fmt.Sprintf("\t%s Capacity=%f, Used=%f\n",
+				resource.Type, resource.Capacity, resource.Used)
 			buffer.WriteString(line)
+		}
+	}
+	for _, provider := range entity.ProviderMap {
+		line := fmt.Sprintf("Provider:%s:%s\n", provider.EntityType, provider.UID)
+		buffer.WriteString(line)
+		if len(provider.BoughtCompute) > 0 {
+			buffer.WriteString("\tCompute bought:\n")
+			for _, resource := range provider.BoughtCompute {
+				line := fmt.Sprintf("\t\t%s Used=%f\n", resource.Type, resource.Used)
+				buffer.WriteString(line)
+			}
+		}
+		if len(provider.BoughtAllocation) > 0 {
+			buffer.WriteString("\tAllocation bought:\n")
+			for _, resource := range provider.BoughtAllocation {
+				line := fmt.Sprintf("\t\t%s Used=%f\n", resource.Type, resource.Used)
+				buffer.WriteString(line)
+			}
 		}
 	}
 	return buffer.String()

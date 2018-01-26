@@ -1,8 +1,8 @@
 package kubeturbo
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
+	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	client "k8s.io/client-go/kubernetes"
 )
 
@@ -13,7 +13,7 @@ type Config struct {
 	StitchingPropType stitching.StitchingPropertyType
 
 	Client        *client.Clientset
-	KubeletClient *kubelet.KubeletClient
+	KubeletClient *kubeclient.KubeletClient
 
 	//for moveAction
 	// for Kubernetes version < 1.6, schedulerName is in a different field.
@@ -40,7 +40,7 @@ func (c *Config) WithKubeClient(client *client.Clientset) *Config {
 	return c
 }
 
-func (c *Config) WithKubeletClient(client *kubelet.KubeletClient) *Config {
+func (c *Config) WithKubeletClient(client *kubeclient.KubeletClient) *Config {
 	c.KubeletClient = client
 	return c
 }

@@ -2,8 +2,8 @@ package configs
 
 import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
+	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -17,5 +17,5 @@ type ProbeConfig struct {
 	// Rest Client for the kubernetes server API
 	ClusterClient *kubernetes.Clientset
 	// Rest Client for the kubelet module in each node
-	NodeClient *kubelet.KubeletClient
+	NodeClient *kubeclient.KubeletClient
 }

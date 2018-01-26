@@ -8,13 +8,13 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 )
 
 type turboActionType string
@@ -29,7 +29,7 @@ const (
 
 type ActionHandlerConfig struct {
 	kubeClient     *client.Clientset
-	kubeletClient  *kubelet.KubeletClient
+	kubeletClient  *kubeclient.KubeletClient
 	StopEverything chan struct{}
 
 	//for moveAction
@@ -41,7 +41,7 @@ type ActionHandlerConfig struct {
 	enableNonDisruptiveSupport bool
 }
 
-func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubelet.KubeletClient, k8sVersion, noneSchedulerName string, stype stitching.StitchingPropertyType, enableNonDisruptiveSupport bool) *ActionHandlerConfig {
+func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubeclient.KubeletClient, k8sVersion, noneSchedulerName string, stype stitching.StitchingPropertyType, enableNonDisruptiveSupport bool) *ActionHandlerConfig {
 	config := &ActionHandlerConfig{
 		kubeClient:    kubeClient,
 		kubeletClient: kubeletClient,

@@ -1,18 +1,18 @@
-package kubelet
+package kubeclient
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/golang/glog"
-	"net/http"
-	"net/url"
-	"time"
-
 	cadvisorapi "github.com/google/cadvisor/info/v1"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util/httputil"
+	"io/ioutil"
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
+	"net/http"
+	"net/url"
+	"time"
 )
 
 const (
@@ -34,41 +34,60 @@ type KubeletClient struct {
 	port   int
 }
 
-func (kc *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
+func (client *KubeletClient) ExecuteRequestAndGetValue(host string, endpoint string, value interface{}) error {
 	requestURL := url.URL{
-		Scheme: kc.scheme,
-		Host:   fmt.Sprintf("%s:%d", host, kc.port),
-		Path:   summaryPath,
+		Scheme: client.scheme,
+		Host:   fmt.Sprintf("%s:%d", host, client.port),
+		Path:   endpoint,
 	}
 
 	req, err := http.NewRequest("GET", requestURL.String(), nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
+
+	return client.postRequestAndGetValue(req, value)
+}
+
+func (client *KubeletClient) postRequestAndGetValue(req *http.Request, value interface{}) error {
+	httpClient := client.client
+	response, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute the request: %s", err)
+	}
+	defer response.Body.Close()
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body - %v", err)
+	}
+	if response.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("%q was not found", req.URL.String())
+	} else if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("request failed - %q, response: %q", response.Status, string(body))
+	}
+
+	err = json.Unmarshal(body, value)
+	if err != nil {
+		return fmt.Errorf("failed to parse output. Response: %q. Error: %v", string(body), err)
+	}
+	return nil
+}
+
+func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 	summary := &stats.Summary{}
-	client := kc.client
-	err = httputil.PostRequestAndGetValue(client, req, summary)
+	err := client.ExecuteRequestAndGetValue(host, summaryPath, summary)
 	return summary, err
 }
 
-func (kc *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineInfo, error) {
-	requestURL := url.URL{
-		Scheme: kc.scheme,
-		Host:   fmt.Sprintf("%s:%d", host, kc.port),
-		Path:   specPath,
-	}
-	req, err := http.NewRequest("GET", requestURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
+func (client *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineInfo, error) {
 	var minfo cadvisorapi.MachineInfo
-	err = httputil.PostRequestAndGetValue(kc.client, req, &minfo)
+	err := client.ExecuteRequestAndGetValue(host, specPath, &minfo)
 	return &minfo, err
 }
 
 // get machine single-core Frequency, in Khz
-func (kc *KubeletClient) GetMachineCpuFrequency(host string) (uint64, error) {
-	minfo, err := kc.GetMachineInfo(host)
+func (client *KubeletClient) GetMachineCpuFrequency(host string) (uint64, error) {
+	minfo, err := client.GetMachineInfo(host)
 	if err != nil {
 		glog.Errorf("failed to get machine[%s] cpu.frequency: %v", host, err)
 		return 0, err
