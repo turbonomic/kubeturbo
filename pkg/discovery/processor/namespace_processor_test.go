@@ -1,7 +1,6 @@
 package processor
 
 import (
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
@@ -78,10 +77,8 @@ func TestProcessNamespaces(t *testing.T) {
 		clusterName:        testClusterName,
 	}
 
-	nsMap, err := namespaceProcessor.ProcessNamespaces()
+	nsMap, _ := namespaceProcessor.ProcessNamespaces()
 
-	fmt.Printf("nsMap %++v\n", nsMap)
-	fmt.Printf("err %++v\n", err)
 	assert.Equal(t, len(nsMap), len(mockNamepaces))
 	for _, ns := range nsMap {
 		assert.NotNil(t, ns.Quota)

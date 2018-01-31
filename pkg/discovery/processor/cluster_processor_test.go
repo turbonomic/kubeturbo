@@ -2,7 +2,6 @@ package processor
 
 import (
 	"fmt"
-	"testing"
 	cadvisorapi "github.com/google/cadvisor/info/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -12,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/pkg/api/v1"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
+	"testing"
 )
 
 var (
@@ -92,7 +92,6 @@ func TestProcessNodes(t *testing.T) {
 	assert.Equal(t, len(nodeList), len(nodeMap))
 
 	for _, knode := range nodeMap {
-		fmt.Printf("%s\n", knode)
 		resources := knode.ComputeResources
 		assert.Equal(t, len(allocatableMap), len(resources))
 
