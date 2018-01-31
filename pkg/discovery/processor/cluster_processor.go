@@ -8,111 +8,134 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
-	"math/rand"
+	"k8s.io/client-go/pkg/api/v1"
 	"strings"
 )
 
-// Class to query the cluster data from the Kubernetes API server and create the KubeCluster entity
-// to represent the cluster, the nodes and the namespaces.
+// Top level object that will connect to the Kubernetes cluster and all the nodes in the cluster.
+// It will also query the cluster data from the Kubernetes API server and create the KubeCluster
+// entity  to represent the cluster, the nodes and the namespaces.
 type ClusterProcessor struct {
-	ClusterInfoScraper *cluster.ClusterScraper
-	NodeScrapper       *kubeclient.KubeletClient
+	clusterInfoScraper cluster.ClusterScraperInterface
+	nodeScrapper       kubeclient.KubeHttpClientInterface
 }
 
-// Query the Kubernetes API Server to get the cluster nodes and namespaces.
-func (processor *ClusterProcessor) ConnectCluster(checkAllNodes bool) (*repository.KubeCluster, error) {
-	svcID, err := processor.ClusterInfoScraper.GetKubernetesServiceID()
+func NewClusterProcessor(kubeClient *cluster.ClusterScraper, kubeletClient *kubeclient.KubeletClient) *ClusterProcessor {
+	if kubeClient == nil {
+		glog.Errorf("Null kubeclient while creating cluster processor")
+		return nil
+	}
+	if kubeletClient == nil {
+		glog.Errorf("Null kubeletclient while creating cluster processor")
+		return nil
+	}
+	clusterProcessor := &ClusterProcessor{
+		clusterInfoScraper: kubeClient,
+		nodeScrapper:       kubeletClient,
+	}
+	return clusterProcessor
+}
+
+// Connects to the Kubernetes API Server and the nodes in the cluster.
+// If connection is successful a KubeCluster entity to represent the cluster is created
+func (processor *ClusterProcessor) ConnectCluster() (*repository.KubeCluster, error) {
+	if processor.clusterInfoScraper == nil || processor.nodeScrapper == nil {
+		return nil, fmt.Errorf("Null kubernetes cluster or node client")
+	}
+
+	svcID, err := processor.clusterInfoScraper.GetKubernetesServiceID()
 	if err != nil {
 		return nil, fmt.Errorf("Cannot obtain service ID for cluster %s\n", err)
 	}
 	kubeCluster := repository.NewKubeCluster(svcID)
+	glog.V(4).Infof("Created cluster %s\n", svcID)
 
 	// Nodes
-	err = processor.ConnectToNodes(checkAllNodes)
+	err = processor.connectToNodes()
+	if err != nil {
+		return nil, err
+	}
 
 	return kubeCluster, err
 }
 
-func (processor *ClusterProcessor) ConnectToNodes(checkAllNodes bool) error {
-	nodeList, err := processor.ClusterInfoScraper.GetAllNodes()
+// Connects to all nodes in the cluster.
+// Obtains the CPU Frequency of the node to determine the node availability and accessibility.
+func (processor *ClusterProcessor) connectToNodes() error {
+	nodeList, err := processor.clusterInfoScraper.GetAllNodes()
 	if err != nil {
 		return fmt.Errorf("Error getting nodes for cluster : %s\n", err)
 	}
 	glog.V(2).Infof("There are %d nodes\n", len(nodeList))
 
-	var connectionErrors []error
+	var connectionErrors []string
 	var connectionMsgs []string
 
-	n := rand.Int() % len(nodeList)
-	for idx, node := range nodeList {
-		if !checkAllNodes && idx != n {
-			continue
-		}
-		ip := repository.ParseNodeIP(node)
-		kc := processor.NodeScrapper
-		cpuFreq, err := kc.GetMachineCpuFrequency(ip)
+	for _, node := range nodeList {
+		nodeCpuFrequency, err := checkNode(node, processor.nodeScrapper)
 
 		if err != nil {
-			connectionErrors = append(connectionErrors, fmt.Errorf("%s:%s", node.Name, err))
+			connectionErrors = append(connectionErrors, fmt.Sprintf("%s:%s", node.Name, err))
 		} else {
-			nodeCpuFrequency := float64(cpuFreq) / util.MegaToKilo
 			connectionMsgs = append(connectionMsgs,
-				fmt.Sprintf("%s::%s ---> cpu:%v MHz", node.Name, ip, nodeCpuFrequency))
-		}
-		if !checkAllNodes && idx == n {
-			break
+				fmt.Sprintf("%s [cpu:%v MHz]", node.Name, nodeCpuFrequency))
 		}
 	}
-	if len(connectionErrors) == 0 {
+
+	if len(connectionMsgs) > 0 {
 		glog.V(2).Infof("Successfully connected to nodes : %s\n", strings.Join(connectionMsgs, ", "))
+	}
+
+	errStr := strings.Join(connectionErrors, ", ")
+	if len(connectionErrors) > 0 {
+		glog.V(2).Infof("Errors connecting to nodes : %s\n", errStr)
+	}
+
+	if len(connectionMsgs) > 0 {
 		return nil
 	}
-	var errorStr []string
-	for i, err := range connectionErrors {
-		errorStr = append(errorStr, fmt.Sprintf("Error %d: %s", i, err.Error()))
-	}
-	errStr := strings.Join(errorStr, "\n")
-	glog.V(2).Infof("Errors connecting to nodes : %s\n", errStr)
 	return fmt.Errorf(errStr)
 }
 
-// Query the Kubernetes API Server to get the cluster nodes and namespaces.
-// Creates a KubeCluster entity to represent the cluster and its entities and resources
-func (processor *ClusterProcessor) DiscoverCluster(kubeCluster *repository.KubeCluster) error { //(*repository.KubeCluster, error) {
-	//svcID, err := processor.ClusterInfoScraper.GetKubernetesServiceID()
-	//if err != nil {
-	//	return nil, fmt.Errorf("Cannot obtain service ID for cluster %s\n", err)
-	//}
-	//
-	//kubeCluster := &repository.KubeCluster{
-	//	Name:       svcID,
-	//	Nodes:      make(map[string]*repository.KubeNode),
-	//	Namespaces: make(map[string]*repository.KubeNamespace),
-	//}
+func checkNode(node *v1.Node, kc kubeclient.KubeHttpClientInterface) (float64, error) {
+	ip := repository.ParseNodeIP(node)
+	cpuFreq, err := kc.GetMachineCpuFrequency(ip)
+
+	if err != nil {
+		return 0.0, err
+	}
+
+	nodeCpuFrequency := float64(cpuFreq) / util.MegaToKilo
+	return nodeCpuFrequency, nil
+}
+
+// Query the Kubernetes API Server to get the cluster nodes and namespaces and set in tge cluster object
+func (processor *ClusterProcessor) DiscoverCluster(kubeCluster *repository.KubeCluster) error {
+	// If connection to cluster is successful, then the cluster object is not null
+	if kubeCluster == nil {
+		return fmt.Errorf("Failed to connect to cluster")
+	}
+	if processor.clusterInfoScraper == nil {
+		return fmt.Errorf("Null kubernetes cluster client")
+	}
 	// Discover Nodes
 	clusterName := kubeCluster.Name
-	nodeList, err := processor.ClusterInfoScraper.GetAllNodes()
+	nodeList, err := processor.clusterInfoScraper.GetAllNodes()
 	if err != nil {
 		return fmt.Errorf("Error getting nodes for cluster %s:%s\n", clusterName, err)
 	}
 	glog.V(2).Infof("There are %d nodes\n", len(nodeList))
 
 	for _, item := range nodeList {
-		kubeNode, exists := kubeCluster.Nodes[item.Name]
-		if exists {
+		kubeNode, err := kubeCluster.GetNodeEntity(item.Name)
+		if err == nil {
 			kubeNode.UpdateResources(item)
 		} else {
 			nodeEntity := repository.NewKubeNode(item, clusterName)
-			kubeCluster.Nodes[item.Name] = nodeEntity
+			kubeCluster.SetNodeEntity(nodeEntity)
 		}
 	}
 
-	//nodes := make(map[string]*repository.KubeNode)
-	//nodes, err := processor.processNodes(kubeCluster.Name)
-	//if err != nil {
-	//	return fmt.Errorf("%s:%s\n", kubeCluster.Name, err)
-	//}
-	//kubeCluster.Nodes = nodes
 	kubeCluster.LogClusterNodes()
 
 	// Discover Namespaces and Quotas
@@ -123,7 +146,7 @@ func (processor *ClusterProcessor) DiscoverCluster(kubeCluster *repository.KubeC
 	}
 
 	namespaceProcessor := &NamespaceProcessor{
-		ClusterInfoScraper: processor.ClusterInfoScraper,
+		ClusterInfoScraper: processor.clusterInfoScraper,
 		clusterName:        kubeCluster.Name,
 		ClusterResources:   clusterResources,
 	}
@@ -136,7 +159,7 @@ func (processor *ClusterProcessor) DiscoverCluster(kubeCluster *repository.KubeC
 
 // Query the Kubernetes API Server and Get the Node objects
 func (processor *ClusterProcessor) processNodes(clusterName string) (map[string]*repository.KubeNode, error) {
-	nodeList, err := processor.ClusterInfoScraper.GetAllNodes()
+	nodeList, err := processor.clusterInfoScraper.GetAllNodes()
 	if err != nil {
 		return nil, fmt.Errorf("Error getting nodes for cluster %s:%s\n", clusterName, err)
 	}
@@ -156,7 +179,15 @@ func computeClusterResources(nodes map[string]*repository.KubeNode) map[metrics.
 	// sum the capacities of the node resources
 	computeResources := make(map[metrics.ResourceType]float64)
 	for _, node := range nodes {
-		for rt, nodeResource := range node.ComputeResources {
+		// Iterate over all compute resource types
+		for _, rt := range metrics.KubeComputeResourceTypes {
+			// get the compute resource if it exists
+			nodeResource, exists := node.ComputeResources[rt]
+			if !exists {
+				glog.Errorf("Missing %s resource in node %s", rt, node.Name)
+				continue
+			}
+			// add the capacity to the cluster compute resource map
 			computeCap, exists := computeResources[rt]
 			if !exists {
 				computeCap = nodeResource.Capacity
@@ -167,9 +198,10 @@ func computeClusterResources(nodes map[string]*repository.KubeNode) map[metrics.
 		}
 	}
 
-	// convert to KubeDiscoveredResource objects
+	// create KubeDiscoveredResource object for each compute resource type
 	clusterResources := make(map[metrics.ResourceType]*repository.KubeDiscoveredResource)
-	for rt, capacity := range computeResources {
+	for _, rt := range metrics.KubeComputeResourceTypes {
+		capacity := computeResources[rt]
 		r := &repository.KubeDiscoveredResource{
 			Type:     rt,
 			Capacity: capacity,

@@ -55,10 +55,7 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	resultCollector := worker.NewResultCollector(workerCount * 2)
 	k8sClusterScraper := cluster.NewClusterScraper(config.probeConfig.ClusterClient)
 
-	clusterProcessor := &processor.ClusterProcessor{
-		ClusterInfoScraper: k8sClusterScraper,
-		NodeScrapper:       config.probeConfig.NodeClient,
-	}
+	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient)
 
 	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig, workerCount)
 	dispatcher := worker.NewDispatcher(dispatcherConfig)
@@ -111,7 +108,13 @@ func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*pr
 
 	validationResponse := &proto.ValidationResponse{}
 
-	kubeCluster, err := dc.clusterProcessor.ConnectCluster(false)
+	var err error
+	var kubeCluster *repository.KubeCluster
+	if dc.clusterProcessor == nil {
+		err = fmt.Errorf("Null cluster processor")
+	} else {
+		kubeCluster, err = dc.clusterProcessor.ConnectCluster()
+	}
 	if err != nil {
 		errStr := fmt.Sprintf("%s\n", err)
 		severity := proto.ErrorDTO_CRITICAL
@@ -150,13 +153,6 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 
 func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES AND QUOTAS HERE
-	//clusterProcessor := &processor.ClusterProcessor{
-	//	ClusterInfoScraper: dc.k8sClusterScraper,
-	//}
-	//kubeCluster, err := dc.clusterProcessor.ProcessCluster()
-	if dc.kubeCluster == nil {
-		return nil, fmt.Errorf("Failed to connect to cluster")
-	}
 	err := dc.clusterProcessor.DiscoverCluster(dc.kubeCluster)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to process cluster: %s", err)

@@ -22,6 +22,16 @@ var (
 	fieldSelectEverything = fields.Everything().String()
 )
 
+type ClusterScraperInterface interface {
+	GetAllNodes() ([]*api.Node, error)
+	GetNamespaces() ([]*api.Namespace, error)
+	GetNamespaceQuotas() (map[string][]*api.ResourceQuota, error)
+	GetAllPods() ([]*api.Pod, error)
+	GetAllEndpoints() ([]*api.Endpoints, error)
+	GetAllServices() ([]*api.Service, error)
+	GetKubernetesServiceID() (svcID string, err error)
+}
+
 type ClusterScraper struct {
 	*client.Clientset
 }

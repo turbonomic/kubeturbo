@@ -26,6 +26,13 @@ const (
 	defaultTLSHandShakeTimeout = 10 * time.Second
 )
 
+type KubeHttpClientInterface interface {
+	ExecuteRequestAndGetValue(host string, endpoint string, value interface{}) error
+	GetSummary(host string) (*stats.Summary, error)
+	GetMachineInfo(host string) (*cadvisorapi.MachineInfo, error)
+	GetMachineCpuFrequency(host string) (uint64, error)
+}
+
 // Since http.Client is thread safe (https://golang.org/src/net/http/client.go)
 // KubeletClient is also thread-safe if concurrent goroutines won't change the fields.
 type KubeletClient struct {

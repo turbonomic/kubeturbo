@@ -48,6 +48,24 @@ func LogNamespaces(namespaces map[string]*KubeNamespace) {
 	}
 }
 
+func (kubeCluster *KubeCluster) SetNodeEntity(nodeEntity *KubeNode) {
+	if kubeCluster.Nodes == nil {
+		kubeCluster.Nodes = make(map[string]*KubeNode)
+	}
+	kubeCluster.Nodes[nodeEntity.Name] = nodeEntity
+}
+
+func (kubeCluster *KubeCluster) GetNodeEntity(nodeName string) (*KubeNode, error) {
+	if kubeCluster.Nodes == nil {
+		return nil, fmt.Errorf("Null node %s", nodeName)
+	}
+	kubeNode, exists := kubeCluster.Nodes[nodeName]
+	if !exists {
+		return nil, fmt.Errorf("Null node %s", nodeName)
+	}
+	return kubeNode, nil
+}
+
 // Summary object to get the nodes, quotas and namespaces in the cluster
 type ClusterSummary struct {
 	*KubeCluster
@@ -134,37 +152,13 @@ func NewKubeNode(apiNode *v1.Node, clusterName string) *KubeNode {
 		KubeEntity: entity,
 		Node:       apiNode,
 	}
+
+	// Node compute resources and properties
 	nodeEntity.UpdateResources(apiNode)
-	//// Node compute resources
-	//resourceAllocatableList := apiNode.Status.Allocatable
-	//for resource, _ := range resourceAllocatableList {
-	//	computeResourceType, isComputeType := metrics.KubeComputeResourceTypes[resource]
-	//	if !isComputeType {
-	//		continue
-	//	}
-	//	capacityValue := parseResourceValue(computeResourceType, resourceAllocatableList)
-	//	nodeEntity.AddComputeResource(computeResourceType, float64(capacityValue), DEFAULT_METRIC_VALUE)
-	//}
-	//
-	//// SystemUUID reported by the node
-	//nodeSystemUUID := apiNode.Status.NodeInfo.SystemUUID
-	//if nodeSystemUUID == "" {
-	//	glog.Errorf("Invalid SystemUUID for node %s", apiNode.Name)
-	//} else {
-	//	nodeEntity.SystemUUID = strings.ToLower(nodeSystemUUID)
-	//}
-	//
-	//// Node IP Address
-	//nodeStitchingIP := ParseNodeIP(apiNode)
-	//if nodeStitchingIP == "" {
-	//	glog.Errorf("Failed to find stitching IP for node %s: it does not have either external IP or legacy "+
-	//		"host IP.", apiNode.Name)
-	//} else {
-	//	nodeEntity.IPAddress = nodeStitchingIP
-	//}
 	return nodeEntity
 }
 
+// Set the compute resources and IP property in the node entity
 func (nodeEntity *KubeNode) UpdateResources(apiNode *v1.Node) {
 	// Node compute resources
 	resourceAllocatableList := apiNode.Status.Allocatable
@@ -180,7 +174,7 @@ func (nodeEntity *KubeNode) UpdateResources(apiNode *v1.Node) {
 	// SystemUUID reported by the node
 	nodeSystemUUID := apiNode.Status.NodeInfo.SystemUUID
 	if nodeSystemUUID == "" {
-		glog.Errorf("Invalid SystemUUID for node %s", apiNode.Name)
+		glog.Errorf("Invalid SystemUUID for node %s, stitching may fail", apiNode.Name)
 	} else {
 		nodeEntity.SystemUUID = strings.ToLower(nodeSystemUUID)
 	}
@@ -195,6 +189,7 @@ func (nodeEntity *KubeNode) UpdateResources(apiNode *v1.Node) {
 	}
 }
 
+// Parse the Node instances returned by the kubernetes API to get the IP address
 func ParseNodeIP(apiNode *v1.Node) string {
 	var nodeStitchingIP string
 	nodeAddresses := apiNode.Status.Addresses
