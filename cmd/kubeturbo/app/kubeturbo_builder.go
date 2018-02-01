@@ -26,7 +26,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/pflag"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
+	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 )
 
 const (
@@ -137,8 +137,8 @@ func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubern
 	return kubeClient
 }
 
-func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config) *kubelet.KubeletClient {
-	kubeletClient, err := kubelet.NewKubeletConfig(kubeConfig).
+func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config) *kubeclient.KubeletClient {
+	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
 		//Timeout(to).

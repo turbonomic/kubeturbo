@@ -41,7 +41,6 @@ func TestKubeNode(t *testing.T) {
 		}
 
 		kubenode := NewKubeNode(n1, testNode.cluster)
-		fmt.Printf("%s\n", kubenode.KubeEntity)
 
 		resource, _ := kubenode.GetComputeResource(metrics.CPU)
 		assert.Equal(t, resource.Capacity, testNode.cpuCap)
@@ -113,7 +112,6 @@ func TestKubeQuota(t *testing.T) {
 		quotaList = append(quotaList, quota)
 
 		kubeQuota.ReconcileQuotas(quotaList)
-		fmt.Printf("%s\n", kubeQuota.KubeEntity)
 
 		resource, _ := kubeQuota.GetAllocationResource(metrics.CPULimit)
 		quantity := hardResourceList[v1.ResourceLimitsCPU]
@@ -204,7 +202,6 @@ func TestKubeQuotaWithMissingAllocations(t *testing.T) {
 			resource, _ = kubeQuota.GetBoughtResource(testNode.node, metrics.MemoryLimit)
 			assert.Equal(t, resource.Used, testNode.memUsed)
 		}
-		fmt.Printf("%s\n", kubeQuota.KubeEntity)
 	}
 }
 
@@ -257,7 +254,6 @@ func TestKubeQuotaReconcile(t *testing.T) {
 	}
 	kubeQuota := CreateDefaultQuota(cluster, namespace, clusterResources)
 	kubeQuota.ReconcileQuotas(quotaList)
-	fmt.Printf("%s\n", kubeQuota.KubeEntity)
 
 	resource, _ := kubeQuota.GetAllocationResource(metrics.CPULimit)
 	assert.Equal(t, resource.Capacity, leastCpuCore) // the least of the 3 quotas

@@ -19,6 +19,53 @@ type KubeCluster struct {
 	Namespaces map[string]*KubeNamespace
 }
 
+func NewKubeCluster(clusterName string) *KubeCluster {
+	kubeCluster := &KubeCluster{
+		Name:       clusterName,
+		Nodes:      make(map[string]*KubeNode),
+		Namespaces: make(map[string]*KubeNamespace),
+	}
+	return kubeCluster
+}
+
+func (kubeCluster *KubeCluster) LogClusterNodes() {
+	LogNodes(kubeCluster.Nodes)
+}
+
+func (kubeCluster *KubeCluster) LogClusterNamespaces() {
+	LogNamespaces(kubeCluster.Namespaces)
+}
+
+func LogNodes(nodes map[string]*KubeNode) {
+	for _, nodeEntity := range nodes {
+		glog.V(2).Infof("Created node entity : %s\n", nodeEntity.String())
+	}
+}
+
+func LogNamespaces(namespaces map[string]*KubeNamespace) {
+	for _, namespace := range namespaces {
+		glog.V(2).Infof("Created namespace entity : %s\n", namespace.String())
+	}
+}
+
+func (kubeCluster *KubeCluster) SetNodeEntity(nodeEntity *KubeNode) {
+	if kubeCluster.Nodes == nil {
+		kubeCluster.Nodes = make(map[string]*KubeNode)
+	}
+	kubeCluster.Nodes[nodeEntity.Name] = nodeEntity
+}
+
+func (kubeCluster *KubeCluster) GetNodeEntity(nodeName string) (*KubeNode, error) {
+	if kubeCluster.Nodes == nil {
+		return nil, fmt.Errorf("Null node %s", nodeName)
+	}
+	kubeNode, exists := kubeCluster.Nodes[nodeName]
+	if !exists {
+		return nil, fmt.Errorf("Null node %s", nodeName)
+	}
+	return kubeNode, nil
+}
+
 // Summary object to get the nodes, quotas and namespaces in the cluster
 type ClusterSummary struct {
 	*KubeCluster
@@ -105,7 +152,15 @@ func NewKubeNode(apiNode *v1.Node, clusterName string) *KubeNode {
 		KubeEntity: entity,
 		Node:       apiNode,
 	}
-	// node compute resources
+
+	// Node compute resources and properties
+	nodeEntity.UpdateResources(apiNode)
+	return nodeEntity
+}
+
+// Set the compute resources and IP property in the node entity
+func (nodeEntity *KubeNode) UpdateResources(apiNode *v1.Node) {
+	// Node compute resources
 	resourceAllocatableList := apiNode.Status.Allocatable
 	for resource, _ := range resourceAllocatableList {
 		computeResourceType, isComputeType := metrics.KubeComputeResourceTypes[resource]
@@ -116,13 +171,26 @@ func NewKubeNode(apiNode *v1.Node, clusterName string) *KubeNode {
 		nodeEntity.AddComputeResource(computeResourceType, float64(capacityValue), DEFAULT_METRIC_VALUE)
 	}
 
+	// SystemUUID reported by the node
 	nodeSystemUUID := apiNode.Status.NodeInfo.SystemUUID
 	if nodeSystemUUID == "" {
-		glog.Errorf("Invalid SystemUUID for node %s", apiNode.Name)
+		glog.Errorf("Invalid SystemUUID for node %s, stitching may fail", apiNode.Name)
 	} else {
 		nodeEntity.SystemUUID = strings.ToLower(nodeSystemUUID)
 	}
 
+	// Node IP Address
+	nodeStitchingIP := ParseNodeIP(apiNode)
+	if nodeStitchingIP == "" {
+		glog.Errorf("Failed to find stitching IP for node %s: it does not have either external IP or legacy "+
+			"host IP.", apiNode.Name)
+	} else {
+		nodeEntity.IPAddress = nodeStitchingIP
+	}
+}
+
+// Parse the Node instances returned by the kubernetes API to get the IP address
+func ParseNodeIP(apiNode *v1.Node) string {
 	var nodeStitchingIP string
 	nodeAddresses := apiNode.Status.Addresses
 	// Use external IP if it is available. Otherwise use legacy host IP.
@@ -134,15 +202,7 @@ func NewKubeNode(apiNode *v1.Node, clusterName string) *KubeNode {
 			nodeStitchingIP = nodeAddress.Address
 		}
 	}
-
-	if nodeStitchingIP == "" {
-		glog.Errorf("Failed to find stitching IP for node %s: it does not have either external IP or legacy "+
-			"host IP.", apiNode.Name)
-	} else {
-		nodeEntity.IPAddress = nodeStitchingIP
-	}
-	glog.V(2).Infof("Created node entity : %s\n", nodeEntity.String())
-	return nodeEntity
+	return nodeStitchingIP
 }
 
 func (nodeEntity *KubeNode) String() string {
@@ -180,11 +240,45 @@ type KubeNamespace struct {
 	Quota       *KubeQuota
 }
 
+func (namespaceEntity *KubeNamespace) String() string {
+	var buffer bytes.Buffer
+	line := fmt.Sprintf("Namespace:%s\n", namespaceEntity.Name)
+	buffer.WriteString(line)
+	line = fmt.Sprintf(namespaceEntity.Quota.String())
+	buffer.WriteString(line)
+	return buffer.String()
+}
+
 // The quota defined for a namespace
 type KubeQuota struct {
 	*KubeEntity
 	QuotaList               []*v1.ResourceQuota
 	AverageNodeCpuFrequency float64
+}
+
+func (quotaEntity *KubeQuota) String() string {
+	var buffer bytes.Buffer
+
+	if len(quotaEntity.QuotaList) > 0 {
+		var quotaNames []string
+		for _, quota := range quotaEntity.QuotaList {
+			quotaNames = append(quotaNames, quota.Name)
+		}
+		quotaStr := strings.Join(quotaNames, ",")
+		line := fmt.Sprintf("Contains resource quota(s) : %s\n", quotaStr)
+		buffer.WriteString(line)
+	}
+
+	var prefix string
+	if len(quotaEntity.QuotaList) == 0 {
+		prefix = "Default "
+	} else {
+		prefix = "Reconciled "
+	}
+	buffer.WriteString(prefix)
+	buffer.WriteString(quotaEntity.KubeEntity.String())
+
+	return buffer.String()
 }
 
 // Create a Quota object for a namespace.
@@ -224,10 +318,11 @@ func CreateDefaultQuota(clusterName, namespace string,
 // Multiple quota limits for the same resource, if any, are reconciled by selecting the
 // most restrictive limit value.
 func (quotaEntity *KubeQuota) ReconcileQuotas(quotas []*v1.ResourceQuota) {
-	quotaListStr := ""
 	// Quota resources by collecting resources from the list of resource quota objects
+	var quotaNames []string
 	for _, item := range quotas {
-		quotaListStr = quotaListStr + item.Name + ","
+		//quotaListStr = quotaListStr + item.Name + ","
+		quotaNames = append(quotaNames, item.Name)
 		// Resources in each quota
 		resourceStatus := item.Status
 		resourceHardList := resourceStatus.Hard
@@ -254,7 +349,7 @@ func (quotaEntity *KubeQuota) ReconcileQuotas(quotas []*v1.ResourceQuota) {
 			}
 		}
 	}
-
+	quotaListStr := strings.Join(quotaNames, ",")
 	glog.V(2).Infof("Reconciled Quota %s from ===> %s \n", quotaEntity.Name, quotaListStr)
 }
 

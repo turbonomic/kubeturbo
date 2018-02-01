@@ -41,6 +41,8 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 type K8sDiscoveryClient struct {
 	config            *DiscoveryClientConfig
 	k8sClusterScraper *cluster.ClusterScraper
+	clusterProcessor  *processor.ClusterProcessor
+	kubeCluster       *repository.KubeCluster
 
 	dispatcher      *worker.Dispatcher
 	resultCollector *worker.ResultCollector
@@ -53,11 +55,14 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	resultCollector := worker.NewResultCollector(workerCount * 2)
 	k8sClusterScraper := cluster.NewClusterScraper(config.probeConfig.ClusterClient)
 
+	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient)
+
 	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig, workerCount)
 	dispatcher := worker.NewDispatcher(dispatcherConfig)
 	dispatcher.Init(resultCollector)
 
 	dc := &K8sDiscoveryClient{
+		clusterProcessor:  clusterProcessor,
 		k8sClusterScraper: k8sClusterScraper,
 		config:            config,
 		dispatcher:        dispatcher,
@@ -101,8 +106,29 @@ func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTargetInfo {
 func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*proto.ValidationResponse, error) {
 	glog.V(2).Infof("Validating Kubernetes target...")
 
-	// TODO: connect to the client and get validation response
 	validationResponse := &proto.ValidationResponse{}
+
+	var err error
+	var kubeCluster *repository.KubeCluster
+	if dc.clusterProcessor == nil {
+		err = fmt.Errorf("Null cluster processor")
+	} else {
+		kubeCluster, err = dc.clusterProcessor.ConnectCluster()
+	}
+	if err != nil {
+		errStr := fmt.Sprintf("%s\n", err)
+		severity := proto.ErrorDTO_CRITICAL
+		var errorDtos []*proto.ErrorDTO
+		errorDto := &proto.ErrorDTO{
+			Severity:    &severity,
+			Description: &errStr,
+		}
+		errorDtos = append(errorDtos, errorDto)
+		validationResponse.ErrorDTO = errorDtos
+	} else {
+		glog.V(2).Infof("Validation response - connected to cluster and nodes\n")
+		dc.kubeCluster = kubeCluster
+	}
 
 	return validationResponse, nil
 }
@@ -127,14 +153,11 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 
 func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES AND QUOTAS HERE
-	clusterProcessor := &processor.ClusterProcessor{
-		ClusterInfoScraper: dc.k8sClusterScraper,
-	}
-	kubeCluster, err := clusterProcessor.ProcessCluster()
+	err := dc.clusterProcessor.DiscoverCluster(dc.kubeCluster)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to process cluster: %s", err)
 	}
-	clusterSummary := repository.CreateClusterSummary(kubeCluster)
+	clusterSummary := repository.CreateClusterSummary(dc.kubeCluster)
 
 	// Multiple discovery workers to create node and pod DTOs
 	nodes := clusterSummary.NodeList

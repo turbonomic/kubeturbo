@@ -10,8 +10,8 @@ import (
 	k8sapi "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	idutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
@@ -32,7 +32,7 @@ type containerResizeSpec struct {
 
 type ContainerResizer struct {
 	kubeClient                 *kclient.Clientset
-	kubeletClient              *kubelet.KubeletClient
+	kubeletClient              *kubeclient.KubeletClient
 	k8sVersion                 string
 	noneSchedulerName          string
 	enableNonDisruptiveSupport bool
@@ -50,7 +50,7 @@ func NewContainerResizeSpec(idx int) *containerResizeSpec {
 	}
 }
 
-func NewContainerResizer(client *kclient.Clientset, kubeletClient *kubelet.KubeletClient, k8sver, noschedulerName string, lmap *util.ExpirationMap, enableNonDisruptiveSupport bool) *ContainerResizer {
+func NewContainerResizer(client *kclient.Clientset, kubeletClient *kubeclient.KubeletClient, k8sver, noschedulerName string, lmap *util.ExpirationMap, enableNonDisruptiveSupport bool) *ContainerResizer {
 	return &ContainerResizer{
 		kubeClient:                 client,
 		kubeletClient:              kubeletClient,

@@ -11,7 +11,7 @@ import (
 // Class to query the multiple namespace objects data from the Kubernetes API server
 // and create the resource quota for each
 type NamespaceProcessor struct {
-	ClusterInfoScraper *cluster.ClusterScraper
+	ClusterInfoScraper cluster.ClusterScraperInterface
 	clusterName        string
 	ClusterResources   map[metrics.ResourceType]*repository.KubeDiscoveredResource
 }

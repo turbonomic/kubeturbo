@@ -15,13 +15,14 @@ import (
 	cadvisorapi "github.com/google/cadvisor/info/v1"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 )
 
 // KubeletMonitor is a resource monitoring worker.
 type KubeletMonitor struct {
 	nodeList []*api.Node
 
-	kubeletClient *KubeletClient
+	kubeletClient *kubeclient.KubeletClient
 
 	metricSink *metrics.EntityMetricSink
 
@@ -96,6 +97,7 @@ func (m *KubeletMonitor) RetrieveResourceStat() error {
 
 // Retrieve resource metrics for the given node.
 func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
+	kc := m.kubeletClient
 	ip, err := util.GetNodeIPForMonitor(node, types.KubeletSource)
 	if err != nil {
 		glog.Errorf("Failed to get resource metrics from %s: %s", node.Name, err)
@@ -103,7 +105,7 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 	}
 
 	// get machine information
-	machineInfo, err := m.kubeletClient.GetMachineInfo(ip)
+	machineInfo, err := kc.GetMachineInfo(ip)
 	if err != nil {
 		glog.Errorf("Failed to get machine information from %s: %s", node.Name, err)
 		return
@@ -112,7 +114,7 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 	m.parseNodeInfo(node, machineInfo)
 
 	// get summary information about the given node and the pods running on it.
-	summary, err := m.kubeletClient.GetSummary(ip)
+	summary, err := kc.GetSummary(ip)
 	if err != nil {
 		glog.Errorf("Failed to get resource metrics summary from %s: %s", node.Name, err)
 		return
@@ -121,7 +123,6 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 	m.parsePodStats(summary.Pods)
 
 	glog.V(4).Infof("Finished scrape node %s.", node.Name)
-
 }
 
 func (m *KubeletMonitor) parseNodeInfo(node *api.Node, machineInfo *cadvisorapi.MachineInfo) {
@@ -138,8 +139,8 @@ func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats) {
 	memoryUsageKiloBytes := float64(*nodeStats.Memory.UsageBytes) / util.KilobytesToBytes
 
 	key := util.NodeStatsKeyFunc(nodeStats)
-	glog.V(3).Infof("CPU usage of node %s is %.3f core", nodeStats.NodeName, cpuUsageCore)
-	glog.V(3).Infof("Memory usage of node %s is %.3f KB", nodeStats.NodeName, memoryUsageKiloBytes)
+	glog.V(4).Infof("CPU usage of node %s is %.3f core", nodeStats.NodeName, cpuUsageCore)
+	glog.V(4).Infof("Memory usage of node %s is %.3f KB", nodeStats.NodeName, memoryUsageKiloBytes)
 	m.genUsedMetrics(metrics.NodeType, key, cpuUsageCore, memoryUsageKiloBytes)
 }
 

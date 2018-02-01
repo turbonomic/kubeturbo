@@ -80,10 +80,13 @@ func (dc *K8sDiscoveryClient) discoverWithNewFrameworkWithoutCompliance() ([]*pr
 		return nil, fmt.Errorf("Failed to get all nodes in the cluster: %s", err)
 	}
 
-	clusterProcessor := &processor.ClusterProcessor{
-		ClusterInfoScraper: dc.k8sClusterScraper,
+	clusterProcessor := processor.NewClusterProcessor(dc.k8sClusterScraper, nil)
+	// Check connection to the cluster
+	kubeCluster, err := dc.clusterProcessor.ConnectCluster()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to connect to cluster: %s", err)
 	}
-	kubeCluster, err := clusterProcessor.ProcessCluster()
+	err = clusterProcessor.DiscoverCluster(kubeCluster)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to process cluster: %s", err)
 	}
