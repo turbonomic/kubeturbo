@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/client-go/kubernetes"
@@ -34,6 +36,8 @@ const (
 	DefaultKubeletPort  = 10255
 	DefaultKubeletHttps = false
 )
+
+type disconnectFromTurboFunc func()
 
 // VMTServer has all the context and params needed to run a Scheduler
 // TODO: leaderElection is disabled now because of dependency problems.
@@ -216,6 +220,10 @@ func (s *VMTServer) Run(_ []string) error {
 	// Start the KubeTurbo TAP service
 	run := func(_ <-chan struct{}) {
 		glog.V(2).Infof("********** Start runnning Kubeturbo Service **********")
+
+		// Disconnect from Turbo server when Kubeturbo is shutdown
+		handleExit(func() { k8sTAPService.DisconnectFromTurbo() })
+
 		k8sTAPService.ConnectToTurbo()
 		select {}
 	}
@@ -252,4 +260,26 @@ func (s *VMTServer) startHttp() {
 		Handler: mux,
 	}
 	glog.Fatal(server.ListenAndServe())
+}
+
+// handleExit disconnects the tap service from Turbo service when Kubeturbo is shotdown
+func handleExit(disconnectFunc disconnectFromTurboFunc) { //k8sTAPService *kubeturbo.K8sTAPService) {
+	glog.V(4).Infof("*** Handling Kubeturbo Termination ***")
+	sigChan := make(chan os.Signal)
+	signal.Notify(sigChan,
+		os.Interrupt,
+		syscall.SIGTERM,
+		syscall.SIGINT,
+		syscall.SIGQUIT,
+		syscall.SIGHUP)
+
+	go func() {
+		select {
+		case sig := <-sigChan:
+			// Close the mediation container including the endpoints. It avoids the
+			// invalid endpoints remaining in the server side. See OM-28801.
+			glog.V(2).Infof("Signal %s received. Disconnecting from Turbo server...\n", sig)
+			disconnectFunc()
+		}
+	}()
 }
