@@ -73,7 +73,6 @@ func (processor *ClusterProcessor) connectToNodes() error {
 
 	for _, node := range nodeList {
 		nodeCpuFrequency, err := checkNode(node, processor.nodeScrapper)
-
 		if err != nil {
 			connectionErrors = append(connectionErrors, fmt.Sprintf("%s:%s", node.Name, err))
 		} else {
@@ -88,7 +87,7 @@ func (processor *ClusterProcessor) connectToNodes() error {
 
 	errStr := strings.Join(connectionErrors, ", ")
 	if len(connectionErrors) > 0 {
-		glog.V(2).Infof("Errors connecting to nodes : %s\n", errStr)
+		glog.Errorf("Errors connecting to nodes : %s\n", errStr)
 	}
 
 	if len(connectionMsgs) > 0 {
