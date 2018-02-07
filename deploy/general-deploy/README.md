@@ -39,7 +39,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io  
 ```
 
-3. create a configMap for kubeturbo
+3. create a configMap for kubeturbo, The <TURBONOMIC_SERVER_VERSION> is Turbonomic release version, e.g. 5.9.0 or 6.0.0
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -51,7 +51,7 @@ data:
     {
         "communicationConfig": {
             "serverMeta": {
-                "version": "6.0.1",
+                "version": "<TURBONOMIC_SERVER_VERSION>",
                 "turboServer": "https://<Turbo_server_URL>"
             },
             "restAPIConfig": {
