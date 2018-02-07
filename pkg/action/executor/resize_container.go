@@ -6,6 +6,7 @@ import (
 	"math"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	kclient "k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api/v1"
 
@@ -137,7 +138,7 @@ func (r *ContainerResizer) buildResourceLists(pod *k8sapi.Pod, actionItem *proto
 			glog.Error(err.Error())
 			return err
 		}
-		glog.V(3).Infof("Resize %v Capacity to %v", ctype.String(), amount)
+		glog.V(3).Infof("Resize pod-%v %v Capacity to %v", pod.Name, ctype.String(), amount)
 	}
 
 	//2. check reservation
@@ -155,7 +156,35 @@ func (r *ContainerResizer) buildResourceLists(pod *k8sapi.Pod, actionItem *proto
 			glog.Error(err.Error())
 			return err
 		}
-		glog.V(3).Infof("Resize %v Reservation to %v", ctype.String(), amount)
+		glog.V(3).Infof("Resize pod-%v %v Reservation to %v", pod.Name, ctype.String(), amount)
+	}
+
+	return nil
+}
+
+// fix-OM-30019: when resizing Capacity, if request is not specified, then the request will be equal to the new capacity.
+// Solution: if request is not specified, then set it to zero.
+func (r *ContainerResizer) setZeroRequest(pod *k8sapi.Pod, containerIdx int, spec *containerResizeSpec) error {
+	//1. check whether Capacity resizing is involved.
+	if len(spec.NewCapacity) < 1 {
+		glog.V(3).Infof("No capacity resizing, no need to set request.")
+		return nil
+	}
+
+	//2. for each type of resource Capacity resizing, check whether the request is specified
+	container := &(pod.Spec.Containers[containerIdx])
+	origRequest := container.Resources.Requests
+	if origRequest == nil {
+		origRequest = make(k8sapi.ResourceList)
+		container.Resources.Requests = origRequest
+	}
+	zero := resource.NewQuantity(0, resource.BinarySI)
+
+	for k := range spec.NewCapacity {
+		if _, exist := origRequest[k]; !exist {
+			spec.NewRequest[k] = *zero
+			glog.V(3).Infof("set unspecified %v request to zero", k)
+		}
 	}
 
 	return nil
@@ -188,10 +217,21 @@ func (r *ContainerResizer) buildResizeAction(actionItem *proto.ActionItemDTO) (*
 		return nil, nil, err
 	}
 
+	if containerIndex < 0 || containerIndex > len(pod.Spec.Containers) {
+		err = fmt.Errorf("Invalidate containerIndex %d", containerIndex)
+		glog.Error(err.Error())
+		return nil, nil, err
+	}
+
 	//2. build the new resource Capacity
 	resizeSpec := NewContainerResizeSpec(containerIndex)
 	if err = r.buildResourceLists(pod, actionItem, resizeSpec); err != nil {
 		glog.Errorf("failed to build NewCapacity to build resizeAction: %v", err)
+		return nil, nil, err
+	}
+
+	if err = r.setZeroRequest(pod, containerIndex, resizeSpec); err != nil {
+		glog.Errorf("failed to adjust request.")
 		return nil, nil, err
 	}
 
