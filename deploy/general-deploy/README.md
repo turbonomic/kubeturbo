@@ -1,114 +1,106 @@
-### Prerequisites
-* Turbonomic 5.9+
-* Running Kubernetes 1.4+ cluster 
+> NOTE: The user performing the steps to create a namespace, service account, and `cluster-admin` clusterrolebinding, will need to have cluster-admin role.
 
-### <a name="configFile"></a>Step One: Copy kubeconfig for kubeturbo
-`kubeconfig` with proper permission is required for Kubeturbo service to interact with kube-apiserver. 
-Please copy `kubeconfig` to `/etc/kubeturbo` on the node Kubeturbo will be running on. You can label the node as following to make sure Kubeturbo will be deployed on that node.
+Deploy the kubeturbo pod with the following resources:
 
-```console
-$kubectl label nodes <NODE_NAME> kubeturbo=deployable
-```
+1. create a namespace
 
-To see the labels on node (*which is 10.10.174.81 in this example*),
-
-```console
-$kubectl get nodes --show-labels
-NAME           STATUS    AGE       LABELS
-10.10.174.81   Ready     62d       kubernetes.io/hostname=10.10.174.81,region=primary,kubeturbo=deployable
-10.10.174.82   Ready     62d       kubernetes.io/hostname=10.10.174.82,region=primary
-10.10.174.83   Ready     62d       kubernetes.io/hostname=10.10.174.83,region=primary
-```
-
-
-### Step Two: Creating Kubeturbo Pod
-In order to connect to your Turbonomic installation, a Kubeturbo configuration file must be created. 
-
-Create a file called `config` in the `/etc/kubeturbo/` directory in the same node labeled in previous step, with the following contents:
-
-> The `<TURBONOMIC_SERVER_URL>` is typically `https://<TURBO_SERVER_IP>:443`
-> The `<TURBONOMIC_SERVER_VERSION>` is Turbonomic release version, e.g. `5.9.0` or `6.0.0`
-
-```json
-{
-	"communicationConfig": {
-		"serverMeta": {
-                    "version": "<TURBONOMIC_SERVER_VERSION>",
-		    "turboServer": "<TURBONOMIC_SERVER_URL>"
-		},
-		"restAPIConfig": {
-			"opsManagerUserName": "<TURBONOMIC_USERNAME>",
-			"opsManagerPassword": "<TURBONOMIC_PASSWORD>"
-		}
-	},
-	"targetConfig": {
-		"probeCategory":"CloudNative",
-		"targetType":"Kubernetes",
-		"address":"http://<K8S_MASTER_IP>:8080",
-		"username":"user1",
-		"password":"pass1"
-	}
-}
-```
-
-`UPDATE`: Starting from version 6.1.0, there is no need to specify `targetConfig` so that the `config` file looks like:
-
-```json
-{
-	"communicationConfig": {
-		"serverMeta": {
-                    "version": "<TURBONOMIC_SERVER_VERSION>",
-		    "turboServer": "<TURBONOMIC_SERVER_URL>"
-		},
-		"restAPIConfig": {
-			"opsManagerUserName": "<TURBONOMIC_USERNAME>",
-			"opsManagerPassword": "<TURBONOMIC_PASSWORD>"
-		}
-	}
-}
-```
-
-### Step Three: Creating Kubeturbo Pod
-
-Assume you have `kubeconfig` and `config` under `/etc/kubeturbo`.
-Define and run Kubeturbo pod using the following yaml.
+Use an existing namespace, or create one where to deploy kubeturbo. The yaml examples will use `turbo`.
 
 ```yaml
 apiVersion: v1
-kind: Pod
+kind: Namespace
+metadata:
+  name: turbo 
+```
+
+2. Create a service account, and add the role of cluster-admin
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: turbo-user
+  namespace: turbo
+```
+
+Assign `cluster-admin` role by cluster role binding:
+```yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1    
+metadata:
+  name: turbo-all-binding
+  namespace: turbo
+subjects:
+- kind: ServiceAccount
+  name: turbo-user
+  namespace: turbo
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io  
+```
+
+3. create a configMap for kubeturbo, The <TURBONOMIC_SERVER_VERSION> is Turbonomic release version, e.g. 5.9.0 or 6.0.0
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: turbo-config
+  namespace: turbo
+data:
+  turbo.config: |-
+    {
+        "communicationConfig": {
+            "serverMeta": {
+                "version": "<TURBONOMIC_SERVER_VERSION>",
+                "turboServer": "https://<Turbo_server_URL>"
+            },
+            "restAPIConfig": {
+                "opsManagerUserName": "<Turbo_username>",
+                "opsManagerPassword": "<Turbo_password>"
+            }
+        }
+    }
+```
+
+
+4. Create a deployment for kubeturbo
+```yaml
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
   name: kubeturbo
+  namespace: turbo
   labels:
-    name: kubeturbo
+    app: kubeturbo
 spec:
-  nodeSelector:
-    kubeturbo: deployable
-  containers:
-  - name: kubeturbo
-    image: vmturbo/kubeturbo:6.0
-    args:
-      - --kubeconfig=/etc/kubeturbo/kubeconfig
-      - --turboconfig=/etc/kubeturbo/config
-    volumeMounts:
-    - name: turbo-config
-      mountPath: /etc/kubeturbo
-      readOnly: true
-  volumes:
-  - name: turbo-config
-    hostPath:
-      path: /etc/kubeturbo
-  restartPolicy: Always
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: kubeturbo
+    spec:
+      serviceAccount: turbo-user
+      containers:
+        - name: kubeturbo
+          # Replace the image with desired version
+          image: vmturbo/kubeturbo:6.0.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - --turboconfig=/etc/kubeturbo/turbo.config
+            - --v=2
+            # Uncomment the following two args if running in Openshift
+            #- --kubelet-https=true
+            #- --kubelet-port=10250
+            # Uncomment the following arg if running on a VCenter cluster
+            #- --usevmware=true
+          volumeMounts:
+          - name: turbo-config
+            mountPath: /etc/kubeturbo
+            readOnly: true
+      volumes:
+      - name: turbo-config
+        configMap:
+          name: turbo-config
+      restartPolicy: Always
 ```
-
-To verify that the Kubeturbo pod is running, use `kubectl get pods --all-namespaces` and look for "kubeturbo".
-
-```console
-NAMESPACE     NAME                                    READY     STATUS        RESTARTS   AGE
-kube-system   kube-apiserver-10.10.174.116            1/1       Running       0          55s
-default       kubeturbo                               1/1       Running       0          55s
-kube-system   kube-controller-manager-10.10.174.116   1/1       Running       0          55s
-kube-system   kube-proxy-10.10.174.116                1/1       Running       0          55s
-kube-system   kube-proxy-10.10.174.117                1/1       Running       0          10s
-kube-system   kube-proxy-10.10.174.118                1/1       Running       0          10s
-kube-system   kube-proxy-10.10.174.119                1/1       Running       0          10s
-```
+Note: If Kubernetes version is older than 1.6, then add another arg for move/resize action `--k8sVersion=1.5`
