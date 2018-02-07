@@ -103,4 +103,4 @@ spec:
           name: turbo-config
       restartPolicy: Always
 ```
-Note: If Kubernetes version is less 1.6, then add another arg for moveAction `--k8sVersion=1.5`
+Note: If Kubernetes version is older than 1.6, then add another arg for move/resize action `--k8sVersion=1.5`
