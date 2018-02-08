@@ -20,7 +20,7 @@ const (
 
 	//a flag indicating whether the object should be monitored or not.
 	// only value="false" indicating the object should not be monitored by kubeturbo.
-	TurboMonitorAnnotation string = "kubeturbo.io/moitored"
+	TurboMonitorAnnotation string = "kubeturbo.io/monitored"
 )
 
 // check whether a Kubernetes object is monitored or not by its annotation.
