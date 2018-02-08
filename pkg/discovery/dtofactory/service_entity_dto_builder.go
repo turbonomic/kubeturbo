@@ -47,10 +47,16 @@ func (builder *ServiceEntityDTOBuilder) BuildSvcEntityDTO(servicePodMap map[*api
 		}
 		ebuilder.VirtualApplicationData(vAppData)
 
-		//3. create it
+		//3. check whether it is monitored
+		if !util.IsMonitoredFromAnnotation(service) {
+			glog.V(3).Infof("Service %v is not monitored.", displayName)
+			ebuilder.Monitored(false)
+		}
+
+		//4. create it
 		entityDto, err := ebuilder.Create()
 		if err != nil {
-			glog.Errorf("failed to create service[%s] EntityDTO: %v", serviceName, err)
+			glog.Errorf("failed to create service[%s] EntityDTO: %v", displayName, err)
 			continue
 		}
 		result = append(result, entityDto)
