@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/api/meta"
 	api "k8s.io/client-go/pkg/api/v1"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 
@@ -25,14 +24,7 @@ const (
 
 // check whether a Kubernetes object is monitored or not by its annotation.
 // the object can be: Pod, Service, Namespace, or others
-func IsMonitoredFromAnnotation(obj interface{}) bool {
-	acc, err := meta.Accessor(obj)
-	if err != nil {
-		glog.Errorf("Not a Kubernetes Object: %v", err)
-		return true
-	}
-
-	annotations := acc.GetAnnotations()
+func IsMonitoredFromAnnotation(annotations map[string]string) bool {
 	if annotations != nil {
 		if v, ok := annotations[TurboMonitorAnnotation]; ok {
 			if strings.EqualFold(v, "false") {
@@ -52,7 +44,7 @@ func Monitored(pod *api.Pod) bool {
 		return false
 	}
 
-	if !IsMonitoredFromAnnotation(pod) {
+	if !IsMonitoredFromAnnotation(pod.GetAnnotations()) {
 		return false
 	}
 	return true

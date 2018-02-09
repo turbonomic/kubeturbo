@@ -68,17 +68,17 @@ func checkObject(obj interface{}, t *testing.T) {
 		return
 	}
 
-	if len(annotation) == 0 && !IsMonitoredFromAnnotation(obj) {
+	if len(annotation) == 0 && !IsMonitoredFromAnnotation(acc.GetAnnotations()) {
 		t.Errorf("Object %v with empty annotation should be monitored.", acc.GetName())
 	}
 
 	setMonitorFlag(annotation, true)
-	if !IsMonitoredFromAnnotation(obj) {
+	if !IsMonitoredFromAnnotation(acc.GetAnnotations()) {
 		t.Errorf("Object %v should be monitored.", acc.GetName())
 	}
 
 	setMonitorFlag(annotation, false)
-	if IsMonitoredFromAnnotation(obj) {
+	if IsMonitoredFromAnnotation(acc.GetAnnotations()) {
 		t.Errorf("Object %v should be monitored.", acc.GetName())
 	}
 }
@@ -86,7 +86,7 @@ func checkObject(obj interface{}, t *testing.T) {
 func TestIsMonitoredFromAnnotation_Pod(t *testing.T) {
 	pod := createPod()
 
-	if !IsMonitoredFromAnnotation(pod) {
+	if !IsMonitoredFromAnnotation(pod.GetAnnotations()) {
 		t.Error("Pod without annotation should be monitored.")
 	}
 
@@ -97,7 +97,7 @@ func TestIsMonitoredFromAnnotation_Pod(t *testing.T) {
 func TestIsMonitoredFromAnnotation_Service(t *testing.T) {
 	svc := createService()
 
-	if !IsMonitoredFromAnnotation(svc) {
+	if !IsMonitoredFromAnnotation(svc.GetAnnotations()) {
 		t.Error("Service without annotation should be monitored")
 	}
 
@@ -108,7 +108,7 @@ func TestIsMonitoredFromAnnotation_Service(t *testing.T) {
 func TestIsMonitoredFromAnnotation_Namespace(t *testing.T) {
 	ns := createNamespace()
 
-	if !IsMonitoredFromAnnotation(ns) {
+	if !IsMonitoredFromAnnotation(ns.GetAnnotations()) {
 		t.Error("Service without annotation should be monitored")
 	}
 

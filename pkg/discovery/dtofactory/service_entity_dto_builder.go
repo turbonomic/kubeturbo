@@ -48,7 +48,7 @@ func (builder *ServiceEntityDTOBuilder) BuildSvcEntityDTO(servicePodMap map[*api
 		ebuilder.VirtualApplicationData(vAppData)
 
 		//3. check whether it is monitored
-		if !util.IsMonitoredFromAnnotation(service) {
+		if !util.IsMonitoredFromAnnotation(service.GetAnnotations()) {
 			glog.V(3).Infof("Service %v is not monitored.", displayName)
 			ebuilder.Monitored(false)
 		}
