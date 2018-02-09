@@ -181,6 +181,10 @@ func (r *ContainerResizer) setZeroRequest(pod *k8sapi.Pod, containerIdx int, spe
 	zero := resource.NewQuantity(0, resource.BinarySI)
 
 	for k := range spec.NewCapacity {
+		if _, exist := spec.NewRequest[k]; exist {
+			continue
+		}
+
 		if _, exist := origRequest[k]; !exist {
 			spec.NewRequest[k] = *zero
 			glog.V(3).Infof("set unspecified %v request to zero", k)

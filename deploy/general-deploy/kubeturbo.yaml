@@ -2,26 +2,32 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: kubeturbo
+  namespace: turbo
   labels:
     app: kubeturbo
 spec:
   replicas: 1
   template:
     metadata:
+      annotations:
+        kubeturbo.io/monitored: "false"
       labels:
         app: kubeturbo
     spec:
+      serviceAccount: turbo-user
       containers:
         - name: kubeturbo
           # Replace the image with desired version
-          image: vmturbo/kubeturbo:6.1dev
+          image: vmturbo/kubeturbo:6.0.1
           imagePullPolicy: IfNotPresent
           args:
             - --turboconfig=/etc/kubeturbo/turbo.config
-            - --v=3
+            - --v=2
             # Uncomment the following two args if running in Openshift
             #- --kubelet-https=true
             #- --kubelet-port=10250
+            # Uncomment the following arg if running on a VCenter cluster
+            #- --usevmware=true
           volumeMounts:
           - name: turbo-config
             mountPath: /etc/kubeturbo

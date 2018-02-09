@@ -76,6 +76,8 @@ spec:
   replicas: 1
   template:
     metadata:
+      annotations:
+        kubeturbo.io/monitored: "false"
       labels:
         app: kubeturbo
     spec:

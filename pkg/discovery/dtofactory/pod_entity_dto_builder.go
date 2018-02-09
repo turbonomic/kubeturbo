@@ -122,6 +122,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 
 		if !util.Monitored(pod) {
 			entityDTOBuilder.Monitored(false)
+			glog.V(3).Infof("Pod %v is not monitored.", displayName)
 		}
 
 		// build entityDTO.

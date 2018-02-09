@@ -8,6 +8,7 @@ import (
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 
 	"github.com/golang/glog"
+	"strings"
 )
 
 const (
@@ -15,13 +16,35 @@ const (
 	Kind_ReplicationController string = "ReplicationController"
 	Kind_ReplicaSet            string = "ReplicaSet"
 	Kind_Job                   string = "Job"
+
+	//a flag indicating whether the object should be monitored or not.
+	// only value="false" indicating the object should not be monitored by kubeturbo.
+	TurboMonitorAnnotation string = "kubeturbo.io/monitored"
 )
 
+// check whether a Kubernetes object is monitored or not by its annotation.
+// the object can be: Pod, Service, Namespace, or others
+func IsMonitoredFromAnnotation(annotations map[string]string) bool {
+	if annotations != nil {
+		if v, ok := annotations[TurboMonitorAnnotation]; ok {
+			if strings.EqualFold(v, "false") {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
 // Returns a bool indicates whether the given pod should be monitored.
-// Do not monitor pods running on nodes those are not monitored.
 // Do not monitor mirror pods or pods created by DaemonSets.
+// Do not monitor pods which set "TurboMonitorAnnotation" to "false"
 func Monitored(pod *api.Pod) bool {
 	if isMirrorPod(pod) || isPodCreatedBy(pod, Kind_DaemonSet) {
+		return false
+	}
+
+	if !IsMonitoredFromAnnotation(pod.GetAnnotations()) {
 		return false
 	}
 	return true
