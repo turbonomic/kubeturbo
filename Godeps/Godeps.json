@@ -99,17 +99,7 @@
 			"Rev": "4bd1920723d7b7c925de087aa32e2187708897f7"
 		},
 		{
-			"ImportPath": "github.com/google/cadvisor/client",
-			"Comment": "v0.26.0-2-gb971fd18",
-			"Rev": "b971fd1850f59f3e6e67842789217d9b006d6440"
-		},
-		{
 			"ImportPath": "github.com/google/cadvisor/info/v1",
-			"Comment": "v0.26.0-2-gb971fd18",
-			"Rev": "b971fd1850f59f3e6e67842789217d9b006d6440"
-		},
-		{
-			"ImportPath": "github.com/google/cadvisor/info/v2",
 			"Comment": "v0.26.0-2-gb971fd18",
 			"Rev": "b971fd1850f59f3e6e67842789217d9b006d6440"
 		},
@@ -201,16 +191,7 @@
 			"Rev": "9ff6c6923cfffbcd502984b8e0c80539a94968b7"
 		},
 		{
-			"ImportPath": "github.com/stretchr/objx",
-			"Rev": "1a9d0bb9f541897e62256577b352fdbc1fb4fd94"
-		},
-		{
 			"ImportPath": "github.com/stretchr/testify/assert",
-			"Comment": "v1.0-88-ge3a8ff8",
-			"Rev": "e3a8ff8ce36581f87a15341206f205b1da467059"
-		},
-		{
-			"ImportPath": "github.com/stretchr/testify/mock",
 			"Comment": "v1.0-88-ge3a8ff8",
 			"Rev": "e3a8ff8ce36581f87a15341206f205b1da467059"
 		},
@@ -223,39 +204,44 @@
 			"Rev": "f64fc5992be75359b1f8dc102f4ab1a658d78db3"
 		},
 		{
+			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg",
+			"Comment": "v6.0-4-g51599de",
+			"Rev": "51599de782cd3e710c1a4b5ff4ca315b24cfcd38"
+		},
+		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/builder",
-			"Comment": "v6.0-1-gb0b4040",
-			"Rev": "b0b40404c02dcc8c7b4a0fa7a9b80556738ed5e4"
+			"Comment": "v6.0-4-g51599de",
+			"Rev": "51599de782cd3e710c1a4b5ff4ca315b24cfcd38"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/mediationcontainer",
-			"Comment": "v6.0-1-gb0b4040",
-			"Rev": "b0b40404c02dcc8c7b4a0fa7a9b80556738ed5e4"
+			"Comment": "v6.0-4-g51599de",
+			"Rev": "51599de782cd3e710c1a4b5ff4ca315b24cfcd38"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/probe",
-			"Comment": "v6.0-1-gb0b4040",
-			"Rev": "b0b40404c02dcc8c7b4a0fa7a9b80556738ed5e4"
+			"Comment": "v6.0-4-g51599de",
+			"Rev": "51599de782cd3e710c1a4b5ff4ca315b24cfcd38"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/proto",
-			"Comment": "v6.0-1-gb0b4040",
-			"Rev": "b0b40404c02dcc8c7b4a0fa7a9b80556738ed5e4"
+			"Comment": "v6.0-4-g51599de",
+			"Rev": "51599de782cd3e710c1a4b5ff4ca315b24cfcd38"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/service",
-			"Comment": "v6.0-1-gb0b4040",
-			"Rev": "b0b40404c02dcc8c7b4a0fa7a9b80556738ed5e4"
+			"Comment": "v6.0-4-g51599de",
+			"Rev": "51599de782cd3e710c1a4b5ff4ca315b24cfcd38"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/supplychain",
-			"Comment": "v6.0-1-gb0b4040",
-			"Rev": "b0b40404c02dcc8c7b4a0fa7a9b80556738ed5e4"
+			"Comment": "v6.0-4-g51599de",
+			"Rev": "51599de782cd3e710c1a4b5ff4ca315b24cfcd38"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/version",
-			"Comment": "v6.0-1-gb0b4040",
-			"Rev": "b0b40404c02dcc8c7b4a0fa7a9b80556738ed5e4"
+			"Comment": "v6.0-4-g51599de",
+			"Rev": "51599de782cd3e710c1a4b5ff4ca315b24cfcd38"
 		},
 		{
 			"ImportPath": "github.com/ugorji/go/codec",
