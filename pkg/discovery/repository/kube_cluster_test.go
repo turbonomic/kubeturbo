@@ -284,6 +284,4 @@ func TestQuotaNames(t *testing.T) {
 	if quota.Name != namespaceName {
 		t.Errorf("quota.name is wrong: %v Vs. %v", quota.Name, namespaceName)
 	}
-
-	fmt.Printf("quota.info=%++v", quota)
 }
