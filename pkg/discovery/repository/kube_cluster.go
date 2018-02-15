@@ -283,11 +283,11 @@ func (quotaEntity *KubeQuota) String() string {
 
 // Create a Quota object for a namespace.
 // The resource quota limits are based on the cluster compute resource limits.
-func CreateDefaultQuota(clusterName, namespace string,
+func CreateDefaultQuota(clusterName, namespace, uuid string,
 	clusterResources map[metrics.ResourceType]*KubeDiscoveredResource) *KubeQuota {
 	quota := &KubeQuota{
 		KubeEntity: NewKubeEntity(metrics.QuotaType, clusterName,
-			namespace, namespace, namespace),
+			namespace, namespace, uuid),
 		QuotaList: []*v1.ResourceQuota{},
 	}
 

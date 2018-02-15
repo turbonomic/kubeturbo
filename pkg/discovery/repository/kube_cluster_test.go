@@ -86,8 +86,9 @@ func TestKubeQuota(t *testing.T) {
 	cluster := "cluster1"
 
 	var clusterResources map[metrics.ResourceType]*KubeDiscoveredResource
-	for _, testQuota := range TestQuotas {
-		kubeQuota := CreateDefaultQuota(cluster, namespace, clusterResources)
+	for i, testQuota := range TestQuotas {
+		uuid := fmt.Sprintf("vdc-%d", i)
+		kubeQuota := CreateDefaultQuota(cluster, namespace, uuid, clusterResources)
 		hardResourceList := v1.ResourceList{
 			v1.ResourceLimitsCPU:    resource.MustParse(testQuota.cpuLimit),
 			v1.ResourceLimitsMemory: resource.MustParse(testQuota.memLimit),
@@ -145,7 +146,7 @@ func TestKubeQuotaWithMissingAllocations(t *testing.T) {
 		metrics.Memory: &KubeDiscoveredResource{Type: metrics.Memory, Capacity: 16 * 1024},
 	}
 
-	for _, testQuota := range TestQuotas {
+	for i, testQuota := range TestQuotas {
 		hardResourceList := v1.ResourceList{
 			v1.ResourceLimitsCPU: resource.MustParse(testQuota.cpuLimit),
 		}
@@ -167,7 +168,8 @@ func TestKubeQuotaWithMissingAllocations(t *testing.T) {
 		var quotaList []*v1.ResourceQuota
 		quotaList = append(quotaList, quota)
 
-		kubeQuota := CreateDefaultQuota(cluster, namespace, clusterResources)
+		uuid := fmt.Sprintf("vdc-%d", i)
+		kubeQuota := CreateDefaultQuota(cluster, namespace, uuid, clusterResources)
 		kubeQuota.ReconcileQuotas(quotaList)
 
 		resource, _ := kubeQuota.GetAllocationResource(metrics.CPULimit)
@@ -252,7 +254,7 @@ func TestKubeQuotaReconcile(t *testing.T) {
 		}
 		quotaList = append(quotaList, quota)
 	}
-	kubeQuota := CreateDefaultQuota(cluster, namespace, clusterResources)
+	kubeQuota := CreateDefaultQuota(cluster, namespace, "vdc-uuid", clusterResources)
 	kubeQuota.ReconcileQuotas(quotaList)
 
 	resource, _ := kubeQuota.GetAllocationResource(metrics.CPULimit)

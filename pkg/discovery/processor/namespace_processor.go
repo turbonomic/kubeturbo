@@ -36,9 +36,12 @@ func (processor *NamespaceProcessor) ProcessNamespaces() (map[string]*repository
 			ClusterName: processor.clusterName,
 			Name:        item.Name,
 		}
+
 		// the default quota object
+		quotaUID := fmt.Sprintf("vdc-%s", item.UID)
 		quotaEntity := repository.CreateDefaultQuota(processor.clusterName,
 			namespace.Name,
+			quotaUID,
 			processor.ClusterResources)
 
 		// update the default quota limits using the defined resource quota objects
