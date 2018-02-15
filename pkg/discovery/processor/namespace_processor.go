@@ -39,7 +39,7 @@ func (processor *NamespaceProcessor) ProcessNamespaces() (map[string]*repository
 		}
 
 		// the default quota object
-		quotaUID := util.VDCIdFunc(item.UID)
+		quotaUID := util.VDCIdFunc(string(item.UID))
 		quotaEntity := repository.CreateDefaultQuota(processor.clusterName,
 			namespace.Name,
 			quotaUID,
