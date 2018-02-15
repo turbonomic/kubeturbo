@@ -263,3 +263,27 @@ func TestKubeQuotaReconcile(t *testing.T) {
 	resource, _ = kubeQuota.GetAllocationResource(metrics.MemoryLimit)
 	assert.Equal(t, resource.Capacity, leastMemKB) // the least of the 3 quotas
 }
+
+func TestQuotaNames(t *testing.T) {
+	clusterName := "k8s-cluster"
+	namespaceName := "kube-system"
+	namespaceId := "21c65de7-f4e9-11e7-acc0-005056802f41"
+	clusterResources := make(map[metrics.ResourceType]*KubeDiscoveredResource)
+
+	quotaId := util.VDCIdFunc(namespaceId)
+	quota := CreateDefaultQuota(clusterName, namespaceName, quotaId, clusterResources)
+
+	if quota.UID != quotaId {
+		t.Errorf("quota.UID is wrong: %v Vs. %v", quota.UID, quotaId)
+	}
+
+	if quota.ClusterName != clusterName {
+		t.Errorf("quota.clusterName is wrong:%v Vs. %v", quota.ClusterName, clusterName)
+	}
+
+	if quota.Name != namespaceName {
+		t.Errorf("quota.name is wrong: %v Vs. %v", quota.Name, namespaceName)
+	}
+
+	fmt.Printf("quota.info=%++v", quota)
+}
