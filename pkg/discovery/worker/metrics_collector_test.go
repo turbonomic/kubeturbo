@@ -122,10 +122,10 @@ var (
 	clusterResources = map[metrics.ResourceType]*repository.KubeDiscoveredResource{
 		metrics.CPU: {Type: metrics.CPU, Capacity: 8.0},
 	}
-	kubeQuota1 = repository.CreateDefaultQuota(cluster1, ns1, clusterResources)
-	kubeQuota2 = repository.CreateDefaultQuota(cluster1, ns2, clusterResources)
-	kubeQuota3 = repository.CreateDefaultQuota(cluster1, ns3, clusterResources)
-	kubeQuota4 = repository.CreateDefaultQuota(cluster1, ns4, clusterResources)
+	kubeQuota1 = repository.CreateDefaultQuota(cluster1, ns1, "vdc-uuid1", clusterResources)
+	kubeQuota2 = repository.CreateDefaultQuota(cluster1, ns2, "vdc-uuid2", clusterResources)
+	kubeQuota3 = repository.CreateDefaultQuota(cluster1, ns3, "vdc-uuid3", clusterResources)
+	kubeQuota4 = repository.CreateDefaultQuota(cluster1, ns4, "vdc-uuid4", clusterResources)
 
 	kubens1 = &repository.KubeNamespace{
 		ClusterName: cluster1,

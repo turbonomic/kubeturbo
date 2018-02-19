@@ -11,6 +11,7 @@ import (
 
 const (
 	appIdPrefix = "App"
+	vdcPrefix   = "k8s-vdc"
 )
 
 // PodStatsKeyFunc and PodKeyFunc should return the same value.
@@ -113,4 +114,8 @@ func NodeKeyFunc(node *api.Node) string {
 
 func NodeKeyFromPodFunc(pod *api.Pod) string {
 	return pod.Spec.NodeName
+}
+
+func VDCIdFunc(namespaceId string) string {
+	return fmt.Sprintf("%s-%s", vdcPrefix, namespaceId)
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 )
 
 // Class to query the multiple namespace objects data from the Kubernetes API server
@@ -36,9 +37,12 @@ func (processor *NamespaceProcessor) ProcessNamespaces() (map[string]*repository
 			ClusterName: processor.clusterName,
 			Name:        item.Name,
 		}
+
 		// the default quota object
+		quotaUID := util.VDCIdFunc(string(item.UID))
 		quotaEntity := repository.CreateDefaultQuota(processor.clusterName,
 			namespace.Name,
+			quotaUID,
 			processor.ClusterResources)
 
 		// update the default quota limits using the defined resource quota objects

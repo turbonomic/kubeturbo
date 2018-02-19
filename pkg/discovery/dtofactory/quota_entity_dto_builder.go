@@ -30,7 +30,7 @@ func (builder *quotaEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, err
 
 	for _, quota := range builder.QuotaMap {
 		// id.
-		quotaID := string(quota.Name)
+		quotaID := quota.UID
 		entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_DATACENTER, quotaID)
 
 		// display name.
