@@ -195,10 +195,10 @@ func ParseNodeIP(apiNode *v1.Node) string {
 	nodeAddresses := apiNode.Status.Addresses
 	// Use external IP if it is available. Otherwise use legacy host IP.
 	for _, nodeAddress := range nodeAddresses {
-		if nodeAddress.Type == v1.NodeExternalIP && nodeAddress.Address != "" {
+		if nodeAddress.Type == v1.NodeInternalIP && nodeAddress.Address != "" {
 			nodeStitchingIP = nodeAddress.Address
 		}
-		if nodeStitchingIP == "" && nodeAddress.Address != "" && nodeAddress.Type == v1.NodeInternalIP {
+		if nodeStitchingIP == "" && nodeAddress.Address != "" && nodeAddress.Type == v1.NodeExternalIP {
 			nodeStitchingIP = nodeAddress.Address
 		}
 	}
