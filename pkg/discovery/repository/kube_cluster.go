@@ -180,7 +180,10 @@ func (nodeEntity *KubeNode) UpdateResources(apiNode *v1.Node) {
 	}
 
 	// Node IP Address
-	nodeStitchingIP := ParseNodeIP(apiNode)
+	nodeStitchingIP := ParseNodeIP(apiNode, v1.NodeExternalIP)
+	if nodeStitchingIP == "" {
+		nodeStitchingIP = ParseNodeIP(apiNode, v1.NodeInternalIP)
+	}
 	if nodeStitchingIP == "" {
 		glog.Errorf("Failed to find stitching IP for node %s: it does not have either external IP or legacy "+
 			"host IP.", apiNode.Name)
@@ -190,19 +193,15 @@ func (nodeEntity *KubeNode) UpdateResources(apiNode *v1.Node) {
 }
 
 // Parse the Node instances returned by the kubernetes API to get the IP address
-func ParseNodeIP(apiNode *v1.Node) string {
-	var nodeStitchingIP string
+func ParseNodeIP(apiNode *v1.Node, addressType v1.NodeAddressType) string {
 	nodeAddresses := apiNode.Status.Addresses
-	// Use external IP if it is available. Otherwise use legacy host IP.
 	for _, nodeAddress := range nodeAddresses {
-		if nodeAddress.Type == v1.NodeInternalIP && nodeAddress.Address != "" {
-			nodeStitchingIP = nodeAddress.Address
-		}
-		if nodeStitchingIP == "" && nodeAddress.Address != "" && nodeAddress.Type == v1.NodeExternalIP {
-			nodeStitchingIP = nodeAddress.Address
+		if nodeAddress.Type == addressType && nodeAddress.Address != "" {
+			glog.V(4).Infof("%s : %s is %s", apiNode.Name, addressType, nodeAddress.Address)
+			return nodeAddress.Address
 		}
 	}
-	return nodeStitchingIP
+	return ""
 }
 
 func (nodeEntity *KubeNode) String() string {
