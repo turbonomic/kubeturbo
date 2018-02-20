@@ -97,7 +97,7 @@ func (processor *ClusterProcessor) connectToNodes() error {
 }
 
 func checkNode(node *v1.Node, kc kubeclient.KubeHttpClientInterface) (float64, error) {
-	ip := repository.ParseNodeIP(node)
+	ip := repository.ParseNodeIP(node, v1.NodeInternalIP)
 	cpuFreq, err := kc.GetMachineCpuFrequency(ip)
 
 	if err != nil {
