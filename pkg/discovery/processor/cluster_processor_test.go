@@ -50,7 +50,7 @@ var (
 func createMockNodes(allocatableMap map[v1.ResourceName]resource.Quantity) []*v1.Node {
 	var nodeList []*v1.Node
 	for _, mockNode := range mockNodes {
-		nodeAddresses := []v1.NodeAddress{{Type: v1.NodeExternalIP, Address: mockNode.ipAddress}}
+		nodeAddresses := []v1.NodeAddress{{Type: v1.NodeInternalIP, Address: mockNode.ipAddress}}
 
 		node := &v1.Node{
 			ObjectMeta: metav1.ObjectMeta{
