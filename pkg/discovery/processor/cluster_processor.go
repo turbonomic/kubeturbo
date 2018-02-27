@@ -18,6 +18,7 @@ import (
 type ClusterProcessor struct {
 	clusterInfoScraper cluster.ClusterScraperInterface
 	nodeScrapper       kubeclient.KubeHttpClientInterface
+	validationResult   *ClusterValidationResult
 }
 
 func NewClusterProcessor(kubeClient *cluster.ClusterScraper, kubeletClient *kubeclient.KubeletClient) *ClusterProcessor {
@@ -36,35 +37,46 @@ func NewClusterProcessor(kubeClient *cluster.ClusterScraper, kubeletClient *kube
 	return clusterProcessor
 }
 
+type ClusterValidationResult struct {
+	IsValidated      bool
+	UnreachableNodes []string
+}
+
 // Connects to the Kubernetes API Server and the nodes in the cluster.
-// If connection is successful a KubeCluster entity to represent the cluster is created
-func (processor *ClusterProcessor) ConnectCluster() (*repository.KubeCluster, error) {
+// ClusterProcessor is updated with the validation result.
+// Return error only if all the nodes in the cluster are unreachable.
+func (processor *ClusterProcessor) ConnectCluster() error {
 	if processor.clusterInfoScraper == nil || processor.nodeScrapper == nil {
-		return nil, fmt.Errorf("Null kubernetes cluster or node client")
+		return fmt.Errorf("Null kubernetes cluster or node client")
 	}
 
 	svcID, err := processor.clusterInfoScraper.GetKubernetesServiceID()
 	if err != nil {
-		return nil, fmt.Errorf("Cannot obtain service ID for cluster %s\n", err)
+		return fmt.Errorf("Cannot obtain service ID for cluster %s\n", err)
 	}
-	kubeCluster := repository.NewKubeCluster(svcID)
 	glog.V(4).Infof("Created cluster %s\n", svcID)
 
 	// Nodes
-	err = processor.connectToNodes()
+	validationResult, err := processor.connectToNodes()
+	processor.validationResult = validationResult
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	return kubeCluster, err
+	return nil
 }
 
 // Connects to all nodes in the cluster.
 // Obtains the CPU Frequency of the node to determine the node availability and accessibility.
-func (processor *ClusterProcessor) connectToNodes() error {
+func (processor *ClusterProcessor) connectToNodes() (*ClusterValidationResult, error) {
+	var unreachable []string
+	validationResult := &ClusterValidationResult{
+		UnreachableNodes: unreachable,
+	}
+
 	nodeList, err := processor.clusterInfoScraper.GetAllNodes()
 	if err != nil {
-		return fmt.Errorf("Error getting nodes for cluster : %s\n", err)
+		validationResult.IsValidated = false
+		return validationResult, fmt.Errorf("Error getting nodes for cluster : %s\n", err)
 	}
 	glog.V(2).Infof("There are %d nodes\n", len(nodeList))
 
@@ -74,26 +86,25 @@ func (processor *ClusterProcessor) connectToNodes() error {
 	for _, node := range nodeList {
 		nodeCpuFrequency, err := checkNode(node, processor.nodeScrapper)
 		if err != nil {
-			connectionErrors = append(connectionErrors, fmt.Sprintf("%s:%s", node.Name, err))
+			connectionErrors = append(connectionErrors, fmt.Sprintf("%s [err:%s]", node.Name, err))
+			unreachable = append(unreachable, node.Name)
 		} else {
 			connectionMsgs = append(connectionMsgs,
 				fmt.Sprintf("%s [cpu:%v MHz]", node.Name, nodeCpuFrequency))
 		}
 	}
 
-	if len(connectionMsgs) > 0 {
-		glog.V(2).Infof("Successfully connected to nodes : %s\n", strings.Join(connectionMsgs, ", "))
-	}
-
-	errStr := strings.Join(connectionErrors, ", ")
-	if len(connectionErrors) > 0 {
+	// All nodes are unreachable
+	if len(unreachable) == len(nodeList) {
+		errStr := strings.Join(connectionErrors, ", ")
 		glog.Errorf("Errors connecting to nodes : %s\n", errStr)
+		validationResult.IsValidated = false
+		return validationResult, fmt.Errorf(errStr)
 	}
 
-	if len(connectionMsgs) > 0 {
-		return nil
-	}
-	return fmt.Errorf(errStr)
+	glog.V(2).Infof("Successfully connected to nodes : %s\n", strings.Join(connectionMsgs, ", "))
+	validationResult.IsValidated = true
+	return validationResult, nil
 }
 
 func checkNode(node *v1.Node, kc kubeclient.KubeHttpClientInterface) (float64, error) {
@@ -109,30 +120,28 @@ func checkNode(node *v1.Node, kc kubeclient.KubeHttpClientInterface) (float64, e
 }
 
 // Query the Kubernetes API Server to get the cluster nodes and namespaces and set in tge cluster object
-func (processor *ClusterProcessor) DiscoverCluster(kubeCluster *repository.KubeCluster) error {
-	// If connection to cluster is successful, then the cluster object is not null
-	if kubeCluster == nil {
-		return fmt.Errorf("Failed to connect to cluster")
-	}
+func (processor *ClusterProcessor) DiscoverCluster() (*repository.KubeCluster, error) {
 	if processor.clusterInfoScraper == nil {
-		return fmt.Errorf("Null kubernetes cluster client")
+		return nil, fmt.Errorf("Null kubernetes cluster client")
 	}
+	svcID, err := processor.clusterInfoScraper.GetKubernetesServiceID()
+	if err != nil {
+		return nil, fmt.Errorf("Cannot obtain service ID for cluster %s\n", err)
+	}
+	kubeCluster := repository.NewKubeCluster(svcID)
+	glog.V(4).Infof("Created cluster %s\n", svcID)
+
 	// Discover Nodes
 	clusterName := kubeCluster.Name
 	nodeList, err := processor.clusterInfoScraper.GetAllNodes()
 	if err != nil {
-		return fmt.Errorf("Error getting nodes for cluster %s:%s\n", clusterName, err)
+		return nil, fmt.Errorf("Error getting nodes for cluster %s:%s\n", clusterName, err)
 	}
 	glog.V(2).Infof("There are %d nodes\n", len(nodeList))
 
 	for _, item := range nodeList {
-		kubeNode, err := kubeCluster.GetNodeEntity(item.Name)
-		if err == nil {
-			kubeNode.UpdateResources(item)
-		} else {
-			nodeEntity := repository.NewKubeNode(item, clusterName)
-			kubeCluster.SetNodeEntity(nodeEntity)
-		}
+		nodeEntity := repository.NewKubeNode(item, clusterName)
+		kubeCluster.SetNodeEntity(nodeEntity)
 	}
 
 	kubeCluster.LogClusterNodes()
@@ -153,7 +162,7 @@ func (processor *ClusterProcessor) DiscoverCluster(kubeCluster *repository.KubeC
 	if glog.V(4) {
 		kubeCluster.LogClusterNamespaces()
 	}
-	return nil
+	return kubeCluster, nil
 }
 
 // Query the Kubernetes API Server and Get the Node objects

@@ -23,6 +23,12 @@ var (
 	allocatableCpuOnlyMap = map[v1.ResourceName]resource.Quantity{
 		v1.ResourceCPU: resource.MustParse("4.0"),
 	}
+	schedulableNodeMap = map[string]bool{
+		"node1": true,
+		"node2": true,
+		"node3": true,
+		"node4": true,
+	}
 	mockNodes = []struct {
 		name      string
 		ipAddress string
@@ -47,7 +53,7 @@ var (
 	}
 )
 
-func createMockNodes(allocatableMap map[v1.ResourceName]resource.Quantity) []*v1.Node {
+func createMockNodes(allocatableMap map[v1.ResourceName]resource.Quantity, schedulableNodeMap map[string]bool) []*v1.Node {
 	var nodeList []*v1.Node
 	for _, mockNode := range mockNodes {
 		nodeAddresses := []v1.NodeAddress{{Type: v1.NodeInternalIP, Address: mockNode.ipAddress}}
@@ -61,15 +67,18 @@ func createMockNodes(allocatableMap map[v1.ResourceName]resource.Quantity) []*v1
 				Allocatable: allocatableMap,
 				Addresses:   nodeAddresses,
 			},
+			Spec: v1.NodeSpec{
+				Unschedulable: !schedulableNodeMap[mockNode.name],
+			},
 		}
 		nodeList = append(nodeList, node)
 	}
 	return nodeList
 }
 
-func createMockKubeNodes(allocatableMap map[v1.ResourceName]resource.Quantity) map[string]*repository.KubeNode {
+func createMockKubeNodes(allocatableMap map[v1.ResourceName]resource.Quantity, schedulableNodeMap map[string]bool) map[string]*repository.KubeNode {
 	nodeMap := make(map[string]*repository.KubeNode)
-	for _, mockNode := range createMockNodes(allocatableMap) {
+	for _, mockNode := range createMockNodes(allocatableMap, schedulableNodeMap) {
 		knode := repository.NewKubeNode(mockNode, testClusterName)
 		nodeMap[knode.Name] = knode
 	}
@@ -78,8 +87,12 @@ func createMockKubeNodes(allocatableMap map[v1.ResourceName]resource.Quantity) m
 }
 
 func TestProcessNodes(t *testing.T) {
-	nodeList := createMockNodes(allocatableMap)
+
+	nodeList := createMockNodes(allocatableMap, schedulableNodeMap)
 	ms := &MockClusterScrapper{
+		mockGetKubernetesServiceID: func() (string, error) {
+			return testClusterName, nil
+		},
 		mockGetAllNodes: func() ([]*v1.Node, error) {
 			return nodeList, nil
 		},
@@ -104,13 +117,13 @@ func TestProcessNodes(t *testing.T) {
 
 func TestComputeClusterResources(t *testing.T) {
 	var resourceMap map[metrics.ResourceType]*repository.KubeDiscoveredResource
-	resourceMap = computeClusterResources(createMockKubeNodes(allocatableMap))
+	resourceMap = computeClusterResources(createMockKubeNodes(allocatableMap, schedulableNodeMap))
 	for _, computeType := range metrics.KubeComputeResourceTypes {
 		_, exists := resourceMap[computeType]
 		assert.True(t, exists)
 	}
 
-	resourceMap = computeClusterResources(createMockKubeNodes(allocatableCpuOnlyMap))
+	resourceMap = computeClusterResources(createMockKubeNodes(allocatableCpuOnlyMap, schedulableNodeMap))
 	for _, computeType := range metrics.KubeComputeResourceTypes {
 		_, exists := resourceMap[computeType]
 		assert.True(t, exists, fmt.Sprintf("missing %s resource", computeType))
@@ -118,26 +131,71 @@ func TestComputeClusterResources(t *testing.T) {
 }
 
 func TestDiscoverCluster(t *testing.T) {
-	nodeList := createMockNodes(allocatableMap)
+	nodeList := createMockNodes(allocatableMap, schedulableNodeMap)
 	ms := &MockClusterScrapper{
+		mockGetKubernetesServiceID: func() (string, error) {
+			return testClusterName, nil
+		},
 		mockGetAllNodes: func() ([]*v1.Node, error) {
 			return nodeList, nil
 		},
 	}
 	clusterProcessor := &ClusterProcessor{
 		clusterInfoScraper: ms,
+		validationResult:   &ClusterValidationResult{IsValidated: true},
 	}
 
-	testCluster := repository.NewKubeCluster("TestCluster")
-	err := clusterProcessor.DiscoverCluster(testCluster)
+	testCluster, err := clusterProcessor.DiscoverCluster()
 	assert.Nil(t, err)
 	nodeMap := testCluster.Nodes
 	assert.Equal(t, len(nodeList), len(nodeMap))
 	assert.Equal(t, 0, len(testCluster.Namespaces))
 }
 
+func TestDiscoverClusterChangedSchedulableNodes(t *testing.T) {
+	nodeList := createMockNodes(allocatableMap, schedulableNodeMap)
+	ms := &MockClusterScrapper{
+		mockGetKubernetesServiceID: func() (string, error) {
+			return testClusterName, nil
+		},
+		mockGetAllNodes: func() ([]*v1.Node, error) {
+			return nodeList, nil
+		},
+	}
+	clusterProcessor := &ClusterProcessor{
+		clusterInfoScraper: ms,
+		validationResult:   &ClusterValidationResult{IsValidated: true},
+	}
+
+	testCluster1, _ := clusterProcessor.DiscoverCluster()
+	nodeMap := testCluster1.Nodes
+	assert.Equal(t, len(nodeList), len(nodeMap))
+	assert.Equal(t, 0, len(testCluster1.Namespaces))
+
+	for _, node := range nodeMap {
+		assert.Equal(t, schedulableNodeMap[node.Name], !node.Node.Spec.Unschedulable)
+	}
+
+	newSchedulableNodeMap := map[string]bool{
+		"node1": true,
+		"node2": false,
+		"node3": true,
+		"node4": false,
+	}
+	nodeList = createMockNodes(allocatableMap, newSchedulableNodeMap)
+	ms.mockGetAllNodes = func() ([]*v1.Node, error) {
+		return nodeList, nil
+	}
+	testCluster2, _ := clusterProcessor.DiscoverCluster()
+	nodeMap = testCluster2.Nodes
+	assert.Equal(t, len(nodeList), len(nodeMap))
+	for _, node := range nodeMap {
+		assert.Equal(t, newSchedulableNodeMap[node.Name], !node.Node.Spec.Unschedulable)
+	}
+}
+
 func TestConnectCluster(t *testing.T) {
-	nodeList := createMockNodes(allocatableMap)
+	nodeList := createMockNodes(allocatableMap, schedulableNodeMap)
 	ms := &MockClusterScrapper{
 		mockGetAllNodes: func() ([]*v1.Node, error) {
 			return nodeList, nil
@@ -161,13 +219,14 @@ func TestConnectCluster(t *testing.T) {
 		clusterInfoScraper: ms,
 		nodeScrapper:       ns,
 	}
-	kubeCluster, err := clusterProcessor.ConnectCluster()
-	assert.NotNil(t, kubeCluster)
+	err := clusterProcessor.ConnectCluster()
+	//assert.NotNil(t, kubeCluster)
+	assert.True(t, clusterProcessor.validationResult.IsValidated)
 	assert.Nil(t, err)
 }
 
 func TestConnectClusterUnreachableNodes(t *testing.T) {
-	nodeList := createMockNodes(allocatableMap)
+	nodeList := createMockNodes(allocatableMap, schedulableNodeMap)
 	ms := &MockClusterScrapper{
 		mockGetAllNodes: func() ([]*v1.Node, error) {
 			return nodeList, nil
@@ -186,13 +245,13 @@ func TestConnectClusterUnreachableNodes(t *testing.T) {
 		clusterInfoScraper: ms,
 		nodeScrapper:       ns,
 	}
-	kubeCluster, err := clusterProcessor.ConnectCluster()
-	assert.Nil(t, kubeCluster)
+	err := clusterProcessor.ConnectCluster()
+	assert.False(t, clusterProcessor.validationResult.IsValidated)
 	assert.NotNil(t, err)
 }
 
 func TestConnectClusterReachableAndUnreachableNodes(t *testing.T) {
-	nodeList := createMockNodes(allocatableMap)
+	nodeList := createMockNodes(allocatableMap, schedulableNodeMap)
 	ms := &MockClusterScrapper{
 		mockGetAllNodes: func() ([]*v1.Node, error) {
 			return nodeList, nil
@@ -217,9 +276,9 @@ func TestConnectClusterReachableAndUnreachableNodes(t *testing.T) {
 		clusterInfoScraper: ms,
 		nodeScrapper:       ns,
 	}
-	kubeCluster, errors := clusterProcessor.ConnectCluster()
+	errors := clusterProcessor.ConnectCluster()
 	fmt.Printf("err %s\n", errors)
-	assert.NotNil(t, kubeCluster)
+	//assert.NotNil(t, kubeCluster)
 	assert.Nil(t, errors)
 }
 
@@ -274,7 +333,7 @@ func (s *MockClusterScrapper) GetAllEndpoints() ([]*v1.Endpoints, error) {
 	return nil, fmt.Errorf("GetAllEndpoints Not implemented")
 }
 
-func (s *MockClusterScrapper) GetKubernetesServiceID() (svcID string, err error) {
+func (s *MockClusterScrapper) GetKubernetesServiceID() (string, error) {
 	if s.mockGetKubernetesServiceID != nil {
 		return s.mockGetKubernetesServiceID()
 	}
