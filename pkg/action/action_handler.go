@@ -8,7 +8,6 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -31,26 +30,12 @@ type ActionHandlerConfig struct {
 	kubeClient     *client.Clientset
 	kubeletClient  *kubeclient.KubeletClient
 	StopEverything chan struct{}
-
-	//for moveAction
-	k8sVersion        string
-	noneSchedulerName string
-	stitchType        stitching.StitchingPropertyType
-
-	// Flag for supporting non-disruptive action
-	enableNonDisruptiveSupport bool
 }
 
-func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubeclient.KubeletClient, k8sVersion, noneSchedulerName string, stype stitching.StitchingPropertyType, enableNonDisruptiveSupport bool) *ActionHandlerConfig {
+func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubeclient.KubeletClient) *ActionHandlerConfig {
 	config := &ActionHandlerConfig{
-		kubeClient:    kubeClient,
-		kubeletClient: kubeletClient,
-
-		k8sVersion:                 k8sVersion,
-		noneSchedulerName:          noneSchedulerName,
-		stitchType:                 stype,
-		enableNonDisruptiveSupport: enableNonDisruptiveSupport,
-
+		kubeClient:     kubeClient,
+		kubeletClient:  kubeletClient,
 		StopEverything: make(chan struct{}),
 	}
 
@@ -84,14 +69,14 @@ func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 // As action executor is stateless, they can be safely reused.
 func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
-	reScheduler := executor.NewReScheduler(c.kubeClient, c.k8sVersion, c.noneSchedulerName, h.lockMap, c.stitchType, c.enableNonDisruptiveSupport)
+	reScheduler := executor.NewReScheduler(c.kubeClient, h.lockMap)
 	h.actionExecutors[turboActionMove] = reScheduler
 
 	horizontalScaler := executor.NewHorizontalScaler(c.kubeClient, h.lockMap)
 	h.actionExecutors[turboActionProvision] = horizontalScaler
 	h.actionExecutors[turboActionUnbind] = horizontalScaler
 
-	containerResizer := executor.NewContainerResizer(c.kubeClient, c.kubeletClient, c.k8sVersion, c.noneSchedulerName, h.lockMap, c.enableNonDisruptiveSupport)
+	containerResizer := executor.NewContainerResizer(c.kubeClient, c.kubeletClient, h.lockMap)
 	h.actionExecutors[turboActionContainerResize] = containerResizer
 }
 

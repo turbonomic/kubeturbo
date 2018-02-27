@@ -51,14 +51,11 @@ func NewContainerResizeSpec(idx int) *containerResizeSpec {
 	}
 }
 
-func NewContainerResizer(client *kclient.Clientset, kubeletClient *kubeclient.KubeletClient, k8sver, noschedulerName string, lmap *util.ExpirationMap, enableNonDisruptiveSupport bool) *ContainerResizer {
+func NewContainerResizer(client *kclient.Clientset, kubeletClient *kubeclient.KubeletClient, lmap *util.ExpirationMap) *ContainerResizer {
 	return &ContainerResizer{
-		kubeClient:                 client,
-		kubeletClient:              kubeletClient,
-		k8sVersion:                 k8sver,
-		noneSchedulerName:          noschedulerName,
-		enableNonDisruptiveSupport: enableNonDisruptiveSupport,
-		lockMap:                    lmap,
+		kubeClient:    client,
+		kubeletClient: kubeletClient,
+		lockMap:       lmap,
 	}
 }
 
@@ -242,10 +239,11 @@ func (r *ContainerResizer) buildResizeAction(actionItem *proto.ActionItemDTO) (*
 	return resizeSpec, pod, nil
 }
 
+//Note: the error info will be shown in UI
 func (r *ContainerResizer) Execute(actionItem *proto.ActionItemDTO) error {
 	if actionItem == nil {
 		glog.Errorf("potential bug: actionItem is null.")
-		return fmt.Errorf("ActionItem is null.")
+		return fmt.Errorf("Invalid Action Info")
 	}
 
 	//1. build turboAction
@@ -256,135 +254,64 @@ func (r *ContainerResizer) Execute(actionItem *proto.ActionItemDTO) error {
 	}
 
 	//2. execute the Action
-	err = r.executeAction(spec, pod)
+	npod, err := r.executeAction(spec, pod)
 	if err != nil {
 		glog.Errorf("failed to execute Action: %v", err)
-		return fmt.Errorf("Failed.")
+		return err
 	}
 
 	//3. check action result
-	fullName := util.BuildIdentifier(pod.Namespace, pod.Name)
+	fullName := util.BuildIdentifier(npod.Namespace, npod.Name)
 	glog.V(2).Infof("begin to check result of resizeContainer[%v].", fullName)
 	if err = r.checkPod(pod); err != nil {
 		glog.Errorf("failed to check pod[%v] for resize action: %v", fullName, err)
-		return fmt.Errorf("Failed")
+		return fmt.Errorf("Check Failed")
 	}
-	glog.V(2).Infof("Action resizeContainer[%v] succeeded.", fullName)
+	glog.V(2).Infof("Checking action resizeContainer[%v] succeeded.", fullName)
 
 	return nil
 }
 
-func (r *ContainerResizer) executeAction(resizeSpec *containerResizeSpec, pod *k8sapi.Pod) error {
+func (r *ContainerResizer) executeAction(resizeSpec *containerResizeSpec, pod *k8sapi.Pod) (*k8sapi.Pod, error) {
 	//1. check
 	if len(resizeSpec.NewCapacity) < 1 && len(resizeSpec.NewRequest) < 1 {
 		glog.Warningf("Resize specification is empty.")
-		return nil
+		return nil, fmt.Errorf("Invalid Action")
 	}
 
 	//2. get parent controller
 	fullName := util.BuildIdentifier(pod.Namespace, pod.Name)
 	parentKind, parentName, err := util.GetPodParentInfo(pod)
 	if err != nil {
-		glog.Errorf("failed to get pod[%s] parent info: %v", fullName, err)
-		return err
+		glog.Errorf("Resize action failed: failed to get pod[%s] parent info: %v", fullName, err)
+		return nil, fmt.Errorf("Failed")
 	}
 
+	if !util.SupportedParent(parentKind) {
+		glog.Errorf("Resize action aborted: parent kind(%v) is not supported.", parentKind)
+		return nil, fmt.Errorf("Unsupported")
+	}
+
+	var npod *k8sapi.Pod
 	if parentKind == "" {
-		err = r.resizeBarePodContainer(pod, resizeSpec)
+		npod, err = r.resizeBarePodContainer(pod, resizeSpec)
 	} else {
-		err = r.resizeControllerContainer(pod, parentKind, parentName, resizeSpec)
+		npod, err = r.resizeControllerContainer(pod, parentKind, parentName, resizeSpec)
 	}
 
 	if err != nil {
-		glog.Errorf("resize Pod[%s]-%d container failed: %v", fullName, resizeSpec.Index, err)
+		glog.Errorf("Resize Pod(%s) container action failed: %v", fullName, err)
+		return nil, fmt.Errorf("Failed")
 	}
-
-	return nil
+	return npod, nil
 }
 
-func (r *ContainerResizer) resizeControllerContainer(pod *k8sapi.Pod, parentKind, parentName string, spec *containerResizeSpec) error {
-	id := fmt.Sprintf("%s/%s-%d", pod.Namespace, pod.Name, spec.Index)
-	glog.V(2).Infof("begin to resizeContainer[%s] parent=%s/%s.", id, parentKind, parentName)
-
-	//1. set up
-	highver := true
-	if goutil.CompareVersion(r.k8sVersion, HigherK8sVersion) < 0 {
-		highver = false
-	}
-	noexist := r.noneSchedulerName
-	helper, err := NewSchedulerHelper(r.kubeClient, pod.Namespace, pod.Name, parentKind, parentName, noexist, highver)
+func (r *ContainerResizer) getLock(key string) (*util.LockHelper, error) {
+	//1. set up lock helper
+	helper, err := util.NewLockHelper(key, r.lockMap)
 	if err != nil {
-		glog.Errorf("resizeContainer failed[%s]: failed to create helper: %v", id, err)
-		return err
-	}
-	if err := helper.SetupLock(r.lockMap); err != nil {
-		return err
-	}
-
-	//2. wait to get a lock of the parent object
-	timeout := defaultWaitLockTimeOut
-	interval := defaultWaitLockSleep
-	err = goutil.RetryDuring(1000, timeout, interval, func() error {
-		if !helper.Acquirelock() {
-			return fmt.Errorf("TryLater")
-		}
-		return nil
-	})
-	if err != nil {
-		glog.Errorf("resizeContainer failed[%s]: failed to acquire lock of parent[%s]", id, parentName)
-		return err
-	}
-	glog.V(3).Infof("resizeContainer [%s]: got lock for parent[%s]", id, parentName)
-	helper.KeepRenewLock()
-
-	if r.enableNonDisruptiveSupport {
-		// Performs operations for actions to be non-disruptive (when the pod is the only one for the controller)
-		// NOTE: It doesn't support the case of the pod associated to Deployment in version lower than 1.6.0.
-		//       In such case, the action execution will fail.
-		contKind, contName, err := util.GetPodGrandInfo(r.kubeClient, pod)
-		if err != nil {
-			return err
-		}
-		nonDisruptiveHelper := NewNonDisruptiveHelper(r.kubeClient, pod.Namespace, contKind, contName, pod.Name, r.k8sVersion)
-
-		// Performs operations for non-disruptive resize actions
-		if err := nonDisruptiveHelper.OperateForNonDisruption(); err != nil {
-			glog.V(3).Infof("resizeContainer failed[%s]: failed to perform non-disruptive operations", id)
-			return err
-		}
-		defer nonDisruptiveHelper.CleanUp()
-	}
-
-	//3. defer function for cleanUp
-	defer func() {
-		helper.CleanUp()
-		util.CleanPendingPod(r.kubeClient, pod.Namespace, noexist, parentKind, parentName, highver)
-	}()
-
-	//4. disable the scheduler of  the parentController
-	preScheduler, err := helper.UpdateScheduler(noexist, defaultRetryLess)
-	if err != nil {
-		glog.Errorf("resizeContainer failed[%s]: failed to disable parentController-[%s]'s scheduler.", id, parentName)
-		return fmt.Errorf("TryLater")
-	}
-
-	//5.resize Container and restore parent's scheduler
-	helper.SetScheduler(preScheduler)
-	err = resizeContainer(r.kubeClient, pod, spec, defaultRetryLess)
-	if err != nil {
-		glog.Errorf("resizeContainer failed[%s]: %v", id, err)
-		return fmt.Errorf("TryLater")
-	}
-
-	return nil
-}
-
-func (r *ContainerResizer) resizeBarePodContainer(pod *k8sapi.Pod, spec *containerResizeSpec) error {
-	podkey := util.BuildIdentifier(pod.Namespace, pod.Name)
-	// 1. setup lockHelper
-	helper, err := util.NewLockHelper(podkey, r.lockMap)
-	if err != nil {
-		return err
+		glog.Errorf("Failed to get a lockHelper: %v", err)
+		return nil, err
 	}
 
 	// 2. wait to get a lock of current Pod
@@ -392,15 +319,56 @@ func (r *ContainerResizer) resizeBarePodContainer(pod *k8sapi.Pod, spec *contain
 	interval := defaultWaitLockSleep
 	err = helper.Trylock(timeout, interval)
 	if err != nil {
-		glog.Errorf("resizeContainer failed[%s]: failed to acquire lock of pod[%s]", podkey, podkey)
-		return err
+		glog.Errorf("Failed to acquire lock with key(%v): %v", key, err)
+		return nil, err
+	}
+	return helper, nil
+}
+
+func (r *ContainerResizer) resizeControllerContainer(pod *k8sapi.Pod, parentKind, parentName string, spec *containerResizeSpec) (*k8sapi.Pod, error) {
+	id := fmt.Sprintf("%s/%s-%d", pod.Namespace, pod.Name, spec.Index)
+	glog.V(2).Infof("begin to resizeContainer[%s] parent=%s/%s.", id, parentKind, parentName)
+
+	//1. get a lock on the controller
+	parentKey := fmt.Sprintf("%v-%v/%v", parentKind, pod.Namespace, parentName)
+	helper, err := r.getLock(parentKey)
+	if err != nil {
+		glog.Errorf("Resize controller container(%v) failed: failed to get lock: %v", id, err)
+		return nil, err
 	}
 	defer helper.ReleaseLock()
 
-	// 3. resize Pod.container
+	// 2. resize the container
 	helper.KeepRenewLock()
-	err = resizeContainer(r.kubeClient, pod, spec, defaultRetryMore)
-	return err
+
+	npod, err := resizeContainer(r.kubeClient, pod, spec, defaultRetryMore)
+	if err != nil {
+		glog.Errorf("Resize contorller container(%v) failed: %v", id, err)
+	}
+	return npod, err
+}
+
+func (r *ContainerResizer) resizeBarePodContainer(pod *k8sapi.Pod, spec *containerResizeSpec) (*k8sapi.Pod, error) {
+	id := fmt.Sprintf("%s/%s-%d", pod.Namespace, pod.Name, spec.Index)
+	glog.V(2).Infof("begin to resize barePod Container[%s].", id)
+
+	// 1. get a lock on the pod
+	podkey := util.BuildIdentifier(pod.Namespace, pod.Name)
+	helper, err := r.getLock(podkey)
+	if err != nil {
+		glog.Errorf("Resize controller container(%v) failed: failed to get lock: %v", id, err)
+		return nil, err
+	}
+	defer helper.ReleaseLock()
+
+	// 2. resize the container
+	helper.KeepRenewLock()
+
+	npod, err := resizeContainer(r.kubeClient, pod, spec, defaultRetryMore)
+	if err != nil {
+		glog.Errorf("Resize contorller container(%v) failed: %v", id, err)
+	}
+	return npod, err
 }
 
 // check the liveness of pod
