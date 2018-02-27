@@ -20,7 +20,6 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
-	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/test/flag"
 
 	"github.com/golang/glog"
@@ -32,9 +31,15 @@ import (
 const (
 	// The default port for vmt service server
 	KubeturboPort       = 10265
-	K8sCadvisorPort     = 4194
 	DefaultKubeletPort  = 10255
 	DefaultKubeletHttps = false
+)
+
+var (
+	//these variables will be deprecated. Keep it here for backward compatibility only
+	k8sVersion                 = "1.8"
+	noneSchedulerName          = "turbo-no-scheduler"
+	enableNonDisruptiveSupport = false
 )
 
 type disconnectFromTurboFunc func()
@@ -66,13 +71,6 @@ type VMTServer struct {
 	// Kubelet related config
 	KubeletPort        int
 	EnableKubeletHttps bool
-
-	// for Move Action
-	K8sVersion        string
-	NoneSchedulerName string
-
-	// Flag for supporting non-disruptive action
-	enableNonDisruptiveSupport bool
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -96,10 +94,9 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&s.UseVMWare, "usevmware", false, "If the underlying infrastructure is VMWare.")
 	fs.IntVar(&s.KubeletPort, "kubelet-port", DefaultKubeletPort, "The port of the kubelet runs on")
 	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
-	fs.StringVar(&s.K8sVersion, "k8sVersion", executor.HigherK8sVersion, "the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
-	fs.StringVar(&s.NoneSchedulerName, "noneSchedulerName", executor.DefaultNoneExistSchedulerName, "a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
-	fs.BoolVar(&s.enableNonDisruptiveSupport, "enable-non-disruptive-support", false, "Indicate if nondisruptive action support is enabled")
-
+	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
+	fs.StringVar(&noneSchedulerName, "noneSchedulerName", noneSchedulerName, "[deprecated] a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
+	fs.BoolVar(&enableNonDisruptiveSupport, "enable-non-disruptive-support", false, "[deprecated] Indicate if nondisruptive action support is enabled")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -205,10 +202,7 @@ func (s *VMTServer) Run(_ []string) error {
 	vmtConfig.WithTapSpec(k8sTAPSpec).
 		WithKubeClient(kubeClient).
 		WithKubeletClient(kubeletClient).
-		UsingVMWare(s.UseVMWare).
-		WithK8sVersion(s.K8sVersion).
-		WithNoneScheduler(s.NoneSchedulerName).
-		WithEnableNonDisruptiveFlag(s.enableNonDisruptiveSupport)
+		UsingVMWare(s.UseVMWare)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service

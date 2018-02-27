@@ -243,6 +243,7 @@ func GetPodFromUUID(kubeClient *client.Clientset, podUUID string) (*api.Pod, err
 // Note: displayName for application is "App-namespace/podName", the pods info can be got by the provider's displayname
 func GetPodFromDisplayNameOrUUID(kclient *client.Clientset, displayname, uuid string) (*api.Pod, error) {
 	if pod, err := getaPodFromDisplayName(kclient, displayname, uuid); err == nil {
+		glog.V(3).Infof("Get pod(%s) from displayName.", displayname)
 		return pod, err
 	}
 
@@ -544,4 +545,37 @@ func FindPodsByController(kubeClient *client.Clientset, namespace, contName, con
 		}
 	}
 	return pods, nil
+}
+
+// check whether parentKind is supported for MovePod/ResizeContainer actions
+// currently, these actions can only works on barePod, ReplicaSet, and ReplicationController
+//   Note: pod's parent cannot be Deployment. Deployment will create/control ReplicaSet, and ReplicaSet will create/control Pods.
+func SupportedParent(parentKind string) bool {
+	if parentKind == "" {
+		return true
+	}
+
+	if strings.EqualFold(parentKind, util.KindReplicaSet) {
+		return true
+	}
+
+	if strings.EqualFold(parentKind, util.KindReplicationController) {
+		return true
+	}
+
+	return false
+}
+
+func AddAnnotation(pod *api.Pod, key, value string) {
+	annotations := pod.Annotations
+	if annotations == nil {
+		annotations = make(map[string]string)
+		pod.Annotations = annotations
+	}
+
+	if oldv, ok := annotations[key]; ok {
+		glog.Warningf("Overwrite pod(%v/%v)'s annotation (%v=%v)", pod.Namespace, pod.Name, key, oldv)
+	}
+	annotations[key] = value
+	return
 }
