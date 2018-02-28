@@ -93,15 +93,19 @@ func (processor *ClusterProcessor) connectToNodes() (*ClusterValidationResult, e
 				fmt.Sprintf("%s [cpu:%v MHz]", node.Name, nodeCpuFrequency))
 		}
 	}
+	// collect all connection errors
+	errStr := strings.Join(connectionErrors, ", ")
 
 	// All nodes are unreachable
 	if len(unreachable) == len(nodeList) {
-		errStr := strings.Join(connectionErrors, ", ")
 		glog.Errorf("Errors connecting to nodes : %s\n", errStr)
 		validationResult.IsValidated = false
 		return validationResult, fmt.Errorf(errStr)
 	}
 
+	if len(connectionErrors) > 0 {
+		glog.Errorf("Some nodes cannot be reached: %s\n", errStr)
+	}
 	glog.V(2).Infof("Successfully connected to nodes : %s\n", strings.Join(connectionMsgs, ", "))
 	validationResult.IsValidated = true
 	return validationResult, nil
