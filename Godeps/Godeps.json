@@ -206,43 +206,43 @@
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg",
-			"Comment": "v6.0-13-g03603dc",
-			"Rev": "03603dc59c3a7d0e3552f9f98b590000b5e5c987"
+			"Comment": "v6.0-15-gd669b36",
+			"Rev": "d669b3664938cc28417366a6b092257b1149dff8"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/builder",
-			"Comment": "v6.0-13-g03603dc",
-			"Rev": "03603dc59c3a7d0e3552f9f98b590000b5e5c987"
+			"Comment": "v6.0-15-gd669b36",
+			"Rev": "d669b3664938cc28417366a6b092257b1149dff8"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/mediationcontainer",
-			"Comment": "v6.0-13-g03603dc",
-			"Rev": "03603dc59c3a7d0e3552f9f98b590000b5e5c987"
+			"Comment": "v6.0-15-gd669b36",
+			"Rev": "d669b3664938cc28417366a6b092257b1149dff8"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/probe",
-			"Comment": "v6.0-13-g03603dc",
-			"Rev": "03603dc59c3a7d0e3552f9f98b590000b5e5c987"
+			"Comment": "v6.0-15-gd669b36",
+			"Rev": "d669b3664938cc28417366a6b092257b1149dff8"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/proto",
-			"Comment": "v6.0-13-g03603dc",
-			"Rev": "03603dc59c3a7d0e3552f9f98b590000b5e5c987"
+			"Comment": "v6.0-15-gd669b36",
+			"Rev": "d669b3664938cc28417366a6b092257b1149dff8"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/service",
-			"Comment": "v6.0-13-g03603dc",
-			"Rev": "03603dc59c3a7d0e3552f9f98b590000b5e5c987"
+			"Comment": "v6.0-15-gd669b36",
+			"Rev": "d669b3664938cc28417366a6b092257b1149dff8"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/supplychain",
-			"Comment": "v6.0-13-g03603dc",
-			"Rev": "03603dc59c3a7d0e3552f9f98b590000b5e5c987"
+			"Comment": "v6.0-15-gd669b36",
+			"Rev": "d669b3664938cc28417366a6b092257b1149dff8"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/version",
-			"Comment": "v6.0-13-g03603dc",
-			"Rev": "03603dc59c3a7d0e3552f9f98b590000b5e5c987"
+			"Comment": "v6.0-15-gd669b36",
+			"Rev": "d669b3664938cc28417366a6b092257b1149dff8"
 		},
 		{
 			"ImportPath": "github.com/ugorji/go/codec",

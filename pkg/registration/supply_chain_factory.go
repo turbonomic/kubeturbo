@@ -37,11 +37,19 @@ var (
 type SupplyChainFactory struct {
 	// The property used for stitching.
 	stitchingPropertyType stitching.StitchingPropertyType
+	vmPriority            int32
+	vmTemplateType        proto.TemplateDTO_TemplateType
 }
 
-func NewSupplyChainFactory(pType stitching.StitchingPropertyType) *SupplyChainFactory {
+func NewSupplyChainFactory(pType stitching.StitchingPropertyType, vmPriority int32, base bool) *SupplyChainFactory {
+	tmptype := proto.TemplateDTO_EXTENSION
+	if base {
+		tmptype = proto.TemplateDTO_BASE
+	}
 	return &SupplyChainFactory{
 		stitchingPropertyType: pType,
+		vmPriority:            vmPriority,
+		vmTemplateType:        tmptype,
 	}
 }
 
@@ -101,6 +109,8 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 
 func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error) {
 	nodeSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_VIRTUAL_MACHINE)
+	nodeSupplyChainNodeBuilder.SetPriority(f.vmPriority)
+	nodeSupplyChainNodeBuilder.SetTemplateType(f.vmTemplateType)
 
 	nodeSupplyChainNodeBuilder = nodeSupplyChainNodeBuilder.
 		Sells(vCpuTemplateComm). // sells to Pods

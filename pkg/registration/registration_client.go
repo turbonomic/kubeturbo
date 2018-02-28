@@ -16,11 +16,15 @@ const (
 type RegistrationConfig struct {
 	// The property used for stitching.
 	stitchingPropertyType stitching.StitchingPropertyType
+	vmPriority            int32
+	vmIsBase              bool
 }
 
-func NewRegistrationClientConfig(pType stitching.StitchingPropertyType) *RegistrationConfig {
+func NewRegistrationClientConfig(pType stitching.StitchingPropertyType, p int32, isbase bool) *RegistrationConfig {
 	return &RegistrationConfig{
 		stitchingPropertyType: pType,
+		vmPriority:            p,
+		vmIsBase:              isbase,
 	}
 }
 
@@ -35,7 +39,7 @@ func NewK8sRegistrationClient(config *RegistrationConfig) *K8sRegistrationClient
 }
 
 func (rClient *K8sRegistrationClient) GetSupplyChainDefinition() []*proto.TemplateDTO {
-	supplyChainFactory := NewSupplyChainFactory(rClient.config.stitchingPropertyType)
+	supplyChainFactory := NewSupplyChainFactory(rClient.config.stitchingPropertyType, rClient.config.vmPriority, rClient.config.vmIsBase)
 	supplyChain, err := supplyChainFactory.createSupplyChain()
 	if err != nil {
 		// TODO error handling

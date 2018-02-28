@@ -104,7 +104,7 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 	}
 
 	// Create the configurations for the registration, discovery and action clients
-	registrationClientConfig := registration.NewRegistrationClientConfig(config.StitchingPropType)
+	registrationClientConfig := registration.NewRegistrationClientConfig(config.StitchingPropType, config.VMPriority, config.VMIsBase)
 
 	probeConfig := createProbeConfigOrDie(config)
 	discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, config.tapSpec.K8sTargetConfig)

@@ -33,6 +33,8 @@ const (
 	KubeturboPort       = 10265
 	DefaultKubeletPort  = 10255
 	DefaultKubeletHttps = false
+	defaultVMPriority   = -1
+	defaultVMIsBase     = true
 )
 
 var (
@@ -68,6 +70,11 @@ type VMTServer struct {
 	// The default value is false.
 	UseVMWare bool
 
+	//VMPriority: priority of VM in supplyChain definition from kubeturbo, should be less than 0;
+	VMPriority int32
+	//VMIsBase: Is VM is the base template from kubeturbo, when stitching with other VM probes, should be false;
+	VMIsBase bool
+
 	// Kubelet related config
 	KubeletPort        int
 	EnableKubeletHttps bool
@@ -97,6 +104,8 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&noneSchedulerName, "noneSchedulerName", noneSchedulerName, "[deprecated] a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
 	fs.BoolVar(&enableNonDisruptiveSupport, "enable-non-disruptive-support", false, "[deprecated] Indicate if nondisruptive action support is enabled")
+	fs.Int32Var(&s.VMPriority, "vmPriority", defaultVMPriority, "Priority of VM in supplyChain definition, should be less than 0 if has other VM probe")
+	fs.BoolVar(&s.VMIsBase, "vmIsBase", defaultVMIsBase, "Is VM the base template, should be false if has other VM probe")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -202,6 +211,8 @@ func (s *VMTServer) Run(_ []string) error {
 	vmtConfig.WithTapSpec(k8sTAPSpec).
 		WithKubeClient(kubeClient).
 		WithKubeletClient(kubeletClient).
+		WithVMPriority(s.VMPriority).
+		WithVMIsBase(s.VMIsBase).
 		UsingVMWare(s.UseVMWare)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
