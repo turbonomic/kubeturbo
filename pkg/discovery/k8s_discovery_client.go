@@ -2,7 +2,6 @@ package discovery
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
@@ -45,8 +44,6 @@ type K8sDiscoveryClient struct {
 	clusterProcessor *processor.ClusterProcessor
 	dispatcher       *worker.Dispatcher
 	resultCollector  *worker.ResultCollector
-
-	wg sync.WaitGroup
 }
 
 func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
