@@ -2,7 +2,6 @@ package discovery
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
@@ -41,30 +40,28 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 type K8sDiscoveryClient struct {
 	config            *DiscoveryClientConfig
 	k8sClusterScraper *cluster.ClusterScraper
-	clusterProcessor  *processor.ClusterProcessor
-	kubeCluster       *repository.KubeCluster
 
-	dispatcher      *worker.Dispatcher
-	resultCollector *worker.ResultCollector
-
-	wg sync.WaitGroup
+	clusterProcessor *processor.ClusterProcessor
+	dispatcher       *worker.Dispatcher
+	resultCollector  *worker.ResultCollector
 }
 
 func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
-	// make maxWorkerCount of result collector twice the worker count.
-	resultCollector := worker.NewResultCollector(workerCount * 2)
 	k8sClusterScraper := cluster.NewClusterScraper(config.probeConfig.ClusterClient)
 
+	// for discovery tasks
 	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient)
+	// make maxWorkerCount of result collector twice the worker count.
+	resultCollector := worker.NewResultCollector(workerCount * 2)
 
 	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig, workerCount)
 	dispatcher := worker.NewDispatcher(dispatcherConfig)
 	dispatcher.Init(resultCollector)
 
 	dc := &K8sDiscoveryClient{
-		clusterProcessor:  clusterProcessor,
-		k8sClusterScraper: k8sClusterScraper,
 		config:            config,
+		k8sClusterScraper: k8sClusterScraper,
+		clusterProcessor:  clusterProcessor,
 		dispatcher:        dispatcher,
 		resultCollector:   resultCollector,
 	}
@@ -109,11 +106,10 @@ func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*pr
 	validationResponse := &proto.ValidationResponse{}
 
 	var err error
-	var kubeCluster *repository.KubeCluster
 	if dc.clusterProcessor == nil {
 		err = fmt.Errorf("Null cluster processor")
 	} else {
-		kubeCluster, err = dc.clusterProcessor.ConnectCluster()
+		err = dc.clusterProcessor.ConnectCluster()
 	}
 	if err != nil {
 		errStr := fmt.Sprintf("%s\n", err)
@@ -127,7 +123,6 @@ func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*pr
 		validationResponse.ErrorDTO = errorDtos
 	} else {
 		glog.V(2).Infof("Validation response - connected to cluster and nodes\n")
-		dc.kubeCluster = kubeCluster
 	}
 
 	return validationResponse, nil
@@ -153,11 +148,11 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 
 func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES AND QUOTAS HERE
-	err := dc.clusterProcessor.DiscoverCluster(dc.kubeCluster)
+	kubeCluster, err := dc.clusterProcessor.DiscoverCluster()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to process cluster: %s", err)
 	}
-	clusterSummary := repository.CreateClusterSummary(dc.kubeCluster)
+	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 
 	// Multiple discovery workers to create node and pod DTOs
 	nodes := clusterSummary.NodeList

@@ -185,8 +185,7 @@ func (nodeEntity *KubeNode) UpdateResources(apiNode *v1.Node) {
 		nodeStitchingIP = ParseNodeIP(apiNode, v1.NodeInternalIP)
 	}
 	if nodeStitchingIP == "" {
-		glog.Errorf("Failed to find stitching IP for node %s: it does not have either external IP or legacy "+
-			"host IP.", apiNode.Name)
+		glog.Errorf("Failed to find IP for node %s", apiNode.Name)
 	} else {
 		nodeEntity.IPAddress = nodeStitchingIP
 	}
