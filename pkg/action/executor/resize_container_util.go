@@ -257,11 +257,6 @@ func resizeContainer(client *kclient.Clientset, tpod *k8sapi.Pod, spec *containe
 // create a pod with new resource limit/requests
 //    return false if there is no need to update resource amount
 func createResizePod(client *kclient.Clientset, pod *k8sapi.Pod, spec *containerResizeSpec) (*k8sapi.Pod, bool, error) {
-	if !util.SupportPrivilegePod(pod) {
-		err := fmt.Errorf("The pod %s has privilege requirement unsupported", pod.Name)
-		return nil, false, err
-	}
-
 	id := fmt.Sprintf("%s/%s-%d", pod.Namespace, pod.Name, spec.Index)
 
 	//1. copy pod

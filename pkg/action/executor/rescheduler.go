@@ -205,6 +205,13 @@ func (r *ReScheduler) getPodNode(action *proto.ActionItemDTO) (*api.Pod, *api.No
 func (r *ReScheduler) preActionCheck(pod *api.Pod, node *api.Node) error {
 	fullName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 
+	// Check if the pod privilege is supported
+	if !util.SupportPrivilegePod(pod) {
+		err := fmt.Errorf("The pod %s has privilege requirement unsupported", fullName)
+		glog.Error(err)
+		return err
+	}
+
 	//1. If Pod is terminated, then no need to move it.
 	// if pod.Status.Phase != api.PodRunning {
 	if pod.Status.Phase == api.PodSucceeded {
