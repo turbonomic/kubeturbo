@@ -21,7 +21,9 @@ import (
 )
 
 const (
-	maxDisplayNameLen = 256
+	maxDisplayNameLen        = 256
+	osSccAnnotation          = "openshift.io/scc"
+	supportedOsSccAnnotation = "restricted"
 )
 
 var (
@@ -578,4 +580,21 @@ func AddAnnotation(pod *api.Pod, key, value string) {
 	}
 	annotations[key] = value
 	return
+}
+
+// SupportPrivilegePod checks the pod annotations and returns true if the priviledge requirement
+// is supported. Currently, it only matters for Openshift clusters as it checks the annotation of
+// Openshift SCC (openshift.io/scc). Kubeturbo supports the restricted (default) SCC and rejects
+// other non-empty SCC's if the annotation is set.
+// See details on https://docs.openshift.org/latest/admin_guide/manage_scc.html.
+func SupportPrivilegePod(pod *api.Pod) bool {
+	annotations := pod.Annotations
+	key := osSccAnnotation
+	value := supportedOsSccAnnotation
+	if annotations != nil && annotations[key] != "" && annotations[key] != value {
+		glog.Warningf("The pod %s has unsupported privilege %s", pod.Name, annotations[key])
+		return false
+	}
+
+	return true
 }

@@ -274,9 +274,9 @@ func (r *ContainerResizer) Execute(actionItem *proto.ActionItemDTO) error {
 
 func (r *ContainerResizer) executeAction(resizeSpec *containerResizeSpec, pod *k8sapi.Pod) (*k8sapi.Pod, error) {
 	//1. check
-	if len(resizeSpec.NewCapacity) < 1 && len(resizeSpec.NewRequest) < 1 {
-		glog.Warningf("Resize specification is empty.")
-		return nil, fmt.Errorf("Invalid Action")
+	if err := r.preActionCheck(resizeSpec, pod); err != nil {
+		glog.Errorf("Resize action aborted: %v", err)
+		return nil, fmt.Errorf("Failed")
 	}
 
 	//2. get parent controller
@@ -400,6 +400,27 @@ func (r *ContainerResizer) checkPod(pod *k8sapi.Pod) error {
 	})
 
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Check whether the action should be executed.
+func (r *ContainerResizer) preActionCheck(resizeSpec *containerResizeSpec, pod *k8sapi.Pod) error {
+	fullName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+
+	// Check if the pod privilege is supported
+	if !util.SupportPrivilegePod(pod) {
+		err := fmt.Errorf("The pod %s has privilege requirement unsupported", fullName)
+		glog.Error(err)
+		return err
+	}
+
+	// Check if the resize spec is empty
+	if len(resizeSpec.NewCapacity) < 1 && len(resizeSpec.NewRequest) < 1 {
+		err := fmt.Errorf("Resize specification is empty.")
+		glog.Error(err)
 		return err
 	}
 
