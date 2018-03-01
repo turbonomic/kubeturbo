@@ -165,6 +165,11 @@ func movePod(client *kclient.Clientset, tpod *api.Pod, nodeName string, retryNum
 }
 
 func createClonePod(client *kclient.Clientset, pod *api.Pod, nodeName string) (*api.Pod, error) {
+	if !util.SupportPrivilegePod(pod) {
+		err := fmt.Errorf("The pod %s has privilege requirement unsupported", pod.Name)
+		return nil, err
+	}
+
 	npod := &api.Pod{}
 	copyPodWithoutLabel(pod, npod)
 	npod.Spec.NodeName = nodeName
