@@ -83,10 +83,10 @@ type VMTServer struct {
 // NewVMTServer creates a new VMTServer with default parameters
 func NewVMTServer() *VMTServer {
 	s := VMTServer{
-		Port:    KubeturboPort,
-		Address: "127.0.0.1",
+		Port:       KubeturboPort,
+		Address:    "127.0.0.1",
 		VMPriority: defaultVMPriority,
-		VMIsBase: defaultVMIsBase,
+		VMIsBase:   defaultVMIsBase,
 	}
 	return &s
 }
