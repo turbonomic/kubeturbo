@@ -104,8 +104,8 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&noneSchedulerName, "noneSchedulerName", noneSchedulerName, "[deprecated] a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
 	fs.BoolVar(&enableNonDisruptiveSupport, "enable-non-disruptive-support", false, "[deprecated] Indicate if nondisruptive action support is enabled")
-	fs.Int32Var(&s.VMPriority, "vmPriority", defaultVMPriority, "Priority of VM in supplyChain definition, should be less than 0 if has other VM probe")
-	fs.BoolVar(&s.VMIsBase, "vmIsBase", defaultVMIsBase, "Is VM the base template, should be false if has other VM probe")
+	fs.Int32Var(&s.VMPriority, "vmPriority", defaultVMPriority, "Priority of VM in supplyChain definition")
+	fs.BoolVar(&s.VMIsBase, "vmIsBase", defaultVMIsBase, "Is VM the base template in supplyChain definition")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
