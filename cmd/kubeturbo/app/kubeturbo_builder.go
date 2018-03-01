@@ -33,6 +33,8 @@ const (
 	KubeturboPort       = 10265
 	DefaultKubeletPort  = 10255
 	DefaultKubeletHttps = false
+	defaultVMPriority   = -1
+	defaultVMIsBase     = true
 )
 
 var (
@@ -68,6 +70,11 @@ type VMTServer struct {
 	// The default value is false.
 	UseVMWare bool
 
+	//VMPriority: priority of VM in supplyChain definition from kubeturbo, should be less than 0;
+	VMPriority int32
+	//VMIsBase: Is VM is the base template from kubeturbo, when stitching with other VM probes, should be false;
+	VMIsBase bool
+
 	// Kubelet related config
 	KubeletPort        int
 	EnableKubeletHttps bool
@@ -76,8 +83,10 @@ type VMTServer struct {
 // NewVMTServer creates a new VMTServer with default parameters
 func NewVMTServer() *VMTServer {
 	s := VMTServer{
-		Port:    KubeturboPort,
-		Address: "127.0.0.1",
+		Port:       KubeturboPort,
+		Address:    "127.0.0.1",
+		VMPriority: defaultVMPriority,
+		VMIsBase:   defaultVMIsBase,
 	}
 	return &s
 }
@@ -202,6 +211,8 @@ func (s *VMTServer) Run(_ []string) error {
 	vmtConfig.WithTapSpec(k8sTAPSpec).
 		WithKubeClient(kubeClient).
 		WithKubeletClient(kubeletClient).
+		WithVMPriority(s.VMPriority).
+		WithVMIsBase(s.VMIsBase).
 		UsingVMWare(s.UseVMWare)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 

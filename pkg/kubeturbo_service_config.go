@@ -12,6 +12,11 @@ type Config struct {
 
 	StitchingPropType stitching.StitchingPropertyType
 
+	//VMPriority: priority of VM in supplyChain definition from kubeturbo, should be less than 0;
+	VMPriority int32
+	//VMIsBase: Is VM is the base template from kubeturbo, when stitching with other VM probes, should be false;
+	VMIsBase bool
+
 	Client        *client.Clientset
 	KubeletClient *kubeclient.KubeletClient
 
@@ -51,5 +56,15 @@ func (c *Config) UsingVMWare(useVMWare bool) *Config {
 		stitchingPropType = stitching.UUID
 	}
 	c.StitchingPropType = stitchingPropType
+	return c
+}
+
+func (c *Config) WithVMPriority(p int32) *Config {
+	c.VMPriority = p
+	return c
+}
+
+func (c *Config) WithVMIsBase(isBase bool) *Config {
+	c.VMIsBase = isBase
 	return c
 }
