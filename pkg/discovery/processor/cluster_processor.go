@@ -133,7 +133,7 @@ func (processor *ClusterProcessor) DiscoverCluster() (*repository.KubeCluster, e
 		return nil, fmt.Errorf("Cannot obtain service ID for cluster %s\n", err)
 	}
 	kubeCluster := repository.NewKubeCluster(svcID)
-	glog.V(4).Infof("Created cluster %s\n", svcID)
+	glog.V(2).Infof("Created cluster, clusterId = %s\n", svcID)
 
 	// Discover Nodes
 	clusterName := kubeCluster.Name
@@ -148,13 +148,17 @@ func (processor *ClusterProcessor) DiscoverCluster() (*repository.KubeCluster, e
 		kubeCluster.SetNodeEntity(nodeEntity)
 	}
 
-	kubeCluster.LogClusterNodes()
+	if glog.V(3) {
+		kubeCluster.LogClusterNodes()
+	}
 
 	// Discover Namespaces and Quotas
 	// sum of cluster compute resources
 	clusterResources := computeClusterResources(kubeCluster.Nodes)
-	for rt, cap := range clusterResources {
-		glog.V(2).Infof("cluster resource %s has capacity = %f\n", rt, cap.Capacity)
+	if glog.V(2) {
+		for rt, res := range clusterResources {
+			glog.Infof("cluster resource %s has capacity = %f\n", rt, res.Capacity)
+		}
 	}
 
 	namespaceProcessor := &NamespaceProcessor{

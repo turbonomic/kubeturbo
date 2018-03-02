@@ -29,22 +29,14 @@ func NewKubeCluster(clusterName string) *KubeCluster {
 }
 
 func (kubeCluster *KubeCluster) LogClusterNodes() {
-	LogNodes(kubeCluster.Nodes)
-}
-
-func (kubeCluster *KubeCluster) LogClusterNamespaces() {
-	LogNamespaces(kubeCluster.Namespaces)
-}
-
-func LogNodes(nodes map[string]*KubeNode) {
-	for _, nodeEntity := range nodes {
-		glog.V(2).Infof("Created node entity : %s\n", nodeEntity.String())
+	for _, nodeEntity := range kubeCluster.Nodes {
+		glog.Infof("Created node entity : %s\n", nodeEntity.String())
 	}
 }
 
-func LogNamespaces(namespaces map[string]*KubeNamespace) {
-	for _, namespace := range namespaces {
-		glog.V(2).Infof("Created namespace entity : %s\n", namespace.String())
+func (kubeCluster *KubeCluster) LogClusterNamespaces() {
+	for _, namespace := range kubeCluster.Namespaces {
+		glog.Infof("Created namespace entity : %s\n", namespace.String())
 	}
 }
 
@@ -293,7 +285,7 @@ func CreateDefaultQuota(clusterName, namespace, uuid string,
 	for _, rt := range metrics.ComputeAllocationResources {
 		computeType, exists := metrics.AllocationToComputeMap[rt] //corresponding compute resource
 		if exists {
-			var capacity float64
+			capacity := float64(0.0)
 			computeResource, hasCompute := clusterResources[computeType]
 			if hasCompute {
 				capacity = computeResource.Capacity
@@ -308,7 +300,7 @@ func CreateDefaultQuota(clusterName, namespace, uuid string,
 	}
 
 	// node providers will be added by the quota discovery worker when the usage values are available
-	glog.V(2).Infof("Created default quota for namespace : %s\n", namespace)
+	glog.V(3).Infof("Created default quota for namespace : %s\n", namespace)
 	return quota
 }
 
