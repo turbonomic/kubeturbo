@@ -163,13 +163,12 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 	quotasDiscoveryWorker := worker.Newk8sResourceQuotasDiscoveryWorker(clusterSummary)
 	quotaDtos, _ := quotasDiscoveryWorker.Do(quotaMetricsList)
 
-	// All the DTO's
+	// All the DTOs
 	entityDTOs = append(entityDTOs, quotaDtos...)
-	glog.V(2).Infof("Discovery workers have finished discovery work with %d entityDTOs built. "+
-		"		Now performing service discovery...", len(entityDTOs))
+	glog.V(2).Infof("Discovery workers have finished discovery work with %d entityDTOs built.", len(entityDTOs))
 
 	// affinity process
-	glog.V(2).Infof("begin to process affinity.")
+	glog.V(2).Infof("Begin to process affinity.")
 	affinityProcessorConfig := compliance.NewAffinityProcessorConfig(dc.k8sClusterScraper)
 	affinityProcessor, err := compliance.NewAffinityProcessor(affinityProcessorConfig)
 	if err != nil {
@@ -185,6 +184,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 	if svcDiscResult.Err() != nil {
 		glog.Errorf("Failed to discover services from current Kubernetes cluster with the new discovery framework: %s", svcDiscResult.Err())
 	} else {
+		glog.V(2).Infof("There are %d vApp entityDTOs.", len(svcDiscResult.Content()))
 		entityDTOs = append(entityDTOs, svcDiscResult.Content()...)
 	}
 

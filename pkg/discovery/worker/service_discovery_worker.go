@@ -14,6 +14,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	"strings"
 )
 
 const (
@@ -125,7 +126,7 @@ func groupPodsAndServices(serviceList []*api.Service, endpointList []*api.Endpoi
 		serviceClusterID := util.GetServiceClusterID(service)
 		podClusterIDs := findPodEndpoints(service, endpointMap)
 		if len(podClusterIDs) < 1 {
-			glog.V(4).Infof("%s is a standalone service without any enpoint pod.", serviceClusterID)
+			glog.V(2).Infof("Failed to find any endpoint pod for service: %s.", serviceClusterID)
 			continue
 		}
 		glog.V(4).Infof("service %s has the following pod as endpoints %v", serviceClusterID, podClusterIDs)
@@ -135,7 +136,7 @@ func groupPodsAndServices(serviceList []*api.Service, endpointList []*api.Endpoi
 			// find the pod
 			pod, found := podIDMap[podClusterID]
 			if !found {
-				glog.Warningf("Cannot find %s in current cluster", podClusterID)
+				glog.Warningf("Cannot find pod %s for service: %v in current cluster", podClusterID, serviceClusterID)
 				continue
 			}
 			podList = append(podList, pod)
@@ -147,18 +148,24 @@ func groupPodsAndServices(serviceList []*api.Service, endpointList []*api.Endpoi
 
 // For every service, find the pods for this service.
 func findPodEndpoints(service *api.Service, endpointMap map[string]*api.Endpoints) map[string]struct{} {
-	serviceClusterID := util.GetServiceClusterID(service)
-	serviceEndpoint := endpointMap[serviceClusterID]
-	if serviceEndpoint == nil {
-		return nil
-	}
-	subsets := serviceEndpoint.Subsets
 	podClusterIDSet := make(map[string]struct{})
+	serviceClusterID := util.GetServiceClusterID(service)
+	serviceEndpoint, found := endpointMap[serviceClusterID]
+	if !found || serviceEndpoint == nil {
+		return podClusterIDSet
+	}
+
+	subsets := serviceEndpoint.Subsets
 	for _, endpointSubset := range subsets {
 		addresses := endpointSubset.Addresses
 		for _, address := range addresses {
 			target := address.TargetRef
 			if target == nil {
+				continue
+			}
+
+			if !strings.EqualFold(target.Kind, "Pod") {
+				glog.Warningf("service: %v depends on non-Pod entity: %+v", serviceClusterID, target)
 				continue
 			}
 			podName := target.Name
