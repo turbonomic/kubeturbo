@@ -137,3 +137,29 @@ func GroupPodsByNode(pods []*api.Pod) map[string][]*api.Pod {
 	}
 	return podsNodeMap
 }
+
+// GetReadyPods returns pods that in Ready status
+func GetReadyPods(pods []*api.Pod) []*api.Pod {
+	readyPods := []*api.Pod{}
+
+	for _, pod := range pods {
+		if podIsReady(pod) {
+			readyPods = append(readyPods, pod)
+		} else {
+			glog.V(4).Infof("Pod %s is not ready", pod.Name)
+		}
+	}
+
+	return readyPods
+}
+
+// PodIsReady checks if a pod is in Ready status.
+func podIsReady(pod *api.Pod) bool {
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == api.PodReady {
+			return condition.Status == api.ConditionTrue
+		}
+	}
+	glog.Errorf("Unable to get status for pod %s", pod.Name)
+	return false
+}
