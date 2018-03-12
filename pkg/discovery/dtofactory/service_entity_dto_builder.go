@@ -66,7 +66,7 @@ func (builder *ServiceEntityDTOBuilder) BuildSvcEntityDTO(servicePodMap map[*api
 }
 
 func (builder *ServiceEntityDTOBuilder) createCommodityBought(ebuilder *sdkbuilder.EntityDTOBuilder, pods []*api.Pod, appDTOs map[string]*proto.EntityDTO) error {
-
+	foundProvider := false
 	for _, pod := range pods {
 		podId := string(pod.UID)
 		for i := range pod.Spec.Containers {
@@ -87,7 +87,14 @@ func (builder *ServiceEntityDTOBuilder) createCommodityBought(ebuilder *sdkbuild
 			}
 			provider := sdkbuilder.CreateProvider(proto.EntityDTO_APPLICATION, appId)
 			ebuilder.Provider(provider).BuysCommodities(bought)
+			foundProvider = true
 		}
+	}
+
+	if !foundProvider {
+		err := fmt.Errorf("Failed to found any provider for service")
+		glog.Warning(err.Error())
+		return err
 	}
 
 	return nil
