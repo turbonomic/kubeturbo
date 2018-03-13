@@ -59,17 +59,20 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			continue
 		}
 		podId := string(pod.UID)
+		podMId := util.PodMetricIdAPI(pod)
 
 		for i := range pod.Spec.Containers {
 			container := &(pod.Spec.Containers[i])
 
 			containerId := util.ContainerIdFunc(podId, i)
+			containerMId := util.ContainerMetricId(podMId, container.Name)
+
 			name := util.ContainerNameFunc(pod, container)
 			ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER, containerId).
 				DisplayName(name)
 
 			//1. commodities sold
-			commoditiesSold, err := builder.getCommoditiesSold(name, containerId, nodeCPUFrequency)
+			commoditiesSold, err := builder.getCommoditiesSold(name, containerId, containerMId, nodeCPUFrequency)
 			if err != nil {
 				glog.Errorf("failed to create commoditiesSold for container[%s]: %v", name, err)
 				continue
@@ -77,7 +80,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			ebuilder.SellsCommodities(commoditiesSold)
 
 			//2. commodities bought
-			commoditiesBought, err := builder.getCommoditiesBought(podId, name, containerId, nodeCPUFrequency)
+			commoditiesBought, err := builder.getCommoditiesBought(podId, name, containerMId, nodeCPUFrequency)
 			if err != nil {
 				glog.Errorf("failed to create commoditiesBought for container[%s]: %v", name, err)
 				continue
@@ -107,7 +110,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 }
 
 //vCPU, vMem, Application are sold by Container to Application
-func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerKey string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerId, containerMId string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var result []*proto.CommodityDTO
 
 	//1. vCPU & vMem
@@ -116,12 +119,12 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerK
 	attributeSetter := NewCommodityAttrSetter()
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)
 
-	commodities, err := builder.getResourceCommoditiesSold(metrics.ContainerType, containerKey, commoditySold, converter, attributeSetter)
+	commodities, err := builder.getResourceCommoditiesSold(metrics.ContainerType, containerMId, commoditySold, converter, attributeSetter)
 	if err != nil {
 		return nil, err
 	}
 	if len(commodities) != len(commoditySold) {
-		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for container:%s, %s", len(commodities), len(commoditySold), containerName, containerKey)
+		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for container:%s, %s", len(commodities), len(commoditySold), containerName, containerMId)
 		glog.Error(err)
 		// return nil, err
 	}
@@ -129,7 +132,7 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerK
 
 	//2. Application
 	appCommodity, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
-		Key(containerKey).
+		Key(containerId).
 		Capacity(applicationCommodityDefaultCapacity).
 		Create()
 	if err != nil {
@@ -142,7 +145,7 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerK
 
 // vCPU, vMem and VMPMAccess are bought by Container from Pod;
 // the VMPMAccess is to bind the container to the hosting pod.
-func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, containerId string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, containerMId string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var result []*proto.CommodityDTO
 
 	//1. vCPU & vMem
@@ -151,12 +154,12 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 	attributeSetter := NewCommodityAttrSetter()
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)
 
-	commodities, err := builder.getResourceCommoditiesBought(metrics.ContainerType, containerId, commodityBought, converter, attributeSetter)
+	commodities, err := builder.getResourceCommoditiesBought(metrics.ContainerType, containerMId, commodityBought, converter, attributeSetter)
 	if err != nil {
 		return nil, err
 	}
 	if len(commodities) != len(commodityBought) {
-		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for container:%s, %s", len(commodities), len(commodityBought), containerName, containerId)
+		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for container:%s, %s", len(commodities), len(commodityBought), containerName, containerMId)
 		glog.Error(err)
 		//return nil, err
 	}

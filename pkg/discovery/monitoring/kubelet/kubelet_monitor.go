@@ -150,7 +150,7 @@ func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats) {
 		pod := &(podStats[i])
 		cpuUsed, memUsed := m.parseContainerStats(pod)
 
-		key := util.PodStatsKeyFunc(pod)
+		key := util.PodMetricId(&(pod.PodRef))
 		glog.V(4).Infof("Cpu usage of pod %s is %.3f core", key, cpuUsed)
 		glog.V(4).Infof("Memory usage of pod %s is %.3f Kb", key, memUsed)
 
@@ -164,7 +164,7 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats) (float64, floa
 	totalUsedCPU := float64(0.0)
 	totalUsedMem := float64(0.0)
 
-	podId := pod.PodRef.UID
+	podMId := util.PodMetricId(&(pod.PodRef))
 	containers := pod.Containers
 
 	for i := range containers {
@@ -183,14 +183,14 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats) (float64, floa
 		totalUsedMem += memUsed
 
 		//1. container Used
-		containerId := util.ContainerIdFunc(podId, i)
-		m.genUsedMetrics(metrics.ContainerType, containerId, cpuUsed, memUsed)
+		containerMId := util.ContainerMetricId(podMId, container.Name)
+		m.genUsedMetrics(metrics.ContainerType, containerMId, cpuUsed, memUsed)
 
 		glog.V(4).Infof("container[%s-%s] cpu/memory usage:%.3f, %.3f", pod.PodRef.Name, container.Name, cpuUsed, memUsed)
 
 		//2. app Used
-		appId := util.ApplicationIdFunc(containerId)
-		m.genUsedMetrics(metrics.ApplicationType, appId, cpuUsed, memUsed)
+		appMId := util.ApplicationMetricId(containerMId)
+		m.genUsedMetrics(metrics.ApplicationType, appMId, cpuUsed, memUsed)
 	}
 
 	return totalUsedCPU, totalUsedMem

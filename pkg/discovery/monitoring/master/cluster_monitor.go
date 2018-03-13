@@ -207,12 +207,13 @@ func (m *ClusterMonitor) genPodMetrics(pod *api.Pod, nodeCPUCapacity, nodeMemCap
 	//1. pod.capacity == node.Capacity
 	cpuCapacity := nodeCPUCapacity
 	memCapacity := nodeMemCapacity
-	m.genCapacityMetrics(metrics.PodType, key, cpuCapacity, memCapacity)
+	podMId := util.PodMetricIdAPI(pod)
+	m.genCapacityMetrics(metrics.PodType, podMId, cpuCapacity, memCapacity)
 
 	//2. Reservation
 	//2.1 Container Capacity and Reservation
 	cpuRequest, memRequest := m.genContainerMetrics(pod, cpuCapacity, memCapacity)
-	m.genReserveMetrics(metrics.PodType, key, cpuRequest, memRequest)
+	m.genReserveMetrics(metrics.PodType, podMId, cpuRequest, memRequest)
 	return
 }
 
@@ -222,11 +223,11 @@ func (m *ClusterMonitor) genContainerMetrics(pod *api.Pod, podCPU, podMem float6
 
 	totalCPU := float64(0.0)
 	totalMem := float64(0.0)
-	podId := string(pod.UID)
+	podMId := util.PodMetricIdAPI(pod)
 
 	for i := range pod.Spec.Containers {
 		container := &(pod.Spec.Containers[i])
-		key := util.ContainerIdFunc(podId, i)
+		containerMId := util.ContainerMetricId(podMId, container.Name)
 
 		//1. capacity
 		limits := container.Resources.Limits
@@ -242,13 +243,13 @@ func (m *ClusterMonitor) genContainerMetrics(pod *api.Pod, podCPU, podMem float6
 		if memLimit > 1 {
 			memCapacity = float64(memLimit) / util.KilobytesToBytes
 		}
-		m.genCapacityMetrics(metrics.ContainerType, key, cpuCapacity, memCapacity)
+		m.genCapacityMetrics(metrics.ContainerType, containerMId, cpuCapacity, memCapacity)
 
 		//2. reservation
 		requests := container.Resources.Requests
 		cpuRequest := float64(requests.Cpu().MilliValue()) / util.MilliToUnit
 		memRequest := float64(requests.Memory().Value()) / util.KilobytesToBytes
-		m.genReserveMetrics(metrics.ContainerType, key, cpuRequest, memRequest)
+		m.genReserveMetrics(metrics.ContainerType, containerMId, cpuRequest, memRequest)
 
 		totalCPU += cpuRequest
 		totalMem += memRequest

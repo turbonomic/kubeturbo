@@ -66,11 +66,15 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 			continue
 		}
 		podId := string(pod.UID)
+		podMId := util.PodMetricIdAPI(pod)
 		for i := range pod.Spec.Containers {
 			//1. Id and Name
-			//container := &(pod.Spec.Containers[i])
+			container := &(pod.Spec.Containers[i])
 			containerId := util.ContainerIdFunc(podId, i)
 			appId := util.ApplicationIdFunc(containerId)
+			containerMId := util.ContainerMetricId(podMId, container.Name)
+			appMId := util.ApplicationMetricId(containerMId)
+
 			displayName := util.ApplicationDisplayName(podFullName)
 
 			ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_APPLICATION, appId).
@@ -85,7 +89,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 			ebuilder.SellsCommodities(commoditiesSold)
 
 			//3. bought commodities: vcpu/vmem/application
-			commoditiesBought, err := builder.getApplicationCommoditiesBought(appId, podFullName, containerId, nodeCPUFrequency)
+			commoditiesBought, err := builder.getApplicationCommoditiesBought(appMId, podFullName, containerId, nodeCPUFrequency)
 			if err != nil {
 				glog.Errorf("Failed to create Application(%s) entityDTO: %v", displayName, err)
 				continue
@@ -120,7 +124,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 }
 
 func (builder *applicationEntityDTOBuilder) getTransactionUsedValue(pod *api.Pod) float64 {
-	key := util.PodKeyFunc(pod)
+	key := util.PodMetricIdAPI(pod)
 	etype := metrics.PodType
 	rtype := metrics.Transaction
 	mtype := metrics.Used
@@ -179,18 +183,18 @@ func (builder *applicationEntityDTOBuilder) getCommoditiesSold(appId string, ind
 
 // Build the bought commodities by each application.
 // An application buys vCPU, vMem and Application commodity from a container.
-func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appId, podName, containerId string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appMId, podName, containerId string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 
 	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU)
 
 	// Resource commodities.
-	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.ApplicationType, appId, applicationResourceCommodityBought, converter, nil)
+	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.ApplicationType, appMId, applicationResourceCommodityBought, converter, nil)
 	if err != nil {
 		return nil, err
 	}
 	if len(resourceCommoditiesBought) != len(applicationResourceCommodityBought) {
-		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for application:%s, %s", len(resourceCommoditiesBought), len(applicationResourceCommodityBought), podName, appId)
+		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for application:%s, %s", len(resourceCommoditiesBought), len(applicationResourceCommodityBought), podName, appMId)
 		glog.Error(err)
 		//return nil, err
 	}
