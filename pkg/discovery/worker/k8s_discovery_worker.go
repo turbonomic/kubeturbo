@@ -15,6 +15,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	api "k8s.io/client-go/pkg/api/v1"
 )
 
 const (
@@ -303,6 +304,8 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 		nodeNameUIDMap = cluster.NodeNameUIDMap   // node providers
 	}
 	pods := currTask.PodList()
+	glog.V(3).Infof("Worker %s receives %d pods.", worker.id, len(pods))
+
 	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager,
 		nodeNameUIDMap, quotaNameUIDMap)
 	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods)
@@ -311,6 +314,10 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	}
 	result = append(result, podEntityDTOs...)
 	glog.V(3).Infof("Worker %s builds %d pod entityDTOs.", worker.id, len(podEntityDTOs))
+
+	// Filster out pods that build DTO failed so
+	// building container and app DTOs will not include them
+	pods = excludeFailedPods(pods, podEntityDTOs)
 
 	//3. build entityDTOs for containers
 	containerDTOBuilder := dtofactory.NewContainerDTOBuilder(worker.sink)
@@ -344,4 +351,18 @@ func calcTimeOut(nodeNum int) time.Duration {
 	}
 
 	return result
+}
+
+// excludeFailedPods filters the pod list and excludes those pods not in the dto list
+func excludeFailedPods(pods []*api.Pod, dtos []*proto.EntityDTO) []*api.Pod {
+	m := map[string]*api.Pod{}
+	for _, pod := range pods {
+		m[string(pod.UID)] = pod
+	}
+
+	for i, dto := range dtos {
+		pods[i] = m[dto.GetId()]
+	}
+
+	return pods[:len(dtos)]
 }

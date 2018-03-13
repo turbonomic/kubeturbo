@@ -171,6 +171,11 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequ
 	if err != nil {
 		return nil, err
 	}
+	if len(resourceCommoditiesSold) != len(podResourceCommoditySold) {
+		err = fmt.Errorf("mismatch num of bought commidities from node (%d Vs. %d) for pod %s", len(resourceCommoditiesSold), len(podResourceCommoditySold), pod.Name)
+		glog.Error(err)
+		return nil, err
+	}
 	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
 
 	// vmpmAccess commodity
@@ -202,6 +207,11 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 	// Resource Commodities.
 	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.PodType, key, podResourceCommodityBoughtFromNode, converter, nil)
 	if err != nil {
+		return nil, err
+	}
+	if len(resourceCommoditiesBought) != len(podResourceCommodityBoughtFromNode) {
+		err = fmt.Errorf("mismatch num of bought commidities from node (%d Vs. %d) for pod %s", len(resourceCommoditiesBought), len(podResourceCommodityBoughtFromNode), pod.Name)
+		glog.Error(err)
 		return nil, err
 	}
 	commoditiesBought = append(commoditiesBought, resourceCommoditiesBought...)
@@ -264,6 +274,11 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromQuota(pod *api.Po
 	// Resource Commodities.
 	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.PodType, key, podResourceCommodityBoughtFromQuota, converter, nil)
 	if err != nil {
+		return nil, err
+	}
+	if len(resourceCommoditiesBought) != len(podResourceCommodityBoughtFromQuota) {
+		err = fmt.Errorf("mismatch num of bought commidities from quota (%d Vs. %d) for pod %s", len(resourceCommoditiesBought), len(podResourceCommodityBoughtFromQuota), pod.Name)
+		glog.Error(err)
 		return nil, err
 	}
 	commoditiesBought = append(commoditiesBought, resourceCommoditiesBought...)
