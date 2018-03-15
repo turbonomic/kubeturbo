@@ -196,7 +196,7 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appM
 	if len(resourceCommoditiesBought) != len(applicationResourceCommodityBought) {
 		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for application:%s, %s", len(resourceCommoditiesBought), len(applicationResourceCommodityBought), podName, appMId)
 		glog.Error(err)
-		//return nil, err
+		return nil, err
 	}
 	commoditiesBought = append(commoditiesBought, resourceCommoditiesBought...)
 

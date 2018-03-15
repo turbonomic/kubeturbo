@@ -81,7 +81,7 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSumm
 	for assignedNodesCount+perTaskNodeLength <= len(nodes) {
 		currNodes := nodes[assignedNodesCount : assignedNodesCount+perTaskNodeLength]
 
-		currPods := d.config.clusterInfoScraper.GetRunningPodsOnNodes(currNodes)
+		currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNodes(currNodes)
 
 		currTask := task.NewTask().WithNodes(currNodes).WithPods(currPods).WithCluster(cluster)
 		d.assignTask(currTask)
@@ -92,7 +92,7 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSumm
 	}
 	if assignedNodesCount < len(nodes) {
 		currNodes := nodes[assignedNodesCount:]
-		currPods := d.config.clusterInfoScraper.GetRunningPodsOnNodes(currNodes)
+		currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNodes(currNodes)
 		currTask := task.NewTask().WithNodes(currNodes).WithPods(currPods).WithCluster(cluster)
 		d.assignTask(currTask)
 

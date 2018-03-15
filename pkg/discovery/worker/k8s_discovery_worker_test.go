@@ -3,7 +3,11 @@ package worker
 import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	api "k8s.io/client-go/pkg/api/v1"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -64,5 +68,84 @@ func TestBuildDTOsWithMissingMetrics(t *testing.T) {
 
 	if len(entities) != 0 {
 		t.Errorf("Shouldn't build any entity DTO")
+	}
+}
+
+func TestExcludeFailedPods(t *testing.T) {
+	p1 := newPod("p1", "id-1")
+	p2 := newPod("p2", "id-2")
+	p3 := newPod("p3", "id-3")
+
+	d1 := newEntityDTO("id-1")
+	d2 := newEntityDTO("id-2")
+	d3 := newEntityDTO("id-3")
+	pods := []*api.Pod{p1, p2, p3}
+
+	tests := []struct {
+		name string
+		pods []*api.Pod
+		dtos []*proto.EntityDTO
+		want []*api.Pod
+	}{
+		{
+			name: "test-empty",
+			pods: []*api.Pod{},
+			dtos: []*proto.EntityDTO{},
+			want: []*api.Pod{},
+		},
+		{
+			name: "test-all-passed",
+			pods: pods,
+			dtos: []*proto.EntityDTO{d1, d2, d3},
+			want: pods,
+		},
+		{
+			name: "test-all-failed",
+			pods: pods,
+			dtos: []*proto.EntityDTO{},
+			want: []*api.Pod{},
+		},
+		{
+			name: "test-p1-failed",
+			pods: pods,
+			dtos: []*proto.EntityDTO{d2, d3},
+			want: []*api.Pod{p2, p3},
+		},
+		{
+			name: "test-p1-p3-failed",
+			pods: pods,
+			dtos: []*proto.EntityDTO{d2},
+			want: []*api.Pod{p2},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := excludeFailedPods(tt.pods, tt.dtos); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Test %s: excludeFailedPods() = %++v, want %++v", tt.name, got, tt.want)
+			}
+		})
+	}
+}
+
+func newPod(name string, uid types.UID) *api.Pod {
+	return &api.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			UID:  uid,
+		},
+
+		Spec: api.PodSpec{},
+	}
+}
+
+func newEntityDTO(id string) *proto.EntityDTO {
+	return &proto.EntityDTO{
+		Id: &id,
 	}
 }
