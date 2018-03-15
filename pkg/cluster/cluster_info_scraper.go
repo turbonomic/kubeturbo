@@ -10,6 +10,7 @@ import (
 	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 )
 
 const (
@@ -177,7 +178,7 @@ func (s *ClusterScraper) GetKubernetesServiceID() (svcID string, err error) {
 	return
 }
 
-func (s *ClusterScraper) GetRunningPodsOnNodes(nodeList []*api.Node) []*api.Pod {
+func (s *ClusterScraper) GetRunningAndReadyPodsOnNodes(nodeList []*api.Node) []*api.Pod {
 	pods := []*api.Pod{}
 	for _, node := range nodeList {
 		nodeRunningPodsList, err := s.findRunningPodsOnNode(node.Name)
@@ -187,7 +188,7 @@ func (s *ClusterScraper) GetRunningPodsOnNodes(nodeList []*api.Node) []*api.Pod 
 		}
 		pods = append(pods, nodeRunningPodsList...)
 	}
-	return pods
+	return util.GetReadyPods(pods)
 }
 
 // TODO, create a local pod, node cache to avoid too many API request.

@@ -123,7 +123,7 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerK
 	if len(commodities) != len(commoditySold) {
 		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for container:%s, %s", len(commodities), len(commoditySold), containerName, containerKey)
 		glog.Error(err)
-		// return nil, err
+		return nil, err
 	}
 	result = append(result, commodities...)
 
@@ -158,7 +158,7 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 	if len(commodities) != len(commodityBought) {
 		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for container:%s, %s", len(commodities), len(commodityBought), containerName, containerId)
 		glog.Error(err)
-		//return nil, err
+		return nil, err
 	}
 	result = append(result, commodities...)
 
