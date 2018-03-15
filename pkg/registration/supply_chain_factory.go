@@ -26,9 +26,6 @@ var (
 	vMemTemplateComm                 *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vMemType}
 	cpuAllocationTemplateCommWithKey *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuAllocationType}
 	memAllocationTemplateCommWithKey *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memAllocationType}
-	cpuAllocationTemplateComm        *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &cpuAllocationType}
-	memAllocationTemplateComm        *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &memAllocationType}
-	clusterTemplateComm              *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
 	vmpmAccessTemplateComm           *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
 	applicationTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
 	transactionTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
@@ -125,8 +122,8 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 func (f *SupplyChainFactory) buildQuotaSupplyBuilder() (*proto.TemplateDTO, error) {
 	nodeSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_VIRTUAL_DATACENTER)
 	nodeSupplyChainNodeBuilder = nodeSupplyChainNodeBuilder.
-		Sells(cpuAllocationTemplateComm).
-		Sells(memAllocationTemplateComm).
+		Sells(cpuAllocationTemplateCommWithKey).
+		Sells(memAllocationTemplateCommWithKey).
 		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
 		Buys(cpuAllocationTemplateCommWithKey).
 		Buys(memAllocationTemplateCommWithKey)
@@ -160,8 +157,8 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Buys(vCpuTemplateComm).
 		Buys(vMemTemplateComm).
 		Provider(proto.EntityDTO_VIRTUAL_DATACENTER, proto.Provider_LAYERED_OVER).
-		Buys(cpuAllocationTemplateComm).
-		Buys(memAllocationTemplateComm)
+		Buys(cpuAllocationTemplateCommWithKey).
+		Buys(memAllocationTemplateCommWithKey)
 
 	// Link from Pod to VM
 	vmPodExtLinkBuilder := supplychain.NewExternalEntityLinkBuilder()

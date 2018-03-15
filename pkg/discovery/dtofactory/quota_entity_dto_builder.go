@@ -116,6 +116,8 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.
 		}
 		capacityValue := resource.Capacity
 		usedValue := resource.Used
+		// For CPU resources, convert the capacity and usage values expressed in
+		// number of cores to MHz
 		if metrics.IsCPUType(resourceType) && quota.AverageNodeCpuFrequency > 0.0 {
 			// modify the capacity value
 			newVal := capacityValue * quota.AverageNodeCpuFrequency
@@ -123,7 +125,11 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.
 				quota.Name, resourceType, capacityValue, newVal)
 			capacityValue = newVal
 
-			// modify the used value that is obtained from the resource quota objects
+			// Modify the used value that is obtained from the resource quota objects
+			// and represented in number of cores.
+			// If resource quota objects are not defined for the namespace, then the
+			// usage value if the sum of usages of all the pods in the space which
+			// have been converted to MHz
 			if len(quota.QuotaList) > 0 {
 				newVal := usedValue * quota.AverageNodeCpuFrequency
 				glog.V(4).Infof("%s: changed %s usedValue from %f -> %f\n",
@@ -136,6 +142,7 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.
 		commSoldBuilder.Used(usedValue)
 		commSoldBuilder.Capacity(capacityValue)
 		commSoldBuilder.Resizable(true)
+		commSoldBuilder.Key(quota.UID)
 
 		commSold, err := commSoldBuilder.Create()
 		if err != nil {

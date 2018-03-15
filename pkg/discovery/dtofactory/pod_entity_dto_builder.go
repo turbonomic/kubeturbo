@@ -99,7 +99,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 
 		quotaUID, exists := builder.quotaNameUIDMap[pod.Namespace]
 		if exists {
-			commoditiesBoughtQuota, err := builder.getPodCommoditiesBoughtFromQuota(pod, cpuFrequency)
+			commoditiesBoughtQuota, err := builder.getPodCommoditiesBoughtFromQuota(quotaUID, pod, cpuFrequency)
 			if err != nil {
 				glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
 				continue
@@ -252,21 +252,27 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 }
 
 // Build the CommodityDTOs bought by the pod from the quota provider.
-func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromQuota(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromQuota(quotaUID string, pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 	key := util.PodKeyFunc(pod)
 
-	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
+	// cpu allocation needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(func(input float64) float64 {
 		return input * cpuFrequency
-	}, metrics.CPU, metrics.CPULimit)
+	}, metrics.CPULimit)
 
 	// Resource Commodities.
-	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.PodType, key, podResourceCommodityBoughtFromQuota, converter, nil)
-	if err != nil {
-		return nil, err
+	for _, resourceType := range podResourceCommodityBoughtFromQuota {
+		commBought, err := builder.getResourceCommodityBoughtWithKey(metrics.PodType, key,
+			resourceType, quotaUID, converter, nil)
+		if err != nil {
+			// skip this commodity
+			glog.Errorf("%s::%s: cannot build sold commodity %s : %s",
+				metrics.PodType, key, resourceType, err)
+			continue
+		}
+		commoditiesBought = append(commoditiesBought, commBought)
 	}
-	commoditiesBought = append(commoditiesBought, resourceCommoditiesBought...)
 	return commoditiesBought, nil
 }
 
