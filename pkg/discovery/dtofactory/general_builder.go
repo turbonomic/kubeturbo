@@ -159,6 +159,7 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 	if commodityAttrSetter != nil && commodityAttrSetter.Settable(resourceType) {
 		commodityAttrSetter.Set(resourceType, commSoldBuilder)
 	}
+	// set commodity key
 	if commKey != "" {
 		commSoldBuilder.Key(commKey)
 	}
@@ -172,6 +173,7 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 func (builder generalBuilder) metricValue(entityType metrics.DiscoveredEntityType, entityID string,
 	resourceType metrics.ResourceType, metricProp metrics.MetricProp,
 	converter *converter) (float64, error) {
+
 	metricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, resourceType, metricProp)
 	metric, err := builder.metricsSink.GetMetric(metricUID)
 	if err != nil {
@@ -244,4 +246,51 @@ func (builder generalBuilder) getResourceCommoditiesBought(entityType metrics.Di
 		resourceCommoditiesBought = append(resourceCommoditiesBought, commBought)
 	}
 	return resourceCommoditiesBought, nil
+}
+
+func (builder generalBuilder) getResourceCommodityBoughtWithKey(entityType metrics.DiscoveredEntityType, entityID string,
+	resourceType metrics.ResourceType, commKey string,
+	converter *converter, commodityAttrSetter *attributeSetter) (*proto.CommodityDTO, error) {
+	cType, exist := rTypeMapping[resourceType]
+	if !exist {
+		return nil, fmt.Errorf("Unsupported commodity type %s", resourceType)
+	}
+
+	// check for the unit converter for cpu resources
+	if metrics.IsCPUType(resourceType) && converter == nil {
+		return nil, fmt.Errorf("missing cpu converter")
+	}
+
+	commBoughtBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
+	// set used value
+	usedValue, err := builder.metricValue(entityType, entityID,
+		resourceType, metrics.Used, converter)
+	if err != nil {
+		return nil, fmt.Errorf("%s", err)
+	}
+
+	commBoughtBuilder.Used(usedValue)
+
+	// set reservation value if any
+	reservationValue, _ := builder.metricValue(entityType, entityID,
+		resourceType, metrics.Reservation, converter)
+	if reservationValue != 0 {
+		glog.V(4).Infof("%s::%s Reservation set for commodity %s: %s",
+			entityType, entityID, resourceType, err)
+		commBoughtBuilder.Reservation(reservationValue)
+	}
+	// set additional attribute
+	if commodityAttrSetter != nil && commodityAttrSetter.Settable(resourceType) {
+		commodityAttrSetter.Set(resourceType, commBoughtBuilder)
+	}
+	// set commodity key
+	if commKey != "" {
+		commBoughtBuilder.Key(commKey)
+	}
+	commBought, err := commBoughtBuilder.Create()
+	if err != nil {
+		return nil, err
+	}
+
+	return commBought, nil
 }
