@@ -187,7 +187,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequ
 }
 
 // Build the CommodityDTOs bought by the pod from the node provider.
-// Commodities bought are vCPU, vMem, cpuProvisioned, memProvisioned, access, cluster
+// Commodities bought are vCPU, vMem vmpm access, cluster
 func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 	key := util.PodKeyFunc(pod)
@@ -266,10 +266,9 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromQuota(quotaUID st
 		commBought, err := builder.getResourceCommodityBoughtWithKey(metrics.PodType, key,
 			resourceType, quotaUID, converter, nil)
 		if err != nil {
-			// skip this commodity
 			glog.Errorf("%s::%s: cannot build sold commodity %s : %s",
 				metrics.PodType, key, resourceType, err)
-			continue
+			return nil, err
 		}
 		commoditiesBought = append(commoditiesBought, commBought)
 	}
