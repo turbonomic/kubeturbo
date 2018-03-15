@@ -1,15 +1,15 @@
 package kubelet
 
 import (
+	"fmt"
+	"math"
+	"testing"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api "k8s.io/client-go/pkg/api/v1"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
-	"testing"
 
-	"fmt"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"math"
 )
 
 const (
@@ -39,8 +39,8 @@ func createContainerStat(name string, cpu, mem int) stats.ContainerStats {
 }
 
 func createPodStat() *stats.PodStats {
-	container1 := createContainerStat("container1", 5000000, 430*1024*1024)
-	container2 := createContainerStat("container2", 6000000, 71*1024*1024)
+	container1 := createContainerStat("container1", 5000000, 430*1000*1024)
+	container2 := createContainerStat("container2", 6000000, 71*1000*1024)
 	containers := []stats.ContainerStats{
 		container1,
 		container2,
