@@ -14,13 +14,20 @@ const (
 	vdcPrefix   = "k8s-vdc"
 )
 
-// PodStatsKeyFunc and PodKeyFunc should return the same value.
-func PodStatsKeyFunc(podStat *stats.PodStats) string {
-	return podStat.PodRef.Namespace + "/" + podStat.PodRef.Name
+func PodMetricId(pod *stats.PodReference) string {
+	return pod.Namespace + "/" + pod.Name
 }
 
-func ContainerStatNameFunc(pod *stats.PodStats, containerName string) string {
-	return PodStatsKeyFunc(pod) + "/" + containerName
+func PodMetricIdAPI(pod *api.Pod) string {
+	return pod.Namespace + "/" + pod.Name
+}
+
+func ContainerMetricId(podMId string, containerName string) string {
+	return podMId + "/" + containerName
+}
+
+func ApplicationMetricId(containerMId string) string {
+	return appIdPrefix + "-" + containerMId
 }
 
 func PodKeyFunc(pod *api.Pod) string {

@@ -158,7 +158,6 @@ func (builder *podEntityDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, 
 // VMPMAccess is used to bind container to the hosting pod so the container is not moved out of the pod
 func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
-	key := util.PodKeyFunc(pod)
 
 	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPUProvisioned)
@@ -167,7 +166,8 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequ
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(false) }, metrics.CPU, metrics.Memory)
 
 	// Resource Commodities
-	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.PodType, key, podResourceCommoditySold, converter, attributeSetter)
+	podMId := util.PodMetricIdAPI(pod)
+	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.PodType, podMId, podResourceCommoditySold, converter, attributeSetter)
 	if err != nil {
 		return nil, err
 	}
@@ -195,17 +195,13 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequ
 // Commodities bought are vCPU, vMem vmpm access, cluster
 func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
-	key := util.PodKeyFunc(pod)
 
 	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPUProvisioned)
 
-	//// attr TODO: pod is movable, but not resizable.
-	//attributeSetter := NewCommodityAttrSetter()
-	//attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)
-
 	// Resource Commodities.
-	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.PodType, key, podResourceCommodityBoughtFromNode, converter, nil)
+	podMId := util.PodMetricIdAPI(pod)
+	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.PodType, podMId, podResourceCommodityBoughtFromNode, converter, nil)
 	if err != nil {
 		return nil, err
 	}
