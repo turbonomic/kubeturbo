@@ -2,11 +2,12 @@ package kubelet
 
 import (
 	"fmt"
-	"math"
-	"testing"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api "k8s.io/client-go/pkg/api/v1"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
+	"math"
+	"math/rand"
+	"testing"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -38,9 +39,13 @@ func createContainerStat(name string, cpu, mem int) stats.ContainerStats {
 	return container
 }
 
-func createPodStat() *stats.PodStats {
-	container1 := createContainerStat("container1", 5000000, 430*1000*1024)
-	container2 := createContainerStat("container2", 6000000, 71*1000*1024)
+func createPodStat(podname string) *stats.PodStats {
+	cpuUsed := 100 + rand.Intn(200)
+	memUsed := rand.Intn(200)
+	container1 := createContainerStat("container1", cpuUsed*1E6, memUsed*1000*1024)
+	cpuUsed = rand.Intn(100)
+	memUsed = 200 + rand.Intn(200)
+	container2 := createContainerStat("container2", cpuUsed*1E6, memUsed*1000*1024)
 	containers := []stats.ContainerStats{
 		container1,
 		container2,
@@ -48,7 +53,7 @@ func createPodStat() *stats.PodStats {
 	pod := &stats.PodStats{
 		PodRef: stats.PodReference{
 			Namespace: "space1",
-			Name:      "pod1",
+			Name:      podname,
 			UID:       "uuid1",
 		},
 		Containers: containers,
@@ -85,6 +90,8 @@ func checkPodMetrics(sink *metrics.EntityMetricSink, podMId string, pod *stats.P
 		if math.Abs(value-expected) > myzero {
 			return fmt.Errorf("pod %v used value check failed: %v Vs. %v", res, expected, value)
 		}
+
+		//fmt.Printf("%v, v=%.4f Vs. %.4f\n", mid, value, expected)
 	}
 
 	return nil
@@ -114,6 +121,7 @@ func checkContainerMetrics(sink *metrics.EntityMetricSink, containerMId string, 
 		if math.Abs(value-expected) > myzero {
 			return fmt.Errorf("container %v used value check failed: %v Vs. %v", res, expected, value)
 		}
+		//fmt.Printf("%v, v=%.4f Vs. %.4f\n", mid, value, expected)
 	}
 
 	return nil
@@ -143,6 +151,7 @@ func checkApplicationMetrics(sink *metrics.EntityMetricSink, appMId string, cont
 		if math.Abs(value-expected) > myzero {
 			return fmt.Errorf("Application %v used value check failed: %v Vs. %v", res, expected, value)
 		}
+		//fmt.Printf("%v, v=%.4f Vs. %.4f\n", mid, value, expected)
 	}
 
 	return nil
@@ -156,42 +165,45 @@ func TestParseStats(t *testing.T) {
 		t.Errorf("Failed to create kubeletMonitor: %v", err)
 	}
 
-	podstat := createPodStat()
-	pods := []stats.PodStats{*podstat}
+	podstat1 := createPodStat("pod1")
+	podstat2 := createPodStat("pod2")
+	pods := []stats.PodStats{*podstat1, *podstat2}
 	klet.parsePodStats(pods)
 
-	//1. check pod metrics
-	podref := podstat.PodRef
-	pod := &api.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: podref.Namespace,
-			Name:      podref.Name,
-			UID:       "pod.real.uuid1",
-		},
-	}
-	podMId := util.PodMetricIdAPI(pod)
-	err = checkPodMetrics(klet.metricSink, podMId, podstat)
-	if err != nil {
-		t.Errorf("check pod used metrics failed: %v", err)
-		return
-	}
-
-	//2. container info
-	for _, c := range podstat.Containers {
-		containerMId := util.ContainerMetricId(podMId, c.Name)
-		err = checkContainerMetrics(klet.metricSink, containerMId, &c)
-		if err != nil {
-			t.Errorf("check container used metrics failed: %v", err)
+	for _, podstat := range pods {
+		//1. check pod metrics
+		podref := podstat.PodRef
+		pod := &api.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: podref.Namespace,
+				Name:      podref.Name,
+				UID:       "pod.real.uuid1",
+			},
 		}
-	}
-
-	//3. application info
-	for _, c := range podstat.Containers {
-		containerMId := util.ContainerMetricId(podMId, c.Name)
-		appMId := util.ApplicationMetricId(containerMId)
-		err = checkApplicationMetrics(klet.metricSink, appMId, &c)
+		podMId := util.PodMetricIdAPI(pod)
+		err = checkPodMetrics(klet.metricSink, podMId, &podstat)
 		if err != nil {
-			t.Errorf("check application used metrics failed: %v", err)
+			t.Errorf("check pod used metrics failed: %v", err)
+			return
+		}
+
+		//2. container info
+		for _, c := range podstat.Containers {
+			containerMId := util.ContainerMetricId(podMId, c.Name)
+			err = checkContainerMetrics(klet.metricSink, containerMId, &c)
+			if err != nil {
+				t.Errorf("check container used metrics failed: %v", err)
+			}
+		}
+
+		//3. application info
+		for _, c := range podstat.Containers {
+			containerMId := util.ContainerMetricId(podMId, c.Name)
+			appMId := util.ApplicationMetricId(containerMId)
+			err = checkApplicationMetrics(klet.metricSink, appMId, &c)
+			if err != nil {
+				t.Errorf("check application used metrics failed: %v", err)
+			}
 		}
 	}
 }
