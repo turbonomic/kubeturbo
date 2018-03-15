@@ -30,7 +30,6 @@ func ApplicationMetricId(containerMId string) string {
 	return appIdPrefix + "-" + containerMId
 }
 
-
 func PodKeyFunc(pod *api.Pod) string {
 	return pod.Namespace + "/" + pod.Name
 }
