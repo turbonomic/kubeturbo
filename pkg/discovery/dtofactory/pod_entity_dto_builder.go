@@ -284,7 +284,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromQuota(quotaUID st
 	}
 	if len(commoditiesBought) != len(podResourceCommodityBoughtFromQuota) {
 		err := fmt.Errorf("mismatch num of bought commidities from quota (%d Vs. %d) for pod %s",
-				len(commoditiesBought), len(podResourceCommodityBoughtFromQuota), pod.Name)
+			len(commoditiesBought), len(podResourceCommodityBoughtFromQuota), pod.Name)
 		glog.Error(err)
 		return nil, err
 	}
