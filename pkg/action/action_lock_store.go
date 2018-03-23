@@ -33,6 +33,14 @@ const (
 	defaultWaitLockSleep   = time.Second * 10
 )
 
+// Acquires the lock for the action item. It will wait and retry if the lock is not available, i.e.,
+// the lock is used by other action item.
+// The key used to acquire the lock is as follows:
+//
+// 1. If the action item is associated to a container pod (meaning, the function podFunc returns a pod),
+//    the key is the pod id for bare-pod cases and its parent controller id for non-bare-pod cases.
+//
+// 2. Otherwise, the key is the id of the target SE of the action item.
 func (a *ActionLockStore) getLock(actionItem *proto.ActionItemDTO) (*util.LockHelper, error) {
 	id := actionItem.GetUuid()
 	if key, err := a.getLockKey(actionItem); err != nil {
@@ -49,6 +57,7 @@ func (a *ActionLockStore) getLock(actionItem *proto.ActionItemDTO) (*util.LockHe
 	}
 }
 
+// Gets the lock helper by the given key. It will wait and retry if the lock is not available.
 func (a *ActionLockStore) getLockHelper(key string) (*util.LockHelper, error) {
 	//1. set up lock helper
 	helper, err := util.NewLockHelper(key, a.lockMap)
@@ -66,6 +75,7 @@ func (a *ActionLockStore) getLockHelper(key string) (*util.LockHelper, error) {
 	return helper, nil
 }
 
+// Gets the lock key for the action item.
 func (a *ActionLockStore) getLockKey(actionItem *proto.ActionItemDTO) (string, error) {
 	pod := a.podFunc(actionItem)
 
@@ -76,6 +86,8 @@ func (a *ActionLockStore) getLockKey(actionItem *proto.ActionItemDTO) (string, e
 	}
 }
 
+// Gets lock key for the pod. For a bare pod, the key is its uid. Otherwise, the key is the formatted string:
+// [parentKind]-[pod.Namespace]/[parentName] with its parent controller.
 func getPodLockKey(pod *api.Pod) (string, error) {
 	// If the pod is a bare pod, the key is the pod id. Otherwise, the key is the parent name.
 	if parentKind, parentName, err := util.GetPodParentInfo(pod); err != nil {

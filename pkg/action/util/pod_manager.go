@@ -42,6 +42,7 @@ func (p *PodCachedManager) CachePod(old, new *api.Pod) {
 	// E.g., three actions in a row for the same pod, the third one will get an invalid pod name as the pod has been renamed.
 }
 
+// GetPodFromDisplayNameOrUUID finds the pod by the display name from Pod entity DTO and its uuid.
 func (p *PodCachedManager) GetPodFromDisplayNameOrUUID(displayName, uuid string) (*api.Pod, error) {
 	namespace, name, err := podutil.ParsePodDisplayName(displayName)
 	if err != nil {
@@ -60,6 +61,7 @@ func (p *PodCachedManager) GetPodFromDisplayNameOrUUID(displayName, uuid string)
 	return pod, err
 }
 
+// getRunningPod finds the pod which is in Running phase by its name and uid.
 func (p *PodCachedManager) getRunningPod(podClient v1.PodInterface, name, uid string) (*api.Pod, error) {
 	// Try the cached name first. If it exists, it means some action was applied so it got renamed.
 	// If try the original name first, it may find the pod that is in terminating process from the previous action
