@@ -5,23 +5,24 @@ import (
 	"github.com/golang/glog"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
-	client "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/typed/core/v1"
 	api "k8s.io/client-go/pkg/api/v1"
 )
 
 type IPodManager interface {
-	GetPodFromDisplayNameOrUUID(kclient *client.Clientset, displayname, uuid string) (*api.Pod, error)
+	GetPodFromDisplayNameOrUUID(displayName, uuid string) (*api.Pod, error)
 	CachePod(old, new *api.Pod)
 }
 
 type PodCachedManager struct {
-	podCache turbostore.ITurboCache
+	podCache   turbostore.ITurboCache
+	podsGetter v1.PodsGetter
 }
 
-func NewPodCachedManager(podCache turbostore.ITurboCache) *PodCachedManager {
+func NewPodCachedManager(podCache turbostore.ITurboCache, podsGetter v1.PodsGetter) *PodCachedManager {
 	return &PodCachedManager{
-		podCache: podCache,
+		podCache:   podCache,
+		podsGetter: podsGetter,
 	}
 }
 
@@ -41,7 +42,7 @@ func (p *PodCachedManager) CachePod(old, new *api.Pod) {
 	// E.g., three actions in a row for the same pod, the third one will get an invalid pod name as the pod has been renamed.
 }
 
-func (p *PodCachedManager) GetPodFromDisplayNameOrUUID(kclient *client.Clientset, displayName, uuid string) (*api.Pod, error) {
+func (p *PodCachedManager) GetPodFromDisplayNameOrUUID(displayName, uuid string) (*api.Pod, error) {
 	namespace, name, err := podutil.ParsePodDisplayName(displayName)
 	if err != nil {
 		err = fmt.Errorf("Failed to parse Pod display name %s with uid %s: %v", displayName, uuid, err)
@@ -49,7 +50,7 @@ func (p *PodCachedManager) GetPodFromDisplayNameOrUUID(kclient *client.Clientset
 		return nil, err
 	}
 
-	pod, err := p.getRunningPod(kclient.CoreV1().Pods(namespace), name, uuid)
+	pod, err := p.getRunningPod(p.podsGetter.Pods(namespace), name, uuid)
 	if err != nil {
 		err = fmt.Errorf("Failed to get Pod by %s/%s: %v", namespace, name, err)
 		glog.Errorf(err.Error())

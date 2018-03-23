@@ -35,13 +35,6 @@ var (
 	//turboActionUnbind          turboActionType = "unbind"
 )
 
-// Map for the actions supported by kubeturbo
-var actionSupport = map[turboActionType]struct{}{
-	turboActionPodMove:         {},
-	turboActionPodProvision:    {},
-	turboActionContainerResize: {},
-}
-
 type ActionHandlerConfig struct {
 	kubeClient     *client.Clientset
 	kubeletClient  *kubeclient.KubeletClient
@@ -72,7 +65,8 @@ type ActionHandler struct {
 // Build new ActionHandler and start it.
 func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 	lmap := util.NewExpirationMap(defaultActionCacheTTL)
-	podCachedManager := util.NewPodCachedManager(turbostore.NewTurboCache(defaultPodNameCacheTTL).Cache)
+	podsGetter := config.kubeClient.CoreV1()
+	podCachedManager := util.NewPodCachedManager(turbostore.NewTurboCache(defaultPodNameCacheTTL).Cache, podsGetter)
 
 	handler := &ActionHandler{
 		config:          config,
@@ -112,7 +106,7 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 
 	// 1. get the action, NOTE: only deal with one action item in current implementation.
 	// Check if the action execution DTO is valid, including if the action is supported or not
-	if err := checkActionExecutionDTO(actionExecutionDTO); err != nil {
+	if err := h.checkActionExecutionDTO(actionExecutionDTO); err != nil {
 		err := fmt.Errorf("Action is not valid: %v", err.Error())
 		glog.Errorf(err.Error())
 		return h.failedResult(err.Error()), err
@@ -136,14 +130,6 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 }
 
 func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
-	actionType := getTurboActionType(actionItem)
-
-	worker, exist := h.actionExecutors[actionType]
-	if !exist {
-		msg := fmt.Errorf("Action executor for %s is not found", actionType)
-		glog.Errorf(msg.Error())
-		return msg
-	}
 
 	// Acquire the lock for the actionItem. It blocks the action execution if the lock
 	// is used by other action. It results in error return if timed out (set in lockStore).
@@ -151,7 +137,7 @@ func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
 		return err
 	} else {
 		// Unlock the entity after the action execution is finished
-		defer glog.V(4).Infof("==Action %s: releasing lock", actionItem.GetUuid())
+		defer glog.V(4).Infof("Action %s: releasing lock", actionItem.GetUuid())
 		defer lock.ReleaseLock()
 		lock.KeepRenewLock()
 	}
@@ -165,6 +151,8 @@ func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
 		ActionItem: actionItem,
 		Pod:        pod,
 	}
+	actionType := getTurboActionType(actionItem)
+	worker := h.actionExecutors[actionType]
 	output, err := worker.Execute(input)
 
 	if err != nil {
@@ -194,7 +182,7 @@ func (h *ActionHandler) getRelatedPod(actionItem *proto.ActionItemDTO) *api.Pod 
 		return nil
 	}
 
-	pod, err := h.podManager.GetPodFromDisplayNameOrUUID(h.config.kubeClient, podEntity.GetDisplayName(), podEntity.GetId())
+	pod, err := h.podManager.GetPodFromDisplayNameOrUUID(podEntity.GetDisplayName(), podEntity.GetId())
 	if err != nil {
 		glog.Errorf("failed to get Pod %s with id %s: %v", podEntity.GetDisplayName(), podEntity.GetId(), err)
 		return nil
@@ -276,28 +264,26 @@ func keepAlive(tracker sdkprobe.ActionProgressTracker, stop chan struct{}) {
 	}()
 }
 
-func checkActionExecutionDTO(actionExecutionDTO *proto.ActionExecutionDTO) error {
+func (h *ActionHandler) checkActionExecutionDTO(actionExecutionDTO *proto.ActionExecutionDTO) error {
 	actionItems := actionExecutionDTO.GetActionItem()
 
 	if actionItems == nil || len(actionItems) == 0 || actionItems[0] == nil {
-		return fmt.Errorf("Action execution validation failed: no action item found")
+		return fmt.Errorf("Action execution (%v) validation failed: no action item found", actionExecutionDTO)
 
 	}
 
 	ai := actionItems[0]
 
 	if ai.GetTargetSE() == nil {
-		return fmt.Errorf("Action execution validation failed: no target SE found")
+		return fmt.Errorf("Action execution (%v) validation failed: no target SE found", actionExecutionDTO)
 	}
 
 	actionType := turboActionType{ai.GetActionType(), ai.GetTargetSE().GetEntityType()}
-	//var actionType turboActionType = string(ai.GetActionType()) + "/" + string(ai.GetTargetSE().GetEntityType())
-	//actionType = string(ai.GetActionType()) + "/" + string(ai.GetTargetSE().GetEntityType())
 	glog.V(2).Infof("Receive a action request of type: %++v", actionType)
 
 	// Check if action is supported
-	if _, supported := actionSupport[actionType]; !supported {
-		return fmt.Errorf("Action execution validation failed: not supported type %++v", actionType)
+	if _, supported := h.actionExecutors[actionType]; !supported {
+		return fmt.Errorf("Action execution (%v) validation failed: not supported type %++v", actionExecutionDTO, actionType)
 	}
 
 	return nil

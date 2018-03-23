@@ -38,10 +38,10 @@ func (a *ActionLockStore) getLock(actionItem *proto.ActionItemDTO) (*util.LockHe
 	if key, err := a.getLockKey(actionItem); err != nil {
 		return nil, err
 	} else {
-		glog.V(4).Infof("==Action %s: getting lock with key %s", id, key)
+		glog.V(4).Infof("Action %s: getting lock with key %s", id, key)
 		lock, err := a.getLockHelper(key)
 		if err != nil {
-			glog.Errorf("==Action %s: failed to get lock with key %s", id, key)
+			glog.Errorf("Action %s: failed to get lock with key %s", id, key)
 			return nil, err
 		}
 
@@ -66,11 +66,11 @@ func (a *ActionLockStore) getLockHelper(key string) (*util.LockHelper, error) {
 	return helper, nil
 }
 
-func (a *ActionLockStore) getLockKey(ai *proto.ActionItemDTO) (string, error) {
-	pod := a.podFunc(ai)
+func (a *ActionLockStore) getLockKey(actionItem *proto.ActionItemDTO) (string, error) {
+	pod := a.podFunc(actionItem)
 
 	if pod == nil {
-		return ai.GetTargetSE().GetId(), nil
+		return actionItem.GetTargetSE().GetId(), nil
 	} else {
 		return getPodLockKey(pod)
 	}
