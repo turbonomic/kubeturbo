@@ -76,7 +76,7 @@ func doCheckPodNode(client *kclient.Clientset, namespace, name, nodeName string)
 	}
 
 	if phase == api.PodFailed || phase == api.PodSucceeded {
-		return false, fmt.Errorf("Pod:%s failed.", name)
+		return false, fmt.Errorf("Pod %s is in phase %v", name, phase)
 	}
 
 	return true, fmt.Errorf("pod(%s) is not in running phase[%v] yet.", name, phase)
@@ -95,21 +95,8 @@ func waitForReady(client *kclient.Clientset, namespace, name, nodeName string, r
 //  step1: create a clone pod of the original pod (without labels)
 //  step2: delete the original pod;
 //  step3: add the labels to the cloned pod;
-func movePod(client *kclient.Clientset, tpod *api.Pod, nodeName string, retryNum int) (*api.Pod, error) {
-	podClient := client.CoreV1().Pods(tpod.Namespace)
-	if podClient == nil {
-		err := fmt.Errorf("cannot get Pod client for nameSpace:%v", tpod.Namespace)
-		glog.Error(err)
-		return nil, err
-	}
-
-	// 0. get the latest Pod
-	var err error
-	var pod *api.Pod
-	if pod, err = podClient.Get(tpod.Name, metav1.GetOptions{}); err != nil {
-		glog.Errorf("Failed to get latest pod %v/%v: %v", tpod.Namespace, tpod.Name, err)
-		return nil, err
-	}
+func movePod(client *kclient.Clientset, pod *api.Pod, nodeName string, retryNum int) (*api.Pod, error) {
+	podClient := client.CoreV1().Pods(pod.Namespace)
 	//NOTE: do deep-copy if the original pod may be modified outside this function
 	labels := pod.Labels
 

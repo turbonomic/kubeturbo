@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
-	kclient "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
 
 	goutil "github.com/turbonomic/kubeturbo/pkg/util"
@@ -14,68 +13,53 @@ import (
 )
 
 type ReScheduler struct {
-	kubeClient *kclient.Clientset
-	lockMap    *util.ExpirationMap
+	TurboK8sActionExecutor
 }
 
-func NewReScheduler(client *kclient.Clientset, lmap *util.ExpirationMap) *ReScheduler {
+func NewReScheduler(ae TurboK8sActionExecutor) *ReScheduler {
 	return &ReScheduler{
-		kubeClient: client,
-		lockMap:    lmap,
+		TurboK8sActionExecutor: ae,
 	}
 }
 
 //Note: the error info will be shown in UI
-func (r *ReScheduler) Execute(actionItem *proto.ActionItemDTO) error {
-	if actionItem == nil {
-		glog.Errorf("container resize ActionItem passed in is nil")
-		return fmt.Errorf("Invalid Action Info")
-	}
+func (r *ReScheduler) Execute(input *TurboActionExecutorInput) (*TurboActionExecutorOutput, error) {
+	actionItem := input.ActionItem
+	pod := input.Pod
 
 	//1. get target Pod and new hosting Node
-	pod, node, err := r.getPodNode(actionItem)
+	node, err := r.getPodNode(actionItem)
 	if err != nil {
-		glog.Errorf("Failed to execute resizeAction: failed to get target pod or new hosting node: %v", err)
-		return fmt.Errorf("Failed")
+		glog.Errorf("Failed to execute pod move: failed to get target pod or new hosting node: %v", err)
+		return &TurboActionExecutorOutput{}, fmt.Errorf("Failed")
 	}
 
 	//2. move pod to the node
 	npod, err := r.reSchedule(pod, node)
 	if err != nil {
-		glog.Errorf("Failed to execute resizeAction: %v\n %++v", err, actionItem)
-		return err
+		glog.Errorf("Failed to execute pod move: %v\n %++v", err, actionItem)
+		return &TurboActionExecutorOutput{}, err
 	}
 
 	//3. check Pod
 	fullName := util.BuildIdentifier(npod.Namespace, npod.Name)
 	nodeName := npod.Spec.NodeName
-	glog.V(2).Infof("Begin to check resizeAction for pod[%v]", fullName)
+	glog.V(2).Infof("Begin to check pod move for pod[%v]", fullName)
 	if err = r.checkPod(npod, nodeName); err != nil {
-		glog.Errorf("Checking resizeAction failed: pod[%v] failed: %v", fullName, err)
-		return fmt.Errorf("Check Failed")
+		glog.Errorf("Checking pod move failed: pod[%v] failed: %v", fullName, err)
+		return &TurboActionExecutorOutput{}, fmt.Errorf("Check Failed")
 	}
-	glog.V(2).Infof("Checking resizeAction succeeded: pod[%v] is on node[%v].", fullName, nodeName)
+	glog.V(2).Infof("Checking pod move succeeded: pod[%v] is on node[%v].", fullName, nodeName)
 
-	return nil
+	return &TurboActionExecutorOutput{
+		Succeeded: true,
+		OldPod:    pod,
+		NewPod:    npod,
+	}, nil
 }
 
 func (r *ReScheduler) checkActionItem(action *proto.ActionItemDTO) error {
-	//1. check target
-	targetSE := action.GetTargetSE()
-	if targetSE == nil {
-		err := fmt.Errorf("move target is empty.")
-		glog.Error(err.Error())
-		return err
-	}
-
-	if targetSE.GetEntityType() != proto.EntityDTO_CONTAINER_POD {
-		err := fmt.Errorf("Unexpected target type: %v Vs. %v.",
-			targetSE.GetEntityType().String(), proto.EntityDTO_CONTAINER_POD.String())
-		glog.Errorf(err.Error())
-		return err
-	}
-
-	//2. check new hosting node
+	// check new hosting node
 	destSE := action.GetNewSE()
 	if destSE == nil {
 		err := fmt.Errorf("new hosting node is empty: %++v", action)
@@ -153,51 +137,24 @@ func (r *ReScheduler) getNode(action *proto.ActionItemDTO) (*api.Node, error) {
 	return nil, err
 }
 
-func (r *ReScheduler) getTargetPod(podEntity *proto.EntityDTO) (*api.Pod, error) {
-	//1. try to get pod from properties
-	// TODO, as there is issue in server, find pod based on entity properties is not supported right now.
-	// Once the issue in server gets resolved, we can get rid of finding pod by name or uuid.
-	etype := podEntity.GetEntityType()
-	properties := podEntity.GetEntityProperties()
-	pod, err := util.GetPodFromProperties(r.kubeClient, etype, properties)
-	if err != nil {
-		glog.Warningf("Failed to get pod from podEntity properites: %++v", podEntity)
-	} else {
-		return pod, nil
-	}
-
-	//2. try to get pod from UUID
-	return util.GetPodFromDisplayNameOrUUID(r.kubeClient, podEntity.GetDisplayName(), podEntity.GetId())
-}
-
 // get kubernetes pod, and the new hosting kubernetes node
-func (r *ReScheduler) getPodNode(action *proto.ActionItemDTO) (*api.Pod, *api.Node, error) {
+func (r *ReScheduler) getPodNode(action *proto.ActionItemDTO) (*api.Node, error) {
 	//1. check
 	glog.V(4).Infof("MoveActionItem: %++v", action)
 	if err := r.checkActionItem(action); err != nil {
 		err = fmt.Errorf("Move Action aborted: check action item failed: %v", err)
 		glog.Errorf(err.Error())
-		return nil, nil, err
+		return nil, err
 	}
-
-	//2. get pod from k8s
-	target := action.GetTargetSE()
-	pod, err := r.getTargetPod(target)
-	if err != nil {
-		err = fmt.Errorf("Move Action aborted: failed to find pod(%v) in k8s: %v", target.GetDisplayName(), err)
-		glog.Errorf(err.Error())
-		return nil, nil, err
-	}
-
-	//3. find the new hosting node for the pod.
+	//2. find the new hosting node for the pod.
 	node, err := r.getNode(action)
 	if err != nil {
 		err = fmt.Errorf("Move action aborted: failed to get new hosting node: %v", err)
 		glog.Error(err.Error())
-		return nil, nil, err
+		return nil, err
 	}
 
-	return pod, node, nil
+	return node, nil
 }
 
 // Check whether the action should be executed.
@@ -275,59 +232,26 @@ func (r *ReScheduler) reSchedule(pod *api.Pod, node *api.Node) (*api.Pod, error)
 	return npod, nil
 }
 
-//TODO: make it as a function for LockHelper
-func (r *ReScheduler) getLock(key string) (*util.LockHelper, error) {
-	//1. set up lock helper
-	helper, err := util.NewLockHelper(key, r.lockMap)
-	if err != nil {
-		glog.Errorf("Failed to get a lockHelper: %v", err)
-		return nil, err
-	}
-
-	// 2. wait to get a lock of current Pod
-	timeout := defaultWaitLockTimeOut
-	interval := defaultWaitLockSleep
-	err = helper.Trylock(timeout, interval)
-	if err != nil {
-		glog.Errorf("Failed to acquire lock with key(%v): %v", key, err)
-		return nil, err
-	}
-	return helper, nil
-}
-
 // move the pods controlled by ReplicationController/ReplicaSet
 func (r *ReScheduler) moveControllerPod(pod *api.Pod, parentKind, parentName, nodeName string) (*api.Pod, error) {
-	controllerKey := fmt.Sprintf("%s-%v/%v", parentKind, pod.Namespace, parentName)
-	helper, err := r.getLock(controllerKey)
+	npod, err := movePod(r.kubeClient, pod, nodeName, defaultRetryMore)
 	if err != nil {
-		glog.Errorf("Move controller(%v) Pod(%v) failed: failed to get lock %v", controllerKey, pod.Name, err)
-		return nil, err
+		glog.Errorf("Move contorller pod(%s) failed: %v", pod.Name, err)
 	}
 
-	defer helper.ReleaseLock()
-
-	glog.V(3).Infof("Get lock for pod[%s] parent[%v-%s]", pod.Name, parentKind, parentName)
-	helper.KeepRenewLock()
-
-	return movePod(r.kubeClient, pod, nodeName, defaultRetryMore)
+	return npod, err
 }
 
 // as there may be concurrent actions on the same bare pod:
 //   for example, one action is to move Pod, and the other is to Resize Pod.container;
 // thus, concurrent control should also be applied to bare pods.
 func (r *ReScheduler) moveBarePod(pod *api.Pod, nodeName string) (*api.Pod, error) {
-	podkey := util.BuildIdentifier(pod.Namespace, pod.Name)
-	// 1. setup lockHelper
-	helper, err := r.getLock(podkey)
+	npod, err := movePod(r.kubeClient, pod, nodeName, defaultRetryMore)
 	if err != nil {
-		glog.Errorf("Move bare Pod(%v) failed: failed to get lock %v", podkey, err)
-		return nil, err
+		glog.Errorf("Move contorller pod(%s) failed: %v", pod.Name, err)
 	}
-	defer helper.ReleaseLock()
 
-	// 2. move the Pod
-	helper.KeepRenewLock()
-	return movePod(r.kubeClient, pod, nodeName, defaultRetryMore)
+	return npod, err
 }
 
 func (r *ReScheduler) checkPod(pod *api.Pod, nodeName string) error {

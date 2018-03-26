@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api "k8s.io/client-go/pkg/api/v1"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 
 	"github.com/golang/glog"
+	"k8s.io/client-go/kubernetes/typed/core/v1"
 	"strings"
 )
 
@@ -162,4 +164,76 @@ func podIsReady(pod *api.Pod) bool {
 	}
 	glog.Errorf("Unable to get status for pod %s", pod.Name)
 	return false
+}
+
+// GetPodInPhase finds the pod with the specific name in the specific phase (e.g., Running).
+// If pod not found, nil pod pointer will be returned without error.
+func GetPodInPhase(podClient v1.PodInterface, name string, phase api.PodPhase) (*api.Pod, error) {
+	pod, err := podClient.Get(name, meta_v1.GetOptions{})
+	if err != nil {
+		glog.Errorf("Error while getting pod %s in phase %v: %v", name, phase, err.Error())
+		return nil, err
+	}
+
+	if pod == nil {
+		err = fmt.Errorf("Pod %s not found", name)
+		glog.Error(err.Error())
+		return nil, err
+	}
+
+	if pod.Status.Phase != phase {
+		return nil, fmt.Errorf("Pod %s is not in phase %v", name, phase)
+	}
+
+	return pod, nil
+}
+
+// GetPodInPhaseByUid finds the pod with the specific uid in the specific phase (e.g., Running).
+// If pod not found, nil pod pointer will be returned without error.
+func GetPodInPhaseByUid(podClient v1.PodInterface, uid string, phase api.PodPhase) (*api.Pod, error) {
+	podList, err := podClient.List(meta_v1.ListOptions{
+		FieldSelector: "status.phase=" + string(phase) + ",metadata.uid=" + uid,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("Error to get pod with uid %s: %s", uid, err)
+	}
+
+	if podList == nil || len(podList.Items) == 0 {
+		err = fmt.Errorf("Pod with uid %s in phase %v not found", uid, phase)
+		glog.Error(err.Error())
+		return nil, err
+	}
+
+	glog.V(3).Infof("Found pod in phase %v by uid %s", phase, uid)
+	return &podList.Items[0], nil
+}
+
+// Parses the pod entity display name to retrieve the namespace and name of the pod.
+func ParsePodDisplayName(displayName string) (string, string, error) {
+	sep := "/"
+	items := strings.Split(displayName, sep)
+	if len(items) < 2 {
+		err := fmt.Errorf("Cannot get namespace/podname from %v", displayName)
+		glog.Error(err.Error())
+		return "", "", err
+	}
+
+	//1. get Namespace
+	namespace := strings.TrimSpace(items[0])
+	if len(namespace) < 1 {
+		err := fmt.Errorf("Parsed namespace is empty from %v", displayName)
+		glog.Errorf(err.Error())
+		return "", "", err
+	}
+
+	//2. get PodName
+	name := strings.TrimSpace(items[1])
+	if len(name) < 1 {
+		err := fmt.Errorf("Parsed name is empty from %v", displayName)
+		glog.Errorf(err.Error())
+		return "", "", err
+	}
+
+	return namespace, name, nil
 }
