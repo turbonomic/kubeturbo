@@ -38,7 +38,7 @@ const (
 // The key used to acquire the lock is as follows:
 //
 // 1. If the action item is associated to a container pod (meaning, the function podFunc returns a pod),
-//    the key is the pod id for bare-pod cases and its parent controller id for non-bare-pod cases.
+//    the key is the "container name" + "image name" for bare-pod cases and its parent controller id for non-bare-pod cases.
 //
 // 2. Otherwise, the key is the id of the target SE of the action item.
 func (a *ActionLockStore) getLock(actionItem *proto.ActionItemDTO) (*util.LockHelper, error) {
@@ -80,22 +80,31 @@ func (a *ActionLockStore) getLockKey(actionItem *proto.ActionItemDTO) (string, e
 	pod := a.podFunc(actionItem)
 
 	if pod == nil {
+		// If the pod is nil, simply returning the id of the target SE.
+		// Currently, for the actions supported by kubeturbo, there is no such use case for nil pod.
 		return actionItem.GetTargetSE().GetId(), nil
 	} else {
 		return getPodLockKey(pod)
 	}
 }
 
-// Gets lock key for the pod. For a bare pod, the key is its uid. Otherwise, the key is the formatted string:
+// Gets lock key for the pod. For a bare pod, the key is its (first) container name + image name. Otherwise, the key is the formatted string:
 // [parentKind]-[pod.Namespace]/[parentName] with its parent controller.
 func getPodLockKey(pod *api.Pod) (string, error) {
-	// If the pod is a bare pod, the key is the pod id. Otherwise, the key is the parent name.
-	if parentKind, parentName, err := util.GetPodParentInfo(pod); err != nil {
+
+	parentKind, parentName, err := util.GetPodParentInfo(pod)
+	if err != nil {
 		glog.Errorf("Failed to get pod[%s] parent info: %v", util.BuildIdentifier(pod.Namespace, pod.Name), err)
 		return "", err
-	} else if parentKind != "" { // Not a bare pod
+	}
+
+	// If the pod is not a bare pod, the key is the parent name.
+	if parentKind != "" { // Not a bare pod
 		return fmt.Sprintf("%v-%v/%v", parentKind, pod.Namespace, parentName), nil
 	}
 
-	return string(pod.UID), nil
+	// For bare-pod case, the pod name and uid will change after actions applied. So, it's not safe to use as key.
+	// Here, use the (first) container name + the image name as the key to safely lock the pod.
+	key := pod.Spec.Containers[0].Image + pod.Spec.Containers[0].Name
+	return key, nil
 }

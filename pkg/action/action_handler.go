@@ -147,6 +147,11 @@ func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
 	// Currently, all actions need to get its related pod. If not needed, the pod is nil.
 	pod := h.getRelatedPod(actionItem)
 
+	if pod == nil {
+		err := fmt.Errorf("Cannot find the related pod for action item %s", actionItem.GetUuid())
+		return err
+	}
+
 	input := &executor.TurboActionExecutorInput{
 		ActionItem: actionItem,
 		Pod:        pod,

@@ -30,26 +30,26 @@ func (r *ReScheduler) Execute(input *TurboActionExecutorInput) (*TurboActionExec
 	//1. get target Pod and new hosting Node
 	node, err := r.getPodNode(actionItem)
 	if err != nil {
-		glog.Errorf("Failed to execute resizeAction: failed to get target pod or new hosting node: %v", err)
+		glog.Errorf("Failed to execute pod move: failed to get target pod or new hosting node: %v", err)
 		return &TurboActionExecutorOutput{}, fmt.Errorf("Failed")
 	}
 
 	//2. move pod to the node
 	npod, err := r.reSchedule(pod, node)
 	if err != nil {
-		glog.Errorf("Failed to execute resizeAction: %v\n %++v", err, actionItem)
+		glog.Errorf("Failed to execute pod move: %v\n %++v", err, actionItem)
 		return &TurboActionExecutorOutput{}, err
 	}
 
 	//3. check Pod
 	fullName := util.BuildIdentifier(npod.Namespace, npod.Name)
 	nodeName := npod.Spec.NodeName
-	glog.V(2).Infof("Begin to check resizeAction for pod[%v]", fullName)
+	glog.V(2).Infof("Begin to check pod move for pod[%v]", fullName)
 	if err = r.checkPod(npod, nodeName); err != nil {
-		glog.Errorf("Checking resizeAction failed: pod[%v] failed: %v", fullName, err)
+		glog.Errorf("Checking pod move failed: pod[%v] failed: %v", fullName, err)
 		return &TurboActionExecutorOutput{}, fmt.Errorf("Check Failed")
 	}
-	glog.V(2).Infof("Checking resizeAction succeeded: pod[%v] is on node[%v].", fullName, nodeName)
+	glog.V(2).Infof("Checking pod move succeeded: pod[%v] is on node[%v].", fullName, nodeName)
 
 	return &TurboActionExecutorOutput{
 		Succeeded: true,

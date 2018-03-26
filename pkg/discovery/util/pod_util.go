@@ -171,13 +171,17 @@ func podIsReady(pod *api.Pod) bool {
 func GetPodInPhase(podClient v1.PodInterface, name string, phase api.PodPhase) (*api.Pod, error) {
 	pod, err := podClient.Get(name, meta_v1.GetOptions{})
 	if err != nil {
-		return pod, err
+		glog.Errorf("Error while getting pod %s in phase %v: %v", name, phase, err.Error())
+		return nil, err
 	}
 
 	if pod == nil {
-		glog.V(3).Infof("Pod %s is not found", name)
-		return nil, nil
-	} else if pod.Status.Phase != phase {
+		err = fmt.Errorf("Pod %s not found", name)
+		glog.Error(err.Error())
+		return nil, err
+	}
+
+	if pod.Status.Phase != phase {
 		return nil, fmt.Errorf("Pod %s is not in phase %v", name, phase)
 	}
 
@@ -190,13 +194,15 @@ func GetPodInPhaseByUid(podClient v1.PodInterface, uid string, phase api.PodPhas
 	podList, err := podClient.List(meta_v1.ListOptions{
 		FieldSelector: "status.phase=" + string(phase) + ",metadata.uid=" + uid,
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("Error to get pod with uid %s: %s", uid, err)
 	}
 
 	if podList == nil || len(podList.Items) == 0 {
-		glog.V(3).Infof("Pod with uid %s not found", uid)
-		return nil, nil
+		err = fmt.Errorf("Pod with uid %s in phase %v not found", uid, phase)
+		glog.Error(err.Error())
+		return nil, err
 	}
 
 	glog.V(3).Infof("Found pod in phase %v by uid %s", phase, uid)

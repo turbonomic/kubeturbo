@@ -9,6 +9,10 @@ import (
 	api "k8s.io/client-go/pkg/api/v1"
 )
 
+const (
+	maxIteForLatestValue = 20
+)
+
 type IPodManager interface {
 	GetPodFromDisplayNameOrUUID(displayName, uuid string) (*api.Pod, error)
 	CachePod(old, new *api.Pod)
@@ -67,37 +71,28 @@ func (p *PodCachedManager) getRunningPod(podClient v1.PodInterface, name, uid st
 	// If try the original name first, it may find the pod that is in terminating process from the previous action
 	// as the action doesn't check if the termination process finishes.
 
-	// Pod is not found with the name. Try using the cached name because actions
-	// might have been applied to the pod.
+	// Try using the cached name because actions might have been applied to the pod.
 	if cachedName, ok := p.getLatestValue(name); ok {
 		glog.V(3).Infof("Using cached name %s for pod %s", cachedName, name)
-		pod, err := podutil.GetPodInPhase(podClient, cachedName.(string), api.PodRunning)
-		if err != nil || pod != nil {
-			return pod, err
-		}
+		return podutil.GetPodInPhase(podClient, cachedName, api.PodRunning)
 	}
 
-	pod, err := podutil.GetPodInPhase(podClient, name, api.PodRunning)
-	if err != nil || pod != nil {
-		return pod, err
+	// Try using the original name if it has no cached value
+	if pod, err := podutil.GetPodInPhase(podClient, name, api.PodRunning); err == nil {
+		return pod, nil
 	}
 
-	// Pod is not found by name. Try using uid to search for the pod.
+	// Pod is not found by name. Try using uid to get the pod (more expensive call).
+
+	// Try using uid to search for the pod (for truncated display name issue).
 	// Try using the cached uid first.
 	if cachedUid, ok := p.getLatestValue(uid); ok {
 		glog.V(3).Infof("Using cached uid %s for pod %s(%s)", cachedUid, name, uid)
-		pod, err = podutil.GetPodInPhaseByUid(podClient, cachedUid.(string), api.PodRunning)
-		if err != nil || pod != nil {
-			return pod, err
-		}
+		return podutil.GetPodInPhaseByUid(podClient, cachedUid, api.PodRunning)
 	}
 
-	pod, err = podutil.GetPodInPhaseByUid(podClient, uid, api.PodRunning)
-	if err != nil || pod != nil {
-		return pod, err
-	}
-
-	return nil, fmt.Errorf("Failed to find Pod with name %s and uid %s", name, uid)
+	// Try using the original uid if it has no cached value
+	return podutil.GetPodInPhaseByUid(podClient, uid, api.PodRunning)
 }
 
 // Need to find the latest pod as there might be multiple action applied to the pod.
@@ -105,23 +100,25 @@ func (p *PodCachedManager) getRunningPod(podClient v1.PodInterface, name, uid st
 //       action1: pod-foo (old) => pod-foo-c (new)
 //       action2: pod-foo (old) => pod-foo-c (from cache) => pod-foo-c-c (new)
 //       action3: pod-foo (old) => pod-foo-c (from cache) => pod-foo-c-c (from cache again) => pod-foo-c-c-c (new)
-func (p *PodCachedManager) getLatestValue(key string) (interface{}, bool) {
+func (p *PodCachedManager) getLatestValue(key string) (string, bool) {
 	val, ok := p.podCache.Get(key)
 	if !ok {
-		return val, ok
+		glog.V(4).Infof("No cached value found with key %s", key)
+		return "", false
 	}
 
 	// Value found. Continue to getting further value using the value found as the new key
 	// Set the maximum for the iteration as in any case (e.g., with a bug), we don't want to run the loop infinitely.
-	maxIte := 20
+	maxIte := maxIteForLatestValue
 	for i := 0; i < maxIte; i++ {
-		glog.V(4).Infof("PodCachedManager: (key,value)=(%s,%s)", key, val)
+		glog.V(4).Infof("(key,value)=(%s,%s)", key, val)
 		key = val.(string)
 		if val, ok = p.podCache.Get(key); !ok { // No new cached value found
-			val = key
-			break
+			return key, true
 		}
 	}
 
-	return val, true
+	glog.Warningf("Reached the maximal (%d) iteration for getting the latest value with key %s", maxIte, key)
+
+	return val.(string), true
 }

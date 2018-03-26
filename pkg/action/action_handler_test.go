@@ -175,6 +175,10 @@ func (p *mockPodInterface) Get(name string, options metav1.GetOptions) (*api.Pod
 	pod.Namespace = p.namespace
 	pod.UID = mockPodId
 	pod.Status.Phase = api.PodRunning
+
+	c := api.Container{Name: "container-foo", Image: "container-image-foo"}
+	pod.Spec.Containers = []api.Container{c}
+
 	return pod, nil
 }
 
