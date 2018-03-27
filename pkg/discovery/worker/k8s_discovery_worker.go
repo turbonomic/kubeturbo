@@ -282,6 +282,13 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	// Node providers
 	nodes := currTask.NodeList()
 	cluster := currTask.Cluster()
+
+	// setUp node UUID getter: AWS, Azure or vCenter(default)
+	if len(nodes) > 1 && worker.config.stitchingPropertyType == stitching.UUID {
+		providerId := nodes[0].Spec.ProviderID
+		stitchingManager.SetNodeUuidGetterByProvider(providerId)
+	}
+
 	for _, node := range nodes {
 		stitchingManager.StoreStitchingValue(node)
 	}

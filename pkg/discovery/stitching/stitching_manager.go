@@ -7,8 +7,6 @@ import (
 
 	api "k8s.io/client-go/pkg/api/v1"
 
-	"github.com/turbonomic/kubeturbo/test/flag"
-
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"github.com/turbonomic/turbo-go-sdk/pkg/supplychain"
@@ -47,25 +45,40 @@ type StitchingManager struct {
 	// The property used for stitching.
 	stitchingPropertyType StitchingPropertyType
 
-	// Flags for local stitching simulation.
-	localTestingFlags *flag.TestingFlag
+	// get node reconcile UUID
+	uuidGetter NodeUUIDGetter
 }
 
 func NewStitchingManager(pType StitchingPropertyType) *StitchingManager {
-	testingFlag := flag.GetFlag()
 	return &StitchingManager{
 		stitchingPropertyType: pType,
-
-		localTestingFlags: testingFlag,
+		uuidGetter:            &defaultNodeUUIDGetter{},
 	}
+}
+
+func (s *StitchingManager) SetNodeUuidGetterByProvider(providerId string) {
+	if s.stitchingPropertyType == IP {
+		glog.Warningf("Stitching type is IP, no need to set NodeUuidGetter")
+	}
+
+	var getter NodeUUIDGetter
+
+	getter = &defaultNodeUUIDGetter{}
+
+	if strings.HasPrefix(providerId, awsPrefix) {
+		getter = &awsNodeUUIDGetter{}
+	} else if strings.HasPrefix(providerId, azurePrefix) {
+		getter = &azureNodeUUIDGetter{}
+	}
+
+	s.uuidGetter = getter
+	//TODO: decrease log level
+	glog.V(1).Infof("Node UUID getter is: %v", getter.Name())
 }
 
 // Retrieve stitching values from given node and store in maps.
 // Do nothing if it is a local testing.
 func (s *StitchingManager) StoreStitchingValue(node *api.Node) {
-	if s.localTestingFlags != nil && s.localTestingFlags.LocalTestingFlag {
-		return
-	}
 	switch s.stitchingPropertyType {
 	case UUID:
 		s.retrieveAndStoreStitchingUUID(node)
@@ -101,35 +114,28 @@ func (s *StitchingManager) retrieveAndStoreStitchingIP(node *api.Node) {
 
 // Get the systemUUID of the node and store it in nodeStitchingUIDMap.
 func (s *StitchingManager) retrieveAndStoreStitchingUUID(node *api.Node) {
-	nodeStitchingID := node.Status.NodeInfo.SystemUUID
-	if nodeStitchingID == "" {
-		glog.Errorf("Invalid stitching UUID for node %s", node.Name)
-	} else {
-		if s.nodeStitchingUIDMap == nil {
-			s.nodeStitchingUIDMap = make(map[string]string)
-		}
-		s.nodeStitchingUIDMap[node.Name] = strings.ToLower(nodeStitchingID)
+	nodeStitchingID, err := s.uuidGetter.GetUUID(node)
+	if err != nil || nodeStitchingID == "" {
+		glog.Errorf("Failed to get stitching UUID for node %s: %v", node.Name, err)
+		return
 	}
+
+	if s.nodeStitchingUIDMap == nil {
+		s.nodeStitchingUIDMap = make(map[string]string)
+	}
+	s.nodeStitchingUIDMap[node.Name] = strings.ToLower(nodeStitchingID)
 }
 
 // Get the stitching value based on given nodeName.
 // Return localTestStitchingValue if it is a local testing.
 func (s *StitchingManager) GetStitchingValue(nodeName string) (string, error) {
-	if s.localTestingFlags != nil && s.localTestingFlags.LocalTestingFlag {
-		if s.localTestingFlags.LocalTestStitchingValue == "" {
-			return "", errors.New("Local testing stitching value is empty.")
-		} else {
-			return s.localTestingFlags.LocalTestStitchingValue, nil
-		}
-	} else {
-		switch s.stitchingPropertyType {
-		case UUID:
-			return s.getNodeUUIDForStitching(nodeName)
-		case IP:
-			return s.getNodeIPForStitching(nodeName)
-		default:
-			return "", fmt.Errorf("Stitching property type %s is not supported.", s.stitchingPropertyType)
-		}
+	switch s.stitchingPropertyType {
+	case UUID:
+		return s.getNodeUUIDForStitching(nodeName)
+	case IP:
+		return s.getNodeIPForStitching(nodeName)
+	default:
+		return "", fmt.Errorf("Stitching property type %s is not supported.", s.stitchingPropertyType)
 	}
 }
 
