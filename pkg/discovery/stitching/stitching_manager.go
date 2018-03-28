@@ -72,8 +72,7 @@ func (s *StitchingManager) SetNodeUuidGetterByProvider(providerId string) {
 	}
 
 	s.uuidGetter = getter
-	//TODO: decrease log level
-	glog.V(1).Infof("Node UUID getter is: %v", getter.Name())
+	glog.V(3).Infof("Node UUID getter is: %v", getter.Name())
 }
 
 // Retrieve stitching values from given node and store in maps.
