@@ -29,7 +29,8 @@ type NodeUUIDGetter interface {
     nodeInfo:
       systemUUID: 4200979A-4EF9-E49B-6BD6-FDBAD2BE7252
 
-  Output: 4200979A-4EF9-E49B-6BD6-FDBAD2BE7252
+  Output: 4200979a-4ef9-e49b-6bd6-fdbad2be7252
+  (lower case of the systemUUID)
 */
 type defaultNodeUUIDGetter struct {
 }
@@ -44,6 +45,7 @@ func (d *defaultNodeUUIDGetter) GetUUID(node *api.Node) (string, error) {
 		glog.Errorf("Node uuid is empty: %++v", node)
 		return "", fmt.Errorf("Empty uuuid")
 	}
+	uuid = strings.ToLower(uuid)
 	return uuid, nil
 }
 
@@ -164,5 +166,4 @@ func reverseUuid(oid string) (string, error) {
 	buf.WriteString(parts[4])
 
 	return buf.String(), nil
-
 }

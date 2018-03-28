@@ -123,7 +123,7 @@ func (s *StitchingManager) retrieveAndStoreStitchingUUID(node *api.Node) {
 	if s.nodeStitchingUIDMap == nil {
 		s.nodeStitchingUIDMap = make(map[string]string)
 	}
-	s.nodeStitchingUIDMap[node.Name] = strings.ToLower(nodeStitchingID)
+	s.nodeStitchingUIDMap[node.Name] = nodeStitchingID
 }
 
 // Get the stitching value based on given nodeName.
