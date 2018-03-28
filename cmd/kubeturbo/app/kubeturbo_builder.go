@@ -68,7 +68,7 @@ type VMTServer struct {
 	// Instead we use the systemUUID of each node, which is equal to UUID of corresponding
 	// VM discovered by VM probe.
 	// The default value is false.
-	UseVMWare bool
+	UseUUID bool
 
 	//VMPriority: priority of VM in supplyChain definition from kubeturbo, should be less than 0;
 	VMPriority int32
@@ -100,7 +100,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.TestingFlagPath, "testingflag", s.TestingFlagPath, "Path to the testing flag.")
 	fs.StringVar(&s.KubeConfig, "kubeconfig", s.KubeConfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.BoolVar(&s.EnableProfiling, "profiling", false, "Enable profiling via web interface host:port/debug/pprof/.")
-	fs.BoolVar(&s.UseVMWare, "usevmware", false, "If the underlying infrastructure is VMWare.")
+	fs.BoolVar(&s.UseUUID, "stitich-uuid", true, "Use VirtualMachine's UUID to do stitching.")
 	fs.IntVar(&s.KubeletPort, "kubelet-port", DefaultKubeletPort, "The port of the kubelet runs on")
 	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
 	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
@@ -213,7 +213,7 @@ func (s *VMTServer) Run(_ []string) error {
 		WithKubeletClient(kubeletClient).
 		WithVMPriority(s.VMPriority).
 		WithVMIsBase(s.VMIsBase).
-		UsingVMWare(s.UseVMWare)
+		UsingUUIDStitch(s.UseUUID)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service
