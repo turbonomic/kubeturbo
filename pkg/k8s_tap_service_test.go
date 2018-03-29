@@ -87,12 +87,12 @@ func TestCreateProbeConfigOrDie(t *testing.T) {
 		wantStitchingPropertyType stitching.StitchingPropertyType
 	}{
 		{
-			name:                      "test-use-vmware",
+			name:                      "test-use-IP",
 			UseUUID:                   false,
 			wantStitchingPropertyType: stitching.IP,
 		},
 		{
-			name:                      "test-not-use-vmware",
+			name:                      "test-use-UUID",
 			UseUUID:                   true,
 			wantStitchingPropertyType: stitching.UUID,
 		},

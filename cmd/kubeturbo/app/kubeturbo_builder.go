@@ -63,11 +63,8 @@ type VMTServer struct {
 	EnableProfiling bool
 
 	// To stitch the Nodes in Kubernetes cluster with the VM from the underlying cloud or
-	// hypervisor infrastructure, Node IP is used.
-	// If the underlying infrastructure is VMWare, we cannot reply on IP address for stitching.
-	// Instead we use the systemUUID of each node, which is equal to UUID of corresponding
-	// VM discovered by VM probe.
-	// The default value is false.
+	// hypervisor infrastructure: either use VM UUID or VM IP.
+	// If the underlying infrastructure is VMWare, AWS instances, or Azure instances, VM's UUID is used.
 	UseUUID bool
 
 	//VMPriority: priority of VM in supplyChain definition from kubeturbo, should be less than 0;
@@ -100,7 +97,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.TestingFlagPath, "testingflag", s.TestingFlagPath, "Path to the testing flag.")
 	fs.StringVar(&s.KubeConfig, "kubeconfig", s.KubeConfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.BoolVar(&s.EnableProfiling, "profiling", false, "Enable profiling via web interface host:port/debug/pprof/.")
-	fs.BoolVar(&s.UseUUID, "stitich-uuid", true, "Use VirtualMachine's UUID to do stitching.")
+	fs.BoolVar(&s.UseUUID, "stitch-uuid", true, "Use VirtualMachine's UUID to do stitching, otherwise IP is used.")
 	fs.IntVar(&s.KubeletPort, "kubelet-port", DefaultKubeletPort, "The port of the kubelet runs on")
 	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
 	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
