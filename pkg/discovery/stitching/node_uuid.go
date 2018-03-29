@@ -43,7 +43,7 @@ func (d *defaultNodeUUIDGetter) GetUUID(node *api.Node) (string, error) {
 	uuid := node.Status.NodeInfo.SystemUUID
 	if len(uuid) < 1 {
 		glog.Errorf("Node uuid is empty: %++v", node)
-		return "", fmt.Errorf("Empty uuuid")
+		return "", fmt.Errorf("Empty uuid")
 	}
 
 	// the uuid is in lower case in vCenter Probe
