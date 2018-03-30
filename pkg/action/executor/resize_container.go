@@ -12,6 +12,7 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	idutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -264,7 +265,7 @@ func (r *ContainerResizer) executeAction(resizeSpec *containerResizeSpec, pod *k
 
 	//2. get parent controller
 	fullName := util.BuildIdentifier(pod.Namespace, pod.Name)
-	parentKind, parentName, err := util.GetPodParentInfo(pod)
+	parentKind, parentName, err := podutil.GetPodParentInfo(pod)
 	if err != nil {
 		glog.Errorf("Resize action failed: failed to get pod[%s] parent info: %v", fullName, err)
 		return nil, fmt.Errorf("Failed")
@@ -316,7 +317,7 @@ func (r *ContainerResizer) resizeBarePodContainer(pod *k8sapi.Pod, spec *contain
 // check the liveness of pod
 // return (retry, error)
 func doCheckPod(client *kclient.Clientset, namespace, name string) (bool, error) {
-	pod, err := util.GetPod(client, namespace, name)
+	pod, err := podutil.GetPod(client, namespace, name)
 	if err != nil {
 		return true, err
 	}

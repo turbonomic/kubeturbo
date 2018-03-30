@@ -9,6 +9,8 @@ import (
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 
 	"github.com/golang/glog"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	client "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/typed/core/v1"
 	"strings"
 )
@@ -67,59 +69,11 @@ func isMirrorPod(pod *api.Pod) bool {
 
 // Check is a pod is created by the given type of entity.
 func isPodCreatedBy(pod *api.Pod, kind string) bool {
-	parentKind, err := findParentObjectKind(pod)
+	parentKind, _, err := GetPodParentInfo(pod)
 	if err != nil {
 		glog.Errorf("%++v", err)
 	}
 	return parentKind == kind
-}
-
-// Find the reference object of the parent entity, which created the given pod.
-func FindParentReferenceObject(pod *api.Pod) (*api.ObjectReference, error) {
-
-	annotations := pod.Annotations
-	if annotations == nil {
-		return nil, nil
-	}
-	createdByRef, exist := annotations["kubernetes.io/created-by"]
-	if !exist {
-		glog.V(3).Infof("Warning Cannot find createdBy reference for Pod %s/%s", pod.Namespace, pod.Name)
-		return nil, nil
-	}
-
-	return GetCreatedByRef(createdByRef)
-}
-
-// Find the kind of the parent object that creates the pod, from the annotations of pod.
-func findParentObjectKind(pod *api.Pod) (string, error) {
-	parentObject, err := FindParentReferenceObject(pod)
-	if err != nil {
-		return "", err
-	}
-	if parentObject == nil {
-		return "", nil
-	}
-	kind := parentObject.Kind
-	glog.V(4).Infof("The kind of parent object of Pod %s/%s is %s", pod.Namespace, pod.Name, kind)
-	return kind, nil
-}
-
-func GetCreatedByRef(refData string) (*api.ObjectReference, error) {
-	var ref api.SerializedReference
-	if err := DecodeJSON(&ref, refData); err != nil {
-		return nil, fmt.Errorf("Error getting ObjectReference: %s", err)
-	}
-	objectRef := ref.Reference
-	return &objectRef, nil
-}
-
-func DecodeJSON(ref interface{}, data string) error {
-	body := []byte(data)
-	if err := json.Unmarshal(body, ref); err != nil {
-		err = fmt.Errorf("unable to unmarshal %q with error: %v", data, err)
-		return err
-	}
-	return nil
 }
 
 func GroupPodsByNode(pods []*api.Pod) map[string][]*api.Pod {
@@ -236,4 +190,86 @@ func ParsePodDisplayName(displayName string) (string, string, error) {
 	}
 
 	return namespace, name, nil
+}
+
+func GetPod(kubeClient *client.Clientset, namespace, name string) (*api.Pod, error) {
+	return kubeClient.CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
+}
+
+func parseOwnerReferences(owners []metav1.OwnerReference) (string, string) {
+	for i := range owners {
+		owner := &owners[i]
+		if *(owner.Controller) && len(owner.Kind) > 0 && len(owner.Name) > 0 {
+			return owner.Kind, owner.Name
+		}
+	}
+
+	return "", ""
+}
+
+func GetPodParentInfo(pod *api.Pod) (string, string, error) {
+	//1. check ownerReferences:
+
+	if pod.OwnerReferences != nil && len(pod.OwnerReferences) > 0 {
+		kind, name := parseOwnerReferences(pod.OwnerReferences)
+		if len(kind) > 0 && len(name) > 0 {
+			return kind, name, nil
+		}
+	}
+
+	glog.V(4).Infof("no parent-info for pod-%v/%v in OwnerReferences.", pod.Namespace, pod.Name)
+
+	//2. check annotations:
+	if pod.Annotations != nil && len(pod.Annotations) > 0 {
+		key := "kubernetes.io/created-by"
+		if value, ok := pod.Annotations[key]; ok {
+
+			var ref api.SerializedReference
+
+			if err := json.Unmarshal([]byte(value), &ref); err != nil {
+				err = fmt.Errorf("failed to decode parent annoation:%v", err)
+				glog.Errorf("%v\n%v", err, value)
+				return "", "", err
+			}
+
+			return ref.Reference.Kind, ref.Reference.Name, nil
+		}
+	}
+
+	glog.V(4).Infof("no parent-info for pod-%v/%v in Annotations.", pod.Namespace, pod.Name)
+
+	return "", "", nil
+}
+
+// get grandParent(parent's parent) information of a pod: kind, name
+// If parent does not have parent, then return parent info.
+// Note: if parent kind is "ReplicaSet", then its parent's parent can be a "Deployment"
+func GetPodGrandInfo(kclient *client.Clientset, pod *api.Pod) (string, string, error) {
+	//1. get Parent info: kind and name;
+	kind, name, err := GetPodParentInfo(pod)
+	if err != nil {
+		return "", "", err
+	}
+
+	//2. if parent is "ReplicaSet", check parent's parent
+	if strings.EqualFold(kind, Kind_ReplicaSet) {
+		//2.1 get parent object
+		rs, err := kclient.ExtensionsV1beta1().ReplicaSets(pod.Namespace).Get(name, metav1.GetOptions{})
+		if err != nil {
+			err = fmt.Errorf("Failed to get ReplicaSet[%v/%v]: %v", pod.Namespace, name, err)
+			glog.Error(err.Error())
+			return "", "", err
+		}
+
+		//2.2 get parent's parent info by parsing ownerReferences:
+		// TODO: The ownerReferences of ReplicaSet is supported only in 1.6.0 and afetr
+		if rs.OwnerReferences != nil && len(rs.OwnerReferences) > 0 {
+			gkind, gname := parseOwnerReferences(rs.OwnerReferences)
+			if len(gkind) > 0 && len(gname) > 0 {
+				return gkind, gname, nil
+			}
+		}
+	}
+
+	return kind, name, nil
 }

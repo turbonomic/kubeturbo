@@ -8,6 +8,7 @@ import (
 	api "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
@@ -68,7 +69,7 @@ func (h *HorizontalScaler) prepareHelper(action *proto.ActionItemDTO, pod *api.P
 	helper.diff = diff
 
 	//3. find parent info
-	parentKind, parentName, err := util.GetPodGrandInfo(h.kubeClient, pod)
+	parentKind, parentName, err := podutil.GetPodGrandInfo(h.kubeClient, pod)
 	if err != nil {
 		glog.Errorf("Failed to get parent info for pod: %s/%s", pod.Namespace, pod.Name)
 		return nil, err
