@@ -5,23 +5,65 @@ import (
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	"github.com/turbonomic/turbo-go-sdk/pkg/supplychain"
-	"strings"
 )
 
 type quotaEntityDTOBuilder struct {
-	QuotaMap     map[string]*repository.KubeQuota
-	nodeMapByUID map[string]*repository.KubeNode
+	QuotaMap         map[string]*repository.KubeQuota
+	nodeMapByUID     map[string]*repository.KubeNode
+	stitchingManager *stitching.StitchingManager
+	nodeNames        []string
 }
 
-func NewQuotaEntityDTOBuilder(quotaMap map[string]*repository.KubeQuota, nodeMap map[string]*repository.KubeNode) *quotaEntityDTOBuilder {
-	quotaDtoBuilder := &quotaEntityDTOBuilder{QuotaMap: quotaMap, nodeMapByUID: make(map[string]*repository.KubeNode)}
-	for _, node := range nodeMap {
-		quotaDtoBuilder.nodeMapByUID[node.UID] = node
+func NewQuotaEntityDTOBuilder(quotaMap map[string]*repository.KubeQuota,
+	nodeMap map[string]*repository.KubeNode,
+	ptype stitching.StitchingPropertyType) *quotaEntityDTOBuilder {
+
+	m := stitching.NewStitchingManager(ptype)
+	builder := &quotaEntityDTOBuilder{
+		QuotaMap:         quotaMap,
+		nodeMapByUID:     make(map[string]*repository.KubeNode),
+		stitchingManager: m,
+		nodeNames:        []string{},
 	}
-	return quotaDtoBuilder
+
+	for _, node := range nodeMap {
+		builder.nodeMapByUID[node.UID] = node
+	}
+	builder.setUpStitchManager()
+
+	return builder
+}
+
+func (builder *quotaEntityDTOBuilder) setUpStitchManager() {
+	m := builder.stitchingManager
+
+	glog.V(3).Infof("stitchType: %v", m.GetStitchType())
+	//1. set UUID getter by one k8s.Node.providerID
+	if m.GetStitchType() == stitching.UUID {
+		glog.V(3).Info("Begin to setup stitchManager UUID getter.")
+		for _, node := range builder.nodeMapByUID {
+			if node.Node == nil {
+				glog.Errorf("node.K8sNode is nil: %++v", node)
+				continue
+			}
+			providerId := node.Node.Spec.ProviderID
+			m.SetNodeUuidGetterByProvider(providerId)
+			break
+		}
+	}
+
+	//2. store the stitching values
+	builder.nodeNames = []string{}
+	for _, node := range builder.nodeMapByUID {
+		if node != nil {
+			m.StoreStitchingValue(node.Node)
+			builder.nodeNames = append(builder.nodeNames, node.Node.Name)
+		}
+	}
+	return
 }
 
 // Build entityDTOs based on the given node list.
@@ -58,36 +100,12 @@ func (builder *quotaEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, err
 			entityDTOBuilder.BuysCommodities(commoditiesBought)
 		}
 
-		// Quota properties for stitching with nodes
-		var properties []*proto.EntityDTO_EntityProperty
-		propertyNamespace := "DEFAULT"
-		propertyIdName := supplychain.SUPPLY_CHAIN_CONSTANT_UUID //uuid
-		var nodeIds []string
-		for _, node := range builder.nodeMapByUID {
-			nodeIds = append(nodeIds, node.SystemUUID)
+		// stitching properties
+		properties, err := builder.getQuotaProperty()
+		if err != nil {
+			glog.Errorf("Failed to build stitching property for Quota: %v, %v", displayName, err)
+			continue
 		}
-		propertyIdValue := strings.Join(nodeIds, ",")
-
-		nodeIdProperty := &proto.EntityDTO_EntityProperty{
-			Namespace: &propertyNamespace,
-			Name:      &propertyIdName,
-			Value:     &propertyIdValue,
-		}
-		properties = append(properties, nodeIdProperty)
-
-		propertyIPName := supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS //ip address
-		var nodeIPs []string
-		for _, node := range builder.nodeMapByUID {
-			nodeIPs = append(nodeIPs, node.IPAddress)
-		}
-		propertyIPValue := strings.Join(nodeIPs, ",")
-
-		nodeIPProperty := &proto.EntityDTO_EntityProperty{
-			Namespace: &propertyNamespace,
-			Name:      &propertyIPName,
-			Value:     &propertyIPValue,
-		}
-		properties = append(properties, nodeIPProperty)
 
 		entityDTOBuilder = entityDTOBuilder.WithProperties(properties)
 
@@ -185,4 +203,19 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesBought(quotaName string
 	}
 
 	return commoditiesBought, nil
+}
+
+func (builder *quotaEntityDTOBuilder) getQuotaProperty() ([]*proto.EntityDTO_EntityProperty, error) {
+	var result []*proto.EntityDTO_EntityProperty
+
+	//1. build stitching property (stitch VDC to VMs)
+	//   TODO: this property is same to all the VDCs. Better build it in advance, and shared by the VDCs.
+	property, err := builder.stitchingManager.BuildDTOLayerOverProperty(builder.nodeNames)
+	if err != nil {
+		glog.Errorf("Failed to build QuotaStitchingProperty: %v", err)
+		return result, err
+	}
+	result = append(result, property)
+
+	return result, nil
 }

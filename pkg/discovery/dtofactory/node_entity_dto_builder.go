@@ -231,7 +231,8 @@ func (builder *nodeEntityDTOBuilder) getNodeProperties(node *api.Node) ([]*proto
 	var properties []*proto.EntityDTO_EntityProperty
 
 	// stitching property.
-	stitchingProperty, err := builder.stitchingManager.BuildStitchingProperty(node.Name, stitching.Reconcile)
+	isForReconcile := true
+	stitchingProperty, err := builder.stitchingManager.BuildDTOProperty(node.Name, isForReconcile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build properties for node %s: %s", node.Name, err)
 	}

@@ -299,7 +299,8 @@ func (builder *podEntityDTOBuilder) getPodProperties(pod *api.Pod) ([]*proto.Ent
 	if nodeName == "" {
 		return nil, fmt.Errorf("Cannot find the hosting node ID for pod %s", podClusterID)
 	}
-	stitchingProperty, err := builder.stitchingManager.BuildStitchingProperty(nodeName, stitching.Stitch)
+
+	stitchingProperty, err := builder.stitchingManager.BuildDTOProperty(nodeName, false)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to build EntityDTO for Pod %s: %s", podClusterID, err)
 	}

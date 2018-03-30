@@ -4,6 +4,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
@@ -13,15 +14,17 @@ const (
 
 // Converts the cluster quotaEntity and QuotaMetrics objects to create Quota DTOs
 type k8sResourceQuotasDiscoveryWorker struct {
-	id      string
-	Cluster *repository.ClusterSummary
+	id         string
+	Cluster    *repository.ClusterSummary
+	stitchType stitching.StitchingPropertyType
 }
 
-func Newk8sResourceQuotasDiscoveryWorker(cluster *repository.ClusterSummary,
+func Newk8sResourceQuotasDiscoveryWorker(cluster *repository.ClusterSummary, pType stitching.StitchingPropertyType,
 ) *k8sResourceQuotasDiscoveryWorker {
 	return &k8sResourceQuotasDiscoveryWorker{
-		Cluster: cluster,
-		id:      k8sQuotasWorkerID,
+		Cluster:    cluster,
+		id:         k8sQuotasWorkerID,
+		stitchType: pType,
 	}
 }
 
@@ -100,7 +103,7 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 	}
 
 	// Create DTOs for each quota entity
-	quotaDtoBuilder := dtofactory.NewQuotaEntityDTOBuilder(worker.Cluster.QuotaMap, worker.Cluster.Nodes)
+	quotaDtoBuilder := dtofactory.NewQuotaEntityDTOBuilder(worker.Cluster.QuotaMap, worker.Cluster.Nodes, worker.stitchType)
 	quotaDtos, _ := quotaDtoBuilder.BuildEntityDTOs()
 	return quotaDtos, nil
 }

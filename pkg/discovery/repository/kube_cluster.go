@@ -130,8 +130,6 @@ type KubeNode struct {
 
 	// node properties
 	NodeCpuFrequency float64 // Set by the metrics collector which processes this node
-	SystemUUID       string
-	IPAddress        string
 }
 
 // Create a KubeNode entity with compute resources to represent a node in the cluster
@@ -162,25 +160,6 @@ func (nodeEntity *KubeNode) UpdateResources(apiNode *v1.Node) {
 		capacityValue := parseResourceValue(computeResourceType, resourceAllocatableList)
 		nodeEntity.AddComputeResource(computeResourceType, float64(capacityValue), DEFAULT_METRIC_VALUE)
 	}
-
-	// SystemUUID reported by the node
-	nodeSystemUUID := apiNode.Status.NodeInfo.SystemUUID
-	if nodeSystemUUID == "" {
-		glog.Errorf("Invalid SystemUUID for node %s, stitching may fail", apiNode.Name)
-	} else {
-		nodeEntity.SystemUUID = strings.ToLower(nodeSystemUUID)
-	}
-
-	// Node IP Address
-	nodeStitchingIP := ParseNodeIP(apiNode, v1.NodeExternalIP)
-	if nodeStitchingIP == "" {
-		nodeStitchingIP = ParseNodeIP(apiNode, v1.NodeInternalIP)
-	}
-	if nodeStitchingIP == "" {
-		glog.Errorf("Failed to find IP for node %s", apiNode.Name)
-	} else {
-		nodeEntity.IPAddress = nodeStitchingIP
-	}
 }
 
 // Parse the Node instances returned by the kubernetes API to get the IP address
@@ -198,9 +177,7 @@ func ParseNodeIP(apiNode *v1.Node, addressType v1.NodeAddressType) string {
 func (nodeEntity *KubeNode) String() string {
 	var buffer bytes.Buffer
 	buffer.WriteString(nodeEntity.KubeEntity.String())
-	line := fmt.Sprintf("SystemUUID:%s\n", nodeEntity.SystemUUID)
-	buffer.WriteString(line)
-	line = fmt.Sprintf("IPAddress:%s\n", nodeEntity.IPAddress)
+	line := fmt.Sprintf("SystemUUID:%s\n", nodeEntity.Status.NodeInfo.SystemUUID)
 	buffer.WriteString(line)
 	line = fmt.Sprintf("CPU Frequency:%f\n", nodeEntity.NodeCpuFrequency)
 	buffer.WriteString(line)
