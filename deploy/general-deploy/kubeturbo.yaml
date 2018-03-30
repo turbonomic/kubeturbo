@@ -18,7 +18,7 @@ spec:
       containers:
         - name: kubeturbo
           # Replace the image with desired version
-          image: vmturbo/kubeturbo:6.0.1
+          image: vmturbo/kubeturbo:redhat-6.1dev
           imagePullPolicy: IfNotPresent
           args:
             - --turboconfig=/etc/kubeturbo/turbo.config
@@ -26,8 +26,8 @@ spec:
             # Uncomment the following two args if running in Openshift
             #- --kubelet-https=true
             #- --kubelet-port=10250
-            # Uncomment the following arg if running on a VCenter cluster
-            #- --usevmware=true
+            # Uncomment the following arg if using IP for stitching
+            #- --stitch-uuid=false
           volumeMounts:
           - name: turbo-config
             mountPath: /etc/kubeturbo
