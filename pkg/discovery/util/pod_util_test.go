@@ -189,7 +189,7 @@ func TestGetReadyPods(t *testing.T) {
 
 func TestMonitored(t *testing.T) {
 	pod := newPod("pod-foo")
-	pod.Annotations = map[string]string {
+	pod.Annotations = map[string]string{
 		"kubernetes.io/created-by": `{"reference":{"kind":"DaemonSet","name":"daemon-set-foo"}}`,
 	}
 
