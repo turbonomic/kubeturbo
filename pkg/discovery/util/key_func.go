@@ -66,7 +66,7 @@ func ParseContainerId(containerId string) (string, int, error) {
 	return podId, index, nil
 }
 
-// Application's displayName = "App-namespace/podName"
+// Application's displayName = "App-namespace/podName/containerName"
 //podFullName should be "namespace/podName"
 func ApplicationDisplayName(podFullName, containerName string) string {
 	return fmt.Sprintf("%s-%s/%s", appIdPrefix, podFullName, containerName)
