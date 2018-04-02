@@ -187,6 +187,27 @@ func TestGetReadyPods(t *testing.T) {
 	}
 }
 
+func TestMonitored(t *testing.T) {
+	pod := newPod("pod-foo")
+	pod.Annotations = map[string]string {
+		"kubernetes.io/created-by": `{"reference":{"kind":"DaemonSet","name":"daemon-set-foo"}}`,
+	}
+
+	podWithOwnerRef := pod
+	isController := true
+	podWithOwnerRef.OwnerReferences = []metav1.OwnerReference{{Kind: "DaemonSet", Name: "daemon-set-foo", Controller: &isController}}
+
+	// Without Owner reference
+	if Monitored(pod) {
+		t.Errorf("The pod in DaemonSet shouldn't be monitored")
+	}
+
+	// With Owner reference
+	if Monitored(podWithOwnerRef) {
+		t.Errorf("The pod (with owner reference) in DaemonSet shouldn't be monitored")
+	}
+}
+
 func newPod(name string, podConds ...k8sapi.PodCondition) *k8sapi.Pod {
 	return &k8sapi.Pod{
 		TypeMeta: metav1.TypeMeta{
