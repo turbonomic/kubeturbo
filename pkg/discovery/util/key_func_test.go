@@ -81,3 +81,38 @@ func TestParseContainerID2(t *testing.T) {
 		}
 	}
 }
+
+func TestApplicationDisplayName(t *testing.T) {
+	items := [][]string{
+		{"default/pod1", "c1", "App-default/pod1/c1"},
+		{"default/pod2", "c2", "App-default/pod2/c2"},
+		{"default2/pod2", "c2", "App-default2/pod2/c2"},
+	}
+
+	for _, item := range items {
+		dname := ApplicationDisplayName(item[0], item[1])
+		if dname != item[2] {
+			t.Errorf("Wrong Application display name: %v Vs. %v", dname, item[2])
+		}
+	}
+}
+
+func TestGetPodFullNameFromAppName(t *testing.T) {
+	items := [][]string{
+		{"default/pod1", "c1", "App-default/pod1/c1"},
+		{"default/pod2", "c2", "App-default/pod2/c2"},
+		{"default2/pod2", "c2", "App-default2/pod2/c2"},
+	}
+
+	for _, item := range items {
+		dname := ApplicationDisplayName(item[0], item[1])
+		if dname != item[2] {
+			t.Errorf("Wrong Application display name: %v Vs. %v", dname, item[2])
+		}
+
+		pname := GetPodFullNameFromAppName(dname)
+		if pname != item[0] {
+			t.Errorf("Not able to get Pod name from AppName: %v Vs. %v", pname, item[0])
+		}
+	}
+}
