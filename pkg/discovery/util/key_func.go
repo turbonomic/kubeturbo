@@ -4,6 +4,7 @@ import (
 	"github.com/golang/glog"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 	"strconv"
+	"strings"
 
 	"fmt"
 	api "k8s.io/client-go/pkg/api/v1"
@@ -74,9 +75,17 @@ func ApplicationDisplayName(podFullName, containerName string) string {
 func GetPodFullNameFromAppName(appName string) string {
 	i := len(appIdPrefix) + 1
 	if len(appName) < i+1 {
+		glog.Errorf("Invalid appName: %v", appName)
 		return ""
 	}
-	return appName[i:]
+
+	j := strings.LastIndex(appName, "/")
+	if j <= i {
+		glog.Errorf("Invalid appName: %v", appName)
+		return ""
+	}
+
+	return appName[i:j]
 }
 
 func ApplicationIdFunc(containerId string) string {
