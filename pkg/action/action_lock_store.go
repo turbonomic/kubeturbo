@@ -9,6 +9,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	api "k8s.io/client-go/pkg/api/v1"
 )
 
@@ -92,7 +93,7 @@ func (a *ActionLockStore) getLockKey(actionItem *proto.ActionItemDTO) (string, e
 // [parentKind]-[pod.Namespace]/[parentName] with its parent controller.
 func getPodLockKey(pod *api.Pod) (string, error) {
 
-	parentKind, parentName, err := util.GetPodParentInfo(pod)
+	parentKind, parentName, err := podutil.GetPodParentInfo(pod)
 	if err != nil {
 		glog.Errorf("Failed to get pod[%s] parent info: %v", util.BuildIdentifier(pod.Namespace, pod.Name), err)
 		return "", err

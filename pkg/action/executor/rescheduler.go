@@ -8,6 +8,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	api "k8s.io/client-go/pkg/api/v1"
 
+	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
@@ -207,7 +208,7 @@ func (r *ReScheduler) reSchedule(pod *api.Pod, node *api.Node) (*api.Pod, error)
 	}
 
 	//2. move
-	parentKind, parentName, err := util.GetPodParentInfo(pod)
+	parentKind, parentName, err := podutil.GetPodParentInfo(pod)
 	if err != nil {
 		glog.Errorf("Move action aborted: cannot get pod-%v parent info: %v", fullName, err)
 		return nil, fmt.Errorf("Failed")

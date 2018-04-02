@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -56,7 +57,7 @@ func genNewPodName(name string) string {
 // check the liveness of pod, and the hosting Node
 // return (retry, error)
 func doCheckPodNode(client *kclient.Clientset, namespace, name, nodeName string) (bool, error) {
-	pod, err := util.GetPod(client, namespace, name)
+	pod, err := podutil.GetPod(client, namespace, name)
 	if err != nil {
 		return true, err
 	}
