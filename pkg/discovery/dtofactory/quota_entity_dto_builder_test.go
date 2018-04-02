@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,6 +42,9 @@ func makeKubeNodes() []*repository.KubeNode {
 				Allocatable: resourceList,
 			},
 		}
+
+		n1.Spec.ProviderID = "random.vcenter"
+		n1.Status.NodeInfo.SystemUUID = "uuid-" + n1.Name
 
 		kubenode := repository.NewKubeNode(n1, testNode.cluster)
 		//fmt.Printf("%++v\n", kubenode)
@@ -133,11 +137,7 @@ func TestBuildQuotaDto(t *testing.T) {
 		nodeMapByUID[kubeNode.UID] = kubeNode
 	}
 
-	builder := &quotaEntityDTOBuilder{
-		QuotaMap:     quotaMap,
-		nodeMapByUID: nodeMapByUID,
-	}
-
+	builder := NewQuotaEntityDTOBuilder(quotaMap, nodeMapByUID, stitching.UUID)
 	dtos, err := builder.BuildEntityDTOs()
 	assert.Nil(t, err)
 
@@ -181,5 +181,6 @@ func TestBuildQuotaDto(t *testing.T) {
 		}
 	}
 
+	//fmt.Printf("DTOs: %++v\n", dtos)
 	assert.EqualValues(t, len(TestQuotas), len(dtos))
 }

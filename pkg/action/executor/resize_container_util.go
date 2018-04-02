@@ -215,7 +215,7 @@ func resizeContainer(client *kclient.Clientset, tpod *k8sapi.Pod, spec *containe
 	flag := false
 	defer func() {
 		if !flag {
-			glog.Errorf("Move pod failed, begin to delete cloned pod: %v/%v", npod.Namespace, npod.Name)
+			glog.Errorf("Resize pod failed, begin to delete cloned pod: %v/%v", npod.Namespace, npod.Name)
 			delOpt := &metav1.DeleteOptions{}
 			podClient.Delete(npod.Name, delOpt)
 		}

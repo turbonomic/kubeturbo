@@ -1,13 +1,10 @@
 package stitching
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	api "k8s.io/client-go/pkg/api/v1"
-
-	"github.com/turbonomic/kubeturbo/test/flag"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -26,146 +23,115 @@ const (
 
 	// The default namespace of entity property
 	defaultPropertyNamespace string = "DEFAULT"
-
-	Stitch    stitchingType = "stitch"
-	Reconcile stitchingType = "reconcile"
 )
 
 // The property type that is used for stitching. For example "UUID", "IP address".
 type StitchingPropertyType string
 
-// Stitching type includes "stitch" and "reconcile".
-type stitchingType string
-
 type StitchingManager struct {
-	// key: node name; value: node UID for stitching.
-	nodeStitchingUIDMap map[string]string
-
-	// key: node name; value: node IP address for stitching.
-	nodeStitchingIPMap map[string]string
+	// key: node name; value: UID or IP for stitching
+	nodeStitchingIDMap map[string]string
 
 	// The property used for stitching.
-	stitchingPropertyType StitchingPropertyType
+	stitchType StitchingPropertyType
 
-	// Flags for local stitching simulation.
-	localTestingFlags *flag.TestingFlag
+	// get node reconcile UUID
+	uuidGetter NodeUUIDGetter
 }
 
 func NewStitchingManager(pType StitchingPropertyType) *StitchingManager {
-	testingFlag := flag.GetFlag()
-	return &StitchingManager{
-		stitchingPropertyType: pType,
-
-		localTestingFlags: testingFlag,
+	if pType != UUID && pType != IP {
+		glog.Errorf("Wrong stitching type: %v, only [%v, %v] are acceptable", pType, UUID, IP)
 	}
+
+	return &StitchingManager{
+		stitchType:         pType,
+		uuidGetter:         &defaultNodeUUIDGetter{},
+		nodeStitchingIDMap: make(map[string]string),
+	}
+}
+
+func (s *StitchingManager) SetNodeUuidGetterByProvider(providerId string) {
+	if s.stitchType == IP {
+		glog.Warningf("Stitching type is IP, no need to set NodeUuidGetter")
+	}
+
+	var getter NodeUUIDGetter
+
+	getter = &defaultNodeUUIDGetter{}
+
+	if strings.HasPrefix(providerId, awsPrefix) {
+		getter = &awsNodeUUIDGetter{}
+	} else if strings.HasPrefix(providerId, azurePrefix) {
+		getter = &azureNodeUUIDGetter{}
+	}
+
+	s.uuidGetter = getter
+	glog.V(3).Infof("Node UUID getter is: %v", getter.Name())
+}
+
+func (s *StitchingManager) GetStitchType() StitchingPropertyType {
+	return s.stitchType
 }
 
 // Retrieve stitching values from given node and store in maps.
 // Do nothing if it is a local testing.
 func (s *StitchingManager) StoreStitchingValue(node *api.Node) {
-	if s.localTestingFlags != nil && s.localTestingFlags.LocalTestingFlag {
+	if node == nil {
+		glog.Error("input node is nil")
 		return
 	}
-	switch s.stitchingPropertyType {
-	case UUID:
-		s.retrieveAndStoreStitchingUUID(node)
-	case IP:
-		s.retrieveAndStoreStitchingIP(node)
+
+	if s.stitchType == UUID {
+		s.storeNodeUUID(node)
+	} else {
+		s.storeNodeIP(node)
 	}
 }
 
 // Find the IP address of the node and store it in nodeStitchingIPMap.
-func (s *StitchingManager) retrieveAndStoreStitchingIP(node *api.Node) {
-	var nodeStitchingIP string
-	nodeAddresses := node.Status.Addresses
-	// Use external IP if it is available. Otherwise use legacy host IP.
-	for _, nodeAddress := range nodeAddresses {
-		if nodeAddress.Type == api.NodeExternalIP && nodeAddress.Address != "" {
-			nodeStitchingIP = nodeAddress.Address
-		}
-		if nodeStitchingIP == "" && nodeAddress.Address != "" && nodeAddress.Type == api.NodeInternalIP {
-			nodeStitchingIP = nodeAddress.Address
-		}
-	}
+func (s *StitchingManager) storeNodeIP(node *api.Node) {
+	nodeStitchingIP := getStitchingIP(node)
 
 	if nodeStitchingIP == "" {
-		glog.Errorf("Failed to find stitching IP for node %s: it does not have either external IP or legacy "+
-			"host IP.", node.Name)
-	} else {
-		if s.nodeStitchingIPMap == nil {
-			s.nodeStitchingIPMap = make(map[string]string)
-		}
-		s.nodeStitchingIPMap[node.Name] = nodeStitchingIP
+		glog.Errorf("Failed to find stitching IP for node %v: no external nor interal IP ", node.Name)
+		return
 	}
+
+	s.nodeStitchingIDMap[node.Name] = nodeStitchingIP
 }
 
 // Get the systemUUID of the node and store it in nodeStitchingUIDMap.
-func (s *StitchingManager) retrieveAndStoreStitchingUUID(node *api.Node) {
-	nodeStitchingID := node.Status.NodeInfo.SystemUUID
-	if nodeStitchingID == "" {
-		glog.Errorf("Invalid stitching UUID for node %s", node.Name)
-	} else {
-		if s.nodeStitchingUIDMap == nil {
-			s.nodeStitchingUIDMap = make(map[string]string)
-		}
-		s.nodeStitchingUIDMap[node.Name] = strings.ToLower(nodeStitchingID)
+func (s *StitchingManager) storeNodeUUID(node *api.Node) {
+	nodeStitchingID, err := s.uuidGetter.GetUUID(node)
+	if err != nil || nodeStitchingID == "" {
+		glog.Errorf("Failed to get stitching UUID for node %v: %v", node.Name, err)
+		return
 	}
+
+	s.nodeStitchingIDMap[node.Name] = nodeStitchingID
 }
 
 // Get the stitching value based on given nodeName.
 // Return localTestStitchingValue if it is a local testing.
 func (s *StitchingManager) GetStitchingValue(nodeName string) (string, error) {
-	if s.localTestingFlags != nil && s.localTestingFlags.LocalTestingFlag {
-		if s.localTestingFlags.LocalTestStitchingValue == "" {
-			return "", errors.New("Local testing stitching value is empty.")
-		} else {
-			return s.localTestingFlags.LocalTestStitchingValue, nil
-		}
-	} else {
-		switch s.stitchingPropertyType {
-		case UUID:
-			return s.getNodeUUIDForStitching(nodeName)
-		case IP:
-			return s.getNodeIPForStitching(nodeName)
-		default:
-			return "", fmt.Errorf("Stitching property type %s is not supported.", s.stitchingPropertyType)
-		}
-	}
-}
-
-// Get the correct IP that will be used during the stitching process.
-func (s *StitchingManager) getNodeIPForStitching(nodeName string) (string, error) {
-	if s.nodeStitchingIPMap == nil {
-		return "", errors.New("No stitching IP available.")
-	}
-	nodeIP, exist := s.nodeStitchingIPMap[nodeName]
+	sid, exist := s.nodeStitchingIDMap[nodeName]
 	if !exist {
-		return "", fmt.Errorf("Failed to get stitching IP of node %s", nodeName)
+		err := fmt.Errorf("Failed to get stitching value for node %v, type=%v", nodeName, s.stitchType)
+		glog.Error(err.Error())
+		return "", err
 	}
 
-	return nodeIP, nil
+	return sid, nil
 }
 
-// Find the system UUID that will be used during the stitching process.
-func (s *StitchingManager) getNodeUUIDForStitching(nodeName string) (string, error) {
-	if s.nodeStitchingUIDMap == nil {
-		return "", errors.New("No stitching UUID available.")
-	}
-	nodeUUID, exist := s.nodeStitchingUIDMap[nodeName]
-	if !exist {
-		return "", fmt.Errorf("Failed to get stitching UUID of node %s", nodeName)
-	}
-
-	return nodeUUID, nil
-}
-
-// Build the stitching node property for entity based on the given node name and stitching property type.
-func (s *StitchingManager) BuildStitchingProperty(nodeName string, pType stitchingType) (*proto.EntityDTO_EntityProperty, error) {
+// Build the stitching node property for entity based on the given node name, and purpose.
+//   two purposes: "stitching" and "reconcile".
+//       stitching: is to stitch Pod/VDC to the real-VM;
+//       reconcile: is to merge the proxy-VM to the real-VM;
+func (s *StitchingManager) BuildDTOProperty(nodeName string, isForReconcile bool) (*proto.EntityDTO_EntityProperty, error) {
 	propertyNamespace := defaultPropertyNamespace
-	propertyName, err := s.getPropertyName(pType)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to build entity stitching property: %s", err)
-	}
+	propertyName := s.getPropertyName(isForReconcile)
 	propertyValue, err := s.GetStitchingValue(nodeName)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to build entity stitching property: %s", err)
@@ -177,51 +143,65 @@ func (s *StitchingManager) BuildStitchingProperty(nodeName string, pType stitchi
 	}, nil
 }
 
-// Get the property name based on whether it is a stitching or reconciliation.
-func (s *StitchingManager) getPropertyName(sType stitchingType) (string, error) {
-	switch sType {
-	case Reconcile:
-		return getReconciliationPropertyName(s.stitchingPropertyType)
-	case Stitch:
-		return getStitchingPropertyName(s.stitchingPropertyType)
+// Stitch one entity with a list of VMs. This entity could be VDC.
+func (s *StitchingManager) BuildDTOLayerOverProperty(nodeNames []string) (*proto.EntityDTO_EntityProperty, error) {
+	propertyNamespace := defaultPropertyNamespace
+	propertyName := s.getStitchingPropertyName()
+
+	values := []string{}
+	for _, nodeName := range nodeNames {
+		value, err := s.GetStitchingValue(nodeName)
+		if err != nil {
+			glog.Errorf("Failed to build DTO stitching property: %v", err)
+			return nil, err
+		}
+		values = append(values, value)
 	}
-	return "", fmt.Errorf("Stitching type %s is not supported.", sType)
+	propertyValue := strings.Join(values, ",")
+
+	return &proto.EntityDTO_EntityProperty{
+		Namespace: &propertyNamespace,
+		Name:      &propertyName,
+		Value:     &propertyValue,
+	}, nil
+}
+
+// Get the property name based on whether it is a stitching or reconciliation.
+func (s *StitchingManager) getPropertyName(isForReconcile bool) string {
+	if isForReconcile {
+		return s.getReconciliationPropertyName()
+	}
+
+	return s.getStitchingPropertyName()
 }
 
 // Get the name of property for entities reconciliation.
-func getReconciliationPropertyName(pType StitchingPropertyType) (string, error) {
-	switch pType {
-	case UUID:
-		return proxyVMUUID, nil
-	case IP:
-		return proxyVMIP, nil
-	default:
-		return "", fmt.Errorf("Stitching property type %s is not supported.", pType)
+func (s *StitchingManager) getReconciliationPropertyName() string {
+	if s.stitchType == UUID {
+		return proxyVMUUID
 	}
+
+	return proxyVMIP
 }
 
 // Get the name of property for entities stitching.
-func getStitchingPropertyName(pType StitchingPropertyType) (string, error) {
-	switch pType {
-	case UUID:
-		return supplychain.SUPPLY_CHAIN_CONSTANT_UUID, nil
-	case IP:
-		return supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS, nil
-	default:
-		return "", fmt.Errorf("Reconciliation property type %s is not supported.", pType)
+func (s *StitchingManager) getStitchingPropertyName() string {
+	if s.stitchType == UUID {
+		return supplychain.SUPPLY_CHAIN_CONSTANT_UUID
 	}
+	return supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS
 }
 
 // Create the meta data that will be used during the reconciliation process.
 func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_ReplacementEntityMetaData, error) {
 	replacementEntityMetaDataBuilder := builder.NewReplacementEntityMetaDataBuilder()
-	switch s.stitchingPropertyType {
+	switch s.stitchType {
 	case UUID:
 		replacementEntityMetaDataBuilder.Matching(proxyVMUUID)
 	case IP:
 		replacementEntityMetaDataBuilder.Matching(proxyVMIP)
 	default:
-		return nil, fmt.Errorf("Stitching property type %s is not supported.", s.stitchingPropertyType)
+		return nil, fmt.Errorf("Stitching property type %s is not supported.", s.stitchType)
 	}
 	propertyNames := []string{builder.PropertyCapacity, builder.PropertyUsed}
 	accessCommPropertyNames := []string{builder.PropertyCapacity}
@@ -231,4 +211,30 @@ func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_Re
 		PatchSellingWithProperty(proto.CommodityDTO_MEM_ALLOCATION, propertyNames)
 	meta := replacementEntityMetaDataBuilder.Build()
 	return meta, nil
+}
+
+// Use external IP if it is available. Otherwise use legacy host IP
+func getStitchingIP(node *api.Node) string {
+	// Node IP Address
+	ip := parseNodeIP(node, api.NodeExternalIP)
+	if ip == "" {
+		ip = parseNodeIP(node, api.NodeInternalIP)
+	}
+	if ip == "" {
+		glog.Errorf("Failed to find IP for node %s", node.Name)
+	}
+
+	return ip
+}
+
+// Parse the Node instances returned by the kubernetes API to get the IP address
+func parseNodeIP(node *api.Node, addressType api.NodeAddressType) string {
+	nodeAddresses := node.Status.Addresses
+	for _, nodeAddress := range nodeAddresses {
+		if nodeAddress.Type == addressType && nodeAddress.Address != "" {
+			glog.V(4).Infof("%s : %s is %s", node.Name, addressType, nodeAddress.Address)
+			return nodeAddress.Address
+		}
+	}
+	return ""
 }

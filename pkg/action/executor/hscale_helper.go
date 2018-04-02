@@ -3,9 +3,7 @@ package executor
 import (
 	"fmt"
 	"github.com/golang/glog"
-	"time"
 
-	autil "github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "k8s.io/client-go/kubernetes"
@@ -26,10 +24,6 @@ type scaleHelper struct {
 
 	// update number of Replicas of parent controller
 	updateReplicaNum updateReplicaNumFunc
-
-	//concurrent control lock.map
-	locker *autil.LockHelper
-	key    string
 }
 
 func NewScaleHelper(client *kclient.Clientset, nameSpace, podName string) (*scaleHelper, error) {
@@ -60,49 +54,6 @@ func (helper *scaleHelper) SetParent(kind, name string) error {
 	}
 
 	return nil
-}
-
-func (helper *scaleHelper) SetupLock(emap *autil.ExpirationMap) error {
-	helper.key = fmt.Sprintf("%s-%s-%s", helper.kind, helper.nameSpace, helper.controllerName)
-	if emap.GetTTL() < time.Second*2 {
-		err := fmt.Errorf("TTL of concurrent control map should be larger than 2 seconds.")
-		glog.Error(err.Error())
-		return err
-	}
-	helper.locker, _ = autil.NewLockHelper(helper.key, emap)
-	return nil
-}
-
-func (helper *scaleHelper) Acquirelock() bool {
-	return helper.locker.AcquireLock(func(obj interface{}) {
-		helper.lockCallBack()
-	})
-}
-
-func (helper *scaleHelper) lockCallBack() {
-	// do nothing except a log
-	glog.V(3).Infof("lockCallBack--Expired lock for pod[%s], parent[%s]", helper.podName, helper.controllerName)
-	return
-}
-
-func (helper *scaleHelper) Releaselock() {
-	// will stop renew in locker.Releaselock
-	helper.locker.ReleaseLock()
-	glog.V(3).Infof("Released lock for pod[%s], parent[%s]",
-		helper.podName, helper.controllerName)
-}
-
-// update the lock to prevent timeout
-func (helper *scaleHelper) Renewlock() bool {
-	return helper.locker.RenewLock()
-}
-
-func (h *scaleHelper) KeepRenewLock() {
-	h.locker.KeepRenewLock()
-}
-
-func (h *scaleHelper) CleanUp() {
-	h.Releaselock()
 }
 
 //------------------------------------------------------------

@@ -160,7 +160,8 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 	entityDTOs, quotaMetricsList := dc.resultCollector.Collect(workerCount)
 
 	// Quota discovery worker to create quota DTOs
-	quotasDiscoveryWorker := worker.Newk8sResourceQuotasDiscoveryWorker(clusterSummary)
+	stitchType := dc.config.probeConfig.StitchingPropertyType
+	quotasDiscoveryWorker := worker.Newk8sResourceQuotasDiscoveryWorker(clusterSummary, stitchType)
 	quotaDtos, _ := quotasDiscoveryWorker.Do(quotaMetricsList)
 
 	// All the DTOs

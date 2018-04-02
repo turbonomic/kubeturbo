@@ -83,23 +83,23 @@ func checkStartWith(got, want string, t *testing.T) {
 func TestCreateProbeConfigOrDie(t *testing.T) {
 	tests := []struct {
 		name                      string
-		UseVMWare                 bool
+		UseUUID                   bool
 		wantStitchingPropertyType stitching.StitchingPropertyType
 	}{
 		{
-			name:                      "test-use-vmware",
-			UseVMWare:                 false,
+			name:                      "test-use-IP",
+			UseUUID:                   false,
 			wantStitchingPropertyType: stitching.IP,
 		},
 		{
-			name:                      "test-not-use-vmware",
-			UseVMWare:                 true,
+			name:                      "test-use-UUID",
+			UseUUID:                   true,
 			wantStitchingPropertyType: stitching.UUID,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			vmtConfig := NewVMTConfig2().UsingVMWare(tt.UseVMWare)
+			vmtConfig := NewVMTConfig2().UsingUUIDStitch(tt.UseUUID)
 			got := createProbeConfigOrDie(vmtConfig)
 			checkProbeConfig(t, got, tt.wantStitchingPropertyType)
 		})

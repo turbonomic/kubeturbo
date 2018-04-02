@@ -48,11 +48,9 @@ func (c *Config) WithTapSpec(spec *K8sTAPServiceSpec) *Config {
 }
 
 // Create the StitchingPropertyType for reconciling the kubernetes cluster nodes with the infrastructure VMs
-func (c *Config) UsingVMWare(useVMWare bool) *Config {
+func (c *Config) UsingUUIDStitch(useUUID bool) *Config {
 	stitchingPropType := stitching.IP
-	if useVMWare {
-		// If the underlying hypervisor is vCenter, use UUID.
-		// Refer to Bug: https://vmturbo.atlassian.net/browse/OM-18139
+	if useUUID {
 		stitchingPropType = stitching.UUID
 	}
 	c.StitchingPropType = stitchingPropType
