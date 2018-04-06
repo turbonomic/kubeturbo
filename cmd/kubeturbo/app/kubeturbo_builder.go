@@ -219,25 +219,17 @@ func (s *VMTServer) Run(_ []string) error {
 		glog.Fatalf("Unexpected error while creating Kuberntes TAP service: %s", err)
 	}
 
-	// Start the KubeTurbo TAP service
-	run := func(_ <-chan struct{}) {
-		glog.V(2).Infof("********** Start runnning Kubeturbo Service **********")
-
-		// Disconnect from Turbo server when Kubeturbo is shutdown
-		handleExit(func() { k8sTAPService.DisconnectFromTurbo() })
-
-		k8sTAPService.ConnectToTurbo()
-		select {}
-	}
-
 	// The client for healthz, debug, and prometheus
 	go s.startHttp()
-
 	glog.V(2).Infof("No leader election")
-	run(nil)
 
-	glog.Fatal("this statement is unreachable")
-	panic("unreachable")
+	glog.V(1).Infof("********** Start runnning Kubeturbo Service **********")
+	// Disconnect from Turbo server when Kubeturbo is shutdown
+	handleExit(func() { k8sTAPService.DisconnectFromTurbo() })
+	k8sTAPService.ConnectToTurbo()
+
+	glog.V(1).Info("Kubeturbo service is stopped.")
+	return nil
 }
 
 func (s *VMTServer) startHttp() {
