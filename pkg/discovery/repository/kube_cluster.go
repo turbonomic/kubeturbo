@@ -14,9 +14,10 @@ import (
 // New discovery will bring in changes to the nodes and namespaces
 // Aggregate structure for nodes, namespaces and quotas
 type KubeCluster struct {
-	Name       string
-	Nodes      map[string]*KubeNode
-	Namespaces map[string]*KubeNamespace
+	Name             string
+	Nodes            map[string]*KubeNode
+	Namespaces       map[string]*KubeNamespace
+	ComputeResources map[metrics.ResourceType]float64
 }
 
 func NewKubeCluster(clusterName string) *KubeCluster {
@@ -56,6 +57,37 @@ func (kubeCluster *KubeCluster) GetNodeEntity(nodeName string) (*KubeNode, error
 		return nil, fmt.Errorf("Null node %s", nodeName)
 	}
 	return kubeNode, nil
+}
+
+// Sum the compute resource capacities from all the nodes to create the cluster resource capacities
+func (kubeCluster *KubeCluster) computeClusterResources() {
+	if kubeCluster.Nodes == nil {
+		glog.Errorf("No nodes in the cluster")
+		return
+	}
+	// sum the capacities of the node resources
+	computeResources := make(map[metrics.ResourceType]float64)
+	for _, node := range kubeCluster.Nodes {
+		// Iterate over all compute resource types
+		for _, rt := range metrics.KubeComputeResourceTypes {
+			// get the compute resource if it exists
+			nodeResource, exists := node.ComputeResources[rt]
+			if !exists {
+				glog.Errorf("Missing %s resource in node %s", rt, node.Name)
+				continue
+			}
+			// add the capacity to the cluster compute resource map
+			computeCap, exists := computeResources[rt]
+			if !exists {
+				computeCap = nodeResource.Capacity
+			} else {
+				computeCap = computeCap + nodeResource.Capacity
+			}
+			computeResources[rt] = computeCap
+		}
+	}
+
+	kubeCluster.ComputeResources = computeResources
 }
 
 // Summary object to get the nodes, quotas and namespaces in the cluster
@@ -221,6 +253,7 @@ type KubeQuota struct {
 	*KubeEntity
 	QuotaList               []*v1.ResourceQuota
 	AverageNodeCpuFrequency float64
+	AllocationDefined       map[metrics.ResourceType]bool
 }
 
 func (quotaEntity *KubeQuota) String() string {
@@ -255,7 +288,8 @@ func CreateDefaultQuota(clusterName, namespace, uuid string,
 	quota := &KubeQuota{
 		KubeEntity: NewKubeEntity(metrics.QuotaType, clusterName,
 			namespace, namespace, uuid),
-		QuotaList: []*v1.ResourceQuota{},
+		QuotaList:         []*v1.ResourceQuota{},
+		AllocationDefined: make(map[metrics.ResourceType]bool),
 	}
 
 	// create quota allocation resources
@@ -300,12 +334,16 @@ func (quotaEntity *KubeQuota) ReconcileQuotas(quotas []*v1.ResourceQuota) {
 			if !isAllocationType { // skip if it is not a allocation type resource
 				continue
 			}
+			// Quota is defined for the allocation resource
+			quotaEntity.AllocationDefined[resourceType] = true
+
+			// Parse the CPU  values into number of cores, Memory values into KBytes
 			capacityValue := parseAllocationResourceValue(resource, resourceType, resourceHardList)
 			usedValue := parseAllocationResourceValue(resource, resourceType, resourceUsedList)
 
+			// Update the quota entity resource with the most restrictive quota value
 			existingResource, err := quotaEntity.GetAllocationResource(resourceType)
 			if err == nil {
-				// update the existing resource with the one in this quota
 				if existingResource.Capacity == DEFAULT_METRIC_VALUE || capacityValue < existingResource.Capacity {
 					existingResource.Capacity = capacityValue
 					existingResource.Used = usedValue
@@ -317,9 +355,17 @@ func (quotaEntity *KubeQuota) ReconcileQuotas(quotas []*v1.ResourceQuota) {
 		}
 	}
 	quotaListStr := strings.Join(quotaNames, ",")
-	glog.V(2).Infof("Reconciled Quota %s from ===> %s \n", quotaEntity.Name, quotaListStr)
+	glog.V(2).Infof("Reconciled Quota %s from ===> %s "+
+		"[CPULimit:%t, MemoryLimit:%t CPURequest:%t, MemoryRequest:%t]",
+		quotaEntity.Name, quotaListStr,
+		quotaEntity.AllocationDefined[metrics.CPULimit],
+		quotaEntity.AllocationDefined[metrics.MemoryLimit],
+		quotaEntity.AllocationDefined[metrics.CPURequest],
+		quotaEntity.AllocationDefined[metrics.MemoryRequest])
 }
 
+// Parse the CPU and Memory resource values.
+// CPU is represented in number of cores, Memory in KBytes
 func parseAllocationResourceValue(resource v1.ResourceName, allocationResourceType metrics.ResourceType, resourceList v1.ResourceList) float64 {
 
 	if allocationResourceType == metrics.CPULimit || allocationResourceType == metrics.CPURequest {

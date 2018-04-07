@@ -84,16 +84,19 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 		// Create sold allocation commodity for the types that are not defined in the namespace quota objects
 		for resourceType, used := range quotaMetrics.AllocationSold {
 			existingResource, _ := quotaEntity.GetResource(resourceType)
-			// allocation usage is available from the namespace resource quota objects
-			if existingResource.Used != 0.0 {
-				glog.V(4).Infof("%s:%s : *** not change existingUsed = %f, used %f\n",
+			// Check if there is a quota set for this allocation resource
+			// If it is set, the allocation usage available from the namespace
+			// resource quota object is used
+			if quotaEntity.AllocationDefined[resourceType] {
+				glog.V(4).Infof("%s::%s : used value available from the quota object, "+
+					"existingUsed = %f, pods total usage = %f\n",
 					quotaName, resourceType, existingResource.Used, used)
 				continue
-			}
-			if used != existingResource.Used {
-				glog.V(4).Infof("%s:%s : updating allocation sold usage existingUsed = %f, used %f\n",
+			} else {
+				glog.V(4).Infof("%s::%s : setting usage to pods collection usage, "+
+					"existingUsed = %f, pods total usage = %f\n",
 					quotaName, resourceType, existingResource.Used, used)
-				quotaEntity.SetResourceUsed(resourceType, used)
+				existingResource.Used = used
 			}
 		}
 	}
