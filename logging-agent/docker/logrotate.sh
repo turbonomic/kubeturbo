@@ -3,7 +3,7 @@
 # The directory for kubeturbo logs. Default is /var/log.
 LOG_DIR="${LOG_DIR:-/var/log}"
 
-# Number of log copies to keep. Default is 30 days.
+# Number of log copies to keep. Default is 30.
 LOG_COPIES="${LOG_COPIES:-30}"
 
 # The log rotation period. Default is 24 hours.
@@ -41,7 +41,7 @@ rotate () {
 
     # Move all the outdated log files to the temp files, which
     # will only keep the last outdated files
-    for gzfile in $logfiles*.$i.log.gz; do
+    for gzfile in $logfiles*.$i.log.gz $logfiles*.$i.log; do
       if [ -f "$gzfile" ]; then
         newfile=$file.tmp
         mv -f $gzfile $newfile
