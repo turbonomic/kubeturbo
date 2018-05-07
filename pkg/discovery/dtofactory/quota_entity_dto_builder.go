@@ -109,6 +109,8 @@ func (builder *quotaEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, err
 
 		entityDTOBuilder = entityDTOBuilder.WithProperties(properties)
 
+		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
+
 		// build entityDTO.
 		entityDto, err := entityDTOBuilder.Create()
 		if err != nil {

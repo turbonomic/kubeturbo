@@ -10,6 +10,8 @@ import (
 
 	"fmt"
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
+	"strings"
 )
 
 const (
@@ -18,7 +20,8 @@ const (
 
 var (
 	commodityTypeBetweenAppAndService map[proto.CommodityDTO_CommodityType]struct{} = map[proto.CommodityDTO_CommodityType]struct{}{
-		proto.CommodityDTO_TRANSACTION: struct{}{},
+		proto.CommodityDTO_TRANSACTION:   struct{}{},
+		proto.CommodityDTO_RESPONSE_TIME: struct{}{},
 	}
 )
 
@@ -47,11 +50,16 @@ func (builder *ServiceEntityDTOBuilder) BuildSvcEntityDTO(servicePodMap map[*api
 		}
 		ebuilder.VirtualApplicationData(vAppData)
 
+		// set the ip property for stitching
+		ebuilder.WithProperty(getIPProperty(pods))
+
 		//3. check whether it is monitored
 		if !util.IsMonitoredFromAnnotation(service.GetAnnotations()) {
 			glog.V(3).Infof("Service %v is not monitored.", displayName)
 			ebuilder.Monitored(false)
 		}
+
+		ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
 		//4. create it
 		entityDto, err := ebuilder.Create()
@@ -121,4 +129,22 @@ func (svcEntityDTOBuilder *ServiceEntityDTOBuilder) getCommoditiesBought(appDTO 
 	}
 
 	return commoditiesBoughtFromApp, nil
+}
+
+// Get the IP property of the vApp for stitching purpose
+func getIPProperty(pods []*api.Pod) *proto.EntityDTO_EntityProperty {
+	ns := stitching.DefaultPropertyNamespace
+	attr := stitching.AppStitchingAttr
+	ips := []string{}
+	for _, pod := range pods {
+		ips = append(ips, vAppPrefix+"-"+pod.Status.PodIP)
+	}
+	ip := strings.Join(ips, ",")
+	ipProperty := &proto.EntityDTO_EntityProperty{
+		Namespace: &ns,
+		Name:      &attr,
+		Value:     &ip,
+	}
+
+	return ipProperty
 }

@@ -13,10 +13,12 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 )
 
 const (
-	defaultTransactionCapacity float64 = 500.0
+	defaultTransactionCapacity float64 = 20.0
+	defaultRespTimeCapacity    float64 = 500.0
 )
 
 var (
@@ -80,8 +82,8 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 			ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_APPLICATION, appId).
 				DisplayName(displayName)
 
-			//2. sold commodities: transaction
-			commoditiesSold, err := builder.getCommoditiesSold(appId, i, pod)
+			//2. sold commodities: transaction and responseTime
+			commoditiesSold, err := getCommoditiesSold(pod, i)
 			if err != nil {
 				glog.Errorf("Failed to create Application(%s) entityDTO: %v", displayName, err)
 				continue
@@ -107,8 +109,11 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 
 			appType := util.GetAppType(pod)
 			ebuilder.ApplicationData(&proto.EntityDTO_ApplicationData{
-				Type: &appType,
+				Type:      &appType,
+				IpAddress: &(pod.Status.PodIP),
 			})
+
+			ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
 			//5. build the entityDTO
 			entityDTO, err := ebuilder.Create()
@@ -123,60 +128,31 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 	return result, nil
 }
 
-func (builder *applicationEntityDTOBuilder) getTransactionUsedValue(pod *api.Pod) float64 {
-	key := util.PodMetricIdAPI(pod)
-	etype := metrics.PodType
-	rtype := metrics.Transaction
-	mtype := metrics.Used
-	metricsId := metrics.GenerateEntityResourceMetricUID(etype, key, rtype, mtype)
-
-	usedMetric, err := builder.metricsSink.GetMetric(metricsId)
-	if err != nil {
-		glog.V(3).Infof("failed to get Pod[%s] transaction usage: %v", key, err)
-		return 0.0
-	}
-
-	return usedMetric.GetValue().(float64)
-}
-
-// equally distribute Pod.Transaction.used to the hosted containers.
-func (builder *applicationEntityDTOBuilder) getAppTransactionUsage(index int, pod *api.Pod) float64 {
-	podTransactionUsage := builder.getTransactionUsedValue(pod)
-	containerNum := len(pod.Spec.Containers)
-
-	// case1: if there is only one container, then it has all the transactions.
-	if containerNum < 2 {
-		return podTransactionUsage
-	}
-
-	// case2: equally distribute transactions, the first container may have a little more
-	if containerNum < index {
-		glog.Errorf("potential bug: pod[%s] containerNum mismatch %d Vs. %d.", util.PodKeyFunc(pod), containerNum, index)
-		return 0.0
-	}
-
-	share := float64(int64(podTransactionUsage) / int64(containerNum))
-	if index == 0 {
-		residue := (podTransactionUsage - (share * float64(containerNum)))
-		share += residue
-	}
-
-	return share
-}
-
-// applicationEntity only sells transaction
-func (builder *applicationEntityDTOBuilder) getCommoditiesSold(appId string, index int, pod *api.Pod) ([]*proto.CommodityDTO, error) {
+// applicationEntity sells transaction and responseTime
+func getCommoditiesSold(pod *api.Pod, index int) ([]*proto.CommodityDTO, error) {
 	var result []*proto.CommodityDTO
 
-	ebuilder := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).Key(appId).
+	key := getAppStitchingProperty(pod, index)
+
+	ebuilder := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).Key(key).
 		Capacity(defaultTransactionCapacity)
 
 	tranCommodity, err := ebuilder.Create()
 	if err != nil {
-		glog.Errorf("Failed to get application(%s) commodities sold:%v", appId, err)
+		glog.Errorf("Failed to get application(%s) transaction commodity sold:%v", key, err)
 		return nil, err
 	}
 	result = append(result, tranCommodity)
+
+	ebuilder = sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_RESPONSE_TIME).Key(key).
+		Capacity(defaultRespTimeCapacity)
+
+	respCommodity, err := ebuilder.Create()
+	if err != nil {
+		glog.Errorf("Failed to get application(%s) response time commodity sold:%v", key, err)
+		return nil, err
+	}
+	result = append(result, respCommodity)
 
 	return result, nil
 }
@@ -216,7 +192,30 @@ func (builder *applicationEntityDTOBuilder) getApplicationProperties(pod *api.Po
 	var properties []*proto.EntityDTO_EntityProperty
 	// additional node cluster info property.
 	appProperties := property.AddHostingPodProperties(pod.Namespace, pod.Name, index)
+
+	ns := stitching.DefaultPropertyNamespace
+	attr := stitching.AppStitchingAttr
+	value := getAppStitchingProperty(pod, index)
+	stitchingProperty := &proto.EntityDTO_EntityProperty{
+		Namespace: &ns,
+		Name:      &attr,
+		Value:     &value,
+	}
+
 	properties = append(properties, appProperties...)
+	properties = append(properties, stitchingProperty)
 
 	return properties
+}
+
+// Get the stitching property for Application.
+func getAppStitchingProperty(pod *api.Pod, index int) string {
+	// For the container with index 0, the property is the pod ip.
+	// For other containers, the container index is appended with hypen, i.e., [IP]-[Index]
+	property := pod.Status.PodIP
+	if index > 0 {
+		property = fmt.Sprintf("%s-%d", pod.Status.PodIP, index)
+	}
+
+	return property
 }
