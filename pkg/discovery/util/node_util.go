@@ -57,5 +57,5 @@ func GetNodeIP(node *api.Node) (string, error) {
 	if ip != "" {
 		return ip, nil
 	}
-	return "", fmt.Errorf("Node %v has no valid hostname and/or IP address: %v %v", node.Name, ip)
+	return "", fmt.Errorf("Node %v has no valid hostname and/or IP address: %v", node.Name, ip)
 }
