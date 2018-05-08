@@ -327,5 +327,8 @@ func (builder *podEntityDTOBuilder) createContainerPodData(pod *api.Pod) *proto.
 		}
 	}
 
+	if pod.Status.PodIP == "" {
+		glog.Errorf("No IP found for pod %s", fullName)
+	}
 	return nil
 }
