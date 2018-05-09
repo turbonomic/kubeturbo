@@ -19,6 +19,7 @@ var (
 	vmPMAccessType    proto.CommodityDTO_CommodityType = proto.CommodityDTO_VMPM_ACCESS
 	appCommType       proto.CommodityDTO_CommodityType = proto.CommodityDTO_APPLICATION
 	transactionType   proto.CommodityDTO_CommodityType = proto.CommodityDTO_TRANSACTION
+	respTimeType      proto.CommodityDTO_CommodityType = proto.CommodityDTO_RESPONSE_TIME
 
 	fakeKey string = "fake"
 
@@ -29,6 +30,7 @@ var (
 	vmpmAccessTemplateComm           *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
 	applicationTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
 	transactionTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
+	respTimeTemplateComm             *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &respTimeType}
 )
 
 type SupplyChainFactory struct {
@@ -213,6 +215,7 @@ func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO
 	appSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_APPLICATION)
 	appSupplyChainNodeBuilder = appSupplyChainNodeBuilder.
 		Sells(transactionTemplateComm).
+		Sells(respTimeTemplateComm).
 		Provider(proto.EntityDTO_CONTAINER, proto.Provider_HOSTING).
 		Buys(vCpuTemplateComm).
 		Buys(vMemTemplateComm).
@@ -225,6 +228,7 @@ func (f *SupplyChainFactory) buildVirtualApplicationSupplyBuilder() (*proto.Temp
 	vAppSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_VIRTUAL_APPLICATION)
 	vAppSupplyChainNodeBuilder = vAppSupplyChainNodeBuilder.
 		Provider(proto.EntityDTO_APPLICATION, proto.Provider_LAYERED_OVER).
-		Buys(transactionTemplateComm)
+		Buys(transactionTemplateComm).
+		Buys(respTimeTemplateComm)
 	return vAppSupplyChainNodeBuilder.Create()
 }

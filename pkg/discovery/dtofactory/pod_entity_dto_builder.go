@@ -125,6 +125,10 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 			glog.V(3).Infof("Pod %v is not monitored.", displayName)
 		}
 
+		entityDTOBuilder = entityDTOBuilder.ContainerPodData(builder.createContainerPodData(pod))
+
+		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
+
 		// build entityDTO.
 		entityDto, err := entityDTOBuilder.Create()
 		if err != nil {
@@ -307,4 +311,24 @@ func (builder *podEntityDTOBuilder) getPodProperties(pod *api.Pod) ([]*proto.Ent
 	properties = append(properties, stitchingProperty)
 
 	return properties, nil
+}
+
+func (builder *podEntityDTOBuilder) createContainerPodData(pod *api.Pod) *proto.EntityDTO_ContainerPodData {
+	// Add IP address in ContainerPodData. Some pods (system pods and daemonset pods) may use the host IP as the pod IP,
+	// in which case the IP address will not be unique (in the k8s cluster) and hence not populated in ContainerPodData.
+	fullName := pod.Name
+	ns := pod.Namespace
+	if pod.Status.PodIP != "" && pod.Status.PodIP != pod.Status.HostIP {
+		return &proto.EntityDTO_ContainerPodData{
+			// Note the port needs to be set if needed
+			IpAddress: &(pod.Status.PodIP),
+			FullName:  &fullName,
+			Namespace: &ns,
+		}
+	}
+
+	if pod.Status.PodIP == "" {
+		glog.Errorf("No IP found for pod %s", fullName)
+	}
+	return nil
 }

@@ -59,7 +59,25 @@ func NewContainerResizer(ae TurboK8sActionExecutor, kubeletClient *kubeclient.Ku
 
 // get node cpu frequency, in KHz;
 func (r *ContainerResizer) getNodeCPUFrequency(host string) (uint64, error) {
-	return r.kubeletClient.GetMachineCpuFrequency(host)
+	result, err := r.kubeletClient.GetMachineCpuFrequency(host)
+	if err == nil {
+		return result, nil
+	}
+	glog.Warningf("Failed to get node node cpuFrequency by hostname: %v, will try to get it by IP.", err)
+
+	node, err := util.GetNodebyName(r.kubeClient, host)
+	if err != nil {
+		glog.Errorf("failed to get node by name: %v", err)
+		return 1, err
+	}
+
+	ip, err := podutil.GetNodeIP(node)
+	if err != nil {
+		glog.Errorf("Failed to get node IP: %v, %++v", err, node)
+		return 1, err
+	}
+
+	return r.kubeletClient.GetMachineCpuFrequency(ip)
 }
 
 func (r *ContainerResizer) setCPUQuantity(cpuMhz float64, host string, rlist k8sapi.ResourceList) error {

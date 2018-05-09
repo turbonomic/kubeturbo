@@ -22,6 +22,8 @@ type Config struct {
 
 	// Close this to stop all reflectors
 	StopEverything chan struct{}
+
+	DiscoveryIntervalSec int
 }
 
 func NewVMTConfig2() *Config {
@@ -64,5 +66,10 @@ func (c *Config) WithVMPriority(p int32) *Config {
 
 func (c *Config) WithVMIsBase(isBase bool) *Config {
 	c.VMIsBase = isBase
+	return c
+}
+
+func (c *Config) WithDiscoveryInterval(di int) *Config {
+	c.DiscoveryIntervalSec = di
 	return c
 }

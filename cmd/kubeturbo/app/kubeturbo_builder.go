@@ -30,18 +30,18 @@ import (
 
 const (
 	// The default port for vmt service server
-	KubeturboPort       = 10265
-	DefaultKubeletPort  = 10255
-	DefaultKubeletHttps = false
-	defaultVMPriority   = -1
-	defaultVMIsBase     = true
+	KubeturboPort               = 10265
+	DefaultKubeletPort          = 10255
+	DefaultKubeletHttps         = false
+	defaultVMPriority           = -1
+	defaultVMIsBase             = true
+	defaultDiscoveryIntervalSec = 600
 )
 
 var (
 	//these variables will be deprecated. Keep it here for backward compatibility only
-	k8sVersion                 = "1.8"
-	noneSchedulerName          = "turbo-no-scheduler"
-	enableNonDisruptiveSupport = false
+	k8sVersion        = "1.8"
+	noneSchedulerName = "turbo-no-scheduler"
 )
 
 type disconnectFromTurboFunc func()
@@ -49,14 +49,15 @@ type disconnectFromTurboFunc func()
 // VMTServer has all the context and params needed to run a Scheduler
 // TODO: leaderElection is disabled now because of dependency problems.
 type VMTServer struct {
-	Port            int
-	Address         string
-	Master          string
-	K8sTAPSpec      string
-	TestingFlagPath string
-	KubeConfig      string
-	BindPodsQPS     float32
-	BindPodsBurst   int
+	Port                 int
+	Address              string
+	Master               string
+	K8sTAPSpec           string
+	TestingFlagPath      string
+	KubeConfig           string
+	BindPodsQPS          float32
+	BindPodsBurst        int
+	DiscoveryIntervalSec int
 
 	//LeaderElection componentconfig.LeaderElectionConfiguration
 
@@ -102,7 +103,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
 	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&noneSchedulerName, "noneSchedulerName", noneSchedulerName, "[deprecated] a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
-	fs.BoolVar(&enableNonDisruptiveSupport, "enable-non-disruptive-support", false, "[deprecated] Indicate if nondisruptive action support is enabled")
+	fs.IntVar(&s.DiscoveryIntervalSec, "discovery-interval-sec", defaultDiscoveryIntervalSec, "The discovery interval in seconds")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -210,7 +211,8 @@ func (s *VMTServer) Run(_ []string) error {
 		WithKubeletClient(kubeletClient).
 		WithVMPriority(s.VMPriority).
 		WithVMIsBase(s.VMIsBase).
-		UsingUUIDStitch(s.UseUUID)
+		UsingUUIDStitch(s.UseUUID).
+		WithDiscoveryInterval(s.DiscoveryIntervalSec)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service

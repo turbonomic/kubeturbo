@@ -96,6 +96,8 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 				ebuilder.Monitored(false)
 			}
 
+			ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
+
 			//4. build entityDTO
 			dto, err := ebuilder.Create()
 			if err != nil {

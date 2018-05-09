@@ -46,3 +46,16 @@ func NodeIsReady(node *api.Node) bool {
 func NodeIsSchedulable(node *api.Node) bool {
 	return !node.Spec.Unschedulable
 }
+
+func GetNodeIP(node *api.Node) (string, error) {
+	ip := ""
+	for _, addr := range node.Status.Addresses {
+		if addr.Type == api.NodeInternalIP && addr.Address != "" {
+			ip = addr.Address
+		}
+	}
+	if ip != "" {
+		return ip, nil
+	}
+	return "", fmt.Errorf("Node %v has no valid hostname and/or IP address: %v", node.Name, ip)
+}

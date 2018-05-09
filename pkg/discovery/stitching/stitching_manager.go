@@ -22,7 +22,10 @@ const (
 	proxyVMUUID string = "Proxy_VM_UUID"
 
 	// The default namespace of entity property
-	defaultPropertyNamespace string = "DEFAULT"
+	DefaultPropertyNamespace string = "DEFAULT"
+
+	// The attribute used for stitching with other probes (e.g., prometurbo) with app and vapp
+	AppStitchingAttr string = "IP"
 )
 
 // The property type that is used for stitching. For example "UUID", "IP address".
@@ -130,7 +133,7 @@ func (s *StitchingManager) GetStitchingValue(nodeName string) (string, error) {
 //       stitching: is to stitch Pod/VDC to the real-VM;
 //       reconcile: is to merge the proxy-VM to the real-VM;
 func (s *StitchingManager) BuildDTOProperty(nodeName string, isForReconcile bool) (*proto.EntityDTO_EntityProperty, error) {
-	propertyNamespace := defaultPropertyNamespace
+	propertyNamespace := DefaultPropertyNamespace
 	propertyName := s.getPropertyName(isForReconcile)
 	propertyValue, err := s.GetStitchingValue(nodeName)
 	if err != nil {
@@ -145,7 +148,7 @@ func (s *StitchingManager) BuildDTOProperty(nodeName string, isForReconcile bool
 
 // Stitch one entity with a list of VMs. This entity could be VDC.
 func (s *StitchingManager) BuildDTOLayerOverProperty(nodeNames []string) (*proto.EntityDTO_EntityProperty, error) {
-	propertyNamespace := defaultPropertyNamespace
+	propertyNamespace := DefaultPropertyNamespace
 	propertyName := s.getStitchingPropertyName()
 
 	values := []string{}

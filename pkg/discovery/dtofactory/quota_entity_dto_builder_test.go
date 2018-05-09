@@ -210,7 +210,7 @@ func TestBuildQuotaDto(t *testing.T) {
 			assert.True(t, exists)
 
 			resource, exists := quota.AllocationResources[allocationResource]
-			assert.True(t, exists, fmt.Sprintf("%s does not exist", resource))
+			assert.True(t, exists, fmt.Sprintf("%v does not exist", resource))
 			if metrics.IsCPUType(allocationResource) {
 				assert.EqualValues(t, resource.Capacity*CPUFrequency, comm.GetCapacity())
 			} else {
