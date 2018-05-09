@@ -68,12 +68,14 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 		expected := expected_pod
 
 		if entity == pod {
+			expected = expected_pod
 		} else if entity == container {
 			expected = expected_container
 		} else if entity == app {
 			expected = expected_app
 		} else {
 			t.Errorf("Unknown entity type: %v", entity)
+			continue
 		}
 
 		if err := xcheck(expected, item.GetPolicyElement()); err != nil {
