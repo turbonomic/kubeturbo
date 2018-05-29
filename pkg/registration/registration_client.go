@@ -12,6 +12,7 @@ const (
 	TargetIdentifierField string = "targetIdentifier"
 	Username              string = "username"
 	Password              string = "password"
+	propertyId            string = "id"
 )
 
 type RegistrationConfig struct {
@@ -131,7 +132,7 @@ func (rclient *K8sRegistrationClient) GetEntityMetadata() []*proto.EntityIdentit
 	}
 
 	for _, etype := range entities {
-		meta := rclient.newIdMetaData(etype, []string{"id"})
+		meta := rclient.newIdMetaData(etype, []string{propertyId})
 		result = append(result, meta)
 	}
 
