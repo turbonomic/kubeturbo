@@ -124,6 +124,7 @@ func (rclient *K8sRegistrationClient) GetEntityMetadata() []*proto.EntityIdentit
 	result := []*proto.EntityIdentityMetadata{}
 
 	entities := []proto.EntityDTO_EntityType{
+		proto.EntityDTO_VIRTUAL_DATACENTER,
 		proto.EntityDTO_VIRTUAL_MACHINE,
 		proto.EntityDTO_CONTAINER_POD,
 		proto.EntityDTO_CONTAINER,

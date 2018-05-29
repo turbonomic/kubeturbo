@@ -84,13 +84,13 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	}
 }
 
-
 func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
 	conf := NewRegistrationClientConfig(stitching.UUID, 0, true)
 	reg := NewK8sRegistrationClient(conf)
 
 	//1. all the entity types
 	entities := []proto.EntityDTO_EntityType{
+		proto.EntityDTO_VIRTUAL_DATACENTER,
 		proto.EntityDTO_VIRTUAL_MACHINE,
 		proto.EntityDTO_CONTAINER_POD,
 		proto.EntityDTO_CONTAINER,
