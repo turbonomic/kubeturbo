@@ -87,7 +87,7 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	podPolicy[proto.ActionItemDTO_MOVE] = supported
 	podPolicy[proto.ActionItemDTO_PROVISION] = supported
 	podPolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
-	addActionPolicy(ab, pod, podPolicy)
+	rClient.addActionPolicy(ab, pod, podPolicy)
 
 	//2. container: support resize; recommend provision; not move;
 	container := proto.EntityDTO_CONTAINER
@@ -95,7 +95,7 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	containerPolicy[proto.ActionItemDTO_RIGHT_SIZE] = supported
 	containerPolicy[proto.ActionItemDTO_PROVISION] = recommend
 	containerPolicy[proto.ActionItemDTO_MOVE] = notSupported
-	addActionPolicy(ab, container, containerPolicy)
+	rClient.addActionPolicy(ab, container, containerPolicy)
 
 	//3. application: only recommend provision; all else are not supported
 	app := proto.EntityDTO_APPLICATION
@@ -103,16 +103,56 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	appPolicy[proto.ActionItemDTO_PROVISION] = recommend
 	appPolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
 	appPolicy[proto.ActionItemDTO_MOVE] = notSupported
-	addActionPolicy(ab, app, appPolicy)
+	rClient.addActionPolicy(ab, app, appPolicy)
 
 	return ab.Create()
 }
 
-func addActionPolicy(ab *builder.ActionPolicyBuilder,
+func (rClient *K8sRegistrationClient) addActionPolicy(ab *builder.ActionPolicyBuilder,
 	entity proto.EntityDTO_EntityType,
 	policies map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability) {
 
 	for action, policy := range policies {
 		ab.WithEntityActions(entity, action, policy)
 	}
+}
+
+func (rclient *K8sRegistrationClient) GetEntityMetadata() []*proto.EntityIdentityMetadata {
+	glog.V(3).Infof("Begin to build EntityIdentityMetadata")
+
+	result := []*proto.EntityIdentityMetadata{}
+
+	entities := []proto.EntityDTO_EntityType{
+		proto.EntityDTO_VIRTUAL_MACHINE,
+		proto.EntityDTO_CONTAINER_POD,
+		proto.EntityDTO_CONTAINER,
+		proto.EntityDTO_APPLICATION,
+		proto.EntityDTO_VIRTUAL_APPLICATION,
+	}
+
+	for _, etype := range entities {
+		meta := rclient.newIdMetaData(etype, []string{"id"})
+		result = append(result, meta)
+	}
+
+	glog.V(4).Infof("EntityIdentityMetaData: %++v", result)
+
+	return result
+}
+
+func (rclient *K8sRegistrationClient) newIdMetaData(etype proto.EntityDTO_EntityType, names []string) *proto.EntityIdentityMetadata {
+	data := []*proto.EntityIdentityMetadata_PropertyMetadata{}
+	for _, name := range names {
+		dat := &proto.EntityIdentityMetadata_PropertyMetadata{
+			Name: &name,
+		}
+		data = append(data, dat)
+	}
+
+	result := &proto.EntityIdentityMetadata{
+		EntityType:            &etype,
+		NonVolatileProperties: data,
+	}
+
+	return result
 }

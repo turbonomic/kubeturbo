@@ -129,6 +129,7 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 				WithDiscoveryOptions(probe.FullRediscoveryIntervalSecondsOption(int32(config.DiscoveryIntervalSec))).
 				RegisteredBy(registrationClient).
 				WithActionPolicies(registrationClient).
+				WithEntityMetadata(registrationClient).
 				DiscoversTarget(config.tapSpec.TargetIdentifier, discoveryClient).
 				ExecutesActionsBy(actionHandler)).
 			Create()
