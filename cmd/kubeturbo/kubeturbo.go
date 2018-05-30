@@ -27,11 +27,11 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
+	"os"
 )
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	glog.V(2).Infof("*** Run Kubeturbo service ***")
 
 	logs.InitLogs()
 	defer logs.FlushLogs()
@@ -45,6 +45,8 @@ func main() {
 	s := app.NewVMTServer()
 	s.AddFlags(pflag.CommandLine)
 	flag.InitFlags()
+
+	glog.Infof("Run Kubeturbo service (GIT_COMMIT: %s)", os.Getenv("GIT_COMMIT"))
 
 	s.Run(pflag.CommandLine.Args())
 }
