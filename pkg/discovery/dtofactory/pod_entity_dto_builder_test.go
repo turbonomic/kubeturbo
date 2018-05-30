@@ -33,7 +33,7 @@ func Test_podEntityDTOBuilder_createContainerPodData(t *testing.T) {
 	hostIP := "2.2.2.2"
 	namespace := "foo"
 	podName := "bar"
-	port := "na"
+	port := "not-set"
 
 	tests := []struct {
 		name string

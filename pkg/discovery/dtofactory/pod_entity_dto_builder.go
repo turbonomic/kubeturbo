@@ -318,7 +318,7 @@ func (builder *podEntityDTOBuilder) createContainerPodData(pod *api.Pod) *proto.
 	// in which case the IP address will not be unique (in the k8s cluster) and hence not populated in ContainerPodData.
 	fullName := pod.Name
 	ns := pod.Namespace
-	port := "na"
+	port := "not-set"
 	if pod.Status.PodIP != "" && pod.Status.PodIP != pod.Status.HostIP {
 		return &proto.EntityDTO_ContainerPodData{
 			// Note the port needs to be set if needed
