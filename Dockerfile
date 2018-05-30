@@ -1,11 +1,10 @@
-# Set the base image
-FROM alpine:3.3
+FROM alpine:3.7
 
-# Set the file maintainer
-MAINTAINER Dongyi Yang <dongyi.yang@vmturbo.com>
+ARG GIT_COMMIT
+ENV GIT_COMMIT ${GIT_COMMIT}
 
 RUN apk --update upgrade && apk add ca-certificates && update-ca-certificates
-COPY ./_output/kubeturbo.linux /bin/kubeturbo 
+COPY ./kubeturbo.linux /bin/kubeturbo 
 
 ENTRYPOINT ["/bin/kubeturbo"]
 

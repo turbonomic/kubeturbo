@@ -1,4 +1,4 @@
-OUTPUT_DIR=./_output
+OUTPUT_DIR=./
 
 SOURCE_DIRS = cmd pkg
 PACKAGES := go list ./... | grep -v /vendor | grep -v /out
@@ -9,6 +9,9 @@ product: clean
 
 build: clean
 	go build -o ${OUTPUT_DIR}/kubeturbo ./cmd/kubeturbo
+
+docker: clean
+	docker build -t vmturbo/kubeturbo:6.2dev --build-arg GIT_COMMIT=$(shell git rev-parse --short HEAD) .
 
 test: clean
 	@go test -v -race ./pkg/...
