@@ -83,3 +83,46 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 		}
 	}
 }
+
+func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
+	conf := NewRegistrationClientConfig(stitching.UUID, 0, true)
+	reg := NewK8sRegistrationClient(conf)
+
+	//1. all the entity types
+	entities := []proto.EntityDTO_EntityType{
+		proto.EntityDTO_VIRTUAL_DATACENTER,
+		proto.EntityDTO_VIRTUAL_MACHINE,
+		proto.EntityDTO_CONTAINER_POD,
+		proto.EntityDTO_CONTAINER,
+		proto.EntityDTO_APPLICATION,
+		proto.EntityDTO_VIRTUAL_APPLICATION,
+	}
+	entitySet := make(map[proto.EntityDTO_EntityType]struct{})
+
+	for _, etype := range entities {
+		entitySet[etype] = struct{}{}
+	}
+
+	//2. verify all the entity MetaData
+	metaData := reg.GetEntityMetadata()
+	if len(metaData) != len(entitySet) {
+		t.Errorf("EntityMetadata count dis-match: %d vs %d", len(metaData), len(entitySet))
+	}
+
+	for _, meta := range metaData {
+		etype := meta.GetEntityType()
+		if _, exist := entitySet[etype]; !exist {
+			t.Errorf("Unexpected EntityType: %v", etype)
+		}
+
+		properties := meta.GetNonVolatileProperties()
+		if len(properties) != 1 {
+			t.Errorf("Number of NonVolatieProperties should be 1 Vs. %v", len(properties))
+		}
+
+		if properties[0].GetName() != propertyId {
+			t.Errorf("Property name should be : %v Vs. %v", propertyId, properties[0].GetName())
+		}
+	}
+
+}
