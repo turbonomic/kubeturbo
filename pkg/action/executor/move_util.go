@@ -63,7 +63,7 @@ func doCheckPodNode(client *kclient.Clientset, namespace, name, nodeName string)
 	}
 
 	phase := pod.Status.Phase
-	if phase == api.PodRunning {
+	if phase == api.PodRunning && podutil.PodIsReady(pod) {
 		if len(nodeName) > 0 {
 			if !strings.EqualFold(pod.Spec.NodeName, nodeName) {
 				return false, fmt.Errorf("Pod[%s] running on an unexpected node[%v].", name, pod.Spec.NodeName)
@@ -80,7 +80,7 @@ func doCheckPodNode(client *kclient.Clientset, namespace, name, nodeName string)
 		return false, fmt.Errorf("Pod %s is in phase %v", name, phase)
 	}
 
-	return true, fmt.Errorf("pod(%s) is not in running phase[%v] yet.", name, phase)
+	return true, fmt.Errorf("pod(%s) is not ready [phase: %v] yet.", name, phase)
 }
 
 func waitForReady(client *kclient.Clientset, namespace, name, nodeName string, retryNum int) error {
