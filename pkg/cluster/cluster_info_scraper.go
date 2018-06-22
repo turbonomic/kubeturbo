@@ -100,8 +100,9 @@ func (s *ClusterScraper) GetNodes(opts metav1.ListOptions) ([]*api.Node, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list all nodes in the cluster: %s", err)
 	}
-	nodes := make([]*api.Node, len(nodeList.Items))
-	for i := 0; i < len(nodeList.Items); i++ {
+	n := len(nodeList.Items)
+	nodes := make([]*api.Node, n)
+	for i := 0; i < n; i++ {
 		nodes[i] = &nodeList.Items[i]
 	}
 	return nodes, nil

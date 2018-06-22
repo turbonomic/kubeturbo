@@ -122,13 +122,14 @@ func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*pr
 		errorDtos = append(errorDtos, errorDto)
 		validationResponse.ErrorDTO = errorDtos
 	} else {
-		glog.V(2).Infof("Validation response - connected to cluster and nodes\n")
+		glog.V(2).Infof("Validation response - connected to cluster\n")
 	}
 
 	return validationResponse, nil
 }
 
 // DiscoverTopology receives a discovery request from server and start probing the k8s.
+// This is a part of the interface that gets registered with and is invoked asynchronously by the GO SDK Probe.
 func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*proto.DiscoveryResponse, error) {
 	currentTime := time.Now()
 	newDiscoveryResultDTOs, err := dc.discoverWithNewFramework()
@@ -146,6 +147,9 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 	return discoveryResponse, nil
 }
 
+/*
+	The actual discovery work is done here.
+ */
 func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES AND QUOTAS HERE
 	kubeCluster, err := dc.clusterProcessor.DiscoverCluster()

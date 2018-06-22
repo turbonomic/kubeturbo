@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+	"sync"
 )
 
 const (
@@ -33,12 +34,22 @@ type KubeHttpClientInterface interface {
 	GetMachineCpuFrequency(host string) (uint64, error)
 }
 
+// Cache structure.
+// TODO(MB): Make sure the nodes that are no longer discovered are being removed from the cache!
+type CacheEntry struct {
+	statsSummary *stats.Summary
+	machineInfo *cadvisorapi.MachineInfo
+	cpuFreq uint64
+}
+
 // Since http.Client is thread safe (https://golang.org/src/net/http/client.go)
 // KubeletClient is also thread-safe if concurrent goroutines won't change the fields.
 type KubeletClient struct {
 	client *http.Client
 	scheme string
 	port   int
+	cache map[string]*CacheEntry
+	cacheLock sync.Mutex
 }
 
 func (client *KubeletClient) ExecuteRequestAndGetValue(host string, endpoint string, value interface{}) error {
@@ -81,14 +92,62 @@ func (client *KubeletClient) postRequestAndGetValue(req *http.Request, value int
 }
 
 func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
+	// Get the data
 	summary := &stats.Summary{}
 	err := client.ExecuteRequestAndGetValue(host, summaryPath, summary)
+	// Lock and check cache
+	client.cacheLock.Lock()
+	defer client.cacheLock.Unlock()
+	entry, entryPresent := client.cache[host]
+	if err != nil {
+		if entryPresent {
+			glog.Infof("unable to retrieve machine[%s] summary: %v. Using cached value", host, err)
+			return entry.statsSummary, nil
+		} else {
+			glog.Errorf("failed to get machine[%s] summary: %v. No cache available", host, err)
+			return summary, err
+		}
+	}
+	// Fill in the cache
+	if entryPresent {
+		client.cache[host].statsSummary = summary
+	} else {
+		entry := &CacheEntry{
+			statsSummary: summary,
+			machineInfo:  nil,
+		}
+		client.cache[host] = entry
+	}
 	return summary, err
 }
 
 func (client *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineInfo, error) {
+	// Get the data
 	var minfo cadvisorapi.MachineInfo
 	err := client.ExecuteRequestAndGetValue(host, specPath, &minfo)
+	// Lock and check cache
+	client.cacheLock.Lock()
+	defer client.cacheLock.Unlock()
+	entry, entryPresent := client.cache[host]
+	if err != nil {
+		if entryPresent {
+			glog.Infof("unable to retrieve machine[%s] machine info: %v. Using cached value", host, err)
+			return entry.machineInfo, nil
+		} else {
+			glog.Errorf("failed to get machine[%s] machine info: %v. No cache available", host, err)
+			return &minfo, err
+		}
+	}
+	// Fill in the cache
+	if entryPresent {
+		client.cache[host].machineInfo = &minfo
+	} else {
+		entry := &CacheEntry{
+			statsSummary: nil,
+			machineInfo:  &minfo,
+		}
+		client.cache[host] = entry
+	}
 	return &minfo, err
 }
 
@@ -99,7 +158,6 @@ func (client *KubeletClient) GetMachineCpuFrequency(host string) (uint64, error)
 		glog.Errorf("failed to get machine[%s] cpu.frequency: %v", host, err)
 		return 0, err
 	}
-
 	return minfo.CpuFrequency, nil
 }
 
@@ -160,6 +218,7 @@ func (kc *KubeletConfig) Create() (*KubeletClient, error) {
 		client: c,
 		scheme: scheme,
 		port:   kc.port,
+		cache:  make(map[string]*CacheEntry),
 	}, nil
 }
 
