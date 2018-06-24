@@ -2,6 +2,9 @@ package app
 
 import (
 	"fmt"
+	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
+	"github.com/turbonomic/kubeturbo/pkg"
 	"sync"
 	"syscall"
 	"testing"
@@ -44,4 +47,27 @@ func Test_handleExit(t *testing.T) {
 		// comment this because it is not stable during travis test
 		//t.Errorf("The disconnect function was not invoked with signal SIGTERM")
 	}
+}
+
+func TestOptions(t *testing.T) {
+	vmtConfig := kubeturbo.NewVMTConfig2()
+	vmtConfig.
+		WithVMIsBase(true).
+		WithDiscoveryInterval(1).
+		WithValidationTimeout(2).
+		WithValidationWorkers(3)
+	assert.True(t, vmtConfig.VMIsBase)
+	assert.Equal(t, vmtConfig.DiscoveryIntervalSec, 1)
+	assert.Equal(t, vmtConfig.ValidationTimeoutSec, 2)
+	assert.Equal(t, vmtConfig.ValidationWorkers, 3)
+}
+
+func TestOptionsSet(t *testing.T) {
+	s := VMTServer{
+		Port:       100,
+		Address:    "127.0.0.1",
+		VMPriority: 10,
+		VMIsBase:   true,
+	}
+	s.AddFlags(pflag.CommandLine)
 }
