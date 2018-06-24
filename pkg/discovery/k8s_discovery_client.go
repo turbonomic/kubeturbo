@@ -24,15 +24,20 @@ const (
 )
 
 type DiscoveryClientConfig struct {
-	probeConfig  *configs.ProbeConfig
-	targetConfig *configs.K8sTargetConfig
+	probeConfig          *configs.ProbeConfig
+	targetConfig         *configs.K8sTargetConfig
+	ValidationWorkers    int
+	ValidationTimeoutSec int
 }
 
 func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
-	targetConfig *configs.K8sTargetConfig) *DiscoveryClientConfig {
+	targetConfig *configs.K8sTargetConfig, ValidationWorkers int,
+	ValidationTimeoutSec int) *DiscoveryClientConfig {
 	return &DiscoveryClientConfig{
-		probeConfig:  probeConfig,
-		targetConfig: targetConfig,
+		probeConfig:          probeConfig,
+		targetConfig:         targetConfig,
+		ValidationWorkers:    ValidationWorkers,
+		ValidationTimeoutSec: ValidationTimeoutSec,
 	}
 }
 
@@ -50,7 +55,7 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	k8sClusterScraper := cluster.NewClusterScraper(config.probeConfig.ClusterClient)
 
 	// for discovery tasks
-	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient)
+	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient, config.ValidationWorkers, config.ValidationTimeoutSec)
 	// make maxWorkerCount of result collector twice the worker count.
 	resultCollector := worker.NewResultCollector(workerCount * 2)
 

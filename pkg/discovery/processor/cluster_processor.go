@@ -26,7 +26,10 @@ type ClusterProcessor struct {
 	validationResult   *ClusterValidationResult
 }
 
-func NewClusterProcessor(kubeClient *cluster.ClusterScraper, kubeletClient *kubeclient.KubeletClient) *ClusterProcessor {
+func NewClusterProcessor(kubeClient *cluster.ClusterScraper, kubeletClient *kubeclient.KubeletClient, ValidationWorkers int,
+	ValidationTimeoutSec int) *ClusterProcessor {
+	workers = ValidationWorkers
+	totalWaitTime = time.Duration(ValidationTimeoutSec) * time.Second
 	if kubeClient == nil {
 		glog.Errorf("Null kubeclient while creating cluster processor")
 		return nil

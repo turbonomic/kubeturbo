@@ -19,7 +19,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
 
-	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
+	"github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/test/flag"
 
 	"github.com/golang/glog"
@@ -36,6 +36,8 @@ const (
 	defaultVMPriority           = -1
 	defaultVMIsBase             = true
 	defaultDiscoveryIntervalSec = 600
+	defaultValidationWorkers    = 10
+	defaultValidationTimeout    = 60
 )
 
 var (
@@ -76,6 +78,10 @@ type VMTServer struct {
 	// Kubelet related config
 	KubeletPort        int
 	EnableKubeletHttps bool
+
+	// The cluster processor related config
+	ValidationWorkers int
+	ValidationTimeout int
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -104,6 +110,8 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&noneSchedulerName, "noneSchedulerName", noneSchedulerName, "[deprecated] a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
 	fs.IntVar(&s.DiscoveryIntervalSec, "discovery-interval-sec", defaultDiscoveryIntervalSec, "The discovery interval in seconds")
+	fs.IntVar(&s.ValidationWorkers, "validation-workers", defaultValidationWorkers, "The validation workers")
+	fs.IntVar(&s.ValidationTimeout, "validation-timeout-sec", defaultValidationTimeout, "The validation timeout in seconds")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -212,7 +220,9 @@ func (s *VMTServer) Run(_ []string) error {
 		WithVMPriority(s.VMPriority).
 		WithVMIsBase(s.VMIsBase).
 		UsingUUIDStitch(s.UseUUID).
-		WithDiscoveryInterval(s.DiscoveryIntervalSec)
+		WithDiscoveryInterval(s.DiscoveryIntervalSec).
+		WithValidationTimeout(s.ValidationTimeout).
+		WithValidationWorkers(s.ValidationWorkers)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service
