@@ -165,6 +165,9 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 
 	// Multiple discovery workers to create node and pod DTOs
 	nodes := clusterSummary.NodeList
+	// Call cache cleanup
+	dc.config.probeConfig.NodeClient.CleanupCache(nodes)
+
 	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
 	entityDTOs, quotaMetricsList := dc.resultCollector.Collect(workerCount)
 

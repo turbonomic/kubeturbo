@@ -7,6 +7,7 @@ import (
 	cadvisorapi "github.com/google/cadvisor/info/v1"
 	"io/ioutil"
 	netutil "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
@@ -39,7 +40,30 @@ type KubeHttpClientInterface interface {
 type CacheEntry struct {
 	statsSummary *stats.Summary
 	machineInfo  *cadvisorapi.MachineInfo
-	cpuFreq      uint64
+}
+
+// Cleanup the cache.
+// Returns number of deleted nodes
+func (client *KubeletClient) CleanupCache(nodes []*v1.Node) int {
+	// Lock and check cache
+	client.cacheLock.Lock()
+	defer client.cacheLock.Unlock()
+	// Fill in the hash map for subsequent lookup
+	names := make(map[string]bool)
+	for _, node := range nodes {
+		names[node.GetName()] = true
+	}
+	// Cleanup
+	count := 0
+	for host, _ := range client.cache {
+		_, ok := names[host]
+		if !ok {
+			glog.Warningf("removed host %s, as it is no longer discovered")
+			delete(client.cache, host)
+			count++
+		}
+	}
+	return count
 }
 
 // Since http.Client is thread safe (https://golang.org/src/net/http/client.go)
