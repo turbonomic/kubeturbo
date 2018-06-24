@@ -12,8 +12,8 @@ import (
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 	"net/http"
 	"net/url"
-	"time"
 	"sync"
+	"time"
 )
 
 const (
@@ -38,17 +38,17 @@ type KubeHttpClientInterface interface {
 // TODO(MB): Make sure the nodes that are no longer discovered are being removed from the cache!
 type CacheEntry struct {
 	statsSummary *stats.Summary
-	machineInfo *cadvisorapi.MachineInfo
-	cpuFreq uint64
+	machineInfo  *cadvisorapi.MachineInfo
+	cpuFreq      uint64
 }
 
 // Since http.Client is thread safe (https://golang.org/src/net/http/client.go)
 // KubeletClient is also thread-safe if concurrent goroutines won't change the fields.
 type KubeletClient struct {
-	client *http.Client
-	scheme string
-	port   int
-	cache map[string]*CacheEntry
+	client    *http.Client
+	scheme    string
+	port      int
+	cache     map[string]*CacheEntry
 	cacheLock sync.Mutex
 }
 
@@ -101,7 +101,7 @@ func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 	entry, entryPresent := client.cache[host]
 	if err != nil {
 		if entryPresent {
-			glog.Infof("unable to retrieve machine[%s] summary: %v. Using cached value", host, err)
+			glog.V(2).Infof("unable to retrieve machine[%s] summary: %v. Using cached value", host, err)
 			return entry.statsSummary, nil
 		} else {
 			glog.Errorf("failed to get machine[%s] summary: %v. No cache available", host, err)
@@ -131,7 +131,7 @@ func (client *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineIn
 	entry, entryPresent := client.cache[host]
 	if err != nil {
 		if entryPresent {
-			glog.Infof("unable to retrieve machine[%s] machine info: %v. Using cached value", host, err)
+			glog.V(2).Infof("unable to retrieve machine[%s] machine info: %v. Using cached value", host, err)
 			return entry.machineInfo, nil
 		} else {
 			glog.Errorf("failed to get machine[%s] machine info: %v. No cache available", host, err)

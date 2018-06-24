@@ -149,7 +149,7 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 
 /*
 	The actual discovery work is done here.
- */
+*/
 func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES AND QUOTAS HERE
 	kubeCluster, err := dc.clusterProcessor.DiscoverCluster()

@@ -13,8 +13,7 @@ import (
 )
 
 const (
-	workers = 10
-	sleepInterval = 10 * time.Second
+	workers       = 10
 	totalWaitTime = 60 * time.Second
 )
 
@@ -73,11 +72,11 @@ func (processor *ClusterProcessor) ConnectCluster() error {
 
 // Perform a single node validation
 func (processor *ClusterProcessor) checkNodesWorker(work chan *v1.Node, done chan bool, index int) {
-	glog.Infof("node verifier worker %d starting", index)
+	glog.V(2).Infof("node verifier worker %d starting", index)
 	for {
 		node, present := <-work
 		if !present {
-			glog.Infof("node verifier worker %d finished. No more work", index)
+			glog.V(2).Infof("node verifier worker %d finished. No more work", index)
 			return
 		}
 		nodeCpuFrequency, err := checkNode(node, processor.nodeScrapper)
@@ -85,10 +84,10 @@ func (processor *ClusterProcessor) checkNodesWorker(work chan *v1.Node, done cha
 			glog.Errorf("%s [err:%s]", node.Name, err)
 		} else {
 			// Log the success and send the response to everybody
-			glog.Infof("verified %s [cpu:%v MHz]", node.Name, nodeCpuFrequency)
+			glog.V(2).Infof("verified %s [cpu:%v MHz]", node.Name, nodeCpuFrequency)
 			done <- true
 			// Force return here. We are done and notified everybody.
-			glog.Infof("node verifier worker %d finished. Successful verification", index)
+			glog.V(2).Infof("node verifier worker %d finished. Successful verification", index)
 			return
 		}
 	}
@@ -97,14 +96,13 @@ func (processor *ClusterProcessor) checkNodesWorker(work chan *v1.Node, done cha
 // Wait for at least one of the workers to complete successfully
 // or timeout
 func waitForCompletion(done chan bool) bool {
-	cycles := int(totalWaitTime.Nanoseconds() / sleepInterval.Nanoseconds())
-	for i := 0; i < cycles; i++ {
-		select {
-		case <-done:
-			return true
-		default:
-			time.Sleep(sleepInterval)
-		}
+	timer := time.NewTimer(totalWaitTime)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return true
+	case <-timer.C:
+		return false
 	}
 	return false
 }
