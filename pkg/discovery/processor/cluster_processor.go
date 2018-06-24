@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const (
+var (
 	workers       = 10
 	totalWaitTime = 60 * time.Second
 )
@@ -104,7 +104,6 @@ func waitForCompletion(done chan bool) bool {
 	case <-timer.C:
 		return false
 	}
-	return false
 }
 
 // Drains the work queue.
