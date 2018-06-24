@@ -99,7 +99,7 @@ func GetReadyPods(pods []*api.Pod) []*api.Pod {
 	readyPods := []*api.Pod{}
 
 	for _, pod := range pods {
-		if podIsReady(pod) {
+		if PodIsReady(pod) {
 			readyPods = append(readyPods, pod)
 		} else {
 			glog.V(4).Infof("Pod %s is not ready", pod.Name)
@@ -110,7 +110,7 @@ func GetReadyPods(pods []*api.Pod) []*api.Pod {
 }
 
 // PodIsReady checks if a pod is in Ready status.
-func podIsReady(pod *api.Pod) bool {
+func PodIsReady(pod *api.Pod) bool {
 	for _, condition := range pod.Status.Conditions {
 		if condition.Type == api.PodReady {
 			return condition.Status == api.ConditionTrue
