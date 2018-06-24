@@ -125,6 +125,14 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 			glog.V(3).Infof("Pod %v is not monitored.", displayName)
 		}
 
+		controllable := util.Controllable(pod)
+		if !controllable {
+			glog.V(3).Infof("Pod %v is not controllable.", displayName)
+		}
+		entityDTOBuilder.ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
+			Controllable: &controllable,
+		})
+
 		entityDTOBuilder = entityDTOBuilder.ContainerPodData(builder.createContainerPodData(pod))
 
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)

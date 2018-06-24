@@ -194,16 +194,16 @@ func TestMonitored_DaemonSet(t *testing.T) {
 		"kubernetes.io/created-by": `{"reference":{"kind":"DaemonSet","name":"daemon-set-foo"}}`,
 	}
 
-	if Monitored(pod) {
-		t.Errorf("The pod in DaemonSet shouldn't be monitored")
+	if !Monitored(pod) {
+		t.Errorf("The pod in DaemonSet must be monitored")
 	}
 
 	// With Owner reference
 	podWithOwnerRef := newPod("pod-bar")
 	isController := true
 	podWithOwnerRef.OwnerReferences = []metav1.OwnerReference{{Kind: "DaemonSet", Name: "daemon-set-foo", Controller: &isController}}
-	if Monitored(podWithOwnerRef) {
-		t.Errorf("The pod (with owner reference) in DaemonSet shouldn't be monitored")
+	if !Monitored(podWithOwnerRef) {
+		t.Errorf("The pod (with owner reference) in DaemonSet must be monitored")
 	}
 }
 
