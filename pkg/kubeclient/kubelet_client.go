@@ -52,7 +52,6 @@ func (client *KubeletClient) CleanupCache(nodes []*v1.Node) int {
 	// Fill in the hash map for subsequent lookup
 	names := make(map[string]bool)
 	for _, node := range nodes {
-		names[node.GetName()] = true
 		ip := repository.ParseNodeIP(node, v1.NodeInternalIP)
 		if len(ip) == 0 {
 			glog.Warningf("unable to obtain address for node %s, as it is no longer discovered", node.GetName())
