@@ -5,7 +5,6 @@ PACKAGES := go list ./... | grep -v /vendor | grep -v /out
 
 
 product: clean
-	env GOOS=darwin GOARCH=amd64 go build -gcflags='-N -l' -o ${OUTPUT_DIR}/kubeturbo.osx ./cmd/kubeturbo
 	env GOOS=linux GOARCH=amd64 go build -o ${OUTPUT_DIR}/kubeturbo.linux ./cmd/kubeturbo
 
 build: clean
