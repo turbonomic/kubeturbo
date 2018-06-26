@@ -24,6 +24,8 @@ type Config struct {
 	StopEverything chan struct{}
 
 	DiscoveryIntervalSec int
+	ValidationWorkers    int
+	ValidationTimeoutSec int
 }
 
 func NewVMTConfig2() *Config {
@@ -71,5 +73,15 @@ func (c *Config) WithVMIsBase(isBase bool) *Config {
 
 func (c *Config) WithDiscoveryInterval(di int) *Config {
 	c.DiscoveryIntervalSec = di
+	return c
+}
+
+func (c *Config) WithValidationTimeout(di int) *Config {
+	c.ValidationTimeoutSec = di
+	return c
+}
+
+func (c *Config) WithValidationWorkers(di int) *Config {
+	c.ValidationWorkers = di
 	return c
 }

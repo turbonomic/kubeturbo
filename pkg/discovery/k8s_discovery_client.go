@@ -24,15 +24,20 @@ const (
 )
 
 type DiscoveryClientConfig struct {
-	probeConfig  *configs.ProbeConfig
-	targetConfig *configs.K8sTargetConfig
+	probeConfig          *configs.ProbeConfig
+	targetConfig         *configs.K8sTargetConfig
+	ValidationWorkers    int
+	ValidationTimeoutSec int
 }
 
 func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
-	targetConfig *configs.K8sTargetConfig) *DiscoveryClientConfig {
+	targetConfig *configs.K8sTargetConfig, ValidationWorkers int,
+	ValidationTimeoutSec int) *DiscoveryClientConfig {
 	return &DiscoveryClientConfig{
-		probeConfig:  probeConfig,
-		targetConfig: targetConfig,
+		probeConfig:          probeConfig,
+		targetConfig:         targetConfig,
+		ValidationWorkers:    ValidationWorkers,
+		ValidationTimeoutSec: ValidationTimeoutSec,
 	}
 }
 
@@ -50,7 +55,7 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	k8sClusterScraper := cluster.NewClusterScraper(config.probeConfig.ClusterClient)
 
 	// for discovery tasks
-	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient)
+	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient, config.ValidationWorkers, config.ValidationTimeoutSec)
 	// make maxWorkerCount of result collector twice the worker count.
 	resultCollector := worker.NewResultCollector(workerCount * 2)
 
@@ -122,13 +127,14 @@ func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*pr
 		errorDtos = append(errorDtos, errorDto)
 		validationResponse.ErrorDTO = errorDtos
 	} else {
-		glog.V(2).Infof("Validation response - connected to cluster and nodes\n")
+		glog.V(2).Infof("Validation response - connected to cluster\n")
 	}
 
 	return validationResponse, nil
 }
 
 // DiscoverTopology receives a discovery request from server and start probing the k8s.
+// This is a part of the interface that gets registered with and is invoked asynchronously by the GO SDK Probe.
 func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*proto.DiscoveryResponse, error) {
 	currentTime := time.Now()
 	newDiscoveryResultDTOs, err := dc.discoverWithNewFramework()
@@ -146,6 +152,9 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 	return discoveryResponse, nil
 }
 
+/*
+	The actual discovery work is done here.
+*/
 func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES AND QUOTAS HERE
 	kubeCluster, err := dc.clusterProcessor.DiscoverCluster()
@@ -156,6 +165,9 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 
 	// Multiple discovery workers to create node and pod DTOs
 	nodes := clusterSummary.NodeList
+	// Call cache cleanup
+	dc.config.probeConfig.NodeClient.CleanupCache(nodes)
+
 	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
 	entityDTOs, quotaMetricsList := dc.resultCollector.Collect(workerCount)
 

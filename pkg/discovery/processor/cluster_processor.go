@@ -9,7 +9,12 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"k8s.io/client-go/pkg/api/v1"
-	"strings"
+	"time"
+)
+
+var (
+	workers       = 10
+	totalWaitTime = 60 * time.Second
 )
 
 // Top level object that will connect to the Kubernetes cluster and all the nodes in the cluster.
@@ -21,7 +26,10 @@ type ClusterProcessor struct {
 	validationResult   *ClusterValidationResult
 }
 
-func NewClusterProcessor(kubeClient *cluster.ClusterScraper, kubeletClient *kubeclient.KubeletClient) *ClusterProcessor {
+func NewClusterProcessor(kubeClient *cluster.ClusterScraper, kubeletClient *kubeclient.KubeletClient, ValidationWorkers int,
+	ValidationTimeoutSec int) *ClusterProcessor {
+	workers = ValidationWorkers
+	totalWaitTime = time.Duration(ValidationTimeoutSec) * time.Second
 	if kubeClient == nil {
 		glog.Errorf("Null kubeclient while creating cluster processor")
 		return nil
@@ -47,7 +55,7 @@ type ClusterValidationResult struct {
 // Return error only if all the nodes in the cluster are unreachable.
 func (processor *ClusterProcessor) ConnectCluster() error {
 	if processor.clusterInfoScraper == nil || processor.nodeScrapper == nil {
-		return fmt.Errorf("Null kubernetes cluster or node client")
+		return fmt.Errorf("null kubernetes cluster or node client")
 	}
 
 	svcID, err := processor.clusterInfoScraper.GetKubernetesServiceID()
@@ -65,6 +73,53 @@ func (processor *ClusterProcessor) ConnectCluster() error {
 	return nil
 }
 
+// Perform a single node validation
+func (processor *ClusterProcessor) checkNodesWorker(work chan *v1.Node, done chan bool, index int) {
+	glog.V(2).Infof("node verifier worker %d starting", index)
+	for {
+		node, present := <-work
+		if !present {
+			glog.V(2).Infof("node verifier worker %d finished. No more work", index)
+			return
+		}
+		nodeCpuFrequency, err := checkNode(node, processor.nodeScrapper)
+		if err != nil {
+			glog.Errorf("%s [err:%s]", node.Name, err)
+		} else {
+			// Log the success and send the response to everybody
+			glog.V(2).Infof("verified %s [cpu:%v MHz]", node.Name, nodeCpuFrequency)
+			done <- true
+			// Force return here. We are done and notified everybody.
+			glog.V(2).Infof("node verifier worker %d finished. Successful verification", index)
+			return
+		}
+	}
+}
+
+// Wait for at least one of the workers to complete successfully
+// or timeout
+func waitForCompletion(done chan bool) bool {
+	timer := time.NewTimer(totalWaitTime)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return true
+	case <-timer.C:
+		return false
+	}
+}
+
+// Drains the work queue.
+// This will allow us to terminate the still on worker threads
+func drainWorkQueue(work chan *v1.Node) {
+	for {
+		_, ok := <-work
+		if !ok {
+			return
+		}
+	}
+}
+
 // Connects to all nodes in the cluster.
 // Obtains the CPU Frequency of the node to determine the node availability and accessibility.
 func (processor *ClusterProcessor) connectToNodes() (*ClusterValidationResult, error) {
@@ -72,61 +127,51 @@ func (processor *ClusterProcessor) connectToNodes() (*ClusterValidationResult, e
 	validationResult := &ClusterValidationResult{
 		UnreachableNodes: unreachable,
 	}
-
 	nodeList, err := processor.clusterInfoScraper.GetAllNodes()
 	if err != nil {
 		validationResult.IsValidated = false
 		return validationResult, fmt.Errorf("Error getting nodes for cluster : %s\n", err)
 	}
 	glog.V(2).Infof("There are %d nodes\n", len(nodeList))
-
-	var connectionErrors []string
-	var connectionMsgs []string
-
+	// The connection data
+	size := len(nodeList)
+	work := make(chan *v1.Node, size)
+	done := make(chan bool, size)
+	// Create workers
+	for i := 0; i < workers; i++ {
+		go processor.checkNodesWorker(work, done, i)
+	}
+	// Check
 	for _, node := range nodeList {
-		nodeCpuFrequency, err := checkNode(node, processor.nodeScrapper)
-		if err != nil {
-			connectionErrors = append(connectionErrors, fmt.Sprintf("%s [err:%s]", node.Name, err))
-			unreachable = append(unreachable, node.Name)
-		} else {
-			connectionMsgs = append(connectionMsgs,
-				fmt.Sprintf("%s [cpu:%v MHz]", node.Name, nodeCpuFrequency))
-		}
+		work <- node
 	}
-	// collect all connection errors
-	errStr := strings.Join(connectionErrors, ", ")
-
-	// All nodes are unreachable
-	if len(unreachable) == len(nodeList) {
-		glog.Errorf("Errors connecting to nodes : %s\n", errStr)
-		validationResult.IsValidated = false
-		return validationResult, fmt.Errorf(errStr)
+	close(work)
+	// Results. Wait for no longer than a minute.
+	validationResult.IsValidated = waitForCompletion(done)
+	// Drain the work queue. The workers will terminate automatically.
+	drainWorkQueue(work)
+	// Success, partial or full.
+	if validationResult.IsValidated {
+		glog.V(2).Infof("Successfully connected to at least some nodes\n")
+		return validationResult, nil
 	}
-
-	if len(connectionErrors) > 0 {
-		glog.Errorf("Some nodes cannot be reached: %s\n", errStr)
-	}
-	glog.V(2).Infof("Successfully connected to nodes : %s\n", strings.Join(connectionMsgs, ", "))
-	validationResult.IsValidated = true
-	return validationResult, nil
+	return validationResult, fmt.Errorf("error connecting to any node")
 }
 
+// Checks the node connectivity be obtaining its CPU frequency
 func checkNode(node *v1.Node, kc kubeclient.KubeHttpClientInterface) (float64, error) {
 	ip := repository.ParseNodeIP(node, v1.NodeInternalIP)
 	cpuFreq, err := kc.GetMachineCpuFrequency(ip)
-
 	if err != nil {
 		return 0.0, err
 	}
-
-	nodeCpuFrequency := float64(cpuFreq) / util.MegaToKilo
-	return nodeCpuFrequency, nil
+	return float64(cpuFreq) / util.MegaToKilo, nil
 }
 
 // Query the Kubernetes API Server to get the cluster nodes and namespaces and set in tge cluster object
 func (processor *ClusterProcessor) DiscoverCluster() (*repository.KubeCluster, error) {
 	if processor.clusterInfoScraper == nil {
-		return nil, fmt.Errorf("Null kubernetes cluster client")
+		return nil, fmt.Errorf("null kubernetes cluster client")
 	}
 	svcID, err := processor.clusterInfoScraper.GetKubernetesServiceID()
 	if err != nil {

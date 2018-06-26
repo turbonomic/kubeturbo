@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/pkg/api/v1"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 	"testing"
+	"time"
 )
 
 var (
@@ -113,6 +114,34 @@ func TestProcessNodes(t *testing.T) {
 			assert.True(t, exists)
 		}
 	}
+}
+
+func TestDrainWorkQueue(t *testing.T) {
+	size := 2
+	work := make(chan *v1.Node, size)
+	node := &v1.Node{}
+	work <- node
+	close(work)
+	drainWorkQueue(work)
+	_, ok := <-work
+	assert.False(t, ok)
+}
+
+func TestWaitForCompletionSucceeded(t *testing.T) {
+	size := 2
+	done := make(chan bool, size)
+	done <- true
+	totalWaitTime = time.Second
+	assert.True(t, waitForCompletion(done))
+	totalWaitTime = 60 * time.Second
+}
+
+func TestWaitForCompletionFailed(t *testing.T) {
+	size := 2
+	done := make(chan bool, size)
+	totalWaitTime = time.Second
+	assert.False(t, waitForCompletion(done))
+	totalWaitTime = 60 * time.Second
 }
 
 func TestComputeClusterResources(t *testing.T) {

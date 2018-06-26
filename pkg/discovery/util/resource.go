@@ -60,8 +60,8 @@ func GetPodResourceRequest(pod *api.Pod) (cpuRequest float64, memRequest float64
 func GetCpuAndMemoryValues(resource api.ResourceList) (cpuCapacityCore, memoryCapacityKiloBytes float64) {
 	ctnMemoryCapacityBytes := resource.Memory().Value()
 	ctnCpuCapacityMilliCore := resource.Cpu().MilliValue()
-	memoryCapacityKiloBytes += float64(ctnMemoryCapacityBytes) / KilobytesToBytes
-	cpuCapacityCore += float64(ctnCpuCapacityMilliCore) / MilliToUnit
+	memoryCapacityKiloBytes = float64(ctnMemoryCapacityBytes) / KilobytesToBytes
+	cpuCapacityCore = float64(ctnCpuCapacityMilliCore) / MilliToUnit
 
 	return
 }

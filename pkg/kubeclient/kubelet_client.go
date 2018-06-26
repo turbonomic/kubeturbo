@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	cadvisorapi "github.com/google/cadvisor/info/v1"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"io/ioutil"
 	netutil "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -33,12 +36,49 @@ type KubeHttpClientInterface interface {
 	GetMachineCpuFrequency(host string) (uint64, error)
 }
 
+// Cache structure.
+// TODO(MB): Make sure the nodes that are no longer discovered are being removed from the cache!
+type CacheEntry struct {
+	statsSummary *stats.Summary
+	machineInfo  *cadvisorapi.MachineInfo
+}
+
+// Cleanup the cache.
+// Returns number of deleted nodes
+func (client *KubeletClient) CleanupCache(nodes []*v1.Node) int {
+	// Lock and check cache
+	client.cacheLock.Lock()
+	defer client.cacheLock.Unlock()
+	// Fill in the hash map for subsequent lookup
+	names := make(map[string]bool)
+	for _, node := range nodes {
+		ip := repository.ParseNodeIP(node, v1.NodeInternalIP)
+		if len(ip) == 0 {
+			glog.Warningf("unable to obtain address for node %s, as it is no longer discovered", node.GetName())
+		}
+		names[ip] = true
+	}
+	// Cleanup
+	count := 0
+	for host, _ := range client.cache {
+		_, ok := names[host]
+		if !ok {
+			glog.Warningf("removed host %s, as it is no longer discovered", host)
+			delete(client.cache, host)
+			count++
+		}
+	}
+	return count
+}
+
 // Since http.Client is thread safe (https://golang.org/src/net/http/client.go)
 // KubeletClient is also thread-safe if concurrent goroutines won't change the fields.
 type KubeletClient struct {
-	client *http.Client
-	scheme string
-	port   int
+	client    *http.Client
+	scheme    string
+	port      int
+	cache     map[string]*CacheEntry
+	cacheLock sync.Mutex
 }
 
 func (client *KubeletClient) ExecuteRequestAndGetValue(host string, endpoint string, value interface{}) error {
@@ -81,14 +121,62 @@ func (client *KubeletClient) postRequestAndGetValue(req *http.Request, value int
 }
 
 func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
+	// Get the data
 	summary := &stats.Summary{}
 	err := client.ExecuteRequestAndGetValue(host, summaryPath, summary)
+	// Lock and check cache
+	client.cacheLock.Lock()
+	defer client.cacheLock.Unlock()
+	entry, entryPresent := client.cache[host]
+	if err != nil {
+		if entryPresent {
+			glog.V(2).Infof("unable to retrieve machine[%s] summary: %v. Using cached value", host, err)
+			return entry.statsSummary, nil
+		} else {
+			glog.Errorf("failed to get machine[%s] summary: %v. No cache available", host, err)
+			return summary, err
+		}
+	}
+	// Fill in the cache
+	if entryPresent {
+		client.cache[host].statsSummary = summary
+	} else {
+		entry := &CacheEntry{
+			statsSummary: summary,
+			machineInfo:  nil,
+		}
+		client.cache[host] = entry
+	}
 	return summary, err
 }
 
 func (client *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineInfo, error) {
+	// Get the data
 	var minfo cadvisorapi.MachineInfo
 	err := client.ExecuteRequestAndGetValue(host, specPath, &minfo)
+	// Lock and check cache
+	client.cacheLock.Lock()
+	defer client.cacheLock.Unlock()
+	entry, entryPresent := client.cache[host]
+	if err != nil {
+		if entryPresent {
+			glog.V(2).Infof("unable to retrieve machine[%s] machine info: %v. Using cached value", host, err)
+			return entry.machineInfo, nil
+		} else {
+			glog.Errorf("failed to get machine[%s] machine info: %v. No cache available", host, err)
+			return &minfo, err
+		}
+	}
+	// Fill in the cache
+	if entryPresent {
+		client.cache[host].machineInfo = &minfo
+	} else {
+		entry := &CacheEntry{
+			statsSummary: nil,
+			machineInfo:  &minfo,
+		}
+		client.cache[host] = entry
+	}
 	return &minfo, err
 }
 
@@ -99,7 +187,6 @@ func (client *KubeletClient) GetMachineCpuFrequency(host string) (uint64, error)
 		glog.Errorf("failed to get machine[%s] cpu.frequency: %v", host, err)
 		return 0, err
 	}
-
 	return minfo.CpuFrequency, nil
 }
 
@@ -160,6 +247,7 @@ func (kc *KubeletConfig) Create() (*KubeletClient, error) {
 		client: c,
 		scheme: scheme,
 		port:   kc.port,
+		cache:  make(map[string]*CacheEntry),
 	}, nil
 }
 
