@@ -92,16 +92,18 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			properties := builder.addPodProperties(pod, i)
 			ebuilder.WithProperties(properties)
 
-			if !util.Monitored(pod) {
-				ebuilder.Monitored(false)
-			}
-
+			ebuilder.Monitored(util.Monitored(pod))
 			ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
+
+			truep := true
+			ebuilder.ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
+				ProviderMustClone: &truep,
+			})
 
 			//4. build entityDTO
 			dto, err := ebuilder.Create()
 			if err != nil {
-				glog.Errorf("faild to builld Container[%s] entityDTO: %v", name, err)
+				glog.Errorf("failed to build Container[%s] entityDTO: %v", name, err)
 			}
 
 			result = append(result, dto)

@@ -5,6 +5,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sapi "k8s.io/client-go/pkg/api/v1"
 
+	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
+
+	"encoding/json"
 	"fmt"
 	"github.com/golang/glog"
 	"reflect"
@@ -194,17 +197,59 @@ func TestMonitored_DaemonSet(t *testing.T) {
 		"kubernetes.io/created-by": `{"reference":{"kind":"DaemonSet","name":"daemon-set-foo"}}`,
 	}
 
-	if Monitored(pod) {
-		t.Errorf("The pod in DaemonSet shouldn't be monitored")
+	if !Monitored(pod) {
+		t.Errorf("The pod in DaemonSet must be monitored")
 	}
 
 	// With Owner reference
+	podWithOwnerRef := makePodInDaemonSet()
+	if !Monitored(podWithOwnerRef) {
+		t.Errorf("The pod (with owner reference) in DaemonSet must be monitored")
+	}
+}
+
+func makePodInDaemonSet() *k8sapi.Pod {
 	podWithOwnerRef := newPod("pod-bar")
 	isController := true
 	podWithOwnerRef.OwnerReferences = []metav1.OwnerReference{{Kind: "DaemonSet", Name: "daemon-set-foo", Controller: &isController}}
-	if Monitored(podWithOwnerRef) {
-		t.Errorf("The pod (with owner reference) in DaemonSet shouldn't be monitored")
+	return podWithOwnerRef
+}
+
+func TestMirroredPod(t *testing.T) {
+	pod := newPod("pod-1")
+	if !Controllable(pod) {
+		t.Error("Pod is not controllable and it should be by default")
 	}
+	// Set an annotation on the pod to indicate that it is mirrored
+	pod.ObjectMeta.Annotations = make(map[string]string)
+	pod.ObjectMeta.Annotations["some-random-key"] = "foo"
+	if !Controllable(pod) {
+		t.Error("Non-mirrored pod should be controllable")
+	}
+
+	pod.ObjectMeta.Annotations[kubelettypes.ConfigMirrorAnnotationKey] = "yes"
+	if Controllable(pod) {
+		t.Error("Mirrored pod should not be controllable")
+	}
+
+	podInDaemonSet := makePodInDaemonSet()
+	if Controllable(podInDaemonSet) {
+		t.Errorf("Pod in daemon set cannot be controllable")
+	}
+
+	// Here is a different way to specify that a pod was created via a DaemonSet.
+	podInDaemonSet = newPod("pod-3")
+	podInDaemonSet.ObjectMeta.Annotations = make(map[string]string)
+
+	var ref k8sapi.SerializedReference
+	ref.Reference.Kind = "DaemonSet"
+	ref.Reference.Name = "yes"
+	refbytes, _ := json.Marshal(&ref)
+	podInDaemonSet.ObjectMeta.Annotations["kubernetes.io/created-by"] = string(refbytes)
+	if Controllable(podInDaemonSet) {
+		t.Errorf("Pod in daemon set cannot be controllable")
+	}
+
 }
 
 func newPod(name string, podConds ...k8sapi.PodCondition) *k8sapi.Pod {
