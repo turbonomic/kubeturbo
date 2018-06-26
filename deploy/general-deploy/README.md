@@ -85,7 +85,7 @@ spec:
       containers:
         - name: kubeturbo
           # Replace the image with desired version
-          image: vmturbo/kubeturbo:redhat-6.1dev
+          image: vmturbo/kubeturbo:6.1
           imagePullPolicy: IfNotPresent
           args:
             - --turboconfig=/etc/kubeturbo/turbo.config
