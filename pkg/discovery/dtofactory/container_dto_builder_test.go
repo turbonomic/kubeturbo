@@ -3,7 +3,6 @@ package dtofactory
 import (
 	"fmt"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"github.com/turbonomic/kubeturbo/pkg/util"
 	api "k8s.io/client-go/pkg/api/v1"
 	"testing"
 )
@@ -35,7 +34,7 @@ func TestPodFlags(t *testing.T) {
 		{true, false},
 	}
 
-	pods, err := util.LoadCannedTopology()
+	pods, err := LoadCannedTopology()
 	if err != nil {
 		t.Errorf("Cannot load test topology")
 	}
