@@ -107,6 +107,11 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 				ebuilder.Monitored(false)
 			}
 
+			truep := true
+			ebuilder.ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
+				ProviderMustClone: &truep,
+			})
+
 			appType := util.GetAppType(pod)
 			ebuilder.ApplicationData(&proto.EntityDTO_ApplicationData{
 				Type:      &appType,

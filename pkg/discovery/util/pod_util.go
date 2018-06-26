@@ -27,7 +27,8 @@ const (
 )
 
 // check whether a Kubernetes object is monitored or not by its annotation.
-// the object can be: Pod, Service, Namespace, or others
+// the object can be: Pod, Service, Namespace, or others.  If no annotation
+// exists, the default value is true.
 func IsMonitoredFromAnnotation(annotations map[string]string) bool {
 	if annotations != nil {
 		if v, ok := annotations[TurboMonitorAnnotation]; ok {
@@ -40,18 +41,17 @@ func IsMonitoredFromAnnotation(annotations map[string]string) bool {
 	return true
 }
 
-// Returns a bool indicates whether the given pod should be monitored.
-// Do not monitor mirror pods or pods created by DaemonSets.
-// Do not monitor pods which set "TurboMonitorAnnotation" to "false"
+// Returns a boolean that indicates whether the given pod should be monitored.
+// By default, pods should be monitored unless directed otherwise by setting
+// the "TurboMonitorAnnotation" to "false"
 func Monitored(pod *api.Pod) bool {
-	if isMirrorPod(pod) || isPodCreatedBy(pod, Kind_DaemonSet) {
-		return false
-	}
+	return IsMonitoredFromAnnotation(pod.GetAnnotations())
+}
 
-	if !IsMonitoredFromAnnotation(pod.GetAnnotations()) {
-		return false
-	}
-	return true
+// Returns a boolean that indicates whether the given pod should be controllable.
+// Do not monitor mirror pods or pods created by DaemonSets.
+func Controllable(pod *api.Pod) bool {
+	return !isMirrorPod(pod) && !isPodCreatedBy(pod, Kind_DaemonSet)
 }
 
 // Check if a pod is a mirror pod.
