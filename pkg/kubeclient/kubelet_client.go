@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	cadvisorapi "github.com/google/cadvisor/info/v1"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"io/ioutil"
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/pkg/api/v1"
@@ -52,13 +53,18 @@ func (client *KubeletClient) CleanupCache(nodes []*v1.Node) int {
 	names := make(map[string]bool)
 	for _, node := range nodes {
 		names[node.GetName()] = true
+		ip := repository.ParseNodeIP(node, v1.NodeInternalIP)
+		if len(ip) == 0 {
+			glog.Warningf("unable to obtain address for node %s, as it is no longer discovered", node.GetName())
+		}
+		names[ip] = true
 	}
 	// Cleanup
 	count := 0
 	for host, _ := range client.cache {
 		_, ok := names[host]
 		if !ok {
-			glog.Warningf("removed host %s, as it is no longer discovered")
+			glog.Warningf("removed host %s, as it is no longer discovered", host)
 			delete(client.cache, host)
 			count++
 		}
