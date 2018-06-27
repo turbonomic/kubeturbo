@@ -93,6 +93,12 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 			nodeActive = false
 		}
 		entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
+		// Check whether we have used cache
+		cacheUsedMetric := metrics.GenerateEntityStateMetricUID(metrics.NodeType, util.NodeKeyFunc(node), "NodeCacheUsed")
+		present, _ := builder.metricsSink.GetMetric(cacheUsedMetric)
+		if present != nil {
+			nodeActive = false
+		}
 
 		// power state.
 		// Will be Powered On, only if it is both ready and schedulable.
