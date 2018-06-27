@@ -61,18 +61,19 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		// display name.
 		displayName := node.Name
 		entityDTOBuilder.DisplayName(displayName)
+		nodeActive := util.NodeIsReady(node) && util.NodeIsSchedulable(node)
 
 		// compute and constraint commodities sold.
 		commoditiesSold, err := builder.getNodeCommoditiesSold(node)
 		if err != nil {
 			glog.Errorf("Error when create commoditiesSold for %s: %s", node.Name, err)
-			continue
+			nodeActive = false
 		}
 		// allocation commodities sold
 		allocationCommoditiesSold, err := builder.getAllocationCommoditiesSold(node)
 		if err != nil {
 			glog.Errorf("Error when creating allocation commoditiesSold for %s: %s", node.Name, err)
-			continue
+			nodeActive = false
 		}
 		commoditiesSold = append(commoditiesSold, allocationCommoditiesSold...)
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
@@ -81,7 +82,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		properties, err := builder.getNodeProperties(node)
 		if err != nil {
 			glog.Errorf("Failed to get node properties: %s", err)
-			continue
+			nodeActive = false
 		}
 		entityDTOBuilder = entityDTOBuilder.WithProperties(properties)
 
@@ -89,12 +90,18 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		metaData, err := builder.stitchingManager.GenerateReconciliationMetaData()
 		if err != nil {
 			glog.Errorf("Failed to build reconciling metadata for node %s: %s", displayName, err)
-			continue
+			nodeActive = false
 		}
 		entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
 
 		// power state.
-		entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
+		// Will be Powered On, only if it is both ready and schedulable.
+		if nodeActive {
+			entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
+		} else {
+			glog.Warningf("Node %s has unknown power state", node.GetName())
+			entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERSTATE_UNKNOWN)
+		}
 
 		vmdata := &proto.EntityDTO_VirtualMachineData{
 			IpAddress: getNodeIPs(node),
