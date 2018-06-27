@@ -61,7 +61,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		// display name.
 		displayName := node.Name
 		entityDTOBuilder.DisplayName(displayName)
-		nodeActive := util.NodeIsReady(node) && util.NodeIsSchedulable(node)
+		nodeActive := util.NodeIsReady(node)
 
 		// compute and constraint commodities sold.
 		commoditiesSold, err := builder.getNodeCommoditiesSold(node)
