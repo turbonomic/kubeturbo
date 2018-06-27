@@ -100,8 +100,8 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 			nodeActive = false
 		}
 
-		// power state.
-		// Will be Powered On, only if it is both ready and schedulable.
+		// Power state.
+		// Will be Powered On, only if it is ready and has no issues with kubelet accessibility.
 		if nodeActive {
 			entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 		} else {
