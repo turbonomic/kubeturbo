@@ -2,6 +2,8 @@ package processor
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -9,7 +11,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"k8s.io/client-go/pkg/api/v1"
-	"time"
 )
 
 var (
@@ -187,10 +188,14 @@ func (processor *ClusterProcessor) DiscoverCluster() (*repository.KubeCluster, e
 		return nil, fmt.Errorf("Error getting nodes for cluster %s:%s\n", clusterName, err)
 	}
 	glog.V(2).Infof("There are %d nodes\n", len(nodeList))
-
 	for _, item := range nodeList {
-		nodeEntity := repository.NewKubeNode(item, clusterName)
-		kubeCluster.SetNodeEntity(nodeEntity)
+		nodeActive := util.NodeIsReady(item) && util.NodeIsSchedulable(item)
+		if !nodeActive {
+			glog.V(2).Info("Node status is NotReady or NotSchedulable, skip in Quota creation")
+		} else {
+			nodeEntity := repository.NewKubeNode(item, clusterName)
+			kubeCluster.SetNodeEntity(nodeEntity)
+		}
 	}
 
 	if glog.V(3) {
