@@ -213,6 +213,8 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	if err != nil {
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
+	// Uncomment this to dump the topology to a file for later use by the unit tests
+	// util.DumpTopology(currTask, "test-topology.dat")
 	result := task.NewTaskResult(worker.id, task.TaskSucceeded).WithContent(entityDTOs)
 	// return the quota metrics created by this worker
 	if len(quotaMetricsCollection) > 0 {
@@ -329,6 +331,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	//3. build entityDTOs for containers
 	containerDTOBuilder := dtofactory.NewContainerDTOBuilder(worker.sink)
 	containerDTOs, err := containerDTOBuilder.BuildDTOs(pods)
+	//util.DumpTopology(containerDTOs, "test-topology.dat")
 	if err != nil {
 		glog.Errorf("Error while createing container entityDTOs: %v", err)
 	}
