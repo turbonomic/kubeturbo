@@ -1,6 +1,7 @@
 FROM registry.access.redhat.com/rhel7:7.4-129
 MAINTAINER Enlin Xu <enlin.xu@turbonomic.com>
-
+ARG GIT_COMMIT
+ENV GIT_COMMIT ${GIT_COMMIT}
 
 ### Atomic/OpenShift Labels - https://github.com/projectatomic/ContainerApplicationGenericLabels
 LABEL name="Hybrid Cloud Container" \
