@@ -119,6 +119,12 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 		glog.Errorf("Failed to get resource metrics summary from %s: %s", node.Name, err)
 		return
 	}
+	// Indicate that we have used the cache last time we've asked for some of the info.
+	if kc.HasCacheBeenUsed(ip) {
+		cacheUsedMetric := metrics.NewEntityStateMetric(metrics.NodeType, util.NodeKeyFunc(node), "NodeCacheUsed", 1)
+		m.metricSink.AddNewMetricEntries(cacheUsedMetric)
+	}
+
 	m.parseNodeStats(summary.Node)
 	m.parsePodStats(summary.Pods)
 

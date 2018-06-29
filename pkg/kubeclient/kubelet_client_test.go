@@ -48,3 +48,16 @@ func TestKubeletClientCleanupCacheOne(t *testing.T) {
 	_, ok := kc.cache["host_1"]
 	assert.True(t, ok)
 }
+
+func TestKubeletClientCachebeenUsed(t *testing.T) {
+	kc := &KubeletClient{
+		cache: make(map[string]*CacheEntry),
+	}
+	entry := &CacheEntry{}
+	kc.cache["host_1"] = entry
+	kc.cache["host_2"] = entry
+	assert.False(t, kc.HasCacheBeenUsed("host_1"))
+	assert.False(t, kc.HasCacheBeenUsed("host_3"))
+	kc.cache["host_2"].used = true
+	assert.True(t, kc.HasCacheBeenUsed("host_2"))
+}

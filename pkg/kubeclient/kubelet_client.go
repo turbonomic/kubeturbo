@@ -41,6 +41,7 @@ type KubeHttpClientInterface interface {
 type CacheEntry struct {
 	statsSummary *stats.Summary
 	machineInfo  *cadvisorapi.MachineInfo
+	used         bool
 }
 
 // Cleanup the cache.
@@ -131,6 +132,7 @@ func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 	if err != nil {
 		if entryPresent {
 			glog.V(2).Infof("unable to retrieve machine[%s] summary: %v. Using cached value", host, err)
+			entry.used = true
 			return entry.statsSummary, nil
 		} else {
 			glog.Errorf("failed to get machine[%s] summary: %v. No cache available", host, err)
@@ -139,11 +141,13 @@ func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 	}
 	// Fill in the cache
 	if entryPresent {
-		client.cache[host].statsSummary = summary
+		entry.used = false
+		entry.statsSummary = summary
 	} else {
 		entry := &CacheEntry{
 			statsSummary: summary,
 			machineInfo:  nil,
+			used:         false,
 		}
 		client.cache[host] = entry
 	}
@@ -161,6 +165,7 @@ func (client *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineIn
 	if err != nil {
 		if entryPresent {
 			glog.V(2).Infof("unable to retrieve machine[%s] machine info: %v. Using cached value", host, err)
+			entry.used = true
 			return entry.machineInfo, nil
 		} else {
 			glog.Errorf("failed to get machine[%s] machine info: %v. No cache available", host, err)
@@ -169,11 +174,13 @@ func (client *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineIn
 	}
 	// Fill in the cache
 	if entryPresent {
-		client.cache[host].machineInfo = &minfo
+		entry.used = false
+		entry.machineInfo = &minfo
 	} else {
 		entry := &CacheEntry{
 			statsSummary: nil,
 			machineInfo:  &minfo,
+			used:         false,
 		}
 		client.cache[host] = entry
 	}
@@ -188,6 +195,16 @@ func (client *KubeletClient) GetMachineCpuFrequency(host string) (uint64, error)
 		return 0, err
 	}
 	return minfo.CpuFrequency, nil
+}
+
+func (client *KubeletClient) HasCacheBeenUsed(host string) bool {
+	client.cacheLock.Lock()
+	defer client.cacheLock.Unlock()
+	entry, entryPresent := client.cache[host]
+	if entryPresent {
+		return entry.used
+	}
+	return false
 }
 
 //----------------- kubeletConfig -----------------------------------
