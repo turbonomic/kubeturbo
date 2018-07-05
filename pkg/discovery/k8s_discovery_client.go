@@ -190,6 +190,16 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 		entityDTOs = affinityProcessor.ProcessAffinityRules(entityDTOs)
 	}
 
+	// Taint-toleration process to create access commodities
+	glog.V(2).Infof("Begin to process taints and tolerations")
+	taintTolerationProcessor, err := compliance.NewTaintTolerationProcessor(dc.k8sClusterScraper)
+	if err != nil {
+		glog.Errorf("Failed during process taints and tolerations: %s", err)
+	} else {
+		// Add access commodiites to entity DOTs based on the taint-toleration rules
+		taintTolerationProcessor.Process(entityDTOs)
+	}
+
 	glog.V(2).Infof("begin to generate service EntityDTOs.")
 	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.k8sClusterScraper)
 	svcDiscWorker, err := worker.NewK8sServiceDiscoveryWorker(svcWorkerConfig)
