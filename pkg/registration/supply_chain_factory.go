@@ -112,9 +112,10 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 	nodeSupplyChainNodeBuilder.SetTemplateType(f.vmTemplateType)
 
 	nodeSupplyChainNodeBuilder = nodeSupplyChainNodeBuilder.
-		Sells(vCpuTemplateComm). // sells to Pods
-		Sells(vMemTemplateComm). // sells to Pods
-		// also sells VMPMAccess, Cluster to Pods
+		Sells(vCpuTemplateComm).       // sells to Pods
+		Sells(vMemTemplateComm).       // sells to Pods
+		Sells(vmpmAccessTemplateComm). // sells to Pods
+		// also sells Cluster to Pods
 		Sells(cpuAllocationTemplateCommWithKey). //sells to Quotas
 		Sells(memAllocationTemplateCommWithKey)  //sells to Quotas
 
