@@ -44,21 +44,14 @@ func (builder *quotaEntityDTOBuilder) setUpStitchManager() {
 	//1. set UUID getter by one k8s.Node.providerID
 	if m.GetStitchType() == stitching.UUID {
 		glog.V(3).Info("Begin to setup stitchManager UUID getter.")
-		for _, node := range builder.nodeMapByUID {
-			if node.Node == nil {
-				glog.Errorf("node.K8sNode is nil: %++v", node)
-				continue
-			}
-			providerId := node.Node.Spec.ProviderID
-			m.SetNodeUuidGetterByProvider(providerId)
-			break
-		}
 	}
 
 	//2. store the stitching values
 	builder.nodeNames = []string{}
 	for _, node := range builder.nodeMapByUID {
 		if node != nil {
+			providerId := node.Node.Spec.ProviderID
+			m.SetNodeUuidGetterByProvider(providerId)
 			m.StoreStitchingValue(node.Node)
 			builder.nodeNames = append(builder.nodeNames, node.Node.Name)
 		}
