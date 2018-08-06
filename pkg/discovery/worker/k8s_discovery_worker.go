@@ -283,6 +283,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 
 	// Node providers
 	nodes := currTask.NodeList()
+	cluster := currTask.Cluster()
 
 	for _, node := range nodes {
 		if node != nil {
