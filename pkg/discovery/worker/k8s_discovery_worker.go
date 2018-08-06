@@ -285,14 +285,13 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	nodes := currTask.NodeList()
 	cluster := currTask.Cluster()
 
-	//if len(nodes) > 0 && worker.config.stitchingPropertyType == stitching.UUID {
-	if len(nodes) > 0 {
-		providerId := nodes[0].Spec.ProviderID
-		stitchingManager.SetNodeUuidGetterByProvider(providerId)
-	}
-
 	for _, node := range nodes {
-		stitchingManager.StoreStitchingValue(node)
+		if node != nil {
+			glog.V(3).Infof("The node we are parsing is : %v", node.Name)
+			providerId := node.Spec.ProviderID
+			stitchingManager.SetNodeUuidGetterByProvider(providerId)
+			stitchingManager.StoreStitchingValue(node)
+		}
 	}
 
 	//1. build entityDTOs for nodes
