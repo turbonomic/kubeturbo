@@ -57,7 +57,7 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 	kubeNodes := worker.Cluster.Nodes
 	var nodeUIDs []string
 	var totalNodeFrequency float64
-	var activeNodeCount float64 = 0
+	var activeNodeCount int = 0
 	for _, node := range kubeNodes {
 		nodeActive := util.NodeIsReady(node.Node) && util.NodeIsSchedulable(node.Node)
 		if nodeActive {
@@ -67,7 +67,7 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 		}
 
 	}
-	averageNodeFrequency := totalNodeFrequency / activeNodeCount
+	averageNodeFrequency := totalNodeFrequency / float64(activeNodeCount)
 	glog.V(2).Infof("Average cluster node cpu frequency in MHz %f\n", averageNodeFrequency)
 
 	// Create the allocation resources for all quota entities using the metrics object
@@ -84,6 +84,7 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 		// create provider entity for each node
 		for _, node := range kubeNodes {
 			//Do not include the node that is not ready
+			// We still want to include the scheduledisabled nodes in the relationship
 			if util.NodeIsReady(node.Node) {
 				nodeUID := node.UID
 				quotaEntity.AddNodeProvider(nodeUID, quotaMetrics.AllocationBoughtMap[nodeUID])
