@@ -6,6 +6,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 )
 
 const (
@@ -56,12 +57,17 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 	kubeNodes := worker.Cluster.Nodes
 	var nodeUIDs []string
 	var totalNodeFrequency float64
+	var activeNodeCount float64 = 0
 	for _, node := range kubeNodes {
-		nodeUIDs = append(nodeUIDs, node.UID)
-		totalNodeFrequency += node.NodeCpuFrequency
-	}
+		nodeActive := util.NodeIsReady(node.Node) && util.NodeIsSchedulable(node.Node)
+		if nodeActive {
+			nodeUIDs = append(nodeUIDs, node.UID)
+			totalNodeFrequency += node.NodeCpuFrequency
+			activeNodeCount++
+		}
 
-	averageNodeFrequency := totalNodeFrequency / float64(len(kubeNodes))
+	}
+	averageNodeFrequency := totalNodeFrequency / activeNodeCount
 	glog.V(2).Infof("Average cluster node cpu frequency in MHz %f\n", averageNodeFrequency)
 
 	// Create the allocation resources for all quota entities using the metrics object
@@ -77,8 +83,11 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 		// Bought resources from each node
 		// create provider entity for each node
 		for _, node := range kubeNodes {
-			nodeUID := node.UID
-			quotaEntity.AddNodeProvider(nodeUID, quotaMetrics.AllocationBoughtMap[nodeUID])
+			//Do not include the node that is not ready
+			if util.NodeIsReady(node.Node) {
+				nodeUID := node.UID
+				quotaEntity.AddNodeProvider(nodeUID, quotaMetrics.AllocationBoughtMap[nodeUID])
+			}
 		}
 
 		// Create sold allocation commodity for the types that are not defined in the namespace quota objects
