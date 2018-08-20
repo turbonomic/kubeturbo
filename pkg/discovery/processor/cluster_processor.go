@@ -189,13 +189,8 @@ func (processor *ClusterProcessor) DiscoverCluster() (*repository.KubeCluster, e
 	}
 	glog.V(2).Infof("There are %d nodes\n", len(nodeList))
 	for _, item := range nodeList {
-		nodeActive := util.NodeIsReady(item) && util.NodeIsSchedulable(item)
-		if !nodeActive {
-			glog.V(2).Infof("node status is NotReady or NotSchedulable, skip in Quota creation, the node is = %s", item.Name)
-		} else {
-			nodeEntity := repository.NewKubeNode(item, clusterName)
-			kubeCluster.SetNodeEntity(nodeEntity)
-		}
+		nodeEntity := repository.NewKubeNode(item, clusterName)
+		kubeCluster.SetNodeEntity(nodeEntity)
 	}
 
 	if glog.V(3) {
