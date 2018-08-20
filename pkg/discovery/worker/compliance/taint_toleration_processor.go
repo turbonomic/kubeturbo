@@ -122,7 +122,7 @@ func podBuysCommodities(podDTO *proto.EntityDTO, comms []*proto.CommodityDTO, pr
 
 	for _, commBought := range podDTO.GetCommoditiesBought() {
 		if commBought.GetProviderId() == providerId {
-			glog.V(2).Infof("Found provider %s for pod %s to buy %d commodities", providerId, podDTO.DisplayName, len(comms))
+			glog.V(2).Infof("Found provider %s for pod %s to buy %d commodities", providerId, podDTO.GetDisplayName(), len(comms))
 			commBought.Bought = append(commBought.GetBought(), comms...)
 			return
 		}
@@ -131,7 +131,7 @@ func podBuysCommodities(podDTO *proto.EntityDTO, comms []*proto.CommodityDTO, pr
 	glog.Errorf("Unable to find commodity bought with provider %s for pod %s", providerId, *podDTO.DisplayName)
 }
 
-// Retrives VM and ContainerPod DTOs from the DTO list.
+// Retrieves VM and ContainerPod DTOs from the DTO list.
 func retrieveNodeAndPodDTOs(entityDTOs []*proto.EntityDTO) ([]*proto.EntityDTO, []*proto.EntityDTO) {
 	nodes := []*proto.EntityDTO{}
 	pods := []*proto.EntityDTO{}
