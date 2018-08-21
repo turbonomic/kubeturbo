@@ -25,7 +25,7 @@ var (
 		v1.ResourceCPU: resource.MustParse("4.0"),
 	}
 	schedulableNodeMap = map[string]bool{
-		"node1": true,
+		"node1": false,
 		"node2": true,
 		"node3": true,
 		"node4": true,
@@ -58,7 +58,7 @@ func createMockNodes(allocatableMap map[v1.ResourceName]resource.Quantity, sched
 	var nodeList []*v1.Node
 	for _, mockNode := range mockNodes {
 		nodeAddresses := []v1.NodeAddress{{Type: v1.NodeInternalIP, Address: mockNode.ipAddress}}
-
+		conditions := []v1.NodeCondition{{Type: v1.NodeReady, Status: v1.ConditionTrue}}
 		node := &v1.Node{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: mockNode.name,
@@ -67,6 +67,7 @@ func createMockNodes(allocatableMap map[v1.ResourceName]resource.Quantity, sched
 			Status: v1.NodeStatus{
 				Allocatable: allocatableMap,
 				Addresses:   nodeAddresses,
+				Conditions:  conditions,
 			},
 			Spec: v1.NodeSpec{
 				Unschedulable: !schedulableNodeMap[mockNode.name],
@@ -151,6 +152,9 @@ func TestComputeClusterResources(t *testing.T) {
 		_, exists := resourceMap[computeType]
 		assert.True(t, exists)
 	}
+	// Among all nodes, one of the nodes is not schedulable, so the capacity should be 3 * node capacity
+	assert.Equal(t, int32(24032436), int32(resourceMap["Memory"].Capacity))
+	assert.Equal(t, int8(12), int8(resourceMap["CPU"].Capacity))
 
 	resourceMap = computeClusterResources(createMockKubeNodes(allocatableCpuOnlyMap, schedulableNodeMap))
 	for _, computeType := range metrics.KubeComputeResourceTypes {
