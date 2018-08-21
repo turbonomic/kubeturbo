@@ -5,8 +5,8 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 const (
