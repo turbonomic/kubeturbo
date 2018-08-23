@@ -209,11 +209,12 @@ func (client *KubeletClient) HasCacheBeenUsed(host string) bool {
 
 //----------------- kubeletConfig -----------------------------------
 type KubeletConfig struct {
-	kubeConfig  *rest.Config
-	enableHttps bool
-	port        int
-	timeout     time.Duration // timeout when fetching information from kubelet;
-	tlsTimeOut  time.Duration
+	kubeConfig       *rest.Config
+	enableHttps      bool
+	allowTLSInsecure bool
+	port             int
+	timeout          time.Duration // timeout when fetching information from kubelet;
+	tlsTimeOut       time.Duration
 }
 
 // Create a new KubeletConfig based on kubeConfig.
@@ -237,6 +238,11 @@ func (kc *KubeletConfig) EnableHttps(enable bool) *KubeletConfig {
 	return kc
 }
 
+func (kc *KubeletConfig) AllowTLSInsecure(allowTLSInsecure bool) *KubeletConfig {
+	kc.allowTLSInsecure = allowTLSInsecure
+	return kc
+}
+
 func (kc *KubeletConfig) Timeout(timeout int) *KubeletConfig {
 	kc.timeout = time.Duration(timeout) * time.Second
 	return kc
@@ -244,7 +250,7 @@ func (kc *KubeletConfig) Timeout(timeout int) *KubeletConfig {
 
 func (kc *KubeletConfig) Create() (*KubeletClient, error) {
 	//1. http transport
-	transport, err := makeTransport(kc.kubeConfig, kc.enableHttps, kc.tlsTimeOut)
+	transport, err := makeTransport(kc.kubeConfig, kc.enableHttps, kc.tlsTimeOut, kc.allowTLSInsecure)
 	if err != nil {
 		return nil, err
 	}
@@ -274,9 +280,9 @@ func (kc *KubeletConfig) Create() (*KubeletClient, error) {
 // The reason to copy the code from Heapster, instead of using kubernetes/pkg/kubelet/client.MakeTransport(), is that
 // Depending on Kubernetes will make it difficult to maintain the package dependency.
 // So I copied this code, which only depending on "k8s.io/client-go".
-func makeTransport(config *rest.Config, enableHttps bool, timeout time.Duration) (http.RoundTripper, error) {
+func makeTransport(config *rest.Config, enableHttps bool, timeout time.Duration, allowTLSInsecure bool) (http.RoundTripper, error) {
 	//1. get transport.config
-	cfg := transportConfig(config, enableHttps)
+	cfg := transportConfig(config, enableHttps, allowTLSInsecure)
 	tlsConfig, err := transport.TLSConfigFor(cfg)
 	if err != nil {
 		glog.Errorf("failed to get TLSConfig: %v", err)
@@ -298,7 +304,7 @@ func makeTransport(config *rest.Config, enableHttps bool, timeout time.Duration)
 	return transport.HTTPWrappersForConfig(cfg, rt)
 }
 
-func transportConfig(config *rest.Config, enableHttps bool) *transport.Config {
+func transportConfig(config *rest.Config, enableHttps bool, allowTLSInsecure bool) *transport.Config {
 	cfg := &transport.Config{
 		TLS: transport.TLSConfig{
 			CAFile:   config.CAFile,
@@ -314,6 +320,10 @@ func transportConfig(config *rest.Config, enableHttps bool) *transport.Config {
 	if enableHttps && !cfg.HasCA() {
 		cfg.TLS.Insecure = true
 		glog.Warning("insecure TLS transport.")
+	} else if enableHttps && allowTLSInsecure {
+		cfg.TLS.Insecure = true
+		cfg.TLS.CAFile = ""
+		glog.Warning("insecure TLS transport allowed.")
 	}
 
 	return cfg
