@@ -240,22 +240,25 @@ func computeClusterResources(nodes map[string]*repository.KubeNode) map[metrics.
 	// sum the capacities of the node resources
 	computeResources := make(map[metrics.ResourceType]float64)
 	for _, node := range nodes {
-		// Iterate over all compute resource types
-		for _, rt := range metrics.KubeComputeResourceTypes {
-			// get the compute resource if it exists
-			nodeResource, exists := node.ComputeResources[rt]
-			if !exists {
-				glog.Errorf("Missing %s resource in node %s", rt, node.Name)
-				continue
+		nodeActive := util.NodeIsReady(node.Node) && util.NodeIsSchedulable(node.Node)
+		if nodeActive {
+			// Iterate over all ready and schedulable compute resource types
+			for _, rt := range metrics.KubeComputeResourceTypes {
+				// get the compute resource if it exists
+				nodeResource, exists := node.ComputeResources[rt]
+				if !exists {
+					glog.Errorf("Missing %s resource in node %s", rt, node.Name)
+					continue
+				}
+				// add the capacity to the cluster compute resource map
+				computeCap, exists := computeResources[rt]
+				if !exists {
+					computeCap = nodeResource.Capacity
+				} else {
+					computeCap = computeCap + nodeResource.Capacity
+				}
+				computeResources[rt] = computeCap
 			}
-			// add the capacity to the cluster compute resource map
-			computeCap, exists := computeResources[rt]
-			if !exists {
-				computeCap = nodeResource.Capacity
-			} else {
-				computeCap = computeCap + nodeResource.Capacity
-			}
-			computeResources[rt] = computeCap
 		}
 	}
 
