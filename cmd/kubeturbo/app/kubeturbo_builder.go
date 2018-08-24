@@ -149,10 +149,11 @@ func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubern
 	return kubeClient
 }
 
-func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config) *kubeclient.KubeletClient {
+func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, allowTLSInsecure bool) *kubeclient.KubeletClient {
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
+		AllowTLSInsecure(allowTLSInsecure).
 		//Timeout(to).
 		Create()
 	if err != nil {
@@ -203,7 +204,15 @@ func (s *VMTServer) Run(_ []string) error {
 	glog.V(3).Infof("kubeConfig: %+v", kubeConfig)
 
 	kubeClient := s.createKubeClientOrDie(kubeConfig)
-	kubeletClient := s.createKubeletClientOrDie(kubeConfig)
+
+	isOpenshift := checkServerVersion(kubeClient.DiscoveryClient.RESTClient())
+	glog.V(2).Info("Openshift cluster? ", isOpenshift)
+
+	// Allow insecure connection only if it's not an Openshift cluster
+	// For Kubernetes distro, the secure connection to Kubelet will fail due to
+	// the certificate issue of 'doesn't contain any IP SANs'.
+	// See https://github.com/kubernetes/kubernetes/issues/59372
+	kubeletClient := s.createKubeletClientOrDie(kubeConfig, !isOpenshift)
 
 	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
 	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec, kubeConfig.Host)
@@ -288,4 +297,23 @@ func handleExit(disconnectFunc disconnectFromTurboFunc) { //k8sTAPService *kubet
 			disconnectFunc()
 		}
 	}()
+}
+
+// checkServerVersion checks and logs the server version and return if it is Openshift distro
+func checkServerVersion(restClient restclient.Interface) bool {
+	// Check Kubernetes version
+	bytes, err := restClient.Get().AbsPath("/version").DoRaw()
+	if err != nil {
+		glog.Error("Unable to get Kubernetes version info: %v", err)
+		return false
+	}
+	glog.V(2).Info("Kubernetes version: ", string(bytes))
+
+	// Check Openshift version, if exists
+	if bytes, err = restClient.Get().AbsPath("/version/openshift").DoRaw(); err == nil {
+		glog.V(2).Info("Openshift version: ", string(bytes))
+		return true
+	}
+
+	return false
 }
