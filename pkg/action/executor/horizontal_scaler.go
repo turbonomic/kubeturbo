@@ -86,8 +86,7 @@ func (h *HorizontalScaler) getReplicaDiff(action *proto.ActionItemDTO) (int32, e
 	if atype == proto.ActionItemDTO_PROVISION {
 		// Scale out, increase the replica. diff = 1.
 		return 1, nil
-	} else if atype == proto.ActionItemDTO_MOVE {
-		// TODO, unbind action is send as MOVE. This requires server side change.
+	} else if atype == proto.ActionItemDTO_SUSPEND {
 		// Scale in, decrease the replica. diff = -1.
 		return -1, nil
 	} else {

@@ -88,6 +88,8 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	podPolicy[proto.ActionItemDTO_MOVE] = supported
 	podPolicy[proto.ActionItemDTO_PROVISION] = supported
 	podPolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
+	podPolicy[proto.ActionItemDTO_SUSPEND] = supported
+
 	rClient.addActionPolicy(ab, pod, podPolicy)
 
 	//2. container: support resize; recommend provision; not move;
@@ -96,6 +98,8 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	containerPolicy[proto.ActionItemDTO_RIGHT_SIZE] = supported
 	containerPolicy[proto.ActionItemDTO_PROVISION] = recommend
 	containerPolicy[proto.ActionItemDTO_MOVE] = notSupported
+	containerPolicy[proto.ActionItemDTO_SUSPEND] = recommend
+
 	rClient.addActionPolicy(ab, container, containerPolicy)
 
 	//3. application: only recommend provision; all else are not supported
@@ -104,6 +108,8 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	appPolicy[proto.ActionItemDTO_PROVISION] = recommend
 	appPolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
 	appPolicy[proto.ActionItemDTO_MOVE] = notSupported
+	appPolicy[proto.ActionItemDTO_SUSPEND] = recommend
+
 	rClient.addActionPolicy(ab, app, appPolicy)
 
 	return ab.Create()
