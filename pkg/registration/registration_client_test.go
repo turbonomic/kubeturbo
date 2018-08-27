@@ -45,21 +45,25 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	move := proto.ActionItemDTO_MOVE
 	resize := proto.ActionItemDTO_RIGHT_SIZE
 	provision := proto.ActionItemDTO_PROVISION
+	suspend := proto.ActionItemDTO_SUSPEND
 
 	expected_pod := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	expected_pod[move] = supported
 	expected_pod[resize] = notSupported
 	expected_pod[provision] = supported
+	expected_pod[suspend] = supported
 
 	expected_container := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	expected_container[move] = notSupported
 	expected_container[resize] = supported
 	expected_container[provision] = recommend
+	expected_container[suspend] = recommend
 
 	expected_app := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	expected_app[move] = notSupported
 	expected_app[resize] = notSupported
 	expected_app[provision] = recommend
+	expected_app[suspend] = recommend
 
 	policies := reg.GetActionPolicy()
 

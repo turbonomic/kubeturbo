@@ -29,9 +29,11 @@ type turboActionType struct {
 }
 
 var (
-	turboActionPodProvision    turboActionType = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_CONTAINER_POD}
-	turboActionPodMove         turboActionType = turboActionType{proto.ActionItemDTO_MOVE, proto.EntityDTO_CONTAINER_POD}
-	turboActionContainerResize turboActionType = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_CONTAINER}
+	turboActionPodProvision        turboActionType = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_CONTAINER_POD}
+	turboActionPodMove             turboActionType = turboActionType{proto.ActionItemDTO_MOVE, proto.EntityDTO_CONTAINER_POD}
+	turboActionContainerResize     turboActionType = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_CONTAINER}
+	turboActionContainerPodSuspend turboActionType = turboActionType{proto.ActionItemDTO_SUSPEND, proto.EntityDTO_CONTAINER_POD}
+
 	//turboActionUnbind          turboActionType = "unbind"
 )
 
@@ -92,7 +94,7 @@ func (h *ActionHandler) registerActionExecutors() {
 
 	horizontalScaler := executor.NewHorizontalScaler(ae)
 	h.actionExecutors[turboActionPodProvision] = horizontalScaler
-	//h.actionExecutors[turboActionUnbind] = horizontalScaler
+	h.actionExecutors[turboActionContainerPodSuspend] = horizontalScaler
 
 	containerResizer := executor.NewContainerResizer(ae, c.kubeletClient)
 	h.actionExecutors[turboActionContainerResize] = containerResizer
@@ -187,6 +189,8 @@ func (h *ActionHandler) getRelatedPod(actionItem *proto.ActionItemDTO) *api.Pod 
 	case turboActionPodMove:
 		podEntity = se
 	case turboActionPodProvision:
+		podEntity = se
+	case turboActionContainerPodSuspend:
 		podEntity = se
 	default:
 		return nil
