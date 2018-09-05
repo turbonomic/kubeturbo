@@ -85,10 +85,8 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 		for _, node := range kubeNodes {
 			//Do not include the node that is not ready
 			// We still want to include the scheduledisabled nodes in the relationship
-			if util.NodeIsReady(node.Node) {
-				nodeUID := node.UID
-				quotaEntity.AddNodeProvider(nodeUID, quotaMetrics.AllocationBoughtMap[nodeUID])
-			}
+			nodeUID := node.UID
+			quotaEntity.AddNodeProvider(nodeUID, quotaMetrics.AllocationBoughtMap[nodeUID])
 		}
 
 		// Create sold allocation commodity for the types that are not defined in the namespace quota objects
