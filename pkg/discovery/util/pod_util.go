@@ -199,6 +199,12 @@ func GetPod(kubeClient *client.Clientset, namespace, name string) (*api.Pod, err
 func parseOwnerReferences(owners []metav1.OwnerReference) (string, string) {
 	for i := range owners {
 		owner := &owners[i]
+
+		if owner == nil || owner.Controller == nil {
+			glog.Warningf("Nil OwnerReference")
+			continue
+		}
+
 		if *(owner.Controller) && len(owner.Kind) > 0 && len(owner.Name) > 0 {
 			return owner.Kind, owner.Name
 		}
