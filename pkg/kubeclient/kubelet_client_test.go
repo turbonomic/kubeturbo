@@ -64,8 +64,7 @@ func TestKubeletClientCachebeenUsed(t *testing.T) {
 }
 
 func TestKubeletClientCacheNil(t *testing.T) {
-	kubeConf := &rest.Config{
-	}
+	kubeConf := &rest.Config{}
 	conf := NewKubeletConfig(kubeConf)
 
 	kc, _ := conf.Create()
