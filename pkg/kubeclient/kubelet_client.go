@@ -131,11 +131,12 @@ func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 	entry, entryPresent := client.cache[host]
 	if err != nil {
 		if entryPresent {
-			glog.V(2).Infof("unable to retrieve machine[%s] summary: %v. Using cached value", host, err)
 			entry.used = true
 			if entry.statsSummary == nil {
+				glog.V(2).Infof("unable to retrieve machine[%s] summary: %v. The cached value unavailable", host, err)
 				return nil, err
 			}
+			glog.V(2).Infof("unable to retrieve machine[%s] summary: %v. Using cached value", host, err)
 			return entry.statsSummary, nil
 		} else {
 			glog.Errorf("failed to get machine[%s] summary: %v. No cache available", host, err)
@@ -167,11 +168,12 @@ func (client *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineIn
 	entry, entryPresent := client.cache[host]
 	if err != nil {
 		if entryPresent {
-			glog.V(2).Infof("unable to retrieve machine[%s] machine info: %v. Using cached value", host, err)
 			entry.used = true
 			if entry.machineInfo == nil {
+				glog.V(2).Infof("unable to retrieve machine[%s] machine info: %v. The cached value unavailable", host, err)
 				return nil, err
 			}
+			glog.V(2).Infof("unable to retrieve machine[%s] machine info: %v. Using cached value", host, err)
 			return entry.machineInfo, nil
 		} else {
 			glog.Errorf("failed to get machine[%s] machine info: %v. No cache available", host, err)
