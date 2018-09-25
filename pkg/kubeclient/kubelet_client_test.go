@@ -3,6 +3,7 @@ package kubeclient
 import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/rest"
 	"testing"
 )
 
@@ -60,4 +61,19 @@ func TestKubeletClientCachebeenUsed(t *testing.T) {
 	assert.False(t, kc.HasCacheBeenUsed("host_3"))
 	kc.cache["host_2"].used = true
 	assert.True(t, kc.HasCacheBeenUsed("host_2"))
+}
+
+func TestKubeletClientCacheNil(t *testing.T) {
+	kubeConf := &rest.Config{}
+	conf := NewKubeletConfig(kubeConf)
+
+	kc, _ := conf.Create()
+	entry := &CacheEntry{}
+	kc.cache["host_1"] = entry
+	assert.False(t, kc.HasCacheBeenUsed("host_1"))
+	_, err := kc.GetSummary("host_1")
+	assert.NotNil(t, err)
+
+	_, err2 := kc.GetMachineInfo("host_1")
+	assert.NotNil(t, err2)
 }
