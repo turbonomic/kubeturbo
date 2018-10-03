@@ -8,13 +8,13 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	api "k8s.io/api/core/v1"
+	policy "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	client "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/typed/core/v1"
-	api "k8s.io/api/core/v1"
-	policy "k8s.io/api/policy/v1beta1"
 	restclient "k8s.io/client-go/rest"
 )
 

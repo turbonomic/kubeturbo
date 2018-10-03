@@ -1,7 +1,7 @@
 package compliance
 
 import (
-	api  "k8s.io/api/core/v1"
+	api "k8s.io/api/core/v1"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"

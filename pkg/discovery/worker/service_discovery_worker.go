@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	api  "k8s.io/api/core/v1"
+	api "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"

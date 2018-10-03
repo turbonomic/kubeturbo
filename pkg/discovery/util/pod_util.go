@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api "k8s.io/api/core/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 
 	"github.com/golang/glog"

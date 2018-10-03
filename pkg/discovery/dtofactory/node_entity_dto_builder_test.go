@@ -5,9 +5,9 @@ import (
 	"github.com/golang/glog"
 	"testing"
 
+	api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	api "k8s.io/api/core/v1"
 )
 
 func TestQuantity(t *testing.T) {
@@ -126,7 +126,7 @@ func mockNode() *api.Node {
 		},
 
 		Spec: api.NodeSpec{
-			ExternalID: "2272335446120646149",
+			//ExternalID: "2272335446120646149",
 			PodCIDR:    "10.4.1.0/24",
 			ProviderID: "gce://turbonomic-eng/us-central1-a/gke-cluster-default-pool-b5fbbce4-1ckk",
 		},

@@ -3,8 +3,8 @@ package executor
 import (
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	kclient "k8s.io/client-go/kubernetes"
 	api "k8s.io/api/core/v1"
+	kclient "k8s.io/client-go/kubernetes"
 )
 
 type TurboActionExecutorInput struct {

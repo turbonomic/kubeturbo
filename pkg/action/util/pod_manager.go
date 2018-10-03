@@ -5,8 +5,8 @@ import (
 	"github.com/golang/glog"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
-	"k8s.io/client-go/kubernetes/typed/core/v1"
 	api "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
 const (
