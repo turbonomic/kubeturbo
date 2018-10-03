@@ -15,7 +15,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
-	api "k8s.io/client-go/pkg/api/v1"
+	api  "k8s.io/api/core/v1"
 )
 
 const (

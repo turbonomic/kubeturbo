@@ -6,7 +6,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/api/core/v1"
 	"strings"
 )
 

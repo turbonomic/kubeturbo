@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	client "k8s.io/client-go/kubernetes"
-	api "k8s.io/client-go/pkg/api/v1"
+	api  "k8s.io/api/core/v1"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -199,7 +199,7 @@ func (s *ClusterScraper) findRunningPodsOnNode(nodeName string) ([]*api.Pod, err
 	if err != nil {
 		return nil, err
 	}
-	podList, err := s.Pods(api.NamespaceAll).List(metav1.ListOptions{FieldSelector: fieldSelector.String()})
+	podList, err := s.CoreV1().Pods(api.NamespaceAll).List(metav1.ListOptions{FieldSelector: fieldSelector.String()})
 	if err != nil {
 		return nil, err
 	}

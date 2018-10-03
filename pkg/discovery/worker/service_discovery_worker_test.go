@@ -3,7 +3,7 @@ package worker
 import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	api "k8s.io/client-go/pkg/api/v1"
+	api "k8s.io/api/core/v1"
 	"testing"
 )
 

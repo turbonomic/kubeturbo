@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"io/ioutil"
-	api "k8s.io/client-go/pkg/api/v1"
+	api "k8s.io/api/core/v1"
 	"os"
 	"strings"
 )

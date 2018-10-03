@@ -6,7 +6,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	client "k8s.io/client-go/kubernetes"
-	api "k8s.io/client-go/pkg/api/v1"
+	api "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 

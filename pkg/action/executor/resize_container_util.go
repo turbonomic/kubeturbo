@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "k8s.io/client-go/kubernetes"
-	k8sapi "k8s.io/client-go/pkg/api/v1"
+	k8sapi  "k8s.io/api/core/v1"
 )
 
 // update the Pod.Containers[index]'s Resources.Requests

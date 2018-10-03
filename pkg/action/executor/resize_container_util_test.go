@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/api/resource"
-	k8sapi "k8s.io/client-go/pkg/api/v1"
+	k8sapi "k8s.io/api/core/v1"
 	"testing"
 )
 

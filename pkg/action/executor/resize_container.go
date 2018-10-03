@@ -8,7 +8,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	kclient "k8s.io/client-go/kubernetes"
-	k8sapi "k8s.io/client-go/pkg/api/v1"
+	k8sapi  "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	idutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"

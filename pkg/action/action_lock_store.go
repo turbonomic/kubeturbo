@@ -10,7 +10,7 @@ import (
 
 	"github.com/golang/glog"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	api "k8s.io/client-go/pkg/api/v1"
+	api  "k8s.io/api/core/v1"
 )
 
 type IActionLockStore interface {

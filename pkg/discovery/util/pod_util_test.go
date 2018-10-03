@@ -3,7 +3,7 @@ package util
 import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sapi "k8s.io/client-go/pkg/api/v1"
+	k8sapi "k8s.io/api/core/v1"
 
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 
