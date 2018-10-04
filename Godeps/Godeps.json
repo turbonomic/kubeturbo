@@ -131,6 +131,10 @@
 			"Rev": "2433035e513208b0f7bd5b50d0aecd889b2c1ff8"
 		},
 		{
+			"ImportPath": "github.com/konsorten/go-windows-terminal-sequences",
+			"Rev": "b729f2633dfe35f4d1d8a32385f6685610ce1cb5"
+		},
+		{
 			"ImportPath": "github.com/matttproud/golang_protobuf_extensions/pbutil",
 			"Comment": "v1.0.1",
 			"Rev": "c12348ce28de40eed0136aa2b644d0ee0650e56c"
@@ -268,6 +272,10 @@
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",
+			"Rev": "0ed95abb35c445290478a5348a7b38bb154135fd"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context/ctxhttp",
 			"Rev": "0ed95abb35c445290478a5348a7b38bb154135fd"
 		},
 		{
