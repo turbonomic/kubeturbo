@@ -2,8 +2,8 @@ package property
 
 import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	api "k8s.io/client-go/pkg/api/v1"
 
 	"testing"
 )

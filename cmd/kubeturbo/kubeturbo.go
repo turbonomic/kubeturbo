@@ -21,7 +21,7 @@ import (
 	"runtime"
 
 	"k8s.io/apiserver/pkg/util/flag"
-	"k8s.io/kubernetes/pkg/util/logs"
+	"k8s.io/apiserver/pkg/util/logs"
 
 	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
 

@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"syscall"
 
+	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
-	apiv1 "k8s.io/client-go/pkg/api/v1"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
@@ -304,7 +304,7 @@ func checkServerVersion(restClient restclient.Interface) bool {
 	// Check Kubernetes version
 	bytes, err := restClient.Get().AbsPath("/version").DoRaw()
 	if err != nil {
-		glog.Error("Unable to get Kubernetes version info: %v", err)
+		glog.Errorf("Unable to get Kubernetes version info: %v", err)
 		return false
 	}
 	glog.V(2).Info("Kubernetes version: ", string(bytes))

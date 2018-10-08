@@ -2,7 +2,7 @@ package kubeclient
 
 import (
 	"github.com/stretchr/testify/assert"
-	"k8s.io/client-go/pkg/api/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 	"testing"
 )

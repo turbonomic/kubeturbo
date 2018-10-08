@@ -10,9 +10,9 @@ import (
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 
+	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "k8s.io/client-go/kubernetes"
-	api "k8s.io/client-go/pkg/api/v1"
 )
 
 //TODO: if pod is from controller, then copy pod in the way as

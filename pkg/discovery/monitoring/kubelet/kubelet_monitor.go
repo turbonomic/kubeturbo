@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	api "k8s.io/client-go/pkg/api/v1"
+	api "k8s.io/api/core/v1"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"

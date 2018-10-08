@@ -5,7 +5,7 @@ import (
 	"github.com/golang/glog"
 	"time"
 
-	api "k8s.io/client-go/pkg/api/v1"
+	api "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
