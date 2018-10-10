@@ -73,26 +73,26 @@ func checkObject(obj interface{}, t *testing.T) {
 		return
 	}
 
-	if len(annotation) == 0 && !IsMonitoredFromAnnotation(acc.GetAnnotations()) {
-		t.Errorf("Object %v with empty annotation should be monitored.", acc.GetName())
+	if len(annotation) == 0 && !IsControllableFromAnnotation(acc.GetAnnotations()) {
+		t.Errorf("Object %v with empty annotation should be controllable.", acc.GetName())
 	}
 
 	setMonitorFlag(annotation, true)
-	if !IsMonitoredFromAnnotation(acc.GetAnnotations()) {
-		t.Errorf("Object %v should be monitored.", acc.GetName())
+	if !IsControllableFromAnnotation(acc.GetAnnotations()) {
+		t.Errorf("Object %v should be controllable.", acc.GetName())
 	}
 
 	setMonitorFlag(annotation, false)
-	if IsMonitoredFromAnnotation(acc.GetAnnotations()) {
-		t.Errorf("Object %v should be monitored.", acc.GetName())
+	if IsControllableFromAnnotation(acc.GetAnnotations()) {
+		t.Errorf("Object %v should be controllable.", acc.GetName())
 	}
 }
 
 func TestIsMonitoredFromAnnotation_Pod(t *testing.T) {
 	pod := createPod()
 
-	if !IsMonitoredFromAnnotation(pod.GetAnnotations()) {
-		t.Error("Pod without annotation should be monitored.")
+	if !IsControllableFromAnnotation(pod.GetAnnotations()) {
+		t.Error("Pod without annotation should be controllable.")
 	}
 
 	pod.Annotations = make(map[string]string)
@@ -102,8 +102,8 @@ func TestIsMonitoredFromAnnotation_Pod(t *testing.T) {
 func TestIsMonitoredFromAnnotation_Service(t *testing.T) {
 	svc := createService()
 
-	if !IsMonitoredFromAnnotation(svc.GetAnnotations()) {
-		t.Error("Service without annotation should be monitored")
+	if !IsControllableFromAnnotation(svc.GetAnnotations()) {
+		t.Error("Service without annotation should be controllable")
 	}
 
 	svc.Annotations = make(map[string]string)
@@ -113,8 +113,8 @@ func TestIsMonitoredFromAnnotation_Service(t *testing.T) {
 func TestIsMonitoredFromAnnotation_Namespace(t *testing.T) {
 	ns := createNamespace()
 
-	if !IsMonitoredFromAnnotation(ns.GetAnnotations()) {
-		t.Error("Service without annotation should be monitored")
+	if !IsControllableFromAnnotation(ns.GetAnnotations()) {
+		t.Error("Service without annotation should be controllable")
 	}
 
 	ns.Annotations = make(map[string]string)
@@ -187,24 +187,6 @@ func TestGetReadyPods(t *testing.T) {
 				t.Errorf("Test %s: GetReadyPods() = %++v, want %++v", tt.name, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestMonitored_DaemonSet(t *testing.T) {
-	// With annotation
-	pod := newPod("pod-foo")
-	pod.Annotations = map[string]string{
-		"kubernetes.io/created-by": `{"reference":{"kind":"DaemonSet","name":"daemon-set-foo"}}`,
-	}
-
-	if !Monitored(pod) {
-		t.Errorf("The pod in DaemonSet must be monitored")
-	}
-
-	// With Owner reference
-	podWithOwnerRef := makePodInDaemonSet()
-	if !Monitored(podWithOwnerRef) {
-		t.Errorf("The pod (with owner reference) in DaemonSet must be monitored")
 	}
 }
 

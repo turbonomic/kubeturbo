@@ -77,7 +77,7 @@ spec:
   template:
     metadata:
       annotations:
-        kubeturbo.io/monitored: "false"
+        kubeturbo.io/controllable: "false"
       labels:
         app: kubeturbo
     spec:
