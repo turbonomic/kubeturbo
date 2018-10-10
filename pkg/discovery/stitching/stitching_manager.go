@@ -206,12 +206,14 @@ func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_Re
 	default:
 		return nil, fmt.Errorf("Stitching property type %s is not supported.", s.stitchType)
 	}
-	propertyNames := []string{builder.PropertyCapacity, builder.PropertyUsed}
-	accessCommPropertyNames := []string{builder.PropertyCapacity}
-	replacementEntityMetaDataBuilder.PatchSellingWithProperty(proto.CommodityDTO_CLUSTER, accessCommPropertyNames).
-		PatchSellingWithProperty(proto.CommodityDTO_VMPM_ACCESS, accessCommPropertyNames).
-		PatchSellingWithProperty(proto.CommodityDTO_CPU_ALLOCATION, propertyNames).
-		PatchSellingWithProperty(proto.CommodityDTO_MEM_ALLOCATION, propertyNames)
+	usedAndCapacityPropertyNames := []string{builder.PropertyCapacity, builder.PropertyUsed}
+	capacityOnlyPropertyNames := []string{builder.PropertyCapacity}
+	replacementEntityMetaDataBuilder.PatchSellingWithProperty(proto.CommodityDTO_CLUSTER, capacityOnlyPropertyNames).
+		PatchSellingWithProperty(proto.CommodityDTO_VMPM_ACCESS, capacityOnlyPropertyNames).
+		PatchSellingWithProperty(proto.CommodityDTO_VCPU, usedAndCapacityPropertyNames).
+		PatchSellingWithProperty(proto.CommodityDTO_VMEM, usedAndCapacityPropertyNames).
+		PatchSellingWithProperty(proto.CommodityDTO_CPU_ALLOCATION, usedAndCapacityPropertyNames).
+		PatchSellingWithProperty(proto.CommodityDTO_MEM_ALLOCATION, usedAndCapacityPropertyNames)
 	meta := replacementEntityMetaDataBuilder.Build()
 	return meta, nil
 }
