@@ -53,15 +53,9 @@ func (builder *ServiceEntityDTOBuilder) BuildSvcEntityDTO(servicePodMap map[*api
 		// set the ip property for stitching
 		ebuilder.WithProperty(getIPProperty(pods))
 
-		//3. check whether it is monitored
-		if !util.IsMonitoredFromAnnotation(service.GetAnnotations()) {
-			glog.V(3).Infof("Service %v is not monitored.", displayName)
-			ebuilder.Monitored(false)
-		}
-
 		ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
-		//4. create it
+		//3. create it
 		entityDto, err := ebuilder.Create()
 		if err != nil {
 			glog.Errorf("failed to create service[%s] EntityDTO: %v", displayName, err)
