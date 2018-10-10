@@ -21,37 +21,34 @@ const (
 	Kind_ReplicaSet            string = "ReplicaSet"
 	Kind_Job                   string = "Job"
 
-	//a flag indicating whether the object should be monitored or not.
-	// only value="false" indicating the object should not be monitored by kubeturbo.
-	TurboMonitorAnnotation string = "kubeturbo.io/monitored"
+	// A flag indicating whether the object should be controllable or not.
+	// only value="false" indicating the object should not be controllable by kubeturbo.
+	// TODO: [Depreciated] Use TurboControllableAnnotation instead
+	TurboMonitorAnnotation      string = "kubeturbo.io/monitored"
+	TurboControllableAnnotation string = "kubeturbo.io/controllable"
 )
 
-// check whether a Kubernetes object is monitored or not by its annotation.
+// check whether a Kubernetes object is controllable or not by its annotation.
+// The annotation can be either "kubeturbo.io/controllable" or "kubeturbo.io/monitored".
 // the object can be: Pod, Service, Namespace, or others.  If no annotation
 // exists, the default value is true.
-func IsMonitoredFromAnnotation(annotations map[string]string) bool {
+func IsControllableFromAnnotation(annotations map[string]string) bool {
 	if annotations != nil {
-		if v, ok := annotations[TurboMonitorAnnotation]; ok {
-			if strings.EqualFold(v, "false") {
-				return false
-			}
+		anno1 := annotations[TurboMonitorAnnotation]
+		anno2 := annotations[TurboControllableAnnotation]
+		if strings.EqualFold(anno1, "false") || strings.EqualFold(anno2, "false") {
+			return false
 		}
 	}
 
 	return true
 }
 
-// Returns a boolean that indicates whether the given pod should be monitored.
-// By default, pods should be monitored unless directed otherwise by setting
-// the "TurboMonitorAnnotation" to "false"
-func Monitored(pod *api.Pod) bool {
-	return IsMonitoredFromAnnotation(pod.GetAnnotations())
-}
-
 // Returns a boolean that indicates whether the given pod should be controllable.
 // Do not monitor mirror pods or pods created by DaemonSets.
 func Controllable(pod *api.Pod) bool {
-	return !isMirrorPod(pod) && !isPodCreatedBy(pod, Kind_DaemonSet)
+	return !isMirrorPod(pod) && !isPodCreatedBy(pod, Kind_DaemonSet) &&
+		IsControllableFromAnnotation(pod.GetAnnotations())
 }
 
 // Check if a pod is a mirror pod.

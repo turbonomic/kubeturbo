@@ -120,11 +120,6 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		}
 		entityDTOBuilder = entityDTOBuilder.WithProperties(properties)
 
-		if !util.Monitored(pod) {
-			entityDTOBuilder.Monitored(false)
-			glog.V(3).Infof("Pod %v is not monitored.", displayName)
-		}
-
 		controllable := util.Controllable(pod)
 		if !controllable {
 			glog.V(3).Infof("Pod %v is not controllable.", displayName)
@@ -237,7 +232,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 	}
 
 	// Access commodity: schedulable
-	if util.Monitored(pod) {
+	if util.Controllable(pod) {
 		schedAccessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
 			Key(schedAccessCommodityKey).
 			Create()
