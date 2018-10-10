@@ -103,10 +103,6 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 			properties := builder.getApplicationProperties(pod, i)
 			ebuilder.WithProperties(properties)
 
-			if !util.Monitored(pod) {
-				ebuilder.Monitored(false)
-			}
-
 			truep := true
 			ebuilder.ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
 				ProviderMustClone: &truep,

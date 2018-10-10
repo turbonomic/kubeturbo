@@ -92,7 +92,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			properties := builder.addPodProperties(pod, i)
 			ebuilder.WithProperties(properties)
 
-			ebuilder.Monitored(util.Monitored(pod))
+			//ebuilder.Monitored(util.Monitored(pod))
 			ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
 			truep := true

@@ -20,7 +20,7 @@ func TestPodFlags(t *testing.T) {
 	 * Pod 2: controllable = true, monitored = true, parentKind = ReplicaSet
 	 * (controllable should be true, monitored should be true)
 	 *
-	 * Pod 3: controllable = true, monitored = false, parentKind = ReplicaSet
+	 * Pod 3: controllable = false, monitored = true, parentKind = ReplicaSet
 	 * This pod has the "kubeturbo.io/monitored" attribute set to false.
 	 * (controllable should be true, monitored should be false)
 	 */
@@ -31,7 +31,7 @@ func TestPodFlags(t *testing.T) {
 		{true, true},
 		{false, true},
 		{true, true},
-		{true, false},
+		{false, true},
 	}
 
 	pods, err := LoadCannedTopology()
@@ -45,14 +45,9 @@ func TestPodFlags(t *testing.T) {
 
 	for i, pod := range pods {
 		controllable := podutil.Controllable(pod)
-		monitored := podutil.Monitored(pod)
 		if controllable != expectedResult[i].Controllable {
 			t.Errorf("Pod %d Controllable: expected %v, got %v", i,
 				expectedResult[i].Controllable, controllable)
-		}
-		if monitored != expectedResult[i].Monitored {
-			t.Errorf("Pod %d Monitored: expected %v, got %v", i,
-				expectedResult[i].Monitored, monitored)
 		}
 	}
 }
@@ -61,9 +56,8 @@ func dumpPodFlags(pods []*api.Pod) {
 	// This code dumps the attributes of the saved topology
 	for i, pod := range pods {
 		parentKind, _, _ := podutil.GetPodParentInfo(pod)
-		fmt.Printf("Pod %d: controllable = %v, monitored = %v, parentKind = %s\n", i,
+		fmt.Printf("Pod %d: controllable = %v, parentKind = %s\n", i,
 			podutil.Controllable(pod),
-			podutil.Monitored(pod),
 			parentKind)
 	}
 }
