@@ -27,7 +27,7 @@ func createContainerStat(name string, cpu, mem int) stats.ContainerStats {
 
 	usedbytes := uint64(mem)
 	memoryInfo := &stats.MemoryStats{
-		UsageBytes: &usedbytes,
+		WorkingSetBytes: &usedbytes,
 	}
 
 	container := stats.ContainerStats{
@@ -82,7 +82,7 @@ func checkPodMetrics(sink *metrics.EntityMetricSink, podMId string, pod *stats.P
 			expected = expected / util.NanoToUnit
 		} else {
 			for _, c := range pod.Containers {
-				expected += float64(*c.Memory.UsageBytes)
+				expected += float64(*c.Memory.WorkingSetBytes)
 			}
 			expected = expected / util.KilobytesToBytes
 		}
@@ -114,7 +114,7 @@ func checkContainerMetrics(sink *metrics.EntityMetricSink, containerMId string, 
 			expected += float64(*container.CPU.UsageNanoCores)
 			expected = expected / util.NanoToUnit
 		} else {
-			expected += float64(*container.Memory.UsageBytes)
+			expected += float64(*container.Memory.WorkingSetBytes)
 			expected = expected / util.KilobytesToBytes
 		}
 
@@ -144,7 +144,7 @@ func checkApplicationMetrics(sink *metrics.EntityMetricSink, appMId string, cont
 			expected += float64(*container.CPU.UsageNanoCores)
 			expected = expected / util.NanoToUnit
 		} else {
-			expected += float64(*container.Memory.UsageBytes)
+			expected += float64(*container.Memory.WorkingSetBytes)
 			expected = expected / util.KilobytesToBytes
 		}
 
