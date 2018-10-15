@@ -41,6 +41,8 @@ const (
 )
 
 var (
+	defaultSccSupport = []string{"restricted"}
+
 	//these variables will be deprecated. Keep it here for backward compatibility only
 	k8sVersion        = "1.8"
 	noneSchedulerName = "turbo-no-scheduler"
@@ -82,6 +84,9 @@ type VMTServer struct {
 	// The cluster processor related config
 	ValidationWorkers int
 	ValidationTimeout int
+
+	// The Openshift SCC list allowed for action execution
+	sccSupport []string
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -112,6 +117,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.DiscoveryIntervalSec, "discovery-interval-sec", defaultDiscoveryIntervalSec, "The discovery interval in seconds")
 	fs.IntVar(&s.ValidationWorkers, "validation-workers", defaultValidationWorkers, "The validation workers")
 	fs.IntVar(&s.ValidationTimeout, "validation-timeout-sec", defaultValidationTimeout, "The validation timeout in seconds")
+	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=.* to allow all")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -231,7 +237,8 @@ func (s *VMTServer) Run(_ []string) error {
 		UsingUUIDStitch(s.UseUUID).
 		WithDiscoveryInterval(s.DiscoveryIntervalSec).
 		WithValidationTimeout(s.ValidationTimeout).
-		WithValidationWorkers(s.ValidationWorkers)
+		WithValidationWorkers(s.ValidationWorkers).
+		WithSccSupport(s.sccSupport)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service

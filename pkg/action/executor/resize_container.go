@@ -38,6 +38,7 @@ type ContainerResizer struct {
 	k8sVersion                 string
 	noneSchedulerName          string
 	enableNonDisruptiveSupport bool
+	sccAllowedSet              map[string]struct{}
 
 	spec *containerResizeSpec
 }
@@ -50,10 +51,11 @@ func NewContainerResizeSpec(idx int) *containerResizeSpec {
 	}
 }
 
-func NewContainerResizer(ae TurboK8sActionExecutor, kubeletClient *kubeclient.KubeletClient) *ContainerResizer {
+func NewContainerResizer(ae TurboK8sActionExecutor, kubeletClient *kubeclient.KubeletClient, sccAllowedSet map[string]struct{}) *ContainerResizer {
 	return &ContainerResizer{
 		TurboK8sActionExecutor: ae,
 		kubeletClient:          kubeletClient,
+		sccAllowedSet:          sccAllowedSet,
 	}
 }
 
@@ -372,7 +374,7 @@ func (r *ContainerResizer) preActionCheck(resizeSpec *containerResizeSpec, pod *
 	fullName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 
 	// Check if the pod privilege is supported
-	if !util.SupportPrivilegePod(pod) {
+	if !util.SupportPrivilegePod(pod, r.sccAllowedSet) {
 		err := fmt.Errorf("The pod %s has privilege requirement unsupported", fullName)
 		glog.Error(err)
 		return err

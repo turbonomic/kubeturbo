@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	osSccAnnotation          = "openshift.io/scc"
-	supportedOsSccAnnotation = "restricted"
+	osSccAnnotation = "openshift.io/scc"
+	osSccAllowAll   = ".*"
 )
 
 var (
@@ -139,12 +139,18 @@ func AddAnnotation(pod *api.Pod, key, value string) {
 // Openshift SCC (openshift.io/scc). Kubeturbo supports the restricted (default) SCC and rejects
 // other non-empty SCC's if the annotation is set.
 // See details on https://docs.openshift.org/latest/admin_guide/manage_scc.html.
-func SupportPrivilegePod(pod *api.Pod) bool {
-	annotations := pod.Annotations
-	key := osSccAnnotation
-	value := supportedOsSccAnnotation
-	if annotations != nil && annotations[key] != "" && annotations[key] != value {
-		glog.Warningf("The pod %s has unsupported privilege %s", pod.Name, annotations[key])
+func SupportPrivilegePod(pod *api.Pod, sccAllowedSet map[string]struct{}) bool {
+	if pod == nil || pod.Annotations == nil || pod.Annotations[osSccAnnotation] == "" {
+		return true
+	}
+
+	if _, ok := sccAllowedSet[osSccAllowAll]; ok {
+		return true
+	}
+
+	podScc := pod.Annotations[osSccAnnotation]
+	if _, ok := sccAllowedSet[podScc]; !ok {
+		glog.Warningf("The pod %s has unsupported privilege %s", pod.Name, podScc)
 		return false
 	}
 

@@ -15,11 +15,13 @@ import (
 
 type ReScheduler struct {
 	TurboK8sActionExecutor
+	sccAllowedSet map[string]struct{}
 }
 
-func NewReScheduler(ae TurboK8sActionExecutor) *ReScheduler {
+func NewReScheduler(ae TurboK8sActionExecutor, sccAllowedSet map[string]struct{}) *ReScheduler {
 	return &ReScheduler{
 		TurboK8sActionExecutor: ae,
+		sccAllowedSet:          sccAllowedSet,
 	}
 }
 
@@ -164,7 +166,7 @@ func (r *ReScheduler) preActionCheck(pod *api.Pod, node *api.Node) error {
 	fullName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 
 	// Check if the pod privilege is supported
-	if !util.SupportPrivilegePod(pod) {
+	if !util.SupportPrivilegePod(pod, r.sccAllowedSet) {
 		err := fmt.Errorf("The pod %s has privilege requirement unsupported", fullName)
 		glog.Error(err)
 		return err
