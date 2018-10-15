@@ -142,12 +142,12 @@ func (m *KubeletMonitor) parseNodeInfo(node *api.Node, machineInfo *cadvisorapi.
 func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats) {
 	// cpu
 	cpuUsageCore := float64(*nodeStats.CPU.UsageNanoCores) / util.NanoToUnit
-	memoryUsageKiloBytes := float64(*nodeStats.Memory.UsageBytes) / util.KilobytesToBytes
+	memoryWorkingSetKiloBytes := float64(*nodeStats.Memory.WorkingSetBytes) / util.KilobytesToBytes
 
 	key := util.NodeStatsKeyFunc(nodeStats)
 	glog.V(4).Infof("CPU usage of node %s is %.3f core", nodeStats.NodeName, cpuUsageCore)
-	glog.V(4).Infof("Memory usage of node %s is %.3f KB", nodeStats.NodeName, memoryUsageKiloBytes)
-	m.genUsedMetrics(metrics.NodeType, key, cpuUsageCore, memoryUsageKiloBytes)
+	glog.V(4).Infof("Memory working set of node %s is %.3f KB", nodeStats.NodeName, memoryWorkingSetKiloBytes)
+	m.genUsedMetrics(metrics.NodeType, key, cpuUsageCore, memoryWorkingSetKiloBytes)
 }
 
 // Parse pod stats for every pod and put them into sink.
@@ -178,12 +178,12 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats) (float64, floa
 		if container.CPU == nil || container.CPU.UsageNanoCores == nil {
 			continue
 		}
-		if container.Memory == nil || container.Memory.UsageBytes == nil {
+		if container.Memory == nil || container.Memory.WorkingSetBytes == nil {
 			continue
 		}
 
 		cpuUsed := float64(*(container.CPU.UsageNanoCores)) / util.NanoToUnit
-		memUsed := float64(*(container.Memory.UsageBytes)) / util.KilobytesToBytes
+		memUsed := float64(*(container.Memory.WorkingSetBytes)) / util.KilobytesToBytes
 
 		totalUsedCPU += cpuUsed
 		totalUsedMem += memUsed
