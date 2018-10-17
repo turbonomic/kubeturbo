@@ -118,7 +118,7 @@ func TestSupportPrivilegePodAllowNone(t *testing.T) {
 
 func TestSupportPrivilegePodAllowAll(t *testing.T) {
 	sccAllowedSet := map[string]struct{}{
-		".*": struct{}{},
+		"*": struct{}{},
 	}
 
 	wants := map[string]bool{

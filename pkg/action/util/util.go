@@ -18,7 +18,7 @@ import (
 
 const (
 	osSccAnnotation = "openshift.io/scc"
-	osSccAllowAll   = ".*"
+	osSccAllowAll   = "*"
 )
 
 var (
@@ -150,7 +150,8 @@ func SupportPrivilegePod(pod *api.Pod, sccAllowedSet map[string]struct{}) bool {
 
 	podScc := pod.Annotations[osSccAnnotation]
 	if _, ok := sccAllowedSet[podScc]; !ok {
-		glog.Warningf("The pod %s has unsupported privilege %s", pod.Name, podScc)
+		glog.Warningf("Target pod %s has unsupported SCC %s. Please add the SCC to "+
+			"--scc-support argument in kubeturbo yaml to allow execution.", pod.Name, podScc)
 		return false
 	}
 

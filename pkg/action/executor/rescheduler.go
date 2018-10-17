@@ -167,7 +167,7 @@ func (r *ReScheduler) preActionCheck(pod *api.Pod, node *api.Node) error {
 
 	// Check if the pod privilege is supported
 	if !util.SupportPrivilegePod(pod, r.sccAllowedSet) {
-		err := fmt.Errorf("The pod %s has privilege requirement unsupported", fullName)
+		err := fmt.Errorf("Pod %s has unsupported SCC", fullName)
 		glog.Error(err)
 		return err
 	}
