@@ -16,6 +16,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	api "k8s.io/client-go/pkg/api/v1"
+	"strings"
 )
 
 const (
@@ -41,13 +42,21 @@ type ActionHandlerConfig struct {
 	kubeClient     *client.Clientset
 	kubeletClient  *kubeclient.KubeletClient
 	StopEverything chan struct{}
+	sccAllowedSet  map[string]struct{}
 }
 
-func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubeclient.KubeletClient) *ActionHandlerConfig {
+func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubeclient.KubeletClient, sccSupport []string) *ActionHandlerConfig {
+	sccAllowedSet := make(map[string]struct{})
+	for _, sccAllowed := range sccSupport {
+		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}
+	}
+	glog.V(4).Infof("SCC's allowed: %s", sccAllowedSet)
+
 	config := &ActionHandlerConfig{
 		kubeClient:     kubeClient,
 		kubeletClient:  kubeletClient,
 		StopEverything: make(chan struct{}),
+		sccAllowedSet:  sccAllowedSet,
 	}
 
 	return config
@@ -89,14 +98,14 @@ func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
 	ae := executor.NewTurboK8sActionExecutor(c.kubeClient, h.podManager)
 
-	reScheduler := executor.NewReScheduler(ae)
+	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet)
 	h.actionExecutors[turboActionPodMove] = reScheduler
 
 	horizontalScaler := executor.NewHorizontalScaler(ae)
 	h.actionExecutors[turboActionPodProvision] = horizontalScaler
 	h.actionExecutors[turboActionContainerPodSuspend] = horizontalScaler
 
-	containerResizer := executor.NewContainerResizer(ae, c.kubeletClient)
+	containerResizer := executor.NewContainerResizer(ae, c.kubeletClient, c.sccAllowedSet)
 	h.actionExecutors[turboActionContainerResize] = containerResizer
 }
 
