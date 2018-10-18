@@ -103,7 +103,66 @@ func TestAddAnnotation_Overwrite(t *testing.T) {
 	}
 }
 
-func TestSupportPrivilegePod(t *testing.T) {
+func TestSupportPrivilegePodAllowNone(t *testing.T) {
+	sccAllowedSet := map[string]struct{}{}
+
+	wants := map[string]bool{
+		"restricted": false,
+		"anyuid":     false,
+		"privilege":  false,
+		"foo":        false,
+	}
+
+	testSupportPrivilegePod(t, sccAllowedSet, wants)
+}
+
+func TestSupportPrivilegePodAllowAll(t *testing.T) {
+	sccAllowedSet := map[string]struct{}{
+		"*": struct{}{},
+	}
+
+	wants := map[string]bool{
+		"restricted": true,
+		"anyuid":     true,
+		"privilege":  true,
+		"foo":        true,
+	}
+
+	testSupportPrivilegePod(t, sccAllowedSet, wants)
+}
+
+func TestSupportPrivilegePodAllowRestrictedOnly(t *testing.T) {
+	sccAllowedSet := map[string]struct{}{
+		"restricted": struct{}{},
+	}
+
+	wants := map[string]bool{
+		"restricted": true,
+		"anyuid":     false,
+		"privilege":  false,
+		"foo":        false,
+	}
+
+	testSupportPrivilegePod(t, sccAllowedSet, wants)
+}
+
+func TestSupportPrivilegePodAllowRestrictedAndFoo(t *testing.T) {
+	sccAllowedSet := map[string]struct{}{
+		"restricted": struct{}{},
+		"foo":        struct{}{},
+	}
+
+	wants := map[string]bool{
+		"restricted": true,
+		"anyuid":     false,
+		"privilege":  false,
+		"foo":        true,
+	}
+
+	testSupportPrivilegePod(t, sccAllowedSet, wants)
+}
+
+func testSupportPrivilegePod(t *testing.T, sccAllowedSet map[string]struct{}, wants map[string]bool) {
 	tests := []struct {
 		name string
 		pod  *api.Pod
@@ -112,15 +171,15 @@ func TestSupportPrivilegePod(t *testing.T) {
 		{name: "pod-without-annotations", pod: newPod("pod-1", nil), want: true},
 		{name: "pod-with-empty-annotations", pod: newPod("pod-2", make(map[string]string)), want: true},
 		{name: "pod-with-scc-empty", pod: podWithSccAnnotations("pod-3", ""), want: true},
-		{name: "pod-with-scc-restricted", pod: podWithSccAnnotations("pod-4", "restricted"), want: true},
-		{name: "pod-with-scc-anyuid", pod: podWithSccAnnotations("pod-5", "anyuid"), want: false},
-		{name: "pod-with-scc-privilege", pod: podWithSccAnnotations("pod-6", "privilege"), want: false},
-		{name: "pod-with-scc-foo", pod: podWithSccAnnotations("pod-7", "foo"), want: false},
+		{name: "pod-with-scc-restricted", pod: podWithSccAnnotations("pod-4", "restricted"), want: wants["restricted"]},
+		{name: "pod-with-scc-anyuid", pod: podWithSccAnnotations("pod-5", "anyuid"), want: wants["anyuid"]},
+		{name: "pod-with-scc-privilege", pod: podWithSccAnnotations("pod-6", "privilege"), want: wants["privilege"]},
+		{name: "pod-with-scc-foo", pod: podWithSccAnnotations("pod-7", "foo"), want: wants["foo"]},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := SupportPrivilegePod(tt.pod); got != tt.want {
+			if got := SupportPrivilegePod(tt.pod, sccAllowedSet); got != tt.want {
 				t.Errorf("SupportPrivilegePod() = %v, want %v", got, tt.want)
 			}
 		})
