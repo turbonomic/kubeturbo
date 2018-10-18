@@ -26,6 +26,8 @@ type Config struct {
 	DiscoveryIntervalSec int
 	ValidationWorkers    int
 	ValidationTimeoutSec int
+
+	SccSupport []string
 }
 
 func NewVMTConfig2() *Config {
@@ -83,5 +85,10 @@ func (c *Config) WithValidationTimeout(di int) *Config {
 
 func (c *Config) WithValidationWorkers(di int) *Config {
 	c.ValidationWorkers = di
+	return c
+}
+
+func (c *Config) WithSccSupport(sccSupport []string) *Config {
+	c.SccSupport = sccSupport
 	return c
 }
