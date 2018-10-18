@@ -263,7 +263,7 @@ func createResizePod(client *kclient.Clientset, pod *k8sapi.Pod, spec *container
 	npod := &k8sapi.Pod{}
 	copyPodWithoutLabel(pod, npod)
 	npod.Spec.NodeName = pod.Spec.NodeName
-	npod.Name = genNewPodName(pod.Name)
+	npod.Name = genNewPodName(pod)
 	// this annotation can be used for future garbage collection if action is interrupted
 	util.AddAnnotation(npod, TurboActionAnnotationKey, TurboResizeAnnotationValue)
 
