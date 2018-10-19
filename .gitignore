@@ -9,3 +9,5 @@ actionexecutionsimulator
 _output/
 .idea/
 kubeturbo.iml
+kubeturbo
+kubeturbo.linux
