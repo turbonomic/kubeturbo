@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
+	"strconv"
 )
 
 //TODO: if pod is from controller, then copy pod in the way as
@@ -49,9 +50,26 @@ func copyPodWithoutLabel(oldPod, newPod *api.Pod) {
 	newPod.OwnerReferences = []metav1.OwnerReference{}
 }
 
-// TODO: prevent podName to become too long
-func genNewPodName(name string) string {
-	return name + "-c"
+// Generates a name for the new pod from the old one. The new pod name will
+// be the original pod name followed by "-" + current timestamp.
+func genNewPodName(oldPod *api.Pod) string {
+	oldPodName := oldPod.Name
+	oriPodName := oldPodName
+
+	// If the pod was created from Turbo actions (resize/move), the oldPodName
+	// will include its timestamp. In such case, we want to find the original
+	// pod name.
+	if _, ok := oldPod.Annotations[TurboActionAnnotationKey]; ok {
+		if idx := strings.LastIndex(oldPodName, "-"); idx >= 0 {
+			oriPodName = oldPodName[:idx]
+		}
+	}
+
+	// Append the pod name with current timestamp
+	newPodName := oriPodName + "-" + strconv.FormatInt(time.Now().UnixNano(), 32)
+	glog.V(4).Infof("Generated new pod name %s for pod %s (original pod %s)", newPodName, oldPodName, oriPodName)
+
+	return newPodName
 }
 
 // check the liveness of pod, and the hosting Node
@@ -156,7 +174,7 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod, nodeName string) (*
 	npod := &api.Pod{}
 	copyPodWithoutLabel(pod, npod)
 	npod.Spec.NodeName = nodeName
-	npod.Name = genNewPodName(pod.Name)
+	npod.Name = genNewPodName(pod)
 	// this annotation can be used for future garbage collection if action is interrupted
 	util.AddAnnotation(npod, TurboActionAnnotationKey, TurboMoveAnnotationValue)
 
