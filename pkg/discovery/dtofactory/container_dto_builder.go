@@ -18,6 +18,14 @@ var (
 		metrics.Memory,
 	}
 
+	cpuCommoditySold = []metrics.ResourceType{
+		metrics.CPU,
+	}
+
+	memCommoditySold = []metrics.ResourceType{
+		metrics.Memory,
+	}
+
 	commodityBought = []metrics.ResourceType{
 		metrics.CPU,
 		metrics.Memory,
@@ -68,11 +76,18 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			containerMId := util.ContainerMetricId(podMId, container.Name)
 
 			name := util.ContainerNameFunc(pod, container)
-			ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER, containerId).
-				DisplayName(name)
+			ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER, containerId).DisplayName(name)
 
 			//1. commodities sold
-			commoditiesSold, err := builder.getCommoditiesSold(name, containerId, containerMId, nodeCPUFrequency)
+			isCpuLimitSet := !container.Resources.Limits.Cpu().IsZero()
+			if !isCpuLimitSet {
+				glog.V(4).Infof("Container[%s] has no limit set for CPU", name)
+			}
+			isMemLimitSet := !container.Resources.Limits.Memory().IsZero()
+			if !isMemLimitSet {
+				glog.V(4).Infof("Container[%s] has no limit set for Memory", name)
+			}
+			commoditiesSold, err := builder.getCommoditiesSold(name, containerId, containerMId, nodeCPUFrequency, isCpuLimitSet, isMemLimitSet)
 			if err != nil {
 				glog.Errorf("failed to create commoditiesSold for container[%s]: %v", name, err)
 				continue
@@ -114,19 +129,32 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 }
 
 //vCPU, vMem, Application are sold by Container to Application
-func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerId, containerMId string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerId, containerMId string,
+	cpuFrequency float64, isCpuLimitSet, isMemLimitSet bool) ([]*proto.CommodityDTO, error) {
+
 	var result []*proto.CommodityDTO
 
-	//1. vCPU & vMem
+	//1a. vCPU
 	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPUProvisioned)
 
-	attributeSetter := NewCommodityAttrSetter()
-	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)
+	cpuAttrSetter := NewCommodityAttrSetter()
+	cpuAttrSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(isCpuLimitSet) }, metrics.CPU)
 
-	commodities, err := builder.getResourceCommoditiesSold(metrics.ContainerType, containerMId, commoditySold, converter, attributeSetter)
+	cpuCommodities, err := builder.getResourceCommoditiesSold(metrics.ContainerType, containerMId, cpuCommoditySold, converter, cpuAttrSetter)
 	if err != nil {
 		return nil, err
 	}
+
+	//1b. vMem
+	memAttrSetter := NewCommodityAttrSetter()
+	memAttrSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(isMemLimitSet) }, metrics.Memory)
+
+	memCommodities, err := builder.getResourceCommoditiesSold(metrics.ContainerType, containerMId, memCommoditySold, nil, memAttrSetter)
+	if err != nil {
+		return nil, err
+	}
+
+	commodities := append(cpuCommodities, memCommodities...)
 	if len(commodities) != len(commoditySold) {
 		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for container:%s, %s", len(commodities), len(commoditySold), containerName, containerMId)
 		glog.Error(err)
