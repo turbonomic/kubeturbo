@@ -111,8 +111,10 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
 			truep := true
+			controllable := util.Controllable(pod)
 			ebuilder.ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
 				ProviderMustClone: &truep,
+				Controllable:      &controllable,
 			})
 
 			//4. build entityDTO

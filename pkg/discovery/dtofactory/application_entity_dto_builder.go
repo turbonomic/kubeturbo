@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultTransactionCapacity float64 = 20.0
+	defaultTransactionCapacity float64 = 1000.0
 	defaultRespTimeCapacity    float64 = 500.0
 )
 
@@ -104,8 +104,10 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 			ebuilder.WithProperties(properties)
 
 			truep := true
+			controllable := util.Controllable(pod)
 			ebuilder.ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
 				ProviderMustClone: &truep,
+				Controllable:      &controllable,
 			})
 
 			appType := util.GetAppType(pod)
