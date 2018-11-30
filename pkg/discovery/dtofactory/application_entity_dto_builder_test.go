@@ -28,8 +28,8 @@ func Test_getCommoditiesSold(t *testing.T) {
 				index: 0,
 			},
 			want: []*proto.CommodityDTO{
-				createCommodity(proto.CommodityDTO_TRANSACTION, podIP, defaultTransactionCapacity),
-				createCommodity(proto.CommodityDTO_RESPONSE_TIME, podIP, defaultRespTimeCapacity),
+				createCommodity(proto.CommodityDTO_TRANSACTION, podIP),
+				createCommodity(proto.CommodityDTO_RESPONSE_TIME, podIP),
 			},
 		},
 		{
@@ -39,8 +39,8 @@ func Test_getCommoditiesSold(t *testing.T) {
 				index: 1,
 			},
 			want: []*proto.CommodityDTO{
-				createCommodity(proto.CommodityDTO_TRANSACTION, podIP+"-1", defaultTransactionCapacity),
-				createCommodity(proto.CommodityDTO_RESPONSE_TIME, podIP+"-1", defaultRespTimeCapacity),
+				createCommodity(proto.CommodityDTO_TRANSACTION, podIP+"-1"),
+				createCommodity(proto.CommodityDTO_RESPONSE_TIME, podIP+"-1"),
 			},
 		},
 	}
@@ -58,10 +58,9 @@ func Test_getCommoditiesSold(t *testing.T) {
 	}
 }
 
-func createCommodity(commType proto.CommodityDTO_CommodityType, key string, capacity float64) *proto.CommodityDTO {
+func createCommodity(commType proto.CommodityDTO_CommodityType, key string) *proto.CommodityDTO {
 	return &proto.CommodityDTO{
 		CommodityType: &commType,
 		Key:           &key,
-		Capacity:      &capacity,
 	}
 }
