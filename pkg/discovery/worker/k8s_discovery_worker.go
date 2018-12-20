@@ -14,7 +14,6 @@ import (
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
-	"fmt"
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
