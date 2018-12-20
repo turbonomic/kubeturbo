@@ -14,7 +14,10 @@ import (
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
+	"fmt"
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	api "k8s.io/api/core/v1"
 )
 
@@ -208,6 +211,9 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	worker.addPodAllocationMetrics(podMetricsCollection)
 	worker.addNodeAllocationMetrics(nodeMetricsCollection)
 
+	// Build PolicyGroups
+	policyGroups := worker.createPolicyGroups(currTask.PodList())
+
 	// Build DTOs after getting the metrics
 	entityDTOs, err := worker.buildDTOs(currTask)
 	if err != nil {
@@ -215,12 +221,60 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	}
 	// Uncomment this to dump the topology to a file for later use by the unit tests
 	// util.DumpTopology(currTask, "test-topology.dat")
+
+	// Task result with node and pod resource metrics, quota metrics and policy groups
 	result := task.NewTaskResult(worker.id, task.TaskSucceeded).WithContent(entityDTOs)
 	// return the quota metrics created by this worker
 	if len(quotaMetricsCollection) > 0 {
 		result.WithQuotaMetrics(quotaMetricsCollection)
 	}
+	if len(policyGroups) > 0 {
+		result.WithPolicyGroups(policyGroups)
+	}
 	return result
+}
+
+// =================================================================================================
+// Create PolicyGroup objects using the owner metric for the pods handled by this discovery worker
+func (worker *k8sDiscoveryWorker) createPolicyGroups(podList []*api.Pod) map[string]*repository.PolicyGroup {
+	etype := metrics.PodType
+	groupMembers := make(map[string][]string)
+	// Iterate over list of pods to get the owner metric for each
+	for _, pod := range podList {
+		podKey := util.PodKeyFunc(pod)
+		podOwnerMetricId := metrics.GenerateEntityStateMetricUID(etype, podKey, metrics.Owner)
+		ownerMetric, err := worker.sink.GetMetric(podOwnerMetricId)
+		if err != nil {
+			glog.Errorf("Error getting owner for pod %s::%s --> %v\n", pod.Namespace, pod.Name, err)
+			continue
+		}
+		owner := ownerMetric.GetValue()
+		//fmt.Printf("Pod %s::%s - Owner %v\n", pod.Namespace, pod.Name, owner)
+		ownerString, ok := owner.(string)
+		if !ok || ownerString == "" {
+			glog.Errorf("Empty owner for pod %s::%s\n", pod.Namespace, pod.Name)
+			continue
+		}
+		// Add pod to the member list for each owner group
+		memberList, exists := groupMembers[ownerString]
+		if !exists {
+			memberList = []string{}
+		}
+		podId := string(pod.UID)
+		fmt.Printf("Pod %s::%s - adding to group %s\n", podKey, podId, ownerString)
+		memberList = append(memberList, podId)	//podKey
+		groupMembers[ownerString] = memberList
+	}
+
+	policyGroups := make(map[string]*repository.PolicyGroup)
+	for groupName, memberList := range groupMembers {
+		policyGroup := &repository.PolicyGroup{
+			GroupId: groupName,
+			Members: memberList,
+		}
+		policyGroups[groupName] = policyGroup
+	}
+	return policyGroups
 }
 
 // =================================================================================================
@@ -323,7 +377,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	result = append(result, podEntityDTOs...)
 	glog.V(3).Infof("Worker %s builds %d pod entityDTOs.", worker.id, len(podEntityDTOs))
 
-	// Filster out pods that build DTO failed so
+	// Filter out pods that build DTO failed so
 	// building container and app DTOs will not include them
 	pods = excludeFailedPods(pods, podEntityDTOs)
 

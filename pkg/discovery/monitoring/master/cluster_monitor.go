@@ -12,12 +12,14 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 )
 
 // This monitor is based on Kubenetes's Node, Pod and Container settings;
 // it will mainly generate CPU/Memory commodity's Capacity and Provision for Node, Pod, and Container;
 type ClusterMonitor struct {
-	config *ClusterMonitorConfig
+	config        *ClusterMonitorConfig
+	clusterClient *cluster.ClusterScraper
 
 	//TODO: since this sink is not accessed by multiple goroutines
 	// an Add() interface without lock should be provided.
@@ -33,8 +35,9 @@ type ClusterMonitor struct {
 func NewClusterMonitor(config *ClusterMonitorConfig) (*ClusterMonitor, error) {
 
 	return &ClusterMonitor{
-		config: config,
-		stopCh: make(chan struct{}, 1),
+		config:        config,
+		clusterClient: config.clusterInfoScraper,
+		stopCh:        make(chan struct{}, 1),
 	}, nil
 }
 
@@ -109,7 +112,7 @@ func (m *ClusterMonitor) findClusterID() error {
 	return nil
 }
 
-// ----------------------------------------------- Node State -------------------------------------------------
+// ----------------------------------------- Node State --------------------------------------------
 func (m *ClusterMonitor) findNodeStates() {
 	for _, node := range m.nodeList {
 		key := util.NodeKeyFunc(node)
@@ -117,10 +120,15 @@ func (m *ClusterMonitor) findNodeStates() {
 			glog.Warning("Invalid node")
 			continue
 		}
-		m.genNodeResourceMetrics(node)
+		// node/pod/container cpu/mem resource capacities
+		m.genNodeResourceMetrics(node, key)
 
+		// node labels
 		labelMetrics := parseNodeLabels(node)
 		m.sink.AddNewMetricEntries(labelMetrics)
+
+		// owner labels - TODO:
+
 	}
 }
 
@@ -129,8 +137,8 @@ func (m *ClusterMonitor) findNodeStates() {
 // 	memory 			capacity
 //	CPUProvisioned		capacity, used
 //	memoryProvisioned	capacity, used
-func (m *ClusterMonitor) genNodeResourceMetrics(node *api.Node) error {
-	key := util.NodeKeyFunc(node)
+func (m *ClusterMonitor) genNodeResourceMetrics(node *api.Node, key string) error {
+	//key := util.NodeKeyFunc(node)
 	glog.V(3).Infof("Now get resouce metrics for node %s", key)
 
 	//1. Capacity of cpu and memory
@@ -145,7 +153,7 @@ func (m *ClusterMonitor) genNodeResourceMetrics(node *api.Node) error {
 	memoryProvisionedCapacity := memoryCapacityKiloBytes
 	m.genProvisionCapacityMetrics(metrics.NodeType, key, cpuProvisionedCapacity, memoryProvisionedCapacity)
 
-	//3. Generate metrics for the hosted Pods(and containers)
+	//3. Generate cpu/mem capacity metrics for the hosted Pods(and containers)
 	m.genNodePodsMetrics(node, cpuCapacityCore, memoryCapacityKiloBytes)
 
 	//4. Provision Used of cpu and memory
@@ -179,20 +187,47 @@ func parseNodeLabels(node *api.Node) metrics.EntityStateMetric {
 }
 
 // ----------------------------------------------- Pod State -------------------------------------------------
-// generate all the metrics for the hosted Pods of this node
+// generate all the metrics for the hosted Pods of this node.
+// Resource metrics such as capacity and usage
 func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapacity float64) error {
 
+	// Get the pod list for the node
 	podList, exist := m.nodePodMap[node.Name]
 	if !exist || len(podList) < 1 {
 		glog.V(3).Infof("Node[%s] has no pod", node.Name)
 		return nil
 	}
 
+	// Iterate over each pod
 	for _, pod := range podList {
+		// Pod capacity metric
 		m.genPodMetrics(pod, cpuCapacity, memCapacity)
+
+		// Pod owners
+		m.genPodOwnerMetrics(pod)
 	}
 
 	return nil
+}
+
+func (m *ClusterMonitor) genPodOwnerMetrics(pod *api.Pod) {
+	key := util.PodKeyFunc(pod)
+	glog.V(4).Infof("begin to generate pod[%s]'s Owner metric.", key)
+
+	kind, name, err := util.GetPodParentInfo(pod)
+	if err != nil {
+		fmt.Printf("Error getting pod owner %v\n", err)
+	}
+
+	if name != "" && kind != "" {
+		groupName := fmt.Sprintf("%s::%s::%s", kind, name, pod.Namespace)
+		if groupName != "" {
+			ownerMetric := metrics.NewEntityStateMetric(metrics.PodType, key, metrics.Owner, groupName)
+			//fmt.Printf("%s : Adding owner metric: %v\n", pod.Name, ownerMetric.GetMetricProp())
+			m.sink.AddNewMetricEntries(ownerMetric)
+		}
+	}
+
 }
 
 // genPodMetrics: based on hosting Node's cpuCapacity and memCapacity
@@ -202,7 +237,7 @@ func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapa
 // Note: Pod.Capacity = node.Capacity; Pod.Reservation = sum.container.reservation
 func (m *ClusterMonitor) genPodMetrics(pod *api.Pod, nodeCPUCapacity, nodeMemCapacity float64) {
 	key := util.PodKeyFunc(pod)
-	glog.V(3).Infof("begin to generate pod[%s]'s CPU/Mem Capacity.", key)
+	glog.V(4).Infof("begin to generate pod[%s]'s CPU/Mem Capacity.", key)
 
 	//1. pod.capacity == node.Capacity
 	cpuCapacity := nodeCPUCapacity
@@ -214,6 +249,7 @@ func (m *ClusterMonitor) genPodMetrics(pod *api.Pod, nodeCPUCapacity, nodeMemCap
 	//2.1 Container Capacity and Reservation
 	cpuRequest, memRequest := m.genContainerMetrics(pod, cpuCapacity, memCapacity)
 	m.genReserveMetrics(metrics.PodType, podMId, cpuRequest, memRequest)
+
 	return
 }
 
