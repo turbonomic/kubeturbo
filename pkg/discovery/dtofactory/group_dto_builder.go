@@ -1,15 +1,15 @@
 package dtofactory
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	"github.com/turbonomic/turbo-go-sdk/pkg/builder/group"
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/turbo-go-sdk/pkg/builder/group"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 type groupDTOBuilder struct {
 	policyGroupMap map[string]*repository.PolicyGroup
-	nodeNames        []string
+	nodeNames      []string
 }
 
 func NewGroupDTOBuilder(policyGroupMap map[string]*repository.PolicyGroup) *groupDTOBuilder {
@@ -26,7 +26,7 @@ func (builder *groupDTOBuilder) BuildGroupDTOs() ([]*proto.GroupDTO, error) {
 	for _, policyGroup := range builder.policyGroupMap {
 		id := policyGroup.GroupId
 		groupBuilder3 := group.StaticGroup(id).OfType(eType).WithEntities(policyGroup.Members)
-		groupDTO , err := groupBuilder3.Build()
+		groupDTO, err := groupBuilder3.Build()
 		if err != nil {
 			glog.Errorf("Error creating group dto  %s::%s", id, err)
 			continue
@@ -38,4 +38,3 @@ func (builder *groupDTOBuilder) BuildGroupDTOs() ([]*proto.GroupDTO, error) {
 
 	return result, nil
 }
-

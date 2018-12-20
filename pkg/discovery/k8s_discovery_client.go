@@ -148,7 +148,7 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 
 	discoveryResponse := &proto.DiscoveryResponse{
 		DiscoveredGroup: groupDTOs,
-		EntityDTO: newDiscoveryResultDTOs,
+		EntityDTO:       newDiscoveryResultDTOs,
 	}
 
 	newFrameworkDiscTime := time.Now().Sub(currentTime).Seconds()

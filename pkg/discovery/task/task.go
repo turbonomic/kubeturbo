@@ -120,7 +120,6 @@ func (r *TaskResult) WithQuotaMetrics(quotaMetrics []*repository.QuotaMetrics) *
 	return r
 }
 
-
 func (r *TaskResult) WithPolicyGroups(policyGroups map[string]*repository.PolicyGroup) *TaskResult {
 	r.policyGroups = policyGroups
 	return r
