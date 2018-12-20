@@ -262,7 +262,7 @@ func (worker *k8sDiscoveryWorker) createPolicyGroups(podList []*api.Pod) map[str
 		}
 		podId := string(pod.UID)
 		fmt.Printf("Pod %s::%s - adding to group %s\n", podKey, podId, ownerString)
-		memberList = append(memberList, podId)	//podKey
+		memberList = append(memberList, podId) //podKey
 		groupMembers[ownerString] = memberList
 	}
 
