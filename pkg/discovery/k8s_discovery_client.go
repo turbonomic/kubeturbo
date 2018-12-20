@@ -222,11 +222,12 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	policyGroupDiscoveryWorker := worker.Newk8sPolicyGroupDiscoveryWorker(clusterSummary)
 	groupDTOs, _ := policyGroupDiscoveryWorker.Do(policyGroupMap)
 
-	fmt.Printf("Created %d groups DTOs\n", len(groupDTOs))
-	for groupName, policyGroup := range policyGroupMap {
-		fmt.Printf("%s :: %d\n", groupName, len(policyGroup.Members))
+	glog.V(2).Infof("Created %d groups DTOs", len(groupDTOs))
+	if glog.V(3) {
+		for groupName, policyGroup := range policyGroupMap {
+			glog.Infof("%s contains %d members", groupName, len(policyGroup.Members))
+		}
 	}
-	fmt.Printf("\n")
 
 	return entityDTOs, groupDTOs, nil
 }

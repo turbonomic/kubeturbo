@@ -249,7 +249,6 @@ func (worker *k8sDiscoveryWorker) createPolicyGroups(podList []*api.Pod) map[str
 			continue
 		}
 		owner := ownerMetric.GetValue()
-		//fmt.Printf("Pod %s::%s - Owner %v\n", pod.Namespace, pod.Name, owner)
 		ownerString, ok := owner.(string)
 		if !ok || ownerString == "" {
 			glog.Errorf("Empty owner for pod %s::%s\n", pod.Namespace, pod.Name)
@@ -261,7 +260,7 @@ func (worker *k8sDiscoveryWorker) createPolicyGroups(podList []*api.Pod) map[str
 			memberList = []string{}
 		}
 		podId := string(pod.UID)
-		fmt.Printf("Pod %s::%s - adding to group %s\n", podKey, podId, ownerString)
+		//fmt.Printf("Pod %s::%s - adding to group %s\n", podKey, podId, ownerString)
 		memberList = append(memberList, podId) //podKey
 		groupMembers[ownerString] = memberList
 	}
