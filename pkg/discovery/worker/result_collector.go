@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"fmt"
 )
 
 type ResultCollector struct {
@@ -27,9 +28,10 @@ func (rc *ResultCollector) ResultPool() chan *task.TaskResult {
 	return rc.resultPool
 }
 
-func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository.QuotaMetrics) {
+func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository.QuotaMetrics, map[string]*repository.PolicyGroup) {
 	discoveryResult := []*proto.EntityDTO{}
 	quotaMetricsList := []*repository.QuotaMetrics{}
+	policyGroupMap := make(map[string]*repository.PolicyGroup)
 	discoveryErrorString := []string{}
 
 	glog.V(2).Infof("Waiting for results from %d workers.", count)
@@ -43,11 +45,25 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository
 			case <-stopChan:
 				return
 			case result := <-rc.resultPool:
+				fmt.Printf("[resultCollector] Processing results from %s\n", result.WorkerId())
 				if err := result.Err(); err != nil {
 					discoveryErrorString = append(discoveryErrorString, err.Error())
 				} else {
+					// Entity DTOs for pods, nodes, containers from different workers
 					discoveryResult = append(discoveryResult, result.Content()...)
+					// Quota metrics from different workers
 					quotaMetricsList = append(quotaMetricsList, result.QuotaMetrics()...)
+					// Combine members from different workers belonging to the same group
+					for groupName, policyGroup := range result.PolicyGroups() {
+						existingGroup, exists := policyGroupMap[groupName]
+						if exists {
+							//fmt.Printf("[resultCollector] %s - Adding members to group: %s\n", result.WorkerId(), groupName)
+							existingGroup.Members = append(existingGroup.Members, policyGroup.Members...)
+						} else {
+							//fmt.Printf("[resultCollector] %s - Creating new group: %s\n", result.WorkerId(), groupName)
+							policyGroupMap[groupName] = policyGroup
+						}
+					}
 				}
 				wg.Done()
 			}
@@ -62,5 +78,5 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository
 		glog.Errorf("One or more discovery worker failed: %s", strings.Join(discoveryErrorString, "\t\t"))
 	}
 
-	return discoveryResult, quotaMetricsList
+	return discoveryResult, quotaMetricsList, policyGroupMap
 }
