@@ -138,13 +138,9 @@ func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*pr
 func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*proto.DiscoveryResponse, error) {
 	currentTime := time.Now()
 	newDiscoveryResultDTOs, groupDTOs, err := dc.discoverWithNewFramework()
-	//_, groupDTOs, err := dc.discoverWithNewFramework()
 	if err != nil {
 		glog.Errorf("Failed to use the new framework to discover current Kubernetes cluster: %s", err)
 	}
-
-	var entityList []*proto.EntityDTO
-	entityList = append(entityList, newDiscoveryResultDTOs[0])
 
 	discoveryResponse := &proto.DiscoveryResponse{
 		DiscoveredGroup: groupDTOs,
