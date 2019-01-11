@@ -15,8 +15,6 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	api "k8s.io/api/core/v1"
 )
 
@@ -210,8 +208,9 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	worker.addPodAllocationMetrics(podMetricsCollection)
 	worker.addNodeAllocationMetrics(nodeMetricsCollection)
 
-	// Build PolicyGroups
-	policyGroups := worker.createPolicyGroups(currTask.PodList())
+	// Build Entity groups
+	groupsCollector := NewGroupMetricsCollector(worker, currTask)
+	entityGroups, _ := groupsCollector.CollectGroupMetrics()
 
 	// Build DTOs after getting the metrics
 	entityDTOs, err := worker.buildDTOs(currTask)
@@ -227,52 +226,10 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	if len(quotaMetricsCollection) > 0 {
 		result.WithQuotaMetrics(quotaMetricsCollection)
 	}
-	if len(policyGroups) > 0 {
-		result.WithPolicyGroups(policyGroups)
+	if len(entityGroups) > 0 {
+		result.WithEntityGroups(entityGroups)
 	}
 	return result
-}
-
-// =================================================================================================
-// Create PolicyGroup objects using the owner metric for the pods handled by this discovery worker
-func (worker *k8sDiscoveryWorker) createPolicyGroups(podList []*api.Pod) map[string]*repository.PolicyGroup {
-	etype := metrics.PodType
-	groupMembers := make(map[string][]string)
-	// Iterate over list of pods to get the owner metric for each
-	for _, pod := range podList {
-		podKey := util.PodKeyFunc(pod)
-		podOwnerMetricId := metrics.GenerateEntityStateMetricUID(etype, podKey, metrics.Owner)
-		ownerMetric, err := worker.sink.GetMetric(podOwnerMetricId)
-		if err != nil {
-			glog.Errorf("Error getting owner for pod %s::%s --> %v\n", pod.Namespace, pod.Name, err)
-			continue
-		}
-		owner := ownerMetric.GetValue()
-		ownerString, ok := owner.(string)
-		if !ok || ownerString == "" {
-			glog.Errorf("Empty owner for pod %s::%s\n", pod.Namespace, pod.Name)
-			continue
-		}
-		// Add pod to the member list for each owner group
-		memberList, exists := groupMembers[ownerString]
-		if !exists {
-			memberList = []string{}
-		}
-		podId := string(pod.UID)
-		//fmt.Printf("Pod %s::%s - adding to group %s\n", podKey, podId, ownerString)
-		memberList = append(memberList, podId) //podKey
-		groupMembers[ownerString] = memberList
-	}
-
-	policyGroups := make(map[string]*repository.PolicyGroup)
-	for groupName, memberList := range groupMembers {
-		policyGroup := &repository.PolicyGroup{
-			GroupId: groupName,
-			Members: memberList,
-		}
-		policyGroups[groupName] = policyGroup
-	}
-	return policyGroups
 }
 
 // =================================================================================================

@@ -28,8 +28,14 @@ type ClusterMonitor struct {
 	nodeList []*api.Node
 
 	nodePodMap map[string][]*api.Pod
+	podOwners  map[string]*PodOwner
 
 	stopCh chan struct{}
+}
+
+type PodOwner struct {
+	kind string
+	name string
 }
 
 func NewClusterMonitor(config *ClusterMonitorConfig) (*ClusterMonitor, error) {
@@ -38,6 +44,7 @@ func NewClusterMonitor(config *ClusterMonitorConfig) (*ClusterMonitor, error) {
 		config:        config,
 		clusterClient: config.clusterInfoScraper,
 		stopCh:        make(chan struct{}, 1),
+		podOwners:     make(map[string]*PodOwner),
 	}, nil
 }
 
@@ -200,34 +207,36 @@ func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapa
 
 	// Iterate over each pod
 	for _, pod := range podList {
-		// Pod capacity metric
-		m.genPodMetrics(pod, cpuCapacity, memCapacity)
-
+		key := util.PodKeyFunc(pod)
 		// Pod owners
-		m.genPodOwnerMetrics(pod)
+		podOwner, err := m.getPodOwner(pod)
+		if err == nil {
+			fmt.Printf("**** Created pod owner %v\n", podOwner)
+			m.podOwners[key] = podOwner
+		} else {
+			fmt.Printf("**** Error creating pod owner %v\n", pod.Name)
+		}
+
+		// Pod capacity metrics and Container resources metric
+		m.genPodMetrics(pod, cpuCapacity, memCapacity)
 	}
 
 	return nil
 }
 
-func (m *ClusterMonitor) genPodOwnerMetrics(pod *api.Pod) {
+func (m *ClusterMonitor) getPodOwner(pod *api.Pod) (*PodOwner, error) {
 	key := util.PodKeyFunc(pod)
 	glog.V(4).Infof("begin to generate pod[%s]'s Owner metric.", key)
 
-	kind, name, err := util.GetPodParentInfo(pod)
+	kind, parentName, err := util.GetPodParentInfo(pod)
 	if err != nil {
-		fmt.Printf("Error getting pod owner %v\n", err)
+		return nil, fmt.Errorf("Error getting pod owner: %v\n", err)
 	}
 
-	if name != "" && kind != "" {
-		groupName := fmt.Sprintf("%s::%s::%s", kind, name, pod.Namespace)
-		if groupName != "" {
-			ownerMetric := metrics.NewEntityStateMetric(metrics.PodType, key, metrics.Owner, groupName)
-			//fmt.Printf("%s : Adding owner metric: %v\n", pod.Name, ownerMetric.GetMetricProp())
-			m.sink.AddNewMetricEntries(ownerMetric)
-		}
+	if parentName == "" || kind == "" {
+		return nil, fmt.Errorf("Invalid pod owner %s::%s\n", kind, parentName)
 	}
-
+	return &PodOwner{kind: kind, name: parentName}, nil
 }
 
 // genPodMetrics: based on hosting Node's cpuCapacity and memCapacity
@@ -248,7 +257,16 @@ func (m *ClusterMonitor) genPodMetrics(pod *api.Pod, nodeCPUCapacity, nodeMemCap
 	//2. Reservation
 	//2.1 Container Capacity and Reservation
 	cpuRequest, memRequest := m.genContainerMetrics(pod, cpuCapacity, memCapacity)
+
+	// Pod CPU and Memory request metric
 	m.genReserveMetrics(metrics.PodType, podMId, cpuRequest, memRequest)
+
+	// Owner
+	//3. Owner
+	podOwner, exists := m.podOwners[key]
+	if exists && podOwner != nil {
+		m.genOwnerMetrics(metrics.PodType, key, podOwner.kind, podOwner.name)
+	}
 
 	return
 }
@@ -260,6 +278,7 @@ func (m *ClusterMonitor) genContainerMetrics(pod *api.Pod, podCPU, podMem float6
 	totalCPU := float64(0.0)
 	totalMem := float64(0.0)
 	podMId := util.PodMetricIdAPI(pod)
+	podKey := util.PodKeyFunc(pod)
 
 	for i := range pod.Spec.Containers {
 		container := &(pod.Spec.Containers[i])
@@ -289,9 +308,24 @@ func (m *ClusterMonitor) genContainerMetrics(pod *api.Pod, podCPU, podMem float6
 
 		totalCPU += cpuRequest
 		totalMem += memRequest
+
+		//3. Owner
+		podOwner, exists := m.podOwners[podKey]
+		if exists && podOwner != nil {
+			m.genOwnerMetrics(metrics.ContainerType, containerMId, podOwner.kind, podOwner.name)
+		}
 	}
 
 	return totalCPU, totalMem
+}
+
+func (m *ClusterMonitor) genOwnerMetrics(etype metrics.DiscoveredEntityType, key string, kind, parentName string) {
+	if parentName != "" && kind != "" {
+		ownerMetric := metrics.NewEntityStateMetric(etype, key, metrics.Owner, parentName)
+		ownerTypeMetric := metrics.NewEntityStateMetric(etype, key, metrics.OwnerType, kind)
+		m.sink.AddNewMetricEntries(ownerMetric)
+		m.sink.AddNewMetricEntries(ownerTypeMetric)
+	}
 }
 
 func (m *ClusterMonitor) genProvisionUsedMetrics(etype metrics.DiscoveredEntityType, key string, cpu, memory float64) {

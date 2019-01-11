@@ -28,10 +28,11 @@ func (rc *ResultCollector) ResultPool() chan *task.TaskResult {
 	return rc.resultPool
 }
 
-func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository.QuotaMetrics, map[string]*repository.PolicyGroup) {
+func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository.QuotaMetrics, []*repository.EntityGroup) {
+	//map[string]*repository.PolicyGroup) {
 	discoveryResult := []*proto.EntityDTO{}
 	quotaMetricsList := []*repository.QuotaMetrics{}
-	policyGroupMap := make(map[string]*repository.PolicyGroup)
+	entityGroupList := []*repository.EntityGroup{}
 	discoveryErrorString := []string{}
 
 	glog.V(2).Infof("Waiting for results from %d workers.", count)
@@ -53,17 +54,8 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository
 					discoveryResult = append(discoveryResult, result.Content()...)
 					// Quota metrics from different workers
 					quotaMetricsList = append(quotaMetricsList, result.QuotaMetrics()...)
-					// Combine members from different workers belonging to the same group
-					for groupName, policyGroup := range result.PolicyGroups() {
-						existingGroup, exists := policyGroupMap[groupName]
-						if exists {
-							//fmt.Printf("[resultCollector] %s - Adding members to group: %s\n", result.WorkerId(), groupName)
-							existingGroup.Members = append(existingGroup.Members, policyGroup.Members...)
-						} else {
-							//fmt.Printf("[resultCollector] %s - Creating new group: %s\n", result.WorkerId(), groupName)
-							policyGroupMap[groupName] = policyGroup
-						}
-					}
+					// Group data from different workers
+					entityGroupList = append(entityGroupList, result.EntityGroups()...)
 				}
 				wg.Done()
 			}
@@ -78,5 +70,5 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository
 		glog.Errorf("One or more discovery worker failed: %s", strings.Join(discoveryErrorString, "\t\t"))
 	}
 
-	return discoveryResult, quotaMetricsList, policyGroupMap
+	return discoveryResult, quotaMetricsList, entityGroupList
 }

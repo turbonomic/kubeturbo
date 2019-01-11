@@ -174,7 +174,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	dc.config.probeConfig.NodeClient.CleanupCache(nodes)
 
 	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
-	entityDTOs, quotaMetricsList, policyGroupMap := dc.resultCollector.Collect(workerCount)
+	entityDTOs, quotaMetricsList, policyGroupList := dc.resultCollector.Collect(workerCount)
 
 	// Quota discovery worker to create quota DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType
@@ -219,13 +219,16 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	glog.V(2).Infof("There are %d entityDTOs.", len(entityDTOs))
 
 	// Discovery worker for creating Group DTOs
-	policyGroupDiscoveryWorker := worker.Newk8sPolicyGroupDiscoveryWorker(clusterSummary)
-	groupDTOs, _ := policyGroupDiscoveryWorker.Do(policyGroupMap)
+	targetId := dc.config.targetConfig.TargetIdentifier
+	entityGroupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(clusterSummary, targetId)
+	groupDTOs, _ := entityGroupDiscoveryWorker.Do(policyGroupList)
 
-	glog.V(2).Infof("Created %d groups DTOs", len(groupDTOs))
+	glog.V(2).Infof("There are %d groups DTOs", len(groupDTOs))
 	if glog.V(3) {
-		for groupName, policyGroup := range policyGroupMap {
-			glog.Infof("%s contains %d members", groupName, len(policyGroup.Members))
+		for _, groupDto := range groupDTOs {
+			glog.Infof("%s::%s contains %d members",
+				groupDto.GetDisplayName(), groupDto.GetGroupName(),
+				len(groupDto.GetMemberList().Member))
 		}
 	}
 

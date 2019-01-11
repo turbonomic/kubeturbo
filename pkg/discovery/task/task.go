@@ -71,7 +71,7 @@ type TaskResult struct {
 	err          error
 	content      []*proto.EntityDTO
 	quotaMetrics []*repository.QuotaMetrics
-	policyGroups map[string]*repository.PolicyGroup
+	entityGroups []*repository.EntityGroup
 }
 
 func NewTaskResult(workerID string, state TaskResultState) *TaskResult {
@@ -97,8 +97,8 @@ func (r *TaskResult) QuotaMetrics() []*repository.QuotaMetrics {
 	return r.quotaMetrics
 }
 
-func (r *TaskResult) PolicyGroups() map[string]*repository.PolicyGroup {
-	return r.policyGroups
+func (r *TaskResult) EntityGroups() []*repository.EntityGroup {
+	return r.entityGroups
 }
 
 func (r *TaskResult) Err() error {
@@ -120,7 +120,7 @@ func (r *TaskResult) WithQuotaMetrics(quotaMetrics []*repository.QuotaMetrics) *
 	return r
 }
 
-func (r *TaskResult) WithPolicyGroups(policyGroups map[string]*repository.PolicyGroup) *TaskResult {
-	r.policyGroups = policyGroups
+func (r *TaskResult) WithEntityGroups(entityGroups []*repository.EntityGroup) *TaskResult {
+	r.entityGroups = entityGroups
 	return r
 }

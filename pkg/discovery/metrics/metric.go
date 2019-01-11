@@ -35,6 +35,7 @@ const (
 	Schedulable  ResourceType = "Schedulable"
 	CpuFrequency ResourceType = "CpuFrequency"
 	Owner        ResourceType = "Owner"
+	OwnerType    ResourceType = "OwnerType"
 )
 
 var (
