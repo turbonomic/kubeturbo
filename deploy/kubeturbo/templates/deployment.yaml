@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kubeturbo.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "kubeturbo.name" . }}
+    helm.sh/chart: {{ include "kubeturbo.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "kubeturbo.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        kubeturbo.io/controllable: "false"
+      labels:
+        app.kubernetes.io/name: {{ include "kubeturbo.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccount: turbo-user
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --turboconfig=/etc/kubeturbo/turbo.config
+            - --v={{ .Values.args.logginglevel }}
+          {{- if .Values.args.kubelethttps }}
+            - --kubelet-https={{ .Values.args.kubelethttps }}
+            - --kubelet-port={{ .Values.args.kubeletport }}
+          {{- end }}
+          {{- if not .Values.args.stitchuuid }}
+            - --stitch-uuid={{ .Values.args.stitchuuid }}
+          {{- end }}
+          {{- if .Values.args.pre16k8sVersion }}
+          - --k8sVersion=1.5
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 10265
+          volumeMounts:
+            - name: turbo-config-{{ .Release.Name }}
+              mountPath: /etc/kubeturbo
+              readOnly: true
+      volumes:
+      - name: turbo-config-{{ .Release.Name }}
+        configMap:
+          name: turbo-config-{{ .Release.Name }}
+      restartPolicy: Always

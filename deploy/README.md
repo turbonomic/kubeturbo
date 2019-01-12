@@ -1,6 +1,10 @@
 > NOTE: The user performing the steps to create a namespace, service account, and `cluster-admin` clusterrolebinding, will need to have cluster-admin role.
 
-Deploy the kubeturbo pod with the following resources:
+The kubeturbo pod can be easily deployed using a helm chart
+
+`helm install --name gke-cluster-control kubeturbo --namespace turbo --set serverMeta.turboServer=https://turboserver/ --set serverMeta.version=6.3.0 --set restAPIConfig.opsManagerUserName=turbouser --set restAPIConfig.opsManagerPassword=turbopassword`
+
+Or deploy the kubeturbo pod with the following resources:
 
 1. create a namespace
 
