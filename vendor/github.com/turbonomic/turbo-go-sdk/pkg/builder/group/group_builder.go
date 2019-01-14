@@ -24,7 +24,6 @@ type AbstractBuilder struct {
 	memberList       []string
 	matching         *Matching
 	consistentResize bool
-	//groupDTO *proto.GroupDTO
 	ec        *builder.ErrorCollector
 	groupType GroupType
 }

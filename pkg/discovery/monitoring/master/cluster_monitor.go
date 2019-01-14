@@ -233,7 +233,6 @@ func (m *ClusterMonitor) getPodOwner(pod *api.Pod) (*PodOwner, error) {
 	if parentName == "" || kind == "" {
 		return nil, fmt.Errorf("Invalid pod owner %s::%s\n", kind, parentName)
 	}
-
 	return &PodOwner{kind: kind, name: parentName}, nil
 }
 
