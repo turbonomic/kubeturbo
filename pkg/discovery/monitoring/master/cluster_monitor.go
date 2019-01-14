@@ -211,10 +211,7 @@ func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapa
 		// Pod owners
 		podOwner, err := m.getPodOwner(pod)
 		if err == nil {
-			fmt.Printf("**** Created pod owner %v\n", podOwner)
 			m.podOwners[key] = podOwner
-		} else {
-			fmt.Printf("**** Error creating pod owner %v\n", pod.Name)
 		}
 
 		// Pod capacity metrics and Container resources metric
@@ -228,7 +225,7 @@ func (m *ClusterMonitor) getPodOwner(pod *api.Pod) (*PodOwner, error) {
 	key := util.PodKeyFunc(pod)
 	glog.V(4).Infof("begin to generate pod[%s]'s Owner metric.", key)
 
-	kind, parentName, err := util.GetPodParentInfo(pod)
+	kind, parentName, err := util.GetPodGrandInfo(m.clusterClient.Clientset, pod)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting pod owner: %v\n", err)
 	}
@@ -236,6 +233,7 @@ func (m *ClusterMonitor) getPodOwner(pod *api.Pod) (*PodOwner, error) {
 	if parentName == "" || kind == "" {
 		return nil, fmt.Errorf("Invalid pod owner %s::%s\n", kind, parentName)
 	}
+
 	return &PodOwner{kind: kind, name: parentName}, nil
 }
 

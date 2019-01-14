@@ -173,11 +173,19 @@
 		},
 		{
 			"ImportPath": "github.com/prometheus/procfs",
-			"Rev": "65c1f6f8f0fc1e2185eb9863a3bc751496404259"
+			"Rev": "b1a0a9a36d7453ba0f62578b99712f3a6c5f82d1"
+		},
+		{
+			"ImportPath": "github.com/prometheus/procfs/internal/util",
+			"Rev": "b1a0a9a36d7453ba0f62578b99712f3a6c5f82d1"
+		},
+		{
+			"ImportPath": "github.com/prometheus/procfs/nfs",
+			"Rev": "b1a0a9a36d7453ba0f62578b99712f3a6c5f82d1"
 		},
 		{
 			"ImportPath": "github.com/prometheus/procfs/xfs",
-			"Rev": "65c1f6f8f0fc1e2185eb9863a3bc751496404259"
+			"Rev": "b1a0a9a36d7453ba0f62578b99712f3a6c5f82d1"
 		},
 		{
 			"ImportPath": "github.com/spf13/pflag",
@@ -201,52 +209,52 @@
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg",
-			"Comment": "v6.2-2-g168907f",
-			"Rev": "168907f81a613944720edf8cb1cfbe4ab5c994ca"
+			"Comment": "v6.2-4-gaed6fd0",
+			"Rev": "aed6fd002b6dd2442c9c3a83bc962b4b35087103"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/builder",
-			"Comment": "v6.2-2-g168907f",
-			"Rev": "168907f81a613944720edf8cb1cfbe4ab5c994ca"
+			"Comment": "v6.2-4-gaed6fd0",
+			"Rev": "aed6fd002b6dd2442c9c3a83bc962b4b35087103"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/builder/group",
-			"Comment": "v6.2-2-g168907f",
-			"Rev": "168907f81a613944720edf8cb1cfbe4ab5c994ca"
+			"Comment": "v6.2-4-gaed6fd0",
+			"Rev": "aed6fd002b6dd2442c9c3a83bc962b4b35087103"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/mediationcontainer",
-			"Comment": "v6.2-2-g168907f",
-			"Rev": "168907f81a613944720edf8cb1cfbe4ab5c994ca"
+			"Comment": "v6.2-4-gaed6fd0",
+			"Rev": "aed6fd002b6dd2442c9c3a83bc962b4b35087103"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/probe",
-			"Comment": "v6.2-2-g168907f",
-			"Rev": "168907f81a613944720edf8cb1cfbe4ab5c994ca"
+			"Comment": "v6.2-4-gaed6fd0",
+			"Rev": "aed6fd002b6dd2442c9c3a83bc962b4b35087103"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/proto",
-			"Comment": "v6.2-2-g168907f",
-			"Rev": "168907f81a613944720edf8cb1cfbe4ab5c994ca"
+			"Comment": "v6.2-4-gaed6fd0",
+			"Rev": "aed6fd002b6dd2442c9c3a83bc962b4b35087103"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/service",
-			"Comment": "v6.2-2-g168907f",
-			"Rev": "168907f81a613944720edf8cb1cfbe4ab5c994ca"
+			"Comment": "v6.2-4-gaed6fd0",
+			"Rev": "aed6fd002b6dd2442c9c3a83bc962b4b35087103"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/supplychain",
-			"Comment": "v6.2-2-g168907f",
-			"Rev": "168907f81a613944720edf8cb1cfbe4ab5c994ca"
+			"Comment": "v6.2-4-gaed6fd0",
+			"Rev": "aed6fd002b6dd2442c9c3a83bc962b4b35087103"
 		},
 		{
 			"ImportPath": "github.com/turbonomic/turbo-go-sdk/pkg/version",
-			"Comment": "v6.2-2-g168907f",
-			"Rev": "168907f81a613944720edf8cb1cfbe4ab5c994ca"
+			"Comment": "v6.2-4-gaed6fd0",
+			"Rev": "aed6fd002b6dd2442c9c3a83bc962b4b35087103"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/ssh/terminal",
-			"Rev": "e3636079e1a4c1f337f212cc5cd2aca108f6c900"
+			"Rev": "ff983b9c42bc9fbf91556e191cc8efb585c16908"
 		},
 		{
 			"ImportPath": "golang.org/x/net/http2",
@@ -266,35 +274,35 @@
 		},
 		{
 			"ImportPath": "golang.org/x/sys/unix",
-			"Rev": "af653ce8b74f808d092db8ca9741fbb63d2a469d"
+			"Rev": "2be51725563103c17124a318f1745b66f2347acb"
 		},
 		{
 			"ImportPath": "golang.org/x/sys/windows",
-			"Rev": "af653ce8b74f808d092db8ca9741fbb63d2a469d"
+			"Rev": "2be51725563103c17124a318f1745b66f2347acb"
 		},
 		{
 			"ImportPath": "golang.org/x/text/secure/bidirule",
-			"Comment": "v0.3.0-62-g905a571",
-			"Rev": "905a57155faa8230500121607930ebb9dd8e139c"
+			"Comment": "v0.3.0-69-ge6919f6",
+			"Rev": "e6919f6577db79269a6443b9dc46d18f2238fb5d"
 		},
 		{
 			"ImportPath": "golang.org/x/text/transform",
-			"Comment": "v0.3.0-62-g905a571",
-			"Rev": "905a57155faa8230500121607930ebb9dd8e139c"
+			"Comment": "v0.3.0-69-ge6919f6",
+			"Rev": "e6919f6577db79269a6443b9dc46d18f2238fb5d"
 		},
 		{
 			"ImportPath": "golang.org/x/text/unicode/bidi",
-			"Comment": "v0.3.0-62-g905a571",
-			"Rev": "905a57155faa8230500121607930ebb9dd8e139c"
+			"Comment": "v0.3.0-69-ge6919f6",
+			"Rev": "e6919f6577db79269a6443b9dc46d18f2238fb5d"
 		},
 		{
 			"ImportPath": "golang.org/x/text/unicode/norm",
-			"Comment": "v0.3.0-62-g905a571",
-			"Rev": "905a57155faa8230500121607930ebb9dd8e139c"
+			"Comment": "v0.3.0-69-ge6919f6",
+			"Rev": "e6919f6577db79269a6443b9dc46d18f2238fb5d"
 		},
 		{
 			"ImportPath": "golang.org/x/time/rate",
-			"Rev": "fbb02b2291d28baffd63558aa44b4b56f178d650"
+			"Rev": "85acf8d2951cb2a3bde7632f9ff273ef0379bcbd"
 		},
 		{
 			"ImportPath": "gopkg.in/inf.v0",

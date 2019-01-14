@@ -16,6 +16,12 @@ type groupDTOBuilder struct {
 	targetId       string
 }
 
+var (
+	CONSISTENT_RESIZE_GROUPS = map[string]bool{
+		"StatefulSet": true,
+	}
+)
+
 // New instance of groupDTOBuilder.
 // Input parameters are map of discovered EntityGroup instances and
 // the target identifier of the kubeturbo probe.
@@ -65,59 +71,31 @@ func (builder *groupDTOBuilder) BuildGroupDTOs() ([]*proto.GroupDTO, error) {
 			groupBuilder := group.StaticGroup(id).
 				OfType(protoType).
 				WithEntities(memberList)
+
+			// group display name
+			displayName := fmt.Sprintf("%ss By %s [%s]",
+				etype, entityGroup.GroupId, builder.targetId)
+			groupBuilder.WithDisplayName(displayName)
+
+			// group resize policy - currently only for stateful sets
+			_, exists := CONSISTENT_RESIZE_GROUPS[entityGroup.ParentKind]
+			if exists && entityGroup.ParentName != "" {
+				glog.V(3).Infof("%s: set group to resize consistently\n", entityGroup.GroupId)
+				groupBuilder.ResizeConsistently()
+			}
+
+			// build group
 			groupDTO, err := groupBuilder.Build()
 			if err != nil {
 				glog.Errorf("Error creating group dto  %s::%s", id, err)
 				continue
 			}
 
-			displayName := fmt.Sprintf("%ss By %s [%s]",
-				etype, entityGroup.GroupId, builder.targetId)
-			groupDTO.DisplayName = &displayName
 			result = append(result, groupDTO)
 
 			glog.V(4).Infof("groupDTO  : %++v", groupDTO)
 		}
 	}
-
-	//podByOwner := make(map[string][]string)
-	//containerByOwner := make(map[string][]string)
-	//// Groups per parent type
-	//for _, entityGroup := range builder.entityGroupMap {
-	//	podMembers, hasPods := entityGroup.Members[metrics.PodType]
-	//	if hasPods {
-	//		podByOwner[entityGroup.ParentKind] =
-	//			append(podByOwner[entityGroup.ParentKind], podMembers...)
-	//	}
-	//
-	//	containerMembers, hasContainers := entityGroup.Members[metrics.ContainerType]
-	//	if hasContainers {
-	//		containerByOwner[entityGroup.ParentKind] =
-	//			append(containerByOwner[entityGroup.ParentKind], containerMembers...)
-	//	}
-	//}
-	//
-	//for ownerType, podList := range podByOwner {
-	//	// group Id - using parent type and target identifier
-	//	id := fmt.Sprintf("%s-%s[%s]", ownerType, builder.targetId, metrics.PodType)
-	//
-	//	//groupDTO.
-	//	groupBuilder := group.StaticGroup(id).
-	//		OfType(proto.EntityDTO_CONTAINER_POD).
-	//		WithEntities(podList)
-	//	groupDTO, err := groupBuilder.Build()
-	//	if err != nil {
-	//		glog.Errorf("Error creating group dto  %s::%s", id, err)
-	//		continue
-	//	}
-	//
-	//	displayName := fmt.Sprintf("Pods By %s [%s]", ownerType, builder.targetId)
-	//	groupDTO.DisplayName = &displayName
-	//	result = append(result, groupDTO)
-	//
-	//	glog.V(4).Infof("Pods By owner groupDTO  : %++v", groupDTO)
-	//	//fmt.Printf("*** Pod By Owner groupDTO  : %++v\n", groupDTO)
-	//}
 
 	return result, nil
 }
