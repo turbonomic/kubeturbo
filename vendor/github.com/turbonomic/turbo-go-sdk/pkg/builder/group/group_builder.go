@@ -18,11 +18,12 @@ const (
 
 // Builder for creating a GroupDTO
 type AbstractBuilder struct {
-	groupId       string
-	entityTypePtr *proto.EntityDTO_EntityType
-	memberList    []string
-	matching      *Matching
-	//groupDTO *proto.GroupDTO
+	groupId          string
+	displayName      string
+	entityTypePtr    *proto.EntityDTO_EntityType
+	memberList       []string
+	matching         *Matching
+	consistentResize bool
 	ec        *builder.ErrorCollector
 	groupType GroupType
 }
@@ -31,9 +32,10 @@ type AbstractBuilder struct {
 // Specify the group id and if the group is static or dynamic.
 func newAbstractBuilder(id string, groupType GroupType) *AbstractBuilder {
 	groupBuilder := &AbstractBuilder{
-		groupType: groupType,
-		groupId:   id,
-		ec:        new(builder.ErrorCollector),
+		groupType:        groupType,
+		groupId:          id,
+		ec:               new(builder.ErrorCollector),
+		consistentResize: false,
 	}
 	return groupBuilder
 }
@@ -64,6 +66,10 @@ func (groupBuilder *AbstractBuilder) Build() (*proto.GroupDTO, error) {
 		Info:        groupId,
 	}
 
+	if groupBuilder.displayName != "" {
+		groupDTO.DisplayName = &groupBuilder.displayName
+	}
+
 	err := groupBuilder.setupEntityType(groupDTO)
 	if err != nil {
 		groupBuilder.ec.Collect(err)
@@ -81,12 +87,24 @@ func (groupBuilder *AbstractBuilder) Build() (*proto.GroupDTO, error) {
 		}
 	}
 
+	groupDTO.IsConsistentResizing = &groupBuilder.consistentResize
+
 	if groupBuilder.ec.Count() > 0 {
 		glog.Errorf("GroupBuilder Error %s : %s\n", groupBuilder.groupId, groupBuilder.ec.Error())
 		return nil, fmt.Errorf("%s: %s", groupBuilder.groupId, groupBuilder.ec.Error())
 	}
 
 	return groupDTO, nil
+}
+
+func (groupBuilder *AbstractBuilder) WithDisplayName(displayName string) *AbstractBuilder {
+	if displayName == "" {
+		return groupBuilder
+	}
+	// Setup entity type
+	groupBuilder.displayName = displayName
+
+	return groupBuilder
 }
 
 // Set the entity type for the members of the group.
@@ -188,4 +206,9 @@ func (groupBuilder *AbstractBuilder) setUpDynamicGroup(groupDTO *proto.GroupDTO)
 	}
 	groupDTO.Members = selectionSpecList_
 	return nil
+}
+
+func (groupBuilder *AbstractBuilder) ResizeConsistently() *AbstractBuilder {
+	groupBuilder.consistentResize = true
+	return groupBuilder
 }

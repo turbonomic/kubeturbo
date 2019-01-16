@@ -87,7 +87,7 @@ func (collector *GroupMetricsCollector) CollectGroupMetrics() ([]*repository.Ent
 				}
 			}
 			entityGroupList = append(entityGroupList, entityGroup)
-			glog.V(1).Infof("[discovery_worker] created group --> %++v\n", entityGroup.GroupId)
+			glog.V(4).Infof("[discovery_worker] created group --> %++v\n", entityGroup.GroupId)
 		}
 	}
 
@@ -98,7 +98,7 @@ func (collector *GroupMetricsCollector) CollectGroupMetrics() ([]*repository.Ent
 			entityGroup.AddMember(metrics.PodType, pod)
 		}
 		entityGroupList = append(entityGroupList, entityGroup)
-		glog.V(1).Infof("[discovery_worker] created group --> %++v\n", entityGroup.GroupId)
+		glog.V(4).Infof("[discovery_worker] created group --> %++v\n", entityGroup.GroupId)
 	}
 	return entityGroupList, nil
 }
