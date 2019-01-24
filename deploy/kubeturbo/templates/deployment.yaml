@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "kubeturbo.name" . }}
@@ -44,11 +44,15 @@ spec:
               path: /healthz
               port: 10265
           volumeMounts:
-            - name: turbo-config-{{ .Release.Name }}
-              mountPath: /etc/kubeturbo
-              readOnly: true
+          - name: turbo-config-{{ .Release.Name }}
+            mountPath: /etc/kubeturbo
+            readOnly: true
+          - name: varlog
+            mountPath: /var/log
       volumes:
-      - name: turbo-config-{{ .Release.Name }}
+      - name: turbo-volume-{{ .Release.Name }}
         configMap:
           name: turbo-config-{{ .Release.Name }}
+      - name: varlog
+        emptyDir: {}
       restartPolicy: Always

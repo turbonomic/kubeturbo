@@ -2,8 +2,6 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 1
-
 # Replace the image with desired version
 image:
   repository: vmturbo/kubeturbo
@@ -19,6 +17,7 @@ serverMeta:
   turboServer: https://Turbo_server_URL
 
 # Turbo server api user and password
+# The opsManagerUserName requires Turbo administrator role
 restAPIConfig:
   opsManagerUserName: Turbo_username
   opsManagerPassword: Turbo_password
