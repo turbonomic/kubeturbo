@@ -9,11 +9,12 @@ import (
 
 const (
 	// TODO currently in the server side only properties in "DEFAULT" namespaces are respected. Ideally we should use "Kubernetes-Pod".
-	k8sPropertyNamespace = "DEFAULT"
-	k8sNamespace         = "KubernetesNamespace"
-	k8sPodName           = "KubernetesPodName"
-	k8sNodeName          = "KubernetesNodeName"
-	k8sContainerIndex    = "Kubernetes-Container-Index"
+	k8sPropertyNamespace    = "DEFAULT"
+	VCTagsPropertyNamespace = "VCTAGS"
+	k8sNamespace            = "KubernetesNamespace"
+	k8sPodName              = "KubernetesPodName"
+	k8sNodeName             = "KubernetesNodeName"
+	k8sContainerIndex       = "Kubernetes-Container-Index"
 )
 
 // Build entity properties of a pod. The properties are consisted of name and namespace of a pod.
@@ -37,6 +38,19 @@ func BuildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
 		Value:     &podNamePropertyValue,
 	}
 	properties = append(properties, nameProperty)
+
+	tagsPropertyNamespace := VCTagsPropertyNamespace
+	labels := pod.GetLabels()
+	for label, lval := range labels {
+		tagNamePropertyName := label
+		tagNamePropertyValue := lval
+		tagProperty := &proto.EntityDTO_EntityProperty{
+			Namespace: &tagsPropertyNamespace,
+			Name:      &tagNamePropertyName,
+			Value:     &tagNamePropertyValue,
+		}
+		properties = append(properties, tagProperty)
+	}
 
 	return properties
 }

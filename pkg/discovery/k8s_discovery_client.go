@@ -137,13 +137,14 @@ func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*pr
 // This is a part of the interface that gets registered with and is invoked asynchronously by the GO SDK Probe.
 func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*proto.DiscoveryResponse, error) {
 	currentTime := time.Now()
-	newDiscoveryResultDTOs, err := dc.discoverWithNewFramework()
+	newDiscoveryResultDTOs, groupDTOs, err := dc.discoverWithNewFramework()
 	if err != nil {
 		glog.Errorf("Failed to use the new framework to discover current Kubernetes cluster: %s", err)
 	}
 
 	discoveryResponse := &proto.DiscoveryResponse{
-		EntityDTO: newDiscoveryResultDTOs,
+		DiscoveredGroup: groupDTOs,
+		EntityDTO:       newDiscoveryResultDTOs,
 	}
 
 	newFrameworkDiscTime := time.Now().Sub(currentTime).Seconds()
@@ -155,11 +156,11 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 /*
 	The actual discovery work is done here.
 */
-func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, error) {
+func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []*proto.GroupDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES AND QUOTAS HERE
 	kubeCluster, err := dc.clusterProcessor.DiscoverCluster()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to process cluster: %s", err)
+		return nil, nil, fmt.Errorf("Failed to process cluster: %s", err)
 	}
 	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 
@@ -169,7 +170,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 	dc.config.probeConfig.NodeClient.CleanupCache(nodes)
 
 	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
-	entityDTOs, quotaMetricsList := dc.resultCollector.Collect(workerCount)
+	entityDTOs, quotaMetricsList, policyGroupList := dc.resultCollector.Collect(workerCount)
 
 	// Quota discovery worker to create quota DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType
@@ -213,5 +214,19 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, er
 
 	glog.V(2).Infof("There are %d entityDTOs.", len(entityDTOs))
 
-	return entityDTOs, nil
+	// Discovery worker for creating Group DTOs
+	targetId := dc.config.targetConfig.TargetIdentifier
+	entityGroupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(clusterSummary, targetId)
+	groupDTOs, _ := entityGroupDiscoveryWorker.Do(policyGroupList)
+
+	glog.V(2).Infof("There are %d groups DTOs", len(groupDTOs))
+	if glog.V(3) {
+		for _, groupDto := range groupDTOs {
+			glog.Infof("%s::%s contains %d members",
+				groupDto.GetDisplayName(), groupDto.GetGroupName(),
+				len(groupDto.GetMemberList().Member))
+		}
+	}
+
+	return entityDTOs, groupDTOs, nil
 }

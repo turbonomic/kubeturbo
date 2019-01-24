@@ -208,6 +208,10 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	worker.addPodAllocationMetrics(podMetricsCollection)
 	worker.addNodeAllocationMetrics(nodeMetricsCollection)
 
+	// Build Entity groups
+	groupsCollector := NewGroupMetricsCollector(worker, currTask)
+	entityGroups, _ := groupsCollector.CollectGroupMetrics()
+
 	// Build DTOs after getting the metrics
 	entityDTOs, err := worker.buildDTOs(currTask)
 	if err != nil {
@@ -215,10 +219,15 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	}
 	// Uncomment this to dump the topology to a file for later use by the unit tests
 	// util.DumpTopology(currTask, "test-topology.dat")
+
+	// Task result with node and pod resource metrics, quota metrics and policy groups
 	result := task.NewTaskResult(worker.id, task.TaskSucceeded).WithContent(entityDTOs)
 	// return the quota metrics created by this worker
 	if len(quotaMetricsCollection) > 0 {
 		result.WithQuotaMetrics(quotaMetricsCollection)
+	}
+	if len(entityGroups) > 0 {
+		result.WithEntityGroups(entityGroups)
 	}
 	return result
 }
@@ -323,7 +332,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	result = append(result, podEntityDTOs...)
 	glog.V(3).Infof("Worker %s builds %d pod entityDTOs.", worker.id, len(podEntityDTOs))
 
-	// Filster out pods that build DTO failed so
+	// Filter out pods that build DTO failed so
 	// building container and app DTOs will not include them
 	pods = excludeFailedPods(pods, podEntityDTOs)
 
