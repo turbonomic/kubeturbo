@@ -7,12 +7,12 @@ data:
     {
         "communicationConfig": {
             "serverMeta": {
-                "version": {{ .Values.serverMeta.version }},
-                "turboServer": "{{ .Values.serverMeta.turboServer }}
+                "version": "{{ .Values.serverMeta.version }}",
+                "turboServer": "{{ .Values.serverMeta.turboServer }}"
             },
             "restAPIConfig": {
-                "opsManagerUserName": {{ .Values.restAPIConfig.opsManagerUserName }},
-                "opsManagerPassword": {{ .Values.restAPIConfig.opsManagerPassword }}
+                "opsManagerUserName": "{{ .Values.restAPIConfig.opsManagerUserName }}",
+                "opsManagerPassword": "{{ .Values.restAPIConfig.opsManagerPassword }}"
             }
         }
     }

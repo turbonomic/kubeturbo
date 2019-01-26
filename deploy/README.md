@@ -2,7 +2,7 @@
 
 The kubeturbo pod can be easily deployed using a helm chart
 
-`helm install --name gke-cluster-control kubeturbo --namespace turbo --set serverMeta.turboServer=https://turboserver/ --set serverMeta.version=6.3.0 --set restAPIConfig.opsManagerUserName=turbouser --set restAPIConfig.opsManagerPassword=turbopassword`
+`helm install --name gke-cluster-control kubeturbo --namespace turbonomic --set serverMeta.turboServer=https://35.243.208.127/ --set serverMeta.version=6.4.0-SNAPSHOT --set restAPIConfig.opsManagerUserName=api --set restAPIConfig.opsManagerPassword=Sysdreamworks123`
 
 Or deploy the kubeturbo pod with the following resources:
 

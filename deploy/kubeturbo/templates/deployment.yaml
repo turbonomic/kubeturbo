@@ -44,7 +44,7 @@ spec:
               path: /healthz
               port: 10265
           volumeMounts:
-          - name: turbo-config-{{ .Release.Name }}
+          - name: turbo-volume-{{ .Release.Name }}
             mountPath: /etc/kubeturbo
             readOnly: true
           - name: varlog
