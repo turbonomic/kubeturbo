@@ -39,10 +39,6 @@ spec:
           {{- if .Values.args.pre16k8sVersion }}
           - --k8sVersion=1.5
           {{- end }}
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: 10265
           volumeMounts:
           - name: turbo-volume-{{ .Release.Name }}
             mountPath: /etc/kubeturbo
