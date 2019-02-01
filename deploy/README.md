@@ -107,11 +107,11 @@ spec:
             # Uncomment the following arg if using IP for stitching
             #- --stitch-uuid=false
           volumeMounts:
-          - name: turbo-config
+          - name: turbo-volume
             mountPath: /etc/kubeturbo
             readOnly: true
       volumes:
-      - name: turbo-config
+      - name: turbo-volume
         configMap:
           name: turbo-config
       restartPolicy: Always
