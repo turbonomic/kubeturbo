@@ -14,5 +14,8 @@ data:
                 "opsManagerUserName": "{{ .Values.restAPIConfig.opsManagerUserName }}",
                 "opsManagerPassword": "{{ .Values.restAPIConfig.opsManagerPassword }}"
             }
+        },
+        "targetConfig": {
+            "targetName": "{{ .Values.targetConfig.targetName }}"
         }
     }
