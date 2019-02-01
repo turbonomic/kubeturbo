@@ -34,6 +34,8 @@ const (
 	Cluster      ResourceType = "Cluster"
 	Schedulable  ResourceType = "Schedulable"
 	CpuFrequency ResourceType = "CpuFrequency"
+	Owner        ResourceType = "Owner"
+	OwnerType    ResourceType = "OwnerType"
 )
 
 var (
@@ -189,6 +191,12 @@ type EntityStateMetric struct {
 	resourceType ResourceType
 	value        interface{}
 	metricProp   MetricProp
+}
+
+type StateMetric struct {
+	resourceType ResourceType
+	metricProp   MetricProp
+	value        interface{}
 }
 
 func NewEntityStateMetric(eType DiscoveredEntityType, id string, rType ResourceType, v interface{}) EntityStateMetric {

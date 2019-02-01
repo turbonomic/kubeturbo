@@ -16,11 +16,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 )
 
-const (
-	defaultTransactionCapacity float64 = 20.0
-	defaultRespTimeCapacity    float64 = 500.0
-)
-
 var (
 	applicationResourceCommoditySold = []metrics.ResourceType{
 		metrics.Transaction,
@@ -104,8 +99,10 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]
 			ebuilder.WithProperties(properties)
 
 			truep := true
+			controllable := util.Controllable(pod)
 			ebuilder.ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
 				ProviderMustClone: &truep,
+				Controllable:      &controllable,
 			})
 
 			appType := util.GetAppType(pod)
@@ -135,8 +132,7 @@ func getCommoditiesSold(pod *api.Pod, index int) ([]*proto.CommodityDTO, error) 
 
 	key := getAppStitchingProperty(pod, index)
 
-	ebuilder := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).Key(key).
-		Capacity(defaultTransactionCapacity)
+	ebuilder := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).Key(key)
 
 	tranCommodity, err := ebuilder.Create()
 	if err != nil {
@@ -145,8 +141,7 @@ func getCommoditiesSold(pod *api.Pod, index int) ([]*proto.CommodityDTO, error) 
 	}
 	result = append(result, tranCommodity)
 
-	ebuilder = sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_RESPONSE_TIME).Key(key).
-		Capacity(defaultRespTimeCapacity)
+	ebuilder = sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_RESPONSE_TIME).Key(key)
 
 	respCommodity, err := ebuilder.Create()
 	if err != nil {

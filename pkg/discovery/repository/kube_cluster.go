@@ -90,6 +90,18 @@ func (kubeCluster *KubeCluster) computeClusterResources() {
 	kubeCluster.ComputeResources = computeResources
 }
 
+func (cluster *KubeCluster) GetKubeNode(nodeName string) *KubeNode {
+	return cluster.Nodes[nodeName]
+}
+
+func (cluster *KubeCluster) GetQuota(namespace string) *KubeQuota {
+	kubeNamespace, exists := cluster.Namespaces[namespace]
+	if !exists {
+		return nil
+	}
+	return kubeNamespace.Quota
+}
+
 // Summary object to get the nodes, quotas and namespaces in the cluster
 type ClusterSummary struct {
 	*KubeCluster
@@ -138,18 +150,6 @@ func (getter *ClusterSummary) computeQuotaMap() {
 		}
 	}
 	return
-}
-
-func (cluster *KubeCluster) GetKubeNode(nodeName string) *KubeNode {
-	return cluster.Nodes[nodeName]
-}
-
-func (cluster *KubeCluster) GetQuota(namespace string) *KubeQuota {
-	kubeNamespace, exists := cluster.Namespaces[namespace]
-	if !exists {
-		return nil
-	}
-	return kubeNamespace.Quota
 }
 
 // =================================================================================================
