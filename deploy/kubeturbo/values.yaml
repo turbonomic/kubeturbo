@@ -22,7 +22,6 @@ restAPIConfig:
   opsManagerUserName: Turbo_username
   opsManagerPassword: Turbo_password
 
-# Create a unique identifier per k8s cluster
 targetConfig:
   targetName: Your_k8s_cluster
 

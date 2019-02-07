@@ -14,9 +14,12 @@ data:
                 "opsManagerUserName": "{{ .Values.restAPIConfig.opsManagerUserName }}",
                 "opsManagerPassword": "{{ .Values.restAPIConfig.opsManagerPassword }}"
             }
+        {{- if and .Values.targetConfig.targetName (eq .Values.targetConfig.targetName "Your_k8s_cluster") }}
+        }
+        {{- else }}
         },
-        {{- if .Values.targetConfig {{-f if .Values.targetConfig.targetName }} }}
         "targetConfig": {
             "targetName": "{{ .Values.targetConfig.targetName }}"
         }
+        {{- end }}
     }
