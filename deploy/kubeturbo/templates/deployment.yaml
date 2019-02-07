@@ -40,13 +40,13 @@ spec:
           - --k8sVersion=1.5
           {{- end }}
           volumeMounts:
-          - name: turbo-volume-{{ .Release.Name }}
+          - name: turbo-volume
             mountPath: /etc/kubeturbo
             readOnly: true
           - name: varlog
             mountPath: /var/log
       volumes:
-      - name: turbo-volume-{{ .Release.Name }}
+      - name: turbo-volume
         configMap:
           name: turbo-config-{{ .Release.Name }}
       - name: varlog

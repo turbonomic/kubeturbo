@@ -22,11 +22,14 @@ restAPIConfig:
   opsManagerUserName: Turbo_username
   opsManagerPassword: Turbo_password
 
+targetConfig:
+  targetName: Your_k8s_cluster
+
 args:
   # logging level
   logginglevel: 2
-  # If running in Openshift or k8s 12.x and higher use https port for kubelet
-  kubelethttps: false
+  # If running on k8s 1.10.x or older, set https to false and change port 10255 for kubelet
+  kubelethttps: true
   kubeletport: 10250
   # set to false if using IP for stitching
   stitchuuid: true
