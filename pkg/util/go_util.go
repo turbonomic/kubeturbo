@@ -2,13 +2,14 @@ package util
 
 import (
 	"fmt"
-	"github.com/golang/glog"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/golang/glog"
 )
 
-//compare two version strings, for example:
+// CompareVersion compares two version strings, for example:
 // v1: "1.4.9",  v2: "1.5", then return -1
 // v1: "1.5.0", v2: "1.5", then return 0
 func CompareVersion(version1, version2 string) int {
@@ -45,7 +46,7 @@ func CompareVersion(version1, version2 string) int {
 	return 0
 }
 
-//retry to execute a function with a timeout
+// RetryDuring executes a function with retries and a timeout
 func RetryDuring(attempts int, timeout time.Duration, sleep time.Duration, myfunc func() error) error {
 	t0 := time.Now()
 
@@ -79,7 +80,7 @@ func RetryDuring(attempts int, timeout time.Duration, sleep time.Duration, myfun
 	return err
 }
 
-//retry to execute a function with a timeout
+//RetrySimple executes a function with retries and a timeout
 func RetrySimple(attempts int, timeout, sleep time.Duration, myfunc func() (bool, error)) error {
 	t0 := time.Now()
 
@@ -97,8 +98,7 @@ func RetrySimple(attempts int, timeout, sleep time.Duration, myfunc func() (bool
 
 		if timeout > 0 {
 			if delta := time.Now().Sub(t0); delta > timeout {
-				err = fmt.Errorf("failed after %d attepmts (during %v) last error: %v", i+1, delta, err)
-				glog.Error(err)
+				glog.Errorf("Failed after %d attepmts (during %v) last error: %v", i+1, delta, err)
 				return err
 			}
 		}
@@ -108,7 +108,6 @@ func RetrySimple(attempts int, timeout, sleep time.Duration, myfunc func() (bool
 		}
 	}
 
-	err = fmt.Errorf("failed after %d attepmts, last error: %v", attempts, err)
-	glog.Error(err)
+	glog.Errorf("Failed after %d attepmts, last error: %v", attempts, err)
 	return err
 }
