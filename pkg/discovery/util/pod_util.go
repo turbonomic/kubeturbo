@@ -399,17 +399,17 @@ func getPodEvents(kubeClient *client.Clientset, namespace, name string) (podEven
 	if err != nil {
 		return
 	}
-	// Get all events
-	events, err := kubeClient.CoreV1().Events(namespace).List(metav1.ListOptions{})
+	// Get events that belong to the given pod
+	events, err := kubeClient.CoreV1().Events(namespace).List(metav1.ListOptions{
+		FieldSelector: "involvedObject.uid=" + string(pod.UID),
+	})
 	if err != nil {
 		return
 	}
-	// Filter out the events that belong to the given pod and remove duplicates
+	// Remove duplicates and create podEvents
 	visited := make(map[string]bool, 0)
 	for _, item := range events.Items {
-		if namespace != item.ObjectMeta.Namespace ||
-			pod.UID != item.InvolvedObject.UID ||
-			visited[item.Reason] {
+		if visited[item.Reason] {
 			continue
 		}
 		visited[item.Reason] = true
