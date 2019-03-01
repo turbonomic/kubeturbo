@@ -25,16 +25,6 @@ type K8sTargetConfig struct {
 	TargetAddress string `json:"address,omitempty"`
 }
 
-func NewK8sTargetConfig(probeCategory, targetType, id, username, password string) *K8sTargetConfig {
-	return &K8sTargetConfig{
-		ProbeCategory:    probeCategory,
-		TargetType:       targetType,
-		TargetIdentifier: id,
-		TargetUsername:   username,
-		TargetPassword:   password,
-	}
-}
-
 func (config *K8sTargetConfig) ValidateK8sTargetConfig() error {
 	if config.TargetIdentifier == "" {
 		if config.TargetAddress != "" { // TODO: Remove it when backward compatibility is not needed

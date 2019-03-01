@@ -4,6 +4,7 @@ import (
 	k8sapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 
@@ -14,12 +15,17 @@ import (
 	"testing"
 )
 
-func createPod() *k8sapi.Pod {
+// Optional argument: namespace
+func createPod(name string, args ...string) *k8sapi.Pod {
+	ns := append(args, "") // Add default values
 	pod := &k8sapi.Pod{}
 	pod.Kind = "Pod"
 	pod.APIVersion = "v1"
-	pod.Name = "my-pod-1"
-	pod.UID = "my-pod-1-UID"
+	pod.SetName(name)
+	pod.SetUID(types.UID(name + "-UID"))
+	if ns[0] != "" {
+		pod.SetNamespace(ns[0])
+	}
 
 	return pod
 }
@@ -89,7 +95,7 @@ func checkObject(obj interface{}, t *testing.T) {
 }
 
 func TestIsMonitoredFromAnnotation_Pod(t *testing.T) {
-	pod := createPod()
+	pod := createPod("my-pod-1")
 
 	if !IsControllableFromAnnotation(pod.GetAnnotations()) {
 		t.Error("Pod without annotation should be controllable.")
