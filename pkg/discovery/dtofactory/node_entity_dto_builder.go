@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	accessCommodityDefaultCapacity  = 1E10
-	clusterCommodityDefaultCapacity = 1E10
+	accessCommodityDefaultCapacity  = 1e10
+	clusterCommodityDefaultCapacity = 1e10
 
 	schedAccessCommodityKey string = "schedulable"
 )

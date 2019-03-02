@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	applicationCommodityDefaultCapacity = 1E10
+	applicationCommodityDefaultCapacity = 1e10
 )
 
 var (
