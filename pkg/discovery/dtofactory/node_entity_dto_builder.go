@@ -100,7 +100,6 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 			nodeActive = false
 		}
 
-		// Master nodes are not suspendable
 		controllable := util.NodeIsControllable(node)
 		entityDTOBuilder = entityDTOBuilder.ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
 			Controllable: &controllable,

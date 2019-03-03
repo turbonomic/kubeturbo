@@ -46,8 +46,7 @@ func IsControllableFromAnnotation(annotations map[string]string) bool {
 }
 
 // Returns a boolean that indicates whether the given pod is a daemon pod.  A daemon pod
-// is a pod that resides in a system namespace or was created by a DaemonSet.  These pods
-// are not suspendable, clonable, or movable, and they are not considered when counting
+// is not suspendable, clonable, or movable, and is not considered when counting
 // customers of a supplier when checking whether the supplier can suspend.
 func Daemon(pod *api.Pod) bool {
 	return isPodCreatedBy(pod, Kind_DaemonSet) || detectors.IsDaemonDetected(pod.Name, pod.Namespace)
