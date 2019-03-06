@@ -41,7 +41,7 @@ targetConfig.targetName|none if not specified|optional but required for multiple
 args.logginglevel|2|optional|number
 args.kubelethttps|true|optional, change to false if k8s 1.10 or older|bolean
 args.kubeletport|10250|optional, change to 10255 if k8s 1.10 or older|number
-args.stitchuuid|true|optional, change to false if IaaS is VMM, Hyper-V)|bolean
+args.stitchuuid|true|optional, change to false if IaaS is VMM, Hyper-V|bolean
 
 #### Updating Turbo Server
 When you update the Turbonomic or CWOM Server, you will need to update the configMap resource to reflect the new version.

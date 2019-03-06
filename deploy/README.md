@@ -6,7 +6,7 @@ The kubeturbo pod can be easily deployed one of 2 ways:
 
 This document describes common prerequisites, and an overview of each method.  Details will be in the directories. 
 
-###### Prerequisites
+#### Prerequisites
 
 * OpenShift release 3.4 or higher, kubernetes version 1.8 or higher including any k8s upstream compliant distribution
 * Turbonomic Server version 5.9 or higher is installed, running, and the following information:
@@ -28,14 +28,14 @@ This document describes common prerequisites, and an overview of each method.  D
 
 ![turboNetwork_anyIAASanyK8S.png](https://github.com/evat-pm/images/blob/master/turboNetwork_anyIAASanyK8S.png)
 
-###### Helm Chart
+#### Helm Chart
 
 Helm charts are an easy way to deploy and update kubeturbo.  We provide you a helm chart that you can download locally, and install specifying a few parameters.
 
 For more details go to [HELM_README.md](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo_helm/HELM_README.md) under kubeturbo/deploy/kubeturbo_helm/
 
 
-###### Deploy with YAMLs
+#### Deploy with YAMLs
 
 You can deploy the kubeturbo pod using yamls that define the resources required.  Below is an overview.  For more information, go to [YAMLS_README.md](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo_yamls/YAMLS_README.md) under kubeturbo/deploy/kubeturbo_yamls/
 
