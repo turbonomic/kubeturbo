@@ -1,119 +1,54 @@
-> NOTE: The user performing the steps to create a namespace, service account, and `cluster-admin` clusterrolebinding, will need to have cluster-admin role.
+## Kubeturbo Deployment and Prerequisites #
 
-The kubeturbo pod can be easily deployed using a helm chart
+The kubeturbo pod can be easily deployed one of 2 ways:
+1. [Helm Chart](#Helm Chart)
+2. [Deploy Resources via yaml](#Deploy with YAMLs)
 
-`helm install --name k8s-cluster-control kubeturbo --namespace turbonomic --set serverMeta.turboServer=https://1.2.3.4/ --set serverMeta.version=6.3 --set restAPIConfig.opsManagerUserName=user --set restAPIConfig.opsManagerPassword=password --set targetConfig.targetName=YourClusterName`
+This document describes common prerequisites, and an overview of each method.  Details will be in the directories. 
 
-Or deploy the kubeturbo pod with the following resources:
+###### Prerequisites
 
-1. create a namespace
+* OpenShift release 3.4 or higher, kubernetes version 1.8 or higher including any k8s upstream compliant distribution
+* Turbonomic Server version 5.9 or higher is installed, running, and the following information:
+    * Turbonomic Server URL https://<TurboIPaddressOrFQDN>
+    * Turbonomic username with administrator role, and password
+    * Turbonomic Server Version.  To get this from the UI, go to Settings -> Updates -> About and use the numeric version such as “6.0.11” or “6.2.0” (Build details not required)
+    * Running CWOM? Go here to see conversion chart for [CWOM -> Turbonomic Server version](https://github.com/turbonomic/kubeturbo/tree/master/deploy/CWOM_versions.md) 
+* Access and Permissions to create all the resources required:
+    * User needs **cluster-admin cluster role level access** to be able to create the following resources if required: namespace, service account, and cluster role binding for the service account.
+* Repo Access and Network requirements.  Refer to Figure below “Turbonomic and Kubernetes Network Detail”.
+    * Instructions assume the node you are deploying to has internet access to pull the kubeturbo image from the DockerHub repository, or your environment is configured with a repo accessible by the node.  Images are available from Dockerhub and RedHat Container Catalog. The exact Tag required will be provided for you by Turbonomic.
+        * [Docker hub](https://hub.docker.com/r/vmturbo/kubeturbo/)
+        * [RedHat Container Catalog](https://access.redhat.com/containers/#/product/aa909a40e026139e) 
+    * Kubeturbo pod will have https/tcp access to the kubelet on every node (if default 10255 is not configured, specify port and https in kubeturbo deploy)
+    * Kubeturbo pod will have https/tcp access to the Turbonomic Server
+    * Proxies between kubeturbo and Turbonomic Server need to allow websocket communication.
+* One kubeturbo pod will be deployed per cluster or per control plane when using stretch clusters. Kubeturbo pod will run with a service account with cluster-admin role
+* This pod will typically run with no more than 512 Mg Memory, and maximum volume space of 10 G.
 
-Use an existing namespace, or create one where to deploy kubeturbo. The yaml examples will use `turbo`.
+![turboNetwork_anyIAASanyK8S.png](https://github.com/evat-pm/images/blob/master/turboNetwork_anyIAASanyK8S.png)
 
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: turbo 
-```
+###### Helm Chart
 
-2. Create a service account, and add the role of cluster-admin
-```yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: turbo-user
-  namespace: turbo
-```
+Helm charts are an easy way to deploy and update kubeturbo.  We provide you a helm chart that you can download locally, and install specifying a few parameters.
 
-Assign `cluster-admin` role by cluster role binding:
-```yaml
-kind: ClusterRoleBinding
-# For OpenShift 3.4-3.7 use apiVersion: v1
-# For kubernetes 1.9 use rbac.authorization.k8s.io/v1
-# For kubernetes 1.8 use rbac.authorization.k8s.io/v1beta1
-apiVersion: rbac.authorization.k8s.io/v1beta1    
-metadata:
-  name: turbo-all-binding
-  namespace: turbo
-subjects:
-- kind: ServiceAccount
-  name: turbo-user
-  namespace: turbo
-roleRef:
-  kind: ClusterRole
-  name: cluster-admin
-  # For OpenShift v3.4 remove apiGroup line
-  apiGroup: rbac.authorization.k8s.io
-```
-
-3. create a configMap for kubeturbo, The <TURBONOMIC_SERVER_VERSION> is Turbonomic release version, e.g. 6.3.0 or 6.2.8.  To distinguish between different k8s clusters, supply a targetName value which will name the k8s cluster groups created in Turbonomic.
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: turbo-config
-  namespace: turbo
-data:
-  turbo.config: |-
-    {
-        "communicationConfig": {
-            "serverMeta": {
-                "version": "<TURBONOMIC_SERVER_VERSION>",
-                "turboServer": "https://<Turbo_server_URL>"
-            },
-            "restAPIConfig": {
-                "opsManagerUserName": "<Turbo_username>",
-                "opsManagerPassword": "<Turbo_password>"
-            }
-        },
-        "targetConfig": {
-            "targetName":"whateverYouWant"
-        }
-    }
-```
+For more details go to [HELM_README.md](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo_helm/HELM_README.md) under kubeturbo/deploy/kubeturbo_helm/
 
 
-4. Create a deployment for kubeturbo
-```yaml
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: kubeturbo
-  namespace: turbo
-  labels:
-    app: kubeturbo
-spec:
-  replicas: 1
-  template:
-    metadata:
-      annotations:
-        kubeturbo.io/controllable: "false"
-      labels:
-        app: kubeturbo
-    spec:
-      serviceAccount: turbo-user
-      containers:
-        - name: kubeturbo
-          # Replace the image with desired version
-          image: vmturbo/kubeturbo:6.2
-          imagePullPolicy: IfNotPresent
-          args:
-            - --turboconfig=/etc/kubeturbo/turbo.config
-            - --v=2
-            # Comment out the following two args if running k8s 1.10 or older
-            - --kubelet-https=true
-            - --kubelet-port=10250
-            # Uncomment the following arg if using IP for stitching
-            #- --stitch-uuid=false
-          volumeMounts:
-          - name: turbo-volume
-            mountPath: /etc/kubeturbo
-            readOnly: true
-      volumes:
-      - name: turbo-volume
-        configMap:
-          name: turbo-config
-      restartPolicy: Always
-```
-Note: If Kubernetes version is older than 1.6, then add another arg for move/resize action `--k8sVersion=1.5`
+###### Deploy with YAMLs
+
+You can deploy the kubeturbo pod using yamls that define the resources required.  Below is an overview.  For more information, go to [YAMLS_README.md](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo_yamls/YAMLS_README.md) under kubeturbo/deploy/kubeturbo_yamls/
+
+Strongly advise you to use the sample yamls provided [here](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo_yamls).
+
+1. Create a namespace.  Use an existing namespace, or create one where to deploy kubeturbo. The yaml examples will use `turbo`.
+
+2. Create a service account, and add the role of cluster-admin. Assign `cluster-admin` role by cluster role binding:
+
+3. Create a configMap for kubeturbo, The <TURBONOMIC_SERVER_VERSION> is Turbonomic release version, e.g. 6.3.0 or 6.2.8.  To distinguish between different k8s clusters, supply a targetName value which will name the k8s cluster groups created in Turbonomic.
+
+4. Using a deployment type, deploy kubeturbo
+
+5. Validate that you see Containers and Container Pod entities in the Turbonomic Supply Chain, and collecting data.
+
+There's no place like home... go back to the [Turbonomic Overview](https://github.com/turbonomic/kubeturbo/tree/master/README.md).
