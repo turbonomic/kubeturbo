@@ -35,11 +35,9 @@ limitations under the License.
 Kubeturbo leverages [Turbonomic's](https://turbonomic.com/) patented analysis engine to provide visibility and control across the entire stack in order to assure the performance of running micro-services in Kubernetes Pods, as well as the efficiency of underlying infrastructure.
 
 ## Getting Started 
-### Prerequisites
-* Turbonomic 5.9+ installation
-* Kubernetes 1.4+
+
 ### Kubeturbo Installation
-* [Deploy Kubeturbo](https://github.com/turbonomic/kubeturbo/tree/master/deploy)
+* Review the prerequisites and [Deploy Kubeturbo](https://github.com/turbonomic/kubeturbo/tree/master/deploy/README.md)
 * Once deployed, corresponding targets will show up in Turbonomic UI
 
 <img width="1323" alt="screen shot 2017-06-01 at 10 10 21 am" src="https://cloud.githubusercontent.com/assets/4391815/26683726/c5e06e7c-46b2-11e7-92f2-5f555fe88ea2.png">
@@ -70,6 +68,10 @@ Kubeturbo leverages [Turbonomic's](https://turbonomic.com/) patented analysis en
 
 
 ## Coming Soon
+* Added dimensions in SLO based control
+    * Manage horizontal scaling of services without thresholds
+    * Manage the tradeoffs of performance, availability of resources, and compliance
+    * Leverage your SLO data to add response time and througput - [Istio](http://istio.io), [Prometheus](http://prometheus.io), etc
 * Support for Cluster Federation Control Plane
   * Complete visibility for your K8s deployments across different underlying infrastructures
   * Create affinity/anti-affinity policies directly from Turbonomic UI
@@ -78,7 +80,7 @@ Kubeturbo leverages [Turbonomic's](https://turbonomic.com/) patented analysis en
   * A complete What-If sandbox to help you plan your IT changes in advance
   * Plan for workload change: Add/Remove Containers
   * Plan for infrastructure change: Add/Remove/Replace hardware
-  * Plan for Cloud Migration: Expense and Savings
+  * Manage guaranteed resources: insight into requests across the nodes
   * Cluster Consolidation for federated clusters
 
 
