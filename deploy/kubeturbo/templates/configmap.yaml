@@ -4,7 +4,7 @@ metadata:
   name: turbo-config-{{ .Release.Name }}
 data:
   turbo.config: |-
-    {
+     {
         "communicationConfig": {
             "serverMeta": {
                 "version": "{{ .Values.serverMeta.version }}",
@@ -14,12 +14,12 @@ data:
                 "opsManagerUserName": "{{ .Values.restAPIConfig.opsManagerUserName }}",
                 "opsManagerPassword": "{{ .Values.restAPIConfig.opsManagerPassword }}"
             }
-        {{- if and .Values.targetConfig.targetName (eq .Values.targetConfig.targetName "Your_k8s_cluster") }}
-        }
-        {{- else }}
-        },
-        "targetConfig": {
-            "targetName": "{{ .Values.targetConfig.targetName }}"
-        }
+        {{- if .Values.targetConfig }}
+          {{- if .Values.targetConfig.targetName }}
+          "targetConfig": {
+              "targetName": "{{ .Values.targetConfig.targetName }}"
+          }
+          {{- end }}
         {{- end }}
-    }
+        }
+     }
