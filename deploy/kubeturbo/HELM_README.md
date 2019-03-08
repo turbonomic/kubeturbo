@@ -6,7 +6,7 @@ Review the prerequisites defined in the [Deploy Overview](https://github.com/tur
 
 To use this method, you will already have a helm client and tiller server installed, and are familiar with how to use helm and chart repositories. Go to [Helm Docs](https://helm.sh/docs/using_helm/%23quickstart-guide) to get started.
 
-The Helm Chart provided [here](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo_helm) will deploy kubeturbo and create the following resources: 
+The Helm Chart provided [here](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo) will deploy kubeturbo and create the following resources: 
 1. Create a Namespace or Project (default is "turbo")
 1. Service Account and binding to cluster-admin clusterrole (default is "turbo-user" with "turbo-all-binding" role)
 1. ConfigMap for kubeturbo to connect to the Turbonomic server

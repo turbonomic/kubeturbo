@@ -22,8 +22,8 @@ restAPIConfig:
   opsManagerUserName: Turbo_username
   opsManagerPassword: Turbo_password
 
-targetConfig:
-  targetName: Your_k8s_cluster
+#targetConfig:
+#  targetName: Your_k8s_cluster
 
 args:
   # logging level
