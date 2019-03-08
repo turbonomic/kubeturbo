@@ -137,26 +137,6 @@ const emptySection = `    {
         }
     }
 `
-const emptyMapEntry = `    {
-        "communicationConfig": {
-            "serverMeta": {
-                "version": "6.3.0-SNAPSHOT",
-                "turboServer": "https://167.99.235.136:9400"
-            },
-            "restAPIConfig": {
-                "opsManagerUserName": "administrator",
-                "opsManagerPassword": "a"
-            }
-        },
-        "targetConfig": {
-            "targetName":"ibm"
-        },
-        "masterNodeDetectors": {
-           "nodeNamePatterns": [ ".*master.*" ],
-           "nodeLabels": [ {"key": "node-role.kubernetes.io/master", "value": ".*"} , {}]
-        }
-    }
-`
 
 var configs = map[string]string{
 	"validFullConfig":            validFullConfig,

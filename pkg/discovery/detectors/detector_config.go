@@ -2,6 +2,7 @@ package detectors
 
 import (
 	"github.com/golang/glog"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -33,6 +34,15 @@ type DaemonPodDetectors struct {
 	PodNamePatterns []string `json:"podNamePatterns,omitempty"`
 }
 
+func compileOrDie(pattern string) *regexp.Regexp {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		glog.Errorf("Cannot parse regular expression '%s': %v", pattern, err)
+		os.Exit(1)
+	}
+	return re
+}
+
 func ValidateAndParseDetectors(mconfig *MasterNodeDetectors, dconfig *DaemonPodDetectors) error {
 	// Handle default values when sections are missing
 	if mconfig == nil {
@@ -51,8 +61,8 @@ func ValidateAndParseDetectors(mconfig *MasterNodeDetectors, dconfig *DaemonPodD
 	masterLabelKeys = make([]*regexp.Regexp, len(mconfig.NodeLabels))
 	masterLabelValues = make([]*regexp.Regexp, len(mconfig.NodeLabels))
 	for i, entry := range mconfig.NodeLabels {
-		masterLabelKeys[i] = regexp.MustCompile(entry.Key)
-		masterLabelValues[i] = regexp.MustCompile(entry.Value)
+		masterLabelKeys[i] = compileOrDie(entry.Key)
+		masterLabelValues[i] = compileOrDie(entry.Value)
 	}
 
 	// Daemon pod detection by pod name and namespace
@@ -70,18 +80,18 @@ func buildRegexFromList(patterns []string) *regexp.Regexp {
 	if patterns == nil || len(patterns) == 0 {
 		patterns = make([]string, 0)
 	}
-	return regexp.MustCompile("(?i)^(" + strings.Join(patterns, "|") + ")$")
+	return compileOrDie("(?i)^(" + strings.Join(patterns, "|") + ")$")
 }
 
 func IsMasterDetected(nodeName string, labelMap map[string]string) bool {
 	result := matches(masterNodeNamePattern, nodeName) || isInMap(labelMap)
-	glog.V(2).Infof("IsMasterDetected: %v = %v", nodeName, result)
+	glog.V(4).Infof("IsMasterDetected: %s = %v", nodeName, result)
 	return result
 }
 
 func IsDaemonDetected(podName, podNamespace string) bool {
 	result := matches(daemonPodNamePattern, podName) || matches(daemonNamespacePattern, podNamespace)
-	glog.V(2).Infof("IsDaemonDetected: %v = %v", podName, result)
+	glog.V(4).Infof("IsDaemonDetected: %s/%s = %v", podNamespace, podName, result)
 	return result
 }
 

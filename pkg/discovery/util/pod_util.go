@@ -49,14 +49,22 @@ func IsControllableFromAnnotation(annotations map[string]string) bool {
 // is not suspendable, clonable, or movable, and is not considered when counting
 // customers of a supplier when checking whether the supplier can suspend.
 func Daemon(pod *api.Pod) bool {
-	return isPodCreatedBy(pod, Kind_DaemonSet) || detectors.IsDaemonDetected(pod.Name, pod.Namespace)
+	isDaemon := isPodCreatedBy(pod, Kind_DaemonSet) || detectors.IsDaemonDetected(pod.Name, pod.Namespace)
+	if isDaemon {
+		glog.V(3).Infof("Pod %s/%s is a daemon", pod.Namespace, pod.Name)
+	}
+	return isDaemon
 }
 
 // Returns a boolean that indicates whether the given pod should be controllable.
 // Do not monitor mirror pods or pods created by DaemonSets.
 func Controllable(pod *api.Pod) bool {
-	return !isMirrorPod(pod) && !isPodCreatedBy(pod, Kind_DaemonSet) &&
+	controllable := !isMirrorPod(pod) && !isPodCreatedBy(pod, Kind_DaemonSet) &&
 		IsControllableFromAnnotation(pod.GetAnnotations())
+	if !controllable {
+		glog.V(3).Infof("Pod %s/%s is not controllable", pod.Namespace, pod.Name)
+	}
+	return controllable
 }
 
 // Check if a pod is a mirror pod.

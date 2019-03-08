@@ -62,10 +62,18 @@ func GetNodeIP(node *api.Node) (string, error) {
 
 // Check whether the node is a master
 func NodeIsMaster(node *api.Node) bool {
-	return detectors.IsMasterDetected(node.Name, node.ObjectMeta.Labels)
+	master := detectors.IsMasterDetected(node.Name, node.ObjectMeta.Labels)
+	if master {
+		glog.V(3).Infof("Node %s is a master", node.Name)
+	}
+	return master
 }
 
 // Returns whether the node is controllable
 func NodeIsControllable(node *api.Node) bool {
-	return !NodeIsMaster(node)
+	controllable := !NodeIsMaster(node)
+	if !controllable {
+		glog.V(3).Infof("Node %s is not controllable.", node.Name)
+	}
+	return controllable
 }
