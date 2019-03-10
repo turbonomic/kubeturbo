@@ -11,7 +11,7 @@ build: clean
 	go build -o ${OUTPUT_DIR}/kubeturbo ./cmd/kubeturbo
 
 docker: clean
-	docker build -t vmturbo/kubeturbo:6.2dev --build-arg GIT_COMMIT=$(shell git rev-parse --short HEAD) .
+	docker build -t vmturbo/kubeturbo:6.3 --build-arg GIT_COMMIT=$(shell git rev-parse --short HEAD) .
 
 test: clean
 	@go test -v -race ./pkg/...

@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/rhel7:7.4-129
+FROM registry.access.redhat.com/rhel7
 MAINTAINER Enlin Xu <enlin.xu@turbonomic.com>
 ARG GIT_COMMIT
 ENV GIT_COMMIT ${GIT_COMMIT}
