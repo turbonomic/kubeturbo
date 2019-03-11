@@ -3,6 +3,7 @@ MAINTAINER Enlin Xu <enlin.xu@turbonomic.com>
 ARG GIT_COMMIT
 ENV GIT_COMMIT ${GIT_COMMIT}
 
+
 ### Atomic/OpenShift Labels - https://github.com/projectatomic/ContainerApplicationGenericLabels
 LABEL name="Hybrid Cloud Container" \
       vendor="Turbonomic" \
