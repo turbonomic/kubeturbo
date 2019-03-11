@@ -2,19 +2,17 @@ package executor
 
 import (
 	"fmt"
-	"github.com/golang/glog"
 	"math"
-	"time"
+
+	"github.com/golang/glog"
 
 	k8sapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	kclient "k8s.io/client-go/kubernetes"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	idutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
-	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
@@ -242,32 +240,22 @@ func (r *ContainerResizer) buildResizeAction(actionItem *proto.ActionItemDTO, po
 	return resizeSpec, nil
 }
 
-//Note: the error info will be shown in UI
+// Execute executes the container resize action
+// The error info will be shown in UI
 func (r *ContainerResizer) Execute(input *TurboActionExecutorInput) (*TurboActionExecutorOutput, error) {
 	actionItem := input.ActionItem
 	pod := input.Pod
 
 	spec, err := r.buildResizeAction(actionItem, pod)
 	if err != nil {
-		glog.Errorf("failed to execute container resize: %v", err)
-		return &TurboActionExecutorOutput{}, fmt.Errorf("Failed.")
+		return &TurboActionExecutorOutput{}, err
 	}
 
 	//2. execute the Action
 	npod, err := r.executeAction(spec, pod)
 	if err != nil {
-		glog.Errorf("failed to execute Action: %v", err)
 		return &TurboActionExecutorOutput{}, err
 	}
-
-	//3. check action result
-	fullName := util.BuildIdentifier(npod.Namespace, npod.Name)
-	glog.V(2).Infof("begin to check result of resizeContainer[%v].", fullName)
-	if err = r.checkPod(pod); err != nil {
-		glog.Errorf("failed to check pod[%v] for resize action: %v", fullName, err)
-		return &TurboActionExecutorOutput{}, fmt.Errorf("Check Failed")
-	}
-	glog.V(2).Infof("Checking action resizeContainer[%v] succeeded.", fullName)
 
 	return &TurboActionExecutorOutput{
 		Succeeded: true,
@@ -279,94 +267,33 @@ func (r *ContainerResizer) Execute(input *TurboActionExecutorInput) (*TurboActio
 func (r *ContainerResizer) executeAction(resizeSpec *containerResizeSpec, pod *k8sapi.Pod) (*k8sapi.Pod, error) {
 	//1. check
 	if err := r.preActionCheck(resizeSpec, pod); err != nil {
-		glog.Errorf("Resize action aborted: %v", err)
-		return nil, fmt.Errorf("Failed")
+		glog.Errorf("Resize action aborted: %v.", err)
+		return nil, err
 	}
 
 	//2. get parent controller
 	fullName := util.BuildIdentifier(pod.Namespace, pod.Name)
 	parentKind, parentName, err := podutil.GetPodParentInfo(pod)
 	if err != nil {
-		glog.Errorf("Resize action failed: failed to get pod[%s] parent info: %v", fullName, err)
-		return nil, fmt.Errorf("Failed")
+		glog.Errorf("Resize action failed: failed to get pod[%s] parent info: %v.", fullName, err)
+		return nil, err
 	}
 
 	if !util.SupportedParent(parentKind) {
-		glog.Errorf("Resize action aborted: parent kind(%v) is not supported.", parentKind)
-		return nil, fmt.Errorf("Unsupported")
+		err = fmt.Errorf("Parent kind(%v) is not supported", parentKind)
+		glog.Errorf("Resize action aborted: %v.", err)
+		return nil, err
 	}
 
-	var npod *k8sapi.Pod
+	//3. resize
+	id := fmt.Sprintf("%s/%s-%d", pod.Namespace, pod.Name, resizeSpec.Index)
 	if parentKind == "" {
-		npod, err = r.resizeBarePodContainer(pod, resizeSpec)
+		glog.V(2).Infof("Begin to resize barepod container[%s].", id)
 	} else {
-		npod, err = r.resizeControllerContainer(pod, parentKind, parentName, resizeSpec)
+		glog.V(2).Infof("Begin to resize controller container[%s] parent=%s/%s.", id, parentKind, parentName)
 	}
 
-	if err != nil {
-		glog.Errorf("Resize Pod(%s) container action failed: %v", fullName, err)
-		return nil, fmt.Errorf("Failed")
-	}
-	return npod, nil
-}
-
-func (r *ContainerResizer) resizeControllerContainer(pod *k8sapi.Pod, parentKind, parentName string, spec *containerResizeSpec) (*k8sapi.Pod, error) {
-	id := fmt.Sprintf("%s/%s-%d", pod.Namespace, pod.Name, spec.Index)
-	glog.V(2).Infof("begin to resizeContainer[%s] parent=%s/%s.", id, parentKind, parentName)
-
-	npod, err := resizeContainer(r.kubeClient, pod, spec, defaultRetryMore)
-	if err != nil {
-		glog.Errorf("Resize contorller container(%v) failed: %v", id, err)
-	}
-
-	return npod, err
-}
-
-func (r *ContainerResizer) resizeBarePodContainer(pod *k8sapi.Pod, spec *containerResizeSpec) (*k8sapi.Pod, error) {
-	id := fmt.Sprintf("%s/%s-%d", pod.Namespace, pod.Name, spec.Index)
-	glog.V(2).Infof("begin to resize barePod Container[%s].", id)
-
-	npod, err := resizeContainer(r.kubeClient, pod, spec, defaultRetryMore)
-	if err != nil {
-		glog.Errorf("Resize contorller container(%s) failed: %v", id, err)
-	}
-
-	return npod, err
-}
-
-// check the liveness of pod
-// return (retry, error)
-func doCheckPod(client *kclient.Clientset, namespace, name string) (bool, error) {
-	pod, err := podutil.GetPod(client, namespace, name)
-	if err != nil {
-		return true, err
-	}
-
-	phase := pod.Status.Phase
-	if phase == k8sapi.PodRunning {
-		return false, nil
-	}
-
-	if pod.DeletionGracePeriodSeconds != nil {
-		return false, fmt.Errorf("Pod is being deleted.")
-	}
-
-	return true, fmt.Errorf("pod is not in running phase[%v] yet.", phase)
-}
-
-func (r *ContainerResizer) checkPod(pod *k8sapi.Pod) error {
-	retryNum := defaultRetryMore
-	interval := defaultPodCreateSleep
-	timeout := time.Duration(retryNum+1) * interval
-	err := goutil.RetrySimple(retryNum, timeout, interval, func() (bool, error) {
-		return doCheckPod(r.kubeClient, pod.Namespace, pod.Name)
-	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return resizeContainer(r.kubeClient, pod, resizeSpec, defaultRetryMore)
 }
 
 // Check whether the action should be executed.
@@ -376,14 +303,12 @@ func (r *ContainerResizer) preActionCheck(resizeSpec *containerResizeSpec, pod *
 	// Check if the pod privilege is supported
 	if !util.SupportPrivilegePod(pod, r.sccAllowedSet) {
 		err := fmt.Errorf("Pod %s has unsupported SCC", fullName)
-		glog.Error(err)
 		return err
 	}
 
 	// Check if the resize spec is empty
 	if len(resizeSpec.NewCapacity) < 1 && len(resizeSpec.NewRequest) < 1 {
-		err := fmt.Errorf("Resize specification is empty.")
-		glog.Error(err)
+		err := fmt.Errorf("Resize specification is empty")
 		return err
 	}
 

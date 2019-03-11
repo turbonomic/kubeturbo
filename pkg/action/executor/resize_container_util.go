@@ -2,10 +2,12 @@ package executor
 
 import (
 	"fmt"
-	"github.com/golang/glog"
 	"math"
 
+	"github.com/golang/glog"
+
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	k8sapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -175,18 +177,18 @@ func genMemoryQuantity(newValue float64) (resource.Quantity, error) {
 	return result, nil
 }
 
-// Resize pod in three steps:
+// Resize pod in four steps:
 //   step1: create a clone pod of the original pod (without labels), with new resource limits/requests;
-//   step2: delete the orginal pod;
-//   step3: add the labels to the cloned pod;
+//   step2: wait until the cloned pod is ready
+//   step3: delete the orginal pod
+//   step4: add the labels to the cloned pod
 func resizeContainer(client *kclient.Clientset, tpod *k8sapi.Pod, spec *containerResizeSpec, retryNum int) (*k8sapi.Pod, error) {
 	index := spec.Index
 	id := fmt.Sprintf("%s/%s-%d", tpod.Namespace, tpod.Name, index)
-	glog.V(2).Infof("begin to resize Pod container[%s].", id)
 
 	podClient := client.CoreV1().Pods(tpod.Namespace)
 	if podClient == nil {
-		err := fmt.Errorf("cannot get Pod client for nameSpace:%v", tpod.Namespace)
+		err := fmt.Errorf("Cannot get Pod client for nameSpace: %v", tpod.Namespace)
 		glog.Error(err)
 		return nil, err
 	}
@@ -209,32 +211,32 @@ func resizeContainer(client *kclient.Clientset, tpod *k8sapi.Pod, spec *containe
 
 	if !changed {
 		glog.Warningf("resizeContainer aborted[%s]: no need do resize container.", id)
-		return nil, fmt.Errorf("Aborted due to not enough change")
+		return nil, fmt.Errorf("Resize aborted due to not enough change")
 	}
 	//delete the clone pod if this action fails
 	flag := false
 	defer func() {
 		if !flag {
-			glog.Errorf("Resize pod failed, begin to delete cloned pod: %v/%v", npod.Namespace, npod.Name)
+			glog.Errorf("resizeContainer failed, begin to delete cloned pod: %v/%v.", npod.Namespace, npod.Name)
 			delOpt := &metav1.DeleteOptions{}
 			podClient.Delete(npod.Name, delOpt)
 		}
 	}()
 
-	//1.2 wait until podC gets ready
-	err = waitForReady(client, npod.Namespace, npod.Name, "", retryNum)
+	//2 wait until podC gets ready
+	err = podutil.WaitForPodReady(client, npod.Namespace, npod.Name, "", retryNum, defaultPodCreateSleep)
 	if err != nil {
 		glog.Errorf("Wait for cloned Pod ready timeout: %v", err)
 		return nil, err
 	}
 
-	//2. delete the original pod--podA
+	//3. delete the original pod--podA
 	delOpt := &metav1.DeleteOptions{}
 	if err := podClient.Delete(pod.Name, delOpt); err != nil {
 		glog.Warningf("Resize podContainer warning: failed to delete original pod: %v", err)
 	}
 
-	//3. add labels to podC
+	//4. add labels to podC
 	xpod, err := podClient.Get(npod.Name, metav1.GetOptions{})
 	if err != nil {
 		glog.Errorf("Resize podContainer failed: failed to get the cloned pod: %v", err)

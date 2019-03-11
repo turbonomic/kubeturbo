@@ -3,17 +3,18 @@ package util
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
-
-	api "k8s.io/api/core/v1"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
+	"strings"
+	"time"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
+	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	client "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/typed/core/v1"
-	"strings"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
+
+	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 )
 
 const (
@@ -29,7 +30,13 @@ const (
 	TurboControllableAnnotation string = "kubeturbo.io/controllable"
 )
 
-// check whether a Kubernetes object is controllable or not by its annotation.
+type podEvent struct {
+	eType   string
+	reason  string
+	message string
+}
+
+// IsControllableFromAnnotation checks whether a Kubernetes object is controllable or not by its annotation.
 // The annotation can be either "kubeturbo.io/controllable" or "kubeturbo.io/monitored".
 // the object can be: Pod, Service, Namespace, or others.  If no annotation
 // exists, the default value is true.
@@ -89,6 +96,7 @@ func isPodCreatedBy(pod *api.Pod, kind string) bool {
 	return parentKind == kind
 }
 
+// GroupPodsByNode groups all pods based on their hosting node
 func GroupPodsByNode(pods []*api.Pod) map[string][]*api.Pod {
 	podsNodeMap := make(map[string][]*api.Pod)
 	if pods == nil {
@@ -136,7 +144,7 @@ func PodIsReady(pod *api.Pod) bool {
 // GetPodInPhase finds the pod with the specific name in the specific phase (e.g., Running).
 // If pod not found, nil pod pointer will be returned without error.
 func GetPodInPhase(podClient v1.PodInterface, name string, phase api.PodPhase) (*api.Pod, error) {
-	pod, err := podClient.Get(name, meta_v1.GetOptions{})
+	pod, err := podClient.Get(name, metav1.GetOptions{})
 	if err != nil {
 		glog.Errorf("Error while getting pod %s in phase %v: %v", name, phase, err.Error())
 		return nil, err
@@ -158,7 +166,7 @@ func GetPodInPhase(podClient v1.PodInterface, name string, phase api.PodPhase) (
 // GetPodInPhaseByUid finds the pod with the specific uid in the specific phase (e.g., Running).
 // If pod not found, nil pod pointer will be returned without error.
 func GetPodInPhaseByUid(podClient v1.PodInterface, uid string, phase api.PodPhase) (*api.Pod, error) {
-	podList, err := podClient.List(meta_v1.ListOptions{
+	podList, err := podClient.List(metav1.ListOptions{
 		FieldSelector: "status.phase=" + string(phase) + ",metadata.uid=" + uid,
 	})
 
@@ -176,7 +184,7 @@ func GetPodInPhaseByUid(podClient v1.PodInterface, uid string, phase api.PodPhas
 	return &podList.Items[0], nil
 }
 
-// Parses the pod entity display name to retrieve the namespace and name of the pod.
+// ParsePodDisplayName parses the pod entity display name to retrieve the namespace and name of the pod.
 func ParsePodDisplayName(displayName string) (string, string, error) {
 	sep := "/"
 	items := strings.Split(displayName, sep)
@@ -205,10 +213,6 @@ func ParsePodDisplayName(displayName string) (string, string, error) {
 	return namespace, name, nil
 }
 
-func GetPod(kubeClient *client.Clientset, namespace, name string) (*api.Pod, error) {
-	return kubeClient.CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
-}
-
 func parseOwnerReferences(owners []metav1.OwnerReference) (string, string) {
 	for i := range owners {
 		owner := &owners[i]
@@ -226,6 +230,7 @@ func parseOwnerReferences(owners []metav1.OwnerReference) (string, string) {
 	return "", ""
 }
 
+// GetPodParentInfo gets parent information of a pod
 func GetPodParentInfo(pod *api.Pod) (string, string, error) {
 	//1. check ownerReferences:
 
@@ -246,7 +251,7 @@ func GetPodParentInfo(pod *api.Pod) (string, string, error) {
 			var ref api.SerializedReference
 
 			if err := json.Unmarshal([]byte(value), &ref); err != nil {
-				err = fmt.Errorf("failed to decode parent annoation:%v", err)
+				err = fmt.Errorf("failed to decode parent annoation: %v", err)
 				glog.Errorf("%v\n%v", err, value)
 				return "", "", err
 			}
@@ -260,7 +265,7 @@ func GetPodParentInfo(pod *api.Pod) (string, string, error) {
 	return "", "", nil
 }
 
-// get grandParent(parent's parent) information of a pod: kind, name
+// GetPodGrandInfo gets grandParent (parent's parent) information of a pod: kind, name
 // If parent does not have parent, then return parent info.
 // Note: if parent kind is "ReplicaSet", then its parent's parent can be a "Deployment"
 func GetPodGrandInfo(kclient *client.Clientset, pod *api.Pod) (string, string, error) {
@@ -291,4 +296,130 @@ func GetPodGrandInfo(kclient *client.Clientset, pod *api.Pod) (string, string, e
 	}
 
 	return kind, name, nil
+}
+
+// WaitForPodReady checks the readiness of a given pod with a retry limit and a timeout, whichever
+// comes first. If a nodeName is provided, also checks that the hosting node matches that in the
+// pod specification
+//
+// TODO:
+// Use k8s watch API to eliminate the need for polling and improve efficiency
+func WaitForPodReady(client *client.Clientset, namespace, podName, nodeName string,
+	retry int, interval time.Duration) error {
+	// check pod readiness with retries
+	timeout := time.Duration(retry+1) * interval
+	err := goutil.RetrySimple(retry, timeout, interval, func() (bool, error) {
+		return checkPodNode(client, namespace, podName, nodeName)
+	})
+	// log a list of unique events that belong to the pod
+	// warning events are logged in Error level, other events are logged in Info level
+	podEvents := getPodEvents(client, namespace, podName)
+	for _, pe := range podEvents {
+		if pe.eType == api.EventTypeWarning {
+			glog.Errorf("Pod %s: %s", podName, pe.message)
+		} else {
+			glog.V(2).Infof("Pod %s: %s", podName, pe.message)
+		}
+	}
+	return err
+}
+
+// checkPodNode checks the readiness of a given pod
+// The boolean return value indicates if this function needs to be retried
+func checkPodNode(kubeClient *client.Clientset, namespace, podName, nodeName string) (bool, error) {
+	pod, err := kubeClient.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+	if err != nil {
+		return true, err
+	}
+	if pod.Status.Phase == api.PodRunning && PodIsReady(pod) {
+		if len(nodeName) > 0 {
+			if !strings.EqualFold(pod.Spec.NodeName, nodeName) {
+				return false, fmt.Errorf("pod %s is running on an unexpected node %v", podName, pod.Spec.NodeName)
+			}
+		}
+		return false, nil
+	}
+	warnings := getPodWarnings(pod, podName)
+	return true, fmt.Errorf("%s", strings.Join(warnings, ", "))
+}
+
+// getPodWarnings gets a list of short warning messages that belong to the given pod
+// These messages will be concatenated and sent to the UI
+// The warning messages are logged in the following order:
+//   - Pod states and reasons
+//   - Pod conditions and reasons (false conditions only)
+//   - Container states and reasons (abnormal states only)
+// https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-and-container-status
+func getPodWarnings(pod *api.Pod, podName string) (warnings []string) {
+	warnings = []string{}
+	// pod statuses
+	podState := ""
+	if pod.DeletionTimestamp != nil {
+		podState = fmt.Sprintf("pod %s is being deleted", podName)
+	} else {
+		podState = fmt.Sprintf("pod %s is in %s state", podName, pod.Status.Phase)
+	}
+	if pod.Status.Reason != "" {
+		podState = podState + " due to " + pod.Status.Reason
+	}
+	warnings = append(warnings, podState)
+	// pod conditions
+	visited := make(map[string]bool, 0)
+	for _, condition := range pod.Status.Conditions {
+		// skip true conditions
+		if condition.Status == api.ConditionTrue ||
+			visited[condition.Reason] {
+			continue
+		}
+		visited[condition.Reason] = true
+		warnings = append(warnings, condition.Reason)
+	}
+	// container statuses
+	for _, containerStatus := range pod.Status.ContainerStatuses {
+		name := containerStatus.Name
+		state := containerStatus.State
+		if state.Waiting != nil {
+			warnings = append(warnings,
+				fmt.Sprintf("container %s is waiting due to %s",
+					name, state.Waiting.Reason))
+		}
+		if state.Terminated != nil {
+			warnings = append(warnings,
+				fmt.Sprintf("container %s has terminated due to %s",
+					name, state.Terminated.Reason))
+		}
+	}
+	return
+}
+
+// getPodEvents gets a list of unique events that belong to the given pod
+// These events can be very long, and will only be written to the log file
+func getPodEvents(kubeClient *client.Clientset, namespace, name string) (podEvents []podEvent) {
+	podEvents = []podEvent{}
+	// Get the pod
+	pod, err := kubeClient.CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
+	if err != nil {
+		return
+	}
+	// Get events that belong to the given pod
+	events, err := kubeClient.CoreV1().Events(namespace).List(metav1.ListOptions{
+		FieldSelector: "involvedObject.uid=" + string(pod.UID),
+	})
+	if err != nil {
+		return
+	}
+	// Remove duplicates and create podEvents
+	visited := make(map[string]bool, 0)
+	for _, item := range events.Items {
+		if visited[item.Reason] {
+			continue
+		}
+		visited[item.Reason] = true
+		podEvents = append(podEvents, podEvent{
+			eType:   item.Type,
+			reason:  item.Reason,
+			message: item.Message,
+		})
+	}
+	return
 }
