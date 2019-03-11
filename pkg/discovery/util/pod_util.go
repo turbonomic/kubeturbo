@@ -324,6 +324,8 @@ func WaitForPodReady(client *client.Clientset, namespace, podName, nodeName stri
 	return err
 }
 
+// checkPodNode checks the readiness of a given pod
+// The boolean return value indicates if this function needs to be retried
 func checkPodNode(kubeClient *client.Clientset, namespace, podName, nodeName string) (bool, error) {
 	pod, err := kubeClient.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 	if err != nil {

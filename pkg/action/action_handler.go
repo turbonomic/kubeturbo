@@ -173,8 +173,8 @@ func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
 	output, err := worker.Execute(input)
 
 	if err != nil {
-		msg := fmt.Errorf("Action %v on %s failed.", actionType, actionItem.GetTargetSE().GetEntityType())
-		glog.Errorf(msg.Error())
+		glog.Errorf("Failed to execute action %v on %s: %+v.",
+			actionType, actionItem.GetTargetSE().GetEntityType(), actionItem)
 		return err
 	}
 

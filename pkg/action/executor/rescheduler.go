@@ -68,11 +68,8 @@ func (r *ReScheduler) getNode(action *proto.ActionItemDTO) (*api.Node, error) {
 		return nil, err
 	}
 
-	var err error
-	var node *api.Node
-
 	//3. get node from properties
-	node, err = util.GetNodeFromProperties(r.kubeClient, hostSE.GetEntityProperties())
+	node, err := util.GetNodeFromProperties(r.kubeClient, hostSE.GetEntityProperties())
 	if err == nil {
 		glog.V(2).Infof("Get node(%v) from properties.", node.Name)
 		return node, nil
