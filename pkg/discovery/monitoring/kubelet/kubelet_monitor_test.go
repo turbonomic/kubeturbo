@@ -42,10 +42,10 @@ func createContainerStat(name string, cpu, mem int) stats.ContainerStats {
 func createPodStat(podname string) *stats.PodStats {
 	cpuUsed := 100 + rand.Intn(200)
 	memUsed := rand.Intn(200)
-	container1 := createContainerStat("container1", cpuUsed*1E6, memUsed*1000*1024)
+	container1 := createContainerStat("container1", cpuUsed*1e6, memUsed*1000*1024)
 	cpuUsed = rand.Intn(100)
 	memUsed = 200 + rand.Intn(200)
-	container2 := createContainerStat("container2", cpuUsed*1E6, memUsed*1000*1024)
+	container2 := createContainerStat("container2", cpuUsed*1e6, memUsed*1000*1024)
 	containers := []stats.ContainerStats{
 		container1,
 		container2,

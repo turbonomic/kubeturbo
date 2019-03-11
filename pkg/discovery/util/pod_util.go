@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 
 	api "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,7 +24,7 @@ const (
 
 	// A flag indicating whether the object should be controllable or not.
 	// only value="false" indicating the object should not be controllable by kubeturbo.
-	// TODO: [Depreciated] Use TurboControllableAnnotation instead
+	// TODO: [Deprecated] Use TurboControllableAnnotation instead
 	TurboMonitorAnnotation      string = "kubeturbo.io/monitored"
 	TurboControllableAnnotation string = "kubeturbo.io/controllable"
 )
@@ -44,11 +45,26 @@ func IsControllableFromAnnotation(annotations map[string]string) bool {
 	return true
 }
 
+// Returns a boolean that indicates whether the given pod is a daemon pod.  A daemon pod
+// is not suspendable, clonable, or movable, and is not considered when counting
+// customers of a supplier when checking whether the supplier can suspend.
+func Daemon(pod *api.Pod) bool {
+	isDaemon := isPodCreatedBy(pod, Kind_DaemonSet) || detectors.IsDaemonDetected(pod.Name, pod.Namespace)
+	if isDaemon {
+		glog.V(3).Infof("Pod %s/%s is a daemon", pod.Namespace, pod.Name)
+	}
+	return isDaemon
+}
+
 // Returns a boolean that indicates whether the given pod should be controllable.
 // Do not monitor mirror pods or pods created by DaemonSets.
 func Controllable(pod *api.Pod) bool {
-	return !isMirrorPod(pod) && !isPodCreatedBy(pod, Kind_DaemonSet) &&
+	controllable := !isMirrorPod(pod) && !isPodCreatedBy(pod, Kind_DaemonSet) &&
 		IsControllableFromAnnotation(pod.GetAnnotations())
+	if !controllable {
+		glog.V(3).Infof("Pod %s/%s is not controllable", pod.Namespace, pod.Name)
+	}
+	return controllable
 }
 
 // Check if a pod is a mirror pod.
