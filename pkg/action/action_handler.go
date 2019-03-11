@@ -12,11 +12,12 @@ import (
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
+	"strings"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	api "k8s.io/api/core/v1"
-	"strings"
 )
 
 const (
@@ -172,8 +173,8 @@ func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
 	output, err := worker.Execute(input)
 
 	if err != nil {
-		msg := fmt.Errorf("Action %v on %s failed.", actionType, actionItem.GetTargetSE().GetEntityType())
-		glog.Errorf(msg.Error())
+		glog.Errorf("Failed to execute action %v on %s: %+v.",
+			actionType, actionItem.GetTargetSE().GetEntityType(), actionItem)
 		return err
 	}
 
@@ -252,7 +253,7 @@ func (h *ActionHandler) failedResult(msg string) *proto.ActionResult {
 
 	state := proto.ActionResponseState_FAILED
 	progress := int32(0)
-	msg = "Failed"
+	msg = "Action failed, " + msg
 
 	res := &proto.ActionResponse{
 		ActionResponseState: &state,

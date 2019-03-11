@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 	"io/ioutil"
 
 	restclient "k8s.io/client-go/rest"
@@ -25,6 +26,8 @@ import (
 type K8sTAPServiceSpec struct {
 	*service.TurboCommunicationConfig `json:"communicationConfig,omitempty"`
 	*configs.K8sTargetConfig          `json:"targetConfig,omitempty"`
+	*detectors.MasterNodeDetectors    `json:"masterNodeDetectors,omitempty"`
+	*detectors.DaemonPodDetectors     `json:"daemonPodDetectors,omitempty"`
 }
 
 func ParseK8sTAPServiceSpec(configFile, defaultTargetName string) (*K8sTAPServiceSpec, error) {
@@ -49,6 +52,9 @@ func ParseK8sTAPServiceSpec(configFile, defaultTargetName string) (*K8sTAPServic
 		tapSpec.K8sTargetConfig = &configs.K8sTargetConfig{TargetIdentifier: defaultTargetName}
 	}
 	if err := tapSpec.ValidateK8sTargetConfig(); err != nil {
+		return nil, err
+	}
+	if err := detectors.ValidateAndParseDetectors(tapSpec.MasterNodeDetectors, tapSpec.DaemonPodDetectors); err != nil {
 		return nil, err
 	}
 	return tapSpec, nil

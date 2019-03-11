@@ -1,19 +1,17 @@
 package executor
 
 import (
-	"fmt"
-	"github.com/golang/glog"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	goutil "github.com/turbonomic/kubeturbo/pkg/util"
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "k8s.io/client-go/kubernetes"
-	"strconv"
 )
 
 //TODO: if pod is from controller, then copy pod in the way as
@@ -72,48 +70,11 @@ func genNewPodName(oldPod *api.Pod) string {
 	return newPodName
 }
 
-// check the liveness of pod, and the hosting Node
-// return (retry, error)
-func doCheckPodNode(client *kclient.Clientset, namespace, name, nodeName string) (bool, error) {
-	pod, err := podutil.GetPod(client, namespace, name)
-	if err != nil {
-		return true, err
-	}
-
-	phase := pod.Status.Phase
-	if phase == api.PodRunning && podutil.PodIsReady(pod) {
-		if len(nodeName) > 0 {
-			if !strings.EqualFold(pod.Spec.NodeName, nodeName) {
-				return false, fmt.Errorf("Pod[%s] running on an unexpected node[%v].", name, pod.Spec.NodeName)
-			}
-		}
-		return false, nil
-	}
-
-	if pod.DeletionTimestamp != nil {
-		return false, fmt.Errorf("Pod:%s is being deleted.", name)
-	}
-
-	if phase == api.PodFailed || phase == api.PodSucceeded {
-		return false, fmt.Errorf("Pod %s is in phase %v", name, phase)
-	}
-
-	return true, fmt.Errorf("pod(%s) is not ready [phase: %v] yet.", name, phase)
-}
-
-func waitForReady(client *kclient.Clientset, namespace, name, nodeName string, retryNum int) error {
-	interval := defaultPodCreateSleep
-	timeout := time.Duration(retryNum+1) * interval
-	err := goutil.RetrySimple(retryNum, timeout, interval, func() (bool, error) {
-		return doCheckPodNode(client, namespace, name, nodeName)
-	})
-	return err
-}
-
-// Move pod to node nodeName in three steps:
+// Move pod to node nodeName in four steps:
 //  step1: create a clone pod of the original pod (without labels)
-//  step2: delete the original pod;
-//  step3: add the labels to the cloned pod;
+//  step2: wait until the cloned pod is ready
+//  step3: delete the original pod
+//  step4: add the labels to the cloned pod
 func movePod(client *kclient.Clientset, pod *api.Pod, nodeName string, retryNum int) (*api.Pod, error) {
 	podClient := client.CoreV1().Pods(pod.Namespace)
 	//NOTE: do deep-copy if the original pod may be modified outside this function
@@ -136,21 +97,22 @@ func movePod(client *kclient.Clientset, pod *api.Pod, nodeName string, retryNum 
 		}
 	}()
 
-	//1.2 wait until podC gets ready
-	err = waitForReady(client, npod.Namespace, npod.Name, nodeName, retryNum)
+	//2 wait until podC gets ready
+	err = podutil.WaitForPodReady(client, npod.Namespace, npod.Name, nodeName,
+		retryNum, defaultPodCreateSleep)
 	if err != nil {
 		glog.Errorf("Wait for cloned Pod ready timeout: %v", err)
 		return nil, err
 	}
 
-	//2. delete the original pod--podA
+	//3. delete the original pod--podA
 	delOpt := &metav1.DeleteOptions{}
 	if err := podClient.Delete(pod.Name, delOpt); err != nil {
 		glog.Errorf("Move pod warning: failed to delete original pod: %v", err)
 		return nil, err
 	}
 
-	//3. add labels to podC
+	//4. add labels to podC
 	xpod, err := podClient.Get(npod.Name, metav1.GetOptions{})
 	if err != nil {
 		glog.Errorf("Move pod failed: failed to get the cloned pod: %v", err)

@@ -3,7 +3,7 @@ package util
 import (
 	"errors"
 	"fmt"
-
+	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 	api "k8s.io/api/core/v1"
 
@@ -58,4 +58,22 @@ func GetNodeIP(node *api.Node) (string, error) {
 		return ip, nil
 	}
 	return "", fmt.Errorf("Node %v has no valid hostname and/or IP address: %v", node.Name, ip)
+}
+
+// Check whether the node is a master
+func NodeIsMaster(node *api.Node) bool {
+	master := detectors.IsMasterDetected(node.Name, node.ObjectMeta.Labels)
+	if master {
+		glog.V(3).Infof("Node %s is a master", node.Name)
+	}
+	return master
+}
+
+// Returns whether the node is controllable
+func NodeIsControllable(node *api.Node) bool {
+	controllable := !NodeIsMaster(node)
+	if !controllable {
+		glog.V(3).Infof("Node %s is not controllable.", node.Name)
+	}
+	return controllable
 }
