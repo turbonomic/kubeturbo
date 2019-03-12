@@ -32,7 +32,7 @@ This document describes common prerequisites, and an overview of each method.  D
 
 Helm charts are an easy way to deploy and update kubeturbo.  We provide you a helm chart that you can download locally, and install specifying a few parameters.
 
-For more details go to [HELM_README.md](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo_helm/HELM_README.md) under kubeturbo/deploy/kubeturbo_helm/
+For more details go to [HELM_README.md](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo/HELM_README.md) under kubeturbo/deploy/kubeturbo/
 
 
 ## Deploy with YAMLs

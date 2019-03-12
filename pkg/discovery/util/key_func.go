@@ -1,12 +1,14 @@
 package util
 
 import (
-	"github.com/golang/glog"
-	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 	"strconv"
 	"strings"
 
+	"github.com/golang/glog"
+	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
+
 	"fmt"
+
 	api "k8s.io/api/core/v1"
 )
 
@@ -49,7 +51,7 @@ func ParseContainerId(containerId string) (string, int, error) {
 	}
 
 	if i < 1 {
-		err := fmt.Errorf("failed to parse containerId: %s.", containerId)
+		err := fmt.Errorf("failed to parse containerId: %s", containerId)
 		glog.Error(err)
 		return "", -1, err
 	}

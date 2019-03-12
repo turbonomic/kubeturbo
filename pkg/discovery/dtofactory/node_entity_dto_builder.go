@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	accessCommodityDefaultCapacity  = 1E10
-	clusterCommodityDefaultCapacity = 1E10
+	accessCommodityDefaultCapacity  = 1e10
+	clusterCommodityDefaultCapacity = 1e10
 
 	schedAccessCommodityKey string = "schedulable"
 )
@@ -99,6 +99,11 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		if present != nil {
 			nodeActive = false
 		}
+
+		controllable := util.NodeIsControllable(node)
+		entityDTOBuilder = entityDTOBuilder.ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
+			Controllable: &controllable,
+		})
 
 		// Power state.
 		// Will be Powered On, only if it is ready and has no issues with kubelet accessibility.
