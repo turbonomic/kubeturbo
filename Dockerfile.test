@@ -1,6 +1,0 @@
-### Simple Dockerfile for testing
-FROM alpine:3.3
-RUN apk --update upgrade && apk add ca-certificates && update-ca-certificates
-COPY ./kubeturbo.linux /bin/kubeturbo 
-RUN chmod +x /bin/kubeturbo
-ENTRYPOINT ["/bin/kubeturbo"]
