@@ -54,17 +54,15 @@ func (collector *GroupMetricsCollector) CollectGroupMetrics() ([]*repository.Ent
 		podByParentMembers[ownerTypeString] = append(podByParentMembers[ownerTypeString], podId)
 
 		// Container group membership - same as pod group
-		podMId := util.PodMetricIdAPI(pod)
 		for i := range pod.Spec.Containers { //
-			container := &(pod.Spec.Containers[i])
-			containerMId := util.ContainerMetricId(podMId, container.Name)
+			containerId := util.ContainerIdFunc(podId, i)
 
 			cOwnerTypeMap, cOwnerTypeExists := containerMembers[ownerTypeString]
 			if !cOwnerTypeExists {
 				containerMembers[ownerTypeString] = make(map[string][]string)
 				cOwnerTypeMap = containerMembers[ownerTypeString]
 			}
-			cOwnerTypeMap[ownerString] = append(cOwnerTypeMap[ownerString], containerMId)
+			cOwnerTypeMap[ownerString] = append(cOwnerTypeMap[ownerString], containerId)
 		}
 	}
 
