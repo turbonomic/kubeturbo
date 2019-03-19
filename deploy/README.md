@@ -45,7 +45,7 @@ Strongly advise you to use the sample yamls provided [here](https://github.com/t
 
 2. Create a service account, and add the role of cluster-admin. Assign `cluster-admin` role by cluster role binding:
 
-3. Create a configMap for kubeturbo, The <TURBONOMIC_SERVER_VERSION> is Turbonomic release version, e.g. 6.3.0 or 6.2.8.  To distinguish between different k8s clusters, supply a targetName value which will name the k8s cluster groups created in Turbonomic.
+3. Create a configMap for kubeturbo, The <TURBONOMIC_SERVER_VERSION> is Turbonomic release version, e.g. 6.3 or 7.12  To distinguish between different k8s clusters, supply a targetName value which will name the k8s cluster groups created in Turbonomic.
 
 4. Using a deployment type, deploy kubeturbo
 

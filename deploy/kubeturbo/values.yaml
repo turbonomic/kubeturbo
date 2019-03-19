@@ -5,7 +5,7 @@
 # Replace the image with desired version
 image:
   repository: vmturbo/kubeturbo
-  tag: 6.2
+  tag: 6.3
   pullPolicy: IfNotPresent
 
 #nameOverride: ""
