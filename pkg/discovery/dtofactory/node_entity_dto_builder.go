@@ -27,8 +27,9 @@ var (
 	nodeResourceCommoditiesSold = []metrics.ResourceType{
 		metrics.CPU,
 		metrics.Memory,
-		//metrics.CPUProvisioned,
-		//metrics.MemoryProvisioned,
+		metrics.CPURequest,
+		metrics.MemoryRequest,
+		// TODO, add back provisioned commodity later
 	}
 
 	allocationResourceCommoditiesSold = []metrics.ResourceType{
@@ -133,8 +134,8 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 	return result, nil
 }
 
-// Build the sold commodityDTO by each node. They are include:
-// VCPU, VMem, CPUProvisioned, MemProvisioned;
+// Build the sold commodityDTO by each node. They include:
+// VCPU, VMem, CPURequest, MemRequest;
 // VMPMAccessCommodity, ApplicationCommodity, ClusterCommodity.
 func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
@@ -148,12 +149,12 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 	}
 	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
 	glog.V(4).Infof("Frequency is %f", cpuFrequency)
-	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
+	// cpu and cpu request needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(
 		func(input float64) float64 {
 			return input * cpuFrequency
 		},
-		metrics.CPU, metrics.CPUProvisioned)
+		metrics.CPU, metrics.CPURequest)
 
 	// Resource Commodities
 	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.NodeType, key, nodeResourceCommoditiesSold, converter, nil)

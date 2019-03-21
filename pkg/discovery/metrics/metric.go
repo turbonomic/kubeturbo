@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 type DiscoveredEntityType string
@@ -67,7 +67,7 @@ var (
 	ComputeResources = []ResourceType{CPU, Memory}
 
 	// List of Allocation resources
-	ComputeAllocationResources = []ResourceType{CPULimit, MemoryLimit, CPURequest, MemoryRequest}
+	ComputeAllocationResources = []ResourceType{CPULimit, MemoryLimit}
 
 	// List of cpu related metrics
 	CPUResources = []ResourceType{CPULimit, CPURequest, CPU}

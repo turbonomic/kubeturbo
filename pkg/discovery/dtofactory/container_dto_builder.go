@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"fmt"
+
 	"github.com/golang/glog"
 	api "k8s.io/api/core/v1"
 
@@ -137,7 +138,7 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 	var result []*proto.CommodityDTO
 
 	//1a. vCPU
-	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPUProvisioned)
+	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU)
 
 	cpuAttrSetter := NewCommodityAttrSetter()
 	cpuAttrSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(isCpuLimitSet) }, metrics.CPU)
@@ -183,7 +184,7 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 	var result []*proto.CommodityDTO
 
 	//1. vCPU & vMem
-	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPUProvisioned)
+	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU)
 
 	attributeSetter := NewCommodityAttrSetter()
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)

@@ -29,9 +29,9 @@ var (
 	podResourceCommodityBoughtFromNode = []metrics.ResourceType{
 		metrics.CPU,
 		metrics.Memory,
-		// TODO, add back provisioned commodity later.
-		//metrics.CPUProvisioned,
-		//metrics.MemoryProvisioned,
+		metrics.CPURequest,
+		metrics.MemoryRequest,
+		// TODO, add back provisioned commodity later
 	}
 
 	podResourceCommodityBoughtFromQuota = []metrics.ResourceType{
@@ -169,7 +169,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequ
 	var commoditiesSold []*proto.CommodityDTO
 
 	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
-	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPUProvisioned)
+	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU)
 
 	attributeSetter := NewCommodityAttrSetter()
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(false) }, metrics.CPU, metrics.Memory)
@@ -206,7 +206,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 	var commoditiesBought []*proto.CommodityDTO
 
 	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
-	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPUProvisioned)
+	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPURequest)
 
 	// Resource Commodities.
 	podMId := util.PodMetricIdAPI(pod)
