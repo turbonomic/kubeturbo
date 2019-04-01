@@ -1,6 +1,8 @@
 package worker
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -9,7 +11,6 @@ import (
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"testing"
 )
 
 var (
@@ -257,8 +258,6 @@ func TestPodMetricsListAllocationUsage(t *testing.T) {
 	memUsed := 0.0
 	assert.Equal(t, cpuUsed, resourceMap[metrics.CPULimit])
 	assert.Equal(t, memUsed, resourceMap[metrics.MemoryLimit])
-	assert.Equal(t, cpuUsed, resourceMap[metrics.CPURequest])
-	assert.Equal(t, memUsed, resourceMap[metrics.MemoryRequest])
 }
 
 func TestSumPodMetricsMissingComputeUsage(t *testing.T) {
@@ -283,9 +282,7 @@ func TestPodMetrics(t *testing.T) {
 	pm := createPodMetrics(pod_ns1_n1, ns1, metricsSink)
 
 	assert.Equal(t, pm.AllocationBought[metrics.CPULimit], cpuUsed_pod_n1_ns1)
-	assert.Equal(t, pm.AllocationBought[metrics.CPURequest], cpuUsed_pod_n1_ns1)
 	assert.Equal(t, pm.AllocationBought[metrics.MemoryLimit], 0.0)
-	assert.Equal(t, pm.AllocationBought[metrics.MemoryRequest], 0.0)
 }
 
 func TestPodMetricsCollectionNullCluster(t *testing.T) {
@@ -431,9 +428,7 @@ func TestCreateMetricsMapForNodeWithEmptyPodList(t *testing.T) {
 
 	// allocation used map is not created
 	assert.Equal(t, nm.AllocationUsed[metrics.CPULimit], 0.0)
-	assert.Equal(t, nm.AllocationUsed[metrics.CPURequest], 0.0)
 	assert.Equal(t, nm.AllocationUsed[metrics.MemoryLimit], 0.0)
-	assert.Equal(t, nm.AllocationUsed[metrics.MemoryRequest], 0.0)
 
 	// allocation capacity map is created
 	assertNodeAllocationCapacity(t, nm)
@@ -470,22 +465,17 @@ func TestNodeMetricsCollectionMultipleNodes(t *testing.T) {
 
 	// Assert the node allocation usage values for nodes with pods
 	assertNodeAllocationUsage(t, n1Metrics, node1)
-	assert.Equal(t, n2Metrics.AllocationUsed[metrics.CPULimit], 0.0)   // no pods on n2
-	assert.Equal(t, n2Metrics.AllocationUsed[metrics.CPURequest], 0.0) // no pods on n2
+	assert.Equal(t, n2Metrics.AllocationUsed[metrics.CPULimit], 0.0) // no pods on n2
 }
 
 func assertNodeAllocationCapacity(t *testing.T, nm *repository.NodeMetrics) {
-	assert.Equal(t, nm.AllocationCap[metrics.CPULimit], nodeCpuCap) // node allocation capacity is equal to the node's compute resources
-	assert.Equal(t, nm.AllocationCap[metrics.CPURequest], nodeCpuCap)
+	assert.Equal(t, nm.AllocationCap[metrics.CPULimit], nodeCpuCap)    // node allocation capacity is equal to the node's compute resources
 	assert.Equal(t, nm.AllocationCap[metrics.MemoryLimit], nodeMemCap) // node allocation capacity is equal to the node's compute resources
-	assert.Equal(t, nm.AllocationCap[metrics.MemoryRequest], nodeMemCap)
 }
 
 func assertNodeAllocationUsage(t *testing.T, nm *repository.NodeMetrics, node string) {
 	assert.Equal(t, nm.AllocationUsed[metrics.CPULimit], nodeToPodCpuUsageMap[node]) // node allocation capacity is equal to the node's compute resources
-	assert.Equal(t, nm.AllocationUsed[metrics.CPURequest], nodeToPodCpuUsageMap[node])
-	assert.Equal(t, nm.AllocationUsed[metrics.MemoryLimit], 0.0) // node allocation capacity is equal to the node's compute resources
-	assert.Equal(t, nm.AllocationUsed[metrics.MemoryRequest], 0.0)
+	assert.Equal(t, nm.AllocationUsed[metrics.MemoryLimit], 0.0)                     // node allocation capacity is equal to the node's compute resources
 }
 
 func TestQuotaMetricsMapAllNodes(t *testing.T) {

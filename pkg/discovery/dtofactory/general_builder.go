@@ -7,6 +7,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"fmt"
+
 	"github.com/golang/glog"
 )
 
@@ -15,6 +16,8 @@ var (
 	rTypeMapping = map[metrics.ResourceType]proto.CommodityDTO_CommodityType{
 		metrics.CPU:               proto.CommodityDTO_VCPU,
 		metrics.Memory:            proto.CommodityDTO_VMEM,
+		metrics.CPURequest:        proto.CommodityDTO_VCPU_REQUEST,
+		metrics.MemoryRequest:     proto.CommodityDTO_VMEM_REQUEST,
 		metrics.CPUProvisioned:    proto.CommodityDTO_CPU_PROVISIONED,
 		metrics.MemoryProvisioned: proto.CommodityDTO_MEM_PROVISIONED,
 		metrics.Transaction:       proto.CommodityDTO_TRANSACTION,
