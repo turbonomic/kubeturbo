@@ -13,6 +13,8 @@ import (
 var (
 	vCpuType          proto.CommodityDTO_CommodityType = proto.CommodityDTO_VCPU
 	vMemType          proto.CommodityDTO_CommodityType = proto.CommodityDTO_VMEM
+	vCpuRequestType   proto.CommodityDTO_CommodityType = proto.CommodityDTO_VCPU_REQUEST
+	vMemRequestType   proto.CommodityDTO_CommodityType = proto.CommodityDTO_VMEM_REQUEST
 	cpuAllocationType proto.CommodityDTO_CommodityType = proto.CommodityDTO_CPU_ALLOCATION
 	memAllocationType proto.CommodityDTO_CommodityType = proto.CommodityDTO_MEM_ALLOCATION
 	clusterType       proto.CommodityDTO_CommodityType = proto.CommodityDTO_CLUSTER
@@ -25,6 +27,8 @@ var (
 
 	vCpuTemplateComm                 *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vCpuType}
 	vMemTemplateComm                 *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vMemType}
+	vCpuRequestTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vCpuRequestType}
+	vMemRequestTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vMemRequestType}
 	cpuAllocationTemplateCommWithKey *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuAllocationType}
 	memAllocationTemplateCommWithKey *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memAllocationType}
 	vmpmAccessTemplateComm           *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
@@ -112,9 +116,11 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 	nodeSupplyChainNodeBuilder.SetTemplateType(f.vmTemplateType)
 
 	nodeSupplyChainNodeBuilder = nodeSupplyChainNodeBuilder.
-		Sells(vCpuTemplateComm).       // sells to Pods
-		Sells(vMemTemplateComm).       // sells to Pods
-		Sells(vmpmAccessTemplateComm). // sells to Pods
+		Sells(vCpuTemplateComm).        // sells to Pods
+		Sells(vMemTemplateComm).        // sells to Pods
+		Sells(vCpuRequestTemplateComm). // sells to Pods
+		Sells(vMemRequestTemplateComm). // sells to Pods
+		Sells(vmpmAccessTemplateComm).  // sells to Pods
 		// also sells Cluster to Pods
 		Sells(cpuAllocationTemplateCommWithKey). //sells to Quotas
 		Sells(memAllocationTemplateCommWithKey)  //sells to Quotas
@@ -159,6 +165,8 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_HOSTING).
 		Buys(vCpuTemplateComm).
 		Buys(vMemTemplateComm).
+		Buys(vCpuRequestTemplateComm).
+		Buys(vMemRequestTemplateComm).
 		Provider(proto.EntityDTO_VIRTUAL_DATACENTER, proto.Provider_LAYERED_OVER).
 		Buys(cpuAllocationTemplateCommWithKey).
 		Buys(memAllocationTemplateCommWithKey)
@@ -168,6 +176,8 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 	vmPodExtLinkBuilder.Link(proto.EntityDTO_CONTAINER_POD, proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_HOSTING).
 		Commodity(vCpuType, false).
 		Commodity(vMemType, false).
+		Commodity(vCpuRequestType, false).
+		Commodity(vMemRequestType, false).
 		Commodity(vmPMAccessType, true).
 		Commodity(clusterType, true)
 
