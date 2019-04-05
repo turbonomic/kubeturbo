@@ -150,6 +150,9 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 
 	commSoldBuilder.Used(usedValue)
 
+	// set peak value as the used value
+	commSoldBuilder.Peak(usedValue)
+
 	// set capacity value
 	capacityValue, err := builder.metricValue(entityType, entityID,
 		resourceType, metrics.Capacity, converter)
@@ -216,6 +219,9 @@ func (builder generalBuilder) getResourceCommoditiesBought(entityType metrics.Di
 		}
 		commBoughtBuilder.Used(usedValue)
 
+		// set peak value as the used value
+		commBoughtBuilder.Peak(usedValue)
+
 		// set reservation value if any
 		reservedMetricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID,
 			rType, metrics.Reservation)
@@ -273,6 +279,9 @@ func (builder generalBuilder) getResourceCommodityBoughtWithKey(entityType metri
 	}
 
 	commBoughtBuilder.Used(usedValue)
+
+	// set peak value as the used value
+	commBoughtBuilder.Peak(usedValue)
 
 	// set reservation value if any
 	reservationValue, _ := builder.metricValue(entityType, entityID,
