@@ -14,10 +14,18 @@ data:
                 "opsManagerUserName": "{{ .Values.restAPIConfig.opsManagerUserName }}",
                 "opsManagerPassword": "{{ .Values.restAPIConfig.opsManagerPassword }}"
             }
-        {{- if .Values.targetConfig }}
-          {{- if .Values.targetConfig.targetName }}
-          "targetConfig": {
-              "targetName": "{{ .Values.targetConfig.targetName }}"
+        },
+        "targetConfig": {
+            "targetName": "{{ .Values.targetConfig.targetName }}"
+        },
+        "masterNodeDetectors": {
+            "nodeNamePatterns": ["{{.Values.masterNodeDetectors.nodeNamePatterns }}"]
+            "nodeLabels": [{"key":"{{.Values.masterNodeDetectors.nodeLabels }}", "value":"{{.Values.masterNodeDetectors.nodeLabelsValue }}"}]
+        {{- if .Values.daemonPodDetectors }}
+          {{- if and .Values.daemonPodDetectors.namespaces .Values.daemonPodDetectors.podNamePatterns }}
+          "daemonPodDetectors": {
+              "namespaces": [{{.Values.daemonPodDetectors.namespaces }}]
+              "podNamePatterns": ["{{.Values.daemonPodDetectors.podNamePatterns }}"]
           }
           {{- end }}
         {{- end }}

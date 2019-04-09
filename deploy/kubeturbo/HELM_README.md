@@ -14,7 +14,7 @@ The Helm Chart provided [here](https://github.com/turbonomic/kubeturbo/tree/mast
 
 Note:
 * When deploying kubeturbo using helm, the user will create charts that will create resources requiring cluster admin role.  [Review Tiller and role-based access control requirements](https://docs.helm.sh/using_helm/#tiller-and-role-based-access-control).  Tiller will need to run with an SA that has [cluster role access](https://github.com/fnproject/fn-helm/issues/21).
-* The image tag used will depend somewhat on your Turbo Server version.  For Server versions of 6.1.x - 6.2.x, use tag "6.2".  For Server versions of 6.3.1+, use "6.3".  Running CWOM? Go here to see conversion chart for [CWOM -> Turbonomic Server version](https://github.com/turbonomic/kubeturbo/tree/master/deploy/CWOM_versions.md).
+* The image tag used will depend somewhat on your Turbo Server version.  For Server versions of 6.1.x - 6.2.x, use tag "6.2".  For Server versions of 6.3.1+, use "6.3".  Running CWOM? Go here to see conversion chart for [CWOM -> Turbonomic Server -> kubeturbo version](https://github.com/turbonomic/kubeturbo/tree/master/deploy/version_mapping_kubeturbo_Turbo_CWOM.md).
 
 #### Helm Install
 
@@ -37,14 +37,21 @@ serverMeta.version| |required|number x.y.z
 serverMeta.turboServer| |required|https URL to log into Server
 restAPIConfig.opsManagerUserName| |required|local or AD user with admin role
 restAPIConfig.opsManagerPassword| |required|admin's password
-targetConfig.targetName|none if not specified|optional but required for multiple clusters|String, how you want to identify your cluster
+targetConfig.targetName|"Your_k8s_cluster"|optional but required for multiple clusters|String, how you want to identify your cluster
 args.logginglevel|2|optional|number
 args.kubelethttps|true|optional, change to false if k8s 1.10 or older|bolean
 args.kubeletport|10250|optional, change to 10255 if k8s 1.10 or older|number
 args.stitchuuid|true|optional, change to false if IaaS is VMM, Hyper-V|bolean
+masterNodeDetectors.nodeNamePatterns|node name includes `.*master.*`|optional but required to avoid suspending masters identified by node name. If no match, this is ignored.| string, regex used, example:  `.*master.*`
+masterNodeDetectors.nodeLabels|any value for label key value `node-role.kubernetes.io/master`|optional but required to avoid suspending masters identified by node label key value pair, If no match, this is ignored.|regex used, specify the key as **masterNodeDetectors.nodeLabelsLabel** such as  `node-role.kubernetes.io/master` and the value as **masterNodeDetectors.nodeLabelsValue** such as `.*`
+daemonPodDetectors.namespaces|daemonSet kinds are by default allow node suspension. Adding this parameter changes default.|optional but required to identify pods in the namespace to be ignored for cluster consolidation| regex used, values in quotes & comma separated`"kube-system","kube-service-catalog","openshift-.*"`
+daemonPodDetectors.podNamePatterns|daemonSet kinds are by default allow node suspension. Adding this parameter changes default.|optional but required to identify pods matching this pattern to be ignored for cluster consolidation|regex used `.*ignorepod.*`
+
+For more on `masterNodeDetectors` and `daemonPodDetectors` go to [YAMLS_README.md](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo_yamls/YAMLS_README.md) under kubeturbo/deploy/kubeturbo_yamls/
 
 #### Updating Turbo Server
 When you update the Turbonomic or CWOM Server, you will need to update the configMap resource to reflect the new version.
+NOTE: Starting with kubeturbo 6.3+, you do not need to make this configMap modification if updating to a minor version like 6.3.0 -> 6.3.1, which will now be automatically handled.  You would only need to make this change if you are making a major change, going from 6.3.1 -> 6.4.0, or 6.3.1 -> 7.0.0.
 
 1. After the update, obtain the new version.  To get this from the UI, go to Settings -> Updates -> About and use the numeric version such as “6.0.11” or “6.2.0” (Build details not required)
 1. You will update the version value - substitute your values for {}:  `helm upgrade --name {helmChart}{chart location or repo} --namespace turbo --set serverMeta.version={Turbo_Server_Version}`
