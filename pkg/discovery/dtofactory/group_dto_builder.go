@@ -18,7 +18,10 @@ type groupDTOBuilder struct {
 
 var (
 	CONSISTENT_RESIZE_GROUPS = map[string]bool{
-		"StatefulSet": true,
+		"Deployment":            true,
+		"ReplicaSet":            true,
+		"ReplicationController": true,
+		"StatefulSet":           true,
 	}
 )
 
