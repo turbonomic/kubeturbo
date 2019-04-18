@@ -25,6 +25,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pborman/uuid v0.0.0-20150603214016-ca53cad383ca
 	github.com/peterbourgon/diskv v0.0.0-20180312054125-0646ccaebea1 // indirect
+	github.com/pkg/errors v0.8.1 // indirect
 	github.com/pmezard/go-difflib v0.0.0-20151028094244-d8ed2627bdf0 // indirect
 	github.com/prometheus/client_golang v0.0.0-20170531130054-e7e903064f5e
 	github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910 // indirect
@@ -45,6 +46,9 @@ require (
 	k8s.io/apimachinery v0.0.0-20180621070125-103fd098999d
 	k8s.io/apiserver v0.0.0-20180628044425-01459b68eb5f
 	k8s.io/client-go v8.0.0+incompatible
+	k8s.io/klog v0.3.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20180928202339-9dfdf9be683f // indirect
 	k8s.io/kubernetes v1.11.0
+	sigs.k8s.io/cluster-api v0.0.0-20190418151011-abfd18620fd0
+	sigs.k8s.io/controller-runtime v0.1.10 // indirect
 )
