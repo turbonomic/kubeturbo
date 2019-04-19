@@ -732,7 +732,7 @@ func NewScalingController(sRequest *scalingRequest) (ScalingController, error) {
 	case *clusterv1.MachineDeployment:
 		return &mdScalingController{sc, v, mList}, nil
 	case *clusterv1.Machine:
-		return &mScalingController{sc, v,}, nil
+		return &mScalingController{sc, v}, nil
 	}
 
 	return sc, fmt.Errorf("%s %s: Unexpected Node scaling controller type: %T", errPrefix, sRequest.nodeName, controller)
@@ -961,7 +961,7 @@ func (sc *msScalingController) waitForNodeProvisioning(newM *clusterv1.Machine) 
 	// check Node creation final status
 	newM, err = sc.getMachine(newM.Name, logPrefix)
 	if err != nil {
-		return nil, err;
+		return nil, err
 	}
 
 	if newM.Status.ErrorMessage != nil {
@@ -1219,7 +1219,7 @@ func (sc *scalingController) waitForState(stateDesc string, maxWaits int, waitTi
 			}
 			return nil
 		}
-		// Remember the fErr. 
+		// Remember the fErr.
 		if fErr == nil && err != nil {
 			fErr = err
 		}
