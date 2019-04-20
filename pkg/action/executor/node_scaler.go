@@ -749,11 +749,11 @@ func (sc *scalingController) Progress() *progress {
 }
 
 func (sc *scalingController) GetLockKey() (string, error) {
-	return "", fmt.Errorf("GetLockKey: scaling support not yet implemented for controller type %T: %t", sc, sc)
+	return "", fmt.Errorf("GetLockKey: scaling support not yet implemented for controller type %T: %v", sc, sc)
 }
 
 func (sc *scalingController) verifyIsLocked(string) error {
-	return fmt.Errorf("verifyIsLocked: scaling support not yet implemented for controller type %T: %t", sc, sc)
+	return fmt.Errorf("verifyIsLocked: scaling support not yet implemented for controller type %T: %v", sc, sc)
 }
 
 func (sc *scalingController) verifyActionPreconditions() error {
@@ -965,7 +965,7 @@ func (sc *msScalingController) waitForNodeProvisioning(newM *clusterv1.Machine) 
 	}
 
 	if newM.Status.ErrorMessage != nil {
-		err = fmt.Errorf("Machine %s failed to create new Node: %v: %s", newM.Name, newM.Status.ErrorReason, newM.Status.ErrorMessage)
+		err = fmt.Errorf("Machine %s failed to create new Node: %v: %s", newM.Name, newM.Status.ErrorReason, *newM.Status.ErrorMessage)
 		return nil, err
 	}
 	newNName := newM.Status.NodeRef.Name

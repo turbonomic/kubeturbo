@@ -166,7 +166,7 @@ func RunScale(ro *ScaleOptions) error {
 	case *turboexec.Suspender:
 		_, err = executor.ExecuteWithProgress(actionItemDTO, progress, lockKey)
 	default:
-		glog.Error("Unsupported executor type: %s", executor)
+		glog.Errorf("Unsupported executor type: %s", executor)
 	}
 	time.Sleep(1 * time.Second)
 	return err
