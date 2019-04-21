@@ -24,7 +24,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 	turboexec "github.com/turbonomic/kubeturbo/pkg/action/executor"
-	"k8s.io/apiserver/pkg/util/logs"
 	"k8s.io/client-go/kubernetes"
 	clusterclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	clusterapiutil "sigs.k8s.io/cluster-api/pkg/util"
@@ -185,5 +184,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&ro.verbo, "verbo", "b", "1", "verbo level")
 	//flag.CommandLine.Parse([]string{})
 	//flag.CommandLine.Parse([]string{"-v=2"})
-	logs.InitLogs()
+	// TODO: I'm commenting out the line below to avoid the "flag redefined: log_dir" error during go test
+	//logs.InitLogs()
 }
