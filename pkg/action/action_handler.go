@@ -2,6 +2,7 @@ package action
 
 import (
 	"fmt"
+	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	"time"
 
 	client "k8s.io/client-go/kubernetes"
@@ -36,11 +37,13 @@ var (
 	turboActionContainerResize     turboActionType = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_CONTAINER}
 	turboActionContainerPodSuspend turboActionType = turboActionType{proto.ActionItemDTO_SUSPEND, proto.EntityDTO_CONTAINER_POD}
 
-	//turboActionUnbind          turboActionType = "unbind"
+	turboActionMachineProvision turboActionType = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_VIRTUAL_MACHINE}
+	turboActionMachineSuspend   turboActionType = turboActionType{proto.ActionItemDTO_SUSPEND, proto.EntityDTO_VIRTUAL_MACHINE}
 )
 
 type ActionHandlerConfig struct {
 	kubeClient     *client.Clientset
+	cApiClient     *clientset.Clientset
 	kubeletClient  *kubeclient.KubeletClient
 	StopEverything chan struct{}
 	sccAllowedSet  map[string]struct{}
@@ -97,7 +100,7 @@ func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 // As action executor is stateless, they can be safely reused.
 func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
-	ae := executor.NewTurboK8sActionExecutor(c.kubeClient, h.podManager)
+	ae := executor.NewTurboK8sActionExecutor(c.kubeClient, c.cApiClient, h.podManager)
 
 	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet)
 	h.actionExecutors[turboActionPodMove] = reScheduler
@@ -108,6 +111,10 @@ func (h *ActionHandler) registerActionExecutors() {
 
 	containerResizer := executor.NewContainerResizer(ae, c.kubeletClient, c.sccAllowedSet)
 	h.actionExecutors[turboActionContainerResize] = containerResizer
+
+	machineScaler := executor.NewMachineActionExecutor(ae)
+	h.actionExecutors[turboActionMachineProvision] = machineScaler
+	h.actionExecutors[turboActionMachineSuspend] = machineScaler
 }
 
 // Implement ActionExecutorClient interface defined in Go SDK.

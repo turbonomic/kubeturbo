@@ -18,6 +18,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
+	clusterclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
 	"github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/test/flag"
@@ -43,7 +44,7 @@ const (
 var (
 	defaultSccSupport = []string{"restricted"}
 
-	//these variables will be deprecated. Keep it here for backward compatibility only
+	// these variables will be deprecated. Keep it here for backward compatibility only
 	k8sVersion        = "1.8"
 	noneSchedulerName = "turbo-no-scheduler"
 )
@@ -63,7 +64,7 @@ type VMTServer struct {
 	BindPodsBurst        int
 	DiscoveryIntervalSec int
 
-	//LeaderElection componentconfig.LeaderElectionConfiguration
+	// LeaderElection componentconfig.LeaderElectionConfiguration
 
 	EnableProfiling bool
 
@@ -72,9 +73,9 @@ type VMTServer struct {
 	// If the underlying infrastructure is VMWare, AWS instances, or Azure instances, VM's UUID is used.
 	UseUUID bool
 
-	//VMPriority: priority of VM in supplyChain definition from kubeturbo, should be less than 0;
+	// VMPriority: priority of VM in supplyChain definition from kubeturbo, should be less than 0;
 	VMPriority int32
-	//VMIsBase: Is VM is the base template from kubeturbo, when stitching with other VM probes, should be false;
+	// VMIsBase: Is VM is the base template from kubeturbo, when stitching with other VM probes, should be false;
 	VMIsBase bool
 
 	// Kubelet related config
@@ -160,7 +161,7 @@ func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, allo
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
 		AllowTLSInsecure(allowTLSInsecure).
-		//Timeout(to).
+		// Timeout(to).
 		Create()
 	if err != nil {
 		glog.Errorf("Fatal error: failed to create kubeletClient: %v", err)
@@ -219,6 +220,11 @@ func (s *VMTServer) Run(_ []string) error {
 	// the certificate issue of 'doesn't contain any IP SANs'.
 	// See https://github.com/kubernetes/kubernetes/issues/59372
 	kubeletClient := s.createKubeletClientOrDie(kubeConfig, !isOpenshift)
+	caClient, err := clusterclient.NewForConfig(kubeConfig)
+	if err != nil {
+		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
+		os.Exit(1)
+	}
 
 	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
 	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec, kubeConfig.Host)
@@ -232,6 +238,7 @@ func (s *VMTServer) Run(_ []string) error {
 	vmtConfig.WithTapSpec(k8sTAPSpec).
 		WithKubeClient(kubeClient).
 		WithKubeletClient(kubeletClient).
+		WithClusterAPIClient(caClient).
 		WithVMPriority(s.VMPriority).
 		WithVMIsBase(s.VMIsBase).
 		UsingUUIDStitch(s.UseUUID).
@@ -263,17 +270,17 @@ func (s *VMTServer) Run(_ []string) error {
 func (s *VMTServer) startHttp() {
 	mux := http.NewServeMux()
 
-	//healthz
+	// healthz
 	healthz.InstallHandler(mux)
 
-	//debug
+	// debug
 	if s.EnableProfiling {
 		mux.HandleFunc("/debug/pprof/", pprof.Index)
 		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
-		//prometheus.metrics
+		// prometheus.metrics
 		mux.Handle("/metrics", prometheus.Handler())
 	}
 
@@ -285,7 +292,7 @@ func (s *VMTServer) startHttp() {
 }
 
 // handleExit disconnects the tap service from Turbo service when Kubeturbo is shotdown
-func handleExit(disconnectFunc disconnectFromTurboFunc) { //k8sTAPService *kubeturbo.K8sTAPService) {
+func handleExit(disconnectFunc disconnectFromTurboFunc) { // k8sTAPService *kubeturbo.K8sTAPService) {
 	glog.V(4).Infof("*** Handling Kubeturbo Termination ***")
 	sigChan := make(chan os.Signal)
 	signal.Notify(sigChan,
