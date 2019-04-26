@@ -2,27 +2,30 @@ package executor
 
 import (
 	"fmt"
+	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 type MachineActionExecutor struct {
-	ae TurboK8sActionExecutor
+	ae    TurboK8sActionExecutor
 	locks *turbostore.Cache
 }
 
 func NewMachineActionExecutor(ae TurboK8sActionExecutor) *MachineActionExecutor {
 	return &MachineActionExecutor{
-		ae: ae,
+		ae:    ae,
 		locks: turbostore.NewCache(),
 	}
 }
 
 // unlock unlocks the executor to be used with the same machine set
 func (s *MachineActionExecutor) unlock(lock string) {
-	_ := s.locks.Delete(lock)
+	err := s.locks.Delete(lock)
+	if err != nil {
+		glog.V(4).Info("problem unlocking MachinSet " + lock)
+	}
 }
-
 
 // Execute : executes the scale action.
 func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*TurboActionExecutorOutput, error) {
@@ -36,7 +39,7 @@ func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*Turbo
 		actionType = SuspendAction
 		break
 	default:
-		return nil, fmt.Errorf("Unsupported action type %v", vmDTO.ActionItem.GetActionType())
+		return nil, fmt.Errorf("unsupported action type %v", vmDTO.ActionItem.GetActionType())
 	}
 	// Get on with it.
 	controller, err := newController(nodeName, 1, actionType, s.ae.cApiClient, s.ae.kubeClient)
@@ -46,7 +49,7 @@ func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*Turbo
 	lock := controller.getLock()
 	// See if we've locked already
 	if _, exists := s.locks.Get(lock); exists {
-		return nil, fmt.Errorf("MachineSet %s is being updated already", lock)
+		return nil, fmt.Errorf("machineSet %s is being updated already", lock)
 	}
 	// Locks and unlocks the executor to be used with the same machine set.
 	s.locks.Add(lock, int(1))
