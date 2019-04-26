@@ -2,13 +2,14 @@ package app
 
 import (
 	"fmt"
-	"github.com/spf13/pflag"
-	"github.com/stretchr/testify/assert"
-	"github.com/turbonomic/kubeturbo/pkg"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
+	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 )
 
 type helper struct {
