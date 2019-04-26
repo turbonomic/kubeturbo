@@ -92,7 +92,6 @@ func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 	go lmap.Run(config.StopEverything)
 	handler.registerActionExecutors()
 	handler.lockStore = newActionLockStore(lmap, handler.getRelatedPod)
-
 	return handler
 }
 
@@ -149,45 +148,51 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 }
 
 func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
+	clusterAPIAction := false
+	if (*actionItem.ActionType == proto.ActionItemDTO_PROVISION ||
+		*actionItem.ActionType == proto.ActionItemDTO_SUSPEND) &&
+		*actionItem.CurrentSE.EntityType == proto.EntityDTO_VIRTUAL_MACHINE {
+		clusterAPIAction = true
+	}
 
 	// Acquire the lock for the actionItem. It blocks the action execution if the lock
 	// is used by other action. It results in error return if timed out (set in lockStore).
-	if lock, err := h.lockStore.getLock(actionItem); err != nil {
-		return err
-	} else {
-		// Unlock the entity after the action execution is finished
-		defer glog.V(4).Infof("Action %s: releasing lock", actionItem.GetUuid())
-		defer lock.ReleaseLock()
-		lock.KeepRenewLock()
-	}
-
-	// After getting the lock, need to get the k8s pod again as the previous action could delete the pod and create a new one.
-	// In such case, the action should be applied on the new pod.
-	// Currently, all actions need to get its related pod. If not needed, the pod is nil.
-	pod := h.getRelatedPod(actionItem)
-
-	if pod == nil {
-		err := fmt.Errorf("Cannot find the related pod for action item %s", actionItem.GetUuid())
-		return err
+	if !clusterAPIAction {
+		if lock, err := h.lockStore.getLock(actionItem); err != nil {
+			return err
+		} else {
+			// Unlock the entity after the action execution is finished
+			defer glog.V(4).Infof("Action %s: releasing lock", actionItem.GetUuid())
+			defer lock.ReleaseLock()
+			lock.KeepRenewLock()
+		}
 	}
 
 	input := &executor.TurboActionExecutorInput{
 		ActionItem: actionItem,
-		Pod:        pod,
 	}
+	if !clusterAPIAction {
+		// After getting the lock, need to get the k8s pod again as the previous action could delete the pod and create a new one.
+		// In such case, the action should be applied on the new pod.
+		// Currently, all actions need to get its related pod. If not needed, the pod is nil.
+		pod := h.getRelatedPod(actionItem)
+		if pod == nil {
+			err := fmt.Errorf("Cannot find the related pod for action item %s", actionItem.GetUuid())
+			return err
+		}
+		input.Pod = pod
+	}
+
 	actionType := getTurboActionType(actionItem)
 	worker := h.actionExecutors[actionType]
 	output, err := worker.Execute(input)
-
 	if err != nil {
 		glog.Errorf("Failed to execute action %v on %s: %+v.",
 			actionType, actionItem.GetTargetSE().GetEntityType(), actionItem)
 		return err
 	}
-
 	// Process the action execution output, including caching the pod name change.
 	h.processOutput(output)
-
 	return nil
 }
 

@@ -129,6 +129,7 @@ type controller interface {
 	checkPreconditions() error
 	checkSuccess() error
 	executeAction() error
+	getLock() string
 }
 
 // machineSetController executes a MachineSet scaling action request.
@@ -142,9 +143,30 @@ type machineSetController struct {
 // ------------------------------------------------------------------------------------------------------------------
 //
 
+// getLock returns the lock to be checked for machine sets.
+func (controller *machineSetController) getLock() string {
+	return controller.machineSet.Name
+}
+
 // Check preconditions
 func (controller *machineSetController) checkPreconditions() error {
-	return controller.checkMachineSet(controller.machineSet)
+	if controller.machineSet.Spec.Replicas == nil {
+		return fmt.Errorf("MachineSet %s invalid replica count (nil)", controller.machineSet.Name)
+	}
+	// get MachineSet's list of managed Machines
+	machineList, err := controller.request.client.listMachinesInSet(controller.machineSet)
+	if err != nil {
+		return err
+	}
+	// Check replica count match with the number of managed machines.
+	if int(*controller.machineSet.Spec.Replicas) != len(machineList.Items) {
+		return fmt.Errorf("MachineSet %s replica count doesn't match the machine count: %d vs. %d",
+			controller.machineSet.Name, int(*controller.machineSet.Spec.Replicas), len(machineList.Items))
+	}
+	if int(*controller.machineSet.Spec.Replicas+controller.request.diff) < 1 {
+		return fmt.Errorf("MachineSet %s must be left with at least a single node", controller.machineSet.Name)
+	}
+	return nil
 }
 
 // executeAction scales a MachineSet by modifying its replica count
@@ -175,8 +197,7 @@ func (controller *machineSetController) checkMachineSet(args ...interface{}) err
 	}
 	// Check replica count match with the number of managed machines.
 	if int(*machineSet.Spec.Replicas) != len(machineList.Items) {
-		return fmt.Errorf("MachineSet %s replica count doesn't match the machine count: %d vs. %d",
-			machineSet.Name, int(*machineSet.Spec.Replicas), len(machineList.Items))
+		return fmt.Errorf("")
 	}
 	return nil
 }
