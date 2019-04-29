@@ -30,17 +30,21 @@ import (
 	"k8s.io/klog"
 )
 
-func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	// Change default goflag: log to both stderr and /var/log/
+// Initialize logs with the following steps:
+// - Merge glog and klog flags into goflag FlagSet
+// - Add the above merged goflag set into pflag CommandLine FlagSet
+// - Add kubeturbo flags into pflag CommandLine FlagSet
+// - Parse pflag FlagSet:
+//     - goflag FlagSet will be parsed first
+//     - pflag FlagSet will be parsed next
+// - Sync those glog flags that also appear in klog flags
+//
+// Return log flush frequency
+func initLogs(s *app.VMTServer) *time.Duration {
+	// Change default behavior: log to both stderr and /var/log/
 	// These arguments can be overwritten from the command-line args
-	if err := goflag.Set("alsologtostderr", "true"); err != nil {
-		glog.Warningf("Failed to set default value for alsologtostderr: %v", err)
-	}
-	if err := goflag.Set("log_dir", "/var/log"); err != nil {
-		glog.Warningf("Failed to set default value for log_dir: %v", err)
-	}
+	_ = goflag.Set("alsologtostderr", "true")
+	_ = goflag.Set("log_dir", "/var/log")
 
 	// Initialize klog specific flags into a new FlagSet
 	klogFlags := goflag.NewFlagSet("klog", goflag.ExitOnError)
@@ -54,20 +58,44 @@ func main() {
 		}
 	})
 
-	// Convert goflag to pflag
+	// Add log flush frequency
+	logFlushFreq := goflag.Duration("log-flush-frequency", 5*time.Second,
+		"Maximum number of seconds between log flushes")
+
+	// Add goflag to pflag
+	// During pflag.Parse(), all goflag will be parsed using goflag.Parse()
 	pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
 
 	// Add kubeturbo specific flags to pflag
-	s := app.NewVMTServer()
 	s.AddFlags(pflag.CommandLine)
-
-	// Add log flush frequency to pflag
-	logFlushFreq := pflag.Duration("log-flush-frequency", 5*time.Second,
-		"Maximum number of seconds between log flushes")
 
 	// We have all the defined flags, now parse it
 	pflag.CommandLine.SetNormalizeFunc(flag.WordSepNormalizeFunc)
 	pflag.Parse()
+
+	// Sync the glog and klog flags
+	pflag.CommandLine.VisitAll(func(glogFlag *pflag.Flag) {
+		klogFlag := klogFlags.Lookup(glogFlag.Name)
+		if klogFlag != nil {
+			value := glogFlag.Value.String()
+			_ = klogFlag.Value.Set(value)
+		}
+	})
+
+	// Print out all parsed flags
+	pflag.VisitAll(func(flag *pflag.Flag) {
+		glog.V(2).Infof("FLAG: --%s=%q", flag.Name, flag.Value)
+	})
+
+	return logFlushFreq
+}
+
+func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	s := app.NewVMTServer()
+
+	logFlushFreq := initLogs(s)
 
 	// Launch separate goroutines to flush glog and klog
 	go wait.Forever(klog.Flush, *logFlushFreq)
@@ -75,23 +103,7 @@ func main() {
 	defer klog.Flush()
 	defer glog.Flush()
 
-	// Print out all parsed flags
-	pflag.VisitAll(func(flag *pflag.Flag) {
-		glog.V(2).Infof("FLAG: --%s=%q", flag.Name, flag.Value)
-	})
-
-	// Sync the glog and klog flags
-	pflag.CommandLine.VisitAll(func(f1 *pflag.Flag) {
-		f2 := klogFlags.Lookup(f1.Name)
-		if f2 != nil {
-			value := f1.Value.String()
-			if err := f2.Value.Set(value); err != nil {
-				glog.Warningf("Failed to set value for flag %s: %v", f1.Name, err)
-			}
-		}
-	})
-
 	glog.Infof("Run Kubeturbo service (GIT_COMMIT: %s)", os.Getenv("GIT_COMMIT"))
 
-	s.Run(pflag.CommandLine.Args())
+	s.Run()
 }
