@@ -201,7 +201,7 @@ func (s *VMTServer) checkFlag() error {
 }
 
 // Run runs the specified VMTServer.  This should never exit.
-func (s *VMTServer) Run(_ []string) {
+func (s *VMTServer) Run() {
 	if err := s.checkFlag(); err != nil {
 		glog.Errorf("check flag failed:%v. abort.", err.Error())
 		os.Exit(1)
