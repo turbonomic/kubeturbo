@@ -33,8 +33,8 @@ var (
 	}
 
 	allocationResourceCommoditiesSold = []metrics.ResourceType{
-		metrics.CPULimit,
-		metrics.MemoryLimit,
+		metrics.CPUQuota,
+		metrics.MemoryQuota,
 	}
 )
 
@@ -230,7 +230,7 @@ func (builder *nodeEntityDTOBuilder) getAllocationCommoditiesSold(node *api.Node
 		func(input float64) float64 {
 			return input * cpuFrequency
 		},
-		metrics.CPU, metrics.CPULimit)
+		metrics.CPU, metrics.CPUQuota)
 
 	// Resource Commodities
 	var resourceCommoditiesSold []*proto.CommodityDTO

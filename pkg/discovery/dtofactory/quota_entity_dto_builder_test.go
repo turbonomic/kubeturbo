@@ -157,9 +157,9 @@ func makeKubeQuotas() []*repository.KubeQuota {
 
 		for _, node := range TestNodes {
 			allocationResourceMap := make(map[metrics.ResourceType]float64)
-			allocationResourceMap[metrics.CPULimit] = node.cpuCap * 0.033
+			allocationResourceMap[metrics.CPUQuota] = node.cpuCap * 0.033
 			allocationResourceMap[metrics.CPURequest] = node.cpuCap * 0.033
-			allocationResourceMap[metrics.MemoryLimit] = node.memCap * 0.033
+			allocationResourceMap[metrics.MemoryQuota] = node.memCap * 0.033
 			allocationResourceMap[metrics.MemoryRequest] = node.memCap * 0.033
 			kubeQuota.AddNodeProvider(node.name, allocationResourceMap)
 		}

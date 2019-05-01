@@ -35,8 +35,8 @@ var (
 	}
 
 	podResourceCommodityBoughtFromQuota = []metrics.ResourceType{
-		metrics.CPULimit,
-		metrics.MemoryLimit,
+		metrics.CPUQuota,
+		metrics.MemoryQuota,
 	}
 )
 
@@ -274,7 +274,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromQuota(quotaUID st
 	// cpu allocation needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(func(input float64) float64 {
 		return input * cpuFrequency
-	}, metrics.CPULimit)
+	}, metrics.CPUQuota)
 
 	// Resource Commodities.
 	for _, resourceType := range podResourceCommodityBoughtFromQuota {

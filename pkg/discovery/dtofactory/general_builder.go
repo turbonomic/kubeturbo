@@ -21,8 +21,8 @@ var (
 		metrics.CPUProvisioned:    proto.CommodityDTO_CPU_PROVISIONED,
 		metrics.MemoryProvisioned: proto.CommodityDTO_MEM_PROVISIONED,
 		metrics.Transaction:       proto.CommodityDTO_TRANSACTION,
-		metrics.CPULimit:          proto.CommodityDTO_CPU_ALLOCATION,
-		metrics.MemoryLimit:       proto.CommodityDTO_MEM_ALLOCATION,
+		metrics.CPUQuota:          proto.CommodityDTO_CPU_ALLOCATION,
+		metrics.MemoryQuota:       proto.CommodityDTO_MEM_ALLOCATION,
 	}
 )
 

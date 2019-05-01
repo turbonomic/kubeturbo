@@ -21,8 +21,8 @@ const (
 const (
 	CPU               ResourceType = "CPU"
 	Memory            ResourceType = "Memory"
-	CPULimit          ResourceType = "CPULimit"
-	MemoryLimit       ResourceType = "MemoryLimit"
+	CPUQuota          ResourceType = "CPUQuota"
+	MemoryQuota       ResourceType = "MemoryQuota"
 	CPURequest        ResourceType = "CPURequest"
 	MemoryRequest     ResourceType = "MemoryRequest"
 	CPUProvisioned    ResourceType = "CPUProvisioned"
@@ -47,15 +47,15 @@ var (
 
 	// Mapping of Kubernetes API Server resource names to the allocation resource types
 	KubeAllocatonResourceTypes = map[v1.ResourceName]ResourceType{
-		v1.ResourceLimitsCPU:      CPULimit,
-		v1.ResourceLimitsMemory:   MemoryLimit,
+		v1.ResourceLimitsCPU:      CPUQuota,
+		v1.ResourceLimitsMemory:   MemoryQuota,
 		v1.ResourceRequestsCPU:    CPURequest,
 		v1.ResourceRequestsMemory: MemoryRequest,
 	}
 
 	ReverseKubeResourceTypes = map[ResourceType]v1.ResourceName{
-		CPULimit:      v1.ResourceLimitsCPU,
-		MemoryLimit:   v1.ResourceLimitsMemory,
+		CPUQuota:      v1.ResourceLimitsCPU,
+		MemoryQuota:   v1.ResourceLimitsMemory,
 		CPURequest:    v1.ResourceRequestsCPU,
 		MemoryRequest: v1.ResourceRequestsMemory,
 		ObjectCount:   v1.ResourcePods,
@@ -67,15 +67,15 @@ var (
 	ComputeResources = []ResourceType{CPU, Memory}
 
 	// List of Allocation resources
-	ComputeAllocationResources = []ResourceType{CPULimit, MemoryLimit}
+	ComputeAllocationResources = []ResourceType{CPUQuota, MemoryQuota}
 
 	// List of cpu related metrics
-	CPUResources = []ResourceType{CPULimit, CPURequest, CPU}
+	CPUResources = []ResourceType{CPUQuota, CPURequest, CPU}
 
 	// Mapping of allocation to compute resources
 	AllocationToComputeMap = map[ResourceType]ResourceType{
-		CPULimit:      CPU,
-		MemoryLimit:   Memory,
+		CPUQuota:      CPU,
+		MemoryQuota:   Memory,
 		CPURequest:    CPU,
 		MemoryRequest: Memory,
 	}

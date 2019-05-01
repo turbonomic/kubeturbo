@@ -356,10 +356,10 @@ func (quotaEntity *KubeQuota) ReconcileQuotas(quotas []*v1.ResourceQuota) {
 	}
 	quotaListStr := strings.Join(quotaNames, ",")
 	glog.V(2).Infof("Reconciled Quota %s from ===> %s "+
-		"[CPULimit:%t, MemoryLimit:%t CPURequest:%t, MemoryRequest:%t]",
+		"[CPUQuota:%t, MemoryQuota:%t CPURequest:%t, MemoryRequest:%t]",
 		quotaEntity.Name, quotaListStr,
-		quotaEntity.AllocationDefined[metrics.CPULimit],
-		quotaEntity.AllocationDefined[metrics.MemoryLimit],
+		quotaEntity.AllocationDefined[metrics.CPUQuota],
+		quotaEntity.AllocationDefined[metrics.MemoryQuota],
 		quotaEntity.AllocationDefined[metrics.CPURequest],
 		quotaEntity.AllocationDefined[metrics.MemoryRequest])
 }
@@ -368,14 +368,14 @@ func (quotaEntity *KubeQuota) ReconcileQuotas(quotas []*v1.ResourceQuota) {
 // CPU is represented in number of cores, Memory in KBytes
 func parseAllocationResourceValue(resource v1.ResourceName, allocationResourceType metrics.ResourceType, resourceList v1.ResourceList) float64 {
 
-	if allocationResourceType == metrics.CPULimit || allocationResourceType == metrics.CPURequest {
+	if allocationResourceType == metrics.CPUQuota || allocationResourceType == metrics.CPURequest {
 		quantity := resourceList[resource]
 		cpuMilliCore := quantity.MilliValue()
 		cpuCore := float64(cpuMilliCore) / util.MilliToUnit
 		return cpuCore
 	}
 
-	if allocationResourceType == metrics.MemoryLimit || allocationResourceType == metrics.MemoryRequest {
+	if allocationResourceType == metrics.MemoryQuota || allocationResourceType == metrics.MemoryRequest {
 		quantity := resourceList[resource]
 		memoryBytes := quantity.Value()
 		memoryKiloBytes := float64(memoryBytes) / util.KilobytesToBytes

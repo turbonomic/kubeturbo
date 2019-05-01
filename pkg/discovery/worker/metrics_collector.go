@@ -166,9 +166,9 @@ func getQuotaComputeCapacity(quotaEntity *repository.KubeQuota, computeType metr
 ) float64 {
 	var allocationType metrics.ResourceType
 	if computeType == metrics.CPU {
-		allocationType = metrics.CPULimit
+		allocationType = metrics.CPUQuota
 	} else if computeType == metrics.Memory {
-		allocationType = metrics.MemoryLimit
+		allocationType = metrics.MemoryQuota
 	}
 	quotaCompute, err := quotaEntity.GetAllocationResource(allocationType)
 	if err != nil { //compute limit is not set

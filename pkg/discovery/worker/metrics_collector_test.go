@@ -256,8 +256,8 @@ func TestPodMetricsListAllocationUsage(t *testing.T) {
 	resourceMap := podMetricsList.SumAllocationUsage()
 	cpuUsed := metric_cpuUsed_pod_ns1_n1.GetValue().(float64) + metric_cpuUsed_pod_ns1_n2.GetValue().(float64)
 	memUsed := 0.0
-	assert.Equal(t, cpuUsed, resourceMap[metrics.CPULimit])
-	assert.Equal(t, memUsed, resourceMap[metrics.MemoryLimit])
+	assert.Equal(t, cpuUsed, resourceMap[metrics.CPUQuota])
+	assert.Equal(t, memUsed, resourceMap[metrics.MemoryQuota])
 }
 
 func TestSumPodMetricsMissingComputeUsage(t *testing.T) {
@@ -281,8 +281,8 @@ func TestPodMetrics(t *testing.T) {
 	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_ns1_n1)
 	pm := createPodMetrics(pod_ns1_n1, ns1, metricsSink)
 
-	assert.Equal(t, pm.AllocationBought[metrics.CPULimit], cpuUsed_pod_n1_ns1)
-	assert.Equal(t, pm.AllocationBought[metrics.MemoryLimit], 0.0)
+	assert.Equal(t, pm.AllocationBought[metrics.CPUQuota], cpuUsed_pod_n1_ns1)
+	assert.Equal(t, pm.AllocationBought[metrics.MemoryQuota], 0.0)
 }
 
 func TestPodMetricsCollectionNullCluster(t *testing.T) {
@@ -338,8 +338,8 @@ func TestPodMetricsCollectionSingleNode(t *testing.T) {
 
 	// Set limits for ns1 and ns2 for CPU,
 	// compute capacity for the pods in these namespaces will be changed to the quota limit value
-	kubeQuota1.SetResourceCapacity(metrics.CPULimit, 3.0)
-	kubeQuota2.SetResourceCapacity(metrics.CPULimit, 2.0)
+	kubeQuota1.SetResourceCapacity(metrics.CPUQuota, 3.0)
+	kubeQuota2.SetResourceCapacity(metrics.CPUQuota, 2.0)
 
 	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 	collector := &MetricsCollector{
@@ -381,7 +381,7 @@ func TestPodMetricsCollectionSingleNode(t *testing.T) {
 					assert.True(t, exists)
 				}
 				quota := collector.Cluster.QuotaMap[podMetrics.QuotaName]
-				quotaCpu, _ := quota.GetAllocationResource(metrics.CPULimit)
+				quotaCpu, _ := quota.GetAllocationResource(metrics.CPUQuota)
 				computeCapMap := podMetrics.ComputeCapacity
 				if quotaCpu.Capacity < podCpuCapMap[podMetrics.PodName] {
 					// assert that the pod's compute metrics is changed to the
@@ -427,8 +427,8 @@ func TestCreateMetricsMapForNodeWithEmptyPodList(t *testing.T) {
 	nm := createNodeMetrics(n1, pmList, metricsSink)
 
 	// allocation used map is not created
-	assert.Equal(t, nm.AllocationUsed[metrics.CPULimit], 0.0)
-	assert.Equal(t, nm.AllocationUsed[metrics.MemoryLimit], 0.0)
+	assert.Equal(t, nm.AllocationUsed[metrics.CPUQuota], 0.0)
+	assert.Equal(t, nm.AllocationUsed[metrics.MemoryQuota], 0.0)
 
 	// allocation capacity map is created
 	assertNodeAllocationCapacity(t, nm)
@@ -465,17 +465,17 @@ func TestNodeMetricsCollectionMultipleNodes(t *testing.T) {
 
 	// Assert the node allocation usage values for nodes with pods
 	assertNodeAllocationUsage(t, n1Metrics, node1)
-	assert.Equal(t, n2Metrics.AllocationUsed[metrics.CPULimit], 0.0) // no pods on n2
+	assert.Equal(t, n2Metrics.AllocationUsed[metrics.CPUQuota], 0.0) // no pods on n2
 }
 
 func assertNodeAllocationCapacity(t *testing.T, nm *repository.NodeMetrics) {
-	assert.Equal(t, nm.AllocationCap[metrics.CPULimit], nodeCpuCap)    // node allocation capacity is equal to the node's compute resources
-	assert.Equal(t, nm.AllocationCap[metrics.MemoryLimit], nodeMemCap) // node allocation capacity is equal to the node's compute resources
+	assert.Equal(t, nm.AllocationCap[metrics.CPUQuota], nodeCpuCap)    // node allocation capacity is equal to the node's compute resources
+	assert.Equal(t, nm.AllocationCap[metrics.MemoryQuota], nodeMemCap) // node allocation capacity is equal to the node's compute resources
 }
 
 func assertNodeAllocationUsage(t *testing.T, nm *repository.NodeMetrics, node string) {
-	assert.Equal(t, nm.AllocationUsed[metrics.CPULimit], nodeToPodCpuUsageMap[node]) // node allocation capacity is equal to the node's compute resources
-	assert.Equal(t, nm.AllocationUsed[metrics.MemoryLimit], 0.0)                     // node allocation capacity is equal to the node's compute resources
+	assert.Equal(t, nm.AllocationUsed[metrics.CPUQuota], nodeToPodCpuUsageMap[node]) // node allocation capacity is equal to the node's compute resources
+	assert.Equal(t, nm.AllocationUsed[metrics.MemoryQuota], 0.0)                     // node allocation capacity is equal to the node's compute resources
 }
 
 func TestQuotaMetricsMapAllNodes(t *testing.T) {
@@ -509,16 +509,16 @@ func TestQuotaMetricsMapAllNodes(t *testing.T) {
 		assert.NotNil(t, qmMap[node1])
 		assert.NotNil(t, qmMap[node2])
 
-		cpuUsedOnNode1 := qmMap[node1][metrics.CPULimit]
+		cpuUsedOnNode1 := qmMap[node1][metrics.CPUQuota]
 		expectedCpuUsedOnNode1 := quotaToPodUsageMap[qm.QuotaName][node1]
 		assert.Equal(t, expectedCpuUsedOnNode1, cpuUsedOnNode1)
 
-		cpuUsedOnNode2 := qmMap[node2][metrics.CPULimit]
+		cpuUsedOnNode2 := qmMap[node2][metrics.CPUQuota]
 		expectedCpuUsedOnNode2 := quotaToPodUsageMap[qm.QuotaName][node2]
 		assert.Equal(t, expectedCpuUsedOnNode2, cpuUsedOnNode2)
 
 		qmSoldMap := qm.AllocationSold
-		cpuUsedSold := qmSoldMap[metrics.CPULimit]
+		cpuUsedSold := qmSoldMap[metrics.CPUQuota]
 		expectedCpuUsedSold := quotaToPodUsageSoldMap[qm.QuotaName]
 		assert.Equal(t, expectedCpuUsedSold, cpuUsedSold)
 	}
@@ -550,7 +550,7 @@ func TestQuotaMetricsMapSingleNodeNoPods(t *testing.T) {
 		qmMap := qm.AllocationBoughtMap
 		assert.NotNil(t, qmMap[node1])
 		assert.Nil(t, qmMap[node2])
-		assert.Equal(t, qmMap[node1][metrics.CPULimit], 0.0)
+		assert.Equal(t, qmMap[node1][metrics.CPUQuota], 0.0)
 	}
 }
 
@@ -585,7 +585,7 @@ func TestQuotaMetricsCpuUsage(t *testing.T) {
 		// Assert that the allocation bought map is created only for the node handled by the metrics collector
 		qmMap := qm.AllocationBoughtMap
 		assert.NotNil(t, qmMap[node1])
-		cpuLimit := qmMap[node1][metrics.CPULimit]
+		cpuLimit := qmMap[node1][metrics.CPUQuota]
 		expectedCpuLimit := quotaToPodUsageMap[qm.QuotaName][node1] * nodeFreq
 		assert.Equal(t, cpuLimit, expectedCpuLimit)
 	}
