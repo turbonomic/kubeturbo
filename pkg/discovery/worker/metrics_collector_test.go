@@ -517,7 +517,7 @@ func TestQuotaMetricsMapAllNodes(t *testing.T) {
 		expectedCpuUsedOnNode2 := quotaToPodUsageMap[qm.QuotaName][node2]
 		assert.Equal(t, expectedCpuUsedOnNode2, cpuUsedOnNode2)
 
-		qmSoldMap := qm.AllocationSold
+		qmSoldMap := qm.AllocationSoldUsed
 		cpuUsedSold := qmSoldMap[metrics.CPUQuota]
 		expectedCpuUsedSold := quotaToPodUsageSoldMap[qm.QuotaName]
 		assert.Equal(t, expectedCpuUsedSold, cpuUsedSold)

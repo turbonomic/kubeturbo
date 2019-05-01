@@ -8,7 +8,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
+	k8sres "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"testing"
@@ -33,8 +33,8 @@ func makeKubeNodes() []*repository.KubeNode {
 	var kubenodes []*repository.KubeNode
 	for _, testNode := range TestNodes {
 		resourceList := v1.ResourceList{
-			v1.ResourceCPU:    resource.MustParse(fmt.Sprint(testNode.cpuCap)),
-			v1.ResourceMemory: resource.MustParse(fmt.Sprint(testNode.memCap)),
+			v1.ResourceCPU:    k8sres.MustParse(fmt.Sprint(testNode.cpuCap)),
+			v1.ResourceMemory: k8sres.MustParse(fmt.Sprint(testNode.memCap)),
 		}
 
 		n1 := &v1.Node{
@@ -122,12 +122,12 @@ func makeKubeQuotas() []*repository.KubeQuota {
 		hardResourceList := v1.ResourceList{}
 		usedResourceList := v1.ResourceList{}
 		if testQuota.cpuLimit != "0" {
-			hardResourceList[v1.ResourceLimitsCPU] = resource.MustParse(testQuota.cpuLimit)
-			usedResourceList[v1.ResourceLimitsCPU] = resource.MustParse(testQuota.cpuUsed)
+			hardResourceList[v1.ResourceLimitsCPU] = k8sres.MustParse(testQuota.cpuLimit)
+			usedResourceList[v1.ResourceLimitsCPU] = k8sres.MustParse(testQuota.cpuUsed)
 		}
 		if testQuota.memLimit != "0" {
-			hardResourceList[v1.ResourceLimitsMemory] = resource.MustParse(testQuota.memLimit)
-			usedResourceList[v1.ResourceLimitsMemory] = resource.MustParse(testQuota.memUsed)
+			hardResourceList[v1.ResourceLimitsMemory] = k8sres.MustParse(testQuota.memLimit)
+			usedResourceList[v1.ResourceLimitsMemory] = k8sres.MustParse(testQuota.memUsed)
 		}
 
 		quota := &v1.ResourceQuota{

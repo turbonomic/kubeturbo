@@ -38,7 +38,7 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 	// each worker will provide the allocation bought for a set of nodes and
 	// the allocation used for the pods running on those nodes
 	for _, quotaMetrics := range quotaMetricsList {
-		glog.V(4).Infof("%s : merging metrics for nodes %s\n",
+		glog.V(4).Infof("Merging metrics of %s for nodes %s",
 			quotaMetrics.QuotaName, quotaMetrics.NodeProviders)
 		_, exists := quotaMetricsMap[quotaMetrics.QuotaName]
 		if !exists {
@@ -51,13 +51,13 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 		}
 
 		//merge the pod usage from this quota metrics into the existing quota metrics
-		existingMetric.UpdateAllocationSold(quotaMetrics.AllocationSold)
+		existingMetric.UpdateAllocationSoldUsed(quotaMetrics.AllocationSoldUsed)
 	}
 
 	kubeNodes := worker.Cluster.Nodes
 	var nodeUIDs []string
 	var totalNodeFrequency float64
-	var activeNodeCount int = 0
+	activeNodeCount := 0
 	for _, node := range kubeNodes {
 		nodeActive := util.NodeIsReady(node.Node) && util.NodeIsSchedulable(node.Node)
 		if nodeActive {
@@ -68,14 +68,14 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 
 	}
 	averageNodeFrequency := totalNodeFrequency / float64(activeNodeCount)
-	glog.V(2).Infof("Average cluster node cpu frequency in MHz %f\n", averageNodeFrequency)
+	glog.V(2).Infof("Average cluster node cpu frequency in MHz: %f", averageNodeFrequency)
 
 	// Create the allocation resources for all quota entities using the metrics object
 	for quotaName, quotaEntity := range worker.Cluster.QuotaMap {
 		// the quota metrics
 		quotaMetrics, exists := quotaMetricsMap[quotaName]
 		if !exists {
-			glog.Errorf("%s : missing allocation metrics for quota\n", quotaName)
+			glog.Errorf("Missing allocation metrics for quota %s", quotaName)
 			continue
 		}
 		quotaEntity.AverageNodeCpuFrequency = averageNodeFrequency
@@ -83,34 +83,33 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 		// Bought resources from each node
 		// create provider entity for each node
 		for _, node := range kubeNodes {
-			//Do not include the node that is not ready
+			// Do not include the node that is not ready
 			// We still want to include the scheduledisabled nodes in the relationship
 			nodeUID := node.UID
 			quotaEntity.AddNodeProvider(nodeUID, quotaMetrics.AllocationBoughtMap[nodeUID])
 		}
 
 		// Create sold allocation commodity for the types that are not defined in the namespace quota objects
-		for resourceType, used := range quotaMetrics.AllocationSold {
+		for resourceType, used := range quotaMetrics.AllocationSoldUsed {
 			existingResource, _ := quotaEntity.GetResource(resourceType)
 			// Check if there is a quota set for this allocation resource
 			// If it is set, the allocation usage available from the namespace
 			// resource quota object is used
 			if quotaEntity.AllocationDefined[resourceType] {
-				glog.V(4).Infof("%s::%s : used value available from the quota object, "+
-					"existingUsed = %f, pods total usage = %f\n",
+				glog.V(4).Infof("Quota is defined for %s::%s. "+
+					"Usage reported by the quota: %f, usage of all pods in the quota: %f",
 					quotaName, resourceType, existingResource.Used, used)
 				continue
 			} else {
-				glog.V(4).Infof("%s::%s : setting usage to pods collection usage, "+
-					"existingUsed = %f, pods total usage = %f\n",
-					quotaName, resourceType, existingResource.Used, used)
+				glog.V(4).Infof("Quota is not defined for %s::%s. Setting its usage to the sum of " +
+					"usage across all pods in the quota: %f", quotaName, resourceType, used)
 				existingResource.Used = used
 			}
 		}
 	}
 
 	for _, quotaEntity := range worker.Cluster.QuotaMap {
-		glog.V(4).Infof("*************** DISCOVERED quota entity %s\n", quotaEntity)
+		glog.V(4).Infof("Discovered quota entity: %s", quotaEntity)
 	}
 
 	// Create DTOs for each quota entity

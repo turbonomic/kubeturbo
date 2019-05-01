@@ -17,85 +17,76 @@ type KubeCluster struct {
 	Name             string
 	Nodes            map[string]*KubeNode
 	Namespaces       map[string]*KubeNamespace
-	ComputeResources map[metrics.ResourceType]float64
+	ClusterResources map[metrics.ResourceType]*KubeDiscoveredResource
 }
 
-func NewKubeCluster(clusterName string) *KubeCluster {
+func NewKubeCluster(clusterName string, nodes []*v1.Node) *KubeCluster {
 	kubeCluster := &KubeCluster{
-		Name:       clusterName,
-		Nodes:      make(map[string]*KubeNode),
-		Namespaces: make(map[string]*KubeNamespace),
+		Name:             clusterName,
+		Nodes:            make(map[string]*KubeNode),
+		Namespaces:       make(map[string]*KubeNamespace),
+		ClusterResources: make(map[metrics.ResourceType]*KubeDiscoveredResource),
 	}
+	kubeCluster.addNodes(nodes)
+	if glog.V(3) {
+		kubeCluster.logClusterNodes()
+	}
+	kubeCluster.computeClusterResources()
 	return kubeCluster
 }
 
-func (kubeCluster *KubeCluster) LogClusterNodes() {
-	for _, nodeEntity := range kubeCluster.Nodes {
+func (kc *KubeCluster) addNodes(nodes []*v1.Node) *KubeCluster {
+	for _, node := range nodes {
+		kc.Nodes[node.Name] = NewKubeNode(node, kc.Name)
+	}
+	return kc
+}
+
+func (kc *KubeCluster) logClusterNodes() {
+	for _, nodeEntity := range kc.Nodes {
 		glog.Infof("Created node entity : %s\n", nodeEntity.String())
 	}
 }
 
-func (kubeCluster *KubeCluster) LogClusterNamespaces() {
-	for _, namespace := range kubeCluster.Namespaces {
-		glog.Infof("Created namespace entity : %s\n", namespace.String())
-	}
-}
-
-func (kubeCluster *KubeCluster) SetNodeEntity(nodeEntity *KubeNode) {
-	if kubeCluster.Nodes == nil {
-		kubeCluster.Nodes = make(map[string]*KubeNode)
-	}
-	kubeCluster.Nodes[nodeEntity.Name] = nodeEntity
-}
-
-func (kubeCluster *KubeCluster) GetNodeEntity(nodeName string) (*KubeNode, error) {
-	if kubeCluster.Nodes == nil {
-		return nil, fmt.Errorf("Null node %s", nodeName)
-	}
-	kubeNode, exists := kubeCluster.Nodes[nodeName]
-	if !exists {
-		return nil, fmt.Errorf("Null node %s", nodeName)
-	}
-	return kubeNode, nil
-}
-
 // Sum the compute resource capacities from all the nodes to create the cluster resource capacities
-func (kubeCluster *KubeCluster) computeClusterResources() {
-	if kubeCluster.Nodes == nil {
-		glog.Errorf("No nodes in the cluster")
-		return
-	}
+func (kc *KubeCluster) computeClusterResources() {
 	// sum the capacities of the node resources
 	computeResources := make(map[metrics.ResourceType]float64)
-	for _, node := range kubeCluster.Nodes {
-		// Iterate over all compute resource types
-		for _, rt := range metrics.KubeComputeResourceTypes {
-			// get the compute resource if it exists
-			nodeResource, exists := node.ComputeResources[rt]
-			if !exists {
-				glog.Errorf("Missing %s resource in node %s", rt, node.Name)
-				continue
+	for _, node := range kc.Nodes {
+		nodeActive := util.NodeIsReady(node.Node) && util.NodeIsSchedulable(node.Node)
+		if nodeActive {
+			// Iterate over all ready and schedulable compute resource types
+			for _, rt := range metrics.KubeComputeResourceTypes {
+				// get the compute resource if it exists
+				nodeResource, exists := node.ComputeResources[rt]
+				if !exists {
+					glog.Errorf("Missing %s resource in node %s", rt, node.Name)
+					continue
+				}
+				// add the capacity to the cluster compute resource map
+				computeCap, exists := computeResources[rt]
+				if !exists {
+					computeCap = nodeResource.Capacity
+				} else {
+					computeCap = computeCap + nodeResource.Capacity
+				}
+				computeResources[rt] = computeCap
 			}
-			// add the capacity to the cluster compute resource map
-			computeCap, exists := computeResources[rt]
-			if !exists {
-				computeCap = nodeResource.Capacity
-			} else {
-				computeCap = computeCap + nodeResource.Capacity
-			}
-			computeResources[rt] = computeCap
 		}
 	}
-
-	kubeCluster.ComputeResources = computeResources
+	// create KubeDiscoveredResource object for each compute resource type
+	for _, rt := range metrics.KubeComputeResourceTypes {
+		capacity := computeResources[rt]
+		r := &KubeDiscoveredResource{
+			Type:     rt,
+			Capacity: capacity,
+		}
+		kc.ClusterResources[rt] = r
+	}
 }
 
-func (cluster *KubeCluster) GetKubeNode(nodeName string) *KubeNode {
-	return cluster.Nodes[nodeName]
-}
-
-func (cluster *KubeCluster) GetQuota(namespace string) *KubeQuota {
-	kubeNamespace, exists := cluster.Namespaces[namespace]
+func (kc *KubeCluster) GetQuota(namespace string) *KubeQuota {
+	kubeNamespace, exists := kc.Namespaces[namespace]
 	if !exists {
 		return nil
 	}
@@ -184,7 +175,7 @@ func NewKubeNode(apiNode *v1.Node, clusterName string) *KubeNode {
 func (nodeEntity *KubeNode) UpdateResources(apiNode *v1.Node) {
 	// Node compute resources
 	resourceAllocatableList := apiNode.Status.Allocatable
-	for resource, _ := range resourceAllocatableList {
+	for resource := range resourceAllocatableList {
 		computeResourceType, isComputeType := metrics.KubeComputeResourceTypes[resource]
 		if !isComputeType {
 			continue
@@ -305,13 +296,13 @@ func CreateDefaultQuota(clusterName, namespace, uuid string,
 			// used values for the sold resources are obtained while parsing the quota objects
 			// or by adding the usages of pod compute resources running in the namespace
 		} else {
-			glog.Errorf("%s : cannot find cluster compute resource type for allocation %s\n",
-				quota.Name, rt)
+			glog.Errorf("Cannot find resource type allocation %s for namespace %s",
+				rt, quota.Name)
 		}
 	}
 
 	// node providers will be added by the quota discovery worker when the usage values are available
-	glog.V(3).Infof("Created default quota for namespace : %s\n", namespace)
+	glog.V(3).Infof("Created default quota for namespace : %s", namespace)
 	return quota
 }
 

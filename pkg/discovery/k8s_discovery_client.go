@@ -112,11 +112,12 @@ func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*pr
 
 	var err error
 	if dc.clusterProcessor == nil {
-		err = fmt.Errorf("Null cluster processor")
+		err = fmt.Errorf("null cluster processor")
 	} else {
 		err = dc.clusterProcessor.ConnectCluster()
 	}
 	if err != nil {
+		glog.Errorf("Failed to validate target: %v.", err)
 		errStr := fmt.Sprintf("%s\n", err)
 		severity := proto.ErrorDTO_CRITICAL
 		var errorDtos []*proto.ErrorDTO
@@ -127,7 +128,7 @@ func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*pr
 		errorDtos = append(errorDtos, errorDto)
 		validationResponse.ErrorDTO = errorDtos
 	} else {
-		glog.V(2).Infof("Validation response - connected to cluster\n")
+		glog.V(2).Infof("Successfully validated target.")
 	}
 
 	return validationResponse, nil
@@ -136,10 +137,11 @@ func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*pr
 // DiscoverTopology receives a discovery request from server and start probing the k8s.
 // This is a part of the interface that gets registered with and is invoked asynchronously by the GO SDK Probe.
 func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*proto.DiscoveryResponse, error) {
+	glog.V(2).Infof("Discovering kubernetes cluster...")
 	currentTime := time.Now()
 	newDiscoveryResultDTOs, groupDTOs, err := dc.discoverWithNewFramework()
 	if err != nil {
-		glog.Errorf("Failed to use the new framework to discover current Kubernetes cluster: %s", err)
+		glog.Errorf("Failed to discover kubernetes cluster: %v", err)
 	}
 
 	discoveryResponse := &proto.DiscoveryResponse{
@@ -148,7 +150,7 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 	}
 
 	newFrameworkDiscTime := time.Now().Sub(currentTime).Seconds()
-	glog.V(2).Infof("New framework discovery time: %.3f seconds", newFrameworkDiscTime)
+	glog.V(2).Infof("Successfully discovered kubernetes cluster in %.3f seconds", newFrameworkDiscTime)
 
 	return discoveryResponse, nil
 }
@@ -160,7 +162,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	// CREATE CLUSTER, NODES, NAMESPACES AND QUOTAS HERE
 	kubeCluster, err := dc.clusterProcessor.DiscoverCluster()
 	if err != nil {
-		return nil, nil, fmt.Errorf("Failed to process cluster: %s", err)
+		return nil, nil, fmt.Errorf("failed to process cluster: %v", err)
 	}
 	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 
@@ -179,7 +181,6 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 
 	// All the DTOs
 	entityDTOs = append(entityDTOs, quotaDtos...)
-	glog.V(2).Infof("Discovery workers have finished discovery work with %d entityDTOs built.", len(entityDTOs))
 
 	// affinity process
 	glog.V(2).Infof("Begin to process affinity.")
@@ -190,18 +191,20 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	} else {
 		entityDTOs = affinityProcessor.ProcessAffinityRules(entityDTOs)
 	}
+	glog.V(2).Infof("Successfully processed affinity.")
 
 	// Taint-toleration process to create access commodities
 	glog.V(2).Infof("Begin to process taints and tolerations")
 	taintTolerationProcessor, err := compliance.NewTaintTolerationProcessor(dc.k8sClusterScraper)
 	if err != nil {
-		glog.Errorf("Failed during process taints and tolerations: %s", err)
+		glog.Errorf("Failed during process taints and tolerations: %v", err)
 	} else {
 		// Add access commodiites to entity DOTs based on the taint-toleration rules
 		taintTolerationProcessor.Process(entityDTOs)
 	}
+	glog.V(2).Infof("Successfully processed taints and tolerations.")
 
-	glog.V(2).Infof("begin to generate service EntityDTOs.")
+	glog.V(2).Infof("Begin to generate service EntityDTOs.")
 	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.k8sClusterScraper)
 	svcDiscWorker, err := worker.NewK8sServiceDiscoveryWorker(svcWorkerConfig)
 	svcDiscResult := svcDiscWorker.Do(entityDTOs)
@@ -212,14 +215,14 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 		entityDTOs = append(entityDTOs, svcDiscResult.Content()...)
 	}
 
-	glog.V(2).Infof("There are %d entityDTOs.", len(entityDTOs))
+	glog.V(2).Infof("There are totally %d entityDTOs.", len(entityDTOs))
 
 	// Discovery worker for creating Group DTOs
 	targetId := dc.config.targetConfig.TargetIdentifier
 	entityGroupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(clusterSummary, targetId)
 	groupDTOs, _ := entityGroupDiscoveryWorker.Do(policyGroupList)
 
-	glog.V(2).Infof("There are %d groups DTOs", len(groupDTOs))
+	glog.V(2).Infof("There are totally %d groups DTOs", len(groupDTOs))
 	if glog.V(3) {
 		for _, groupDto := range groupDTOs {
 			glog.Infof("%s::%s contains %d members",

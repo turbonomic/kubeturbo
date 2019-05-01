@@ -106,7 +106,7 @@ func (svcDiscWorker *k8sServiceDiscoveryWorker) parseService(appDTOs map[string]
 	svcEntityDTOBuilder := &dtofactory.ServiceEntityDTOBuilder{}
 	svcEntityDTOs, err := svcEntityDTOBuilder.BuildSvcEntityDTO(svcPodMap, svcDiscWorker.clusterID, appDTOs)
 	if err != nil {
-		return nil, fmt.Errorf("Error while creating service entityDTOs: %v", err)
+		return nil, fmt.Errorf("error while creating service entityDTOs: %v", err)
 	}
 
 	return svcEntityDTOs, nil
@@ -126,10 +126,10 @@ func groupPodsAndServices(serviceList []*api.Service, endpointList []*api.Endpoi
 		serviceClusterID := util.GetServiceClusterID(service)
 		podClusterIDs := findPodEndpoints(service, endpointMap)
 		if len(podClusterIDs) < 1 {
-			glog.V(2).Infof("Failed to find any endpoint pod for service: %s.", serviceClusterID)
+			glog.V(2).Infof("Service %s does not have any endpoint pod", serviceClusterID)
 			continue
 		}
-		glog.V(4).Infof("service %s has the following pod as endpoints %v", serviceClusterID, podClusterIDs)
+		glog.V(4).Infof("Service %s has the following pod as endpoints %v", serviceClusterID, podClusterIDs)
 
 		podList := []*api.Pod{}
 		for podClusterID := range podClusterIDs {
