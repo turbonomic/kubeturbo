@@ -93,8 +93,8 @@ github.com/stretchr/testify v1.2.2 h1:bSDNvY7ZPG5RlJ8otE/7V6gMiyenm9RtJ7IUVIAoJ1
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/turbonomic/turbo-api v0.0.0-20180816193551-ed948ba97e70 h1:xfnOa96E4g6MRfLPSVyL4Aprmxf8NBjsUyqUoW0VnIs=
 github.com/turbonomic/turbo-api v0.0.0-20180816193551-ed948ba97e70/go.mod h1:L3eNZzTD3Iw8GV+cfeJD/lfDaEGPbZZGQrtml71yG10=
-github.com/turbonomic/turbo-go-sdk v6.2.1-0.20190409204709-93be22d591a3+incompatible h1:hKCyhqQyS7BipzOYaoG+SOcHYHI8YUJZF6ARc6E6+mc=
-github.com/turbonomic/turbo-go-sdk v6.2.1-0.20190409204709-93be22d591a3+incompatible/go.mod h1:sKRnBmuIMyFQoQnd0TubqLSN4Kob/KZCe7LIdwoVsVE=
+github.com/turbonomic/turbo-go-sdk v6.2.1-0.20190502203909-f66981fb7341+incompatible h1:7oepiCtOVoS7K29DZekYBArfQH6aTzvBEFjEU0/WBA4=
+github.com/turbonomic/turbo-go-sdk v6.2.1-0.20190502203909-f66981fb7341+incompatible/go.mod h1:sKRnBmuIMyFQoQnd0TubqLSN4Kob/KZCe7LIdwoVsVE=
 go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569 h1:nSQar3Y0E3VQF/VdZ8PTAilaXpER+d7ypdABCrpwMdg=
 go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
 go.uber.org/multierr v0.0.0-20180122172545-ddea229ff1df h1:shvkWr0NAZkg4nPuE3XrKP0VuBPijjk3TfX6Y6acFNg=
