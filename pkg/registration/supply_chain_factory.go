@@ -11,30 +11,34 @@ import (
 )
 
 var (
-	vCpuType          proto.CommodityDTO_CommodityType = proto.CommodityDTO_VCPU
-	vMemType          proto.CommodityDTO_CommodityType = proto.CommodityDTO_VMEM
-	vCpuRequestType   proto.CommodityDTO_CommodityType = proto.CommodityDTO_VCPU_REQUEST
-	vMemRequestType   proto.CommodityDTO_CommodityType = proto.CommodityDTO_VMEM_REQUEST
-	cpuAllocationType proto.CommodityDTO_CommodityType = proto.CommodityDTO_CPU_ALLOCATION
-	memAllocationType proto.CommodityDTO_CommodityType = proto.CommodityDTO_MEM_ALLOCATION
-	clusterType       proto.CommodityDTO_CommodityType = proto.CommodityDTO_CLUSTER
-	vmPMAccessType    proto.CommodityDTO_CommodityType = proto.CommodityDTO_VMPM_ACCESS
-	appCommType       proto.CommodityDTO_CommodityType = proto.CommodityDTO_APPLICATION
-	transactionType   proto.CommodityDTO_CommodityType = proto.CommodityDTO_TRANSACTION
-	respTimeType      proto.CommodityDTO_CommodityType = proto.CommodityDTO_RESPONSE_TIME
+	vCpuType                 = proto.CommodityDTO_VCPU
+	vMemType                 = proto.CommodityDTO_VMEM
+	vCpuRequestType          = proto.CommodityDTO_VCPU_REQUEST
+	vMemRequestType          = proto.CommodityDTO_VMEM_REQUEST
+	cpuAllocationType        = proto.CommodityDTO_CPU_ALLOCATION
+	memAllocationType        = proto.CommodityDTO_MEM_ALLOCATION
+	cpuRequestAllocationType = proto.CommodityDTO_CPU_REQUEST_ALLOCATION
+	memRequestAllocationType = proto.CommodityDTO_MEM_REQUEST_ALLOCATION
+	clusterType              = proto.CommodityDTO_CLUSTER
+	vmPMAccessType           = proto.CommodityDTO_VMPM_ACCESS
+	appCommType              = proto.CommodityDTO_APPLICATION
+	transactionType          = proto.CommodityDTO_TRANSACTION
+	respTimeType             = proto.CommodityDTO_RESPONSE_TIME
 
-	fakeKey string = "fake"
+	fakeKey = "fake"
 
-	vCpuTemplateComm                 *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vCpuType}
-	vMemTemplateComm                 *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vMemType}
-	vCpuRequestTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vCpuRequestType}
-	vMemRequestTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{CommodityType: &vMemRequestType}
-	cpuAllocationTemplateCommWithKey *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuAllocationType}
-	memAllocationTemplateCommWithKey *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memAllocationType}
-	vmpmAccessTemplateComm           *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
-	applicationTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
-	transactionTemplateComm          *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
-	respTimeTemplateComm             *proto.TemplateCommodity = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &respTimeType}
+	vCpuTemplateComm                        = &proto.TemplateCommodity{CommodityType: &vCpuType}
+	vMemTemplateComm                        = &proto.TemplateCommodity{CommodityType: &vMemType}
+	vCpuRequestTemplateComm                 = &proto.TemplateCommodity{CommodityType: &vCpuRequestType}
+	vMemRequestTemplateComm                 = &proto.TemplateCommodity{CommodityType: &vMemRequestType}
+	cpuAllocationTemplateCommWithKey        = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuAllocationType}
+	memAllocationTemplateCommWithKey        = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memAllocationType}
+	cpuRequestAllocationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuRequestAllocationType}
+	memRequestAllocationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memRequestAllocationType}
+	vmpmAccessTemplateComm                  = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
+	applicationTemplateComm                 = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
+	transactionTemplateComm                 = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
+	respTimeTemplateComm                    = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &respTimeType}
 )
 
 type SupplyChainFactory struct {
@@ -122,8 +126,10 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 		Sells(vMemRequestTemplateComm). // sells to Pods
 		Sells(vmpmAccessTemplateComm).  // sells to Pods
 		// also sells Cluster to Pods
-		Sells(cpuAllocationTemplateCommWithKey). //sells to Quotas
-		Sells(memAllocationTemplateCommWithKey)  //sells to Quotas
+		Sells(cpuAllocationTemplateCommWithKey).        //sells to Quotas
+		Sells(memAllocationTemplateCommWithKey).        //sells to Quotas
+		Sells(cpuRequestAllocationTemplateCommWithKey). //sells to Quotas
+		Sells(memRequestAllocationTemplateCommWithKey)  //sells to Quotas
 
 	return nodeSupplyChainNodeBuilder.Create()
 }
@@ -133,15 +139,21 @@ func (f *SupplyChainFactory) buildQuotaSupplyBuilder() (*proto.TemplateDTO, erro
 	nodeSupplyChainNodeBuilder = nodeSupplyChainNodeBuilder.
 		Sells(cpuAllocationTemplateCommWithKey).
 		Sells(memAllocationTemplateCommWithKey).
+		Sells(cpuRequestAllocationTemplateCommWithKey).
+		Sells(memRequestAllocationTemplateCommWithKey).
 		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
 		Buys(cpuAllocationTemplateCommWithKey).
-		Buys(memAllocationTemplateCommWithKey)
+		Buys(memAllocationTemplateCommWithKey).
+		Buys(cpuRequestAllocationTemplateCommWithKey).
+		Buys(memRequestAllocationTemplateCommWithKey)
 
 	// Link from Quota to VM
 	vmQuotaExtLinkBuilder := supplychain.NewExternalEntityLinkBuilder()
 	vmQuotaExtLinkBuilder.Link(proto.EntityDTO_VIRTUAL_DATACENTER, proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
 		Commodity(cpuAllocationType, true).
-		Commodity(memAllocationType, true)
+		Commodity(memAllocationType, true).
+		Commodity(cpuRequestAllocationType, true).
+		Commodity(memRequestAllocationType, true)
 
 	err := f.addVMStitchingProperty(vmQuotaExtLinkBuilder)
 	if err != nil {
@@ -169,7 +181,9 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Buys(vMemRequestTemplateComm).
 		Provider(proto.EntityDTO_VIRTUAL_DATACENTER, proto.Provider_LAYERED_OVER).
 		Buys(cpuAllocationTemplateCommWithKey).
-		Buys(memAllocationTemplateCommWithKey)
+		Buys(memAllocationTemplateCommWithKey).
+		Buys(cpuRequestAllocationTemplateCommWithKey).
+		Buys(memRequestAllocationTemplateCommWithKey)
 
 	// Link from Pod to VM
 	vmPodExtLinkBuilder := supplychain.NewExternalEntityLinkBuilder()
@@ -204,7 +218,7 @@ func (f *SupplyChainFactory) addVMStitchingProperty(extLinkBuilder *supplychain.
 			ProbeEntityPropertyDef(supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS, "IP of the Node").
 			ExternalEntityPropertyDef(supplychain.VM_IP)
 	default:
-		return fmt.Errorf("Stitching property type %s is not supported.", f.stitchingPropertyType)
+		return fmt.Errorf("stitching property type %s is not supported", f.stitchingPropertyType)
 	}
 	return nil
 }

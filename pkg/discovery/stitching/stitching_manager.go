@@ -204,7 +204,7 @@ func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_Re
 	case IP:
 		replacementEntityMetaDataBuilder.Matching(proxyVMIP)
 	default:
-		return nil, fmt.Errorf("Stitching property type %s is not supported.", s.stitchType)
+		return nil, fmt.Errorf("stitching property type %s is not supported", s.stitchType)
 	}
 	usedAndCapacityPropertyNames := []string{builder.PropertyCapacity, builder.PropertyUsed}
 	vcpuUsedAndCapacityPropertyNames := []string{builder.PropertyCapacity, builder.PropertyUsed, builder.PropertyPeak}
@@ -216,7 +216,9 @@ func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_Re
 		PatchSellingWithProperty(proto.CommodityDTO_VCPU_REQUEST, usedAndCapacityPropertyNames).
 		PatchSellingWithProperty(proto.CommodityDTO_VMEM_REQUEST, usedAndCapacityPropertyNames).
 		PatchSellingWithProperty(proto.CommodityDTO_CPU_ALLOCATION, usedAndCapacityPropertyNames).
-		PatchSellingWithProperty(proto.CommodityDTO_MEM_ALLOCATION, usedAndCapacityPropertyNames)
+		PatchSellingWithProperty(proto.CommodityDTO_MEM_ALLOCATION, usedAndCapacityPropertyNames).
+		PatchSellingWithProperty(proto.CommodityDTO_CPU_REQUEST_ALLOCATION, usedAndCapacityPropertyNames).
+		PatchSellingWithProperty(proto.CommodityDTO_MEM_REQUEST_ALLOCATION, usedAndCapacityPropertyNames)
 	meta := replacementEntityMetaDataBuilder.Build()
 	return meta, nil
 }
