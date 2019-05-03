@@ -40,7 +40,7 @@ func NewQuotaEntityDTOBuilder(quotaMap map[string]*repository.KubeQuota,
 func (builder *quotaEntityDTOBuilder) setUpStitchManager() {
 	m := builder.stitchingManager
 
-	glog.V(3).Infof("stitchType: %v", m.GetStitchType())
+	glog.V(3).Infof("StitchType: %v", m.GetStitchType())
 	//1. set UUID getter by one k8s.Node.providerID
 	if m.GetStitchType() == stitching.UUID {
 		glog.V(3).Info("Begin to setup stitchManager UUID getter.")
@@ -112,7 +112,7 @@ func (builder *quotaEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, err
 		}
 
 		result = append(result, entityDto)
-		glog.V(4).Infof("quota dto : %++v\n", entityDto)
+		glog.V(4).Infof("Quota DTO: %+v", entityDto)
 	}
 	return result, nil
 }
@@ -122,9 +122,6 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.
 	for resourceType, resource := range quota.AllocationResources {
 		cType, exist := rTypeMapping[resourceType]
 		if !exist {
-			// this error message is commented out because the commodity
-			// for cpu and mem request is not currently supported
-			//glog.Errorf("Commodity type %s sold by %s is not supported", resourceType, entityType)
 			continue
 		}
 		capacityValue := resource.Capacity
@@ -134,7 +131,7 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.
 		if metrics.IsCPUType(resourceType) && quota.AverageNodeCpuFrequency > 0.0 {
 			// always modify the capacity value
 			newVal := capacityValue * quota.AverageNodeCpuFrequency
-			glog.V(4).Infof("%s::%s: changed capacity from  [%f cores] to %f MHz",
+			glog.V(4).Infof("Changing capacity of %s::%s from %f cores to %f MHz",
 				quota.Name, resourceType, capacityValue, newVal)
 			capacityValue = newVal
 
@@ -146,7 +143,7 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.
 			// has been converted to MHz using the hosting node's CPU frequency
 			if quota.AllocationDefined[resourceType] {
 				newVal := usedValue * quota.AverageNodeCpuFrequency
-				glog.V(4).Infof("%s::%s quota defined, changed usage from [%f cores] to %f MHz",
+				glog.V(4).Infof("Changing usage of %s::%s from %f cores to %f MHz",
 					quota.Name, resourceType, usedValue, newVal)
 				usedValue = newVal
 			}
@@ -171,16 +168,13 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.
 func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesBought(quotaName string, provider *repository.KubeResourceProvider) ([]*proto.CommodityDTO, error) {
 
 	if provider == nil {
-		return nil, fmt.Errorf("%s: null provider\n", quotaName)
+		return nil, fmt.Errorf("%s: null provider", quotaName)
 	}
 
 	var commoditiesBought []*proto.CommodityDTO
 	for resourceType, resource := range provider.BoughtAllocation {
 		cType, exist := rTypeMapping[resourceType]
 		if !exist {
-			// this error message is commented out because the commodity
-			// for cpu and mem request is not currently supported
-			//glog.Errorf("Commodity type %s bought by %s is not supported", resourceType, entityType)
 			continue
 		}
 

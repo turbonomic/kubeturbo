@@ -19,20 +19,20 @@ const (
 )
 
 const (
-	CPU               ResourceType = "CPU"
-	Memory            ResourceType = "Memory"
-	CPUQuota          ResourceType = "CPUQuota"
-	MemoryQuota       ResourceType = "MemoryQuota"
-	CPURequest        ResourceType = "CPURequest"
-	MemoryRequest     ResourceType = "MemoryRequest"
-	CPUProvisioned    ResourceType = "CPUProvisioned"
-	MemoryProvisioned ResourceType = "MemoryProvisioned"
-	Transaction       ResourceType = "Transaction"
-	ObjectCount       ResourceType = "ObjectCount"
+	CPU                ResourceType = "CPU"
+	Memory             ResourceType = "Memory"
+	CPURequest         ResourceType = "CPURequest"
+	MemoryRequest      ResourceType = "MemoryRequest"
+	CPUQuota           ResourceType = "CPUQuota"
+	MemoryQuota        ResourceType = "MemoryQuota"
+	CPURequestQuota    ResourceType = "CPURequestQuota"
+	MemoryRequestQuota ResourceType = "MemoryRequestQuota"
+	CPUProvisioned     ResourceType = "CPUProvisioned"
+	MemoryProvisioned  ResourceType = "MemoryProvisioned"
+	Transaction        ResourceType = "Transaction"
 
 	Access       ResourceType = "Access"
 	Cluster      ResourceType = "Cluster"
-	Schedulable  ResourceType = "Schedulable"
 	CpuFrequency ResourceType = "CpuFrequency"
 	Owner        ResourceType = "Owner"
 	OwnerType    ResourceType = "OwnerType"
@@ -40,44 +40,44 @@ const (
 
 var (
 	// Mapping of Kubernetes API Server resource names to the compute resource types
-	KubeComputeResourceTypes = map[v1.ResourceName]ResourceType{
-		v1.ResourceCPU:    CPU,
-		v1.ResourceMemory: Memory,
+	KubeComputeResourceTypes = map[v1.ResourceName][]ResourceType{
+		v1.ResourceCPU:    {CPU, CPURequest},
+		v1.ResourceMemory: {Memory, MemoryRequest},
 	}
 
 	// Mapping of Kubernetes API Server resource names to the allocation resource types
 	KubeAllocatonResourceTypes = map[v1.ResourceName]ResourceType{
 		v1.ResourceLimitsCPU:      CPUQuota,
 		v1.ResourceLimitsMemory:   MemoryQuota,
-		v1.ResourceRequestsCPU:    CPURequest,
-		v1.ResourceRequestsMemory: MemoryRequest,
-	}
-
-	ReverseKubeResourceTypes = map[ResourceType]v1.ResourceName{
-		CPUQuota:      v1.ResourceLimitsCPU,
-		MemoryQuota:   v1.ResourceLimitsMemory,
-		CPURequest:    v1.ResourceRequestsCPU,
-		MemoryRequest: v1.ResourceRequestsMemory,
-		ObjectCount:   v1.ResourcePods,
-		CPU:           v1.ResourceCPU,
-		Memory:        v1.ResourceMemory,
+		v1.ResourceRequestsCPU:    CPURequestQuota,
+		v1.ResourceRequestsMemory: MemoryRequestQuota,
 	}
 
 	// List of Compute resources
-	ComputeResources = []ResourceType{CPU, Memory}
+	ComputeResources = []ResourceType{
+		CPU, Memory, CPURequest, MemoryRequest}
 
 	// List of Allocation resources
-	ComputeAllocationResources = []ResourceType{CPUQuota, MemoryQuota}
+	ComputeAllocationResources = []ResourceType{
+		CPUQuota, MemoryQuota, CPURequestQuota, MemoryRequestQuota}
 
 	// List of cpu related metrics
-	CPUResources = []ResourceType{CPUQuota, CPURequest, CPU}
+	CPUResources = []ResourceType{CPU, CPURequest, CPUQuota, CPURequestQuota}
 
 	// Mapping of allocation to compute resources
 	AllocationToComputeMap = map[ResourceType]ResourceType{
-		CPUQuota:      CPU,
-		MemoryQuota:   Memory,
-		CPURequest:    CPU,
-		MemoryRequest: Memory,
+		CPUQuota:           CPU,
+		MemoryQuota:        Memory,
+		CPURequestQuota:    CPURequest,
+		MemoryRequestQuota: MemoryRequest,
+	}
+
+	// Mapping of compute to allocation resources
+	ComputeToAllocationMap = map[ResourceType]ResourceType{
+		CPU:           CPUQuota,
+		Memory:        MemoryQuota,
+		CPURequest:    CPURequestQuota,
+		MemoryRequest: MemoryRequestQuota,
 	}
 )
 

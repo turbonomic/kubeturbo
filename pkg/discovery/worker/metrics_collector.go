@@ -166,15 +166,13 @@ func (collector *MetricsCollector) CollectPodMetrics() (PodMetricsByNodeAndQuota
 // Return the Limits set for compute resources in a namespace resource quota
 func getQuotaComputeCapacity(quotaEntity *repository.KubeQuota, computeType metrics.ResourceType,
 ) float64 {
-	var allocationType metrics.ResourceType
-	if computeType == metrics.CPU {
-		allocationType = metrics.CPUQuota
-	} else if computeType == metrics.Memory {
-		allocationType = metrics.MemoryQuota
+	allocationType, exists := metrics.ComputeToAllocationMap[computeType]
+	if !exists {
+		return repository.DEFAULT_METRIC_VALUE
 	}
 	quotaCompute, err := quotaEntity.GetAllocationResource(allocationType)
 	if err != nil { //compute limit is not set
-		return 0.0
+		return repository.DEFAULT_METRIC_VALUE
 	}
 	return quotaCompute.Capacity
 }

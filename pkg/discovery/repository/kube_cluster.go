@@ -37,6 +37,8 @@ func NewKubeCluster(clusterName string, nodes []*v1.Node) *KubeCluster {
 
 func (kc *KubeCluster) addNodes(nodes []*v1.Node) *KubeCluster {
 	for _, node := range nodes {
+		// Create kubeNode with Allocatable resource as the
+		// resource capacity
 		kc.Nodes[node.Name] = NewKubeNode(node, kc.Name)
 	}
 	return kc
@@ -44,7 +46,7 @@ func (kc *KubeCluster) addNodes(nodes []*v1.Node) *KubeCluster {
 
 func (kc *KubeCluster) logClusterNodes() {
 	for _, nodeEntity := range kc.Nodes {
-		glog.Infof("Created node entity : %s\n", nodeEntity.String())
+		glog.Infof("Created node entity : %s", nodeEntity.String())
 	}
 }
 
@@ -56,32 +58,36 @@ func (kc *KubeCluster) computeClusterResources() {
 		nodeActive := util.NodeIsReady(node.Node) && util.NodeIsSchedulable(node.Node)
 		if nodeActive {
 			// Iterate over all ready and schedulable compute resource types
-			for _, rt := range metrics.KubeComputeResourceTypes {
-				// get the compute resource if it exists
-				nodeResource, exists := node.ComputeResources[rt]
-				if !exists {
-					glog.Errorf("Missing %s resource in node %s", rt, node.Name)
-					continue
+			for _, rtList := range metrics.KubeComputeResourceTypes {
+				for _, rt := range rtList {
+					// get the compute resource if it exists
+					nodeResource, exists := node.ComputeResources[rt]
+					if !exists {
+						glog.Errorf("Missing %s resource in node %s", rt, node.Name)
+						continue
+					}
+					// add the capacity to the cluster compute resource map
+					computeCap, exists := computeResources[rt]
+					if !exists {
+						computeCap = nodeResource.Capacity
+					} else {
+						computeCap = computeCap + nodeResource.Capacity
+					}
+					computeResources[rt] = computeCap
 				}
-				// add the capacity to the cluster compute resource map
-				computeCap, exists := computeResources[rt]
-				if !exists {
-					computeCap = nodeResource.Capacity
-				} else {
-					computeCap = computeCap + nodeResource.Capacity
-				}
-				computeResources[rt] = computeCap
 			}
 		}
 	}
 	// create KubeDiscoveredResource object for each compute resource type
-	for _, rt := range metrics.KubeComputeResourceTypes {
-		capacity := computeResources[rt]
-		r := &KubeDiscoveredResource{
-			Type:     rt,
-			Capacity: capacity,
+	for _, rtList := range metrics.KubeComputeResourceTypes {
+		for _, rt := range rtList {
+			capacity := computeResources[rt]
+			r := &KubeDiscoveredResource{
+				Type:     rt,
+				Capacity: capacity,
+			}
+			kc.ClusterResources[rt] = r
 		}
-		kc.ClusterResources[rt] = r
 	}
 }
 
@@ -167,21 +173,23 @@ func NewKubeNode(apiNode *v1.Node, clusterName string) *KubeNode {
 	}
 
 	// Node compute resources and properties
-	nodeEntity.UpdateResources(apiNode)
+	nodeEntity.updateResources(apiNode)
 	return nodeEntity
 }
 
 // Set the compute resources and IP property in the node entity
-func (nodeEntity *KubeNode) UpdateResources(apiNode *v1.Node) {
+func (nodeEntity *KubeNode) updateResources(apiNode *v1.Node) {
 	// Node compute resources
 	resourceAllocatableList := apiNode.Status.Allocatable
 	for resource := range resourceAllocatableList {
-		computeResourceType, isComputeType := metrics.KubeComputeResourceTypes[resource]
+		computeResourceTypeList, isComputeType := metrics.KubeComputeResourceTypes[resource]
 		if !isComputeType {
 			continue
 		}
-		capacityValue := parseResourceValue(computeResourceType, resourceAllocatableList)
-		nodeEntity.AddComputeResource(computeResourceType, float64(capacityValue), DEFAULT_METRIC_VALUE)
+		for _, computeResourceType := range computeResourceTypeList {
+			capacityValue := parseResourceValue(computeResourceType, resourceAllocatableList)
+			nodeEntity.AddComputeResource(computeResourceType, float64(capacityValue), DEFAULT_METRIC_VALUE)
+		}
 	}
 }
 
@@ -208,13 +216,15 @@ func (nodeEntity *KubeNode) String() string {
 }
 
 func parseResourceValue(computeResourceType metrics.ResourceType, resourceList v1.ResourceList) float64 {
-	if computeResourceType == metrics.CPU {
+	if computeResourceType == metrics.CPU ||
+		computeResourceType == metrics.CPURequest {
 		ctnCpuCapacityMilliCore := resourceList.Cpu().MilliValue()
 		cpuCapacityCore := float64(ctnCpuCapacityMilliCore) / util.MilliToUnit
 		return cpuCapacityCore
 	}
 
-	if computeResourceType == metrics.Memory {
+	if computeResourceType == metrics.Memory ||
+		computeResourceType == metrics.MemoryRequest {
 		ctnMemoryCapacityBytes := resourceList.Memory().Value()
 		memoryCapacityKiloBytes := float64(ctnMemoryCapacityBytes) / util.KilobytesToBytes
 		return memoryCapacityKiloBytes
@@ -296,7 +306,7 @@ func CreateDefaultQuota(clusterName, namespace, uuid string,
 			// used values for the sold resources are obtained while parsing the quota objects
 			// or by adding the usages of pod compute resources running in the namespace
 		} else {
-			glog.Errorf("Cannot find resource type allocation %s for namespace %s",
+			glog.Errorf("Cannot find allocation resource type %s for namespace %s",
 				rt, quota.Name)
 		}
 	}
@@ -346,27 +356,27 @@ func (quotaEntity *KubeQuota) ReconcileQuotas(quotas []*v1.ResourceQuota) {
 		}
 	}
 	quotaListStr := strings.Join(quotaNames, ",")
-	glog.V(2).Infof("Reconciled Quota %s from ===> %s "+
-		"[CPUQuota:%t, MemoryQuota:%t CPURequest:%t, MemoryRequest:%t]",
+	glog.V(4).Infof("Reconciled Quota %s from %s"+
+		"[CPUQuota:%t, MemoryQuota:%t CPURequestQuota:%t, MemoryRequestQuota:%t]",
 		quotaEntity.Name, quotaListStr,
 		quotaEntity.AllocationDefined[metrics.CPUQuota],
 		quotaEntity.AllocationDefined[metrics.MemoryQuota],
-		quotaEntity.AllocationDefined[metrics.CPURequest],
-		quotaEntity.AllocationDefined[metrics.MemoryRequest])
+		quotaEntity.AllocationDefined[metrics.CPURequestQuota],
+		quotaEntity.AllocationDefined[metrics.MemoryRequestQuota])
 }
 
 // Parse the CPU and Memory resource values.
 // CPU is represented in number of cores, Memory in KBytes
 func parseAllocationResourceValue(resource v1.ResourceName, allocationResourceType metrics.ResourceType, resourceList v1.ResourceList) float64 {
 
-	if allocationResourceType == metrics.CPUQuota || allocationResourceType == metrics.CPURequest {
+	if allocationResourceType == metrics.CPUQuota || allocationResourceType == metrics.CPURequestQuota {
 		quantity := resourceList[resource]
 		cpuMilliCore := quantity.MilliValue()
 		cpuCore := float64(cpuMilliCore) / util.MilliToUnit
 		return cpuCore
 	}
 
-	if allocationResourceType == metrics.MemoryQuota || allocationResourceType == metrics.MemoryRequest {
+	if allocationResourceType == metrics.MemoryQuota || allocationResourceType == metrics.MemoryRequestQuota {
 		quantity := resourceList[resource]
 		memoryBytes := quantity.Value()
 		memoryKiloBytes := float64(memoryBytes) / util.KilobytesToBytes

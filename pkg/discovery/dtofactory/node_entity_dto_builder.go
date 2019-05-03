@@ -35,6 +35,8 @@ var (
 	allocationResourceCommoditiesSold = []metrics.ResourceType{
 		metrics.CPUQuota,
 		metrics.MemoryQuota,
+		metrics.CPURequestQuota,
+		metrics.MemoryRequestQuota,
 	}
 )
 
@@ -139,16 +141,12 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 // VMPMAccessCommodity, ApplicationCommodity, ClusterCommodity.
 func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
-	key := util.NodeKeyFunc(node)
-
 	// get cpu frequency
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
-	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
+	key := util.NodeKeyFunc(node)
+	cpuFrequency, err := builder.getNodeCPUFrequency(key)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get cpu frequency from sink for node %s: %s", key, err)
+		return nil, fmt.Errorf("failed to get cpu frequency from sink for node %s: %s", key, err)
 	}
-	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
-	glog.V(4).Infof("Frequency is %f", cpuFrequency)
 	// cpu and cpu request needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(
 		func(input float64) float64 {
@@ -215,27 +213,24 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 
 func (builder *nodeEntityDTOBuilder) getAllocationCommoditiesSold(node *api.Node) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
-	key := util.NodeKeyFunc(node)
-
 	// get cpu frequency
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
-	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
+	key := util.NodeKeyFunc(node)
+	cpuFrequency, err := builder.getNodeCPUFrequency(key)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get cpu frequency from sink for node %s: %s", key, err)
+		return nil, fmt.Errorf("failed to get cpu frequency from sink for node %s: %s", key, err)
 	}
-	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
-	glog.V(4).Infof("Frequency is %f", cpuFrequency)
-	// cpu limit needs to be converted from number of cores to frequency.
+	// cpuQuota and cpuRequestQuota needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(
 		func(input float64) float64 {
 			return input * cpuFrequency
 		},
-		metrics.CPU, metrics.CPUQuota)
+		metrics.CPUQuota, metrics.CPURequestQuota)
 
 	// Resource Commodities
 	var resourceCommoditiesSold []*proto.CommodityDTO
 	for _, resourceType := range allocationResourceCommoditiesSold {
-		commSold, _ := builder.getSoldResourceCommodityWithKey(metrics.NodeType, key, resourceType, string(node.UID), converter, nil)
+		commSold, _ := builder.getSoldResourceCommodityWithKey(metrics.NodeType, key, resourceType, string(node.UID),
+			converter, nil)
 		if commSold != nil {
 			resourceCommoditiesSold = append(resourceCommoditiesSold, commSold)
 		}

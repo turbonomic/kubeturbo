@@ -37,6 +37,8 @@ var (
 	podResourceCommodityBoughtFromQuota = []metrics.ResourceType{
 		metrics.CPUQuota,
 		metrics.MemoryQuota,
+		metrics.CPURequestQuota,
+		metrics.MemoryRequestQuota,
 	}
 )
 
@@ -68,9 +70,9 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		// display name.
 		displayName := util.GetPodClusterID(pod)
 		entityDTOBuilder.DisplayName(displayName)
-		cpuFrequency, err := builder.getNodeCPUFrequency(pod)
+		cpuFrequency, err := builder.getNodeCPUFrequency(util.NodeKeyFromPodFunc(pod))
 		if err != nil {
-			glog.Errorf("failed to build pod[%s] EntityDTO: %v", displayName, err)
+			glog.Errorf("Failed to build EntityDTO for pod %s: %v", displayName, err)
 			continue
 		}
 		// commodities sold.
@@ -104,7 +106,6 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 				glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
 				continue
 			}
-
 			provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_DATACENTER, quotaUID)
 			entityDTOBuilder = entityDTOBuilder.Provider(provider)
 			entityDTOBuilder.BuysCommodities(commoditiesBoughtQuota)
@@ -146,21 +147,6 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 	}
 
 	return result, nil
-}
-
-// get cpu frequency
-func (builder *podEntityDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, error) {
-	key := util.NodeKeyFromPodFunc(pod)
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
-	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
-	if err != nil {
-		err := fmt.Errorf("Failed to get cpu frequency from sink for node %s: %v", key, err)
-		glog.Error(err)
-		return 0.0, err
-	}
-
-	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
-	return cpuFrequency, nil
 }
 
 // Build the CommodityDTOs sold  by the pod for vCPU, vMem and VMPMAcces.
@@ -274,24 +260,18 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromQuota(quotaUID st
 	// cpu allocation needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(func(input float64) float64 {
 		return input * cpuFrequency
-	}, metrics.CPUQuota)
+	}, metrics.CPUQuota, metrics.CPURequestQuota)
 
 	// Resource Commodities.
 	for _, resourceType := range podResourceCommodityBoughtFromQuota {
 		commBought, err := builder.getResourceCommodityBoughtWithKey(metrics.PodType, key,
 			resourceType, quotaUID, converter, nil)
 		if err != nil {
-			glog.Errorf("%s::%s: cannot build sold commodity %s : %s",
-				metrics.PodType, key, resourceType, err)
+			glog.Errorf("Failed to build %s bought by pod %s from quota %s: %v",
+				resourceType, key, quotaUID, err)
 			return nil, err
 		}
 		commoditiesBought = append(commoditiesBought, commBought)
-	}
-	if len(commoditiesBought) != len(podResourceCommodityBoughtFromQuota) {
-		err := fmt.Errorf("mismatch num of bought commidities from quota (%d Vs. %d) for pod %s",
-			len(commoditiesBought), len(podResourceCommodityBoughtFromQuota), pod.Name)
-		glog.Error(err)
-		return nil, err
 	}
 	return commoditiesBought, nil
 }
@@ -306,12 +286,12 @@ func (builder *podEntityDTOBuilder) getPodProperties(pod *api.Pod) ([]*proto.Ent
 	podClusterID := util.GetPodClusterID(pod)
 	nodeName := pod.Spec.NodeName
 	if nodeName == "" {
-		return nil, fmt.Errorf("Cannot find the hosting node ID for pod %s", podClusterID)
+		return nil, fmt.Errorf("cannot find the hosting node ID for pod %s", podClusterID)
 	}
 
 	stitchingProperty, err := builder.stitchingManager.BuildDTOProperty(nodeName, false)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to build EntityDTO for Pod %s: %s", podClusterID, err)
+		return nil, fmt.Errorf("failed to build EntityDTO for Pod %s: %s", podClusterID, err)
 	}
 	properties = append(properties, stitchingProperty)
 
