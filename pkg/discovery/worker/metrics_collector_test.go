@@ -8,7 +8,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	v1 "k8s.io/api/core/v1"
-	resource "k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -121,7 +121,10 @@ var (
 	kubeNode2 = repository.NewKubeNode(n2, cluster1)
 
 	clusterResources = map[metrics.ResourceType]*repository.KubeDiscoveredResource{
-		metrics.CPU: {Type: metrics.CPU, Capacity: 8.0},
+		metrics.CPU:           {Type: metrics.CPU, Capacity: 8.0},
+		metrics.CPURequest:    {Type: metrics.CPURequest, Capacity: 8.0},
+		metrics.Memory:        {Type: metrics.Memory, Capacity: 16021680.0},
+		metrics.MemoryRequest: {Type: metrics.MemoryRequest, Capacity: 16021680.0},
 	}
 	kubeQuota1 = repository.CreateDefaultQuota(cluster1, ns1, "vdc-uuid1", clusterResources)
 	kubeQuota2 = repository.CreateDefaultQuota(cluster1, ns2, "vdc-uuid2", clusterResources)
@@ -166,47 +169,71 @@ var (
 		},
 	}
 
-	cpuUsed_pod_n1_ns1 = 2.5
-	cpuUsed_pod_n2_ns1 = 2.5
+	cpuUsed_pod_n1_ns1        = 2.5
+	cpuUsed_pod_n2_ns1        = 2.5
+	cpuRequestUsed_pod_n1_ns1 = 1.5
+	cpuRequestUsed_pod_n2_ns1 = 1.5
 
-	cpuUsed_pod_n1_ns2 = 2.0
-	cpuUsed_pod_n2_ns2 = 2.0
+	cpuUsed_pod_n1_ns2        = 2.0
+	cpuUsed_pod_n2_ns2        = 2.0
+	cpuRequestUsed_pod_n1_ns2 = 1.0
+	cpuRequestUsed_pod_n2_ns2 = 1.0
 
-	cpuUsed_pod1_n1_ns3 = 1.5
-	cpuUsed_pod2_n1_ns3 = 1.0
+	cpuUsed_pod1_n1_ns3        = 1.5
+	cpuUsed_pod2_n1_ns3        = 1.0
+	cpuRequestUsed_pod1_n1_ns3 = 1.0
+	cpuRequestUsed_pod2_n1_ns3 = 0.5
 
-	cpuUsed_pod_n2_ns3 = 0.0
+	// Pod metrics
+	metricsSink = metrics.NewEntityMetricSink()
+	etype       = metrics.PodType
+	// Pod in ns1 on n1
+	metric_cpuUsed_pod_n1_ns1        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPU, metrics.Used, cpuUsed_pod_n1_ns1)
+	metric_cpuCap_pod_n1_ns1         = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
+	metric_cpuRequestUsed_pod_n1_ns1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod_n1_ns1)
+	metric_cpuRequestCap_pod_n1_ns1  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPURequest, metrics.Capacity, nodeCpuCap)
+	// Pod in ns1 on n2
+	metric_cpuUsed_pod_n2_ns1        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n2), metrics.CPU, metrics.Used, cpuUsed_pod_n2_ns1)
+	metric_cpuRequestUsed_pod_n2_ns1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n2), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod_n2_ns1)
+	// Pod in ns2 on n1
+	metric_cpuUsed_pod_n1_ns2        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPU, metrics.Used, cpuUsed_pod_n1_ns2)
+	metric_cpuCap_pod_n1_ns2         = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
+	metric_cpuRequestUsed_pod_n1_ns2 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod_n1_ns2)
+	metric_cpuRequestCap_pod_n1_ns2  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPURequest, metrics.Capacity, nodeCpuCap)
+	// Pod in ns2 on n2
+	metric_cpuUsed_pod_n2_ns2        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n2), metrics.CPU, metrics.Used, cpuUsed_pod_n2_ns2)
+	metric_cpuRequestUsed_pod_n2_ns2 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n2), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod_n2_ns2)
+	// Pod1 and Pod2 in ns3 on n1
+	metric_cpuUsed_pod1_n1_ns3        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPU, metrics.Used, cpuUsed_pod1_n1_ns3)
+	metric_cpuCap_pod1_n1_ns3         = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
+	metric_cpuUsed_pod2_n1_ns3        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod2_ns3_n1), metrics.CPU, metrics.Used, cpuUsed_pod2_n1_ns3)
+	metric_cpuCap_pod2_n1_ns3         = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod2_ns3_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
+	metric_cpuRequestUsed_pod1_n1_ns3 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod1_n1_ns3)
+	metric_cpuRequestCap_pod1_n1_ns3  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPURequest, metrics.Capacity, nodeCpuCap)
+	metric_cpuRequestUsed_pod2_n1_ns3 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod2_ns3_n1), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod2_n1_ns3)
+	metric_cpuRequestCap_pod2_n1_ns3  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod2_ns3_n1), metrics.CPURequest, metrics.Capacity, nodeCpuCap)
 
-	metricsSink               = metrics.NewEntityMetricSink()
-	etype                     = metrics.PodType
-	metric_cpuUsed_pod_ns1_n1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPU, metrics.Used, cpuUsed_pod_n1_ns1)
-	metric_cpuUsed_pod_ns1_n2 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n2), metrics.CPU, metrics.Used, cpuUsed_pod_n2_ns1)
-	metric_cpuUsed_pod_ns2_n1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPU, metrics.Used, cpuUsed_pod_n1_ns2)
-	metric_cpuUsed_pod_ns2_n2 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n2), metrics.CPU, metrics.Used, cpuUsed_pod_n2_ns2)
-
-	metric_cpuUsed_pod1_ns3_n1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPU, metrics.Used, cpuUsed_pod1_n1_ns3)
-	metric_cpuUsed_pod2_ns3_n1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod2_ns3_n1), metrics.CPU, metrics.Used, cpuUsed_pod2_n1_ns3)
-
-	metric_cpuCap_pod_ns1_n1  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
-	metric_cpuCap_pod_ns1_n2  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n2), metrics.CPU, metrics.Capacity, nodeCpuCap)
-	metric_cpuCap_pod_ns2_n1  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
-	metric_cpuCap_pod_ns2_n2  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n2), metrics.CPU, metrics.Capacity, nodeCpuCap)
-	metric_cpuCap_pod1_ns3_n1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
-	metric_cpuCap_pod2_ns3_n1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod2_ns3_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
-
-	nodetype         = metrics.NodeType
-	metric_cpuCap_n1 = metrics.NewEntityResourceMetric(nodetype, util.NodeKeyFunc(n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
-	metric_memCap_n1 = metrics.NewEntityResourceMetric(nodetype, util.NodeKeyFunc(n1), metrics.Memory, metrics.Capacity, nodeMemCap)
-	metric_cpuCap_n2 = metrics.NewEntityResourceMetric(nodetype, util.NodeKeyFunc(n2), metrics.CPU, metrics.Capacity, nodeCpuCap)
-	metric_memCap_n2 = metrics.NewEntityResourceMetric(nodetype, util.NodeKeyFunc(n2), metrics.Memory, metrics.Capacity, nodeMemCap)
+	// Node metrics
+	nodetype                = metrics.NodeType
+	metric_cpuCap_n1        = metrics.NewEntityResourceMetric(nodetype, util.NodeKeyFunc(n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
+	metric_memCap_n1        = metrics.NewEntityResourceMetric(nodetype, util.NodeKeyFunc(n1), metrics.Memory, metrics.Capacity, nodeMemCap)
+	metric_cpuCap_n2        = metrics.NewEntityResourceMetric(nodetype, util.NodeKeyFunc(n2), metrics.CPU, metrics.Capacity, nodeCpuCap)
+	metric_memCap_n2        = metrics.NewEntityResourceMetric(nodetype, util.NodeKeyFunc(n2), metrics.Memory, metrics.Capacity, nodeMemCap)
+	metric_cpuRequestCap_n1 = metrics.NewEntityResourceMetric(nodetype, util.NodeKeyFunc(n1), metrics.CPURequest, metrics.Capacity, nodeCpuCap)
+	metric_memRequestCap_n1 = metrics.NewEntityResourceMetric(nodetype, util.NodeKeyFunc(n1), metrics.MemoryRequest, metrics.Capacity, nodeMemCap)
+	metric_cpuRequestCap_n2 = metrics.NewEntityResourceMetric(nodetype, util.NodeKeyFunc(n2), metrics.CPURequest, metrics.Capacity, nodeCpuCap)
+	metric_memRequestCap_n2 = metrics.NewEntityResourceMetric(nodetype, util.NodeKeyFunc(n2), metrics.MemoryRequest, metrics.Capacity, nodeMemCap)
 
 	// CPU used for node n1 from pods
 	cpuUsed_pod_n1 = cpuUsed_pod_n1_ns1 + cpuUsed_pod_n1_ns2 + cpuUsed_pod1_n1_ns3 + cpuUsed_pod2_n1_ns3
 	cpuUsed_pod_n2 = cpuUsed_pod_n2_ns1 + cpuUsed_pod_n2_ns2
+	// CPURequest used for node n1 from pods
+	cpuRequestUsed_pod_n1 = cpuRequestUsed_pod_n1_ns1 + cpuRequestUsed_pod_n1_ns2 + cpuRequestUsed_pod1_n1_ns3 + cpuRequestUsed_pod2_n1_ns3
+	cpuRequestUsed_pod_n2 = cpuRequestUsed_pod_n2_ns1 + cpuRequestUsed_pod_n2_ns2
 
 	nodeToPodsMap = map[string][]*v1.Pod{
 		node1: {pod_ns1_n1, pod_ns2_n1, pod1_ns3_n1, pod2_ns3_n1},
-		node2: {pod_ns1_n1, pod_ns2_n1},
+		node2: {pod_ns1_n2, pod_ns2_n2},
 	}
 
 	quotaToPodsMap = map[string]map[string][]*v1.Pod{
@@ -231,6 +258,17 @@ var (
 			node2: 0.0},
 	}
 
+	requestQuotaToPodUsageMap = map[string]map[string]float64{
+		ns1: {node1: cpuRequestUsed_pod_n1_ns1,
+			node2: cpuRequestUsed_pod_n2_ns1},
+		ns2: {node1: cpuRequestUsed_pod_n1_ns2,
+			node2: cpuRequestUsed_pod_n2_ns2},
+		ns3: {node1: cpuRequestUsed_pod1_n1_ns3 + cpuRequestUsed_pod2_n1_ns3,
+			node2: 0.0},
+		ns4: {node1: 0.0,
+			node2: 0.0},
+	}
+
 	quotaToPodUsageSoldMap = map[string]float64{
 		ns1: cpuUsed_pod_n1_ns1 + cpuUsed_pod_n2_ns1,
 		ns2: cpuUsed_pod_n1_ns2 + cpuUsed_pod_n2_ns2,
@@ -238,35 +276,54 @@ var (
 		ns4: 0.0,
 	}
 
+	requestQuotaToPodUsageSoldMap = map[string]float64{
+		ns1: cpuRequestUsed_pod_n1_ns1 + cpuRequestUsed_pod_n2_ns1,
+		ns2: cpuRequestUsed_pod_n1_ns2 + cpuRequestUsed_pod_n2_ns2,
+		ns3: cpuRequestUsed_pod1_n1_ns3 + cpuRequestUsed_pod2_n1_ns3,
+		ns4: 0.0,
+	}
+
 	nodeToPodCpuUsageMap = map[string]float64{
 		node1: cpuUsed_pod_n1,
 		node2: cpuUsed_pod_n2,
 	}
+
+	nodeToPodCpuRequestUsageMap = map[string]float64{
+		node1: cpuRequestUsed_pod_n1,
+		node2: cpuRequestUsed_pod_n2,
+	}
 )
 
 func TestPodMetricsListAllocationUsage(t *testing.T) {
-	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_ns1_n1, metric_cpuUsed_pod_ns1_n2)
+	metricsSink.AddNewMetricEntries(
+		metric_cpuUsed_pod_n1_ns1,
+		metric_cpuUsed_pod_n2_ns1,
+		metric_cpuRequestUsed_pod_n1_ns1,
+		metric_cpuRequestUsed_pod_n2_ns1,
+	)
+	var podMetricsList PodMetricsList
 	pm1 := createPodMetrics(pod_ns1_n1, ns1, metricsSink)
 	pm2 := createPodMetrics(pod_ns1_n2, ns1, metricsSink)
-
-	var podMetricsList PodMetricsList
 	podMetricsList = append(podMetricsList, pm1)
 	podMetricsList = append(podMetricsList, pm2)
 
 	resourceMap := podMetricsList.SumAllocationUsage()
-	cpuUsed := metric_cpuUsed_pod_ns1_n1.GetValue().(float64) + metric_cpuUsed_pod_ns1_n2.GetValue().(float64)
+	cpuUsed := metric_cpuUsed_pod_n1_ns1.GetValue().(float64) + metric_cpuUsed_pod_n2_ns1.GetValue().(float64)
+	cpuRequestUsed := metric_cpuRequestUsed_pod_n1_ns1.GetValue().(float64) + metric_cpuRequestUsed_pod_n2_ns1.GetValue().(float64)
 	memUsed := 0.0
+	memRequestUsed := 0.0
 	assert.Equal(t, cpuUsed, resourceMap[metrics.CPUQuota])
 	assert.Equal(t, memUsed, resourceMap[metrics.MemoryQuota])
+	assert.Equal(t, cpuRequestUsed, resourceMap[metrics.CPURequestQuota])
+	assert.Equal(t, memRequestUsed, resourceMap[metrics.MemoryRequestQuota])
 }
 
 func TestSumPodMetricsMissingComputeUsage(t *testing.T) {
-
+	// Empty entity metric sink
 	metricsSink := metrics.NewEntityMetricSink()
+	var podMetricsList PodMetricsList
 	pm1 := createPodMetrics(pod_ns1_n1, ns1, metricsSink)
 	pm2 := createPodMetrics(pod_ns1_n2, ns1, metricsSink)
-
-	var podMetricsList PodMetricsList
 	podMetricsList = append(podMetricsList, pm1)
 	podMetricsList = append(podMetricsList, pm2)
 
@@ -278,11 +335,13 @@ func TestSumPodMetricsMissingComputeUsage(t *testing.T) {
 
 func TestPodMetrics(t *testing.T) {
 	metricsSink := metrics.NewEntityMetricSink()
-	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_ns1_n1)
+	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_n1_ns1, metric_cpuRequestUsed_pod_n1_ns1)
 	pm := createPodMetrics(pod_ns1_n1, ns1, metricsSink)
 
 	assert.Equal(t, pm.AllocationBought[metrics.CPUQuota], cpuUsed_pod_n1_ns1)
 	assert.Equal(t, pm.AllocationBought[metrics.MemoryQuota], 0.0)
+	assert.Equal(t, pm.AllocationBought[metrics.CPURequestQuota], cpuRequestUsed_pod_n1_ns1)
+	assert.Equal(t, pm.AllocationBought[metrics.MemoryRequestQuota], 0.0)
 }
 
 func TestPodMetricsCollectionNullCluster(t *testing.T) {
@@ -322,24 +381,49 @@ func TestPodMetricsCollectionUnknownQuota(t *testing.T) {
 }
 
 func TestPodMetricsCollectionSingleNode(t *testing.T) {
-	// Sink contains cpu capacity and used for all pods on node1
-	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_ns1_n1, metric_cpuUsed_pod_ns2_n1,
-		metric_cpuUsed_pod1_ns3_n1, metric_cpuUsed_pod2_ns3_n1)
+	// Sink contains cpu and cpuRequest capacity and used for all pods on node1
+	metricsSink.AddNewMetricEntries(
+		metric_cpuUsed_pod_n1_ns1,
+		metric_cpuUsed_pod_n1_ns2,
+		metric_cpuUsed_pod1_n1_ns3,
+		metric_cpuUsed_pod2_n1_ns3,
+		metric_cpuRequestUsed_pod_n1_ns1,
+		metric_cpuRequestUsed_pod_n1_ns2,
+		metric_cpuRequestUsed_pod1_n1_ns3,
+		metric_cpuRequestUsed_pod2_n1_ns3,
+	)
 
-	metricsSink.AddNewMetricEntries(metric_cpuCap_pod_ns1_n1, metric_cpuCap_pod_ns2_n1,
-		metric_cpuCap_pod1_ns3_n1, metric_cpuCap_pod2_ns3_n1)
+	metricsSink.AddNewMetricEntries(
+		metric_cpuCap_pod_n1_ns1,
+		metric_cpuCap_pod_n1_ns2,
+		metric_cpuCap_pod1_n1_ns3,
+		metric_cpuCap_pod2_n1_ns3,
+		metric_cpuRequestCap_pod_n1_ns1,
+		metric_cpuRequestCap_pod_n1_ns2,
+		metric_cpuRequestCap_pod1_n1_ns3,
+		metric_cpuRequestCap_pod2_n1_ns3,
+	)
 
 	podCpuCapMap := map[string]float64{
-		pod_ns1_n1.Name:  metric_cpuCap_pod_ns1_n1.GetValue().(float64),
-		pod_ns2_n1.Name:  metric_cpuCap_pod_ns2_n1.GetValue().(float64),
-		pod1_ns3_n1.Name: metric_cpuCap_pod1_ns3_n1.GetValue().(float64),
-		pod2_ns3_n1.Name: metric_cpuCap_pod2_ns3_n1.GetValue().(float64),
+		pod_ns1_n1.Name:  metric_cpuCap_pod_n1_ns1.GetValue().(float64),
+		pod_ns2_n1.Name:  metric_cpuCap_pod_n1_ns2.GetValue().(float64),
+		pod1_ns3_n1.Name: metric_cpuCap_pod1_n1_ns3.GetValue().(float64),
+		pod2_ns3_n1.Name: metric_cpuCap_pod2_n1_ns3.GetValue().(float64),
+	}
+
+	podCpuRequestCapMap := map[string]float64{
+		pod_ns1_n1.Name:  metric_cpuRequestCap_pod_n1_ns1.GetValue().(float64),
+		pod_ns2_n1.Name:  metric_cpuRequestCap_pod_n1_ns2.GetValue().(float64),
+		pod1_ns3_n1.Name: metric_cpuRequestCap_pod1_n1_ns3.GetValue().(float64),
+		pod2_ns3_n1.Name: metric_cpuRequestCap_pod2_n1_ns3.GetValue().(float64),
 	}
 
 	// Set limits for ns1 and ns2 for CPU,
 	// compute capacity for the pods in these namespaces will be changed to the quota limit value
-	kubeQuota1.SetResourceCapacity(metrics.CPUQuota, 3.0)
-	kubeQuota2.SetResourceCapacity(metrics.CPUQuota, 2.0)
+	_ = kubeQuota1.SetResourceCapacity(metrics.CPUQuota, 3.0)
+	_ = kubeQuota2.SetResourceCapacity(metrics.CPUQuota, 2.0)
+	_ = kubeQuota1.SetResourceCapacity(metrics.CPURequestQuota, 3.0)
+	_ = kubeQuota2.SetResourceCapacity(metrics.CPURequestQuota, 2.0)
 
 	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 	collector := &MetricsCollector{
@@ -394,6 +478,19 @@ func TestPodMetricsCollectionSingleNode(t *testing.T) {
 					_, exists := computeCapMap[metrics.CPU]
 					assert.False(t, exists)
 				}
+				quotaCpuRequest, _ := quota.GetAllocationResource(metrics.CPURequestQuota)
+				if quotaCpuRequest.Capacity < podCpuRequestCapMap[podMetrics.PodName] {
+					// assert that the pod's compute metrics is changed to the
+					// match the quota's compute limit metrics
+					podCpuRequestCap, exists := computeCapMap[metrics.CPURequest]
+					assert.True(t, exists)
+					assert.Equal(t, quotaCpuRequest.Capacity, podCpuRequestCap)
+				} else {
+					computeCapMap := podMetrics.ComputeCapacity
+					_, exists := computeCapMap[metrics.CPURequest]
+					assert.False(t, exists)
+				}
+
 				_, exists = computeCapMap[metrics.Memory]
 				assert.False(t, exists)
 			}
@@ -402,11 +499,24 @@ func TestPodMetricsCollectionSingleNode(t *testing.T) {
 }
 
 func TestCreateNodeMetricsMap(t *testing.T) {
-	metricsSink.AddNewMetricEntries(metric_cpuCap_n1, metric_memCap_n1)
+	metricsSink.AddNewMetricEntries(
+		metric_cpuCap_n1,
+		metric_memCap_n1,
+		metric_cpuRequestCap_n1,
+		metric_memRequestCap_n1,
+	)
 
-	// Pods are in different namespaces and with only CPU metrics
-	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_ns1_n1, metric_cpuUsed_pod_ns2_n1,
-		metric_cpuUsed_pod1_ns3_n1, metric_cpuUsed_pod2_ns3_n1)
+	// Pods are in different namespaces and with only CPU and CPURequest metrics
+	metricsSink.AddNewMetricEntries(
+		metric_cpuUsed_pod_n1_ns1,
+		metric_cpuUsed_pod_n1_ns2,
+		metric_cpuUsed_pod1_n1_ns3,
+		metric_cpuUsed_pod2_n1_ns3,
+		metric_cpuRequestUsed_pod_n1_ns1,
+		metric_cpuRequestUsed_pod_n1_ns2,
+		metric_cpuRequestUsed_pod1_n1_ns3,
+		metric_cpuRequestUsed_pod2_n1_ns3,
+	)
 
 	pm1 := createPodMetrics(pod_ns1_n1, ns1, metricsSink)
 	pm2 := createPodMetrics(pod_ns2_n1, ns2, metricsSink)
@@ -444,11 +554,27 @@ func TestNodeMetricsCollectionMultipleNodes(t *testing.T) {
 	}
 
 	// cpu capacity and used for node1 and node2
-	metricsSink.AddNewMetricEntries(metric_cpuCap_n1, metric_memCap_n1)
-	metricsSink.AddNewMetricEntries(metric_cpuCap_n2, metric_memCap_n2)
+	metricsSink.AddNewMetricEntries(
+		metric_cpuCap_n1,
+		metric_memCap_n1,
+		metric_cpuRequestCap_n1,
+		metric_memRequestCap_n1,
+		metric_cpuCap_n2,
+		metric_memCap_n2,
+		metric_cpuRequestCap_n2,
+		metric_memRequestCap_n2,
+	)
 	// cpu used for all pods on n1
-	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_ns1_n1, metric_cpuUsed_pod_ns2_n1,
-		metric_cpuUsed_pod1_ns3_n1, metric_cpuUsed_pod2_ns3_n1)
+	metricsSink.AddNewMetricEntries(
+		metric_cpuUsed_pod_n1_ns1,
+		metric_cpuUsed_pod_n1_ns2,
+		metric_cpuUsed_pod1_n1_ns3,
+		metric_cpuUsed_pod2_n1_ns3,
+		metric_cpuRequestUsed_pod_n1_ns1,
+		metric_cpuRequestUsed_pod_n1_ns2,
+		metric_cpuRequestUsed_pod1_n1_ns3,
+		metric_cpuRequestUsed_pod2_n1_ns3,
+	)
 
 	podCollection, err := collector.CollectPodMetrics()
 	assert.Nil(t, err)
@@ -466,16 +592,23 @@ func TestNodeMetricsCollectionMultipleNodes(t *testing.T) {
 	// Assert the node allocation usage values for nodes with pods
 	assertNodeAllocationUsage(t, n1Metrics, node1)
 	assert.Equal(t, n2Metrics.AllocationUsed[metrics.CPUQuota], 0.0) // no pods on n2
+	assert.Equal(t, n2Metrics.AllocationUsed[metrics.CPURequestQuota], 0.0)
 }
 
 func assertNodeAllocationCapacity(t *testing.T, nm *repository.NodeMetrics) {
-	assert.Equal(t, nm.AllocationCap[metrics.CPUQuota], nodeCpuCap)    // node allocation capacity is equal to the node's compute resources
-	assert.Equal(t, nm.AllocationCap[metrics.MemoryQuota], nodeMemCap) // node allocation capacity is equal to the node's compute resources
+	// node allocation capacity is equal to the node's compute resources
+	assert.Equal(t, nm.AllocationCap[metrics.CPUQuota], nodeCpuCap)
+	assert.Equal(t, nm.AllocationCap[metrics.MemoryQuota], nodeMemCap)
+	assert.Equal(t, nm.AllocationCap[metrics.CPURequestQuota], nodeCpuCap)
+	assert.Equal(t, nm.AllocationCap[metrics.MemoryRequestQuota], nodeMemCap)
 }
 
 func assertNodeAllocationUsage(t *testing.T, nm *repository.NodeMetrics, node string) {
-	assert.Equal(t, nm.AllocationUsed[metrics.CPUQuota], nodeToPodCpuUsageMap[node]) // node allocation capacity is equal to the node's compute resources
-	assert.Equal(t, nm.AllocationUsed[metrics.MemoryQuota], 0.0)                     // node allocation capacity is equal to the node's compute resources
+	// node allocation capacity is equal to the node's compute resources
+	assert.Equal(t, nm.AllocationUsed[metrics.CPUQuota], nodeToPodCpuUsageMap[node])
+	assert.Equal(t, nm.AllocationUsed[metrics.MemoryQuota], 0.0)
+	assert.Equal(t, nm.AllocationUsed[metrics.CPURequestQuota], nodeToPodCpuRequestUsageMap[node])
+	assert.Equal(t, nm.AllocationUsed[metrics.MemoryRequestQuota], 0.0)
 }
 
 func TestQuotaMetricsMapAllNodes(t *testing.T) {
@@ -488,9 +621,9 @@ func TestQuotaMetricsMapAllNodes(t *testing.T) {
 		NodeList:    []*v1.Node{n1, n2},
 	}
 
-	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_ns1_n1, metric_cpuUsed_pod_ns1_n2,
-		metric_cpuUsed_pod_ns2_n1, metric_cpuUsed_pod_ns2_n2,
-		metric_cpuUsed_pod1_ns3_n1, metric_cpuUsed_pod2_ns3_n1)
+	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_n1_ns1, metric_cpuUsed_pod_n2_ns1,
+		metric_cpuUsed_pod_n1_ns2, metric_cpuUsed_pod_n2_ns2,
+		metric_cpuUsed_pod1_n1_ns3, metric_cpuUsed_pod2_n1_ns3)
 
 	podMetricsMap, _ := collector.CollectPodMetrics()
 
@@ -559,9 +692,9 @@ func TestQuotaMetricsCpuUsage(t *testing.T) {
 	metric_cpuFreq_n1 := metrics.NewEntityStateMetric(nodetype, util.NodeKeyFunc(n1), metrics.CpuFrequency, nodeFreq)
 	metricsSink.AddNewMetricEntries(metric_cpuFreq_n1)
 
-	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_ns1_n1, metric_cpuUsed_pod_ns1_n2,
-		metric_cpuUsed_pod_ns2_n1, metric_cpuUsed_pod_ns2_n2,
-		metric_cpuUsed_pod1_ns3_n1, metric_cpuUsed_pod2_ns3_n1)
+	metricsSink.AddNewMetricEntries(metric_cpuUsed_pod_n1_ns1, metric_cpuUsed_pod_n2_ns1,
+		metric_cpuUsed_pod_n1_ns2, metric_cpuUsed_pod_n2_ns2,
+		metric_cpuUsed_pod1_n1_ns3, metric_cpuUsed_pod2_n1_ns3)
 
 	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 

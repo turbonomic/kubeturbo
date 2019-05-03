@@ -120,9 +120,11 @@ func TestComputeClusterResources(t *testing.T) {
 	kubeCluster := repository.NewKubeCluster(testClusterName, createMockNodes(allocatableMap, schedulableNodeMap))
 	var resourceMap map[metrics.ResourceType]*repository.KubeDiscoveredResource
 	resourceMap = kubeCluster.ClusterResources
-	for _, computeType := range metrics.KubeComputeResourceTypes {
-		_, exists := resourceMap[computeType]
-		assert.True(t, exists)
+	for _, computeTypeList := range metrics.KubeComputeResourceTypes {
+		for _, computeType := range computeTypeList {
+			_, exists := resourceMap[computeType]
+			assert.True(t, exists)
+		}
 	}
 	// Among all nodes, one of the nodes is not schedulable, so the capacity should be 3 * node capacity
 	assert.Equal(t, int32(24032436), int32(resourceMap["Memory"].Capacity))
@@ -130,9 +132,11 @@ func TestComputeClusterResources(t *testing.T) {
 
 	kubeCluster = repository.NewKubeCluster(testClusterName, createMockNodes(allocatableCpuOnlyMap, schedulableNodeMap))
 	resourceMap = kubeCluster.ClusterResources
-	for _, computeType := range metrics.KubeComputeResourceTypes {
-		_, exists := resourceMap[computeType]
-		assert.True(t, exists, fmt.Sprintf("missing %s resource", computeType))
+	for _, computeTypeList := range metrics.KubeComputeResourceTypes {
+		for _, computeType := range computeTypeList {
+			_, exists := resourceMap[computeType]
+			assert.True(t, exists, fmt.Sprintf("missing %s resource", computeType))
+		}
 	}
 }
 

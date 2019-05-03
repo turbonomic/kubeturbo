@@ -101,7 +101,7 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 					quotaName, resourceType, existingResource.Used, used)
 				continue
 			} else {
-				glog.V(4).Infof("Quota is not defined for %s::%s. Setting its usage to the sum of " +
+				glog.V(4).Infof("Quota is not defined for %s::%s. Setting its usage to the sum of "+
 					"usage across all pods in the quota: %f", quotaName, resourceType, used)
 				existingResource.Used = used
 			}
