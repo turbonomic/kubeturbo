@@ -294,8 +294,8 @@ func CreateDefaultQuota(clusterName, namespace, uuid string,
 	}
 
 	// create quota allocation resources
-	for _, rt := range metrics.ComputeAllocationResources {
-		computeType, exists := metrics.AllocationToComputeMap[rt] //corresponding compute resource
+	for _, rt := range metrics.QuotaResources {
+		computeType, exists := metrics.QuotaToComputeMap[rt] //corresponding compute resource
 		if exists {
 			capacity := float64(0.0)
 			computeResource, hasCompute := clusterResources[computeType]
@@ -331,7 +331,7 @@ func (quotaEntity *KubeQuota) ReconcileQuotas(quotas []*v1.ResourceQuota) {
 		resourceUsedList := resourceStatus.Used
 
 		for resource, _ := range resourceHardList {
-			resourceType, isAllocationType := metrics.KubeAllocatonResourceTypes[resource]
+			resourceType, isAllocationType := metrics.KubeQuotaResourceTypes[resource]
 			if !isAllocationType { // skip if it is not a allocation type resource
 				continue
 			}
@@ -390,7 +390,7 @@ func (quotaEntity *KubeQuota) AddNodeProvider(nodeUID string,
 	if allocationBought == nil {
 		glog.V(2).Infof("%s : missing metrics for node %s\n", quotaEntity.Name, nodeUID)
 		allocationBought := make(map[metrics.ResourceType]float64)
-		for _, rt := range metrics.ComputeAllocationResources {
+		for _, rt := range metrics.QuotaResources {
 			allocationBought[rt] = DEFAULT_METRIC_VALUE
 		}
 	}

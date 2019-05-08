@@ -69,13 +69,13 @@ func CreateDefaultQuotaMetrics(quotaName string, nodeUIDs []string) *QuotaMetric
 	// allocations bought from node providers
 	for _, nodeUID := range nodeUIDs {
 		emptyMap := make(map[metrics.ResourceType]float64)
-		for _, rt := range metrics.ComputeAllocationResources {
+		for _, rt := range metrics.QuotaResources {
 			emptyMap[rt] = 0.0
 		}
 		quotaMetrics.AllocationBoughtMap[nodeUID] = emptyMap
 	}
 	// allocations sold
-	for _, allocationResource := range metrics.ComputeAllocationResources {
+	for _, allocationResource := range metrics.QuotaResources {
 		quotaMetrics.AllocationSoldUsed[allocationResource] = 0.0
 	}
 	return quotaMetrics

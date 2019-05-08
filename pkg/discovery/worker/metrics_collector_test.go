@@ -328,7 +328,7 @@ func TestSumPodMetricsMissingComputeUsage(t *testing.T) {
 	podMetricsList = append(podMetricsList, pm2)
 
 	resourceMap := podMetricsList.SumAllocationUsage()
-	for _, allocationType := range metrics.ComputeAllocationResources {
+	for _, allocationType := range metrics.QuotaResources {
 		assert.Equal(t, 0.0, resourceMap[allocationType])
 	}
 }
@@ -460,7 +460,7 @@ func TestPodMetricsCollectionSingleNode(t *testing.T) {
 			for _, podMetrics := range podMetricsList {
 				// assert that the metrics is created for all allocation resources
 				allocationMap := podMetrics.AllocationBought
-				for _, allocationType := range metrics.ComputeAllocationResources {
+				for _, allocationType := range metrics.QuotaResources {
 					_, exists := allocationMap[allocationType]
 					assert.True(t, exists)
 				}

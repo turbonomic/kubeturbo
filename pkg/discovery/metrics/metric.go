@@ -46,66 +46,81 @@ var (
 	}
 
 	// Mapping of Kubernetes API Server resource names to the allocation resource types
-	KubeAllocatonResourceTypes = map[v1.ResourceName]ResourceType{
+	KubeQuotaResourceTypes = map[v1.ResourceName]ResourceType{
 		v1.ResourceLimitsCPU:      CPUQuota,
 		v1.ResourceLimitsMemory:   MemoryQuota,
 		v1.ResourceRequestsCPU:    CPURequestQuota,
 		v1.ResourceRequestsMemory: MemoryRequestQuota,
 	}
 
-	// List of Compute resources
-	ComputeResources = []ResourceType{
-		CPU, Memory, CPURequest, MemoryRequest}
-
-	// List of Allocation resources
-	ComputeAllocationResources = []ResourceType{
-		CPUQuota, MemoryQuota, CPURequestQuota, MemoryRequestQuota}
-
-	// List of cpu related metrics
-	CPUResources = []ResourceType{CPU, CPURequest, CPUQuota, CPURequestQuota}
-
 	// Mapping of allocation to compute resources
-	AllocationToComputeMap = map[ResourceType]ResourceType{
+	QuotaToComputeMap = map[ResourceType]ResourceType{
 		CPUQuota:           CPU,
 		MemoryQuota:        Memory,
 		CPURequestQuota:    CPURequest,
 		MemoryRequestQuota: MemoryRequest,
 	}
 
+	// List of Compute resources
+	ComputeResources []ResourceType
+
+	// List of Allocation resources
+	QuotaResources []ResourceType
+
+	// List of cpu related metrics
+	CPUResources map[ResourceType]bool
+
 	// Mapping of compute to allocation resources
-	ComputeToAllocationMap = map[ResourceType]ResourceType{
-		CPU:           CPUQuota,
-		Memory:        MemoryQuota,
-		CPURequest:    CPURequestQuota,
-		MemoryRequest: MemoryRequestQuota,
-	}
+	ComputeToQuotaMap map[ResourceType]ResourceType
 )
 
-// Returns true if the given resource type argument belongs to the list of allocation resources
-func IsAllocationType(resourceType ResourceType) bool {
-	for _, rt := range ComputeAllocationResources {
-		if rt == resourceType {
-			return true
+func init() {
+	var cpuResources []ResourceType
+	// Compute ComputeResources from the KubeComputeResourceTypes map
+	for name, resourceList := range KubeComputeResourceTypes {
+		ComputeResources = append(ComputeResources, resourceList...)
+		if name == v1.ResourceCPU {
+			cpuResources = append(cpuResources, resourceList...)
 		}
+	}
+	// Compute QuotaResources from the KubeQuotaResourceTypes map
+	for name, resource := range KubeQuotaResourceTypes {
+		QuotaResources = append(QuotaResources, resource)
+		if name == v1.ResourceLimitsCPU || name == v1.ResourceRequestsCPU {
+			cpuResources = append(cpuResources, resource)
+		}
+	}
+	// Compute CPUResources
+	CPUResources = make(map[ResourceType]bool)
+	for _, resource := range cpuResources {
+		CPUResources[resource] = true
+	}
+	// Compute ComputeToQuotaMap as the inverse of QuotaToComputeMap
+	ComputeToQuotaMap = make(map[ResourceType]ResourceType)
+	for k, v := range QuotaToComputeMap {
+		ComputeToQuotaMap[v] = k
+	}
+}
+
+// Returns true if the given resource type argument belongs to the list of allocation resources
+func IsQuotaType(resourceType ResourceType) bool {
+	if _, ok := QuotaToComputeMap[resourceType]; ok {
+		return true
 	}
 	return false
 }
 
 // Returns true if the given resource type argument belongs to the list of compute resources
 func IsComputeType(resourceType ResourceType) bool {
-	for _, rt := range ComputeResources {
-		if rt == resourceType {
-			return true
-		}
+	if _, ok := ComputeToQuotaMap[resourceType]; ok {
+		return true
 	}
 	return false
 }
 
 func IsCPUType(resourceType ResourceType) bool {
-	for _, rt := range CPUResources {
-		if rt == resourceType {
-			return true
-		}
+	if _, ok := CPUResources[resourceType]; ok {
+		return true
 	}
 	return false
 }
@@ -133,7 +148,6 @@ type ResourceMetric struct {
 	value        float64
 }
 
-//
 func NewResourceMetric(rType ResourceType, mProp MetricProp, v float64) ResourceMetric {
 	return ResourceMetric{
 		resourceType: rType,

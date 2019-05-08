@@ -266,7 +266,7 @@ func (worker *k8sDiscoveryWorker) addNodeAllocationMetrics(nodeMetricsCollection
 	entityType := metrics.NodeType
 	for _, nodeMetrics := range nodeMetricsCollection {
 		nodeKey := nodeMetrics.NodeKey
-		for _, allocationResource := range metrics.ComputeAllocationResources {
+		for _, allocationResource := range metrics.QuotaResources {
 			capValue := nodeMetrics.AllocationCap[allocationResource]
 			allocationCapMetric := metrics.NewEntityResourceMetric(entityType, nodeKey,
 				allocationResource, metrics.Capacity, capValue)

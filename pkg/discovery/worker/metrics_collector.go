@@ -69,8 +69,8 @@ func (podMetricsList PodMetricsList) SumAllocationUsage() map[metrics.ResourceTy
 	}
 
 	// pod allocation resource usage is same as its corresponding compute resource usage
-	for _, allocationType := range metrics.ComputeAllocationResources {
-		computeType, exists := metrics.AllocationToComputeMap[allocationType]
+	for _, allocationType := range metrics.QuotaResources {
+		computeType, exists := metrics.QuotaToComputeMap[allocationType]
 		if !exists {
 			glog.Errorf("cannot find corresponding compute type for %s", allocationType)
 			continue
@@ -166,7 +166,7 @@ func (collector *MetricsCollector) CollectPodMetrics() (PodMetricsByNodeAndQuota
 // Return the Limits set for compute resources in a namespace resource quota
 func getQuotaComputeCapacity(quotaEntity *repository.KubeQuota, computeType metrics.ResourceType,
 ) float64 {
-	allocationType, exists := metrics.ComputeToAllocationMap[computeType]
+	allocationType, exists := metrics.ComputeToQuotaMap[computeType]
 	if !exists {
 		return repository.DEFAULT_METRIC_VALUE
 	}
@@ -203,8 +203,8 @@ func createPodMetrics(pod *v1.Pod, quotaName string, metricsSink *metrics.Entity
 		}
 	}
 	// assign compute resource usages to allocation resources
-	for _, resourceType := range metrics.ComputeAllocationResources {
-		computeType, exists := metrics.AllocationToComputeMap[resourceType]
+	for _, resourceType := range metrics.QuotaResources {
+		computeType, exists := metrics.QuotaToComputeMap[resourceType]
 		if !exists {
 			glog.Errorf("Cannot find corresponding compute type for %s", resourceType)
 			continue
@@ -248,7 +248,7 @@ func (collector *MetricsCollector) CollectNodeMetrics(podCollection PodMetricsBy
 }
 
 // Create NodeMetrics for the given node.
-// Allocation capacity is the  same as the compute resource capacity.
+// Allocation capacity is the same as the compute resource capacity.
 // Allocation usage is the sum of allocation usages from all the pods running on the node
 func createNodeMetrics(node *v1.Node, collectivePodMetricsList PodMetricsList, metricsSink *metrics.EntityMetricSink) *repository.NodeMetrics {
 	// allocation usages for the node - sum of allocation usages from all the pods on the node
@@ -259,9 +259,9 @@ func createNodeMetrics(node *v1.Node, collectivePodMetricsList PodMetricsList, m
 	nodeKey := util.NodeKeyFunc(node)
 
 	allocationCap := make(map[metrics.ResourceType]float64)
-	for _, allocationResource := range metrics.ComputeAllocationResources {
+	for _, allocationResource := range metrics.QuotaResources {
 		// get the corresponding compute type resource
-		computeType, exists := metrics.AllocationToComputeMap[allocationResource]
+		computeType, exists := metrics.QuotaToComputeMap[allocationResource]
 		if !exists {
 			continue
 		}

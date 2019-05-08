@@ -187,10 +187,10 @@ func makeKubeQuotas() []*repository.KubeQuota {
 		kubeQuota.ReconcileQuotas(quotaList)
 
 		// simulate pod usage values for the allocation resource commodities without quota limit
-		for _, resourceType := range metrics.ComputeAllocationResources {
+		for _, resourceType := range metrics.QuotaResources {
 			if !kubeQuota.AllocationDefined[resourceType] {
 				resource := kubeQuota.AllocationResources[resourceType]
-				computeType := metrics.AllocationToComputeMap[resourceType]
+				computeType := metrics.QuotaToComputeMap[resourceType]
 				resource.Used = clusterResources[computeType].Capacity * 0.1
 			}
 		}
@@ -238,7 +238,7 @@ func TestBuildQuotaDto(t *testing.T) {
 			commMap[commSold.GetCommodityType()] = commSold
 		}
 
-		for _, allocationResource := range metrics.ComputeAllocationResources {
+		for _, allocationResource := range metrics.QuotaResources {
 			commType, ok := rTypeMapping[allocationResource]
 			if !ok {
 				continue
@@ -276,7 +276,7 @@ func TestBuildQuotaDto(t *testing.T) {
 				commMap[commBought.GetCommodityType()] = commBought
 			}
 
-			for _, allocationResource := range metrics.ComputeAllocationResources {
+			for _, allocationResource := range metrics.QuotaResources {
 				commType, ok := rTypeMapping[allocationResource]
 				if !ok {
 					continue
