@@ -245,8 +245,8 @@ func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection P
 						podKey, resourceType,
 						metrics.Used, usedValue)
 					worker.sink.AddNewMetricEntries(allocationUsedMetric)
-					glog.V(4).Infof("%s: created bought allocation %s --> used=%f\n",
-						podMetrics.PodName, allocationUsedMetric.GetUID(), usedValue)
+					glog.V(4).Infof("Created %s used for pod %s:  %f.",
+						allocationUsedMetric.GetUID(), podMetrics.PodName, usedValue)
 				}
 
 				for resourceType, capValue := range podMetrics.ComputeCapacity {
@@ -254,8 +254,8 @@ func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection P
 						podKey, resourceType,
 						metrics.Capacity, capValue)
 					worker.sink.AddNewMetricEntries(computeCapMetric)
-					glog.V(4).Infof("%s: updated compute capacity %s --> cap=%f\n",
-						podMetrics.PodName, computeCapMetric.GetUID(), capValue)
+					glog.V(4).Infof("Updated %s capacity for pod %s: %f.",
+						computeCapMetric.GetUID(), podMetrics.PodName, capValue)
 				}
 			}
 		}
@@ -266,7 +266,7 @@ func (worker *k8sDiscoveryWorker) addNodeAllocationMetrics(nodeMetricsCollection
 	entityType := metrics.NodeType
 	for _, nodeMetrics := range nodeMetricsCollection {
 		nodeKey := nodeMetrics.NodeKey
-		for _, allocationResource := range metrics.ComputeAllocationResources {
+		for _, allocationResource := range metrics.QuotaResources {
 			capValue := nodeMetrics.AllocationCap[allocationResource]
 			allocationCapMetric := metrics.NewEntityResourceMetric(entityType, nodeKey,
 				allocationResource, metrics.Capacity, capValue)
@@ -277,8 +277,8 @@ func (worker *k8sDiscoveryWorker) addNodeAllocationMetrics(nodeMetricsCollection
 				allocationResource, metrics.Used, usedValue)
 			worker.sink.AddNewMetricEntries(allocationUsedMetric)
 
-			glog.V(4).Infof("Node:%s : created allocation sold %s --> cap=%f  used=%f\n",
-				nodeMetrics.NodeName, allocationResource, capValue, usedValue)
+			glog.V(4).Infof("Created %s sold for node %s, used: %f, cap: %f.",
+				allocationResource, nodeMetrics.NodeName, usedValue, capValue)
 		}
 	}
 }

@@ -10,8 +10,8 @@ var TestPodAllocations = []struct {
 	resourceType metrics.ResourceType
 	used         float64
 }{
-	{metrics.CPULimit, 2.0},
-	{metrics.MemoryLimit, 2.0},
+	{metrics.CPUQuota, 2.0},
+	{metrics.MemoryQuota, 2.0},
 	{metrics.CPURequest, 1.0},
 	{metrics.MemoryRequest, 1.0},
 }
@@ -21,8 +21,8 @@ var TestNodeAllocations = []struct {
 	capacity     float64
 	used         float64
 }{
-	{metrics.CPULimit, 2.0, 1.0},
-	{metrics.MemoryLimit, 2.0, 1.0},
+	{metrics.CPUQuota, 2.0, 1.0},
+	{metrics.MemoryQuota, 2.0, 1.0},
 	{metrics.CPURequest, 1.0, 1.0},
 	{metrics.MemoryRequest, 1.0, 1.0},
 }
@@ -32,9 +32,9 @@ var TestQuotaAllocations = []struct {
 	resourceType metrics.ResourceType
 	used         float64
 }{
-	{"node1", metrics.CPULimit, 1.0},
-	{"node2", metrics.CPULimit, 2.0},
-	{"node3", metrics.CPULimit, 3.0},
+	{"node1", metrics.CPUQuota, 1.0},
+	{"node2", metrics.CPUQuota, 2.0},
+	{"node3", metrics.CPUQuota, 3.0},
 }
 
 func TestPodMetrics(t *testing.T) {

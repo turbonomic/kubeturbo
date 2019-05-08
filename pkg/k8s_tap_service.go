@@ -36,7 +36,7 @@ func ParseK8sTAPServiceSpec(configFile, defaultTargetName string) (*K8sTAPServic
 	if err != nil {
 		return nil, err
 	}
-	glog.V(3).Infof("K8sTapSericeSpec is: %+v", tapSpec)
+	glog.V(3).Infof("K8sTapServiceSpec is: %+v", tapSpec)
 
 	if tapSpec.TurboCommunicationConfig == nil {
 		return nil, errors.New("communication config is missing")
@@ -63,12 +63,12 @@ func ParseK8sTAPServiceSpec(configFile, defaultTargetName string) (*K8sTAPServic
 func readK8sTAPServiceSpec(path string) (*K8sTAPServiceSpec, error) {
 	file, e := ioutil.ReadFile(path)
 	if e != nil {
-		return nil, fmt.Errorf("File error: %v\n" + e.Error())
+		return nil, fmt.Errorf("file error: %v" + e.Error())
 	}
 	var spec K8sTAPServiceSpec
 	err := json.Unmarshal(file, &spec)
 	if err != nil {
-		return nil, fmt.Errorf("Unmarshall error :%v", err.Error())
+		return nil, fmt.Errorf("unmarshall error :%v", err.Error())
 	}
 	return &spec, nil
 }
@@ -106,7 +106,7 @@ type K8sTAPService struct {
 
 func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 	if config == nil || config.tapSpec == nil {
-		return nil, errors.New("Invalid K8sTAPServiceConfig")
+		return nil, errors.New("invalid K8sTAPServiceConfig")
 	}
 
 	// Create the configurations for the registration, discovery and action clients
@@ -140,7 +140,7 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 				ExecutesActionsBy(actionHandler)).
 			Create()
 	if err != nil {
-		return nil, fmt.Errorf("Error when creating KubernetesTAPService: %s", err)
+		return nil, err
 	}
 
 	return &K8sTAPService{tapService}, nil

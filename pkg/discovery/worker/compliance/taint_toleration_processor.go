@@ -122,7 +122,7 @@ func podBuysCommodities(podDTO *proto.EntityDTO, comms []*proto.CommodityDTO, pr
 
 	for _, commBought := range podDTO.GetCommoditiesBought() {
 		if commBought.GetProviderId() == providerId {
-			glog.V(2).Infof("Found provider %s for pod %s to buy %d commodities", providerId, podDTO.GetDisplayName(), len(comms))
+			glog.V(4).Infof("Found provider %s for pod %s to buy %d commodities", providerId, podDTO.GetDisplayName(), len(comms))
 			commBought.Bought = append(commBought.GetBought(), comms...)
 			return
 		}
