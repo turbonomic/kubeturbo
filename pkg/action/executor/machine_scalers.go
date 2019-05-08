@@ -125,7 +125,7 @@ type actionRequest struct {
 	actionType ActionType
 }
 
-type controller interface {
+type Controller interface {
 	checkPreconditions() error
 	checkSuccess() error
 	executeAction() error
@@ -303,9 +303,35 @@ func (controller *machineSetController) waitForState(stateDesc string, f stateCh
 		stateDesc, time.Duration(operationMaxWaits)*operationWaitSleepInterval)
 }
 
+// IsClusterAPIEnabled checks whether cluster API is in fact enabled.
+func IsClusterAPIEnabled(cApiClient *clientset.Clientset, kubeClient *kubernetes.Clientset) (bool, error) {
+	if cApiClient == nil {
+		return false, fmt.Errorf("no Cluster API available")
+	}
+	// Construct the API clients.
+	client := &k8sClusterApi{
+		caClient:          cApiClient,
+		k8sClient:         kubeClient,
+		discovery:         kubeClient.Discovery(),
+		node:              kubeClient.CoreV1().Nodes(),
+		machine:           cApiClient.ClusterV1alpha1().Machines(clusterAPINamespace),
+		machineSet:        cApiClient.ClusterV1alpha1().MachineSets(clusterAPINamespace),
+		machineDeployment: cApiClient.ClusterV1alpha1().MachineDeployments(clusterAPINamespace),
+		caGroupVersion:    clusterAPIGroupVersion,
+	}
+	// Check whether Cluster API is enabled.
+	if err := client.verifyClusterAPIEnabled(); err != nil {
+		return false, nil
+	}
+	return true, nil
+}
+
 // Construct the controller
 func newController(nodeName string, diff int32, actionType ActionType,
-	cApiClient *clientset.Clientset, kubeClient *kubernetes.Clientset) (controller, error) {
+	cApiClient *clientset.Clientset, kubeClient *kubernetes.Clientset) (Controller, error) {
+	if cApiClient == nil {
+		return nil, fmt.Errorf("no Cluster API available")
+	}
 	// Construct the API clients.
 	client := &k8sClusterApi{
 		caClient:          cApiClient,

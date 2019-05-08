@@ -111,9 +111,12 @@ func (h *ActionHandler) registerActionExecutors() {
 	containerResizer := executor.NewContainerResizer(ae, c.kubeletClient, c.sccAllowedSet)
 	h.actionExecutors[turboActionContainerResize] = containerResizer
 
-	machineScaler := executor.NewMachineActionExecutor(ae)
-	h.actionExecutors[turboActionMachineProvision] = machineScaler
-	h.actionExecutors[turboActionMachineSuspend] = machineScaler
+	// Only register the actions when API client is non-nil.
+	if ok, err := executor.IsClusterAPIEnabled(c.cApiClient, c.kubeClient); ok && err != nil {
+		machineScaler := executor.NewMachineActionExecutor(ae)
+		h.actionExecutors[turboActionMachineProvision] = machineScaler
+		h.actionExecutors[turboActionMachineSuspend] = machineScaler
+	}
 }
 
 // Implement ActionExecutorClient interface defined in Go SDK.

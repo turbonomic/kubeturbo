@@ -223,7 +223,7 @@ func (s *VMTServer) Run() {
 	caClient, err := clusterclient.NewForConfig(kubeConfig)
 	if err != nil {
 		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
-		os.Exit(1)
+		caClient = nil
 	}
 
 	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
