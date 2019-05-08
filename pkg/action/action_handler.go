@@ -116,6 +116,8 @@ func (h *ActionHandler) registerActionExecutors() {
 		machineScaler := executor.NewMachineActionExecutor(ae)
 		h.actionExecutors[turboActionMachineProvision] = machineScaler
 		h.actionExecutors[turboActionMachineSuspend] = machineScaler
+	} else {
+		glog.V(1).Info("the Cluster API is unavailable")
 	}
 }
 
