@@ -19,7 +19,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
 
-	"github.com/turbonomic/kubeturbo/pkg"
+	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/test/flag"
 
 	"github.com/golang/glog"
@@ -200,7 +200,7 @@ func (s *VMTServer) checkFlag() error {
 }
 
 // Run runs the specified VMTServer.  This should never exit.
-func (s *VMTServer) Run(_ []string) error {
+func (s *VMTServer) Run() {
 	if err := s.checkFlag(); err != nil {
 		glog.Errorf("check flag failed:%v. abort.", err.Error())
 		os.Exit(1)
@@ -257,7 +257,6 @@ func (s *VMTServer) Run(_ []string) error {
 	k8sTAPService.ConnectToTurbo()
 
 	glog.V(1).Info("Kubeturbo service is stopped.")
-	return nil
 }
 
 func (s *VMTServer) startHttp() {

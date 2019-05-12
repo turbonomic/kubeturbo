@@ -52,15 +52,15 @@ type QuotaMetrics struct {
 	// Amount of allocation resources bought from each node provider
 	AllocationBoughtMap map[string]map[metrics.ResourceType]float64
 	// Amount of allocation resources used by the pods running in the quota
-	AllocationSold map[metrics.ResourceType]float64
-	NodeProviders  []string
+	AllocationSoldUsed map[metrics.ResourceType]float64
+	NodeProviders      []string
 }
 
 func NewQuotaMetrics(nodeName string) *QuotaMetrics {
 	return &QuotaMetrics{
 		QuotaName:           nodeName,
 		AllocationBoughtMap: make(map[string]map[metrics.ResourceType]float64),
-		AllocationSold:      make(map[metrics.ResourceType]float64),
+		AllocationSoldUsed:  make(map[metrics.ResourceType]float64),
 	}
 }
 
@@ -69,14 +69,14 @@ func CreateDefaultQuotaMetrics(quotaName string, nodeUIDs []string) *QuotaMetric
 	// allocations bought from node providers
 	for _, nodeUID := range nodeUIDs {
 		emptyMap := make(map[metrics.ResourceType]float64)
-		for _, rt := range metrics.ComputeAllocationResources {
+		for _, rt := range metrics.QuotaResources {
 			emptyMap[rt] = 0.0
 		}
 		quotaMetrics.AllocationBoughtMap[nodeUID] = emptyMap
 	}
 	// allocations sold
-	for _, allocationResource := range metrics.ComputeAllocationResources {
-		quotaMetrics.AllocationSold[allocationResource] = 0.0
+	for _, allocationResource := range metrics.QuotaResources {
+		quotaMetrics.AllocationSoldUsed[allocationResource] = 0.0
 	}
 	return quotaMetrics
 }
@@ -90,23 +90,18 @@ func (quotaMetrics *QuotaMetrics) UpdateAllocationBought(nodeUID string, allocat
 	}
 }
 
-func (quotaMetrics *QuotaMetrics) UpdateAllocationSold(allocationSold map[metrics.ResourceType]float64) {
-	if quotaMetrics.AllocationSold == nil {
-		quotaMetrics.AllocationSold = make(map[metrics.ResourceType]float64)
+func (quotaMetrics *QuotaMetrics) UpdateAllocationSoldUsed(allocationSoldUsed map[metrics.ResourceType]float64) {
+	if quotaMetrics.AllocationSoldUsed == nil {
+		quotaMetrics.AllocationSoldUsed = make(map[metrics.ResourceType]float64)
 	}
-	for resourceType, used := range allocationSold {
+	for resourceType, used := range allocationSoldUsed {
 		var totalUsed float64
-		currentUsed, exists := quotaMetrics.AllocationSold[resourceType]
+		currentUsed, exists := quotaMetrics.AllocationSoldUsed[resourceType]
 		if !exists {
 			totalUsed = used
 		} else {
 			totalUsed = currentUsed + used
 		}
-		quotaMetrics.AllocationSold[resourceType] = totalUsed
+		quotaMetrics.AllocationSoldUsed[resourceType] = totalUsed
 	}
 }
-
-// -----------------------------------------------------------
-type UsedMetrics map[metrics.ResourceType]float64
-type CapacityMetrics map[metrics.ResourceType]float64
-type ReservationMetrics map[metrics.ResourceType]float64

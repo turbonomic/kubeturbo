@@ -8,7 +8,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
+	k8sres "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"testing"
@@ -24,17 +24,32 @@ type TestNode struct {
 }
 
 var TestNodes = []TestNode{
-	{"node1", 4.0, 819200, "cluster1"},
-	{"node2", 5.0, 614400, "cluster1"},
-	{"node3", 6.0, 409600, "cluster1"},
+	{
+		"node1",
+		4.0,
+		819200,
+		"cluster1",
+	},
+	{
+		"node2",
+		5.0,
+		614400,
+		"cluster1",
+	},
+	{
+		"node3",
+		6.0,
+		409600,
+		"cluster1",
+	},
 }
 
 func makeKubeNodes() []*repository.KubeNode {
 	var kubenodes []*repository.KubeNode
 	for _, testNode := range TestNodes {
 		resourceList := v1.ResourceList{
-			v1.ResourceCPU:    resource.MustParse(fmt.Sprint(testNode.cpuCap)),
-			v1.ResourceMemory: resource.MustParse(fmt.Sprint(testNode.memCap)),
+			v1.ResourceCPU:    k8sres.MustParse(fmt.Sprint(testNode.cpuCap)),
+			v1.ResourceMemory: k8sres.MustParse(fmt.Sprint(testNode.memCap)),
 		}
 
 		n1 := &v1.Node{
@@ -58,44 +73,63 @@ func makeKubeNodes() []*repository.KubeNode {
 }
 
 type TestQuota struct {
-	name     string
-	cpuLimit string
-	cpuUsed  string
-	memLimit string
-	memUsed  string
-}
-type TestQuotaWithMemLimit struct {
-	name     string
-	memLimit string
-	memUsed  string
+	name            string
+	cpuQuota        string
+	cpuUsed         string
+	memQuota        string
+	memUsed         string
+	cpuRequestQuota string
+	cpuRequestUsed  string
+	memRequestQuota string
+	memRequestUsed  string
 }
 
-//var TestQuotas = []struct {
-//	name     string
-//	cpuLimit string
-//	cpuUsed  string
-//	memLimit string
-//	memUsed  string
-//}
 var TestQuotas = []TestQuota{
-	{"quota1", "4", "3", "8Gi", "5Gi"},
-	{"quota2", "0.5", "0.3", "7Mi", "5Gi"},
-	{"quota3", "6000m", "300m", "6Ki", "5Ki"},
-	{"quota4", "0", "0", "6Ki", "5Ki"},
+	{
+		"quota1",
+		"4",
+		"3",
+		"8Gi",
+		"5Gi",
+		"4",
+		"2",
+		"6Gi",
+		"2Gi",
+	},
+	{
+		"quota2",
+		"0.5",
+		"0.3",
+		"7Mi",
+		"5Gi",
+		"0.4",
+		"0.22",
+		"6Mi",
+		"2Gi",
+	},
+	{
+		"quota3",
+		"6000m",
+		"300m",
+		"6Ki",
+		"5Ki",
+		"4000m",
+		"250m",
+		"6Ki",
+		"2Ki",
+	},
+	{
+		"quota4",
+		"0",
+		"0",
+		"6Ki",
+		"5Ki",
+		"0",
+		"0",
+		"6Ki",
+		"1Ki",
+	},
 }
-
-var TestQuotasWithMemLimit = []TestQuotaWithMemLimit{
-	{"quota1", "8Gi", "5Gi"},
-	{"quota2", "7Mi", "5Gi"},
-	{"quota3", "6Ki", "5Ki"},
-}
-
-//
-//var TestNodeProviders = []TestNode {
-//	{"node1", 1.0, 100 * 1024 * 1024.0},
-//	{"node2", 0.5, 150 * 1024.0 * 1024.0},
-//	{"node3", 1.5, 250 * 1024.0 * 1024.0},
-//}
 
 func makeKubeQuotas() []*repository.KubeQuota {
 	namespace := "ns1"
@@ -106,6 +140,8 @@ func makeKubeQuotas() []*repository.KubeQuota {
 	for _, node := range TestNodes {
 		resourceMap[metrics.CPU] = resourceMap[metrics.CPU] + node.cpuCap
 		resourceMap[metrics.Memory] = resourceMap[metrics.Memory] + node.memCap
+		resourceMap[metrics.CPURequest] = resourceMap[metrics.CPURequest] + node.cpuCap
+		resourceMap[metrics.MemoryRequest] = resourceMap[metrics.MemoryRequest] + node.memCap
 	}
 	clusterResources := make(map[metrics.ResourceType]*repository.KubeDiscoveredResource)
 	for rt, resource := range resourceMap {
@@ -121,13 +157,17 @@ func makeKubeQuotas() []*repository.KubeQuota {
 
 		hardResourceList := v1.ResourceList{}
 		usedResourceList := v1.ResourceList{}
-		if testQuota.cpuLimit != "0" {
-			hardResourceList[v1.ResourceLimitsCPU] = resource.MustParse(testQuota.cpuLimit)
-			usedResourceList[v1.ResourceLimitsCPU] = resource.MustParse(testQuota.cpuUsed)
+		if testQuota.cpuQuota != "0" {
+			hardResourceList[v1.ResourceLimitsCPU] = k8sres.MustParse(testQuota.cpuQuota)
+			usedResourceList[v1.ResourceLimitsCPU] = k8sres.MustParse(testQuota.cpuUsed)
+			hardResourceList[v1.ResourceRequestsCPU] = k8sres.MustParse(testQuota.cpuRequestQuota)
+			usedResourceList[v1.ResourceRequestsCPU] = k8sres.MustParse(testQuota.cpuRequestUsed)
 		}
-		if testQuota.memLimit != "0" {
-			hardResourceList[v1.ResourceLimitsMemory] = resource.MustParse(testQuota.memLimit)
-			usedResourceList[v1.ResourceLimitsMemory] = resource.MustParse(testQuota.memUsed)
+		if testQuota.memQuota != "0" {
+			hardResourceList[v1.ResourceLimitsMemory] = k8sres.MustParse(testQuota.memQuota)
+			usedResourceList[v1.ResourceLimitsMemory] = k8sres.MustParse(testQuota.memUsed)
+			hardResourceList[v1.ResourceRequestsMemory] = k8sres.MustParse(testQuota.memRequestQuota)
+			usedResourceList[v1.ResourceRequestsMemory] = k8sres.MustParse(testQuota.memRequestUsed)
 		}
 
 		quota := &v1.ResourceQuota{
@@ -147,20 +187,20 @@ func makeKubeQuotas() []*repository.KubeQuota {
 		kubeQuota.ReconcileQuotas(quotaList)
 
 		// simulate pod usage values for the allocation resource commodities without quota limit
-		for _, resourceType := range metrics.ComputeAllocationResources {
+		for _, resourceType := range metrics.QuotaResources {
 			if !kubeQuota.AllocationDefined[resourceType] {
 				resource := kubeQuota.AllocationResources[resourceType]
-				computeType := metrics.AllocationToComputeMap[resourceType]
+				computeType := metrics.QuotaToComputeMap[resourceType]
 				resource.Used = clusterResources[computeType].Capacity * 0.1
 			}
 		}
 
 		for _, node := range TestNodes {
 			allocationResourceMap := make(map[metrics.ResourceType]float64)
-			allocationResourceMap[metrics.CPULimit] = node.cpuCap * 0.033
-			allocationResourceMap[metrics.CPURequest] = node.cpuCap * 0.033
-			allocationResourceMap[metrics.MemoryLimit] = node.memCap * 0.033
-			allocationResourceMap[metrics.MemoryRequest] = node.memCap * 0.033
+			allocationResourceMap[metrics.CPUQuota] = node.cpuCap * 0.033
+			allocationResourceMap[metrics.CPURequestQuota] = node.cpuCap * 0.033
+			allocationResourceMap[metrics.MemoryQuota] = node.memCap * 0.033
+			allocationResourceMap[metrics.MemoryRequestQuota] = node.memCap * 0.033
 			kubeQuota.AddNodeProvider(node.name, allocationResourceMap)
 		}
 		kubeQuota.AverageNodeCpuFrequency = CPUFrequency
@@ -198,7 +238,7 @@ func TestBuildQuotaDto(t *testing.T) {
 			commMap[commSold.GetCommodityType()] = commSold
 		}
 
-		for _, allocationResource := range metrics.ComputeAllocationResources {
+		for _, allocationResource := range metrics.QuotaResources {
 			commType, ok := rTypeMapping[allocationResource]
 			if !ok {
 				continue
@@ -236,7 +276,7 @@ func TestBuildQuotaDto(t *testing.T) {
 				commMap[commBought.GetCommodityType()] = commBought
 			}
 
-			for _, allocationResource := range metrics.ComputeAllocationResources {
+			for _, allocationResource := range metrics.QuotaResources {
 				commType, ok := rTypeMapping[allocationResource]
 				if !ok {
 					continue

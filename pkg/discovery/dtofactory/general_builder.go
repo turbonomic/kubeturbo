@@ -7,19 +7,24 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"fmt"
+
 	"github.com/golang/glog"
 )
 
 var (
 	// This map maps resource type to commodity types defined in ProtoBuf.
 	rTypeMapping = map[metrics.ResourceType]proto.CommodityDTO_CommodityType{
-		metrics.CPU:               proto.CommodityDTO_VCPU,
-		metrics.Memory:            proto.CommodityDTO_VMEM,
-		metrics.CPUProvisioned:    proto.CommodityDTO_CPU_PROVISIONED,
-		metrics.MemoryProvisioned: proto.CommodityDTO_MEM_PROVISIONED,
-		metrics.Transaction:       proto.CommodityDTO_TRANSACTION,
-		metrics.CPULimit:          proto.CommodityDTO_CPU_ALLOCATION,
-		metrics.MemoryLimit:       proto.CommodityDTO_MEM_ALLOCATION,
+		metrics.CPU:                proto.CommodityDTO_VCPU,
+		metrics.Memory:             proto.CommodityDTO_VMEM,
+		metrics.CPURequest:         proto.CommodityDTO_VCPU_REQUEST,
+		metrics.MemoryRequest:      proto.CommodityDTO_VMEM_REQUEST,
+		metrics.CPUProvisioned:     proto.CommodityDTO_CPU_PROVISIONED,
+		metrics.MemoryProvisioned:  proto.CommodityDTO_MEM_PROVISIONED,
+		metrics.Transaction:        proto.CommodityDTO_TRANSACTION,
+		metrics.CPUQuota:           proto.CommodityDTO_CPU_ALLOCATION,
+		metrics.MemoryQuota:        proto.CommodityDTO_MEM_ALLOCATION,
+		metrics.CPURequestQuota:    proto.CommodityDTO_CPU_REQUEST_ALLOCATION,
+		metrics.MemoryRequestQuota: proto.CommodityDTO_MEM_REQUEST_ALLOCATION,
 	}
 )
 
@@ -128,7 +133,7 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 	var resourceCommoditySold *proto.CommodityDTO
 	cType, exist := rTypeMapping[resourceType]
 	if !exist {
-		return nil, fmt.Errorf("Unsupported commodity type %s", resourceType)
+		return nil, fmt.Errorf("unsupported commodity type %s", resourceType)
 	}
 
 	// check for the unit converter for cpu resources
@@ -146,6 +151,9 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 	}
 
 	commSoldBuilder.Used(usedValue)
+
+	// set peak value as the used value
+	commSoldBuilder.Peak(usedValue)
 
 	// set capacity value
 	capacityValue, err := builder.metricValue(entityType, entityID,
@@ -213,6 +221,9 @@ func (builder generalBuilder) getResourceCommoditiesBought(entityType metrics.Di
 		}
 		commBoughtBuilder.Used(usedValue)
 
+		// set peak value as the used value
+		commBoughtBuilder.Peak(usedValue)
+
 		// set reservation value if any
 		reservedMetricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID,
 			rType, metrics.Reservation)
@@ -253,7 +264,7 @@ func (builder generalBuilder) getResourceCommodityBoughtWithKey(entityType metri
 	converter *converter, commodityAttrSetter *attributeSetter) (*proto.CommodityDTO, error) {
 	cType, exist := rTypeMapping[resourceType]
 	if !exist {
-		return nil, fmt.Errorf("Unsupported commodity type %s", resourceType)
+		return nil, fmt.Errorf("unsupported commodity type %s", resourceType)
 	}
 
 	// check for the unit converter for cpu resources
@@ -270,6 +281,9 @@ func (builder generalBuilder) getResourceCommodityBoughtWithKey(entityType metri
 	}
 
 	commBoughtBuilder.Used(usedValue)
+
+	// set peak value as the used value
+	commBoughtBuilder.Peak(usedValue)
 
 	// set reservation value if any
 	reservationValue, _ := builder.metricValue(entityType, entityID,
@@ -293,4 +307,17 @@ func (builder generalBuilder) getResourceCommodityBoughtWithKey(entityType metri
 	}
 
 	return commBought, nil
+}
+
+// get cpu frequency
+func (builder generalBuilder) getNodeCPUFrequency(nodeKey string) (float64, error) {
+	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, nodeKey, metrics.CpuFrequency)
+	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
+	if err != nil {
+		err := fmt.Errorf("failed to get cpu frequency from sink for node %s: %v", nodeKey, err)
+		return 0.0, err
+	}
+	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
+	glog.V(4).Infof("CPU frequency for node %s: %f", nodeKey, cpuFrequency)
+	return cpuFrequency, nil
 }

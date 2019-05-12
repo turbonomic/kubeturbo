@@ -2,6 +2,7 @@ package processor
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
@@ -71,14 +72,15 @@ func TestProcessNamespaces(t *testing.T) {
 			return quotaMap, nil
 		},
 	}
-
+	ks := repository.NewKubeCluster(testClusterName,
+		createMockNodes(allocatableMap, schedulableNodeMap))
 	namespaceProcessor := &NamespaceProcessor{
 		ClusterInfoScraper: ms,
-		clusterName:        testClusterName,
+		KubeCluster:        ks,
 	}
 
-	nsMap, _ := namespaceProcessor.ProcessNamespaces()
-
+	namespaceProcessor.ProcessNamespaces()
+	nsMap := ks.Namespaces
 	assert.Equal(t, len(nsMap), len(mockNamepaces))
 	for _, ns := range nsMap {
 		assert.NotNil(t, ns.Quota)

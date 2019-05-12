@@ -44,9 +44,9 @@ func NewClusterScraper(kclient *client.Clientset) *ClusterScraper {
 }
 
 func (s *ClusterScraper) GetNamespaces() ([]*api.Namespace, error) {
-	namespaceList, err := s.Core().Namespaces().List(metav1.ListOptions{})
+	namespaceList, err := s.CoreV1().Namespaces().List(metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list all namespaces in the cluster: %s", err)
+		return nil, err
 	}
 	namespaces := make([]*api.Namespace, len(namespaceList.Items))
 	for i := 0; i < len(namespaceList.Items); i++ {
@@ -55,11 +55,11 @@ func (s *ClusterScraper) GetNamespaces() ([]*api.Namespace, error) {
 	return namespaces, nil
 }
 
-func (s *ClusterScraper) GetResourceQuotas() ([]*api.ResourceQuota, error) {
+func (s *ClusterScraper) getResourceQuotas() ([]*api.ResourceQuota, error) {
 	namespace := api.NamespaceAll
-	quotaList, err := s.Core().ResourceQuotas(namespace).List(metav1.ListOptions{})
+	quotaList, err := s.CoreV1().ResourceQuotas(namespace).List(metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list all quotas in the cluster: %s", err)
+		return nil, err
 	}
 	quotas := make([]*api.ResourceQuota, len(quotaList.Items))
 	for i := 0; i < len(quotaList.Items); i++ {
@@ -70,9 +70,9 @@ func (s *ClusterScraper) GetResourceQuotas() ([]*api.ResourceQuota, error) {
 
 // Return a map containing namespace and the list of quotas defined in the namespace.
 func (s *ClusterScraper) GetNamespaceQuotas() (map[string][]*api.ResourceQuota, error) {
-	quotaList, err := s.GetResourceQuotas()
+	quotaList, err := s.getResourceQuotas()
 	if err != nil {
-		return nil, fmt.Errorf("%s", err)
+		return nil, err
 	}
 
 	quotaMap := make(map[string][]*api.ResourceQuota)

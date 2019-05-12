@@ -31,9 +31,9 @@ The following table shows the values exposed which are also seen in the file [va
 Parameter|Default Value|Required / Opt to Change|Parameter Type
 ------------ | ------------- | --------------- | -------------
 image.repository|vmturbo/kubeturbo|optional|path to repo
-image.tag|6.2|optional|kubeturbo tag
+image.tag|6.3|optional|kubeturbo tag
 image.pullPolicy|IfNotPresent|optional| 
-serverMeta.version| |required|number x.y.z
+serverMeta.version| |required|number x.y
 serverMeta.turboServer| |required|https URL to log into Server
 restAPIConfig.opsManagerUserName| |required|local or AD user with admin role
 restAPIConfig.opsManagerPassword| |required|admin's password
@@ -53,7 +53,7 @@ For more on `masterNodeDetectors` and `daemonPodDetectors` go to [YAMLS_README.m
 When you update the Turbonomic or CWOM Server, you will need to update the configMap resource to reflect the new version.
 NOTE: Starting with kubeturbo 6.3+, you do not need to make this configMap modification if updating to a minor version like 6.3.0 -> 6.3.1, which will now be automatically handled.  You would only need to make this change if you are making a major change, going from 6.3.1 -> 6.4.0, or 6.3.1 -> 7.0.0.
 
-1. After the update, obtain the new version.  To get this from the UI, go to Settings -> Updates -> About and use the numeric version such as “6.0.11” or “6.2.0” (Build details not required)
+1. After the update, obtain the new version.  To get this from the UI, go to Settings -> Updates -> About and use the numeric version such as “6.3” or “6.4” (Build details not required)
 1. You will update the version value - substitute your values for {}:  `helm upgrade --name {helmChart}{chart location or repo} --namespace turbo --set serverMeta.version={Turbo_Server_Version}`
 1. Insure kubeturbo pod restarted to pick up new value
 1. Repeat for every kubernetes / OpenShift cluster with a kubeturbo pod

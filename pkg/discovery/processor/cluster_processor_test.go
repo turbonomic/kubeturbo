@@ -88,35 +88,6 @@ func createMockKubeNodes(allocatableMap map[v1.ResourceName]resource.Quantity, s
 	return nodeMap
 }
 
-func TestProcessNodes(t *testing.T) {
-
-	nodeList := createMockNodes(allocatableMap, schedulableNodeMap)
-	ms := &MockClusterScrapper{
-		mockGetKubernetesServiceID: func() (string, error) {
-			return testClusterName, nil
-		},
-		mockGetAllNodes: func() ([]*v1.Node, error) {
-			return nodeList, nil
-		},
-	}
-
-	clusterProcessor := &ClusterProcessor{
-		clusterInfoScraper: ms,
-	}
-	nodeMap, _ := clusterProcessor.processNodes("TestCluster")
-	assert.Equal(t, len(nodeList), len(nodeMap))
-
-	for _, knode := range nodeMap {
-		resources := knode.ComputeResources
-		assert.Equal(t, len(allocatableMap), len(resources))
-
-		for _, computeType := range metrics.KubeComputeResourceTypes {
-			_, exists := resources[computeType]
-			assert.True(t, exists)
-		}
-	}
-}
-
 func TestDrainWorkQueue(t *testing.T) {
 	size := 2
 	work := make(chan *v1.Node, size)
@@ -146,20 +117,26 @@ func TestWaitForCompletionFailed(t *testing.T) {
 }
 
 func TestComputeClusterResources(t *testing.T) {
+	kubeCluster := repository.NewKubeCluster(testClusterName, createMockNodes(allocatableMap, schedulableNodeMap))
 	var resourceMap map[metrics.ResourceType]*repository.KubeDiscoveredResource
-	resourceMap = computeClusterResources(createMockKubeNodes(allocatableMap, schedulableNodeMap))
-	for _, computeType := range metrics.KubeComputeResourceTypes {
-		_, exists := resourceMap[computeType]
-		assert.True(t, exists)
+	resourceMap = kubeCluster.ClusterResources
+	for _, computeTypeList := range metrics.KubeComputeResourceTypes {
+		for _, computeType := range computeTypeList {
+			_, exists := resourceMap[computeType]
+			assert.True(t, exists)
+		}
 	}
 	// Among all nodes, one of the nodes is not schedulable, so the capacity should be 3 * node capacity
 	assert.Equal(t, int32(24032436), int32(resourceMap["Memory"].Capacity))
 	assert.Equal(t, int8(12), int8(resourceMap["CPU"].Capacity))
 
-	resourceMap = computeClusterResources(createMockKubeNodes(allocatableCpuOnlyMap, schedulableNodeMap))
-	for _, computeType := range metrics.KubeComputeResourceTypes {
-		_, exists := resourceMap[computeType]
-		assert.True(t, exists, fmt.Sprintf("missing %s resource", computeType))
+	kubeCluster = repository.NewKubeCluster(testClusterName, createMockNodes(allocatableCpuOnlyMap, schedulableNodeMap))
+	resourceMap = kubeCluster.ClusterResources
+	for _, computeTypeList := range metrics.KubeComputeResourceTypes {
+		for _, computeType := range computeTypeList {
+			_, exists := resourceMap[computeType]
+			assert.True(t, exists, fmt.Sprintf("missing %s resource", computeType))
+		}
 	}
 }
 
@@ -175,7 +152,7 @@ func TestDiscoverCluster(t *testing.T) {
 	}
 	clusterProcessor := &ClusterProcessor{
 		clusterInfoScraper: ms,
-		validationResult:   &ClusterValidationResult{IsValidated: true},
+		isValidated:        true,
 	}
 
 	testCluster, err := clusterProcessor.DiscoverCluster()
@@ -197,7 +174,7 @@ func TestDiscoverClusterChangedSchedulableNodes(t *testing.T) {
 	}
 	clusterProcessor := &ClusterProcessor{
 		clusterInfoScraper: ms,
-		validationResult:   &ClusterValidationResult{IsValidated: true},
+		isValidated:        true,
 	}
 
 	testCluster1, _ := clusterProcessor.DiscoverCluster()
@@ -254,7 +231,7 @@ func TestConnectCluster(t *testing.T) {
 	}
 	err := clusterProcessor.ConnectCluster()
 	//assert.NotNil(t, kubeCluster)
-	assert.True(t, clusterProcessor.validationResult.IsValidated)
+	assert.True(t, clusterProcessor.isValidated)
 	assert.Nil(t, err)
 }
 
@@ -279,7 +256,7 @@ func TestConnectClusterUnreachableNodes(t *testing.T) {
 		nodeScrapper:       ns,
 	}
 	err := clusterProcessor.ConnectCluster()
-	assert.False(t, clusterProcessor.validationResult.IsValidated)
+	assert.False(t, clusterProcessor.isValidated)
 	assert.NotNil(t, err)
 }
 
@@ -310,7 +287,7 @@ func TestConnectClusterReachableAndUnreachableNodes(t *testing.T) {
 		nodeScrapper:       ns,
 	}
 	errors := clusterProcessor.ConnectCluster()
-	fmt.Printf("err %s\n", errors)
+	fmt.Printf("err %v\n", errors)
 	//assert.NotNil(t, kubeCluster)
 	assert.Nil(t, errors)
 }

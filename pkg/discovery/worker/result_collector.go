@@ -8,7 +8,6 @@ import (
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
-	"fmt"
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
@@ -46,7 +45,7 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository
 			case <-stopChan:
 				return
 			case result := <-rc.resultPool:
-				fmt.Printf("[resultCollector] Processing results from %s\n", result.WorkerId())
+				glog.V(2).Infof("Processing results from worker %s", result.WorkerId())
 				if err := result.Err(); err != nil {
 					discoveryErrorString = append(discoveryErrorString, err.Error())
 				} else {

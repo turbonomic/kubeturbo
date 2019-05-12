@@ -1,0 +1,33 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: turbo-cluster-reader
+rules:
+  - apiGroups:
+      - ""
+      - apps
+      - extensions
+    resources:
+      - nodes
+      - pods
+      - deployments
+      - replicasets
+      - replicationcontrollers
+      - services
+      - endpoints
+      - namespaces
+      - limitranges
+      - resourcequotas
+      - persistentvolumes
+      - persistentvolumeclaims
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - nodes/spec
+      - nodes/stats
+    verbs:
+      - get
