@@ -4,7 +4,7 @@
 
 # Replace the image with desired version
 image:
-  repository: vmturbo/kubeturbo
+  repository: turbonomic/kubeturbo
   tag: 6.3
   pullPolicy: IfNotPresent
 
