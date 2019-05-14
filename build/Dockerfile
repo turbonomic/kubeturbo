@@ -28,12 +28,8 @@ COPY licenses /licenses
 COPY Dockerfile /Dockerfile
 
 ### Add md2man package
-RUN echo "[epel]" > /etc/yum.repos.d/epel.repo && \
-    echo "name=Extra Packages for Enterprise Linux 7" >> /etc/yum.repos.d/epel.repo && \
-    echo "baseurl=http://download.fedoraproject.org/pub/epel/7/x86_64/" >> /etc/yum.repos.d/epel.repo && \
-    echo "gpgcheck=1" >> /etc/yum.repos.d/epel.repo && \
-    echo "enabled=1" >> /etc/yum.repos.d/epel.repo && \
-    dnf install -y --nogpgcheck --setopt=tsflags=nodocs golang-github-cpuguy83-go-md2man && \
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
+    dnf install -y --setopt=tsflags=nodocs golang-github-cpuguy83-go-md2man && \
     dnf clean all && \
 
 ### help file markdown to man conversion
