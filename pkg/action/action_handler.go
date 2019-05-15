@@ -32,10 +32,10 @@ type turboActionType struct {
 }
 
 var (
-	turboActionPodProvision        turboActionType = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_CONTAINER_POD}
-	turboActionPodMove             turboActionType = turboActionType{proto.ActionItemDTO_MOVE, proto.EntityDTO_CONTAINER_POD}
-	turboActionContainerResize     turboActionType = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_CONTAINER}
-	turboActionContainerPodSuspend turboActionType = turboActionType{proto.ActionItemDTO_SUSPEND, proto.EntityDTO_CONTAINER_POD}
+	turboActionPodProvision        = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_CONTAINER_POD}
+	turboActionPodMove             = turboActionType{proto.ActionItemDTO_MOVE, proto.EntityDTO_CONTAINER_POD}
+	turboActionContainerResize     = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_CONTAINER}
+	turboActionContainerPodSuspend = turboActionType{proto.ActionItemDTO_SUSPEND, proto.EntityDTO_CONTAINER_POD}
 
 	turboActionMachineProvision turboActionType = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_VIRTUAL_MACHINE}
 	turboActionMachineSuspend   turboActionType = turboActionType{proto.ActionItemDTO_SUSPEND, proto.EntityDTO_VIRTUAL_MACHINE}
