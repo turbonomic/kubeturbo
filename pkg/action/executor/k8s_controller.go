@@ -25,6 +25,7 @@ type k8sController interface {
 // Note: Use pointer for in-place update
 type k8sControllerSpec struct {
 	replicas *int32
+	podSpec  *apicorev1.PodSpec
 }
 
 // ReplicationController
@@ -42,6 +43,7 @@ func (rc *replicationController) get(name string) (*k8sControllerSpec, error) {
 	}
 	return &k8sControllerSpec{
 		replicas: rc.rc.Spec.Replicas,
+		podSpec:  &rc.rc.Spec.Template.Spec,
 	}, nil
 }
 
@@ -71,6 +73,7 @@ func (rs *replicaSet) get(name string) (*k8sControllerSpec, error) {
 	}
 	return &k8sControllerSpec{
 		replicas: rs.rs.Spec.Replicas,
+		podSpec:  &rs.rs.Spec.Template.Spec,
 	}, nil
 }
 
@@ -100,6 +103,7 @@ func (dep *deployment) get(name string) (*k8sControllerSpec, error) {
 	}
 	return &k8sControllerSpec{
 		replicas: dep.dep.Spec.Replicas,
+		podSpec:  &dep.dep.Spec.Template.Spec,
 	}, nil
 }
 

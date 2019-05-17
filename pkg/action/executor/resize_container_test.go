@@ -113,9 +113,7 @@ func TestSetZeroRequestMemory2(t *testing.T) {
 	spec.NewCapacity[rtype] = amount
 
 	resizer := &ContainerResizer{}
-	if err = resizer.setZeroRequest(pod, idx, spec); err != nil {
-		t.Errorf("Failed to set request to zero: %v", err)
-	}
+	resizer.setZeroRequest(pod, idx, spec)
 
 	if _, exist := spec.NewRequest[rtype]; exist {
 		t.Errorf("Should not set %v to zero", rtype)
@@ -150,9 +148,7 @@ func TestSetZeroRequestCPU2(t *testing.T) {
 
 	//3. update it
 	resizer := &ContainerResizer{}
-	if err = resizer.setZeroRequest(pod, idx, spec); err != nil {
-		t.Errorf("Failed to set request to zero: %v", err)
-	}
+	resizer.setZeroRequest(pod, idx, spec)
 
 	//4. check result
 	if _, exist := spec.NewRequest[rtype]; exist {
@@ -189,9 +185,7 @@ func TestSetZeroRequestCPUMemory(t *testing.T) {
 
 	//3. update it
 	resizer := &ContainerResizer{}
-	if err = resizer.setZeroRequest(pod, idx, spec); err != nil {
-		t.Errorf("Failed to set request to zero: %v", err)
-	}
+	resizer.setZeroRequest(pod, idx, spec)
 
 	//4. check it
 	if v, exist := spec.NewRequest[rtypeMem]; !exist {
@@ -233,9 +227,7 @@ func TestSetZeroRequestCPUMemory2(t *testing.T) {
 
 	//3. update it
 	resizer := &ContainerResizer{}
-	if err = resizer.setZeroRequest(pod, idx, spec); err != nil {
-		t.Errorf("Failed to set request to zero: %v", err)
-	}
+	resizer.setZeroRequest(pod, idx, spec)
 
 	//4. check it
 	if len(spec.NewRequest) != 2 {

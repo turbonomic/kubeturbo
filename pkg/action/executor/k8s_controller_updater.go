@@ -22,6 +22,7 @@ type k8sControllerUpdater struct {
 // controllerSpec defines the portion of a controller specification that we are interested in
 type controllerSpec struct {
 	replicasDiff int32
+	resizeSpec   *containerResizeSpec
 }
 
 func newK8sControllerUpdater(client *kclient.Clientset, pod *api.Pod) (*k8sControllerUpdater, error) {
@@ -68,6 +69,8 @@ func (c *k8sControllerUpdater) updateWithRetry(spec *controllerSpec) error {
 }
 
 func (c *k8sControllerUpdater) update(desired *controllerSpec) error {
+	glog.V(4).Infof("Begin to update %v for pod %s/%s",
+		c.controller, c.namespace, c.podName)
 	current, err := c.controller.get(c.name)
 	if err != nil {
 		return err
@@ -84,7 +87,8 @@ func (c *k8sControllerUpdater) update(desired *controllerSpec) error {
 	if err := c.controller.update(); err != nil {
 		return err
 	}
-	glog.V(2).Infof("Successfully updated %v for pod %s/%s", c.controller, c.namespace, c.podName)
+	glog.V(2).Infof("Successfully updated %v for pod %s/%s",
+		c.controller, c.namespace, c.podName)
 	return nil
 }
 
@@ -97,10 +101,18 @@ func (c *k8sControllerUpdater) reconcile(current *k8sControllerSpec, desired *co
 			return false, err
 		}
 		// Update the replicas of the controller
+		glog.V(2).Infof("Try to update replicas of %v from %d to %d",
+			c.controller, *current.replicas, num)
 		*current.replicas = num
 		return true, nil
 	}
-	return false, fmt.Errorf("not supported")
+	// This may be a vertical scale
+	// Check and update resource limits/requests of the container in the pod specification
+	updated, err := updateResourceAmount(current.podSpec, desired.resizeSpec)
+	if err != nil {
+		return false, err
+	}
+	return updated, nil
 }
 
 // suspendOrProvision suspends or provisions the target pod and

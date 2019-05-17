@@ -130,8 +130,7 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	// 1. get the action, NOTE: only deal with one action item in current implementation.
 	// Check if the action execution DTO is valid, including if the action is supported or not
 	if err := h.checkActionExecutionDTO(actionExecutionDTO); err != nil {
-		err := fmt.Errorf("Action is not valid: %v", err.Error())
-		glog.Errorf(err.Error())
+		glog.Errorf("Invalid action %v: %v", actionExecutionDTO, err)
 		return h.failedResult(err.Error()), err
 	}
 
@@ -178,7 +177,7 @@ func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
 		// Currently, all actions need to get its related pod. If not needed, the pod is nil.
 		pod := h.getRelatedPod(actionItem)
 		if pod == nil {
-			err := fmt.Errorf("Cannot find the related pod for action item %s", actionItem.GetUuid())
+			err := fmt.Errorf("cannot find the related pod for action item %s", actionItem.GetUuid())
 			return err
 		}
 		input.Pod = pod
@@ -188,8 +187,9 @@ func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
 	worker := h.actionExecutors[actionType]
 	output, err := worker.Execute(input)
 	if err != nil {
-		glog.Errorf("Failed to execute action %v on %s: %+v.",
-			actionType, actionItem.GetTargetSE().GetEntityType(), actionItem)
+		glog.Errorf("Failed to execute action %v on %v [%v]: %v",
+			actionType.actionType, actionItem.GetTargetSE().GetEntityType(),
+			actionItem.GetTargetSE().GetDisplayName(), err)
 		return err
 	}
 	// Process the action execution output, including caching the pod name change.
@@ -309,24 +309,27 @@ func keepAlive(tracker sdkprobe.ActionProgressTracker, stop chan struct{}) {
 // the action type is supported by kubeturbo.
 func (h *ActionHandler) checkActionExecutionDTO(actionExecutionDTO *proto.ActionExecutionDTO) error {
 	actionItems := actionExecutionDTO.GetActionItem()
-
 	if actionItems == nil || len(actionItems) == 0 || actionItems[0] == nil {
-		return fmt.Errorf("Action execution (%v) validation failed: no action item found", actionExecutionDTO)
-
+		return fmt.Errorf("no action item found")
 	}
 
-	ai := actionItems[0]
-
-	if ai.GetTargetSE() == nil {
-		return fmt.Errorf("Action execution (%v) validation failed: no target SE found", actionExecutionDTO)
+	actionItem := actionItems[0]
+	actionType := actionItem.GetActionType()
+	targetSE := actionItem.GetTargetSE()
+	if targetSE == nil {
+		return fmt.Errorf("no target SE found")
 	}
 
-	actionType := turboActionType{ai.GetActionType(), ai.GetTargetSE().GetEntityType()}
-	glog.V(2).Infof("Receive a action request of type: %++v", actionType)
+	glog.V(2).Infof("Received an action %v for entity %v [%v]",
+		actionType, targetSE.GetEntityType(), targetSE.GetDisplayName())
 
 	// Check if action is supported
-	if _, supported := h.actionExecutors[actionType]; !supported {
-		return fmt.Errorf("Action execution (%v) validation failed: not supported type %++v", actionExecutionDTO, actionType)
+	turboActionType := turboActionType{
+		actionType:       actionType,
+		targetEntityType: targetSE.GetEntityType(),
+	}
+	if _, supported := h.actionExecutors[turboActionType]; !supported {
+		return fmt.Errorf("invalid action type %+v", turboActionType)
 	}
 
 	return nil
