@@ -23,8 +23,8 @@ var TestSoldResources = []struct {
 }{
 	{metrics.CPU, 200},
 	{metrics.Memory, 2},
-	{metrics.MemoryLimit, 1},
-	{metrics.CPULimit, 100},
+	{metrics.MemoryQuota, 1},
+	{metrics.CPUQuota, 100},
 }
 
 var TestProvider = []struct {
@@ -34,7 +34,7 @@ var TestProvider = []struct {
 }{
 	{metrics.NodeType, "node1", map[metrics.ResourceType]float64{metrics.CPU: 500, metrics.Memory: 3}},
 	{metrics.NodeType, "node2", map[metrics.ResourceType]float64{metrics.CPU: 500, metrics.Memory: 3}},
-	{metrics.NodeType, "node3", map[metrics.ResourceType]float64{metrics.CPULimit: 500}},
+	{metrics.NodeType, "node3", map[metrics.ResourceType]float64{metrics.CPUQuota: 500}},
 }
 
 func TestKubeEntity(t *testing.T) {

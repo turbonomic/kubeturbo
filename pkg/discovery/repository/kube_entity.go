@@ -105,7 +105,7 @@ func (kubeEntity *KubeEntity) AddResource(resourceType metrics.ResourceType,
 	capValue, usedValue float64) {
 	if metrics.IsComputeType(resourceType) {
 		kubeEntity.AddComputeResource(resourceType, capValue, usedValue)
-	} else if metrics.IsAllocationType(resourceType) {
+	} else if metrics.IsQuotaType(resourceType) {
 		kubeEntity.AddAllocationResource(resourceType, capValue, usedValue)
 	}
 }
@@ -114,7 +114,7 @@ func (kubeEntity *KubeEntity) GetResource(resourceType metrics.ResourceType,
 ) (*KubeDiscoveredResource, error) {
 	if metrics.IsComputeType(resourceType) {
 		return kubeEntity.GetComputeResource(resourceType)
-	} else if metrics.IsAllocationType(resourceType) {
+	} else if metrics.IsQuotaType(resourceType) {
 		return kubeEntity.GetAllocationResource(resourceType)
 	}
 	return nil, fmt.Errorf("%s: invalid resource %s\n", kubeEntity.Name, resourceType)
@@ -209,7 +209,7 @@ func (kubeEntity *KubeEntity) AddProviderResource(providerType metrics.Discovere
 	}
 	if metrics.IsComputeType(resourceType) {
 		provider.BoughtCompute[resourceType] = kubeResource
-	} else if metrics.IsAllocationType(resourceType) {
+	} else if metrics.IsQuotaType(resourceType) {
 		provider.BoughtAllocation[resourceType] = kubeResource
 	}
 }
@@ -228,7 +228,7 @@ func (kubeEntity *KubeEntity) GetBoughtResource(providerId string,
 	var resourceMap map[metrics.ResourceType]*KubeBoughtResource
 	if metrics.IsComputeType(resourceType) {
 		resourceMap = provider.BoughtCompute
-	} else if metrics.IsAllocationType(resourceType) {
+	} else if metrics.IsQuotaType(resourceType) {
 		resourceMap = provider.BoughtAllocation
 	}
 	resource, exists := resourceMap[resourceType]

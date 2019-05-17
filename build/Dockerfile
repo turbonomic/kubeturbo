@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/rhel7
+FROM registry.access.redhat.com/ubi8
 MAINTAINER Enlin Xu <enlin.xu@turbonomic.com>
 ARG GIT_COMMIT
 ENV GIT_COMMIT ${GIT_COMMIT}
@@ -6,7 +6,7 @@ ENV GIT_COMMIT ${GIT_COMMIT}
 ### Atomic/OpenShift Labels - https://github.com/projectatomic/ContainerApplicationGenericLabels
 LABEL name="Hybrid Cloud Container" \
       vendor="Turbonomic" \
-      version="6.0" \
+      version="6.4" \
       release="1" \
       summary="Performance assurance for the applications in Openshift" \
       description="Hybrid Cloud Container leverages Turbonomic control platform, to assure the performance of micro-services running in OpenShift, as well as the efficiency of underlying infrastructure." \
@@ -27,16 +27,13 @@ COPY licenses /licenses
 
 COPY Dockerfile /Dockerfile
 
-### Add necessary Red Hat repos here
-RUN REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms \
-### Add your package needs here
-    INSTALL_PKGS="golang-github-cpuguy83-go-md2man ca-certificates" && \
-    yum -y update-minimal --disablerepo "*" --enablerepo rhel-7-server-rpms --setopt=tsflags=nodocs \
-      --security --sec-severity=Important --sec-severity=Critical && \
-    yum -y install --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs ${INSTALL_PKGS} && \
+### Add md2man package
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
+    dnf install -y --setopt=tsflags=nodocs golang-github-cpuguy83-go-md2man && \
+    dnf clean all && \
+
 ### help file markdown to man conversion
-    go-md2man -in /tmp/help.md -out /help.1 && \
-    yum clean all
+    go-md2man -in /tmp/help.md -out /help.1
 
 ### Setup user for build execution and application runtime
 ENV APP_ROOT=/opt/turbonomic \
@@ -45,7 +42,6 @@ ENV APP_ROOT=/opt/turbonomic \
 ENV PATH=$PATH:${APP_ROOT}/bin
 
 RUN mkdir -p ${APP_ROOT}/bin
-#COPY kubeturbo.sh ${APP_ROOT}/bin/kubeturbo
 COPY kubeturbo ${APP_ROOT}/bin/kubeturbo
 RUN chmod -R ug+x ${APP_ROOT}/bin && sync && \
     useradd -l -u ${USER_UID} -r -g 0 -d ${APP_ROOT} -s /sbin/nologin -c "${USER_NAME} user" ${USER_NAME} && \

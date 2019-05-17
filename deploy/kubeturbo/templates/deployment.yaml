@@ -37,7 +37,7 @@ spec:
             - --stitch-uuid={{ .Values.args.stitchuuid }}
           {{- end }}
           {{- if .Values.args.pre16k8sVersion }}
-          - --k8sVersion=1.5
+            - --k8sVersion=1.5
           {{- end }}
           volumeMounts:
           - name: turbo-volume
