@@ -160,7 +160,7 @@ func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, allo
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
-		AllowTLSInsecure(allowTLSInsecure).
+		ForceSelfSignedCerts(allowTLSInsecure).
 		// Timeout(to).
 		Create()
 	if err != nil {
@@ -219,7 +219,7 @@ func (s *VMTServer) Run() {
 	// For Kubernetes distro, the secure connection to Kubelet will fail due to
 	// the certificate issue of 'doesn't contain any IP SANs'.
 	// See https://github.com/kubernetes/kubernetes/issues/59372
-	kubeletClient := s.createKubeletClientOrDie(kubeConfig, isOpenshift)
+	kubeletClient := s.createKubeletClientOrDie(kubeConfig, !isOpenshift)
 	caClient, err := clusterclient.NewForConfig(kubeConfig)
 	if err != nil {
 		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
