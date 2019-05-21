@@ -90,7 +90,7 @@ type VMTServer struct {
 	sccSupport []string
 
 	// Force the use of self-signed certificates.
-	// The default is false.
+	// The default is true.
 	ForceSelfSignedCerts bool
 }
 
@@ -117,7 +117,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&s.UseUUID, "stitch-uuid", true, "Use VirtualMachine's UUID to do stitching, otherwise IP is used.")
 	fs.IntVar(&s.KubeletPort, "kubelet-port", DefaultKubeletPort, "The port of the kubelet runs on")
 	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
-	fs.BoolVar(&s.ForceSelfSignedCerts, "kubelet-force-selfsigned-cert", false, "Indicate if we must use self-signed cert")
+	fs.BoolVar(&s.ForceSelfSignedCerts, "kubelet-force-selfsigned-cert", true, "Indicate if we must use self-signed cert")
 	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&noneSchedulerName, "noneSchedulerName", noneSchedulerName, "[deprecated] a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
 	fs.IntVar(&s.DiscoveryIntervalSec, "discovery-interval-sec", defaultDiscoveryIntervalSec, "The discovery interval in seconds")
@@ -165,11 +165,11 @@ func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubern
 // The forceSelfSignedCerts will be used as follows:
 // * If it is false, which means we are in the environment where we must use proper certificates, then we don't force self-signed certs.
 // * If it is true, then we use whatever flag we passed through the command line.
-func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config) *kubeclient.KubeletClient {
+func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, forceSelfSignedCerts bool) *kubeclient.KubeletClient {
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
-		ForceSelfSignedCerts(s.ForceSelfSignedCerts).
+		ForceSelfSignedCerts(forceSelfSignedCerts && s.ForceSelfSignedCerts).
 		// Timeout(to).
 		Create()
 	if err != nil {
@@ -220,7 +220,15 @@ func (s *VMTServer) Run() {
 	glog.V(3).Infof("kubeConfig: %+v", kubeConfig)
 
 	kubeClient := s.createKubeClientOrDie(kubeConfig)
-	kubeletClient := s.createKubeletClientOrDie(kubeConfig)
+
+	isOpenshift := checkServerVersion(kubeClient.DiscoveryClient.RESTClient())
+	glog.V(2).Info("Openshift cluster? ", isOpenshift)
+
+	// Allow insecure connection only if it's not an Openshift cluster
+	// For Kubernetes distro, the secure connection to Kubelet will fail due to
+	// the certificate issue of 'doesn't contain any IP SANs'.
+	// See https://github.com/kubernetes/kubernetes/issues/59372
+	kubeletClient := s.createKubeletClientOrDie(kubeConfig, !isOpenshift)
 	caClient, err := clusterclient.NewForConfig(kubeConfig)
 	if err != nil {
 		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
