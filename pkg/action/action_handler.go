@@ -112,7 +112,7 @@ func (h *ActionHandler) registerActionExecutors() {
 	h.actionExecutors[turboActionContainerResize] = containerResizer
 
 	// Only register the actions when API client is non-nil.
-	if ok, err := executor.IsClusterAPIEnabled(c.cApiClient, c.kubeClient); ok && err != nil {
+	if ok, err := executor.IsClusterAPIEnabled(c.cApiClient, c.kubeClient); ok && err == nil {
 		machineScaler := executor.NewMachineActionExecutor(ae)
 		h.actionExecutors[turboActionMachineProvision] = machineScaler
 		h.actionExecutors[turboActionMachineSuspend] = machineScaler
@@ -153,13 +153,15 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 }
 
 func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
+	input := &executor.TurboActionExecutorInput{
+		ActionItem: actionItem,
+	}
 	clusterAPIAction := false
 	if (*actionItem.ActionType == proto.ActionItemDTO_PROVISION ||
 		*actionItem.ActionType == proto.ActionItemDTO_SUSPEND) &&
 		*actionItem.CurrentSE.EntityType == proto.EntityDTO_VIRTUAL_MACHINE {
 		clusterAPIAction = true
 	}
-
 	// Acquire the lock for the actionItem. It blocks the action execution if the lock
 	// is used by other action. It results in error return if timed out (set in lockStore).
 	if !clusterAPIAction {
@@ -171,12 +173,6 @@ func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
 			defer lock.ReleaseLock()
 			lock.KeepRenewLock()
 		}
-	}
-
-	input := &executor.TurboActionExecutorInput{
-		ActionItem: actionItem,
-	}
-	if !clusterAPIAction {
 		// After getting the lock, need to get the k8s pod again as the previous action could delete the pod and create a new one.
 		// In such case, the action should be applied on the new pod.
 		// Currently, all actions need to get its related pod. If not needed, the pod is nil.

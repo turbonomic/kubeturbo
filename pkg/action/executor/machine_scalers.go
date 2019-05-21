@@ -315,7 +315,7 @@ func (controller *machineDeploymentController) waitForState(stateDesc string, f 
 // IsClusterAPIEnabled checks whether cluster API is in fact enabled.
 func IsClusterAPIEnabled(cApiClient *clientset.Clientset, kubeClient *kubernetes.Clientset) (bool, error) {
 	if cApiClient == nil {
-		return false, fmt.Errorf("no Cluster API available")
+		return false, nil
 	}
 	// Construct the API clients.
 	client := &k8sClusterApi{
@@ -336,9 +336,9 @@ func IsClusterAPIEnabled(cApiClient *clientset.Clientset, kubeClient *kubernetes
 
 // Construct the controller
 func newController(nodeName string, diff int32, actionType ActionType,
-	cApiClient *clientset.Clientset, kubeClient *kubernetes.Clientset) (Controller, error) {
+	cApiClient *clientset.Clientset, kubeClient *kubernetes.Clientset) (Controller, *string, error) {
 	if cApiClient == nil {
-		return nil, fmt.Errorf("no Cluster API available")
+		return nil, nil, fmt.Errorf("no Cluster API available")
 	}
 	// Construct the API clients.
 	client := &k8sClusterApi{
@@ -352,19 +352,21 @@ func newController(nodeName string, diff int32, actionType ActionType,
 	}
 	// Check whether Cluster API is enabled.
 	if err := client.verifyClusterAPIEnabled(); err != nil {
-		return nil, fmt.Errorf("cluster API is not enabled for %s: %v", nodeName, err)
+		return nil, nil, fmt.Errorf("cluster API is not enabled for %s: %v", nodeName, err)
 	}
 	// Identify managing machine.
 	machine, err := client.identifyManagingMachine(nodeName)
 	if err != nil {
 		err = fmt.Errorf("cannot identify machine: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 	machineDeployment, mList, err := client.identifyManagingMachineSet(machine.Name)
 	if err != nil {
 		err = fmt.Errorf("cannot identify machine set: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 	request := &actionRequest{client, nodeName, diff, actionType}
-	return &machineDeploymentController{request, machineDeployment, mList}, nil
+	machineDeploymentName := &machineDeployment.Name
+	return &machineDeploymentController{request, machineDeployment, mList},
+		machineDeploymentName, nil
 }
