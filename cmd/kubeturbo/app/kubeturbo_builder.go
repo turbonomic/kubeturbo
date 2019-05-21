@@ -88,6 +88,10 @@ type VMTServer struct {
 
 	// The Openshift SCC list allowed for action execution
 	sccSupport []string
+
+	// Force the use of self-signed certificates.
+	// The default is true.
+	ForceSelfSignedCerts bool
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -113,6 +117,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&s.UseUUID, "stitch-uuid", true, "Use VirtualMachine's UUID to do stitching, otherwise IP is used.")
 	fs.IntVar(&s.KubeletPort, "kubelet-port", DefaultKubeletPort, "The port of the kubelet runs on")
 	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
+	fs.BoolVar(&s.ForceSelfSignedCerts, "kubelet-force-selfsigned-cert", true, "Indicate if we must use self-signed cert")
 	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&noneSchedulerName, "noneSchedulerName", noneSchedulerName, "[deprecated] a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
 	fs.IntVar(&s.DiscoveryIntervalSec, "discovery-interval-sec", defaultDiscoveryIntervalSec, "The discovery interval in seconds")
@@ -156,11 +161,15 @@ func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubern
 	return kubeClient
 }
 
-func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, allowTLSInsecure bool) *kubeclient.KubeletClient {
+// createKubeletClientOrDie will create a kubelet client or exit the kubeturbo.
+// The forceSelfSignedCerts will be used as follows:
+// * If it is false, which means we are in the environment where we must use proper certificates, then we don't force self-signed certs.
+// * If it is true, then we use whatever flag we passed through the command line.
+func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, forceSelfSignedCerts bool) *kubeclient.KubeletClient {
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
-		ForceSelfSignedCerts(allowTLSInsecure).
+		ForceSelfSignedCerts(forceSelfSignedCerts && s.ForceSelfSignedCerts).
 		// Timeout(to).
 		Create()
 	if err != nil {

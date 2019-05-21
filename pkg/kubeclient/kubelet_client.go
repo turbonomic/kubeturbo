@@ -327,12 +327,12 @@ func transportConfig(config *rest.Config, enableHttps bool, forceSelfSignedCerts
 
 	if enableHttps && !cfg.HasCA() {
 		cfg.TLS.Insecure = true
-		glog.Warning("insecure TLS transport.")
+		glog.Warning("no valid certificate has been provided. Use self-signed certificates for the TLS transport.")
 	} else if enableHttps && forceSelfSignedCerts {
 		cfg.TLS.Insecure = true
 		cfg.TLS.CAFile = ""
 		cfg.TLS.CAData = []byte("")
-		glog.Warning("insecure TLS transport enforced.")
+		glog.Warning("self-signed certificate use for the TLS transport is enforced.")
 	}
 
 	return cfg
