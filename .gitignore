@@ -11,3 +11,6 @@ _output/
 kubeturbo.iml
 kubeturbo
 kubeturbo.linux
+kubeturbo.debug
+dlv
+

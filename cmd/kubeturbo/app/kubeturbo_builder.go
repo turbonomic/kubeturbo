@@ -18,6 +18,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
+	clusterclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/test/flag"
@@ -43,7 +44,7 @@ const (
 var (
 	defaultSccSupport = []string{"restricted"}
 
-	//these variables will be deprecated. Keep it here for backward compatibility only
+	// these variables will be deprecated. Keep it here for backward compatibility only
 	k8sVersion        = "1.8"
 	noneSchedulerName = "turbo-no-scheduler"
 )
@@ -63,7 +64,7 @@ type VMTServer struct {
 	BindPodsBurst        int
 	DiscoveryIntervalSec int
 
-	//LeaderElection componentconfig.LeaderElectionConfiguration
+	// LeaderElection componentconfig.LeaderElectionConfiguration
 
 	EnableProfiling bool
 
@@ -72,9 +73,9 @@ type VMTServer struct {
 	// If the underlying infrastructure is VMWare, AWS instances, or Azure instances, VM's UUID is used.
 	UseUUID bool
 
-	//VMPriority: priority of VM in supplyChain definition from kubeturbo, should be less than 0;
+	// VMPriority: priority of VM in supplyChain definition from kubeturbo, should be less than 0;
 	VMPriority int32
-	//VMIsBase: Is VM is the base template from kubeturbo, when stitching with other VM probes, should be false;
+	// VMIsBase: Is VM is the base template from kubeturbo, when stitching with other VM probes, should be false;
 	VMIsBase bool
 
 	// Kubelet related config
@@ -87,6 +88,10 @@ type VMTServer struct {
 
 	// The Openshift SCC list allowed for action execution
 	sccSupport []string
+
+	// Force the use of self-signed certificates.
+	// The default is true.
+	ForceSelfSignedCerts bool
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -112,6 +117,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&s.UseUUID, "stitch-uuid", true, "Use VirtualMachine's UUID to do stitching, otherwise IP is used.")
 	fs.IntVar(&s.KubeletPort, "kubelet-port", DefaultKubeletPort, "The port of the kubelet runs on")
 	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
+	fs.BoolVar(&s.ForceSelfSignedCerts, "kubelet-force-selfsigned-cert", true, "Indicate if we must use self-signed cert")
 	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&noneSchedulerName, "noneSchedulerName", noneSchedulerName, "[deprecated] a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
 	fs.IntVar(&s.DiscoveryIntervalSec, "discovery-interval-sec", defaultDiscoveryIntervalSec, "The discovery interval in seconds")
@@ -155,12 +161,16 @@ func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubern
 	return kubeClient
 }
 
-func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, allowTLSInsecure bool) *kubeclient.KubeletClient {
+// createKubeletClientOrDie will create a kubelet client or exit the kubeturbo.
+// The forceSelfSignedCerts will be used as follows:
+// * If it is false, which means we are in the environment where we must use proper certificates, then we don't force self-signed certs.
+// * If it is true, then we use whatever flag we passed through the command line.
+func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, forceSelfSignedCerts bool) *kubeclient.KubeletClient {
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
-		AllowTLSInsecure(allowTLSInsecure).
-		//Timeout(to).
+		ForceSelfSignedCerts(forceSelfSignedCerts && s.ForceSelfSignedCerts).
+		// Timeout(to).
 		Create()
 	if err != nil {
 		glog.Errorf("Fatal error: failed to create kubeletClient: %v", err)
@@ -219,6 +229,11 @@ func (s *VMTServer) Run() {
 	// the certificate issue of 'doesn't contain any IP SANs'.
 	// See https://github.com/kubernetes/kubernetes/issues/59372
 	kubeletClient := s.createKubeletClientOrDie(kubeConfig, !isOpenshift)
+	caClient, err := clusterclient.NewForConfig(kubeConfig)
+	if err != nil {
+		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
+		caClient = nil
+	}
 
 	glog.V(3).Infof("spec path is: %v", s.K8sTAPSpec)
 	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec, kubeConfig.Host)
@@ -232,6 +247,7 @@ func (s *VMTServer) Run() {
 	vmtConfig.WithTapSpec(k8sTAPSpec).
 		WithKubeClient(kubeClient).
 		WithKubeletClient(kubeletClient).
+		WithClusterAPIClient(caClient).
 		WithVMPriority(s.VMPriority).
 		WithVMIsBase(s.VMIsBase).
 		UsingUUIDStitch(s.UseUUID).
@@ -262,17 +278,17 @@ func (s *VMTServer) Run() {
 func (s *VMTServer) startHttp() {
 	mux := http.NewServeMux()
 
-	//healthz
+	// healthz
 	healthz.InstallHandler(mux)
 
-	//debug
+	// debug
 	if s.EnableProfiling {
 		mux.HandleFunc("/debug/pprof/", pprof.Index)
 		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
-		//prometheus.metrics
+		// prometheus.metrics
 		mux.Handle("/metrics", prometheus.Handler())
 	}
 
@@ -284,7 +300,7 @@ func (s *VMTServer) startHttp() {
 }
 
 // handleExit disconnects the tap service from Turbo service when Kubeturbo is shotdown
-func handleExit(disconnectFunc disconnectFromTurboFunc) { //k8sTAPService *kubeturbo.K8sTAPService) {
+func handleExit(disconnectFunc disconnectFromTurboFunc) { // k8sTAPService *kubeturbo.K8sTAPService) {
 	glog.V(4).Infof("*** Handling Kubeturbo Termination ***")
 	sigChan := make(chan os.Signal)
 	signal.Notify(sigChan,
