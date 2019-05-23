@@ -28,7 +28,7 @@ func (s *MachineActionExecutor) unlock(key string) {
 
 // Execute : executes the scale action.
 func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*TurboActionExecutorOutput, error) {
-	nodeName := vmDTO.ActionItem.GetCurrentSE().GetDisplayName()
+	nodeName := vmDTO.ActionItem.GetTargetSE().GetDisplayName()
 	var actionType ActionType
 	switch vmDTO.ActionItem.GetActionType() {
 	case proto.ActionItemDTO_PROVISION:
