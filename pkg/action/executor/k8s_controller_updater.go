@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+// k8sControllerUpdater defines a specific k8s controller resource
+// and the mechanism to obtain and update it
 type k8sControllerUpdater struct {
 	controller k8sController
 	client     *kclient.Clientset
@@ -20,11 +22,14 @@ type k8sControllerUpdater struct {
 }
 
 // controllerSpec defines the portion of a controller specification that we are interested in
+// - replicasDiff: 1 for provision, -1 for suspend
+// - resizeSpec: the index and new resource requirement of a container
 type controllerSpec struct {
 	replicasDiff int32
 	resizeSpec   *containerResizeSpec
 }
 
+// newK8sControllerUpdater returns a k8sControllerUpdater based on the parent kind of a pod
 func newK8sControllerUpdater(client *kclient.Clientset, pod *api.Pod) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
 	kind, name, err := podutil.GetPodGrandInfo(client, pod)
@@ -58,6 +63,7 @@ func newK8sControllerUpdater(client *kclient.Clientset, pod *api.Pod) (*k8sContr
 	}, nil
 }
 
+// updateWithRetry updates a specific k8s controller with retry and timeout
 func (c *k8sControllerUpdater) updateWithRetry(spec *controllerSpec) error {
 	retryNum := defaultRetryLess
 	interval := defaultUpdateReplicaSleep
@@ -68,6 +74,11 @@ func (c *k8sControllerUpdater) updateWithRetry(spec *controllerSpec) error {
 	return err
 }
 
+// update updates a specific k8s controller in the following steps:
+// - Get and save the current controller object from the server
+// - Reconcile the current specification with the desired specification, and
+//   update the current specification in place if the changes are valid
+// - Update the controller object with the server after a successful reconciliation
 func (c *k8sControllerUpdater) update(desired *controllerSpec) error {
 	glog.V(4).Infof("Begin to update %v of pod %s/%s",
 		c.controller, c.namespace, c.podName)
@@ -92,6 +103,9 @@ func (c *k8sControllerUpdater) update(desired *controllerSpec) error {
 	return nil
 }
 
+// reconcile validates the desired specification and updates the saved controller object in place
+// Nothing is updated if there is no change needed. This can happen when resize actions
+// from multiple pods that belong to the same controller are generated
 func (c *k8sControllerUpdater) reconcile(current *k8sControllerSpec, desired *controllerSpec) (bool, error) {
 	if desired.replicasDiff != 0 {
 		// This is a horizontal scale
@@ -137,6 +151,8 @@ func (c *k8sControllerUpdater) suspendOrProvision(current, diff int32) (int32, e
 	return result, nil
 }
 
+// suspendPod takes the name of a pod and deletes it
+// The call does not block
 func (c *k8sControllerUpdater) suspendPod() error {
 	podClient := c.client.CoreV1().Pods(c.namespace)
 	if _, err := podClient.Get(c.podName, metav1.GetOptions{}); err != nil {

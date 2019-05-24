@@ -158,7 +158,16 @@ func resizeContainer(client *kclient.Clientset, pod *k8sapi.Pod, spec *container
 	return resizeSingleContainer(client, pod, spec)
 }
 
-// Consistent resize of container pods that belong to a controller
+// resizeControllerContainer updates the pod template of the controller that this container pod
+// belongs to. The behavior is different for different controllers:
+// - For Deployment, after pod template is successfully updated, a new ReplicaSet will be created
+//   and associated with this Deployment. After the new ReplicaSet scales to the desired number of
+//   pods, the original ReplicaSet associated with this Deployment is then scaled to 0, effectively
+//   terminating all original pods
+// - For ReplicaSet and ReplicationController, only pod template will be updated with the new
+//   resource, all existing pods that belong to the original ReplicaSet and ReplicationController
+//   are not affected. Only newly created pods (through scaling action) will use the updated
+//   resource
 func resizeControllerContainer(client *kclient.Clientset, pod *k8sapi.Pod, spec *containerResizeSpec) error {
 	// prepare controllerUpdater
 	controllerUpdater, err := newK8sControllerUpdater(client, pod)
@@ -178,11 +187,12 @@ func resizeControllerContainer(client *kclient.Clientset, pod *k8sapi.Pod, spec 
 	return nil
 }
 
-// Resize a single container pod in the following steps:
+// resizeSingleContainer resizes a single container pod in the following steps:
 // - create a clone pod of the original pod (without labels), with new resource limits/requests;
 // - wait until the cloned pod is ready
 // - delete the original pod
 // - add the labels to the cloned pod
+// If the action fails, the cloned pod will be deleted
 func resizeSingleContainer(client *kclient.Clientset, originalPod *k8sapi.Pod, spec *containerResizeSpec) (*k8sapi.Pod, error) {
 	// check parent controller of the original pod
 	fullName := util.BuildIdentifier(originalPod.Namespace, originalPod.Name)
@@ -270,8 +280,8 @@ func resizeSingleContainer(client *kclient.Clientset, originalPod *k8sapi.Pod, s
 	return xpod, nil
 }
 
-// create a pod with new resource limit/requests
-//    return false if there is no need to update resource amount
+// clonePodWithNewSize creates a pod with new resource limit/requests
+// return false if there is no need to update resource amount
 func clonePodWithNewSize(client *kclient.Clientset, pod *k8sapi.Pod, spec *containerResizeSpec) (*k8sapi.Pod, bool, error) {
 	id := fmt.Sprintf("%s/%s-%d", pod.Namespace, pod.Name, spec.Index)
 
