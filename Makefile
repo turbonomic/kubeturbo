@@ -22,11 +22,6 @@ delve: Dockerfile.delve
 	touch dlv
 	docker rm delve-staging
 
-check:
-	@if [[ ! -z ${TURBO_REPO} ]];	then \
-		echo "Hello"; \
-	fi
-
 debug: debug-product delve
 	@if [ ! -z ${TURBO_REPO} ] && [ ! -z ${KUBE_VER} ];	then \
 		docker build -f Dockerfile.debug -t ${TURBO_REPO}/kubeturbo:${KUBE_VER}debug . ; \
