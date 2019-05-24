@@ -48,10 +48,8 @@ func (rc *replicationController) get(name string) (*k8sControllerSpec, error) {
 }
 
 func (rc *replicationController) update() error {
-	if _, err := rc.client.Update(rc.rc); err != nil {
-		return err
-	}
-	return nil
+	_, err := rc.client.Update(rc.rc)
+	return err
 }
 
 func (rc *replicationController) String() string {
@@ -78,10 +76,8 @@ func (rs *replicaSet) get(name string) (*k8sControllerSpec, error) {
 }
 
 func (rs *replicaSet) update() error {
-	if _, err := rs.client.Update(rs.rs); err != nil {
-		return err
-	}
-	return nil
+	_, err := rs.client.Update(rs.rs)
+	return err
 }
 
 func (rs *replicaSet) String() string {
@@ -108,10 +104,8 @@ func (dep *deployment) get(name string) (*k8sControllerSpec, error) {
 }
 
 func (dep *deployment) update() error {
-	if _, err := dep.client.Update(dep.dep); err != nil {
-		return err
-	}
-	return nil
+	_, err := dep.client.Update(dep.dep)
+	return err
 }
 
 func (dep *deployment) String() string {

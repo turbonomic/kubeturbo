@@ -35,7 +35,7 @@ func updateReservation(container *k8sapi.Container, patchReservation k8sapi.Reso
 	}
 
 	if changed {
-		glog.V(2).Infof("Try to update container %v resource request from %+v to %v",
+		glog.V(2).Infof("Try to update container %v resource request from %+v to %+v",
 			container.Name, container.Resources.Requests, result)
 		container.Resources.Requests = result
 	}
@@ -166,12 +166,12 @@ func resizeControllerContainer(client *kclient.Clientset, pod *k8sapi.Pod, spec 
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return err
 	}
-	glog.V(2).Infof("Begin to resize %v for pod %s/%s.",
+	glog.V(2).Infof("Begin to consistently resize %v of pod %s/%s.",
 		controllerUpdater.controller, pod.Namespace, pod.Name)
 	// execute the action to update resource requirements of the container of interest
 	err = controllerUpdater.updateWithRetry(&controllerSpec{0, spec})
 	if err != nil {
-		glog.Errorf("Failed to consistently resize %v for pod %s/%s: %v",
+		glog.Errorf("Failed to consistently resize %v of pod %s/%s: %v",
 			controllerUpdater.controller, pod.Namespace, pod.Name, err)
 		return err
 	}
@@ -183,10 +183,10 @@ func resizeControllerContainer(client *kclient.Clientset, pod *k8sapi.Pod, spec 
 // - wait until the cloned pod is ready
 // - delete the original pod
 // - add the labels to the cloned pod
-func resizeSingleContainer(client *kclient.Clientset, inputPod *k8sapi.Pod, spec *containerResizeSpec) (*k8sapi.Pod, error) {
-	// check parent controller of the input pod
-	fullName := util.BuildIdentifier(inputPod.Namespace, inputPod.Name)
-	parentKind, parentName, err := podutil.GetPodParentInfo(inputPod)
+func resizeSingleContainer(client *kclient.Clientset, originalPod *k8sapi.Pod, spec *containerResizeSpec) (*k8sapi.Pod, error) {
+	// check parent controller of the original pod
+	fullName := util.BuildIdentifier(originalPod.Namespace, originalPod.Name)
+	parentKind, parentName, err := podutil.GetPodParentInfo(originalPod)
 	if err != nil {
 		glog.Errorf("Resize action failed: failed to get pod[%s] parent info: %v.", fullName, err)
 		return nil, err
@@ -197,7 +197,7 @@ func resizeSingleContainer(client *kclient.Clientset, inputPod *k8sapi.Pod, spec
 		return nil, err
 	}
 
-	id := fmt.Sprintf("%s/%s-%d", inputPod.Namespace, inputPod.Name, spec.Index)
+	id := fmt.Sprintf("%s/%s-%d", originalPod.Namespace, originalPod.Name, spec.Index)
 	if parentKind == "" {
 		glog.V(2).Infof("Begin to resize bare pod container[%s].", id)
 	} else {
@@ -205,19 +205,13 @@ func resizeSingleContainer(client *kclient.Clientset, inputPod *k8sapi.Pod, spec
 			id, parentKind, parentName)
 	}
 
-	// get the current Pod
-	podClient := client.CoreV1().Pods(inputPod.Namespace)
+	// Make sure we can get the pod client
+	podClient := client.CoreV1().Pods(originalPod.Namespace)
 	if podClient == nil {
-		err := fmt.Errorf("failed to get pod client for namespace: %v", inputPod.Namespace)
+		err := fmt.Errorf("failed to get pod client for namespace: %v", originalPod.Namespace)
 		glog.Errorf("Failed to resize container %s: %v", id, err)
 		return nil, err
 	}
-	originalPod, err := podClient.Get(inputPod.Name, metav1.GetOptions{})
-	if err != nil {
-		glog.Errorf("Failed to resize container %s: %v", id, err)
-		return nil, err
-	}
-	labels := originalPod.Labels
 
 	// create a clone pod with new size
 	clonePod, changed, err := clonePodWithNewSize(client, originalPod, spec)
@@ -232,11 +226,15 @@ func resizeSingleContainer(client *kclient.Clientset, inputPod *k8sapi.Pod, spec
 	}
 
 	// delete the clone pod if this action fails
-	flag := false
+	success := false
 	defer func() {
-		if !flag {
-			glog.Errorf("resizeContainer failed, begin to delete cloned pod: %v/%v.", clonePod.Namespace, clonePod.Name)
-			_ = podClient.Delete(clonePod.Name, &metav1.DeleteOptions{})
+		if !success {
+			glog.Errorf("Failed to resize container %v, begin to delete cloned pod: %v/%v.",
+				id, clonePod.Namespace, clonePod.Name)
+			if err := podClient.Delete(clonePod.Name, &metav1.DeleteOptions{}); err != nil {
+				glog.Warningf("Failed to delete cloned pod %v/%v after resize container %v has failed.",
+					clonePod.Namespace, clonePod.Name, id)
+			}
 		}
 	}()
 
@@ -260,15 +258,15 @@ func resizeSingleContainer(client *kclient.Clientset, inputPod *k8sapi.Pod, spec
 		return nil, err
 	}
 	//TODO: compare resourceVersion of xpod and npod before updating
-	if (labels != nil) && len(labels) > 0 {
-		xpod.Labels = labels
+	if len(originalPod.Labels) > 0 {
+		xpod.Labels = originalPod.Labels
 		if _, err := podClient.Update(xpod); err != nil {
 			glog.Errorf("Resize podContainer failed: failed to update labels for cloned pod: %v", err)
 			return nil, err
 		}
 	}
 	// success!
-	flag = true
+	success = true
 	return xpod, nil
 }
 
@@ -286,7 +284,7 @@ func clonePodWithNewSize(client *kclient.Clientset, pod *k8sapi.Pod, spec *conta
 	util.AddAnnotation(npod, TurboActionAnnotationKey, TurboResizeAnnotationValue)
 
 	//2. resize resource limits/requests
-	glog.V(4).Infof("Begin to update container %v resources.", id)
+	glog.V(4).Infof("Update container %v resources in the pod specification.", id)
 	changed, err := updateResourceAmount(&npod.Spec, spec)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to update capacity for container %s: %v", id, err)

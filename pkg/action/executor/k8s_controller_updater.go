@@ -29,7 +29,7 @@ func newK8sControllerUpdater(client *kclient.Clientset, pod *api.Pod) (*k8sContr
 	// Find parent kind of the pod
 	kind, name, err := podutil.GetPodGrandInfo(client, pod)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get parent info for pod %s/%s: %v", pod.Namespace, pod.Name, err)
+		return nil, fmt.Errorf("failed to get parent info of pod %s/%s: %v", pod.Namespace, pod.Name, err)
 	}
 	var controller k8sController
 	switch kind {
@@ -69,7 +69,7 @@ func (c *k8sControllerUpdater) updateWithRetry(spec *controllerSpec) error {
 }
 
 func (c *k8sControllerUpdater) update(desired *controllerSpec) error {
-	glog.V(4).Infof("Begin to update %v for pod %s/%s",
+	glog.V(4).Infof("Begin to update %v of pod %s/%s",
 		c.controller, c.namespace, c.podName)
 	current, err := c.controller.get(c.name)
 	if err != nil {
@@ -80,14 +80,14 @@ func (c *k8sControllerUpdater) update(desired *controllerSpec) error {
 		return err
 	}
 	if !updated {
-		glog.V(2).Infof("%v for pod %s/%s has already been updated to the desired value",
+		glog.V(2).Infof("%v of pod %s/%s has already been updated to the desired specification",
 			c.controller, c.namespace, c.podName)
 		return nil
 	}
 	if err := c.controller.update(); err != nil {
 		return err
 	}
-	glog.V(2).Infof("Successfully updated %v for pod %s/%s",
+	glog.V(2).Infof("Successfully updated %v of pod %s/%s",
 		c.controller, c.namespace, c.podName)
 	return nil
 }
@@ -108,6 +108,8 @@ func (c *k8sControllerUpdater) reconcile(current *k8sControllerSpec, desired *co
 	}
 	// This may be a vertical scale
 	// Check and update resource limits/requests of the container in the pod specification
+	glog.V(4).Infof("Update container %v/%v-%v resources in the pod specification.",
+		c.namespace, c.podName, desired.resizeSpec.Index)
 	updated, err := updateResourceAmount(current.podSpec, desired.resizeSpec)
 	if err != nil {
 		return false, err

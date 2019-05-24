@@ -162,7 +162,8 @@ func (r *ContainerResizer) buildResourceLists(pod *k8sapi.Pod, actionItem *proto
 func (r *ContainerResizer) setZeroRequest(pod *k8sapi.Pod, containerIdx int, spec *containerResizeSpec) {
 	// check whether Capacity resizing is involved.
 	if len(spec.NewCapacity) < 1 {
-		glog.V(3).Infof("No capacity resizing, no need to set request.")
+		glog.V(3).Infof("No need to set request, as there is no capacity resizing for %v-%v.",
+			pod.Name, containerIdx)
 		return
 	}
 
@@ -182,7 +183,8 @@ func (r *ContainerResizer) setZeroRequest(pod *k8sapi.Pod, containerIdx int, spe
 
 		if _, exist := origRequest[k]; !exist {
 			spec.NewRequest[k] = *zero
-			glog.V(3).Infof("Set unspecified %v request to zero", k)
+			glog.V(3).Infof("Set unspecified %v request to zero for %v-%v.",
+				k, pod.Name, containerIdx)
 		}
 	}
 }
