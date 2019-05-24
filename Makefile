@@ -1,8 +1,7 @@
 OUTPUT_DIR=./
-
 SOURCE_DIRS = cmd pkg
 PACKAGES := go list ./... | grep -v /vendor | grep -v /out
-
+SHELL := '/bin/bash'
 
 product: clean
 	env GOOS=linux GOARCH=amd64 go build -o ${OUTPUT_DIR}/kubeturbo.linux ./cmd/kubeturbo
@@ -23,8 +22,18 @@ delve: Dockerfile.delve
 	touch dlv
 	docker rm delve-staging
 
+check:
+	@if [[ ! -z ${TURBO_REPO} ]];	then \
+		echo "Hello"; \
+	fi
+
 debug: debug-product delve
-	docker build -f Dockerfile.debug -t turbonomic/kubeturbo:6.4debug .
+	@if [ ! -z ${TURBO_REPO} ] && [ ! -z ${KUBE_VER} ];	then \
+		docker build -f Dockerfile.debug -t ${TURBO_REPO}/kubeturbo:${KUBE_VER}debug . ; \
+	else \
+		echo "Either dockerhub repo or kuberturbo version is not defined: TURBO_REPO=${TURBO_REPO} - KUBE_VER=${KUBE_VER}"; \
+		echo "Please define both TURBO_REPO='dockerhub repository' and KUBE_VER='kubeturbo version'"; \
+	fi
 
 test: clean
 	@go test -v -race ./pkg/...
