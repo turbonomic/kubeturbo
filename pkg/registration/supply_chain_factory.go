@@ -235,11 +235,11 @@ func (f *SupplyChainFactory) buildContainer() (*proto.TemplateDTO, error) {
 func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
 	appSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_APPLICATION)
 	appSupplyChainNodeBuilder = appSupplyChainNodeBuilder.
-		Sells(applicationTemplateCommWithKey).	// The key used to sell to the virtual applications
+		Sells(applicationTemplateCommWithKey). // The key used to sell to the virtual applications
 		Provider(proto.EntityDTO_CONTAINER, proto.Provider_HOSTING).
 		Buys(vCpuTemplateComm).
 		Buys(vMemTemplateComm).
-		Buys(applicationTemplateCommWithKey)	// The key used to buy from the container
+		Buys(applicationTemplateCommWithKey) // The key used to buy from the container
 
 	return appSupplyChainNodeBuilder.Create()
 }

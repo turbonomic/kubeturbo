@@ -20,7 +20,7 @@ const (
 
 var (
 	commodityTypeBetweenAppAndService map[proto.CommodityDTO_CommodityType]struct{} = map[proto.CommodityDTO_CommodityType]struct{}{
-		proto.CommodityDTO_APPLICATION:   struct{}{},
+		proto.CommodityDTO_APPLICATION: struct{}{},
 	}
 )
 
