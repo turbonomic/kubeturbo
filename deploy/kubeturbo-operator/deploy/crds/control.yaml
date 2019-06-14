@@ -1,0 +1,24 @@
+apiVersion: charts.helm.k8s.io/v1alpha1
+kind: Kubeturbo
+metadata:
+  name: k8s-control
+spec:
+  # Default values copied from <project_dir>/helm-charts/kubeturbo/values.yaml
+  
+  # Default values for kubeturbo.
+  # This is a YAML-formatted file.
+  # Declare variables to be passed into your templates.
+
+  image:
+    tag: 6.4dev
+
+  # Turbo server version and address
+  serverMeta:
+    version: 6.4
+    turboServer: https://104.196.38.168
+  
+  # Turbo server api user and password
+  # The opsManagerUserName requires Turbo administrator role
+  restAPIConfig:
+    opsManagerUserName: api
+    opsManagerPassword: Sysdreamworks123
