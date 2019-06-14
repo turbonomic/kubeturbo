@@ -32,13 +32,12 @@ type turboActionType struct {
 }
 
 var (
-	turboActionPodProvision        turboActionType = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_CONTAINER_POD}
-	turboActionPodMove             turboActionType = turboActionType{proto.ActionItemDTO_MOVE, proto.EntityDTO_CONTAINER_POD}
-	turboActionContainerResize     turboActionType = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_CONTAINER}
-	turboActionContainerPodSuspend turboActionType = turboActionType{proto.ActionItemDTO_SUSPEND, proto.EntityDTO_CONTAINER_POD}
-
-	turboActionMachineProvision turboActionType = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_VIRTUAL_MACHINE}
-	turboActionMachineSuspend   turboActionType = turboActionType{proto.ActionItemDTO_SUSPEND, proto.EntityDTO_VIRTUAL_MACHINE}
+	turboActionPodProvision     = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_CONTAINER_POD}
+	turboActionPodSuspend       = turboActionType{proto.ActionItemDTO_SUSPEND, proto.EntityDTO_CONTAINER_POD}
+	turboActionPodMove          = turboActionType{proto.ActionItemDTO_MOVE, proto.EntityDTO_CONTAINER_POD}
+	turboActionContainerResize  = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_CONTAINER}
+	turboActionMachineProvision = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_VIRTUAL_MACHINE}
+	turboActionMachineSuspend   = turboActionType{proto.ActionItemDTO_SUSPEND, proto.EntityDTO_VIRTUAL_MACHINE}
 )
 
 type ActionHandlerConfig struct {
@@ -106,7 +105,7 @@ func (h *ActionHandler) registerActionExecutors() {
 
 	horizontalScaler := executor.NewHorizontalScaler(ae)
 	h.actionExecutors[turboActionPodProvision] = horizontalScaler
-	h.actionExecutors[turboActionContainerPodSuspend] = horizontalScaler
+	h.actionExecutors[turboActionPodSuspend] = horizontalScaler
 
 	containerResizer := executor.NewContainerResizer(ae, c.kubeletClient, c.sccAllowedSet)
 	h.actionExecutors[turboActionContainerResize] = containerResizer
@@ -130,8 +129,7 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	// 1. get the action, NOTE: only deal with one action item in current implementation.
 	// Check if the action execution DTO is valid, including if the action is supported or not
 	if err := h.checkActionExecutionDTO(actionExecutionDTO); err != nil {
-		err := fmt.Errorf("Action is not valid: %v", err.Error())
-		glog.Errorf(err.Error())
+		glog.Errorf("Invalid action %v: %v", actionExecutionDTO, err)
 		return h.failedResult(err.Error()), err
 	}
 
@@ -152,44 +150,51 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	return h.goodResult(), nil
 }
 
+func isPodAction(actionItem *proto.ActionItemDTO) bool {
+	return actionItem.GetTargetSE().GetEntityType() == proto.EntityDTO_CONTAINER_POD ||
+		actionItem.GetTargetSE().GetEntityType() == proto.EntityDTO_CONTAINER
+}
+
 func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
+	// Only acquire lock for pod actions so they can be sequentialized
+	// We sequentialize pod actions because there could be different types of actions
+	// generated for the same pod at the same time, e.g., resize and provision
+	// For machine actions, we fail fast if there is already an action in progress for
+	// the same machine, this is because there will not be resize action for machines,
+	// and we do not want to queue multiple provision/suspend action for the same machine
+	var pod *api.Pod
+	if isPodAction(actionItem) {
+		// getLock() returns error if it times out (default timeout value is set in lockStore
+		lock, err := h.lockStore.getLock(actionItem)
+		if err != nil {
+			return err
+		}
+		// Unlock the entity after the action execution is finished
+		// defer is applied to the function scope
+		defer glog.V(4).Infof("Action %s: releasing lock", actionItem.GetUuid())
+		defer lock.ReleaseLock()
+		lock.KeepRenewLock()
+		// We need to get the k8s pod again as the previous action may have deleted the pod
+		// and created a new one. In such case, the action should be applied to the new pod.
+		pod, err = h.getRelatedPod(actionItem)
+		if err != nil {
+			return fmt.Errorf("cannot find the related pod for action item %s: %v",
+				actionItem.GetUuid(), err)
+		}
+	}
+
 	input := &executor.TurboActionExecutorInput{
 		ActionItem: actionItem,
-	}
-	clusterAPIAction := false
-	if (*actionItem.ActionType == proto.ActionItemDTO_PROVISION ||
-		*actionItem.ActionType == proto.ActionItemDTO_SUSPEND) &&
-		*actionItem.CurrentSE.EntityType == proto.EntityDTO_VIRTUAL_MACHINE {
-		clusterAPIAction = true
-	}
-	// Acquire the lock for the actionItem. It blocks the action execution if the lock
-	// is used by other action. It results in error return if timed out (set in lockStore).
-	if !clusterAPIAction {
-		if lock, err := h.lockStore.getLock(actionItem); err != nil {
-			return err
-		} else {
-			// Unlock the entity after the action execution is finished
-			defer glog.V(4).Infof("Action %s: releasing lock", actionItem.GetUuid())
-			defer lock.ReleaseLock()
-			lock.KeepRenewLock()
-		}
-		// After getting the lock, need to get the k8s pod again as the previous action could delete the pod and create a new one.
-		// In such case, the action should be applied on the new pod.
-		// Currently, all actions need to get its related pod. If not needed, the pod is nil.
-		pod := h.getRelatedPod(actionItem)
-		if pod == nil {
-			err := fmt.Errorf("Cannot find the related pod for action item %s", actionItem.GetUuid())
-			return err
-		}
-		input.Pod = pod
+		Pod:        pod,
 	}
 
 	actionType := getTurboActionType(actionItem)
 	worker := h.actionExecutors[actionType]
 	output, err := worker.Execute(input)
 	if err != nil {
-		glog.Errorf("Failed to execute action %v on %s: %+v.",
-			actionType, actionItem.GetTargetSE().GetEntityType(), actionItem)
+		glog.Errorf("Failed to execute action %v on %v [%v]: %v",
+			actionType.actionType, actionItem.GetTargetSE().GetEntityType(),
+			actionItem.GetTargetSE().GetDisplayName(), err)
 		return err
 	}
 	// Process the action execution output, including caching the pod name change.
@@ -197,35 +202,29 @@ func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
 	return nil
 }
 
-// Finds the pod associated to the action item dto. The pod, if any, will be used to lock the associated actions.
-// Currently, we consider three action types:
-// - Pod Move/Provision: returns the pod, which is the target SE in the action item
-// - Container Resize: returns the pod, which is the hostedBy SE in the action item
-func (h *ActionHandler) getRelatedPod(actionItem *proto.ActionItemDTO) *api.Pod {
-	actionType := getTurboActionType(actionItem)
+// Finds the pod associated to the action item DTO. The pod, if any, will be used to lock the associated actions.
+// - Pod Move/Provision/Suspend: returns the target SE in the action item
+// - Container Resize: returns the the hostedBy SE in the action item
+// - Machine Provision/Suspend: returns nil
+func (h *ActionHandler) getRelatedPod(actionItem *proto.ActionItemDTO) (*api.Pod, error) {
 	var podEntity *proto.EntityDTO
-	se := actionItem.GetTargetSE()
-
+	actionType := getTurboActionType(actionItem)
 	switch actionType {
 	case turboActionContainerResize:
 		podEntity = actionItem.GetHostedBySE()
-	case turboActionPodMove:
-		podEntity = se
-	case turboActionPodProvision:
-		podEntity = se
-	case turboActionContainerPodSuspend:
-		podEntity = se
+	case turboActionPodMove, turboActionPodProvision, turboActionPodSuspend:
+		podEntity = actionItem.GetTargetSE()
+	case turboActionMachineProvision, turboActionMachineSuspend:
+		// This branch is not called right now. Implement for the sake of completeness.
+		return nil, nil
 	default:
-		return nil
+		return nil, fmt.Errorf("unsupported turbo action type %v", actionType)
 	}
 
-	pod, err := h.podManager.GetPodFromDisplayNameOrUUID(podEntity.GetDisplayName(), podEntity.GetId())
-	if err != nil {
-		glog.Errorf("failed to get Pod %s with id %s: %v", podEntity.GetDisplayName(), podEntity.GetId(), err)
-		return nil
+	if podEntity == nil {
+		return nil, fmt.Errorf("nil pod entity in actionItem")
 	}
-
-	return pod
+	return h.podManager.GetPodFromDisplayNameOrUUID(podEntity.GetDisplayName(), podEntity.GetId())
 }
 
 // Processes the output of the action execution generated by the executor.
@@ -309,24 +308,27 @@ func keepAlive(tracker sdkprobe.ActionProgressTracker, stop chan struct{}) {
 // the action type is supported by kubeturbo.
 func (h *ActionHandler) checkActionExecutionDTO(actionExecutionDTO *proto.ActionExecutionDTO) error {
 	actionItems := actionExecutionDTO.GetActionItem()
-
 	if actionItems == nil || len(actionItems) == 0 || actionItems[0] == nil {
-		return fmt.Errorf("Action execution (%v) validation failed: no action item found", actionExecutionDTO)
-
+		return fmt.Errorf("no action item found")
 	}
 
-	ai := actionItems[0]
-
-	if ai.GetTargetSE() == nil {
-		return fmt.Errorf("Action execution (%v) validation failed: no target SE found", actionExecutionDTO)
+	actionItem := actionItems[0]
+	actionType := actionItem.GetActionType()
+	targetSE := actionItem.GetTargetSE()
+	if targetSE == nil {
+		return fmt.Errorf("no target SE found")
 	}
 
-	actionType := turboActionType{ai.GetActionType(), ai.GetTargetSE().GetEntityType()}
-	glog.V(2).Infof("Receive a action request of type: %++v", actionType)
+	glog.V(2).Infof("Received an action %v for entity %v [%v]",
+		actionType, targetSE.GetEntityType(), targetSE.GetDisplayName())
 
 	// Check if action is supported
-	if _, supported := h.actionExecutors[actionType]; !supported {
-		return fmt.Errorf("Action execution (%v) validation failed: not supported type %++v", actionExecutionDTO, actionType)
+	turboActionType := turboActionType{
+		actionType:       actionType,
+		targetEntityType: targetSE.GetEntityType(),
+	}
+	if _, supported := h.actionExecutors[turboActionType]; !supported {
+		return fmt.Errorf("invalid action type %+v", turboActionType)
 	}
 
 	return nil

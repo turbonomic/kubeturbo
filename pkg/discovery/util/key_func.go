@@ -51,18 +51,14 @@ func ParseContainerId(containerId string) (string, int, error) {
 	}
 
 	if i < 1 {
-		err := fmt.Errorf("failed to parse containerId: %s", containerId)
-		glog.Error(err)
-		return "", -1, err
+		return "", -1, fmt.Errorf("failed to parse containerId: %s", containerId)
 	}
 
 	podId := containerId[0:i]
 	tmp := containerId[i+1:]
 	index, err := strconv.Atoi(tmp)
 	if err != nil {
-		rerr := fmt.Errorf("failed to convert container Index[%s:%s]: %v", containerId, tmp, err)
-		glog.Error(rerr)
-		return "", -1, rerr
+		return "", -1, fmt.Errorf("failed to convert container Index[%s:%s]: %v", containerId, tmp, err)
 	}
 
 	return podId, index, nil
@@ -92,29 +88,6 @@ func GetPodFullNameFromAppName(appName string) string {
 
 func ApplicationIdFunc(containerId string) string {
 	return fmt.Sprintf("%s-%s", appIdPrefix, containerId)
-}
-
-func ContainerIdFromApp(appId string) (string, error) {
-	i := len(appIdPrefix) + 1
-	if len(appId) < i+1 {
-		return "", fmt.Errorf("Illegal appId:%s", appId)
-	}
-
-	return appId[i:], nil
-}
-
-func PodIdFromApp(appId string) (string, error) {
-	containerId, err := ContainerIdFromApp(appId)
-	if err != nil {
-		return "", err
-	}
-
-	podId, _, err := ParseContainerId(containerId)
-	if err != nil {
-		return "", fmt.Errorf("Illegal containerId[%s] for appId[%s].", containerId, appId)
-	}
-
-	return podId, nil
 }
 
 func ContainerNameFunc(pod *api.Pod, container *api.Container) string {

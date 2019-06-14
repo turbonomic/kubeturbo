@@ -40,17 +40,18 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 	for _, quotaMetrics := range quotaMetricsList {
 		glog.V(4).Infof("Merging metrics of %s for nodes %s",
 			quotaMetrics.QuotaName, quotaMetrics.NodeProviders)
-		_, exists := quotaMetricsMap[quotaMetrics.QuotaName]
+		existingMetric, exists := quotaMetricsMap[quotaMetrics.QuotaName]
 		if !exists {
+			// first time that this quota is seen
 			quotaMetricsMap[quotaMetrics.QuotaName] = quotaMetrics
+			continue
 		}
-		existingMetric := quotaMetricsMap[quotaMetrics.QuotaName]
 		// merge the provider node metrics into the existing quota metrics
 		for node, nodeMap := range quotaMetrics.AllocationBoughtMap {
 			existingMetric.UpdateAllocationBought(node, nodeMap)
 		}
 
-		//merge the pod usage from this quota metrics into the existing quota metrics
+		// merge the pod usage from this quota metrics into the existing quota metrics
 		existingMetric.UpdateAllocationSoldUsed(quotaMetrics.AllocationSoldUsed)
 	}
 
