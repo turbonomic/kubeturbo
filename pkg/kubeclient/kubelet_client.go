@@ -215,14 +215,14 @@ func (client *KubeletClient) HasCacheBeenUsed(host string) bool {
 	return false
 }
 
-//----------------- kubeletConfig -----------------------------------
+// ----------------- kubeletConfig -----------------------------------
 type KubeletConfig struct {
-	kubeConfig       *rest.Config
-	enableHttps      bool
-	allowTLSInsecure bool
-	port             int
-	timeout          time.Duration // timeout when fetching information from kubelet;
-	tlsTimeOut       time.Duration
+	kubeConfig           *rest.Config
+	enableHttps          bool
+	forceSelfSignedCerts bool
+	port                 int
+	timeout              time.Duration // timeout when fetching information from kubelet;
+	tlsTimeOut           time.Duration
 }
 
 // Create a new KubeletConfig based on kubeConfig.
@@ -246,8 +246,8 @@ func (kc *KubeletConfig) EnableHttps(enable bool) *KubeletConfig {
 	return kc
 }
 
-func (kc *KubeletConfig) AllowTLSInsecure(allowTLSInsecure bool) *KubeletConfig {
-	kc.allowTLSInsecure = allowTLSInsecure
+func (kc *KubeletConfig) ForceSelfSignedCerts(forceSelfSignedCerts bool) *KubeletConfig {
+	kc.forceSelfSignedCerts = forceSelfSignedCerts
 	return kc
 }
 
@@ -257,8 +257,8 @@ func (kc *KubeletConfig) Timeout(timeout int) *KubeletConfig {
 }
 
 func (kc *KubeletConfig) Create() (*KubeletClient, error) {
-	//1. http transport
-	transport, err := makeTransport(kc.kubeConfig, kc.enableHttps, kc.tlsTimeOut, kc.allowTLSInsecure)
+	// 1. http transport
+	transport, err := makeTransport(kc.kubeConfig, kc.enableHttps, kc.tlsTimeOut, kc.forceSelfSignedCerts)
 	if err != nil {
 		return nil, err
 	}
@@ -267,13 +267,13 @@ func (kc *KubeletConfig) Create() (*KubeletClient, error) {
 		Timeout:   kc.timeout,
 	}
 
-	//2. scheme
+	// 2. scheme
 	scheme := "http"
 	if kc.enableHttps {
 		scheme = "https"
 	}
 
-	//3. create a KubeletClient
+	// 3. create a KubeletClient
 	return &KubeletClient{
 		client: c,
 		scheme: scheme,
@@ -282,15 +282,15 @@ func (kc *KubeletConfig) Create() (*KubeletClient, error) {
 	}, nil
 }
 
-//------------Generate a http.Transport based on rest.Config-------------------
+// ------------Generate a http.Transport based on rest.Config-------------------
 // Note: Following code is copied from Heapster
 // https://github.com/kubernetes/heapster/blob/d2a1cf189921a68edd025d034ebdb348d7587509/metrics/sources/kubelet/util/kubelet_client.go#L48
 // The reason to copy the code from Heapster, instead of using kubernetes/pkg/kubelet/client.MakeTransport(), is that
 // Depending on Kubernetes will make it difficult to maintain the package dependency.
 // So I copied this code, which only depending on "k8s.io/client-go".
-func makeTransport(config *rest.Config, enableHttps bool, timeout time.Duration, allowTLSInsecure bool) (http.RoundTripper, error) {
-	//1. get transport.config
-	cfg := transportConfig(config, enableHttps, allowTLSInsecure)
+func makeTransport(config *rest.Config, enableHttps bool, timeout time.Duration, forceSelfSignedCerts bool) (http.RoundTripper, error) {
+	// 1. get transport.config
+	cfg := transportConfig(config, enableHttps, forceSelfSignedCerts)
 	tlsConfig, err := transport.TLSConfigFor(cfg)
 	if err != nil {
 		glog.Errorf("failed to get TLSConfig: %v", err)
@@ -300,7 +300,7 @@ func makeTransport(config *rest.Config, enableHttps bool, timeout time.Duration,
 		glog.Warningf("tlsConfig is nil.")
 	}
 
-	//2. http client
+	// 2. http client
 	rt := http.DefaultTransport
 	if tlsConfig != nil {
 		rt = netutil.SetOldTransportDefaults(&http.Transport{
@@ -312,7 +312,7 @@ func makeTransport(config *rest.Config, enableHttps bool, timeout time.Duration,
 	return transport.HTTPWrappersForConfig(cfg, rt)
 }
 
-func transportConfig(config *rest.Config, enableHttps bool, allowTLSInsecure bool) *transport.Config {
+func transportConfig(config *rest.Config, enableHttps bool, forceSelfSignedCerts bool) *transport.Config {
 	cfg := &transport.Config{
 		TLS: transport.TLSConfig{
 			CAFile:   config.CAFile,
@@ -327,11 +327,12 @@ func transportConfig(config *rest.Config, enableHttps bool, allowTLSInsecure boo
 
 	if enableHttps && !cfg.HasCA() {
 		cfg.TLS.Insecure = true
-		glog.Warning("insecure TLS transport.")
-	} else if enableHttps && allowTLSInsecure {
+		glog.Warning("no valid certificate has been provided. Use self-signed certificates for the TLS transport.")
+	} else if enableHttps && forceSelfSignedCerts {
 		cfg.TLS.Insecure = true
 		cfg.TLS.CAFile = ""
-		glog.Warning("insecure TLS transport allowed.")
+		cfg.TLS.CAData = []byte("")
+		glog.Warning("self-signed certificate use for the TLS transport is enforced.")
 	}
 
 	return cfg

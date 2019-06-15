@@ -22,10 +22,10 @@ type ActionLockStore struct {
 	lockMap *util.ExpirationMap
 
 	// The function to get the related pod from action item
-	podFunc func(ai *proto.ActionItemDTO) *api.Pod
+	podFunc func(ai *proto.ActionItemDTO) (*api.Pod, error)
 }
 
-func newActionLockStore(lockMap *util.ExpirationMap, podFunc func(ai *proto.ActionItemDTO) *api.Pod) *ActionLockStore {
+func newActionLockStore(lockMap *util.ExpirationMap, podFunc func(ai *proto.ActionItemDTO) (*api.Pod, error)) *ActionLockStore {
 	return &ActionLockStore{lockMap, podFunc}
 }
 
@@ -78,8 +78,10 @@ func (a *ActionLockStore) getLockHelper(key string) (*util.LockHelper, error) {
 
 // Gets the lock key for the action item.
 func (a *ActionLockStore) getLockKey(actionItem *proto.ActionItemDTO) (string, error) {
-	pod := a.podFunc(actionItem)
-
+	pod, err := a.podFunc(actionItem)
+	if err != nil {
+		return "", err
+	}
 	if pod == nil {
 		// If the pod is nil, simply returning the id of the target SE.
 		// Currently, for the actions supported by kubeturbo, there is no such use case for nil pod.

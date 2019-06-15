@@ -37,8 +37,9 @@ Kubeturbo leverages [Turbonomic's](https://turbonomic.com/) patented analysis en
 ## Getting Started 
 
 ### Kubeturbo Installation
-* Review the prerequisites and [Deploy Kubeturbo](https://github.com/turbonomic/kubeturbo/tree/master/deploy/README.md)
-* Once deployed, corresponding targets will show up in Turbonomic UI
+* Review the prerequisites and [Deploy Kubeturbo](https://github.com/turbonomic/kubeturbo/tree/master/deploy/README.md).
+* (Optional) To prepare Kubeturbo for debugging, [go here](https://github.com/turbonomic/kubeturbo/tree/master/debugging/README.md).
+* Once deployed, corresponding targets will show up in Turbonomic UI.
 
 <img width="1323" alt="screen shot 2017-06-01 at 10 10 21 am" src="https://cloud.githubusercontent.com/assets/4391815/26683726/c5e06e7c-46b2-11e7-92f2-5f555fe88ea2.png">
 

@@ -4,6 +4,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	client "k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
 // Configuration created using the parameters passed to the kubeturbo service container.
@@ -12,13 +13,14 @@ type Config struct {
 
 	StitchingPropType stitching.StitchingPropertyType
 
-	//VMPriority: priority of VM in supplyChain definition from kubeturbo, should be less than 0;
+	// VMPriority: priority of VM in supplyChain definition from kubeturbo, should be less than 0;
 	VMPriority int32
-	//VMIsBase: Is VM is the base template from kubeturbo, when stitching with other VM probes, should be false;
+	// VMIsBase: Is VM is the base template from kubeturbo, when stitching with other VM probes, should be false;
 	VMIsBase bool
 
 	Client        *client.Clientset
 	KubeletClient *kubeclient.KubeletClient
+	CAClient      *clientset.Clientset
 
 	// Close this to stop all reflectors
 	StopEverything chan struct{}
@@ -40,6 +42,11 @@ func NewVMTConfig2() *Config {
 
 func (c *Config) WithKubeClient(client *client.Clientset) *Config {
 	c.Client = client
+	return c
+}
+
+func (c *Config) WithClusterAPIClient(client *clientset.Clientset) *Config {
+	c.CAClient = client
 	return c
 }
 
