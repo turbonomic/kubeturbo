@@ -72,6 +72,7 @@ type TaskResult struct {
 	content      []*proto.EntityDTO
 	quotaMetrics []*repository.QuotaMetrics
 	entityGroups []*repository.EntityGroup
+	podEntities  []*repository.KubePod
 }
 
 func NewTaskResult(workerID string, state TaskResultState) *TaskResult {
@@ -93,6 +94,10 @@ func (r *TaskResult) Content() []*proto.EntityDTO {
 	return r.content
 }
 
+func (r *TaskResult) PodEntities() []*repository.KubePod {
+	return r.podEntities
+}
+
 func (r *TaskResult) QuotaMetrics() []*repository.QuotaMetrics {
 	return r.quotaMetrics
 }
@@ -112,6 +117,11 @@ func (r *TaskResult) WithErr(err error) *TaskResult {
 
 func (r *TaskResult) WithContent(entityDTOs []*proto.EntityDTO) *TaskResult {
 	r.content = entityDTOs
+	return r
+}
+
+func (r *TaskResult) WithPodEntities(podEntities []*repository.KubePod) *TaskResult {
+	r.podEntities = podEntities
 	return r
 }
 
