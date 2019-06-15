@@ -3,6 +3,7 @@
 The kubeturbo pod can be easily deployed one of 2 ways:
 1. [Helm Chart](#helm-chart)
 2. [Deploy Resources via yaml](#deploy-with-yamls)
+3. [Operator](#deploy-with-an-operator)
 
 This document describes common prerequisites, and an overview of each method.  Details will be in the directories. 
 
@@ -50,5 +51,10 @@ Strongly advise you to use the sample yamls provided [here](https://github.com/t
 4. Using a deployment type, deploy kubeturbo
 
 5. Validate that you see Containers and Container Pod entities in the Turbonomic Supply Chain, and collecting data.
+
+
+## Deploy with an Operator
+
+You can leverage an Operator to call the Helm charts to deploy kubeturbo.  For details go to [kubeturbo-operator](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo_operator)
 
 There's no place like home... go back to the [Turbonomic Overview](https://github.com/turbonomic/kubeturbo/tree/master/README.md).

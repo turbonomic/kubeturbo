@@ -25,8 +25,24 @@ restAPIConfig:
   opsManagerUserName: Turbo_username
   opsManagerPassword: Turbo_password
 
+# Enabling targetConfig and providing a value will give a name to your cluster
 #targetConfig:
-#  targetName: Your_k8s_cluster
+  targetName: Your_k8s_cluster
+
+# In kubeturbo 6.3+, you can define how master nodes are identified. Use either or both
+# Master nodes are not identified by default and could suspend in plans.
+# nodeLabels must provide a key value pair
+masterNodeDetectors:
+   nodeNamePatterns: .*master.*
+   nodeLabelsKey: node-role.kubernetes.io/master
+   nodeLabelsValue: .*
+
+# In kubeturbo 6.3+, you can define how daemon pods are identified. Use either or both
+# Note if you do not enable daemonPodDetectors, the default is to identify all pods running as kind = daemonSet
+# Any entry for daemonPodDetectors would overwrite default. Recommend you do not use this parameter.
+#daemonPodDetectors:
+#   namespaces: "kube-system", "OpenShift"
+#   podNamePatterns: .*ignorePod.*
 
 args:
   # logging level
