@@ -20,7 +20,6 @@ require (
 	github.com/gorilla/websocket v0.0.0-20180924232612-3130e8d3f198 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190212212710-3befbb6ad0cc // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/json-iterator/go v0.0.0-20180914014843-2433035e5132 // indirect
 	github.com/mitchellh/hashstructure v0.0.0-20170609045927-2bca23e0e452
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -33,11 +32,10 @@ require (
 	github.com/prometheus/client_golang v0.9.2
 	github.com/prometheus/procfs v0.0.0-20190104112138-b1a0a9a36d74 // indirect
 	github.com/sirupsen/logrus v1.2.0 // indirect
-	github.com/spf13/cobra v0.0.3
 	github.com/spf13/pflag v1.0.3
 	github.com/stretchr/testify v1.2.2
 	github.com/turbonomic/turbo-api v0.0.0-20180816193551-ed948ba97e70 // indirect
-	github.com/turbonomic/turbo-go-sdk v6.3.1-0.20190516132104-082bcf07d9a7+incompatible
+	github.com/turbonomic/turbo-go-sdk v6.3.1-0.20190614100857-572d0ca9b18a+incompatible
 	go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569 // indirect
 	go.uber.org/multierr v0.0.0-20180122172545-ddea229ff1df // indirect
 	go.uber.org/zap v0.0.0-20180814183419-67bc79d13d15 // indirect
