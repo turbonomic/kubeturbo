@@ -18,7 +18,7 @@ This document describes common prerequisites, and an overview of each method.  D
     * User needs **cluster-admin cluster role level access** to be able to create the following resources if required: namespace, service account, and cluster role binding for the service account.
 * Repo Access and Network requirements.  Refer to Figure below “Turbonomic and Kubernetes Network Detail”.
     * Instructions assume the node you are deploying to has internet access to pull the kubeturbo image from the DockerHub repository, or your environment is configured with a repo accessible by the node.  Images are available from Dockerhub and RedHat Container Catalog. The exact Tag required will be provided for you by Turbonomic.
-        * [Docker hub](https://hub.docker.com/r/vmturbo/kubeturbo/)
+        * [Docker hub](https://hub.docker.com/r/turbonomic/kubeturbo/)
         * [RedHat Container Catalog](https://access.redhat.com/containers/#/product/aa909a40e026139e) 
     * Kubeturbo pod will have https/tcp access to the kubelet on every node (if default 10255 is not configured, specify port and https in kubeturbo deploy)
     * Kubeturbo pod will have https/tcp access to the Turbonomic Server

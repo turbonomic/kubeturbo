@@ -4,7 +4,7 @@
 
 # Replace the image with desired version
 image:
-  repository: vmturbo/kubeturbo
+  repository: turbonomic/kubeturbo
   tag: 6.3
   pullPolicy: IfNotPresent
 
@@ -34,7 +34,7 @@ restAPIConfig:
 # nodeLabels must provide a key value pair
 masterNodeDetectors:
    nodeNamePatterns: .*master.*
-   nodeLabels: node-role.kubernetes.io/master
+   nodeLabelsKey: node-role.kubernetes.io/master
    nodeLabelsValue: .*
 
 # In kubeturbo 6.3+, you can define how daemon pods are identified. Use either or both

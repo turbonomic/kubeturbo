@@ -108,7 +108,7 @@ spec:
       containers:
         - name: kubeturbo
           # Replace the image with desired version
-          image: vmturbo/kubeturbo:6.3
+          image: turbonomic/kubeturbo:6.3
           imagePullPolicy: IfNotPresent
           args:
             - --turboconfig=/etc/kubeturbo/turbo.config
