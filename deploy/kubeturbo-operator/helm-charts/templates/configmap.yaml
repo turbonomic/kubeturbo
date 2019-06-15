@@ -18,12 +18,8 @@ data:
         "masterNodeDetectors": {
            "nodeNamePatterns": [ "{{ .Values.masterNodeDetectors.nodeNamePatterns }}" ],
            "nodeLabels": [ {"key": "{{ .Values.masterNodeDetectors.nodeLabelsKey }}", "value": "{{ .Values.masterNodeDetectors.nodeLabelsValue }}"} ]
-        },
-        {{- if .Values.targetConfig }}
-          {{- if .Values.targetConfig.targetName }}
-          "targetConfig": {
-              "targetName": "{{ .Values.targetConfig.targetName }}"
-          }
-          {{- end }}
-        {{- end }}
-     }
+       },
+       "targetConfig": {
+           "targetName": "{{ .Values.targetConfig.targetName }}"
+       }
+    }
