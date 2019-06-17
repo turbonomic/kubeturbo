@@ -25,7 +25,7 @@ data:
             }
         },
         "targetConfig": {
-            "targetName":"<whateverYouWant>"
+            "targetName":"Name_Your_Cluster"
         },
         "masterNodeDetectors": {
            "nodeNamePatterns": [ ".*master.*" ],

@@ -51,7 +51,7 @@ For more on `masterNodeDetectors` and `daemonPodDetectors` go to [YAMLS_README.m
 
 #### Updating Turbo Server
 When you update the Turbonomic or CWOM Server, you will need to update the configMap resource to reflect the new version.
-NOTE: Starting with kubeturbo 6.3+, you do not need to make this configMap modification if updating to a minor version like 6.3.0 -> 6.3.1, which will now be automatically handled.  You would only need to make this change if you are making a major change, going from 6.3.1 -> 6.4.0, or 6.3.1 -> 7.0.0.
+NOTE: Starting with kubeturbo 6.3+, you do not need to make this configMap modification if updating to a minor version like 6.3.0 -> 6.3.1, which will now be automatically handled.  You would only need to make this change if you are making a major change, going from 6.3.x -> 6.4.x, or 6.3.x -> 7.x.
 
 1. After the update, obtain the new version.  To get this from the UI, go to Settings -> Updates -> About and use the numeric version such as “6.3” or “6.4” (Build details not required)
 1. You will update the version value - substitute your values for {}:  `helm upgrade --name {helmChart}{chart location or repo} --namespace turbo --set serverMeta.version={Turbo_Server_Version}`

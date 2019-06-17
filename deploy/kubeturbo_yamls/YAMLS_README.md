@@ -60,7 +60,7 @@ serverMeta.version|Turbo Server version|yes - all versions|none|x.x.x
 serverMeta.turboServer|Server URL|yes - all versions|none| https://{yourServerIPAddressorFQHN}
 restAPIConfig.opsManagerUserName|admin role user to log into Turbo|yes - all versions|none|same value as provided for login screen (see Note)
 restAPIConfig.opsManagerPassword|password to log into Turbo|yes - all versions|none|same value as provided for login screen
-targetConfig.targetName|uniquely identifies k8s clusters|no - all versions|9 digit number|string, upper lower case, limited special characters "-" or "_"
+targetConfig.targetName|uniquely identifies k8s clusters|no - all versions|"Name_Your_Cluster"|string, upper lower case, limited special characters "-" or "_"
 masterNodeDetectors.nodeNamePatterns|identifies master nodes by node name|in 6.3+|name includes `.*master.*`. If no match, this is ignored.| regex used, value in quotes `.*master.*`
 masterNodeDetectors.nodeLabels|identifies master nodes by node label key value pair|in 6.3+, any value for label `node-role.kubernetes.io/master` If no match, this is ignored.|masters not uniquely identified|key value pair, regex used, values in quotes `{"key": "node-role.kubernetes.io/master", "value": ".*"}`
 daemonPodDetectors.namespaces|identifies all pods in the namespace to be ignored for cluster consolidation|no - 6.3+|daemonSet kinds are by default allow node suspension. Adding this parameter changes default.| regex used, values in quotes & comma separated`"kube-system", "kube-service-catalog", "openshift-.*"`
