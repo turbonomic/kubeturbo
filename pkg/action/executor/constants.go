@@ -4,7 +4,7 @@ import "time"
 
 const (
 	defaultRetryLess = 3
-	defaultRetryMore = 12
+	defaultRetryMore = 55
 
 	defaultWaitLockTimeOut = time.Second * 300
 	defaultWaitLockSleep   = time.Second * 10
