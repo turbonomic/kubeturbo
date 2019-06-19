@@ -53,4 +53,3 @@ RUN chmod -R ug+x ${APP_ROOT}/bin && sync && \
 USER 10001
 WORKDIR ${APP_ROOT}
 ENTRYPOINT ["/opt/turbonomic/bin/kubeturbo"]
-
