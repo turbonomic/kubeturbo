@@ -161,7 +161,7 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 		PatchSoldMetadata(proto.CommodityDTO_CLUSTER, fieldsCapactiy).
 		PatchSoldMetadata(proto.CommodityDTO_VMPM_ACCESS, fieldsCapactiy).
 		PatchSoldMetadata(proto.CommodityDTO_VCPU, fieldsUsedCapacityPeak).
-		PatchSoldMetadata(proto.CommodityDTO_VMEM, fieldsUsedCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_VMEM, fieldsUsedCapacityPeak).
 		PatchSoldMetadata(proto.CommodityDTO_VCPU_REQUEST, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_VMEM_REQUEST, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_CPU_ALLOCATION, fieldsUsedCapacity).
