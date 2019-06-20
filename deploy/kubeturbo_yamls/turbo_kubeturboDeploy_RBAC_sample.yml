@@ -27,8 +27,8 @@ spec:
             - --turboconfig=/etc/kubeturbo/turbo.config
             - --v=2
             # Uncomment the following two args if running in Openshift or k8s 1.11+
-            #- --kubelet-https=true
-            #- --kubelet-port=10250
+            - --kubelet-https=true
+            - --kubelet-port=10250
             # Uncomment to stitch using IP, or if using Openstack, Hyper-V/VMM
             #- --stitch-uuid=false
           volumeMounts:
