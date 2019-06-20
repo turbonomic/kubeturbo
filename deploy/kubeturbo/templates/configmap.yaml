@@ -18,8 +18,16 @@ data:
         "masterNodeDetectors": {
            "nodeNamePatterns": [ "{{ .Values.masterNodeDetectors.nodeNamePatterns }}" ],
            "nodeLabels": [ {"key": "{{ .Values.masterNodeDetectors.nodeLabelsKey }}", "value": "{{ .Values.masterNodeDetectors.nodeLabelsValue }}"} ]
+        {{- if .Values.targetConfig.targetName }}
         },
         "targetConfig": {
             "targetName": "{{ .Values.targetConfig.targetName }}"
+        {{- end }}
+        {{- if .Values.daemonPodDetectors }}
+        },
+        "daemonPodDetectors": {
+          "namespaces": ["{{ .Values.daemonPodDetectors.daemonPodNamespaces1 }}", "{{ .Values.daemonPodDetectors.daemonPodNamespaces2 }}"],
+          "podNamePatterns": ["{{ .Values.daemonPodDetectors.daemonPodNamePatterns }}"]
+        {{- end }}
         }
      }

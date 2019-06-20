@@ -26,8 +26,8 @@ restAPIConfig:
   opsManagerPassword: Turbo_password
 
 # Enabling targetConfig and providing a value will give a name to your cluster
-targetConfig:
-  targetName: Name_Each_Cluster
+#targetConfig:
+#  targetName: Name_Each_Cluster
 
 # In kubeturbo 6.3+, you can define how master nodes are identified. Use either or both
 # Master nodes are not identified by default and could suspend in plans.
@@ -41,8 +41,9 @@ masterNodeDetectors:
 # Note if you do not enable daemonPodDetectors, the default is to identify all pods running as kind = daemonSet
 # Any entry for daemonPodDetectors would overwrite default. Recommend you do not use this parameter.
 #daemonPodDetectors:
-#   namespaces: "kube-system", "OpenShift"
-#   podNamePatterns: .*ignorePod.*
+#   daemonPodNamespaces1: kube-system
+#   daemonPodNamespaces2: OpenShift
+#   daemonPodNamePatterns: .*ignorePod.*
 
 args:
   # logging level
