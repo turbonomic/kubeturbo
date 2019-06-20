@@ -55,6 +55,6 @@ Strongly advise you to use the sample yamls provided [here](https://github.com/t
 
 ## Deploy with an Operator
 
-You can leverage an Operator to call the Helm charts to deploy kubeturbo.  For details go to [kubeturbo_operator](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo_operator)
+You can leverage an Operator to call the Helm charts to deploy kubeturbo.  For details go to [kubeturbo-operator](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo-operator)
 
 There's no place like home... go back to the [Turbonomic Overview](https://github.com/turbonomic/kubeturbo/tree/master/README.md).
