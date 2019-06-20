@@ -55,7 +55,7 @@ Kubeturbo leverages [Turbonomic's](https://turbonomic.com/) patented analysis en
 
 * Intelligently, continuously redistribute workload under changing conditions by leveraging The Turbonomic analysis engine 
   * Consolidate Pods in real-time to increase node efficiency
-  * Reschedule Pod to prevent performance degradation dur to resource congestion from the underlying node
+  * Reschedule Pod to prevent performance degradation due to resource congestion from the underlying node
   *	Reschedule Pod to leverage resources from new node added to the cluster
   *	Reschedule Pods that peak together to different nodes, to avoid performance issues due to "noisy neighbors"
 <img width="1320" alt="screen shot 2017-06-01 at 10 11 31 am" src="https://cloud.githubusercontent.com/assets/4391815/26683755/dccd6ad6-46b2-11e7-8d9f-452b60e827d5.png">
