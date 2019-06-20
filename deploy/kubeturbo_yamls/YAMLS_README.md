@@ -45,9 +45,9 @@ roleRef:
   # For OpenShift v3.4 remove apiGroup line
   apiGroup: rbac.authorization.k8s.io
 ```
-Note: This cluster-admin role can be view only, which will allow for metrics but will not allow for actions to execute.
+Note: This cluster-admin role can be view only, which will allow for metrics but will not allow for actions to execute.  For examples of a customized admin role narrowed to minimum resources and verbs, see the sample [turbo-admin.yaml](https://github.com/turbonomic/kubeturbo/blob/master/deploy/kubeturbo_yamls/turbo-admin.yaml). For a minimal admin with read only see [turbo-reader.yaml](https://github.com/turbonomic/kubeturbo/blob/master/deploy/kubeturbo_yamls/turbo-reader.yaml) 
 
-**3.** Create a configMap for kubeturbo. Strongly advise to use a sample provided.  Running CWOM? Refer to [CWOM -> Turbonomic Server -> kubeturbo version](https://github.com/turbonomic/kubeturbo/tree/master/deploy/version_mapping_kubeturbo_Turbo_CWOM.md). 
+**3.** Create a configMap for kubeturbo. Strongly advise to use a sample provided which is located [here](https://github.com/turbonomic/kubeturbo/blob/master/deploy/kubeturbo_yamls/turbo_configMap_63sample.yml).  You will need to provide your Turbo Server details here.  Running CWOM? Refer to [CWOM -> Turbonomic Server -> kubeturbo version](https://github.com/turbonomic/kubeturbo/tree/master/deploy/version_mapping_kubeturbo_Turbo_CWOM.md) for the mapping of CWOM to Turbo versions. 
 The ConfigMap serves two functions, depending on the kubeturbo image being used.
 1.	Defines how to connect to the Turbonomic Server. The Turbonomic Server instance details are defined under “communicationConfig”, and optionally what the cluster is identified as in the Turbo UI under “targetConfig”.
 2.	How to identify master nodes and daemon pods. A new feature introduced in Turbonomic 6.3, is the ability to consolidate clusters for efficiency.  We provide you a way to designate how your master nodes are identified, since we want to prevent suspending masters that are for HA.  The user can also determine how daemon pods are identified, since we do not want to consider them; nodes only running these pods would be candidates for suspension.
@@ -56,8 +56,8 @@ The following chart will help you populate the required values for your configMa
 
 Property|Purpose|Required|Default Value|Accepted Values
 ------------ | ------------- | ------------- | ------------- | -------------
-serverMeta.version|Turbo Server version|yes - all versions|none|x.x.x
-serverMeta.turboServer|Server URL|yes - all versions|none| https://{yourServerIPAddressorFQHN}
+serverMeta.version|Turbo Server version|yes - all versions|none|x.x.x. After 6.3+, only the first version.major is required
+serverMeta.turboServer|Server URL|yes - all versions|none| https://{yourServerIPAddressOrFQN}
 restAPIConfig.opsManagerUserName|admin role user to log into Turbo|yes - all versions|none|same value as provided for login screen (see Note)
 restAPIConfig.opsManagerPassword|password to log into Turbo|yes - all versions|none|same value as provided for login screen
 targetConfig.targetName|uniquely identifies k8s clusters|no - all versions|"Name_Your_Cluster"|string, upper lower case, limited special characters "-" or "_"
