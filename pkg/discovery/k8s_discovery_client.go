@@ -227,9 +227,9 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	glog.V(2).Infof("There are totally %d groups DTOs", len(groupDTOs))
 	if glog.V(3) {
 		for _, groupDto := range groupDTOs {
-			glog.Infof("%s::%s contains %d members",
+			glog.Infof("%s %s members: %+v",
 				groupDto.GetDisplayName(), groupDto.GetGroupName(),
-				len(groupDto.GetMemberList().Member))
+				groupDto.GetMemberList().Member)
 		}
 	}
 

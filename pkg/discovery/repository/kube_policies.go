@@ -14,7 +14,7 @@ type EntityGroup struct {
 
 func NewEntityGroup(kind, name string) (*EntityGroup, error) {
 	if kind == "" {
-		return nil, fmt.Errorf("Invalid parent kind")
+		return nil, fmt.Errorf("invalid parent kind")
 	}
 	groupKey := kind
 	if name != "" {
