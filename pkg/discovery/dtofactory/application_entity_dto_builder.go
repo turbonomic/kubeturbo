@@ -58,8 +58,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 	podFullName := util.GetPodClusterID(pod)
 	nodeCPUFrequency, err := builder.getNodeCPUFrequency(pod)
 	if err != nil {
-		glog.Errorf("failed to build ContainerDTOs for pod[%s]: %v", podFullName, err)
-		return nil, fmt.Errorf("failed to build ContainerDTOs for pod[%s]: %v", podFullName, err)
+		return nil, fmt.Errorf("failed to build application DTOs for pod[%s]: %v", podFullName, err)
 	}
 	podId := string(pod.UID)
 	podMId := util.PodMetricIdAPI(pod)
@@ -119,20 +118,8 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 			glog.Errorf("Failed to build Application entityDTO based on application %s: %s", displayName, err)
 			continue
 		}
-		//glog.Infof("App DTO: %++v", entityDTO)
+		glog.V(4).Infof("App DTO: %++v", entityDTO)
 		result = append(result, entityDTO)
-	}
-
-	return result, nil
-}
-
-func (builder *applicationEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.EntityDTO, error) {
-	var result []*proto.EntityDTO
-
-	for _, pod := range pods {
-
-		dtos, _ := builder.BuildEntityDTO(pod)
-		result = append(result, dtos...)
 	}
 
 	return result, nil
@@ -144,16 +131,14 @@ func (builder *applicationEntityDTOBuilder) getCommoditiesSold(pod *api.Pod, ind
 
 	podClusterId := util.GetPodClusterID(pod)
 	svc := builder.podClusterIDToServiceMap[podClusterId]
-	// TODO: changed key to service Id
+	// commodity key using service Id
 	var key string
 	// Service is associated with the pod, then the commodities key is the service Id,
 	// Else, it is computed using the container IP
 	if svc != nil {
-		key = util.GetServiceClusterID(svc) //getAppStitchingProperty(pod, index)
-		fmt.Printf("Getting key from service: %s\n", key)
+		key = util.GetServiceClusterID(svc)
 	} else {
 		key = getAppStitchingProperty(pod, index)
-		fmt.Printf("Getting key from app IP: %s\n", key)
 	}
 
 	// Application Access Commodity in lieu of Transaction and ResponseTime commodities

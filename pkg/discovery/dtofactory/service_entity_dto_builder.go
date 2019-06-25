@@ -52,15 +52,15 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 		appEntityDTOsMap := make(map[string]*proto.EntityDTO)
 
 		if len(podList) == 0 {
-			glog.Errorf("Service %s has no pods\n", serviceName)
+			glog.Errorf("Service %s has no pods", serviceName)
 			continue
 		}
 
 		for _, podClusterId := range podList {
-			glog.V(4).Infof("******** service %s --> pod %s\n", service.Name, podClusterId)
+			glog.V(4).Infof("service %s --> pod %s", service.Name, podClusterId)
 			kubePod := builder.PodEntitiesMap[podClusterId]
 			if kubePod == nil {
-				glog.Errorf("Missing pod for pod id : %s\n", podClusterId)
+				glog.Errorf("Missing pod for pod id : %s", podClusterId)
 				continue
 			}
 			pods = append(pods, kubePod.Pod)

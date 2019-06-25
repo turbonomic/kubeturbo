@@ -221,18 +221,24 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	}
 	//4. build entityDTOs for applications
 	appEntityDTOs, podEntities, err := worker.buildAppDTOs(currTask, podsWithDtos)
+	if err != nil {
+		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
+	}
 	entityDTOs = append(entityDTOs, appEntityDTOs...)
 
 	// Uncomment this to dump the topology to a file for later use by the unit tests
 	// util.DumpTopology(currTask, "test-topology.dat")
 
-	// Task result with node and pod resource metrics, quota metrics and policy groups
+	// Task result with node, pod, container and application DTOs
+	// pod entities with the associated app DTOs for creating service DTOs
 	result := task.NewTaskResult(worker.id, task.TaskSucceeded).WithContent(entityDTOs)
+	// In addition, return pod entities with the associated app DTOs for creating service DTOs
 	result.WithPodEntities(podEntities)
 	// return the quota metrics created by this worker
 	if len(quotaMetricsCollection) > 0 {
 		result.WithQuotaMetrics(quotaMetricsCollection)
 	}
+	//return container and pod groups created by this worker
 	if len(entityGroups) > 0 {
 		result.WithEntityGroups(entityGroups)
 	}
