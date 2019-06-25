@@ -171,16 +171,31 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	// Call cache cleanup
 	dc.config.probeConfig.NodeClient.CleanupCache(nodes)
 
+	// Discover pods and create DTOs for nodes, pods, containers, application.
+	// Collect the kubePod, quota metrics, groups from all the discovery workers
 	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
-	entityDTOs, quotaMetricsList, policyGroupList := dc.resultCollector.Collect(workerCount)
+	entityDTOs, podEntitiesMap, quotaMetricsList, policyGroupList := dc.resultCollector.Collect(workerCount)
 
 	// Quota discovery worker to create quota DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType
 	quotasDiscoveryWorker := worker.Newk8sResourceQuotasDiscoveryWorker(clusterSummary, stitchType)
 	quotaDtos, _ := quotasDiscoveryWorker.Do(quotaMetricsList)
 
+	// Service DTOs
+	glog.V(2).Infof("Begin to generate service EntityDTOs.")
+	svcDiscWorker := worker.Newk8sServiceDiscoveryWorker(clusterSummary)
+	serviceDtos, err := svcDiscWorker.Do(podEntitiesMap)
+	if err != nil {
+		glog.Errorf("Failed to discover services from current Kubernetes cluster with the new discovery framework: %s", err)
+	} else {
+		glog.V(2).Infof("There are %d vApp entityDTOs.", len(serviceDtos))
+		entityDTOs = append(entityDTOs, serviceDtos...)
+	}
+
 	// All the DTOs
 	entityDTOs = append(entityDTOs, quotaDtos...)
+
+	glog.V(2).Infof("There are totally %d entityDTOs.", len(entityDTOs))
 
 	// affinity process
 	glog.V(2).Infof("Begin to process affinity.")
@@ -203,19 +218,6 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 		taintTolerationProcessor.Process(entityDTOs)
 	}
 	glog.V(2).Infof("Successfully processed taints and tolerations.")
-
-	glog.V(2).Infof("Begin to generate service EntityDTOs.")
-	svcWorkerConfig := worker.NewK8sServiceDiscoveryWorkerConfig(dc.k8sClusterScraper)
-	svcDiscWorker, err := worker.NewK8sServiceDiscoveryWorker(svcWorkerConfig)
-	svcDiscResult := svcDiscWorker.Do(entityDTOs)
-	if svcDiscResult.Err() != nil {
-		glog.Errorf("Failed to discover services from current Kubernetes cluster with the new discovery framework: %s", svcDiscResult.Err())
-	} else {
-		glog.V(2).Infof("There are %d vApp entityDTOs.", len(svcDiscResult.Content()))
-		entityDTOs = append(entityDTOs, svcDiscResult.Content()...)
-	}
-
-	glog.V(2).Infof("There are totally %d entityDTOs.", len(entityDTOs))
 
 	// Discovery worker for creating Group DTOs
 	targetId := dc.config.targetConfig.TargetIdentifier
