@@ -2,6 +2,7 @@ package registration
 
 import (
 	"fmt"
+	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 
@@ -35,6 +36,15 @@ var (
 	memRequestAllocationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memRequestAllocationType}
 	vmpmAccessTemplateComm                  = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
 	applicationTemplateCommWithKey          = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
+
+	// Internal matching property
+	proxyVMIP   = "Proxy_VM_IP"
+	proxyVMUUID = "Proxy_VM_UUID"
+
+	// External matching property
+	VMIPFieldName  = supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS
+	VMIPFieldPaths = []string{supplychain.SUPPLY_CHAIN_CONSTANT_VIRTUAL_MACHINE_DATA}
+	VMUUID         = supplychain.SUPPLY_CHAIN_CONSTANT_ID
 )
 
 type SupplyChainFactory struct {
@@ -62,42 +72,46 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	if err != nil {
 		return nil, err
 	}
-	glog.V(4).Infof("supply chain node : %++v", nodeSupplyChainNode)
+	nodeSupplyChainNode.MergedEntityMetaData, err = f.buildNodeMergedEntityMetadata()
+	if err != nil {
+		return nil, err
+	}
+	glog.V(4).Infof("Supply chain node: %+v", nodeSupplyChainNode)
 
 	// Resource Quota supply chain template
 	quotaSupplyChainNode, err := f.buildQuotaSupplyBuilder()
 	if err != nil {
 		return nil, err
 	}
-	glog.V(4).Infof("supply chain node : %++v", quotaSupplyChainNode)
+	glog.V(4).Infof("Supply chain node: %+v", quotaSupplyChainNode)
 
 	// Pod supply chain template
 	podSupplyChainNode, err := f.buildPodSupplyBuilder()
 	if err != nil {
 		return nil, err
 	}
-	glog.V(4).Infof("supply chain node : %++v", podSupplyChainNode)
+	glog.V(4).Infof("Supply chain node: %+v", podSupplyChainNode)
 
 	// Container supply chain template
 	containerSupplyChainNode, err := f.buildContainer()
 	if err != nil {
 		return nil, err
 	}
-	glog.V(4).Infof("supply chain node : %++v", containerSupplyChainNode)
+	glog.V(4).Infof("Supply chain node: %+v", containerSupplyChainNode)
 
 	// Application supply chain template
 	appSupplyChainNode, err := f.buildApplicationSupplyBuilder()
 	if err != nil {
 		return nil, err
 	}
-	glog.V(4).Infof("supply chain node : %++v", appSupplyChainNode)
+	glog.V(4).Infof("Supply chain node: %+v", appSupplyChainNode)
 
 	// Virtual application supply chain template
 	vAppSupplyChainNode, err := f.buildVirtualApplicationSupplyBuilder()
 	if err != nil {
 		return nil, err
 	}
-	glog.V(4).Infof("supply chain node : %++v", vAppSupplyChainNode)
+	glog.V(4).Infof("Supply chain node: %+v", vAppSupplyChainNode)
 
 	supplyChainBuilder := supplychain.NewSupplyChainBuilder()
 	supplyChainBuilder.Top(vAppSupplyChainNode)
@@ -108,6 +122,53 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	supplyChainBuilder.Entity(nodeSupplyChainNode)
 
 	return supplyChainBuilder.Create()
+}
+
+// Stitching metadata required for stitching with XL
+func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntityMetadata, error) {
+	fieldsCapactiy := map[string][]string{
+		builder.PropertyCapacity: {},
+	}
+	fieldsUsedCapacity := map[string][]string{
+		builder.PropertyUsed:     {},
+		builder.PropertyCapacity: {},
+	}
+	fieldsUsedCapacityPeak := map[string][]string{
+		builder.PropertyUsed:     {},
+		builder.PropertyCapacity: {},
+		builder.PropertyPeak:     {},
+	}
+	mergedEntityMetadataBuilder := builder.NewMergedEntityMetadataBuilder()
+	// Set up matching criteria based on stitching type
+	switch f.stitchingPropertyType {
+	case stitching.UUID:
+		mergedEntityMetadataBuilder.
+			InternalMatchingType(builder.MergedEntityMetadata_STRING).
+			InternalMatchingProperty(proxyVMUUID).
+			ExternalMatchingType(builder.MergedEntityMetadata_STRING).
+			ExternalMatchingField(VMUUID, []string{})
+	case stitching.IP:
+		mergedEntityMetadataBuilder.
+			InternalMatchingType(builder.MergedEntityMetadata_LIST_STRING).
+			InternalMatchingPropertyWithDelimiter(proxyVMIP, ",").
+			ExternalMatchingType(builder.MergedEntityMetadata_LIST_STRING).
+			ExternalMatchingFieldWithDelimiter(VMIPFieldName, VMIPFieldPaths, ",")
+	default:
+		return nil, fmt.Errorf("stitching property type %s is not supported",
+			f.stitchingPropertyType)
+	}
+	return mergedEntityMetadataBuilder.
+		PatchSoldMetadata(proto.CommodityDTO_CLUSTER, fieldsCapactiy).
+		PatchSoldMetadata(proto.CommodityDTO_VMPM_ACCESS, fieldsCapactiy).
+		PatchSoldMetadata(proto.CommodityDTO_VCPU, fieldsUsedCapacityPeak).
+		PatchSoldMetadata(proto.CommodityDTO_VMEM, fieldsUsedCapacityPeak).
+		PatchSoldMetadata(proto.CommodityDTO_VCPU_REQUEST, fieldsUsedCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_VMEM_REQUEST, fieldsUsedCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_CPU_ALLOCATION, fieldsUsedCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_MEM_ALLOCATION, fieldsUsedCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_CPU_REQUEST_ALLOCATION, fieldsUsedCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_MEM_REQUEST_ALLOCATION, fieldsUsedCapacity).
+		Build()
 }
 
 func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error) {
