@@ -27,13 +27,13 @@ func (rc *ResultCollector) ResultPool() chan *task.TaskResult {
 	return rc.resultPool
 }
 
-func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository.QuotaMetrics, []*repository.EntityGroup) {
-	//map[string]*repository.PolicyGroup) {
+func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*repository.KubePod,
+	[]*repository.QuotaMetrics, []*repository.EntityGroup) {
 	discoveryResult := []*proto.EntityDTO{}
 	quotaMetricsList := []*repository.QuotaMetrics{}
 	entityGroupList := []*repository.EntityGroup{}
 	discoveryErrorString := []string{}
-
+	podEntitiesMap := make(map[string]*repository.KubePod)
 	glog.V(2).Infof("Waiting for results from %d workers.", count)
 
 	stopChan := make(chan struct{})
@@ -55,6 +55,10 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository
 					quotaMetricsList = append(quotaMetricsList, result.QuotaMetrics()...)
 					// Group data from different workers
 					entityGroupList = append(entityGroupList, result.EntityGroups()...)
+					// Pod data with apps from different workers
+					for _, kubePod := range result.PodEntities() {
+						podEntitiesMap[kubePod.PodClusterId] = kubePod
+					}
 				}
 				wg.Done()
 			}
@@ -69,5 +73,5 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, []*repository
 		glog.Errorf("One or more discovery worker failed: %s", strings.Join(discoveryErrorString, "\t\t"))
 	}
 
-	return discoveryResult, quotaMetricsList, entityGroupList
+	return discoveryResult, podEntitiesMap, quotaMetricsList, entityGroupList
 }

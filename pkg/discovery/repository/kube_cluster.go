@@ -18,6 +18,8 @@ type KubeCluster struct {
 	Nodes            map[string]*KubeNode
 	Namespaces       map[string]*KubeNamespace
 	ClusterResources map[metrics.ResourceType]*KubeDiscoveredResource
+	// Map of Service to Pod Ids
+	Services map[*v1.Service][]string
 }
 
 func NewKubeCluster(clusterName string, nodes []*v1.Node) *KubeCluster {
@@ -103,25 +105,28 @@ func (kc *KubeCluster) GetQuota(namespace string) *KubeQuota {
 type ClusterSummary struct {
 	*KubeCluster
 	// Computed
-	NodeMap         map[string]*v1.Node
-	NodeList        []*v1.Node
-	QuotaMap        map[string]*KubeQuota
-	NodeNameUIDMap  map[string]string
-	QuotaNameUIDMap map[string]string
+	NodeMap                  map[string]*v1.Node
+	NodeList                 []*v1.Node
+	QuotaMap                 map[string]*KubeQuota
+	NodeNameUIDMap           map[string]string
+	QuotaNameUIDMap          map[string]string
+	PodClusterIDToServiceMap map[string]*v1.Service
 }
 
 func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
 	clusterSummary := &ClusterSummary{
-		KubeCluster:     kubeCluster,
-		NodeMap:         make(map[string]*v1.Node),
-		NodeList:        []*v1.Node{},
-		QuotaMap:        make(map[string]*KubeQuota),
-		NodeNameUIDMap:  make(map[string]string),
-		QuotaNameUIDMap: make(map[string]string),
+		KubeCluster:              kubeCluster,
+		NodeMap:                  make(map[string]*v1.Node),
+		NodeList:                 []*v1.Node{},
+		QuotaMap:                 make(map[string]*KubeQuota),
+		NodeNameUIDMap:           make(map[string]string),
+		QuotaNameUIDMap:          make(map[string]string),
+		PodClusterIDToServiceMap: make(map[string]*v1.Service),
 	}
 
 	clusterSummary.computeNodeMap()
 	clusterSummary.computeQuotaMap()
+	clusterSummary.computePodToServiceMap()
 
 	return clusterSummary
 }
@@ -147,6 +152,16 @@ func (getter *ClusterSummary) computeQuotaMap() {
 		}
 	}
 	return
+}
+
+func (summary *ClusterSummary) computePodToServiceMap() {
+	summary.PodClusterIDToServiceMap = make(map[string]*v1.Service)
+
+	for svc, podList := range summary.Services {
+		for _, podClusterID := range podList {
+			summary.PodClusterIDToServiceMap[podClusterID] = svc
+		}
+	}
 }
 
 // =================================================================================================
@@ -177,7 +192,7 @@ func NewKubeNode(apiNode *v1.Node, clusterName string) *KubeNode {
 	return nodeEntity
 }
 
-// Set the compute resources and IP property in the node entity
+// Parse the api node object to set the compute resources and IP property in the node entity
 func (nodeEntity *KubeNode) updateResources(apiNode *v1.Node) {
 	// Node compute resources
 	resourceAllocatableList := apiNode.Status.Allocatable
