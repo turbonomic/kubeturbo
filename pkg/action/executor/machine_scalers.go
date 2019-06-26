@@ -55,8 +55,8 @@ func (client *k8sClusterApi) verifyClusterAPIEnabled() error {
 }
 
 // identifyManagingMachine returns the Machine that manages a Node.  The Machine name is located in a Node annotation.
-// An error is returned if the Node, Machine or Node annotation is not found.
-func (client *k8sClusterApi) identifyManagingMachine(machineName string) (*clusterv1.Machine, error) {
+// An error is returned if the Node, Machine or Node -> Machine line are not found.
+func (client *k8sClusterApi) identifyManagingMachine(nodeName string) (*clusterv1.Machine, error) {
 	nodes := client.k8sClient.CoreV1().Nodes()
 	node, err := nodes.Get(nodeName, metav1.GetOptions{})
 	if err != nil {
