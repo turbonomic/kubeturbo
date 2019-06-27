@@ -373,14 +373,13 @@ func (worker *k8sDiscoveryWorker) buildAppDTOs(currTask *task.Task, podsWithDtos
 
 	cluster := currTask.Cluster()
 
-	glog.Infof("******** %s: all pods %d, pods with dtos %d ********", worker.id, len(currTask.PodList()), len(podsWithDtos))
+	glog.V(4).Infof("%s: all pods %d, pods with dtos %d", worker.id, len(currTask.PodList()), len(podsWithDtos))
 	//4. build entityDTOs for application running on each container
 	applicationEntityDTOBuilder := dtofactory.NewApplicationEntityDTOBuilder(worker.sink,
 		cluster.PodClusterIDToServiceMap)
 
 	var podEntities []*repository.KubePod
 	for _, pod := range podsWithDtos {
-		glog.Infof("$$$$$ %s: pod %s/%s", worker.id, pod.Namespace, pod.Name)
 		kubeNode := cluster.Nodes[pod.Spec.NodeName]
 		kubePod := repository.NewKubePod(pod, kubeNode, cluster.Name)
 
@@ -388,8 +387,9 @@ func (worker *k8sDiscoveryWorker) buildAppDTOs(currTask *task.Task, podsWithDtos
 		service := cluster.PodClusterIDToServiceMap[kubePod.PodClusterId]
 		if service != nil {
 			kubePod.ServiceId = util.GetServiceClusterID(service)
+			glog.V(4).Infof("Pod %s --> service %s", kubePod.PodClusterId, kubePod.ServiceId)
 		}
-		glog.Infof("Pod %s --> service %s", kubePod.PodClusterId, kubePod.ServiceId)
+
 
 		// Pod apps
 		appEntityDTOs, err := applicationEntityDTOBuilder.BuildEntityDTO(pod)
