@@ -390,7 +390,6 @@ func (worker *k8sDiscoveryWorker) buildAppDTOs(currTask *task.Task, podsWithDtos
 			glog.V(4).Infof("Pod %s --> service %s", kubePod.PodClusterId, kubePod.ServiceId)
 		}
 
-
 		// Pod apps
 		appEntityDTOs, err := applicationEntityDTOBuilder.BuildEntityDTO(pod)
 		if err != nil {
