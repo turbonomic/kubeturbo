@@ -18,7 +18,6 @@ type ActionType string
 // These are the valid Action types.
 const (
 	clusterAPIGroupVersion                = "cluster.k8s.io/v1alpha1"
-	clusterAPINamespace                   = "kube-system"
 	ProvisionAction            ActionType = "Provision"
 	SuspendAction              ActionType = "Suspend"
 	operationMaxWaits                     = 60
@@ -335,7 +334,7 @@ func (controller *machineDeploymentController) waitForState(stateDesc string, f 
 }
 
 // IsClusterAPIEnabled checks whether cluster API is in fact enabled.
-func IsClusterAPIEnabled(cApiClient *clientset.Clientset, kubeClient *kubernetes.Clientset) (bool, error) {
+func IsClusterAPIEnabled(namespace string, cApiClient *clientset.Clientset, kubeClient *kubernetes.Clientset) (bool, error) {
 	if cApiClient == nil {
 		return false, nil
 	}
@@ -344,9 +343,9 @@ func IsClusterAPIEnabled(cApiClient *clientset.Clientset, kubeClient *kubernetes
 		caClient:          cApiClient,
 		k8sClient:         kubeClient,
 		discovery:         kubeClient.Discovery(),
-		machine:           cApiClient.ClusterV1alpha1().Machines(clusterAPINamespace),
-		machineSet:        cApiClient.ClusterV1alpha1().MachineSets(clusterAPINamespace),
-		machineDeployment: cApiClient.ClusterV1alpha1().MachineDeployments(clusterAPINamespace),
+		machine:           cApiClient.ClusterV1alpha1().Machines(namespace),
+		machineSet:        cApiClient.ClusterV1alpha1().MachineSets(namespace),
+		machineDeployment: cApiClient.ClusterV1alpha1().MachineDeployments(namespace),
 		caGroupVersion:    clusterAPIGroupVersion,
 	}
 	// Check whether Cluster API is enabled.
@@ -357,7 +356,7 @@ func IsClusterAPIEnabled(cApiClient *clientset.Clientset, kubeClient *kubernetes
 }
 
 // Construct the controller
-func newController(nodeName string, diff int32, actionType ActionType,
+func newController(namespace string, nodeName string, diff int32, actionType ActionType,
 	cApiClient *clientset.Clientset, kubeClient *kubernetes.Clientset) (Controller, *string, error) {
 	if cApiClient == nil {
 		return nil, nil, fmt.Errorf("no Cluster API available")
@@ -367,9 +366,9 @@ func newController(nodeName string, diff int32, actionType ActionType,
 		caClient:          cApiClient,
 		k8sClient:         kubeClient,
 		discovery:         kubeClient.Discovery(),
-		machine:           cApiClient.ClusterV1alpha1().Machines(clusterAPINamespace),
-		machineSet:        cApiClient.ClusterV1alpha1().MachineSets(clusterAPINamespace),
-		machineDeployment: cApiClient.ClusterV1alpha1().MachineDeployments(clusterAPINamespace),
+		machine:           cApiClient.ClusterV1alpha1().Machines(namespace),
+		machineSet:        cApiClient.ClusterV1alpha1().MachineSets(namespace),
+		machineDeployment: cApiClient.ClusterV1alpha1().MachineDeployments(namespace),
 		caGroupVersion:    clusterAPIGroupVersion,
 	}
 	// Check whether Cluster API is enabled.

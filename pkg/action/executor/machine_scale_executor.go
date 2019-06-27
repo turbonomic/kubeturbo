@@ -8,14 +8,16 @@ import (
 )
 
 type MachineActionExecutor struct {
-	executor TurboK8sActionExecutor
-	cache    *turbostore.Cache
+	executor      TurboK8sActionExecutor
+	cache         *turbostore.Cache
+	cAPINamespace string
 }
 
-func NewMachineActionExecutor(ae TurboK8sActionExecutor) *MachineActionExecutor {
+func NewMachineActionExecutor(namespace string, ae TurboK8sActionExecutor) *MachineActionExecutor {
 	return &MachineActionExecutor{
-		executor: ae,
-		cache:    turbostore.NewCache(),
+		executor:      ae,
+		cache:         turbostore.NewCache(),
+		cAPINamespace: namespace,
 	}
 }
 
@@ -41,7 +43,8 @@ func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*Turbo
 		return nil, fmt.Errorf("Unsupported action type %v", vmDTO.ActionItem.GetActionType())
 	}
 	// Get on with it.
-	controller, key, err := newController(nodeName, 1, actionType, s.executor.cApiClient, s.executor.kubeClient)
+	controller, key, err := newController(s.cAPINamespace, nodeName, 1, actionType,
+		s.executor.cApiClient, s.executor.kubeClient)
 	if err != nil {
 		return nil, err
 	} else if key == nil {
