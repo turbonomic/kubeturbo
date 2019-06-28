@@ -101,7 +101,7 @@ func (c *Config) WithSccSupport(sccSupport []string) *Config {
 	return c
 }
 
-func (c *Config) WithCAPINapespace(CAPINamespace string) *Config {
+func (c *Config) WithCAPINamespace(CAPINamespace string) *Config {
 	c.CAPINamespace = CAPINamespace
 	return c
 }
