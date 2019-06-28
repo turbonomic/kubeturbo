@@ -259,7 +259,7 @@ func (s *VMTServer) Run() {
 		WithValidationTimeout(s.ValidationTimeout).
 		WithValidationWorkers(s.ValidationWorkers).
 		WithSccSupport(s.sccSupport).
-		WithCAPINapespace(s.ClusterAPINamespace)
+		WithCAPINamespace(s.ClusterAPINamespace)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service
