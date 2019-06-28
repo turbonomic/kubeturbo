@@ -46,9 +46,10 @@ type ActionHandlerConfig struct {
 	kubeletClient  *kubeclient.KubeletClient
 	StopEverything chan struct{}
 	sccAllowedSet  map[string]struct{}
+	cAPINamespace  string
 }
 
-func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubeclient.KubeletClient, sccSupport []string) *ActionHandlerConfig {
+func NewActionHandlerConfig(cApiNamespace string, kubeClient *client.Clientset, kubeletClient *kubeclient.KubeletClient, sccSupport []string) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
 		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}
@@ -60,6 +61,7 @@ func NewActionHandlerConfig(kubeClient *client.Clientset, kubeletClient *kubecli
 		kubeletClient:  kubeletClient,
 		StopEverything: make(chan struct{}),
 		sccAllowedSet:  sccAllowedSet,
+		cAPINamespace:  cApiNamespace,
 	}
 
 	return config
@@ -70,7 +72,7 @@ type ActionHandler struct {
 
 	actionExecutors map[turboActionType]executor.TurboActionExecutor
 
-	//concurrency control
+	// concurrency control
 	lockStore IActionLockStore
 
 	podManager util.IPodManager
@@ -111,8 +113,8 @@ func (h *ActionHandler) registerActionExecutors() {
 	h.actionExecutors[turboActionContainerResize] = containerResizer
 
 	// Only register the actions when API client is non-nil.
-	if ok, err := executor.IsClusterAPIEnabled(c.cApiClient, c.kubeClient); ok && err == nil {
-		machineScaler := executor.NewMachineActionExecutor(ae)
+	if ok, err := executor.IsClusterAPIEnabled(c.cAPINamespace, c.cApiClient, c.kubeClient); ok && err == nil {
+		machineScaler := executor.NewMachineActionExecutor(c.cAPINamespace, ae)
 		h.actionExecutors[turboActionMachineProvision] = machineScaler
 		h.actionExecutors[turboActionMachineSuspend] = machineScaler
 	} else {
@@ -280,7 +282,7 @@ func (h *ActionHandler) failedResult(msg string) *proto.ActionResult {
 
 func keepAlive(tracker sdkprobe.ActionProgressTracker, stop chan struct{}) {
 
-	//TODO: add timeout
+	// TODO: add timeout
 	go func() {
 		var progress int32 = 0
 		state := proto.ActionResponseState_IN_PROGRESS
