@@ -29,7 +29,8 @@ type Config struct {
 	ValidationWorkers    int
 	ValidationTimeoutSec int
 
-	SccSupport []string
+	SccSupport    []string
+	CAPINamespace string
 }
 
 func NewVMTConfig2() *Config {
@@ -97,5 +98,10 @@ func (c *Config) WithValidationWorkers(di int) *Config {
 
 func (c *Config) WithSccSupport(sccSupport []string) *Config {
 	c.SccSupport = sccSupport
+	return c
+}
+
+func (c *Config) WithCAPINamespace(CAPINamespace string) *Config {
+	c.CAPINamespace = CAPINamespace
 	return c
 }

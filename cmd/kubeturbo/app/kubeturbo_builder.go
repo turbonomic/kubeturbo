@@ -92,6 +92,9 @@ type VMTServer struct {
 	// Force the use of self-signed certificates.
 	// The default is true.
 	ForceSelfSignedCerts bool
+
+	// The Cluster API namespace
+	ClusterAPINamespace string
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -124,6 +127,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.ValidationWorkers, "validation-workers", defaultValidationWorkers, "The validation workers")
 	fs.IntVar(&s.ValidationTimeout, "validation-timeout-sec", defaultValidationTimeout, "The validation timeout in seconds")
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all")
+	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -254,7 +258,8 @@ func (s *VMTServer) Run() {
 		WithDiscoveryInterval(s.DiscoveryIntervalSec).
 		WithValidationTimeout(s.ValidationTimeout).
 		WithValidationWorkers(s.ValidationWorkers).
-		WithSccSupport(s.sccSupport)
+		WithSccSupport(s.sccSupport).
+		WithCAPINamespace(s.ClusterAPINamespace)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service

@@ -1,7 +1,6 @@
-package worker
+package processor
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
@@ -65,11 +64,7 @@ func TestFindPodEndpoints(t *testing.T) {
 		Subsets: []api.EndpointSubset{subset},
 	}
 
-	endpointMap := make(map[string]*api.Endpoints)
-	svcId := util.GetEndpointsClusterID(endpoint)
-	endpointMap[svcId] = endpoint
-
-	result := findPodEndpoints(svc, endpointMap)
+	result := findPodEndpoints(svc, endpoint)
 	if len(result) != 1 {
 		t.Errorf("Failed to find service's pod endpoints: %d Vs. %d", 1, len(result))
 	}
