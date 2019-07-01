@@ -133,12 +133,20 @@ func (builder *applicationEntityDTOBuilder) getCommoditiesSold(pod *api.Pod, ind
 	svc := builder.podClusterIDToServiceMap[podClusterId]
 	// commodity key using service Id
 	var key string
+
 	// Service is associated with the pod, then the commodities key is the service Id,
 	// Else, it is computed using the container IP
 	if svc != nil {
 		key = util.GetServiceClusterID(svc)
 	} else {
-		key = getAppStitchingProperty(pod, index)
+		key = pod.Status.PodIP
+	}
+
+	// Sold commodity Key is appended with the container index,
+	// to distinguish between the main application serving the virtual application service
+	// and the sidecar application in the pod
+	if index > 0 {
+		key = fmt.Sprintf("%s-%d", key, index)
 	}
 
 	// Application Access Commodity in lieu of Transaction and ResponseTime commodities
