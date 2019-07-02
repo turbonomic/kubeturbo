@@ -12,7 +12,6 @@ import (
 // Builds GroupDTOs given the map of EntityGroup structures for the kubeturbo probe.
 type groupDTOBuilder struct {
 	entityGroupMap map[string]*repository.EntityGroup
-	nodeNames      []string
 	targetId       string
 }
 
@@ -31,10 +30,10 @@ var (
 func NewGroupDTOBuilder(entityGroupMap map[string]*repository.EntityGroup,
 	targetId string) (*groupDTOBuilder, error) {
 	if entityGroupMap == nil || len(entityGroupMap) == 0 {
-		return nil, fmt.Errorf("Invalid entity group map")
+		return nil, fmt.Errorf("invalid entity group map")
 	}
 	if targetId == "" {
-		return nil, fmt.Errorf("Invalid kubeturbo target identifier [%s]", targetId)
+		return nil, fmt.Errorf("invalid kubeturbo target identifier [%s]", targetId)
 	}
 
 	return &groupDTOBuilder{
@@ -46,7 +45,7 @@ func NewGroupDTOBuilder(entityGroupMap map[string]*repository.EntityGroup,
 // Build groupDTOs for pod and containers that belong to parent group instances for
 // StatefulSets, DaemonSets, ReplicaSets.
 // In addition also builds pod groups per parent type.
-func (builder *groupDTOBuilder) BuildGroupDTOs() ([]*proto.GroupDTO, error) {
+func (builder *groupDTOBuilder) BuildGroupDTOs() []*proto.GroupDTO {
 	var result []*proto.GroupDTO
 
 	// Groups per parent instance
@@ -100,5 +99,5 @@ func (builder *groupDTOBuilder) BuildGroupDTOs() ([]*proto.GroupDTO, error) {
 		}
 	}
 
-	return result, nil
+	return result
 }

@@ -72,7 +72,7 @@ func (p *ServiceProcessor) ProcessServices() {
 
 	for svc, podList := range svcPodMap {
 		serviceClusterID := util.GetServiceClusterID(svc)
-		glog.Infof("Service:%s --> %s\n", serviceClusterID, podList)
+		glog.V(4).Infof("Service:%s --> %s\n", serviceClusterID, podList)
 	}
 	p.KubeCluster.Services = svcPodMap
 }
