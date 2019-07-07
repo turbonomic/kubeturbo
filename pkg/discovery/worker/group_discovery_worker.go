@@ -14,13 +14,13 @@ const (
 type k8sEntityGroupDiscoveryWorker struct {
 	id       string
 	targetId string
-	Cluster  *repository.ClusterSummary
+	cluster  *repository.ClusterSummary
 }
 
 func Newk8sEntityGroupDiscoveryWorker(cluster *repository.ClusterSummary,
 	targetId string) *k8sEntityGroupDiscoveryWorker {
 	return &k8sEntityGroupDiscoveryWorker{
-		Cluster:  cluster,
+		cluster:  cluster,
 		id:       k8sGroupWorkerID,
 		targetId: targetId,
 	}
@@ -31,7 +31,7 @@ func Newk8sEntityGroupDiscoveryWorker(cluster *repository.ClusterSummary,
 // Then it creates DTOs for the groups to be sent to the server.
 func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.EntityGroup,
 ) ([]*proto.GroupDTO, error) {
-	var groupDtos []*proto.GroupDTO
+	var groupDTOs []*proto.GroupDTO
 
 	// Entity groups per Owner type and instance
 	entityGroupMap := make(map[string]*repository.EntityGroup)
@@ -57,9 +57,13 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 	// Create DTOs for each group entity
 	groupDtoBuilder, err := dtofactory.NewGroupDTOBuilder(entityGroupMap, worker.targetId)
 	if err != nil {
-		return groupDtos, err
+		return nil, err
 	}
-
-	groupDtos, _ = groupDtoBuilder.BuildGroupDTOs()
-	return groupDtos, nil
+	groupDTOs = groupDtoBuilder.BuildGroupDTOs()
+	// Create DTO for cluster
+	clusterDTO := dtofactory.NewClusterDTOBuilder(worker.cluster, worker.targetId).Build()
+	if clusterDTO != nil {
+		groupDTOs = append(groupDTOs, clusterDTO)
+	}
+	return groupDTOs, nil
 }
