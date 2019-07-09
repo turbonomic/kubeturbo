@@ -1,20 +1,39 @@
 language: go
 
+env:
+  global:
+    - DOCKER_IMAGE_NAME=$TRAVIS_REPO_SLUG
+
+services:
+  - docker
+
 go:
-  - 1.11
-  - tip
+  - 1.12
 
 go_import_path: github.com/turbonomic/kubeturbo
 
 before_install:
   - go get -v github.com/mattn/goveralls
 
-matrix:
-  allow_failures:
-    - go: tip
-
 script:
-  - make fmtcheck 
+  - make fmtcheck
   - make vet
-  - make product
-  - if [ "$TRAVIS_GO_VERSION" == "tip" ] ; then make test ; else $HOME/gopath/bin/goveralls -v -race -service=travis-ci ; fi
+  - make build
+  - $HOME/gopath/bin/goveralls -v -race -service=travis-ci
+  - cp ./kubeturbo build
+  - cd build
+  - docker build -t $DOCKER_IMAGE_NAME --build-arg GIT_COMMIT=$TRAVIS_COMMIT --label "git-version=$TRAVIS_COMMIT" .
+
+after_success:
+  - |
+    if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
+      echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+      if [ -n "$TRAVIS_TAG" ]; then
+          # Push a release image triggered by a git tag
+          docker tag $DOCKER_IMAGE_NAME $DOCKER_IMAGE_NAME:$TRAVIS_TAG
+          docker push $DOCKER_IMAGE_NAME:$TRAVIS_TAG
+      elif [ "$TRAVIS_BRANCH" == "master" ]; then
+          # Push the latest image built from master branch
+          docker push $DOCKER_IMAGE_NAME
+      fi
+    fi
