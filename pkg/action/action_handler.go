@@ -49,7 +49,7 @@ type ActionHandlerConfig struct {
 	cAPINamespace  string
 }
 
-func NewActionHandlerConfig(cApiNamespace string, kubeClient *client.Clientset, kubeletClient *kubeclient.KubeletClient, sccSupport []string) *ActionHandlerConfig {
+func NewActionHandlerConfig(cApiNamespace string, cApiClient *clientset.Clientset, kubeClient *client.Clientset, kubeletClient *kubeclient.KubeletClient, sccSupport []string) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
 		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}
@@ -62,6 +62,7 @@ func NewActionHandlerConfig(cApiNamespace string, kubeClient *client.Clientset, 
 		StopEverything: make(chan struct{}),
 		sccAllowedSet:  sccAllowedSet,
 		cAPINamespace:  cApiNamespace,
+		cApiClient:     cApiClient,
 	}
 
 	return config
