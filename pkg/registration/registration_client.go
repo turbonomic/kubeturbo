@@ -115,7 +115,7 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	// 4. node: move, provision; not resize;
 	node := proto.EntityDTO_VIRTUAL_MACHINE
 	nodePolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	nodePolicy[proto.ActionItemDTO_MOVE] = supported
+	nodePolicy[proto.ActionItemDTO_MOVE] = notSupported
 	nodePolicy[proto.ActionItemDTO_PROVISION] = supported
 	nodePolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
 	nodePolicy[proto.ActionItemDTO_SUSPEND] = supported
