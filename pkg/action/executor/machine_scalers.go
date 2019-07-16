@@ -8,6 +8,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1"
+	"strings"
 	"time"
 )
 
@@ -59,7 +60,32 @@ func (client *k8sClusterApi) identifyManagingMachine(machineName string) (*clust
 	if err == nil {
 		return machine, nil
 	}
-	return nil, fmt.Errorf("Machine not found " + machineName)
+	nodes := client.k8sClient.CoreV1().Nodes()
+	node, err := nodes.Get(machineName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	nodeSpecTmp := strings.Split(node.Spec.ProviderID, "/")
+	if len(nodeSpecTmp) < 2 {
+		return nil, fmt.Errorf("Node " + machineName + " has no valid provider ID")
+	}
+	nodeProviderID := nodeSpecTmp[len(nodeSpecTmp)-1]
+	// List all machines and match.
+	machineList, err := client.machine.List(metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, machine := range machineList.Items {
+		machineSpecTmp := strings.Split(*machine.Spec.ProviderID, "/")
+		if len(nodeSpecTmp) < 2 {
+			return nil, fmt.Errorf("Machine " + machine.Name + " has no valid provider ID")
+		}
+		machineProviderID := machineSpecTmp[len(machineSpecTmp)-1]
+		if machineProviderID == nodeProviderID {
+			return &machine, nil
+		}
+	}
+	return nil, fmt.Errorf("Machine not found for the node " + machineName)
 }
 
 // identifyManagingMachineSet returns the MachineSet that manages a specific Machine and the complete list of Machines
