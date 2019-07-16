@@ -8,7 +8,6 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1"
-	"strings"
 	"time"
 )
 
@@ -24,7 +23,7 @@ const (
 	operationWaitSleepInterval            = 10 * time.Second
 )
 
-// apiClients encapsulates Kubernetes and ClusterAPI clients and interfaces needed for NodeF scaling.
+// apiClients encapsulates Kubernetes and ClusterAPI clients and interfaces needed for machine scaling.
 // ca prefix stands for Cluster API everywhere.
 type k8sClusterApi struct {
 	// clients
@@ -53,35 +52,14 @@ func (client *k8sClusterApi) verifyClusterAPIEnabled() error {
 	return nil
 }
 
-// identifyManagingMachine returns the Machine that manages a Node.  The Machine name is located in a Node annotation.
-// An error is returned if the Node, Machine or Node -> Machine line are not found.
-func (client *k8sClusterApi) identifyManagingMachine(nodeName string) (*clusterv1.Machine, error) {
-	nodes := client.k8sClient.CoreV1().Nodes()
-	node, err := nodes.Get(nodeName, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
+// identifyManagingMachine returns the Machine that manages a Machine.
+// An error is returned if the Machine is not found.
+func (client *k8sClusterApi) identifyManagingMachine(machineName string) (*clusterv1.Machine, error) {
+	machine, err := client.machine.Get(machineName, metav1.GetOptions{})
+	if err == nil {
+		return machine, nil
 	}
-	nodeSpecTmp := strings.Split(node.Spec.ProviderID, "/")
-	if len(nodeSpecTmp) < 2 {
-		return nil, fmt.Errorf("Node " + nodeName + " has no valid provider ID")
-	}
-	nodeProviderID := nodeSpecTmp[len(nodeSpecTmp)-1]
-	// List all machines and match.
-	machineList, err := client.machine.List(metav1.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-	for _, machine := range machineList.Items {
-		machineSpecTmp := strings.Split(*machine.Spec.ProviderID, "/")
-		if len(nodeSpecTmp) < 2 {
-			return nil, fmt.Errorf("Machine " + machine.Name + " has no valid provider ID")
-		}
-		machineProviderID := machineSpecTmp[len(machineSpecTmp)-1]
-		if machineProviderID == nodeProviderID {
-			return &machine, nil
-		}
-	}
-	return nil, fmt.Errorf("Machine not found for the node " + nodeName)
+	return nil, fmt.Errorf("Machine not found " + machineName)
 }
 
 // identifyManagingMachineSet returns the MachineSet that manages a specific Machine and the complete list of Machines
@@ -123,10 +101,10 @@ func (client *k8sClusterApi) listMachinesInDeployment(ms *clusterv1.MachineDeplo
 
 // actionRequest represents a single request for action execution.  This is the "base" type for all action requests.
 type actionRequest struct {
-	client     *k8sClusterApi
-	nodeName   string // name of the Node to be cloned or deleted
-	diff       int32  // number of Nodes to provision (if diff > 0) or suspend (if diff < 0)
-	actionType ActionType
+	client      *k8sClusterApi
+	machineName string // name of the Machine to be cloned or deleted
+	diff        int32  // number of Machines to provision (if diff > 0) or suspend (if diff < 0)
+	actionType  ActionType
 }
 
 type Controller interface {
@@ -228,19 +206,19 @@ func (controller *machineDeploymentController) checkSuccess() error {
 		return err
 	}
 	// Identify the extra machine.
-	// Wait for the node provisioning.
+	// Wait for the machine provisioning.
 	if controller.request.actionType == ProvisionAction {
 		newMachine := controller.identifyDiff(machineList, controller.machineList)
 		if newMachine == nil {
 			return fmt.Errorf("no new machine has been identified for machineDeployment %v", controller.machineDeployment)
 		}
-		err = controller.waitForNodeProvisioning(newMachine)
+		err = controller.waitForMachineProvisioning(newMachine)
 	} else {
 		oldMachine := controller.identifyDiff(controller.machineList, machineList)
 		if oldMachine == nil {
 			return nil
 		}
-		err = controller.waitForNodeDeprovisioning(oldMachine)
+		err = controller.waitForMachineDeprovisioning(oldMachine)
 	}
 	if err != nil {
 		return fmt.Errorf("machine failed to provision new machine in machineDeployment %s: %v", controller.machineDeployment.Name, err)
@@ -261,7 +239,7 @@ func (controller *machineDeploymentController) checkMachineSuccess(args ...inter
 	return false, nil
 }
 
-// isNodeReady checks whether the node is ready.
+// isMachineReady checks whether the machine is ready.
 func (controller *machineDeploymentController) isMachineReady(args ...interface{}) (bool, error) {
 	machineName := args[0].(string)
 	machine, err := controller.request.client.machine.Get(machineName, metav1.GetOptions{})
@@ -274,9 +252,9 @@ func (controller *machineDeploymentController) isMachineReady(args ...interface{
 	return true, nil
 }
 
-// waitForNodeProvisioning waits for the new node to be provisioned with timeout.
-func (controller *machineDeploymentController) waitForNodeProvisioning(newMachine *clusterv1.Machine) error {
-	descr := fmt.Sprintf("machine %s Node creation status is final", newMachine.Name)
+// waitForMachineProvisioning waits for the new machine to be provisioned with timeout.
+func (controller *machineDeploymentController) waitForMachineProvisioning(newMachine *clusterv1.Machine) error {
+	descr := fmt.Sprintf("machine %s Machine creation status is final", newMachine.Name)
 	err := controller.waitForState(descr, controller.checkMachineSuccess, newMachine.Name)
 	if err != nil {
 		return err
@@ -286,18 +264,18 @@ func (controller *machineDeploymentController) waitForNodeProvisioning(newMachin
 		return err
 	}
 	if machine.Status.ErrorMessage != nil {
-		err = fmt.Errorf("machine %s failed to create new Node: %v: %s",
+		err = fmt.Errorf("machine %s failed to create new Machine: %v: %s",
 			newMachine.Name, newMachine.Status.ErrorReason, *newMachine.Status.ErrorMessage)
 		return err
 	}
 	newNName := newMachine.ObjectMeta.Name
-	// wait for new Node to be in Ready state
+	// wait for new Machine to be in Ready state
 	descr = fmt.Sprintf("machine %s is Ready", newNName)
 	return controller.waitForState(descr, controller.isMachineReady, newNName)
 }
 
-// isNodeDeletedOrNotReady checks whether the node is deleted or not ready.
-func (controller *machineDeploymentController) isNodeDeletedOrNotReady(args ...interface{}) (bool, error) {
+// isMachineDeletedOrNotReady checks whether the machine is deleted or not ready.
+func (controller *machineDeploymentController) isMachineDeletedOrNotReady(args ...interface{}) (bool, error) {
 	machineName := args[0].(string)
 	machine, err := controller.request.client.machine.Get(machineName, metav1.GetOptions{})
 	if err != nil {
@@ -309,11 +287,11 @@ func (controller *machineDeploymentController) isNodeDeletedOrNotReady(args ...i
 	return false, nil
 }
 
-// waitForNodeDeprovisioning waits for the new node to be de-provisioned with timeout.
-func (controller *machineDeploymentController) waitForNodeDeprovisioning(machine *clusterv1.Machine) error {
+// waitForMachineDeprovisioning waits for the new machine to be de-provisioned with timeout.
+func (controller *machineDeploymentController) waitForMachineDeprovisioning(machine *clusterv1.Machine) error {
 	deletedNName := machine.Name
-	descr := fmt.Sprintf("node %s deleted or exited Ready state", deletedNName)
-	return controller.waitForState(descr, controller.isNodeDeletedOrNotReady, deletedNName)
+	descr := fmt.Sprintf("machine %s deleted or exited Ready state", deletedNName)
+	return controller.waitForState(descr, controller.isMachineDeletedOrNotReady, deletedNName)
 }
 
 // waitForState Is the function that allows to wait for a specific state, or until it times out.
@@ -356,7 +334,7 @@ func IsClusterAPIEnabled(namespace string, cApiClient *clientset.Clientset, kube
 }
 
 // Construct the controller
-func newController(namespace string, nodeName string, diff int32, actionType ActionType,
+func newController(namespace string, machineName string, diff int32, actionType ActionType,
 	cApiClient *clientset.Clientset, kubeClient *kubernetes.Clientset) (Controller, *string, error) {
 	if cApiClient == nil {
 		return nil, nil, fmt.Errorf("no Cluster API available")
@@ -373,10 +351,10 @@ func newController(namespace string, nodeName string, diff int32, actionType Act
 	}
 	// Check whether Cluster API is enabled.
 	if err := client.verifyClusterAPIEnabled(); err != nil {
-		return nil, nil, fmt.Errorf("cluster API is not enabled for %s: %v", nodeName, err)
+		return nil, nil, fmt.Errorf("cluster API is not enabled for %s: %v", machineName, err)
 	}
 	// Identify managing machine.
-	machine, err := client.identifyManagingMachine(nodeName)
+	machine, err := client.identifyManagingMachine(machineName)
 	if err != nil {
 		err = fmt.Errorf("cannot identify machine: %v", err)
 		return nil, nil, err
@@ -386,7 +364,7 @@ func newController(namespace string, nodeName string, diff int32, actionType Act
 		err = fmt.Errorf("cannot identify machine set: %v", err)
 		return nil, nil, err
 	}
-	request := &actionRequest{client, nodeName, diff, actionType}
+	request := &actionRequest{client, machineName, diff, actionType}
 	machineDeploymentName := &machineDeployment.Name
 	return &machineDeploymentController{request, machineDeployment, mList},
 		machineDeploymentName, nil

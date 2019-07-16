@@ -82,7 +82,7 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	recommend := proto.ActionPolicyDTO_NOT_EXECUTABLE
 	notSupported := proto.ActionPolicyDTO_NOT_SUPPORTED
 
-	//1. containerPod: move, provision; not resize;
+	// 1. containerPod: move, provision; not resize;
 	pod := proto.EntityDTO_CONTAINER_POD
 	podPolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	podPolicy[proto.ActionItemDTO_MOVE] = supported
@@ -92,7 +92,7 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 
 	rClient.addActionPolicy(ab, pod, podPolicy)
 
-	//2. container: support resize; recommend provision; not move;
+	// 2. container: support resize; recommend provision; not move;
 	container := proto.EntityDTO_CONTAINER
 	containerPolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	containerPolicy[proto.ActionItemDTO_RIGHT_SIZE] = supported
@@ -102,7 +102,7 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 
 	rClient.addActionPolicy(ab, container, containerPolicy)
 
-	//3. application: only recommend provision; all else are not supported
+	// 3. application: only recommend provision; all else are not supported
 	app := proto.EntityDTO_APPLICATION
 	appPolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	appPolicy[proto.ActionItemDTO_PROVISION] = recommend
@@ -111,6 +111,16 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	appPolicy[proto.ActionItemDTO_SUSPEND] = recommend
 
 	rClient.addActionPolicy(ab, app, appPolicy)
+
+	// 4. node: move, provision; not resize;
+	node := proto.EntityDTO_VIRTUAL_MACHINE
+	nodePolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
+	nodePolicy[proto.ActionItemDTO_MOVE] = notSupported
+	nodePolicy[proto.ActionItemDTO_PROVISION] = supported
+	nodePolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
+	nodePolicy[proto.ActionItemDTO_SUSPEND] = supported
+
+	rClient.addActionPolicy(ab, node, nodePolicy)
 
 	return ab.Create()
 }
