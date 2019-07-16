@@ -30,20 +30,23 @@ func (s *MachineActionExecutor) unlock(key string) {
 
 // Execute : executes the scale action.
 func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*TurboActionExecutorOutput, error) {
-	nodeName := vmDTO.ActionItem.GetTargetSE().GetDisplayName()
+	machineName := vmDTO.ActionItem.GetTargetSE().GetDisplayName()
 	var actionType ActionType
+	var diff int32
 	switch vmDTO.ActionItem.GetActionType() {
 	case proto.ActionItemDTO_PROVISION:
 		actionType = ProvisionAction
+		diff = 1
 		break
 	case proto.ActionItemDTO_SUSPEND:
 		actionType = SuspendAction
+		diff = -1
 		break
 	default:
-		return nil, fmt.Errorf("Unsupported action type %v", vmDTO.ActionItem.GetActionType())
+		return nil, fmt.Errorf("unsupported action type %v", vmDTO.ActionItem.GetActionType())
 	}
 	// Get on with it.
-	controller, key, err := newController(s.cAPINamespace, nodeName, 1, actionType,
+	controller, key, err := newController(s.cAPINamespace, machineName, diff, actionType,
 		s.executor.cApiClient, s.executor.kubeClient)
 	if err != nil {
 		return nil, err
