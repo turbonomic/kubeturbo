@@ -173,8 +173,5 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.KubeCluster, error) {
 	// Discover Namespaces and Quotas
 	NewNamespaceProcessor(p.clusterInfoScraper, kubeCluster).ProcessNamespaces()
 
-	// Discover Services
-	NewServiceProcessor(p.clusterInfoScraper, kubeCluster).ProcessServices()
-
 	return kubeCluster, nil
 }

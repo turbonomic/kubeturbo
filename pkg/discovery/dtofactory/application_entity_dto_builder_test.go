@@ -1,7 +1,6 @@
 package dtofactory
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"reflect"
 	"testing"
 
@@ -43,17 +42,9 @@ func Test_getCommoditiesSold(t *testing.T) {
 			},
 		},
 	}
-
-	var sink *metrics.EntityMetricSink
-	var podClusterIDToServiceMap map[string]*api.Service
-	podClusterIDToServiceMap = make(map[string]*api.Service)
-	podId := "default/pod1"
-	podClusterIDToServiceMap[podId] = &api.Service{}
-
-	applicationEntityDTOBuilder := NewApplicationEntityDTOBuilder(sink, podClusterIDToServiceMap)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := applicationEntityDTOBuilder.getCommoditiesSold(tt.args.pod, tt.args.index)
+			got, err := getCommoditiesSold(tt.args.pod, tt.args.index)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getCommoditiesSold() error = %v, wantErr %v", err, tt.wantErr)
 				return

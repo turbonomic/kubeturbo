@@ -372,24 +372,3 @@ func (collector *MetricsCollector) collectNodeFrequencies() {
 			kubeNode.Name, kubeNode.NodeCpuFrequency)
 	}
 }
-
-func (collector *MetricsCollector) collectNodeFrequency(node *v1.Node) {
-	kubeNodes := collector.Cluster.Nodes
-
-	key := util.NodeKeyFunc(node)
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
-	cpuFrequencyMetric, err := collector.MetricsSink.GetMetric(cpuFrequencyUID)
-	if err != nil {
-		glog.Errorf("Failed to get cpu frequency from sink for node %s: %v", key, err)
-		return
-	}
-	if cpuFrequencyMetric == nil {
-		glog.Errorf("null cpu frequency from sink for node %s", key)
-		return
-	}
-	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
-	kubeNode := kubeNodes[node.Name]
-	kubeNode.NodeCpuFrequency = cpuFrequency
-	glog.V(4).Infof("Node %s cpu frequency is %f",
-		kubeNode.Name, kubeNode.NodeCpuFrequency)
-}
