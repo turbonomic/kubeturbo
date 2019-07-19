@@ -17,6 +17,10 @@ import (
 )
 
 var (
+	applicationResourceCommoditySold = []metrics.ResourceType{
+		metrics.Transaction,
+	}
+
 	applicationResourceCommodityBought = []metrics.ResourceType{
 		metrics.CPU,
 		metrics.Memory,
@@ -128,15 +132,23 @@ func getCommoditiesSold(pod *api.Pod, index int) ([]*proto.CommodityDTO, error) 
 
 	key := getAppStitchingProperty(pod, index)
 
-	// Application Access Commodity in lieu of Transaction and ResponseTime commodities
-	ebuilder := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).Key(key)
+	ebuilder := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_TRANSACTION).Key(key)
 
 	tranCommodity, err := ebuilder.Create()
 	if err != nil {
-		glog.Errorf("Failed to create application(%s) commodity sold:%v", key, err)
+		glog.Errorf("Failed to get application(%s) transaction commodity sold:%v", key, err)
 		return nil, err
 	}
 	result = append(result, tranCommodity)
+
+	ebuilder = sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_RESPONSE_TIME).Key(key)
+
+	respCommodity, err := ebuilder.Create()
+	if err != nil {
+		glog.Errorf("Failed to get application(%s) response time commodity sold:%v", key, err)
+		return nil, err
+	}
+	result = append(result, respCommodity)
 
 	return result, nil
 }

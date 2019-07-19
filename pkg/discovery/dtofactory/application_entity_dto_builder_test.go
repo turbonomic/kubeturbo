@@ -28,7 +28,8 @@ func Test_getCommoditiesSold(t *testing.T) {
 				index: 0,
 			},
 			want: []*proto.CommodityDTO{
-				createCommodity(proto.CommodityDTO_APPLICATION, podIP),
+				createCommodity(proto.CommodityDTO_TRANSACTION, podIP),
+				createCommodity(proto.CommodityDTO_RESPONSE_TIME, podIP),
 			},
 		},
 		{
@@ -38,7 +39,8 @@ func Test_getCommoditiesSold(t *testing.T) {
 				index: 1,
 			},
 			want: []*proto.CommodityDTO{
-				createCommodity(proto.CommodityDTO_APPLICATION, podIP+"-1"),
+				createCommodity(proto.CommodityDTO_TRANSACTION, podIP+"-1"),
+				createCommodity(proto.CommodityDTO_RESPONSE_TIME, podIP+"-1"),
 			},
 		},
 	}

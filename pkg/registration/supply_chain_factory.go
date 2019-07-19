@@ -23,6 +23,8 @@ var (
 	clusterType              = proto.CommodityDTO_CLUSTER
 	vmPMAccessType           = proto.CommodityDTO_VMPM_ACCESS
 	appCommType              = proto.CommodityDTO_APPLICATION
+	transactionType          = proto.CommodityDTO_TRANSACTION
+	respTimeType             = proto.CommodityDTO_RESPONSE_TIME
 
 	fakeKey = "fake"
 
@@ -35,7 +37,9 @@ var (
 	cpuRequestAllocationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuRequestAllocationType}
 	memRequestAllocationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memRequestAllocationType}
 	vmpmAccessTemplateComm                  = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
-	applicationTemplateCommWithKey          = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
+	applicationTemplateComm                 = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
+	transactionTemplateComm                 = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &transactionType}
+	respTimeTemplateComm                    = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &respTimeType}
 
 	// Internal matching property
 	proxyVMIP   = "Proxy_VM_IP"
@@ -284,7 +288,7 @@ func (f *SupplyChainFactory) buildContainer() (*proto.TemplateDTO, error) {
 	builder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER).
 		Sells(vCpuTemplateComm).
 		Sells(vMemTemplateComm).
-		Sells(applicationTemplateCommWithKey).
+		Sells(applicationTemplateComm).
 		Provider(proto.EntityDTO_CONTAINER_POD, proto.Provider_HOSTING).
 		Buys(vCpuTemplateComm).
 		Buys(vMemTemplateComm).
@@ -296,11 +300,12 @@ func (f *SupplyChainFactory) buildContainer() (*proto.TemplateDTO, error) {
 func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
 	appSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_APPLICATION)
 	appSupplyChainNodeBuilder = appSupplyChainNodeBuilder.
-		Sells(applicationTemplateCommWithKey). // The key used to sell to the virtual applications
+		Sells(transactionTemplateComm).
+		Sells(respTimeTemplateComm).
 		Provider(proto.EntityDTO_CONTAINER, proto.Provider_HOSTING).
 		Buys(vCpuTemplateComm).
 		Buys(vMemTemplateComm).
-		Buys(applicationTemplateCommWithKey) // The key used to buy from the container
+		Buys(applicationTemplateComm)
 
 	return appSupplyChainNodeBuilder.Create()
 }
@@ -309,6 +314,7 @@ func (f *SupplyChainFactory) buildVirtualApplicationSupplyBuilder() (*proto.Temp
 	vAppSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_VIRTUAL_APPLICATION)
 	vAppSupplyChainNodeBuilder = vAppSupplyChainNodeBuilder.
 		Provider(proto.EntityDTO_APPLICATION, proto.Provider_LAYERED_OVER).
-		Buys(applicationTemplateCommWithKey)
+		Buys(transactionTemplateComm).
+		Buys(respTimeTemplateComm)
 	return vAppSupplyChainNodeBuilder.Create()
 }
