@@ -1,9 +1,9 @@
 package dtofactory
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	api "k8s.io/api/core/v1"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -19,64 +19,27 @@ const (
 )
 
 var (
-	commodityTypeBetweenAppAndService = map[proto.CommodityDTO_CommodityType]struct{}{
-		proto.CommodityDTO_APPLICATION: {},
+	commodityTypeBetweenAppAndService map[proto.CommodityDTO_CommodityType]struct{} = map[proto.CommodityDTO_CommodityType]struct{}{
+		proto.CommodityDTO_TRANSACTION:   struct{}{},
+		proto.CommodityDTO_RESPONSE_TIME: struct{}{},
 	}
 )
 
-type ServiceEntityDTOBuilder struct {
-	// Services to list of pods
-	Services map[*api.Service][]string
-	// Pods with app DTOs
-	PodEntitiesMap map[string]*repository.KubePod
-}
+type ServiceEntityDTOBuilder struct{}
 
-func NewServiceEntityDTOBuilder(services map[*api.Service][]string,
-	podEntitiesMap map[string]*repository.KubePod) *ServiceEntityDTOBuilder {
-
-	builder := &ServiceEntityDTOBuilder{
-		Services:       services,
-		PodEntitiesMap: podEntitiesMap,
-	}
-
-	return builder
-}
-
-func (builder *ServiceEntityDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) {
+func (builder *ServiceEntityDTOBuilder) BuildSvcEntityDTO(servicePodMap map[*api.Service][]*api.Pod, clusterID string, appDTOs map[string]*proto.EntityDTO) ([]*proto.EntityDTO, error) {
 	result := []*proto.EntityDTO{}
 
-	for service, podList := range builder.Services {
-		serviceName := util.GetServiceClusterID(service)
-		// collection of pods and apps for this service
-		var pods []*api.Pod
-		appEntityDTOsMap := make(map[string]*proto.EntityDTO)
-
-		if len(podList) == 0 {
-			glog.Errorf("Service %s has no pods", serviceName)
-			continue
-		}
-
-		for _, podClusterId := range podList {
-			glog.V(4).Infof("service %s --> pod %s", service.Name, podClusterId)
-			kubePod := builder.PodEntitiesMap[podClusterId]
-			if kubePod == nil {
-				glog.Errorf("Missing pod for pod id : %s", podClusterId)
-				continue
-			}
-			pods = append(pods, kubePod.Pod)
-			for _, appDto := range kubePod.ContainerApps {
-				appEntityDTOsMap[appDto.GetId()] = appDto
-			}
-		}
-
+	for service, pods := range servicePodMap {
 		id := string(service.UID)
+		serviceName := util.GetServiceClusterID(service)
 		displayName := fmt.Sprintf("%s-%s", vAppPrefix, serviceName)
 
 		ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_APPLICATION, id).
 			DisplayName(displayName)
 
 		//1. commodities bought
-		if err := builder.createCommodityBought(ebuilder, pods, appEntityDTOsMap); err != nil {
+		if err := builder.createCommodityBought(ebuilder, pods, appDTOs); err != nil {
 			glog.Errorf("failed to create server[%s] EntityDTO: %v", serviceName, err)
 			continue
 		}
@@ -98,15 +61,13 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 			glog.Errorf("failed to create service[%s] EntityDTO: %v", displayName, err)
 			continue
 		}
-		glog.V(4).Infof("service DTO: %++v", entityDto)
 		result = append(result, entityDto)
 	}
 
 	return result, nil
 }
 
-func (builder *ServiceEntityDTOBuilder) createCommodityBought(ebuilder *sdkbuilder.EntityDTOBuilder,
-	pods []*api.Pod, appDTOs map[string]*proto.EntityDTO) error {
+func (builder *ServiceEntityDTOBuilder) createCommodityBought(ebuilder *sdkbuilder.EntityDTOBuilder, pods []*api.Pod, appDTOs map[string]*proto.EntityDTO) error {
 	foundProvider := false
 	for _, pod := range pods {
 		podId := string(pod.UID)
@@ -141,7 +102,7 @@ func (builder *ServiceEntityDTOBuilder) createCommodityBought(ebuilder *sdkbuild
 	return nil
 }
 
-func (builder *ServiceEntityDTOBuilder) getCommoditiesBought(appDTO *proto.EntityDTO) ([]*proto.CommodityDTO, error) {
+func (svcEntityDTOBuilder *ServiceEntityDTOBuilder) getCommoditiesBought(appDTO *proto.EntityDTO) ([]*proto.CommodityDTO, error) {
 	commoditiesSoldByApp := appDTO.GetCommoditiesSold()
 	var commoditiesBoughtFromApp []*proto.CommodityDTO
 	for _, commSold := range commoditiesSoldByApp {
