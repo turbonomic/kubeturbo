@@ -31,13 +31,6 @@ var (
 		metrics.MemoryRequest,
 		// TODO, add back provisioned commodity later
 	}
-
-	allocationResourceCommoditiesSold = []metrics.ResourceType{
-		metrics.CPUQuota,
-		metrics.MemoryQuota,
-		metrics.CPURequestQuota,
-		metrics.MemoryRequestQuota,
-	}
 )
 
 type nodeEntityDTOBuilder struct {
@@ -72,13 +65,6 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 			glog.Errorf("Error when create commoditiesSold for %s: %s", node.Name, err)
 			nodeActive = false
 		}
-		// allocation commodities sold
-		allocationCommoditiesSold, err := builder.getAllocationCommoditiesSold(node)
-		if err != nil {
-			glog.Errorf("Error when creating allocation commoditiesSold for %s: %s", node.Name, err)
-			nodeActive = false
-		}
-		commoditiesSold = append(commoditiesSold, allocationCommoditiesSold...)
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 		// entities' properties.
@@ -208,35 +194,6 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 		commoditiesSold = append(commoditiesSold, clusterComm)
 	}
 
-	return commoditiesSold, nil
-}
-
-func (builder *nodeEntityDTOBuilder) getAllocationCommoditiesSold(node *api.Node) ([]*proto.CommodityDTO, error) {
-	var commoditiesSold []*proto.CommodityDTO
-	// get cpu frequency
-	key := util.NodeKeyFunc(node)
-	cpuFrequency, err := builder.getNodeCPUFrequency(key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get cpu frequency from sink for node %s: %s", key, err)
-	}
-	// cpuQuota and cpuRequestQuota needs to be converted from number of cores to frequency.
-	converter := NewConverter().Set(
-		func(input float64) float64 {
-			return input * cpuFrequency
-		},
-		metrics.CPUQuota, metrics.CPURequestQuota)
-
-	// Resource Commodities
-	var resourceCommoditiesSold []*proto.CommodityDTO
-	for _, resourceType := range allocationResourceCommoditiesSold {
-		commSold, _ := builder.getSoldResourceCommodityWithKey(metrics.NodeType, key, resourceType, string(node.UID),
-			converter, nil)
-		if commSold != nil {
-			resourceCommoditiesSold = append(resourceCommoditiesSold, commSold)
-		}
-	}
-
-	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
 	return commoditiesSold, nil
 }
 
