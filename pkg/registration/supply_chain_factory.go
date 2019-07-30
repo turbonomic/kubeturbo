@@ -185,12 +185,8 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 		Sells(vMemTemplateComm).        // sells to Pods
 		Sells(vCpuRequestTemplateComm). // sells to Pods
 		Sells(vMemRequestTemplateComm). // sells to Pods
-		Sells(vmpmAccessTemplateComm).  // sells to Pods
-		// also sells Cluster to Pods
-		Sells(cpuAllocationTemplateCommWithKey).        //sells to Quotas
-		Sells(memAllocationTemplateCommWithKey).        //sells to Quotas
-		Sells(cpuRequestAllocationTemplateCommWithKey). //sells to Quotas
-		Sells(memRequestAllocationTemplateCommWithKey)  //sells to Quotas
+		Sells(vmpmAccessTemplateComm)   // sells to Pods
+		// also sells Cluster
 
 	return nodeSupplyChainNodeBuilder.Create()
 }
@@ -201,32 +197,9 @@ func (f *SupplyChainFactory) buildQuotaSupplyBuilder() (*proto.TemplateDTO, erro
 		Sells(cpuAllocationTemplateCommWithKey).
 		Sells(memAllocationTemplateCommWithKey).
 		Sells(cpuRequestAllocationTemplateCommWithKey).
-		Sells(memRequestAllocationTemplateCommWithKey).
-		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
-		Buys(cpuAllocationTemplateCommWithKey).
-		Buys(memAllocationTemplateCommWithKey).
-		Buys(cpuRequestAllocationTemplateCommWithKey).
-		Buys(memRequestAllocationTemplateCommWithKey)
+		Sells(memRequestAllocationTemplateCommWithKey)
 
-	// Link from Quota to VM
-	vmQuotaExtLinkBuilder := supplychain.NewExternalEntityLinkBuilder()
-	vmQuotaExtLinkBuilder.Link(proto.EntityDTO_VIRTUAL_DATACENTER, proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_LAYERED_OVER).
-		Commodity(cpuAllocationType, true).
-		Commodity(memAllocationType, true).
-		Commodity(cpuRequestAllocationType, true).
-		Commodity(memRequestAllocationType, true)
-
-	err := f.addVMStitchingProperty(vmQuotaExtLinkBuilder)
-	if err != nil {
-		return nil, err
-	}
-
-	vmQuotaExternalLink, err := vmQuotaExtLinkBuilder.Build()
-	if err != nil {
-		return nil, err
-	}
-
-	return nodeSupplyChainNodeBuilder.ConnectsTo(vmQuotaExternalLink).Create()
+	return nodeSupplyChainNodeBuilder.Create()
 }
 
 func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error) {

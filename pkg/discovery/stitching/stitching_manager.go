@@ -209,16 +209,13 @@ func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_Re
 	usedAndCapacityPropertyNames := []string{builder.PropertyCapacity, builder.PropertyUsed}
 	vcpuUsedAndCapacityPropertyNames := []string{builder.PropertyCapacity, builder.PropertyUsed, builder.PropertyPeak}
 	capacityOnlyPropertyNames := []string{builder.PropertyCapacity}
-	replacementEntityMetaDataBuilder.PatchSellingWithProperty(proto.CommodityDTO_CLUSTER, capacityOnlyPropertyNames).
+	replacementEntityMetaDataBuilder.
+		PatchSellingWithProperty(proto.CommodityDTO_CLUSTER, capacityOnlyPropertyNames).
 		PatchSellingWithProperty(proto.CommodityDTO_VMPM_ACCESS, capacityOnlyPropertyNames).
 		PatchSellingWithProperty(proto.CommodityDTO_VCPU, vcpuUsedAndCapacityPropertyNames).
 		PatchSellingWithProperty(proto.CommodityDTO_VMEM, usedAndCapacityPropertyNames).
 		PatchSellingWithProperty(proto.CommodityDTO_VCPU_REQUEST, usedAndCapacityPropertyNames).
-		PatchSellingWithProperty(proto.CommodityDTO_VMEM_REQUEST, usedAndCapacityPropertyNames).
-		PatchSellingWithProperty(proto.CommodityDTO_CPU_ALLOCATION, usedAndCapacityPropertyNames).
-		PatchSellingWithProperty(proto.CommodityDTO_MEM_ALLOCATION, usedAndCapacityPropertyNames).
-		PatchSellingWithProperty(proto.CommodityDTO_CPU_REQUEST_ALLOCATION, usedAndCapacityPropertyNames).
-		PatchSellingWithProperty(proto.CommodityDTO_MEM_REQUEST_ALLOCATION, usedAndCapacityPropertyNames)
+		PatchSellingWithProperty(proto.CommodityDTO_VMEM_REQUEST, usedAndCapacityPropertyNames)
 	meta := replacementEntityMetaDataBuilder.Build()
 	return meta, nil
 }

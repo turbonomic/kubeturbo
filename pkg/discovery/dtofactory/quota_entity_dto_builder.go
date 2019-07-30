@@ -1,7 +1,6 @@
 package dtofactory
 
 import (
-	"fmt"
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -80,32 +79,10 @@ func (builder *quotaEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, err
 		}
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
-		// commodities bought.
-		for _, kubeProvider := range quota.ProviderMap {
-			commoditiesBought, err := builder.getQuotaCommoditiesBought(displayName, kubeProvider)
-			if err != nil {
-				glog.Errorf("Error creating commoditiesBought for quota %s: %s", displayName, err)
-				continue
-			}
-
-			provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, kubeProvider.UID)
-			entityDTOBuilder = entityDTOBuilder.Provider(provider)
-			entityDTOBuilder.BuysCommodities(commoditiesBought)
-		}
-
-		// stitching properties
-		properties, err := builder.getQuotaProperty()
-		if err != nil {
-			glog.Errorf("Failed to build stitching property for Quota: %v, %v", displayName, err)
-			continue
-		}
-
-		entityDTOBuilder = entityDTOBuilder.WithProperties(properties)
-
-		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
-
 		// build entityDTO.
-		entityDto, err := entityDTOBuilder.Create()
+		entityDto, err := entityDTOBuilder.
+			WithPowerState(proto.EntityDTO_POWERED_ON).
+			Create()
 		if err != nil {
 			glog.Errorf("Failed to build Quota entityDTO: %s", err)
 			continue
@@ -163,49 +140,4 @@ func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesSold(quota *repository.
 		resourceCommoditiesSold = append(resourceCommoditiesSold, commSold)
 	}
 	return resourceCommoditiesSold, nil
-}
-
-func (builder *quotaEntityDTOBuilder) getQuotaCommoditiesBought(quotaName string, provider *repository.KubeResourceProvider) ([]*proto.CommodityDTO, error) {
-
-	if provider == nil {
-		return nil, fmt.Errorf("%s: null provider", quotaName)
-	}
-
-	var commoditiesBought []*proto.CommodityDTO
-	for resourceType, resource := range provider.BoughtAllocation {
-		cType, exist := rTypeMapping[resourceType]
-		if !exist {
-			continue
-		}
-
-		commBoughtBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
-		usedValue := resource.Used
-		commBoughtBuilder.Used(usedValue)
-		commBoughtBuilder.Resizable(true)
-		commBoughtBuilder.Key(provider.UID)
-
-		commBought, err := commBoughtBuilder.Create()
-		if err != nil {
-			glog.Errorf("%s : Failed to build commodity bought: %s", quotaName, err)
-			continue
-		}
-		commoditiesBought = append(commoditiesBought, commBought)
-	}
-
-	return commoditiesBought, nil
-}
-
-func (builder *quotaEntityDTOBuilder) getQuotaProperty() ([]*proto.EntityDTO_EntityProperty, error) {
-	var result []*proto.EntityDTO_EntityProperty
-
-	//1. build stitching property (stitch VDC to VMs)
-	//   TODO: this property is same to all the VDCs. Better build it in advance, and shared by the VDCs.
-	property, err := builder.stitchingManager.BuildDTOLayerOverProperty(builder.nodeNames)
-	if err != nil {
-		glog.Errorf("Failed to build QuotaStitchingProperty: %v", err)
-		return result, err
-	}
-	result = append(result, property)
-
-	return result, nil
 }
