@@ -54,7 +54,6 @@ spec:
                 - endpoints
                 - events
                 - deployments
-                - persistentvolumeclaims
                 - replicasets
                 - replicationcontrollers
                 - services
@@ -76,7 +75,6 @@ spec:
                 - persistentvolumeclaims
                 - poddisruptionbudget
                 - resourcequotas
-                - services
                 - statefulsets
               verbs:
                 - get

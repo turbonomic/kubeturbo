@@ -108,7 +108,7 @@ spec:
       containers:
         - name: kubeturbo
           # Replace the image with desired version
-          image: turbonomic/kubeturbo:6.3
+          image: turbonomic/kubeturbo:6.4.0
           imagePullPolicy: IfNotPresent
           args:
             - --turboconfig=/etc/kubeturbo/turbo.config
@@ -136,7 +136,7 @@ Note: If Kubernetes version is older than 1.6, then add another arg for move/res
 
 #### Updating Turbo Server
 When you update the Turbonomic or CWOM Server, you will need to update the configMap resource to reflect the new version.
-NOTE: Starting with kubeturbo 6.3+, you do not need to make this configMap modification if updating to a minor version like 6.3.0 -> 6.3.1, which will now be automatically handled.  You would only need to make this change if you are making a major change, going from 6.3.1 -> 6.4.0, or 6.3.1 -> 7.0.0.
+NOTE: Starting with Turbonomic 6.3+, you do not need to make this configMap modification if updating to a minor version like 6.3.0 -> 6.3.1, which will now be automatically handled.  You would only need to make this change if you are making a major change, going from 6.3.1 -> 6.4.0, or 6.3.1 -> 7.0.0.
 
 1. After the update, obtain the new version.  To get this from the UI, go to Settings -> Updates -> About and use the numeric version such as “6.0.11” or “6.2.0” (Build details not required)
 1. Edit the configMap resource in the k8s/OS dashboard, or by CLI using kubectl or oc “edit configMap” command. In the CLI example, substitute your configMap resource name (example “turbo-config”) and namespace/project (example “turbo”):
