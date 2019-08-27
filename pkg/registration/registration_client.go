@@ -112,7 +112,17 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 
 	rClient.addActionPolicy(ab, app, appPolicy)
 
-	// 4. node: support provision and suspend; not resize; do not set move
+	// 4. virtual application: no actions are supported
+	vApp := proto.EntityDTO_VIRTUAL_APPLICATION
+	vAppPolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
+	vAppPolicy[proto.ActionItemDTO_PROVISION] = notSupported
+	vAppPolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
+	vAppPolicy[proto.ActionItemDTO_MOVE] = notSupported
+	vAppPolicy[proto.ActionItemDTO_SUSPEND] = notSupported
+
+	rClient.addActionPolicy(ab, vApp, vAppPolicy)
+
+	// 5. node: support provision and suspend; not resize; do not set move
 	node := proto.EntityDTO_VIRTUAL_MACHINE
 	nodePolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	nodePolicy[proto.ActionItemDTO_PROVISION] = supported
