@@ -42,6 +42,7 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	pod := proto.EntityDTO_CONTAINER_POD
 	container := proto.EntityDTO_CONTAINER
 	app := proto.EntityDTO_APPLICATION
+	vApp := proto.EntityDTO_VIRTUAL_APPLICATION
 
 	move := proto.ActionItemDTO_MOVE
 	resize := proto.ActionItemDTO_RIGHT_SIZE
@@ -66,8 +67,13 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	expected_app[provision] = recommend
 	expected_app[suspend] = recommend
 
+	expected_vApp := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
+	expected_vApp[move] = notSupported
+	expected_vApp[resize] = notSupported
+	expected_vApp[provision] = notSupported
+	expected_vApp[suspend] = notSupported
+
 	expected_node := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	expected_node[move] = notSupported
 	expected_node[resize] = notSupported
 	expected_node[provision] = supported
 	expected_node[suspend] = supported
@@ -86,6 +92,8 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 			expected = expected_app
 		} else if entity == node {
 			expected = expected_node
+		} else if entity == vApp {
+			expected = expected_vApp
 		} else {
 			t.Errorf("Unknown entity type: %v", entity)
 			continue

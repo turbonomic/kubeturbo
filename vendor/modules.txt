@@ -85,7 +85,7 @@ github.com/stretchr/testify/assert
 # github.com/turbonomic/turbo-api v0.0.0-20180816193551-ed948ba97e70
 github.com/turbonomic/turbo-api/pkg/api
 github.com/turbonomic/turbo-api/pkg/client
-# github.com/turbonomic/turbo-go-sdk v6.3.1-0.20190628213717-579ca3a8764e+incompatible
+# github.com/turbonomic/turbo-go-sdk v6.4.1-0.20190628213717-579ca3a8764e+incompatible
 github.com/turbonomic/turbo-go-sdk/pkg/probe
 github.com/turbonomic/turbo-go-sdk/pkg/service
 github.com/turbonomic/turbo-go-sdk/pkg/proto
