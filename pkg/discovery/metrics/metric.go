@@ -30,6 +30,7 @@ const (
 	CPUProvisioned     ResourceType = "CPUProvisioned"
 	MemoryProvisioned  ResourceType = "MemoryProvisioned"
 	Transaction        ResourceType = "Transaction"
+	NumPods            ResourceType = "NumPods"
 
 	Access       ResourceType = "Access"
 	Cluster      ResourceType = "Cluster"
