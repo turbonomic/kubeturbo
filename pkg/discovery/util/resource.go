@@ -31,3 +31,9 @@ func GetCpuAndMemoryValues(resource api.ResourceList) (cpuCapacityCore, memoryCa
 
 	return
 }
+
+// Gets the allocatable number of pods from the node resource
+func GetNumPodsAllocatable(resource api.ResourceList) (numPods float64) {
+	numPods = float64(resource.Pods().Value())
+	return
+}
