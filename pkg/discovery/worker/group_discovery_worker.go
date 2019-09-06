@@ -26,9 +26,9 @@ func Newk8sEntityGroupDiscoveryWorker(cluster *repository.ClusterSummary,
 	}
 }
 
-// Group discovery worker collects groups discovered by different discovery workers.
-// It merges the group members belonging to the same group but discovered by different workers.
-// Then it creates DTOs for the groups to be sent to the server.
+// Group discovery worker collects pod and container groups discovered by different discovery workers.
+// It merges the group members belonging to the same group but discovered by different discovery workers.
+// Then it creates DTOs for the pod/container groups to be sent to the server.
 func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.EntityGroup,
 ) ([]*proto.GroupDTO, error) {
 	var groupDTOs []*proto.GroupDTO
@@ -60,10 +60,18 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 		return nil, err
 	}
 	groupDTOs = groupDtoBuilder.BuildGroupDTOs()
+
 	// Create DTO for cluster
 	clusterDTO := dtofactory.NewClusterDTOBuilder(worker.cluster, worker.targetId).Build()
 	if clusterDTO != nil {
 		groupDTOs = append(groupDTOs, clusterDTO)
 	}
+
+	// Create a static group for Master Nodes
+	masterNodesGroupDTO := dtofactory.NewMasterNodesGroupDTOBuilder(worker.cluster, worker.targetId).Build()
+	if masterNodesGroupDTO != nil {
+		groupDTOs = append(groupDTOs, masterNodesGroupDTO)
+	}
+
 	return groupDTOs, nil
 }
