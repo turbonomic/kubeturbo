@@ -82,7 +82,7 @@ func (builder *groupDTOBuilder) BuildGroupDTOs() []*proto.GroupDTO {
 			// group resize policy - currently only for stateful sets
 			_, exists := CONSISTENT_RESIZE_GROUPS[entityGroup.ParentKind]
 			if exists && entityGroup.ParentName != "" {
-				glog.V(3).Infof("%s: set group to resize consistently\n", entityGroup.GroupId)
+				glog.V(4).Infof("%s: set group to resize consistently\n", entityGroup.GroupId)
 				groupBuilder.ResizeConsistently()
 			}
 
