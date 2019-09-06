@@ -43,8 +43,7 @@ func (builder *masterNodesGroupDTOBuilder) Build() *proto.GroupDTO {
 	groupId := "KubeMasterNodes"
 	id := fmt.Sprintf("%s-%s", groupId, builder.targetId)
 
-	displayName := fmt.Sprintf("%s[%s]",
-		groupId, builder.targetId)
+	displayName := fmt.Sprintf("%s[%s]", groupId, builder.targetId)
 
 	groupBuilder := group.StaticGroup(id).
 		WithDisplayName(displayName).
