@@ -168,7 +168,7 @@ func (m *ClusterMonitor) genNodeResourceMetrics(node *api.Node, key string) {
 	nodeCPURequestUsed, nodeMemRequestUsed, currentPods := m.genNodePodsMetrics(node, cpuCapacityCore, memoryCapacityKiloBytes)
 
 	//4. Generate the numconsumers (current pod number and actual allocatable pods) metrics for the given node
-	allocatablePods := util.GetNumPodsAllocatable(node.Status.Allocatable)
+	allocatablePods := util.GetNumPodsAllocatable(node)
 	m.genNumConsumersMetrics(metrics.NodeType, key, currentPods, allocatablePods)
 	glog.V(4).Infof("There are %f pods currently on node %s and allocatable pod limit is %f", currentPods, node.Name, allocatablePods)
 
