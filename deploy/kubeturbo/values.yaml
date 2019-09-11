@@ -43,7 +43,7 @@ masterNodeDetectors:
 # system pods, which is generally not desired or valid. 
 daemonPodDetectors:
    daemonPodNamespaces1: kube-system
-   daemonPodNamespaces2: OpenShift
+#  daemonPodNamespaces2: OpenShift
    daemonPodNamePatterns: .*ignorepod.*
 
 args:
