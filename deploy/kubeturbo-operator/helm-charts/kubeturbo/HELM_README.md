@@ -44,9 +44,8 @@ args.kubeletport|10250|optional, change to 10255 if k8s 1.10 or older|number
 args.stitchuuid|true|optional, change to false if IaaS is VMM, Hyper-V|bolean
 masterNodeDetectors.nodeNamePatterns|node name includes `.*master.*`|optional but equired to avoid suspending masters identified by node name. If no match, this is ignored.| string, regex used, example:  `.*master.*`
 masterNodeDetectors.nodeLabels|any value for label key value `node-role.kubernetes.io/master`|optional but required to avoid suspending masters identified by node label key value pair, If no match, this is ignored.|regex used, specify the key as **masterNodeDetectors.nodeLabelsKey** such as  `node-role.kubernetes.io/master` and the value as **masterNodeDetectors.nodeLabelsValue** such as `.*`
-daemonPodDetectors.daemonPodNamespaces1 and daemonPodNamespaces2|daemonSet kinds are by default allow for node suspension. Adding this parameter changes default.|Optional but required to identify pods in the namespace to be ignored for cluster consolidation| regex used, values in quotes & comma separated`"kube-system","kube-service-catalog","openshift-.*"`
-daemonPodDetectors.daemonPodNamePatterns|daemonSet kinds are by default allow for node suspension. Adding this parameter changes default.|Optional but required to identify pods matching this pattern to be ignored for cluster consolidation|regex used `.*ignorepod.*`
-
+daemonPodDetectors.daemonPodNamespaces1 and daemonPodNamespaces2|daemonSet kinds by default allow for node suspension. Adding this parameter changes default.|Optional but required to identify pods in the namespace to be ignored for cluster consolidation| regex used, values in quotes and comma separated`"kube-system"`
+daemonPodDetectors.daemonPodNamePatterns|daemonSet kinds by default allow for node suspension. Adding this parameter changes default.|Optional but required to identify pods matching this pattern to be ignored for cluster consolidation|regex used `.*ignorepod.*`
 For more on `masterNodeDetectors` and `daemonPodDetectors` go to [YAMLS_README.md](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo_yamls/YAMLS_README.md) under kubeturbo/deploy/kubeturbo_yamls/
 
 #### Updating Turbo Server

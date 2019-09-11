@@ -37,13 +37,14 @@ masterNodeDetectors:
    nodeLabelsKey: node-role.kubernetes.io/master
    nodeLabelsValue: .*
 
-# In kubeturbo 6.3+, you can define how daemon pods are identified. Use either or both
-# Note if you do not enable daemonPodDetectors, the default is to identify all pods running as kind = daemonSet
-# Any entry for daemonPodDetectors would overwrite default. Recommend you do not use this parameter.
-#daemonPodDetectors:
-#   daemonPodNamespaces1: kube-system
-#   daemonPodNamespaces2: OpenShift
-#   daemonPodNamePatterns: .*ignorePod.*
+# In kubeturbo 6.3+, you can define how daemon pods are identified. Use either or both Note
+# if you do not enable daemonPodDetectors, the default is to identify no pods running as
+# daemons, and as a result, Turbonomic will generate recommendations for those pods, including
+# system pods, which is generally not desired or valid. 
+daemonPodDetectors:
+   daemonPodNamespaces1: kube-system
+   daemonPodNamespaces2: OpenShift
+   daemonPodNamePatterns: .*ignorepod.*
 
 args:
   # logging level

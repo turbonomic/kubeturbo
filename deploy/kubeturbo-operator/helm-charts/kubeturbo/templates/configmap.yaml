@@ -28,7 +28,7 @@ data:
       {{- if .Values.daemonPodDetectors }}
       },
       "daemonPodDetectors": {
-        "namespaces": ["{{ .Values.daemonPodDetectors.daemonPodNamespaces1 }}", "{{ .Values.daemonPodDetectors.daemonPodNamespaces2 }}"],
+        "namespaces": ["{{ .Values.daemonPodDetectors.daemonPodNamespaces1 }}"{{- if .Values.daemonPodDetectors.daemonPodNamespaces2}}, "{{ .Values.daemonPodDetectors.daemonPodNamespaces2 }}"{{- end}}],
         "podNamePatterns": ["{{ .Values.daemonPodDetectors.daemonPodNamePatterns }}"]
       {{- end }}
       }

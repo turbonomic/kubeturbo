@@ -63,7 +63,7 @@ restAPIConfig.opsManagerPassword|password to log into Turbo|yes - all versions|n
 targetConfig.targetName|uniquely identifies k8s clusters|no - all versions|"Name_Your_Cluster"|string, upper lower case, limited special characters "-" or "_"
 masterNodeDetectors.nodeNamePatterns|identifies master nodes by node name|in 6.3+|name includes `.*master.*`. If no match, this is ignored.| regex used, value in quotes `.*master.*`
 masterNodeDetectors.nodeLabels|identifies master nodes by node label key value pair|in 6.3+, any value for label `node-role.kubernetes.io/master` If no match, this is ignored.|masters not uniquely identified|key value pair, regex used, values in quotes `{"key": "node-role.kubernetes.io/master", "value": ".*"}`
-daemonPodDetectors.namespaces|identifies all pods in the namespace to be ignored for cluster consolidation|no - 6.3+|daemonSet kinds are by default allow node suspension. Adding this parameter changes default.| regex used, values in quotes & comma separated`"kube-system", "kube-service-catalog", "openshift-.*"`
+daemonPodDetectors.namespaces|identifies all pods in the namespace to be ignored for cluster consolidation|no - 6.3+|daemonSet kinds are by default allow node suspension. Adding this parameter changes default.| regex used, values in quotes & comma separated`"kube-system"`
 daemonPodDetectors.podNamePatterns|identifies all pods matching this pattern to be ignored for cluster consolidation|no - 6.3+|daemonSet kinds are by default allow node suspension. Adding this parameter changes default.|regex used `".*ignorepod.*"`
 
 (*) UserName Note: If your Turbonomic Server is configured to manage users via AD, the <Turbo_username> value can be either a local or AD user.  For AD user, the format will be “<domain>//<username>” – both “/” are required.
@@ -80,7 +80,7 @@ Daemon pods are by default by resource kind of daemonSet. These pods will be ign
 ```yaml
         },
         "daemonPodDetectors": {
-           "namespaces": ["kube-system", "kube-service-catalog"],
+           "namespaces": ["kube-system"],
            "podNamePatterns": [".*ignorepod.*"]
         },
 ```
