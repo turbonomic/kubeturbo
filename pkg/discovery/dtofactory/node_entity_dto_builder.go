@@ -89,7 +89,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 			nodeActive = false
 		}
 
-		controllable := util.NodeIsControllable(node)
+		controllable := true
 		entityDTOBuilder = entityDTOBuilder.ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
 			Controllable: &controllable,
 		})
