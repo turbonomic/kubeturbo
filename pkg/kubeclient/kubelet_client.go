@@ -225,7 +225,7 @@ func (client *KubeletClient) HasCacheBeenUsed(host string) bool {
 	defer client.cacheLock.Unlock()
 	entry, entryPresent := client.cache[host]
 	if entryPresent {
-		return entry.used > maxCacheHits
+		return entry.used > 0
 	}
 	return false
 }

@@ -100,6 +100,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		cacheUsedMetric := metrics.GenerateEntityStateMetricUID(metrics.NodeType, util.NodeKeyFunc(node), "NodeCacheUsed")
 		present, _ := builder.metricsSink.GetMetric(cacheUsedMetric)
 		if present != nil {
+			glog.Errorf("We have used the cached data, so the node appeared to be flaky")
 			nodeActive = false
 		}
 
