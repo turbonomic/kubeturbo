@@ -73,8 +73,8 @@ func (client *KubeletClient) CleanupCache(nodes []*v1.Node) int {
 		// Clean up the entries that have been used the last time.
 		// This is to avoid a memory leak.
 		entry, entryPresent := client.cache[host]
-		if entryPresent && entry.used > 0 {
-			glog.Warningf("removed host %s, as it has been used in the cache the last time", host)
+		if entryPresent && entry.used > maxCacheHits {
+			glog.Warningf("removed host %s, as it has been used in the cache too many times", host)
 			delete(client.cache, host)
 			count++
 		}
