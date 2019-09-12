@@ -68,6 +68,14 @@ func (client *KubeletClient) CleanupCache(nodes []*v1.Node) int {
 			delete(client.cache, host)
 			count++
 		}
+		// Clean up the entries that have been used the last time.
+		// This is to avoid a memory leak.
+		entry, entryPresent := client.cache[host]
+		if entryPresent && entry.used {
+			glog.Warningf("removed host %s, as it has been used in the cache the last time", host)
+			delete(client.cache, host)
+			count++
+		}
 	}
 	return count
 }
@@ -131,8 +139,11 @@ func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 	entry, entryPresent := client.cache[host]
 	if err != nil {
 		if entryPresent {
+			wasUsed := entry.used
 			entry.used = true
-			if entry.statsSummary == nil {
+			if entry.statsSummary == nil || wasUsed {
+				// If we have an entry that we've used before or it is empty, delete it.
+				delete(client.cache, host)
 				glog.V(2).Infof("unable to retrieve machine[%s] summary: %v. The cached value unavailable", host, err)
 				return nil, err
 			}
@@ -168,8 +179,11 @@ func (client *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineIn
 	entry, entryPresent := client.cache[host]
 	if err != nil {
 		if entryPresent {
+			wasUsed := entry.used
 			entry.used = true
-			if entry.machineInfo == nil {
+			if entry.machineInfo == nil || wasUsed {
+				// If we have an entry that we've used before or it is empty, delete it.
+				delete(client.cache, host)
 				glog.V(2).Infof("unable to retrieve machine[%s] machine info: %v. The cached value unavailable", host, err)
 				return nil, err
 			}
