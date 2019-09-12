@@ -27,6 +27,8 @@ const (
 
 	defaultConnTimeOut         = 20 * time.Second
 	defaultTLSHandShakeTimeout = 10 * time.Second
+
+	maxCacheHits = 10
 )
 
 type KubeHttpClientInterface interface {
@@ -41,7 +43,7 @@ type KubeHttpClientInterface interface {
 type CacheEntry struct {
 	statsSummary *stats.Summary
 	machineInfo  *cadvisorapi.MachineInfo
-	used         bool
+	used         int32
 }
 
 // Cleanup the cache.
@@ -71,7 +73,7 @@ func (client *KubeletClient) CleanupCache(nodes []*v1.Node) int {
 		// Clean up the entries that have been used the last time.
 		// This is to avoid a memory leak.
 		entry, entryPresent := client.cache[host]
-		if entryPresent && entry.used {
+		if entryPresent && entry.used > 0 {
 			glog.Warningf("removed host %s, as it has been used in the cache the last time", host)
 			delete(client.cache, host)
 			count++
@@ -140,8 +142,8 @@ func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 	if err != nil {
 		if entryPresent {
 			wasUsed := entry.used
-			entry.used = true
-			if entry.statsSummary == nil || wasUsed {
+			entry.used++
+			if entry.statsSummary == nil || wasUsed > maxCacheHits {
 				// If we have an entry that we've used before or it is empty, delete it.
 				delete(client.cache, host)
 				glog.V(2).Infof("unable to retrieve machine[%s] summary: %v. The cached value unavailable", host, err)
@@ -156,13 +158,13 @@ func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 	}
 	// Fill in the cache
 	if entryPresent {
-		entry.used = false
+		entry.used = 0
 		entry.statsSummary = summary
 	} else {
 		entry := &CacheEntry{
 			statsSummary: summary,
 			machineInfo:  nil,
-			used:         false,
+			used:         0,
 		}
 		client.cache[host] = entry
 	}
@@ -180,8 +182,8 @@ func (client *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineIn
 	if err != nil {
 		if entryPresent {
 			wasUsed := entry.used
-			entry.used = true
-			if entry.machineInfo == nil || wasUsed {
+			entry.used++
+			if entry.machineInfo == nil || wasUsed > maxCacheHits {
 				// If we have an entry that we've used before or it is empty, delete it.
 				delete(client.cache, host)
 				glog.V(2).Infof("unable to retrieve machine[%s] machine info: %v. The cached value unavailable", host, err)
@@ -196,13 +198,13 @@ func (client *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineIn
 	}
 	// Fill in the cache
 	if entryPresent {
-		entry.used = false
+		entry.used = 0
 		entry.machineInfo = &minfo
 	} else {
 		entry := &CacheEntry{
 			statsSummary: nil,
 			machineInfo:  &minfo,
-			used:         false,
+			used:         0,
 		}
 		client.cache[host] = entry
 	}
@@ -224,7 +226,7 @@ func (client *KubeletClient) HasCacheBeenUsed(host string) bool {
 	defer client.cacheLock.Unlock()
 	entry, entryPresent := client.cache[host]
 	if entryPresent {
-		return entry.used
+		return entry.used > 0
 	}
 	return false
 }
