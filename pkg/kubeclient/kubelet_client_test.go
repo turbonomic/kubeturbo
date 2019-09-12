@@ -59,7 +59,7 @@ func TestKubeletClientCachebeenUsed(t *testing.T) {
 	kc.cache["host_2"] = entry
 	assert.False(t, kc.HasCacheBeenUsed("host_1"))
 	assert.False(t, kc.HasCacheBeenUsed("host_3"))
-	kc.cache["host_2"].used = 1
+	kc.cache["host_2"].used = maxCacheHits + 1
 	assert.True(t, kc.HasCacheBeenUsed("host_2"))
 }
 

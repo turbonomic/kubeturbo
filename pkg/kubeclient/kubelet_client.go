@@ -22,13 +22,12 @@ const (
 	summaryPath string = "/stats/summary/"
 	specPath    string = "/spec"
 
-	DefaultKubeletPort  = 10255
-	DefaultKubeletHttps = false
+	DefaultKubeletPort = 10255
 
 	defaultConnTimeOut         = 20 * time.Second
 	defaultTLSHandShakeTimeout = 10 * time.Second
 
-	maxCacheHits = 10
+	maxCacheHits = 6
 )
 
 type KubeHttpClientInterface interface {
@@ -39,7 +38,6 @@ type KubeHttpClientInterface interface {
 }
 
 // Cache structure.
-// TODO(MB): Make sure the nodes that are no longer discovered are being removed from the cache!
 type CacheEntry struct {
 	statsSummary *stats.Summary
 	machineInfo  *cadvisorapi.MachineInfo
@@ -58,12 +56,13 @@ func (client *KubeletClient) CleanupCache(nodes []*v1.Node) int {
 		ip := repository.ParseNodeIP(node, v1.NodeInternalIP)
 		if len(ip) == 0 {
 			glog.Warningf("unable to obtain address for node %s, as it is no longer discovered", node.GetName())
+			continue
 		}
 		names[ip] = true
 	}
 	// Cleanup
 	count := 0
-	for host, _ := range client.cache {
+	for host := range client.cache {
 		_, ok := names[host]
 		if !ok {
 			glog.Warningf("removed host %s, as it is no longer discovered", host)
@@ -113,7 +112,9 @@ func (client *KubeletClient) postRequestAndGetValue(req *http.Request, value int
 	if err != nil {
 		return fmt.Errorf("failed to execute the request: %s", err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response body - %v", err)
@@ -141,9 +142,8 @@ func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 	entry, entryPresent := client.cache[host]
 	if err != nil {
 		if entryPresent {
-			wasUsed := entry.used
 			entry.used++
-			if entry.statsSummary == nil || wasUsed > maxCacheHits {
+			if entry.statsSummary == nil || entry.used > maxCacheHits {
 				// If we have an entry that we've used before or it is empty, delete it.
 				delete(client.cache, host)
 				glog.V(2).Infof("unable to retrieve machine[%s] summary: %v. The cached value unavailable", host, err)
@@ -181,9 +181,8 @@ func (client *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineIn
 	entry, entryPresent := client.cache[host]
 	if err != nil {
 		if entryPresent {
-			wasUsed := entry.used
 			entry.used++
-			if entry.machineInfo == nil || wasUsed > maxCacheHits {
+			if entry.machineInfo == nil || entry.used > maxCacheHits {
 				// If we have an entry that we've used before or it is empty, delete it.
 				delete(client.cache, host)
 				glog.V(2).Infof("unable to retrieve machine[%s] machine info: %v. The cached value unavailable", host, err)
@@ -226,7 +225,7 @@ func (client *KubeletClient) HasCacheBeenUsed(host string) bool {
 	defer client.cacheLock.Unlock()
 	entry, entryPresent := client.cache[host]
 	if entryPresent {
-		return entry.used > 0
+		return entry.used > maxCacheHits
 	}
 	return false
 }
@@ -246,7 +245,7 @@ func NewKubeletConfig(kubeConfig *rest.Config) *KubeletConfig {
 	return &KubeletConfig{
 		kubeConfig:  kubeConfig,
 		port:        DefaultKubeletPort,
-		enableHttps: DefaultKubeletHttps,
+		enableHttps: false,
 		timeout:     defaultConnTimeOut,
 		tlsTimeOut:  defaultTLSHandShakeTimeout,
 	}
@@ -274,12 +273,12 @@ func (kc *KubeletConfig) Timeout(timeout int) *KubeletConfig {
 
 func (kc *KubeletConfig) Create() (*KubeletClient, error) {
 	// 1. http transport
-	transport, err := makeTransport(kc.kubeConfig, kc.enableHttps, kc.tlsTimeOut, kc.forceSelfSignedCerts)
+	trans, err := makeTransport(kc.kubeConfig, kc.enableHttps, kc.tlsTimeOut, kc.forceSelfSignedCerts)
 	if err != nil {
 		return nil, err
 	}
 	c := &http.Client{
-		Transport: transport,
+		Transport: trans,
 		Timeout:   kc.timeout,
 	}
 
