@@ -65,6 +65,9 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		displayName := node.Name
 		entityDTOBuilder.DisplayName(displayName)
 		nodeActive := util.NodeIsReady(node)
+		if !nodeActive {
+			glog.Warningf("the NodeIsReady marked node %s as inactive", node.Name)
+		}
 
 		// compute and constraint commodities sold.
 		commoditiesSold, err := builder.getNodeCommoditiesSold(node)
