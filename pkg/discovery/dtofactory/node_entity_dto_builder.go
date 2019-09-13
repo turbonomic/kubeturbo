@@ -58,6 +58,9 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		displayName := node.Name
 		entityDTOBuilder.DisplayName(displayName)
 		nodeActive := util.NodeIsReady(node)
+		if !nodeActive {
+			glog.Warningf("the NodeIsReady marked node %s as inactive", node.Name)
+		}
 
 		// compute and constraint commodities sold.
 		commoditiesSold, err := builder.getNodeCommoditiesSold(node)
@@ -86,6 +89,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		cacheUsedMetric := metrics.GenerateEntityStateMetricUID(metrics.NodeType, util.NodeKeyFunc(node), "NodeCacheUsed")
 		present, _ := builder.metricsSink.GetMetric(cacheUsedMetric)
 		if present != nil {
+			glog.Errorf("We have used the cached data, so the node %s appeared to be flaky", node)
 			nodeActive = false
 		}
 
