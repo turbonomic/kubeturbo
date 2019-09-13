@@ -133,8 +133,6 @@ func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 		if entryPresent {
 			entry.used = true
 			if entry.statsSummary == nil {
-				// If we have an entry that we've used before or it is empty, delete it.
-				delete(client.cache, host)
 				glog.V(2).Infof("unable to retrieve machine[%s] summary: %v. The cached value unavailable", host, err)
 				return nil, err
 			}
@@ -172,8 +170,6 @@ func (client *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineIn
 		if entryPresent {
 			entry.used = true
 			if entry.machineInfo == nil {
-				// If we have an entry that we've used before or it is empty, delete it.
-				delete(client.cache, host)
 				glog.V(2).Infof("unable to retrieve machine[%s] machine info: %v. The cached value unavailable", host, err)
 				return nil, err
 			}
