@@ -100,6 +100,7 @@ func (client *KubeletClient) ExecuteRequestAndGetValue(host string, endpoint str
 
 	req, err := http.NewRequest("GET", requestURL.String(), nil)
 	if err != nil {
+		_ = fmt.Errorf("failed to execute the GET request: %s - %s", requestURL.String(), err)
 		return err
 	}
 
