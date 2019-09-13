@@ -144,6 +144,8 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 
 	// Resource monitoring
 	resourceMonitorTask := currTask
+	// Reset the main sink
+	worker.sink = metrics.NewEntityMetricSink()
 	//if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.ResourceMonitor]; exist {
 	for _, resourceMonitoringWorkers := range worker.monitoringWorker {
 		for _, rmWorker := range resourceMonitoringWorkers {
