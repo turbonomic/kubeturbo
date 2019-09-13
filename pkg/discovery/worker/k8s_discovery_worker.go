@@ -76,7 +76,7 @@ type k8sDiscoveryWorker struct {
 // Create new instance of k8sDiscoveryWorker.
 // Also creates instances of MonitoringWorkers for each MonitorType.
 func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string) (*k8sDiscoveryWorker, error) {
-	//id := uuid.NewUUID().String()
+	// id := uuid.NewUUID().String()
 	if len(config.monitoringSourceConfigs) == 0 {
 		return nil, errors.New("No monitoring source config found in config.")
 	}
@@ -146,7 +146,9 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 
 	// Resource monitoring
 	resourceMonitorTask := currTask
-	//if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.ResourceMonitor]; exist {
+	// Reset the main sink
+	worker.sink = metrics.NewEntityMetricSink()
+	// if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.ResourceMonitor]; exist {
 	for _, resourceMonitoringWorkers := range worker.monitoringWorker {
 		for _, rmWorker := range resourceMonitoringWorkers {
 			wg.Add(1)
@@ -165,28 +167,28 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 					monitoringSink := w.Do()
 					select {
 					case <-stopCh:
-						//glog.Infof("Calling thread: %s monitoring worker timeout!", w.GetMonitoringSource())
+						// glog.Infof("Calling thread: %s monitoring worker timeout!", w.GetMonitoringSource())
 						return
 					default:
 					}
-					//glog.Infof("%s has finished", w.GetMonitoringSource())
+					// glog.Infof("%s has finished", w.GetMonitoringSource())
 					t.Stop()
 					// Don't do any filtering
 					worker.sink.MergeSink(monitoringSink, nil)
-					//glog.Infof("send to finish channel %p", finishCh)
+					// glog.Infof("send to finish channel %p", finishCh)
 					finishCh <- struct{}{}
 				}()
 
 				// either finish as expected or timeout.
 				select {
 				case <-finishCh:
-					//glog.Infof("Worker %s finished as expected.", w.GetMonitoringSource())
+					// glog.Infof("Worker %s finished as expected.", w.GetMonitoringSource())
 					return
 				case <-t.C:
 					glog.Errorf("%s monitoring worker exceeds the max time limit for "+
 						"completing the task.", w.GetMonitoringSource())
 					stopCh <- struct{}{}
-					//glog.Infof("%s stop", w.GetMonitoringSource())
+					// glog.Infof("%s stop", w.GetMonitoringSource())
 					w.Stop()
 					return
 				}
@@ -219,7 +221,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	if err != nil {
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
-	//4. build entityDTOs for applications
+	// 4. build entityDTOs for applications
 	appEntityDTOs, podEntities, err := worker.buildAppDTOs(currTask, podsWithDtos)
 	if err != nil {
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
@@ -238,7 +240,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	if len(quotaMetricsCollection) > 0 {
 		result.WithQuotaMetrics(quotaMetricsCollection)
 	}
-	//return container and pod groups created by this worker
+	// return container and pod groups created by this worker
 	if len(entityGroups) > 0 {
 		result.WithEntityGroups(entityGroups)
 	}
@@ -302,7 +304,7 @@ func (worker *k8sDiscoveryWorker) addNodeAllocationMetrics(nodeMetricsCollection
 func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*api.Pod, error) {
 	var result []*proto.EntityDTO
 
-	//0. setUp nodeName to nodeId mapping
+	// 0. setUp nodeName to nodeId mapping
 	stitchingManager := stitching.NewStitchingManager(worker.config.stitchingPropertyType)
 
 	// Node providers
@@ -318,7 +320,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 		}
 	}
 
-	//1. build entityDTOs for nodes
+	// 1. build entityDTOs for nodes
 	nodeEntityDTOBuilder := dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager)
 	nodeEntityDTOs, err := nodeEntityDTOBuilder.BuildEntityDTOs(nodes)
 	if err != nil {
@@ -328,7 +330,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	glog.V(3).Infof("Worker %s built %d node DTOs.", worker.id, len(nodeEntityDTOs))
 	result = append(result, nodeEntityDTOs...)
 
-	//2. build entityDTOs for pods
+	// 2. build entityDTOs for pods
 	quotaNameUIDMap := make(map[string]string)
 	nodeNameUIDMap := make(map[string]string)
 	if cluster != nil {
@@ -351,10 +353,10 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	// building container and app DTOs will not include them
 	pods = excludeFailedPods(pods, podEntityDTOs)
 
-	//3. build entityDTOs for containers
+	// 3. build entityDTOs for containers
 	containerDTOBuilder := dtofactory.NewContainerDTOBuilder(worker.sink)
 	containerDTOs, err := containerDTOBuilder.BuildDTOs(pods)
-	//util.DumpTopology(containerDTOs, "test-topology.dat")
+	// util.DumpTopology(containerDTOs, "test-topology.dat")
 	if err != nil {
 		glog.Errorf("Error while creating container entityDTOs: %v", err)
 	}
@@ -374,7 +376,7 @@ func (worker *k8sDiscoveryWorker) buildAppDTOs(currTask *task.Task, podsWithDtos
 	cluster := currTask.Cluster()
 
 	glog.V(4).Infof("%s: all pods %d, pods with dtos %d", worker.id, len(currTask.PodList()), len(podsWithDtos))
-	//4. build entityDTOs for application running on each container
+	// 4. build entityDTOs for application running on each container
 	applicationEntityDTOBuilder := dtofactory.NewApplicationEntityDTOBuilder(worker.sink,
 		cluster.PodClusterIDToServiceMap)
 

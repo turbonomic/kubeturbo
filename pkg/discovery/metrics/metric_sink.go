@@ -29,10 +29,6 @@ func (s *EntityMetricSink) AddNewMetricEntries(metric ...Metric) {
 	s.data.AddAll(entries)
 }
 
-func (s *EntityMetricSink) DeleteMetricEntry(metricUID string) {
-	_ = s.data.Delete(metricUID)
-}
-
 func (s *EntityMetricSink) UpdateMetricEntry(metric Metric) {
 	s.AddNewMetricEntries(metric)
 }

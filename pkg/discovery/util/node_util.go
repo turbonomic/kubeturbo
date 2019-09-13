@@ -33,12 +33,6 @@ func GetNodeIPForMonitor(node *api.Node, source types.MonitoringSource) (string,
 
 // Check if a node is in Ready status.
 func NodeIsReady(node *api.Node) bool {
-	// TODO: This is a debug logging. We need that to track a bug.
-	//       Remove after culprit is found.
-	for _, condition := range node.Status.Conditions {
-		fmt.Printf("node %s has condition %s - %s", node.Name, condition.Type, condition.Status)
-	}
-
 	for _, condition := range node.Status.Conditions {
 		if condition.Type == api.NodeReady {
 			return condition.Status == api.ConditionTrue
