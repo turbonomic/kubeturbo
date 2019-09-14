@@ -67,8 +67,6 @@ func (s *StitchingManager) SetNodeUuidGetterByProvider(providerId string) {
 		getter = &awsNodeUUIDGetter{}
 	} else if strings.HasPrefix(providerId, azurePrefix) {
 		getter = &azureNodeUUIDGetter{}
-	} else if strings.HasPrefix(providerId, gcePrefix) {
-		getter = &gceNodeUUIDGetter{}
 	}
 
 	s.uuidGetter = getter
