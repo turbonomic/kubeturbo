@@ -11,10 +11,12 @@ import (
 const (
 	awsPrefix     = "aws:///"
 	azurePrefix   = "azure:///"
+	gcePrefix     = "gce://"
 	uuidSeparator = "-"
 
 	awsFormat   = "aws::%v::VM::%v"
 	azureFormat = "azure::VM::%v"
+	gceFormat   = "gcp::%v::VM::%v"
 )
 
 type NodeUUIDGetter interface {
@@ -143,6 +145,61 @@ func (azure *azureNodeUUIDGetter) GetUUID(node *api.Node) (string, error) {
 	result := fmt.Sprintf(azureFormat, uuid)
 
 	//2. TODO: generate a HASH of result, if len(result) > 80
+	return result, nil
+}
+
+/**
+Input GCE.k8s.Node info:
+  metadata:
+    annotations:
+      container.googleapis.com/instance_id: "8108478110475488564"
+
+  spec:
+    providerID: gce://turbonomic-eng/us-central1-a/gke-enlin-cluster-1-default-pool-b0f2516c-mrl0
+
+ Output:  gcp::us-central1::VM::8108478110475488564
+*/
+
+type gceNodeUUIDGetter struct {
+}
+
+func (gce *gceNodeUUIDGetter) Name() string {
+	return "GCP"
+}
+
+func (gce *gceNodeUUIDGetter) GetUUID(node *api.Node) (string, error) {
+	instanceId := node.ObjectMeta.Annotations["container.googleapis.com/instance_id"]
+	providerId := node.Spec.ProviderID
+
+	if len(instanceId) == 0 {
+		glog.Errorf("Not a valid GCE instanceId: %++v", node)
+		return "", fmt.Errorf("Invalid")
+	}
+
+	if !strings.HasPrefix(providerId, gcePrefix) {
+		glog.Errorf("Not a valid GCE node uuid: %++v", node)
+		return "", fmt.Errorf("Invalid")
+	}
+
+	//2. split the suffix into two parts:
+	// gce://turbonomic-eng/us-central1-a/gke-enlin-cluster-1-default-pool-b0f2516c-mrl0 -> [us-central1-a, i-0be85bb9db1707470]
+	suffix := providerId[len(gcePrefix):]
+	parts := strings.Split(suffix, "/")
+	if len(parts) != 3 {
+		glog.Errorf("Failed to split uuid (%d): %v", len(parts), parts)
+		return "", fmt.Errorf("Invalid")
+	}
+
+	//3. get region by remove the zone suffix
+	if len(parts[1]) < 2 {
+		glog.Errorf("Invalid zone Id: %v", providerId)
+		return "", fmt.Errorf("Invalid")
+	}
+
+	end := len(parts[1]) - 2
+	region := parts[1][0:end]
+
+	result := fmt.Sprintf(gceFormat, region, instanceId)
 	return result, nil
 }
 
