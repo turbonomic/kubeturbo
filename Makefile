@@ -12,11 +12,11 @@ debug-product: clean
 build: clean
 	go build -o ${OUTPUT_DIR}/kubeturbo ./cmd/kubeturbo
 
-docker: clean
-	docker build -t turbonomic/kubeturbo:6.4dev --build-arg GIT_COMMIT=$(shell git rev-parse --short HEAD) .
+docker: product
+	docker build -f build/Dockerfile -t turbonomic/kubeturbo --build-arg GIT_COMMIT=$(shell git rev-parse --short HEAD) .
 
 delve: Dockerfile.delve
-	docker build -f Dockerfile.delve -t delve:staging .
+	docker build -f build/Dockerfile.delve -t delve:staging .
 	docker create --name delve-staging delve:staging
 	docker cp delve-staging:/root/bin/dlv .
 	touch dlv
@@ -24,7 +24,7 @@ delve: Dockerfile.delve
 
 debug: debug-product delve
 	@if [ ! -z ${TURBO_REPO} ] && [ ! -z ${KUBE_VER} ];	then \
-		docker build -f Dockerfile.debug -t ${TURBO_REPO}/kubeturbo:${KUBE_VER}debug . ; \
+		docker build -f build/Dockerfile.debug -t ${TURBO_REPO}/kubeturbo:${KUBE_VER}debug . ; \
 	else \
 		echo "Either dockerhub repo or kuberturbo version is not defined: TURBO_REPO=${TURBO_REPO} - KUBE_VER=${KUBE_VER}"; \
 		echo "Please define both TURBO_REPO='dockerhub repository' and KUBE_VER='kubeturbo version'"; \
