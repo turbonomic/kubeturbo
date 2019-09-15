@@ -10,7 +10,7 @@ debug-product: clean
 	env GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -gcflags "-N -l" -o ${OUTPUT_DIR}/kubeturbo.debug ./cmd/kubeturbo
 
 build: clean
-	go build -o ${OUTPUT_DIR}/kubeturbo ./cmd/kubeturbo
+	go build ./cmd/kubeturbo
 
 docker: product
 	cd build; docker build -t turbonomic/kubeturbo --build-arg GIT_COMMIT=$(shell git rev-parse --short HEAD) .
