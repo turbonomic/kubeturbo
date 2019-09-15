@@ -1,4 +1,4 @@
-FROM turbonomic/kubeturbo:6.4.0
+FROM turbonomic/kubeturbo
 COPY kubeturbo.debug /opt/turbonomic/bin/kubeturbo
 ADD dlv /usr/local/bin/dlv
 EXPOSE 40000
