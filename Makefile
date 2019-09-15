@@ -15,7 +15,7 @@ build: clean
 docker: product
 	docker build -f build/Dockerfile -t turbonomic/kubeturbo --build-arg GIT_COMMIT=$(shell git rev-parse --short HEAD) .
 
-delve: Dockerfile.delve
+delve:
 	docker build -f build/Dockerfile.delve -t delve:staging .
 	docker create --name delve-staging delve:staging
 	docker cp delve-staging:/root/bin/dlv .
