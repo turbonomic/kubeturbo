@@ -65,7 +65,7 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 	// Create a static group for Master Nodes
 	masterNodesGroupDTO := dtofactory.NewMasterNodesGroupDTOBuilder(worker.Cluster, worker.targetId).Build()
 	if masterNodesGroupDTO != nil {
-		groupDtos = append(groupDtos, masterNodesGroupDTO)
+		groupDtos = append(groupDtos, masterNodesGroupDTO...)
 	}
 
 	return groupDtos, nil

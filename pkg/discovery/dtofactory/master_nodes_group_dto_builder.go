@@ -22,7 +22,7 @@ func NewMasterNodesGroupDTOBuilder(cluster *repository.ClusterSummary,
 	}
 }
 
-func (builder *masterNodesGroupDTOBuilder) Build() *proto.GroupDTO {
+func (builder *masterNodesGroupDTOBuilder) Build() []*proto.GroupDTO {
 	var masterNodes []string
 
 	nodes := builder.cluster.NodeList
@@ -43,18 +43,15 @@ func (builder *masterNodesGroupDTOBuilder) Build() *proto.GroupDTO {
 	groupId := "MasterNodes"
 	id := fmt.Sprintf("%s-%s", groupId, builder.targetId)
 
-	displayName := fmt.Sprintf("%s[%s]", groupId, builder.targetId)
+	groupBuilder := group.DoNotPlaceTogether(id).WithSellerType(proto.EntityDTO_PHYSICAL_MACHINE).
+		WithBuyers(group.StaticBuyers(masterNodes).OfType(proto.EntityDTO_VIRTUAL_MACHINE).AtMost(1))
 
-	groupBuilder := group.StaticGroup(id).
-		WithDisplayName(displayName).
-		OfType(proto.EntityDTO_VIRTUAL_MACHINE).
-		WithEntities(masterNodes)
-	groupDTO, err := groupBuilder.Build()
+	groupDTOs, err := groupBuilder.Build()
 	if err != nil {
 		glog.Errorf("Error creating master nodes group dto  %s::%s", id, err)
 	}
 
-	glog.V(3).Infof("Master nodes group %++v\n", groupDTO)
+	glog.V(3).Infof("Master nodes group %++v\n", groupDTOs)
 
-	return groupDTO
+	return groupDTOs
 }
