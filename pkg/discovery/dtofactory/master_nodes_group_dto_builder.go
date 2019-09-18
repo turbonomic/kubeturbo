@@ -43,7 +43,7 @@ func (builder *masterNodesGroupDTOBuilder) Build() []*proto.GroupDTO {
 	groupId := "MasterNodes"
 	id := fmt.Sprintf("%s-%s", groupId, builder.targetId)
 
-	groupBuilder := group.DoNotPlaceTogether(id).WithSellerType(proto.EntityDTO_PHYSICAL_MACHINE).
+	groupBuilder := group.DoNotPlaceTogether(id).OnSellerType(proto.EntityDTO_PHYSICAL_MACHINE).
 		WithBuyers(group.StaticBuyers(masterNodes).OfType(proto.EntityDTO_VIRTUAL_MACHINE).AtMost(1))
 
 	groupDTOs, err := groupBuilder.Build()
