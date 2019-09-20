@@ -35,7 +35,7 @@ require (
 	github.com/spf13/pflag v1.0.3
 	github.com/stretchr/testify v1.2.2
 	github.com/turbonomic/turbo-api v0.0.0-20180816193551-ed948ba97e70 // indirect
-	github.com/turbonomic/turbo-go-sdk v6.4.1-0.20190628213717-579ca3a8764e+incompatible
+	github.com/turbonomic/turbo-go-sdk v6.4.1-0.20190919201535-c2695c1fd85c+incompatible
 	go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569 // indirect
 	go.uber.org/multierr v0.0.0-20180122172545-ddea229ff1df // indirect
 	go.uber.org/zap v0.0.0-20180814183419-67bc79d13d15 // indirect

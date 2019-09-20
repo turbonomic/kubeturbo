@@ -2,6 +2,7 @@ package detectors
 
 import (
 	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"os"
 	"regexp"
 	"strings"
@@ -19,6 +20,9 @@ var masterLabelValues []*regexp.Regexp
 var daemonPodNamePattern *regexp.Regexp
 var daemonNamespacePattern *regexp.Regexp
 
+// HANode detection
+var HANodeRoles sets.String
+
 type NodeLabelEntry struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
@@ -34,6 +38,10 @@ type DaemonPodDetectors struct {
 	PodNamePatterns []string `json:"podNamePatterns,omitempty"`
 }
 
+type HANodeConfig struct {
+	NodeRoles []string `json:"nodeRoles,omitempty"`
+}
+
 func compileOrDie(pattern string) *regexp.Regexp {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
@@ -43,33 +51,41 @@ func compileOrDie(pattern string) *regexp.Regexp {
 	return re
 }
 
-func ValidateAndParseDetectors(mconfig *MasterNodeDetectors, dconfig *DaemonPodDetectors) error {
+func ValidateAndParseDetectors(masterConfig *MasterNodeDetectors,
+	daemonConfig *DaemonPodDetectors, HAConfig *HANodeConfig) {
+
 	// Handle default values when sections are missing
-	if mconfig == nil {
-		mconfig = &MasterNodeDetectors{}
+	if masterConfig == nil {
+		masterConfig = &MasterNodeDetectors{}
 	}
-	if dconfig == nil {
-		dconfig = &DaemonPodDetectors{}
+	if daemonConfig == nil {
+		daemonConfig = &DaemonPodDetectors{}
 	}
 
 	// Pre-compile all regular expressions and ensure that they are valid
 
 	// Master node detection by node name
-	masterNodeNamePattern = buildRegexFromList(mconfig.NodeNamePatterns)
+	masterNodeNamePattern = buildRegexFromList(masterConfig.NodeNamePatterns)
 
 	// Master node detection by label
-	masterLabelKeys = make([]*regexp.Regexp, len(mconfig.NodeLabels))
-	masterLabelValues = make([]*regexp.Regexp, len(mconfig.NodeLabels))
-	for i, entry := range mconfig.NodeLabels {
+	masterLabelKeys = make([]*regexp.Regexp, len(masterConfig.NodeLabels))
+	masterLabelValues = make([]*regexp.Regexp, len(masterConfig.NodeLabels))
+	for i, entry := range masterConfig.NodeLabels {
 		masterLabelKeys[i] = compileOrDie(entry.Key)
 		masterLabelValues[i] = compileOrDie(entry.Value)
 	}
 
 	// Daemon pod detection by pod name and namespace
-	daemonPodNamePattern = buildRegexFromList(dconfig.PodNamePatterns)
-	daemonNamespacePattern = buildRegexFromList(dconfig.Namespaces)
+	daemonPodNamePattern = buildRegexFromList(daemonConfig.PodNamePatterns)
+	daemonNamespacePattern = buildRegexFromList(daemonConfig.Namespaces)
 
-	return nil
+	// Remember HA node roles
+	HANodeRoles = sets.NewString()
+	if HAConfig != nil {
+		for _, role := range HAConfig.NodeRoles {
+			HANodeRoles.Insert(role)
+		}
+	}
 }
 
 /*
