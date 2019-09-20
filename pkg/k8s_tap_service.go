@@ -28,6 +28,7 @@ type K8sTAPServiceSpec struct {
 	*configs.K8sTargetConfig          `json:"targetConfig,omitempty"`
 	*detectors.MasterNodeDetectors    `json:"masterNodeDetectors,omitempty"`
 	*detectors.DaemonPodDetectors     `json:"daemonPodDetectors,omitempty"`
+	*detectors.HANodeConfig           `json:"HANodeConfig,omitempty"`
 }
 
 func ParseK8sTAPServiceSpec(configFile, defaultTargetName string) (*K8sTAPServiceSpec, error) {
@@ -54,9 +55,11 @@ func ParseK8sTAPServiceSpec(configFile, defaultTargetName string) (*K8sTAPServic
 	if err := tapSpec.ValidateK8sTargetConfig(); err != nil {
 		return nil, err
 	}
-	if err := detectors.ValidateAndParseDetectors(tapSpec.MasterNodeDetectors, tapSpec.DaemonPodDetectors); err != nil {
-		return nil, err
-	}
+
+	// This function aborts the program upon fatal error
+	detectors.ValidateAndParseDetectors(tapSpec.MasterNodeDetectors,
+		tapSpec.DaemonPodDetectors, tapSpec.HANodeConfig)
+
 	return tapSpec, nil
 }
 

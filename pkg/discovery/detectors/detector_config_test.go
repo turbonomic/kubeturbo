@@ -158,29 +158,31 @@ type TestConfig struct {
 	X2                   // Stubbed configs.K8sTargetConfig
 	*MasterNodeDetectors `json:"masterNodeDetectors,omitempty"`
 	*DaemonPodDetectors  `json:"daemonPodDetectors,omitempty"`
+	*HANodeConfig        `json:"HANodeConfig,omitempty"`
 }
 
 func loadConfig(config string) (*TestConfig, error) {
 	var spec TestConfig
 	err := json.Unmarshal([]byte(config), &spec)
 	if err != nil {
-		return nil, fmt.Errorf("Unmarshall error :%v", err.Error())
+		return nil, fmt.Errorf("unmarshall error :%v", err.Error())
 	}
 	//fmt.Println(spec)
 	return &spec, nil
 }
 
-func setupTest(t *testing.T, scenario string) (*TestConfig, error) {
+func setupTest(scenario string) (*TestConfig, error) {
 	spec, err := loadConfig(configs[scenario])
 	if err != nil {
 		return nil, err
 	}
-	return spec, ValidateAndParseDetectors(spec.MasterNodeDetectors, spec.DaemonPodDetectors)
+	ValidateAndParseDetectors(spec.MasterNodeDetectors, spec.DaemonPodDetectors, spec.HANodeConfig)
+	return spec, nil
 }
 
 func TestDetectorConfig_loadConfig(t *testing.T) {
-	for name, _ := range configs {
-		_, err := setupTest(t, name)
+	for name := range configs {
+		_, err := setupTest(name)
 		if err != nil {
 			t.Errorf("Cannot parse configuration '%s': %v", name, err)
 		}
@@ -230,7 +232,7 @@ var masterNodeTests = []MasterNodeTestCase{
 func TestDetectorConfig_detectMasterNode(t *testing.T) {
 	for scenarioIndex, scenarioName := range []string{"validFullConfig", "missingMasterNodeDetectors",
 		"missingDaemonPodDetectors", "missingBoth", "missingList", "emptySection"} {
-		setupTest(t, scenarioName)
+		_, _ = setupTest(scenarioName)
 		for _, test := range masterNodeTests {
 			is := IsMasterDetected(test.Name, test.Labels)
 			expected := test.Results[scenarioIndex]
@@ -262,7 +264,7 @@ var daemonPodTests = []DaemonPodTestCase{
 func TestDetectorConfig_detectDaemon(t *testing.T) {
 	for scenarioIndex, scenarioName := range []string{"validFullConfig", "missingMasterNodeDetectors",
 		"missingDaemonPodDetectors", "missingBoth", "missingList", "emptySection"} {
-		setupTest(t, scenarioName)
+		_, _ = setupTest(scenarioName)
 		for _, test := range daemonPodTests {
 			is := IsDaemonDetected(test.Name, test.Namespace)
 			expected := test.Results[scenarioIndex]
