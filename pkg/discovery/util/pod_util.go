@@ -58,7 +58,7 @@ func IsControllableFromAnnotation(annotations map[string]string) bool {
 func Daemon(pod *api.Pod) bool {
 	isDaemon := isPodCreatedBy(pod, Kind_DaemonSet) || detectors.IsDaemonDetected(pod.Name, pod.Namespace)
 	if isDaemon {
-		glog.V(3).Infof("Pod %s/%s is a daemon", pod.Namespace, pod.Name)
+		glog.V(4).Infof("Pod %s/%s is a daemon", pod.Namespace, pod.Name)
 	}
 	return isDaemon
 }
@@ -69,7 +69,7 @@ func Controllable(pod *api.Pod) bool {
 	controllable := !isMirrorPod(pod) && !isPodCreatedBy(pod, Kind_DaemonSet) &&
 		IsControllableFromAnnotation(pod.GetAnnotations())
 	if !controllable {
-		glog.V(3).Infof("Pod %s/%s is not controllable", pod.Namespace, pod.Name)
+		glog.V(4).Infof("Pod %s/%s is not controllable", pod.Namespace, pod.Name)
 	}
 	return controllable
 }

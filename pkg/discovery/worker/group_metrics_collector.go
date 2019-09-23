@@ -2,7 +2,6 @@ package worker
 
 import (
 	"fmt"
-	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
@@ -27,77 +26,65 @@ func NewGroupMetricsCollector(discoveryWorker *k8sDiscoveryWorker, currTask *tas
 }
 
 func (collector *GroupMetricsCollector) CollectGroupMetrics() ([]*repository.EntityGroup, error) {
-	etype := metrics.PodType
+	var entityGroupList []*repository.EntityGroup
 
-	podMembers := make(map[string]map[string][]string)       // pods by parent kind and instance
-	containerMembers := make(map[string]map[string][]string) // container by parent kind and instance
-	podByParentMembers := make(map[string][]string)          // pods by parent kind
+	entityGroups := make(map[string]map[string]*repository.EntityGroup)
+	entityGroupsByParentKind := make(map[string]*repository.EntityGroup)
 
-	// Iterate over list of pods to get the owner metric for each
 	for _, pod := range collector.PodList {
-		// Parent for the pod
 		podKey := util.PodKeyFunc(pod)
-		ownerTypeString, ownerString, err := collector.getGroupName(etype, podKey)
+		ownerTypeString, ownerString, err := collector.getGroupName(metrics.PodType, podKey)
 		if err != nil {
 			continue
 		}
 
-		// Add pod id to its owner group membership
 		podId := string(pod.UID)
-		ownerTypeMap, ownerTypeExists := podMembers[ownerTypeString]
+
+		// Groups by parent type and instance
+		ownerTypeMap, ownerTypeExists := entityGroups[ownerTypeString]
 		if !ownerTypeExists {
-			podMembers[ownerTypeString] = make(map[string][]string)
-			ownerTypeMap = podMembers[ownerTypeString]
+			entityGroups[ownerTypeString] = make(map[string]*repository.EntityGroup)
+			ownerTypeMap = entityGroups[ownerTypeString]
 		}
-		ownerTypeMap[ownerString] = append(ownerTypeMap[ownerString], podId)
-
-		podByParentMembers[ownerTypeString] = append(podByParentMembers[ownerTypeString], podId)
-
-		// Container group membership - same as pod group
-		for i := range pod.Spec.Containers { //
-			containerId := util.ContainerIdFunc(podId, i)
-
-			cOwnerTypeMap, cOwnerTypeExists := containerMembers[ownerTypeString]
-			if !cOwnerTypeExists {
-				containerMembers[ownerTypeString] = make(map[string][]string)
-				cOwnerTypeMap = containerMembers[ownerTypeString]
+		ownerTypeMap = entityGroups[ownerTypeString]
+		if ownerString != "" {
+			entityGroup, groupExists := ownerTypeMap[ownerTypeString]
+			if !groupExists {
+				// Create a new group for parent type & instance
+				entityGroup, _ := repository.NewEntityGroup(ownerTypeString, ownerString)
+				ownerTypeMap[ownerString] = entityGroup
+				entityGroupList = append(entityGroupList, entityGroup)
 			}
-			cOwnerTypeMap[ownerString] = append(cOwnerTypeMap[ownerString], containerId)
-		}
-	}
 
-	// Pod and container group per parent type and instance
-	var entityGroupList []*repository.EntityGroup
-	for ownerType, ownerTypeMap := range podMembers {
-		for ownerInstance, podList := range ownerTypeMap {
-			entityGroup, err := repository.NewEntityGroup(ownerType, ownerInstance)
-			if err != nil {
-				glog.Errorf("%v", err)
-				continue
-			}
-			for _, pod := range podList {
-				entityGroup.AddMember(metrics.PodType, pod)
-			}
-			containerList, exists := containerMembers[ownerType][ownerInstance]
-			if exists {
-				for _, container := range containerList {
-					entityGroup.AddMember(metrics.ContainerType, container)
+			entityGroup = entityGroups[ownerTypeString][ownerString]
+			// Add pod member to the group
+			entityGroup.AddMember(metrics.PodType, podId)
+
+			for i := range pod.Spec.Containers {
+				// Add container members to the group
+				containerId := util.ContainerIdFunc(podId, i)
+				entityGroup.AddMember(metrics.ContainerType, containerId)
+
+				// Compute groups for different containers in the pod
+				container := pod.Spec.Containers[i]
+				containerList, containerGroupExists := entityGroup.ContainerGroups[container.Name]
+				if !containerGroupExists {
+					entityGroup.ContainerGroups[container.Name] = []string{}
 				}
+				containerList = append(containerList, containerId)
+				entityGroup.ContainerGroups[container.Name] = append(entityGroup.ContainerGroups[container.Name], containerId)
 			}
-			entityGroupList = append(entityGroupList, entityGroup)
-			glog.V(4).Infof("[discovery_worker] created group --> %++v\n", entityGroup.GroupId)
 		}
+		// Group by parent kind only
+		entityGroupByParentKind, exists := entityGroupsByParentKind[ownerTypeString]
+		if !exists {
+			entityGroupByParentKind, _ := repository.NewEntityGroup(ownerTypeString, "")
+			entityGroupsByParentKind[ownerTypeString] = entityGroupByParentKind
+		}
+		entityGroupByParentKind = entityGroupsByParentKind[ownerTypeString]
+		entityGroupByParentKind.AddMember(metrics.PodType, podId)
 	}
 
-	// Pod Group per parent type
-	for ownerType, podList := range podByParentMembers {
-		entityGroup, _ := repository.NewEntityGroup(ownerType, "")
-		for _, pod := range podList {
-			entityGroup.AddMember(metrics.PodType, pod)
-		}
-		entityGroupList = append(entityGroupList, entityGroup)
-		glog.V(4).Infof("[discovery_worker] created group --> %++v\n", entityGroup.GroupId)
-	}
 	return entityGroupList, nil
 }
 
