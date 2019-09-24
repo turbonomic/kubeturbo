@@ -65,7 +65,7 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 		}
 	}
 
-	if (glog.V(4)) {
+	if glog.V(4) {
 		for _, entityGroup := range entityGroupList {
 			glog.Infof("Group --> %s::%s\n", entityGroup.ParentKind, entityGroup.ParentName)
 			for etype, members := range entityGroup.Members {
