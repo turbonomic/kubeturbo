@@ -6,10 +6,11 @@ import (
 )
 
 type EntityGroup struct {
-	Members    map[metrics.DiscoveredEntityType][]string
-	ParentKind string
-	ParentName string
-	GroupId    string
+	Members         map[metrics.DiscoveredEntityType][]string
+	ParentKind      string
+	ParentName      string
+	GroupId         string
+	ContainerGroups map[string][]string
 }
 
 func NewEntityGroup(kind, name string) (*EntityGroup, error) {
@@ -21,10 +22,11 @@ func NewEntityGroup(kind, name string) (*EntityGroup, error) {
 		groupKey = fmt.Sprintf("%s::%s", kind, name)
 	}
 	return &EntityGroup{
-		GroupId:    groupKey,
-		ParentKind: kind,
-		ParentName: name,
-		Members:    make(map[metrics.DiscoveredEntityType][]string),
+		GroupId:         groupKey,
+		ParentKind:      kind,
+		ParentName:      name,
+		Members:         make(map[metrics.DiscoveredEntityType][]string),
+		ContainerGroups: make(map[string][]string),
 	}, nil
 }
 
