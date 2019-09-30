@@ -24,6 +24,13 @@ var (
 	}
 )
 
+var (
+	ENTITY_TYPE_MAP = map[metrics.DiscoveredEntityType]proto.EntityDTO_EntityType{
+		metrics.PodType:       proto.EntityDTO_CONTAINER_POD,
+		metrics.ContainerType: proto.EntityDTO_CONTAINER,
+	}
+)
+
 // New instance of groupDTOBuilder.
 // Input parameters are map of discovered EntityGroup instances and
 // the target identifier of the kubeturbo probe.
@@ -42,47 +49,76 @@ func NewGroupDTOBuilder(entityGroupMap map[string]*repository.EntityGroup,
 	}, nil
 }
 
-// Build groupDTOs for pod and containers that belong to parent group instances for
-// StatefulSets, DaemonSets, ReplicaSets.
-// In addition also builds pod groups per parent type.
+// Build groupDTOs
+// - for pod and containers that belong to parent group instances for StatefulSets, DaemonSets, ReplicaSets
+// - for containers by container name in a pod
+// - for pod groups per parent type.
 func (builder *groupDTOBuilder) BuildGroupDTOs() []*proto.GroupDTO {
 	var result []*proto.GroupDTO
 
 	// Groups per parent instance
 	for _, entityGroup := range builder.entityGroupMap {
-		// Pod and containers members belonging to the group
+		if entityGroup.GroupId == "" {
+			glog.Errorf("Invalid group id")
+			continue
+		}
+
+		// Groups for the Pod and containers belonging to the group
 		for etype, memberList := range entityGroup.Members {
-			if entityGroup.GroupId == "" {
-				glog.Errorf("Invalid group id")
-				continue
-			}
+
 			// group id created using the parent type, name and target identifier
 			id := fmt.Sprintf("%s-%s[%s]", entityGroup.GroupId, builder.targetId, etype)
+			displayName := fmt.Sprintf("%ss By %s [%s]", etype, entityGroup.GroupId, builder.targetId)
 
 			var protoType proto.EntityDTO_EntityType
-			if etype == metrics.PodType {
-				protoType = proto.EntityDTO_CONTAINER_POD
-			} else if etype == metrics.ContainerType {
-				protoType = proto.EntityDTO_CONTAINER
-			} else {
-				glog.Errorf("Invalid member entity type")
+			protoType, foundType := ENTITY_TYPE_MAP[etype]
+			if !foundType {
+				glog.Errorf("Invalid member entity type %s", etype)
 				continue
 			}
 
 			// static group
 			groupBuilder := group.StaticGroup(id).
 				OfType(protoType).
-				WithEntities(memberList)
+				WithEntities(memberList).
+				WithDisplayName(displayName)
 
-			// group display name
-			displayName := fmt.Sprintf("%ss By %s [%s]",
-				etype, entityGroup.GroupId, builder.targetId)
-			groupBuilder.WithDisplayName(displayName)
+			// build group
+			groupDTO, err := groupBuilder.Build()
+			if err != nil {
+				glog.Errorf("Error creating group dto  %s::%s", id, err)
+				continue
+			}
 
-			// group resize policy - currently only for stateful sets
+			result = append(result, groupDTO)
+
+			glog.V(4).Infof("groupDTO  : %++v", groupDTO)
+		}
+
+		if len(entityGroup.ContainerGroups) <= 1 {
+			continue
+		}
+
+		// Additional sub groups for the different containers running in a pod
+		for containerName, containerList := range entityGroup.ContainerGroups {
+			etype := metrics.ContainerType
+
+			groupId := fmt.Sprintf("%s::%s", entityGroup.GroupId, containerName)
+
+			id := fmt.Sprintf("%s-%s[%s]", groupId, builder.targetId, etype)
+			displayName := fmt.Sprintf("%ss By %s [%s]", etype, groupId, builder.targetId)
+			protoType := proto.EntityDTO_CONTAINER
+
+			// static group
+			groupBuilder := group.StaticGroup(id).
+				OfType(protoType).
+				WithEntities(containerList).
+				WithDisplayName(displayName)
+
+			// if parent group resize policy is consistent resize, set it for the container sub-group
 			_, exists := CONSISTENT_RESIZE_GROUPS[entityGroup.ParentKind]
 			if exists && entityGroup.ParentName != "" {
-				glog.V(4).Infof("%s: set group to resize consistently\n", entityGroup.GroupId)
+				glog.V(2).Infof("%s: set group to resize consistently\n", groupId)
 				groupBuilder.ResizeConsistently()
 			}
 
