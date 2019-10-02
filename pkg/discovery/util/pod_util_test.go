@@ -215,8 +215,8 @@ func TestMirroredPod(t *testing.T) {
 	}
 
 	podInDaemonSet := makePodInDaemonSet()
-	if Controllable(podInDaemonSet) {
-		t.Errorf("Pod in daemon set cannot be controllable")
+	if !Controllable(podInDaemonSet) {
+		t.Errorf("Pod in daemon set must be controllable")
 	}
 
 	// Here is a different way to specify that a pod was created via a DaemonSet.
@@ -228,8 +228,8 @@ func TestMirroredPod(t *testing.T) {
 	ref.Reference.Name = "yes"
 	refbytes, _ := json.Marshal(&ref)
 	podInDaemonSet.ObjectMeta.Annotations["kubernetes.io/created-by"] = string(refbytes)
-	if Controllable(podInDaemonSet) {
-		t.Errorf("Pod in daemon set cannot be controllable")
+	if !Controllable(podInDaemonSet) {
+		t.Errorf("Pod in daemon set must be controllable")
 	}
 
 }
