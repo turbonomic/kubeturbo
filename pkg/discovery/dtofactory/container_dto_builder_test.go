@@ -15,7 +15,7 @@ func TestPodFlags(t *testing.T) {
 	 * (controllable should be true, monitored should be true)
 	 *
 	 * Pod 1: controllable = false, monitored = true, parentKind = DaemonSet
-	 * (controllable should be false, monitored should be true)
+	 * (controllable should be true, monitored should be true)
 	 *
 	 * Pod 2: controllable = true, monitored = true, parentKind = ReplicaSet
 	 * (controllable should be true, monitored should be true)
@@ -29,7 +29,7 @@ func TestPodFlags(t *testing.T) {
 		Monitored    bool
 	}{
 		{true, true},
-		{false, true},
+		{true, true},
 		{true, true},
 		{false, true},
 	}
