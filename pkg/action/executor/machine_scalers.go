@@ -5,9 +5,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
-	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
-	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
-	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1"
+	clusterv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
+	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
+	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/typed/machine/v1beta1"
 	"strings"
 	"time"
 )
@@ -17,7 +17,7 @@ type ActionType string
 
 // These are the valid Action types.
 const (
-	clusterAPIGroupVersion                = "cluster.k8s.io/v1alpha1"
+	clusterAPIGroupVersion                = "machine.openshift.io/v1beta1"
 	ProvisionAction            ActionType = "Provision"
 	SuspendAction              ActionType = "Suspend"
 	operationMaxWaits                     = 60
@@ -35,9 +35,9 @@ type k8sClusterApi struct {
 	discovery discovery.DiscoveryInterface
 
 	// Cluster API Resource client interfaces
-	machine           v1alpha1.MachineInterface
-	machineSet        v1alpha1.MachineSetInterface
-	machineDeployment v1alpha1.MachineDeploymentInterface
+	machine           v1beta1.MachineInterface
+	machineSet        v1beta1.MachineSetInterface
+	machineDeployment v1beta1.MachineDeploymentInterface
 
 	caGroupVersion string // clusterAPI group and version
 }
@@ -347,9 +347,9 @@ func IsClusterAPIEnabled(namespace string, cApiClient *clientset.Clientset, kube
 		caClient:          cApiClient,
 		k8sClient:         kubeClient,
 		discovery:         kubeClient.Discovery(),
-		machine:           cApiClient.ClusterV1alpha1().Machines(namespace),
-		machineSet:        cApiClient.ClusterV1alpha1().MachineSets(namespace),
-		machineDeployment: cApiClient.ClusterV1alpha1().MachineDeployments(namespace),
+		machine:           cApiClient.MachineV1beta1().Machines(namespace),
+		machineSet:        cApiClient.MachineV1beta1().MachineSets(namespace),
+		machineDeployment: cApiClient.MachineV1beta1().MachineDeployments(namespace),
 		caGroupVersion:    clusterAPIGroupVersion,
 	}
 	// Check whether Cluster API is enabled.
@@ -370,9 +370,9 @@ func newController(namespace string, machineName string, diff int32, actionType 
 		caClient:          cApiClient,
 		k8sClient:         kubeClient,
 		discovery:         kubeClient.Discovery(),
-		machine:           cApiClient.ClusterV1alpha1().Machines(namespace),
-		machineSet:        cApiClient.ClusterV1alpha1().MachineSets(namespace),
-		machineDeployment: cApiClient.ClusterV1alpha1().MachineDeployments(namespace),
+		machine:           cApiClient.MachineV1beta1().Machines(namespace),
+		machineSet:        cApiClient.MachineV1beta1().MachineSets(namespace),
+		machineDeployment: cApiClient.MachineV1beta1().MachineDeployments(namespace),
 		caGroupVersion:    clusterAPIGroupVersion,
 	}
 	// Check whether Cluster API is enabled.

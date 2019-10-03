@@ -5,7 +5,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
 	kclient "k8s.io/client-go/kubernetes"
-	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
 type TurboActionExecutorInput struct {
