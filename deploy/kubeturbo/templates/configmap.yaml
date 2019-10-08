@@ -30,11 +30,5 @@ data:
         "namespaces": ["{{ .Values.daemonPodDetectors.daemonPodNamespaces1 }}", "{{ .Values.daemonPodDetectors.daemonPodNamespaces2 }}"],
         "podNamePatterns": ["{{ .Values.daemonPodDetectors.daemonPodNamePatterns }}"]
       {{- end }}
-      {{- if .Values.masterNodeDetectors }}
-      },
-      "masterNodeDetectors": {
-        "nodeNamePatterns": [ "{{ .Values.masterNodeDetectors.nodeNamePatterns }}" ],
-        "nodeLabels": [ {"key": "{{ .Values.masterNodeDetectors.nodeLabelsKey }}", "value": "{{ .Values.masterNodeDetectors.nodeLabelsValue }}"} ]
-      {{- end }}
       }
     }

@@ -5,7 +5,7 @@
 # Replace the image with desired version
 image:
   repository: turbonomic/kubeturbo
-  tag: 6.4.0
+  tag: 6.4.3
   pullPolicy: IfNotPresent
 
 #nameOverride: ""
@@ -33,14 +33,6 @@ restAPIConfig:
 # Master nodes are by default populated by --set HANodeConfig.nodeRoles="\"foo\"\,\"bar\""
 HANodeConfig:
   nodeRoles: "\"master\""
-
-# In kubeturbo 6.3+, you can define how master nodes are identified. Use either or both
-# Master nodes are not identified by default and could suspend in plans.
-# nodeLabels must provide a key value pair
-#masterNodeDetectors:
-#   nodeNamePatterns: .*master.*
-#   nodeLabelsKey: node-role.kubernetes.io/master
-#   nodeLabelsValue: .*
 
 # In kubeturbo 6.3+, you can define how daemon pods are identified. Use either or both
 # Note if you do not enable daemonPodDetectors, the default is to identify all pods running as kind = daemonSet
