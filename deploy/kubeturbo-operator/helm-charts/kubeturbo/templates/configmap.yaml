@@ -15,9 +15,8 @@ data:
           "opsManagerPassword": "{{ .Values.restAPIConfig.opsManagerPassword }}"
         }
       },
-      "masterNodeDetectors": {
-        "nodeNamePatterns": [ "{{ .Values.masterNodeDetectors.nodeNamePatterns }}" ],
-        "nodeLabels": [ {"key": "{{ .Values.masterNodeDetectors.nodeLabelsKey }}", "value": "{{ .Values.masterNodeDetectors.nodeLabelsValue }}"} ]
+      "HANodeConfig": {
+        "nodeRoles": [{{ .Values.HANodeConfig.nodeRoles }}]
       {{- if .Values.targetConfig }}
         {{- if .Values.targetConfig.targetName }}
       },
