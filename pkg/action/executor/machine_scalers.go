@@ -2,13 +2,13 @@ package executor
 
 import (
 	"fmt"
+	machinev1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
+	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
+	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/typed/machine/v1beta1"
+	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
-	clusterv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
-	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/typed/machine/v1beta1"
-	"strings"
 	"time"
 )
 
@@ -53,69 +53,30 @@ func (client *k8sClusterApi) verifyClusterAPIEnabled() error {
 	return nil
 }
 
-// identifyManagingMachine returns the Machine that manages a Machine.
-// An error is returned if the Machine is not found.
-func (client *k8sClusterApi) identifyManagingMachine(machineName string) (*clusterv1.Machine, error) {
-	machine, err := client.machine.Get(machineName, metav1.GetOptions{})
-	if err == nil {
-		return machine, nil
-	}
-	nodes := client.k8sClient.CoreV1().Nodes()
-	node, err := nodes.Get(machineName, metav1.GetOptions{})
+// identifyManagingMachine returns the Machine that manages the given node.
+// An error is returned if the Machine is not found or the node does not exist.
+func (client *k8sClusterApi) identifyManagingMachine(nodeName string) (*machinev1beta1.Machine, error) {
+	// This step simply verifies that the node exists
+	_, err := client.k8sClient.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error retrieving node %s: %v", nodeName, err)
 	}
-	nodeSpecTmp := strings.Split(node.Spec.ProviderID, "/")
-	if len(nodeSpecTmp) < 2 {
-		return nil, fmt.Errorf("Node " + machineName + " has no valid provider ID")
-	}
-	nodeProviderID := nodeSpecTmp[len(nodeSpecTmp)-1]
-	// List all machines and match.
+
+	// List all machines and match the node.
 	machineList, err := client.machine.List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 	for _, machine := range machineList.Items {
-		machineSpecTmp := strings.Split(*machine.Spec.ProviderID, "/")
-		if len(nodeSpecTmp) < 2 {
-			return nil, fmt.Errorf("Machine " + machine.Name + " has no valid provider ID")
-		}
-		machineProviderID := machineSpecTmp[len(machineSpecTmp)-1]
-		if machineProviderID == nodeProviderID {
+		if nodeName == machine.Status.NodeRef.Name {
 			return &machine, nil
 		}
 	}
-	return nil, fmt.Errorf("Machine not found for the node " + machineName)
+	return nil, fmt.Errorf("Machine not found for the node " + nodeName)
 }
 
-// identifyManagingMachineSet returns the MachineSet that manages a specific Machine and the complete list of Machines
-// managed by that MachineSet. Returns an error if the Machine is not managed by a MachineSet.
-func (client *k8sClusterApi) identifyManagingMachineSet(machineName string) (*clusterv1.MachineDeployment, *clusterv1.MachineList, error) {
-	mdList, err := client.machineDeployment.List(metav1.ListOptions{})
-	if err != nil {
-		return nil, nil, err
-	}
-	var machineList *clusterv1.MachineList
-	var machineDeployment clusterv1.MachineDeployment
-	for _, machineDeployment = range mdList.Items {
-		// retrieve all Machines in this MachineSet
-		machineList, err = client.listMachinesInDeployment(&machineDeployment)
-		if err != nil {
-			return nil, nil, fmt.Errorf("cannot retrieve Machines in MachineDeployment %s: %v", machineDeployment.Name, err)
-		}
-		// check for our Machine in the list
-		for _, m := range machineList.Items {
-			if machineName == m.Name {
-				return &machineDeployment, machineList, nil
-			}
-		}
-	}
-	err = fmt.Errorf("machine %s is not managed by a MachineDeployment", machineName)
-	return nil, nil, err
-}
-
-// listMachinesInDeployment lists machines in deployment
-func (client *k8sClusterApi) listMachinesInDeployment(ms *clusterv1.MachineDeployment) (*clusterv1.MachineList, error) {
+// listMachinesInMachineSet lists machines managed by the MachineSet
+func (client *k8sClusterApi) listMachinesInMachineSet(ms *machinev1beta1.MachineSet) (*machinev1beta1.MachineList, error) {
 	sString := metav1.FormatLabelSelector(&ms.Spec.Selector)
 	listOpts := metav1.ListOptions{LabelSelector: sString}
 	return client.machine.List(listOpts)
@@ -139,11 +100,11 @@ type Controller interface {
 	executeAction() error
 }
 
-// machineDeploymentController executes a MachineDeployment scaling action request.
-type machineDeploymentController struct {
-	request           *actionRequest               // The action request
-	machineDeployment *clusterv1.MachineDeployment // the MachineDeployment controlling the machine
-	machineList       *clusterv1.MachineList       // the Machines managed by the MachineDeployment before action execution
+// machineSetController executes a machineSet scaling action request.
+type machineSetController struct {
+	request     *actionRequest              // The action request
+	machineSet  *machinev1beta1.MachineSet  // the MachineSet controlling the machine
+	machineList *machinev1beta1.MachineList // the Machines managed by the MachineSet before action execution
 }
 
 //
@@ -151,31 +112,31 @@ type machineDeploymentController struct {
 //
 
 // Check preconditions
-func (controller *machineDeploymentController) checkPreconditions() error {
-	ok, err := controller.checkMachineDeployment(controller.machineDeployment)
+func (controller *machineSetController) checkPreconditions() error {
+	ok, err := controller.checkMachineSet(controller.machineSet)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("machine deployment is not in the coherent state")
+		return fmt.Errorf("machine set is not in the coherent state")
 	}
 	// See that we don't drop below 1.
-	resultingReplicas := int(*controller.machineDeployment.Spec.Replicas) + int(controller.request.diff)
+	resultingReplicas := int(*controller.machineSet.Spec.Replicas) + int(controller.request.diff)
 	if resultingReplicas < 1 {
-		return fmt.Errorf("machine deployment replicas can't be brought down to 0")
+		return fmt.Errorf("machine set replicas can't be brought down to 0")
 	}
 	return nil
 }
 
 // executeAction scales a MachineSet by modifying its replica count
-func (controller *machineDeploymentController) executeAction() error {
-	desiredReplicas := controller.machineDeployment.Status.Replicas + controller.request.diff
-	controller.machineDeployment.Spec.Replicas = &desiredReplicas
-	machineDeployment, err := controller.request.client.machineDeployment.Update(controller.machineDeployment)
+func (controller *machineSetController) executeAction() error {
+	desiredReplicas := controller.machineSet.Status.Replicas + controller.request.diff
+	controller.machineSet.Spec.Replicas = &desiredReplicas
+	machineSet, err := controller.request.client.machineSet.Update(controller.machineSet)
 	if err != nil {
 		return err
 	}
-	controller.machineDeployment = machineDeployment
+	controller.machineSet = machineSet
 	return nil
 }
 
@@ -183,13 +144,13 @@ func (controller *machineDeploymentController) executeAction() error {
 type stateCheck func(...interface{}) (bool, error)
 
 // checkMachineSet checks whether current replica set matches the list of alive machines.
-func (controller *machineDeploymentController) checkMachineDeployment(args ...interface{}) (bool, error) {
-	machineDeployment := args[0].(*clusterv1.MachineDeployment)
-	if machineDeployment.Spec.Replicas == nil {
-		return false, fmt.Errorf("MachineDeployment %s invalid replica count (nil)", machineDeployment.Name)
+func (controller *machineSetController) checkMachineSet(args ...interface{}) (bool, error) {
+	machineSet := args[0].(*machinev1beta1.MachineSet)
+	if machineSet.Spec.Replicas == nil {
+		return false, fmt.Errorf("MachineSet %s invalid replica count (nil)", machineSet.Name)
 	}
 	// get MachineSet's list of managed Machines
-	machineList, err := controller.request.client.listMachinesInDeployment(machineDeployment)
+	machineList, err := controller.request.client.listMachinesInMachineSet(machineSet)
 	if err != nil {
 		return false, err
 	}
@@ -201,14 +162,14 @@ func (controller *machineDeploymentController) checkMachineDeployment(args ...in
 		}
 	}
 	// Check replica count match with the number of managed machines.
-	if int(*machineDeployment.Spec.Replicas) != alive {
+	if int(*machineSet.Spec.Replicas) != alive {
 		return false, nil
 	}
 	return true, nil
 }
 
 // identifyDiff locates machine in list1 which is not in list2
-func (controller *machineDeploymentController) identifyDiff(list1, list2 *clusterv1.MachineList) *clusterv1.Machine {
+func (controller *machineSetController) identifyDiff(list1, list2 *machinev1beta1.MachineList) *machinev1beta1.Machine {
 	for _, machine1 := range list1.Items {
 		for _, machine2 := range list2.Items {
 			if machine1.Name != machine2.Name {
@@ -220,14 +181,14 @@ func (controller *machineDeploymentController) identifyDiff(list1, list2 *cluste
 }
 
 // checkSuccess verifies that the action has been successful.
-func (controller *machineDeploymentController) checkSuccess() error {
-	stateDesc := fmt.Sprintf("MachineSet %s contains %d Machines", controller.machineDeployment.Name, *controller.machineDeployment.Spec.Replicas)
-	err := controller.waitForState(stateDesc, controller.checkMachineDeployment, controller.machineDeployment)
+func (controller *machineSetController) checkSuccess() error {
+	stateDesc := fmt.Sprintf("MachineSet %s contains %d Machines", controller.machineSet.Name, *controller.machineSet.Spec.Replicas)
+	err := controller.waitForState(stateDesc, controller.checkMachineSet, controller.machineSet)
 	if err != nil {
 		return err
 	}
 	// get post-Action list of Machines in the MachineSet
-	machineList, err := controller.request.client.listMachinesInDeployment(controller.machineDeployment)
+	machineList, err := controller.request.client.listMachinesInMachineSet(controller.machineSet)
 	if err != nil {
 		return err
 	}
@@ -236,7 +197,7 @@ func (controller *machineDeploymentController) checkSuccess() error {
 	if controller.request.actionType == ProvisionAction {
 		newMachine := controller.identifyDiff(machineList, controller.machineList)
 		if newMachine == nil {
-			return fmt.Errorf("no new machine has been identified for machineDeployment %v", controller.machineDeployment)
+			return fmt.Errorf("no new machine has been identified for machineSet %v", controller.machineSet)
 		}
 		err = controller.waitForMachineProvisioning(newMachine)
 	} else {
@@ -247,13 +208,13 @@ func (controller *machineDeploymentController) checkSuccess() error {
 		err = controller.waitForMachineDeprovisioning(oldMachine)
 	}
 	if err != nil {
-		return fmt.Errorf("machine failed to provision new machine in machineDeployment %s: %v", controller.machineDeployment.Name, err)
+		return fmt.Errorf("machine failed to provision new machine in machineSet %s: %v", controller.machineSet.Name, err)
 	}
 	return nil
 }
 
 // checkMachineSuccess checks whether machine has been created successfully.
-func (controller *machineDeploymentController) checkMachineSuccess(args ...interface{}) (bool, error) {
+func (controller *machineSetController) checkMachineSuccess(args ...interface{}) (bool, error) {
 	machineName := args[0].(string)
 	machine, err := controller.request.client.machine.Get(machineName, metav1.GetOptions{})
 	if err != nil {
@@ -266,7 +227,7 @@ func (controller *machineDeploymentController) checkMachineSuccess(args ...inter
 }
 
 // isMachineReady checks whether the machine is ready.
-func (controller *machineDeploymentController) isMachineReady(args ...interface{}) (bool, error) {
+func (controller *machineSetController) isMachineReady(args ...interface{}) (bool, error) {
 	machineName := args[0].(string)
 	machine, err := controller.request.client.machine.Get(machineName, metav1.GetOptions{})
 	if err != nil {
@@ -279,7 +240,7 @@ func (controller *machineDeploymentController) isMachineReady(args ...interface{
 }
 
 // waitForMachineProvisioning waits for the new machine to be provisioned with timeout.
-func (controller *machineDeploymentController) waitForMachineProvisioning(newMachine *clusterv1.Machine) error {
+func (controller *machineSetController) waitForMachineProvisioning(newMachine *machinev1beta1.Machine) error {
 	descr := fmt.Sprintf("machine %s Machine creation status is final", newMachine.Name)
 	err := controller.waitForState(descr, controller.checkMachineSuccess, newMachine.Name)
 	if err != nil {
@@ -301,7 +262,7 @@ func (controller *machineDeploymentController) waitForMachineProvisioning(newMac
 }
 
 // isMachineDeletedOrNotReady checks whether the machine is deleted or not ready.
-func (controller *machineDeploymentController) isMachineDeletedOrNotReady(args ...interface{}) (bool, error) {
+func (controller *machineSetController) isMachineDeletedOrNotReady(args ...interface{}) (bool, error) {
 	machineName := args[0].(string)
 	machine, err := controller.request.client.machine.Get(machineName, metav1.GetOptions{})
 	if err != nil {
@@ -314,14 +275,14 @@ func (controller *machineDeploymentController) isMachineDeletedOrNotReady(args .
 }
 
 // waitForMachineDeprovisioning waits for the new machine to be de-provisioned with timeout.
-func (controller *machineDeploymentController) waitForMachineDeprovisioning(machine *clusterv1.Machine) error {
+func (controller *machineSetController) waitForMachineDeprovisioning(machine *machinev1beta1.Machine) error {
 	deletedNName := machine.Name
 	descr := fmt.Sprintf("machine %s deleted or exited Ready state", deletedNName)
 	return controller.waitForState(descr, controller.isMachineDeletedOrNotReady, deletedNName)
 }
 
 // waitForState Is the function that allows to wait for a specific state, or until it times out.
-func (controller *machineDeploymentController) waitForState(stateDesc string, f stateCheck, args ...interface{}) error {
+func (controller *machineSetController) waitForState(stateDesc string, f stateCheck, args ...interface{}) error {
 	for i := 0; i < operationMaxWaits; i++ {
 		ok, err := f(args...)
 		if err != nil {
@@ -360,7 +321,7 @@ func IsClusterAPIEnabled(namespace string, cApiClient *clientset.Clientset, kube
 }
 
 // Construct the controller
-func newController(namespace string, machineName string, diff int32, actionType ActionType,
+func newController(namespace string, nodeName string, diff int32, actionType ActionType,
 	cApiClient *clientset.Clientset, kubeClient *kubernetes.Clientset) (Controller, *string, error) {
 	if cApiClient == nil {
 		return nil, nil, fmt.Errorf("no Cluster API available")
@@ -377,21 +338,41 @@ func newController(namespace string, machineName string, diff int32, actionType 
 	}
 	// Check whether Cluster API is enabled.
 	if err := client.verifyClusterAPIEnabled(); err != nil {
-		return nil, nil, fmt.Errorf("cluster API is not enabled for %s: %v", machineName, err)
+		return nil, nil, fmt.Errorf("cluster API is not enabled for %s: %v", nodeName, err)
 	}
 	// Identify managing machine.
-	machine, err := client.identifyManagingMachine(machineName)
+	machine, err := client.identifyManagingMachine(nodeName)
 	if err != nil {
 		err = fmt.Errorf("cannot identify machine: %v", err)
 		return nil, nil, err
 	}
-	machineDeployment, mList, err := client.identifyManagingMachineSet(machine.Name)
+
+	ownerKind, ownerName := "", ""
+	if machine.OwnerReferences != nil && len(machine.OwnerReferences) > 0 {
+		ownerKind, ownerName = discoveryutil.ParseOwnerReferences(machine.OwnerReferences)
+		if !(len(ownerKind) > 0 && len(ownerName) > 0) {
+			return nil, nil, fmt.Errorf("OwnerRef missing from machine %s which manages %s.", machine.Name, nodeName)
+		}
+
+	}
+
+	// TODO: Watch cluster-api evolution and check implementers other then openshift
+	// for a more generic implementation.
+	// In openshift we assume that machines are managed by machinesets.
+	if ownerKind != "MachineSet" {
+		return nil, nil, fmt.Errorf("Invalid owner kind [%s] for machine %s which manages %s.", ownerKind, machine.Name, nodeName)
+	}
+	machineSet, err := client.machineSet.Get(ownerName, metav1.GetOptions{})
 	if err != nil {
-		err = fmt.Errorf("cannot identify machine set: %v", err)
 		return nil, nil, err
 	}
-	request := &actionRequest{client, machineName, diff, actionType}
-	machineDeploymentName := &machineDeployment.Name
-	return &machineDeploymentController{request, machineDeployment, mList},
-		machineDeploymentName, nil
+
+	machineList, err := client.listMachinesInMachineSet(machineSet)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	request := &actionRequest{client, nodeName, diff, actionType}
+	return &machineSetController{request, machineSet, machineList},
+		&ownerName, nil
 }

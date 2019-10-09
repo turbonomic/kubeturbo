@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"syscall"
 
+	clusterclient "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/client-go/kubernetes"
@@ -18,7 +19,6 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
-	clusterclient "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/test/flag"

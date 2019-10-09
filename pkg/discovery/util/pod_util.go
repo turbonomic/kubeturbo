@@ -212,7 +212,7 @@ func ParsePodDisplayName(displayName string) (string, string, error) {
 	return namespace, name, nil
 }
 
-func parseOwnerReferences(owners []metav1.OwnerReference) (string, string) {
+func ParseOwnerReferences(owners []metav1.OwnerReference) (string, string) {
 	for i := range owners {
 		owner := &owners[i]
 
@@ -234,7 +234,7 @@ func GetPodParentInfo(pod *api.Pod) (string, string, error) {
 	//1. check ownerReferences:
 
 	if pod.OwnerReferences != nil && len(pod.OwnerReferences) > 0 {
-		kind, name := parseOwnerReferences(pod.OwnerReferences)
+		kind, name := ParseOwnerReferences(pod.OwnerReferences)
 		if len(kind) > 0 && len(name) > 0 {
 			return kind, name, nil
 		}
@@ -287,7 +287,7 @@ func GetPodGrandInfo(kclient *client.Clientset, pod *api.Pod) (string, string, e
 		//2.2 get parent's parent info by parsing ownerReferences:
 		// TODO: The ownerReferences of ReplicaSet is supported only in 1.6.0 and afetr
 		if rs.OwnerReferences != nil && len(rs.OwnerReferences) > 0 {
-			gkind, gname := parseOwnerReferences(rs.OwnerReferences)
+			gkind, gname := ParseOwnerReferences(rs.OwnerReferences)
 			if len(gkind) > 0 && len(gname) > 0 {
 				return gkind, gname, nil
 			}
