@@ -46,7 +46,7 @@ HANodeConfig.nodeRoles|master nodes are by default with HA supported|Optional. S
 daemonPodDetectors.daemonPodNamespaces1 and daemonPodNamespaces2|daemonSet kinds are by default allow for node suspension. Adding this parameter changes default.|Optional but required to identify pods in the namespace to be ignored for cluster consolidation| regex used, values in quotes & comma separated`"kube-system","kube-service-catalog","openshift-.*"`
 daemonPodDetectors.daemonPodNamePatterns|daemonSet kinds are by default allow for node suspension. Adding this parameter changes default.|Optional but required to identify pods matching this pattern to be ignored for cluster consolidation|regex used `.*ignorepod.*`
 
-For more on `masterNodeDetectors` and `daemonPodDetectors` go to [YAMLS_README.md](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo_yamls/YAMLS_README.md) under kubeturbo/deploy/kubeturbo_yamls/
+For more on `HANodeConfig` and `daemonPodDetectors` go to [YAMLS_README.md](https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo_yamls/YAMLS_README.md) under kubeturbo/deploy/kubeturbo_yamls/
 
 #### Updating Turbo Server
 When you update the Turbonomic or CWOM Server, you will need to update the configMap resource to reflect the new version.
