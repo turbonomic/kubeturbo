@@ -42,7 +42,7 @@ args.logginglevel|2|optional|number
 args.kubelethttps|true|optional, change to false if k8s 1.10 or older|bolean
 args.kubeletport|10250|optional, change to 10255 if k8s 1.10 or older|number
 args.stitchuuid|true|optional, change to false if IaaS is VMM, Hyper-V|bolean
-HANodeConfig.nodeRoles|master nodes are by default with HA supported|Optional. Supported in kubeturbo 6,4.3 with Turbonomic Server 6.4.3|Set of String, you can pass it as HANodeConfig.nodeRoles="\\"foo\\"\\,\\"bar\\""
+HANodeConfig.nodeRoles|master nodes are by default with HA supported|Optional. Supported in kubeturbo 6,4.3 with Turbonomic Server 6.4.3|Set of String, you can pass it as HANodeConfig.nodeRoles="\\"master\\"\\,\\"worker\\""
 daemonPodDetectors.daemonPodNamespaces1 and daemonPodNamespaces2|daemonSet kinds are by default allow for node suspension. Adding this parameter changes default.|Optional but required to identify pods in the namespace to be ignored for cluster consolidation| regex used, values in quotes & comma separated`"kube-system","kube-service-catalog","openshift-.*"`
 daemonPodDetectors.daemonPodNamePatterns|daemonSet kinds are by default allow for node suspension. Adding this parameter changes default.|Optional but required to identify pods matching this pattern to be ignored for cluster consolidation|regex used `.*ignorepod.*`
 
