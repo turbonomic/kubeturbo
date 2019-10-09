@@ -162,7 +162,6 @@ func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats) {
 
 		//fmt.Printf("**** generated pod used metric %s cpuUsed=%f memUsed=%f\n", key, cpuUsed, memUsed)
 		m.genUsedMetrics(metrics.PodType, key, cpuUsed, memUsed)
-		m.genNumConsumersUsedMetrics(metrics.PodType, key)
 	}
 }
 
@@ -207,10 +206,4 @@ func (m *KubeletMonitor) genUsedMetrics(etype metrics.DiscoveredEntityType, key 
 	cpuMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPU, metrics.Used, cpu)
 	memMetric := metrics.NewEntityResourceMetric(etype, key, metrics.Memory, metrics.Used, memory)
 	m.metricSink.AddNewMetricEntries(cpuMetric, memMetric)
-}
-
-func (m *KubeletMonitor) genNumConsumersUsedMetrics(etype metrics.DiscoveredEntityType, key string) {
-	// Each pod consumes one from numConsumers / Total available is node allocatable pod number
-	numConsumersMetric := metrics.NewEntityResourceMetric(etype, key, metrics.NumPods, metrics.Used, 1)
-	m.metricSink.AddNewMetricEntries(numConsumersMetric)
 }

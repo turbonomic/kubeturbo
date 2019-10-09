@@ -165,14 +165,9 @@ func (m *ClusterMonitor) genNodeResourceMetrics(node *api.Node, key string) {
 
 	//3. Generate metrics for hosted Pods and containers
 	//The return value of this method is the totalCPURequest and totalMemRequest used on the node
-	nodeCPURequestUsed, nodeMemRequestUsed, currentPods := m.genNodePodsMetrics(node, cpuCapacityCore, memoryCapacityKiloBytes)
+	nodeCPURequestUsed, nodeMemRequestUsed := m.genNodePodsMetrics(node, cpuCapacityCore, memoryCapacityKiloBytes)
 
-	//4. Generate the numconsumers (current pod number and actual allocatable pods) metrics for the given node
-	allocatablePods := util.GetNumPodsAllocatable(node)
-	m.genNumConsumersMetrics(metrics.NodeType, key, currentPods, allocatablePods)
-	glog.V(4).Infof("There are %f pods currently on node %s and allocatable pod limit is %f", currentPods, node.Name, allocatablePods)
-
-	//5. Generate the used metric for CPURequest and MemRequest for the node
+	//4. Generate the used metric for CPURequest and MemRequest for the node
 	m.genRequestUsedMetrics(metrics.NodeType, key, nodeCPURequestUsed, nodeMemRequestUsed)
 	glog.V(4).Infof("CPURequest used of node %s is %f core", node.Name, nodeCPURequestUsed)
 	glog.V(4).Infof("MemoryRequest used of node %s is %f Kb", node.Name, nodeMemRequestUsed)
@@ -197,7 +192,7 @@ func parseNodeLabels(node *api.Node) metrics.EntityStateMetric {
 // ----------------------------------------------- Pod State -------------------------------------------------
 // generate all the metrics for the hosted Pods of this node.
 // Resource metrics such as capacity and usage
-func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapacity float64) (nodeCPURequestUsedCore float64, nodeMemoryRequestUsedKiloBytes float64, numPods float64) {
+func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapacity float64) (nodeCPURequestUsedCore float64, nodeMemoryRequestUsedKiloBytes float64) {
 	// Get the pod list for the node
 	podList, exist := m.nodePodMap[node.Name]
 	if !exist || len(podList) < 1 {
@@ -220,7 +215,6 @@ func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapa
 		nodeMemoryRequestUsedKiloBytes += podMemoryRequest
 	}
 
-	numPods = float64(len(podList))
 	return
 }
 
@@ -354,11 +348,4 @@ func (m *ClusterMonitor) genReservationMetrics(etype metrics.DiscoveredEntityTyp
 	cpuMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPU, metrics.Reservation, cpu)
 	memMetric := metrics.NewEntityResourceMetric(etype, key, metrics.Memory, metrics.Reservation, memory)
 	m.sink.AddNewMetricEntries(cpuMetric, memMetric)
-}
-
-// genNumConsumersMetrics generates NumConsumers commodity equivalant of numpods used and allocatable for a k8s node (maps to CommodityDTO_NUMBER_CONSUMERS)
-func (m *ClusterMonitor) genNumConsumersMetrics(etype metrics.DiscoveredEntityType, key string, used, allocatable float64) {
-	podsCapacityMetric := metrics.NewEntityResourceMetric(etype, key, metrics.NumPods, metrics.Capacity, allocatable)
-	podsUsedMetric := metrics.NewEntityResourceMetric(etype, key, metrics.NumPods, metrics.Used, used)
-	m.sink.AddNewMetricEntries(podsCapacityMetric, podsUsedMetric)
 }

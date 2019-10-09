@@ -25,7 +25,6 @@ var (
 		metrics.MemoryQuota:        proto.CommodityDTO_MEM_ALLOCATION,
 		metrics.CPURequestQuota:    proto.CommodityDTO_CPU_REQUEST_ALLOCATION,
 		metrics.MemoryRequestQuota: proto.CommodityDTO_MEM_REQUEST_ALLOCATION,
-		metrics.NumPods:            proto.CommodityDTO_NUMBER_CONSUMERS,
 	}
 )
 
