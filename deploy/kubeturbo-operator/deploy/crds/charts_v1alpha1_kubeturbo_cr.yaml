@@ -19,3 +19,13 @@ spec:
   restAPIConfig:
     opsManagerUserName: Turbo_username
     opsManagerPassword: Turbo_password
+
+  # Enabling targetConfig and providing a value to name your clusters, cluster groups
+  targetConfig:
+    targetName: Name_Each_Cluster
+
+  #kubeturbo image details.
+  image:
+    repository: turbonomic/kubeturbo
+    tag: 6.4.3
+    pullPolicy: IfNotPresent

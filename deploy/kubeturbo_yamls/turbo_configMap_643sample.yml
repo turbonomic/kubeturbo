@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # use this yaml to create a config that kubeturbo will use to connect to the Turbo Server
+  # requires Turbo Server and kubeturbo pod 6.4.3 and higher
+  # Provide a value for the config name: and update namespace if needed
+  name: turbo-config
+  namespace: turbo
+data:
+  # Update the values for version, turboServer, opsManagerUserName, opsManagerPassword
+  # For version, use Turbo Server Version, even when running CWOM
+  # The opsManagerUserName requires Turbo administrator role
+  # targetConfig is optional. targetName provides better group naming to identify k8s clusters in UI
+  # Define node groups by node role, and automatically enable placement policies to limit to 1 per host
+  # DaemonSets are identified by default. Use daemonPodDetectors to identify by name patterns using regex or by namespace.
+  turbo.config: |-
+    {
+        "communicationConfig": {
+            "serverMeta": {
+                "version": "6.4",
+                "turboServer": "https://<Turbo_server_URL>"
+            },
+            "restAPIConfig": {
+                "opsManagerUserName": "<Turbo_username>",
+                "opsManagerPassword": "<Turbo_password>"
+            }
+        },
+        "targetConfig": {
+            "targetName":"whateverYouWant"
+        },
+        "HANodeConfig": {
+            "nodeRoles": [ "master"]
+        }
+    }
