@@ -11,6 +11,8 @@ spec:
     metadata:
       labels:
         name: kubeturbo-operator
+      annotations:
+        sidecar.istio.io/inject: "false"
     spec:
       serviceAccountName: kubeturbo-operator
       containers:
