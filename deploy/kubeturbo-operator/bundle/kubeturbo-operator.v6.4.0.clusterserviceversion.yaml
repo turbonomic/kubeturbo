@@ -157,6 +157,8 @@ spec:
             selector:
               matchLabels:
                 name: kubeturbo-operator
+              annotations:
+                sidecar.istio.io/inject: "false"
             strategy: {}
             template:
               metadata:
