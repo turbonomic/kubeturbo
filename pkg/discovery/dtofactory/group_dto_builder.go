@@ -77,11 +77,20 @@ func (builder *groupDTOBuilder) BuildGroupDTOs() []*proto.GroupDTO {
 				continue
 			}
 
-			// static group
+			// static group - pod or container
 			groupBuilder := group.StaticGroup(id).
 				OfType(protoType).
 				WithEntities(memberList).
 				WithDisplayName(displayName)
+
+			// resize setting for container groups based on the parent type of the group
+			// and if sub groups will be created.
+			// If sub groups are created, the resize setting is applied on the sub-groups
+			resizeFlag := consistentResize(entityGroup, etype) && !hasSubGroups(entityGroup, etype)
+			if resizeFlag {
+				glog.V(4).Infof("%s: set group to resize consistently", displayName)
+				groupBuilder.ResizeConsistently()
+			}
 
 			// build group
 			groupDTO, err := groupBuilder.Build()
@@ -95,6 +104,7 @@ func (builder *groupDTOBuilder) BuildGroupDTOs() []*proto.GroupDTO {
 			glog.V(4).Infof("groupDTO  : %++v", groupDTO)
 		}
 
+		// Do not create container sub groups if there is only type of container in the pod
 		if len(entityGroup.ContainerGroups) <= 1 {
 			continue
 		}
@@ -115,10 +125,10 @@ func (builder *groupDTOBuilder) BuildGroupDTOs() []*proto.GroupDTO {
 				WithEntities(containerList).
 				WithDisplayName(displayName)
 
-			// if parent group resize policy is consistent resize, set it for the container sub-group
-			_, exists := CONSISTENT_RESIZE_GROUPS[entityGroup.ParentKind]
-			if exists && entityGroup.ParentName != "" {
-				glog.V(2).Infof("%s: set group to resize consistently\n", groupId)
+			// resize policy setting based on the parent type of the group
+			resizeFlag := consistentResize(entityGroup, etype)
+			if resizeFlag {
+				glog.V(4).Infof("%s: set group to resize consistently", displayName)
 				groupBuilder.ResizeConsistently()
 			}
 
@@ -136,4 +146,33 @@ func (builder *groupDTOBuilder) BuildGroupDTOs() []*proto.GroupDTO {
 	}
 
 	return result
+}
+
+func consistentResize(entityGroup *repository.EntityGroup, entityType metrics.DiscoveredEntityType) bool {
+	if entityType != metrics.ContainerType {
+		return false
+	}
+
+	if entityGroup.ParentKind == "" {
+		return false
+	}
+	_, exists := CONSISTENT_RESIZE_GROUPS[entityGroup.ParentKind]
+	if !exists {
+		return false
+	}
+
+	return true
+}
+
+func hasSubGroups(entityGroup *repository.EntityGroup, entityType metrics.DiscoveredEntityType) bool {
+	// Sub group created only for containers
+	if entityType != metrics.ContainerType {
+		return false
+	}
+
+	if len(entityGroup.ContainerGroups) <= 1 {
+		return false
+	}
+
+	return true
 }
