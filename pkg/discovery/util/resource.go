@@ -54,7 +54,7 @@ func GetNumPodsAllocatable(node *api.Node) float64 {
 	allocatablePods := float64(node.Status.Allocatable.Pods().Value())
 	glog.V(4).Infof("Allocatable maxPods: %f on node: %s", allocatablePods, node.Name)
 
-	if allocatableIPAddresses < allocatablePods {
+	if allocatableIPAddresses != 0 && allocatableIPAddresses < allocatablePods {
 		return allocatableIPAddresses
 	}
 	return allocatablePods
