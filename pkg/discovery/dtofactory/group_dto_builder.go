@@ -109,7 +109,6 @@ func (builder *groupDTOBuilder) createGroupsByEntityType(entityGroup *repository
 	createSubGroups := hasSubGroups(entityGroup)
 	resizeFlag := resizeEntityType && consistentResizeGroupType(entityGroup) && !createSubGroups
 
-	fmt.Printf("%s:%s -> %s\n", groupId, entityType, resizeFlag)
 	parentGroup := builder.createGroup(entityGroup, entityType, groupId, protoType, memberList, resizeFlag)
 	if parentGroup != nil {
 		result = append(result, parentGroup)
