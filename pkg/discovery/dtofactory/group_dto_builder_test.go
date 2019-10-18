@@ -38,6 +38,22 @@ func testEntityGroupWithMultipleContainersInPod() *repository.EntityGroup {
 	return eg
 }
 
+func testStatefulSetWithMultipleContainersInPod() *repository.EntityGroup {
+	eg := &repository.EntityGroup{
+		Members:         make(map[metrics.DiscoveredEntityType][]string),
+		ParentKind:      "StatefulSet",
+		ParentName:      "ss-app1",
+		GroupId:         "ss-group1",
+		ContainerGroups: make(map[string][]string),
+	}
+	eg.Members[metrics.ContainerType] = []string{"app-container-id1", "app-container-id2", "app-container-id3",
+		"istio-proxy-id1", "istio-proxy-id2", "istio-proxy-id3"}
+	eg.ContainerGroups["app-container"] = []string{"app-container-id1", "app-container-id2", "app-container-id3"}
+	eg.ContainerGroups["istio-proxy"] = []string{"istio-proxy-id1", "istio-proxy-id2", "istio-proxy-id3"}
+
+	return eg
+}
+
 func testEntityGroupWithPod() *repository.EntityGroup {
 	eg := &repository.EntityGroup{
 		Members:         make(map[metrics.DiscoveredEntityType][]string),
@@ -109,6 +125,37 @@ func TestContainerGroupsWithMultipleContainersInPod(t *testing.T) {
 	targetId := "kube2"
 
 	eg := testEntityGroupWithMultipleContainersInPod()
+	entityGroupMap[eg.GroupId] = eg
+
+	builder := &groupDTOBuilder{
+		entityGroupMap: entityGroupMap,
+		targetId:       targetId,
+	}
+
+	groupDTOs := builder.createGroupsByEntityType(eg, metrics.ContainerType, true)
+
+	// Expect parent and sub groups
+	assert.True(t, len(groupDTOs) > 1)
+
+	parentGroup := groupDTOs[0]
+	assert.EqualValues(t, parentGroup.GetEntityType(), proto.EntityDTO_CONTAINER)
+
+	resizeFlag := parentGroup.IsConsistentResizing
+	assert.False(t, *resizeFlag)
+
+	subGroups := groupDTOs[1:]
+	for _, subgroup := range subGroups {
+		assert.EqualValues(t, subgroup.GetEntityType(), proto.EntityDTO_CONTAINER)
+		resizeFlag := subgroup.IsConsistentResizing
+		assert.True(t, *resizeFlag)
+	}
+}
+
+func TestStatefulSetGroupsWithMultipleContainersInPod(t *testing.T) {
+	entityGroupMap := make(map[string]*repository.EntityGroup)
+	targetId := "kube2"
+
+	eg := testStatefulSetWithMultipleContainersInPod()
 	entityGroupMap[eg.GroupId] = eg
 
 	builder := &groupDTOBuilder{

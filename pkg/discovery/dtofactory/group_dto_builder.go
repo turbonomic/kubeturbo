@@ -25,7 +25,7 @@ var (
 )
 
 var (
-	GROUP_RESIZE_FLAG_MAP = map[metrics.DiscoveredEntityType]bool{
+	ENTITY_RESIZE_FLAG_MAP = map[metrics.DiscoveredEntityType]bool{
 		metrics.PodType:       false,
 		metrics.ContainerType: true,
 	}
@@ -71,8 +71,8 @@ func (builder *groupDTOBuilder) BuildGroupDTOs() []*proto.GroupDTO {
 		}
 
 		// create groups for each configured entity type
-		for etype, resizeGroup := range GROUP_RESIZE_FLAG_MAP {
-			groupDTOs := builder.createGroupsByEntityType(entityGroup, etype, resizeGroup)
+		for etype, resizeEntityType := range ENTITY_RESIZE_FLAG_MAP {
+			groupDTOs := builder.createGroupsByEntityType(entityGroup, etype, resizeEntityType)
 
 			result = append(result, groupDTOs...)
 		}
@@ -82,7 +82,7 @@ func (builder *groupDTOBuilder) BuildGroupDTOs() []*proto.GroupDTO {
 }
 
 func (builder *groupDTOBuilder) createGroupsByEntityType(entityGroup *repository.EntityGroup,
-	entityType metrics.DiscoveredEntityType, resizeGroup bool) []*proto.GroupDTO {
+	entityType metrics.DiscoveredEntityType, resizeEntityType bool) []*proto.GroupDTO {
 
 	var result []*proto.GroupDTO
 
@@ -104,19 +104,28 @@ func (builder *groupDTOBuilder) createGroupsByEntityType(entityGroup *repository
 	// group id for parent group
 	groupId := fmt.Sprintf("%s", entityGroup.GroupId)
 
-	// resize setting for container groups based on the parent type of the group
-	// and if sub groups will be created.
+	// resize setting for entities based on the parent type of the group and if sub groups will be created.
 	// If sub groups are created, the resize setting is applied on the sub-groups
-	resizeFlag := resizeGroup && consistentResize(entityGroup) && resizeParentGroup(entityGroup, entityType)
+	createSubGroups := hasSubGroups(entityGroup)
+	resizeFlag := resizeEntityType && consistentResizeGroupType(entityGroup) && !createSubGroups
 
+	fmt.Printf("%s:%s -> %s\n", groupId, entityType, resizeFlag)
 	parentGroup := builder.createGroup(entityGroup, entityType, groupId, protoType, memberList, resizeFlag)
 	if parentGroup != nil {
 		result = append(result, parentGroup)
 	}
 
 	// sub groups are created only for containers
-	subGroups := builder.createSubGroups(entityGroup, entityType)
-	result = append(result, subGroups...)
+	if entityType == metrics.ContainerType {
+		// Only one type of container in the pod, so sub groups are not created.
+		// In this case, the parent level container group has the consistent resize flag set to true
+		if !createSubGroups {
+			return result
+		}
+
+		subGroups := builder.createSubGroups(entityGroup, entityType)
+		result = append(result, subGroups...)
+	}
 
 	return result
 }
@@ -127,9 +136,6 @@ func (builder *groupDTOBuilder) createSubGroups(entityGroup *repository.EntityGr
 	entityType metrics.DiscoveredEntityType) []*proto.GroupDTO {
 
 	var result []*proto.GroupDTO
-	if entityType != metrics.ContainerType {
-		return []*proto.GroupDTO{}
-	}
 
 	// Only one type of container in the pod, so sub groups are not created.
 	// In this case, the parent level container group has the consistent resize flag set to true
@@ -140,11 +146,12 @@ func (builder *groupDTOBuilder) createSubGroups(entityGroup *repository.EntityGr
 	// Additional sub groups for the different containers running in a pod
 	for containerName, containerList := range entityGroup.ContainerGroups {
 		etype := metrics.ContainerType
-		groupId := fmt.Sprintf("%s::%s", entityGroup.GroupId, containerName)
 		protoType := proto.EntityDTO_CONTAINER
 
+		groupId := fmt.Sprintf("%s::%s", entityGroup.GroupId, containerName)
+
 		// resize policy setting based on the parent type of the group
-		resizeFlag := consistentResize(entityGroup)
+		resizeFlag := consistentResizeGroupType(entityGroup)
 		subGroup := builder.createGroup(entityGroup, etype, groupId, protoType, containerList, resizeFlag)
 
 		if subGroup != nil {
@@ -186,10 +193,7 @@ func (builder *groupDTOBuilder) createGroup(entityGroup *repository.EntityGroup,
 	return groupDTO
 }
 
-func consistentResize(entityGroup *repository.EntityGroup) bool {
-	if entityGroup.ParentKind == "" {
-		return false
-	}
+func consistentResizeGroupType(entityGroup *repository.EntityGroup) bool {
 	_, exists := CONSISTENT_RESIZE_GROUPS[entityGroup.ParentKind]
 	if !exists {
 		return false
@@ -198,18 +202,12 @@ func consistentResize(entityGroup *repository.EntityGroup) bool {
 	return true
 }
 
-// Determine if the consistent resize flag is to be set for the top level entity type group or for the sub groups.
-// Currently, this setting is used for container groups only.
-func resizeParentGroup(entityGroup *repository.EntityGroup, entityType metrics.DiscoveredEntityType) bool {
-	// Sub group created only for containers
-	if entityType != metrics.ContainerType {
-		return false
-	}
-
+// Determine if sub groups will be created for container entities in a group
+func hasSubGroups(entityGroup *repository.EntityGroup) bool {
 	// There are multiple containers in the pod, so the parent group is not re-sized
 	if len(entityGroup.ContainerGroups) > 1 {
-		return false
+		return true
 	}
 
-	return true
+	return false
 }
