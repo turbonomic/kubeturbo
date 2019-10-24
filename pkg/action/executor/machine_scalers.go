@@ -18,6 +18,7 @@ type ActionType string
 // These are the valid Action types.
 const (
 	clusterAPIGroupVersion                = "machine.openshift.io/v1beta1"
+	DeleteNodeAnnotation                  = "machine.openshift.io/cluster-api-delete-machine"
 	ProvisionAction            ActionType = "Provision"
 	SuspendAction              ActionType = "Suspend"
 	operationMaxWaits                     = 60
@@ -130,9 +131,32 @@ func (controller *machineSetController) checkPreconditions() error {
 
 // executeAction scales a MachineSet by modifying its replica count
 func (controller *machineSetController) executeAction() error {
-	desiredReplicas := controller.machineSet.Status.Replicas + controller.request.diff
+	diff := controller.request.diff
+	client := controller.request.client
+	desiredReplicas := controller.machineSet.Status.Replicas + diff
 	controller.machineSet.Spec.Replicas = &desiredReplicas
-	machineSet, err := controller.request.client.machineSet.Update(controller.machineSet)
+
+	if diff < 0 {
+		// We need to mark the machine for deletion to ensure this is the
+		// one removed by machine controller while scaling down.
+		// https://github.com/openshift/cluster-api/blob/openshift-4.2-cluster-api-0.1.0/pkg/controller/machineset/delete_policy.go#L32
+		machine, err := client.identifyManagingMachine(controller.request.machineName)
+		if err != nil {
+			return err
+		}
+
+		if machine.ObjectMeta.Annotations == nil {
+			machine.ObjectMeta.Annotations = make(map[string]string)
+		}
+		// MachineSet controller does not care what is the value of the string.
+		machine.ObjectMeta.Annotations[DeleteNodeAnnotation] = "delete"
+		_, err = client.machine.Update(machine)
+		if err != nil {
+			return err
+		}
+	}
+
+	machineSet, err := client.machineSet.Update(controller.machineSet)
 	if err != nil {
 		return err
 	}
