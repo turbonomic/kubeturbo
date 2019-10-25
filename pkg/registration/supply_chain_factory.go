@@ -25,7 +25,7 @@ var (
 	appCommType              = proto.CommodityDTO_APPLICATION
 	transactionType          = proto.CommodityDTO_TRANSACTION
 	respTimeType             = proto.CommodityDTO_RESPONSE_TIME
-	numPodNumConsumers       = proto.CommodityDTO_NUMBER_CONSUMERS
+	numPodNumConsumersType   = proto.CommodityDTO_NUMBER_CONSUMERS
 
 	fakeKey = "fake"
 
@@ -33,7 +33,7 @@ var (
 	vMemTemplateComm                        = &proto.TemplateCommodity{CommodityType: &vMemType}
 	vCpuRequestTemplateComm                 = &proto.TemplateCommodity{CommodityType: &vCpuRequestType}
 	vMemRequestTemplateComm                 = &proto.TemplateCommodity{CommodityType: &vMemRequestType}
-	numPodNumConsumersTemplateComm          = &proto.TemplateCommodity{CommodityType: &numPodNumConsumers}
+	numPodNumConsumersTemplateComm          = &proto.TemplateCommodity{CommodityType: &numPodNumConsumersType}
 	cpuAllocationTemplateCommWithKey        = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuAllocationType}
 	memAllocationTemplateCommWithKey        = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memAllocationType}
 	cpuRequestAllocationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuRequestAllocationType}
@@ -174,6 +174,7 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 		PatchSoldMetadata(proto.CommodityDTO_MEM_ALLOCATION, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_CPU_REQUEST_ALLOCATION, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_MEM_REQUEST_ALLOCATION, fieldsUsedCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_NUMBER_CONSUMERS, fieldsUsedCapacity).
 		Build()
 }
 
@@ -230,6 +231,7 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Commodity(vMemType, false).
 		Commodity(vCpuRequestType, false).
 		Commodity(vMemRequestType, false).
+		Commodity(numPodNumConsumersType, false).
 		Commodity(vmPMAccessType, true).
 		Commodity(clusterType, true)
 
