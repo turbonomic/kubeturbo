@@ -46,7 +46,7 @@ var (
 	// External matching property
 	VMIPFieldName  = supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS
 	VMIPFieldPaths = []string{supplychain.SUPPLY_CHAIN_CONSTANT_VIRTUAL_MACHINE_DATA}
-	VMUUID         = supplychain.SUPPLY_CHAIN_CONSTANT_ID
+	VMUUID         = supplychain.SUPPLY_CHAIN_CONSTANT_UUID
 )
 
 type SupplyChainFactory struct {
