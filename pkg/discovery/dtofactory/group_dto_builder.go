@@ -25,6 +25,13 @@ var (
 )
 
 var (
+	ENTITY_RESIZE_FLAG_MAP = map[metrics.DiscoveredEntityType]bool{
+		metrics.PodType:       false,
+		metrics.ContainerType: true,
+	}
+)
+
+var (
 	ENTITY_TYPE_MAP = map[metrics.DiscoveredEntityType]proto.EntityDTO_EntityType{
 		metrics.PodType:       proto.EntityDTO_CONTAINER_POD,
 		metrics.ContainerType: proto.EntityDTO_CONTAINER,
@@ -63,77 +70,136 @@ func (builder *groupDTOBuilder) BuildGroupDTOs() []*proto.GroupDTO {
 			continue
 		}
 
-		// Groups for the Pod and containers belonging to the group
-		for etype, memberList := range entityGroup.Members {
+		// create groups for each configured entity type
+		for etype, resizeEntityType := range ENTITY_RESIZE_FLAG_MAP {
+			groupDTOs := builder.createGroupsByEntityType(entityGroup, etype, resizeEntityType)
 
-			// group id created using the parent type, name and target identifier
-			id := fmt.Sprintf("%s-%s[%s]", entityGroup.GroupId, builder.targetId, etype)
-			displayName := fmt.Sprintf("%ss By %s [%s]", etype, entityGroup.GroupId, builder.targetId)
-
-			var protoType proto.EntityDTO_EntityType
-			protoType, foundType := ENTITY_TYPE_MAP[etype]
-			if !foundType {
-				glog.Errorf("Invalid member entity type %s", etype)
-				continue
-			}
-
-			// static group
-			groupBuilder := group.StaticGroup(id).
-				OfType(protoType).
-				WithEntities(memberList).
-				WithDisplayName(displayName)
-
-			// build group
-			groupDTO, err := groupBuilder.Build()
-			if err != nil {
-				glog.Errorf("Error creating group dto  %s::%s", id, err)
-				continue
-			}
-
-			result = append(result, groupDTO)
-
-			glog.V(4).Infof("groupDTO  : %++v", groupDTO)
-		}
-
-		if len(entityGroup.ContainerGroups) <= 1 {
-			continue
-		}
-
-		// Additional sub groups for the different containers running in a pod
-		for containerName, containerList := range entityGroup.ContainerGroups {
-			etype := metrics.ContainerType
-
-			groupId := fmt.Sprintf("%s::%s", entityGroup.GroupId, containerName)
-
-			id := fmt.Sprintf("%s-%s[%s]", groupId, builder.targetId, etype)
-			displayName := fmt.Sprintf("%ss By %s [%s]", etype, groupId, builder.targetId)
-			protoType := proto.EntityDTO_CONTAINER
-
-			// static group
-			groupBuilder := group.StaticGroup(id).
-				OfType(protoType).
-				WithEntities(containerList).
-				WithDisplayName(displayName)
-
-			// if parent group resize policy is consistent resize, set it for the container sub-group
-			_, exists := CONSISTENT_RESIZE_GROUPS[entityGroup.ParentKind]
-			if exists && entityGroup.ParentName != "" {
-				glog.V(2).Infof("%s: set group to resize consistently\n", groupId)
-				groupBuilder.ResizeConsistently()
-			}
-
-			// build group
-			groupDTO, err := groupBuilder.Build()
-			if err != nil {
-				glog.Errorf("Error creating group dto  %s::%s", id, err)
-				continue
-			}
-
-			result = append(result, groupDTO)
-
-			glog.V(4).Infof("groupDTO  : %++v", groupDTO)
+			result = append(result, groupDTOs...)
 		}
 	}
 
 	return result
+}
+
+func (builder *groupDTOBuilder) createGroupsByEntityType(entityGroup *repository.EntityGroup,
+	entityType metrics.DiscoveredEntityType, resizeEntityType bool) []*proto.GroupDTO {
+
+	var result []*proto.GroupDTO
+
+	// member type
+	var protoType proto.EntityDTO_EntityType
+	protoType, foundType := ENTITY_TYPE_MAP[entityType]
+	if !foundType {
+		glog.Errorf("Invalid member entity type %s", entityType)
+		return []*proto.GroupDTO{}
+	}
+
+	// member list
+	memberList, etypeExists := entityGroup.Members[entityType]
+
+	if !etypeExists {
+		return []*proto.GroupDTO{}
+	}
+
+	// group id for parent group
+	groupId := fmt.Sprintf("%s", entityGroup.GroupId)
+
+	// resize setting for entities is based on the parent type of the group and if sub groups will be created.
+	// If sub groups are to be created, the resize setting is applied on the sub-groups
+	// Else, the parent level container group has the consistent resize flag set to true
+	createSubGroups := hasSubGroups(entityGroup, entityType)
+
+	resizeFlag := resizeEntityType && consistentResizeGroupType(entityGroup) && !createSubGroups
+
+	parentGroup := builder.createGroup(entityGroup, entityType, groupId, protoType, memberList, resizeFlag)
+	if parentGroup != nil {
+		result = append(result, parentGroup)
+	}
+
+	// sub groups are created only for containers
+	// if only one type of container in the pod, so sub groups are not created.
+	if createSubGroups {
+		subGroups := builder.createSubGroups(entityGroup, entityType)
+		result = append(result, subGroups...)
+	}
+
+	return result
+}
+
+// Create sub groups for different container entities belonging to a pod.
+// These group members have resize consistent flag set to true.
+func (builder *groupDTOBuilder) createSubGroups(entityGroup *repository.EntityGroup,
+	entityType metrics.DiscoveredEntityType) []*proto.GroupDTO {
+
+	var result []*proto.GroupDTO
+
+	// Additional sub groups for the different containers running in a pod
+	for containerName, containerList := range entityGroup.ContainerGroups {
+		etype := metrics.ContainerType
+		protoType := proto.EntityDTO_CONTAINER
+
+		groupId := fmt.Sprintf("%s::%s", entityGroup.GroupId, containerName)
+
+		// resize policy setting based on the parent type of the group
+		resizeFlag := consistentResizeGroupType(entityGroup)
+		subGroup := builder.createGroup(entityGroup, etype, groupId, protoType, containerList, resizeFlag)
+
+		if subGroup != nil {
+			result = append(result, subGroup)
+		}
+	}
+
+	return result
+}
+
+// Create a static group for pod or container
+func (builder *groupDTOBuilder) createGroup(entityGroup *repository.EntityGroup, entityType metrics.DiscoveredEntityType,
+	groupId string, protoType proto.EntityDTO_EntityType,
+	memberList []string, resizeFlag bool) *proto.GroupDTO {
+
+	// group id created using the parent type, name and target identifier
+	id := fmt.Sprintf("%s-%s[%s]", groupId, builder.targetId, entityType)
+	displayName := fmt.Sprintf("%ss By %s [%s]", entityType, groupId, builder.targetId)
+
+	// static group
+	groupBuilder := group.StaticGroup(id).
+		OfType(protoType).
+		WithEntities(memberList).
+		WithDisplayName(displayName)
+
+	// resize flag setting
+	if resizeFlag {
+		glog.V(4).Infof("%s: set group to resize consistently", displayName)
+		groupBuilder.ResizeConsistently()
+	}
+
+	// build group
+	groupDTO, err := groupBuilder.Build()
+	if err != nil {
+		glog.Errorf("Error creating group dto  %s::%s", id, err)
+		return nil
+	}
+
+	return groupDTO
+}
+
+// Determine if the entities in a group will be resized based on the parent type
+func consistentResizeGroupType(entityGroup *repository.EntityGroup) bool {
+	_, resize := CONSISTENT_RESIZE_GROUPS[entityGroup.ParentKind]
+	return resize
+}
+
+// Determine if sub groups will be created for container entities in a group
+func hasSubGroups(entityGroup *repository.EntityGroup, entityType metrics.DiscoveredEntityType) bool {
+	// sub groups are created only for containers
+	if entityType != metrics.ContainerType {
+		return false
+	}
+
+	// if only one type of container in the pod, so sub groups are not created.
+	if len(entityGroup.ContainerGroups) <= 1 {
+		return false
+	}
+
+	return true
 }
