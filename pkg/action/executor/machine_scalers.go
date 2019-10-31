@@ -6,6 +6,7 @@ import (
 	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/typed/machine/v1beta1"
 	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
@@ -57,8 +58,18 @@ func (client *k8sClusterApi) verifyClusterAPIEnabled() error {
 // identifyManagingMachine returns the Machine that manages the given node.
 // An error is returned if the Machine is not found or the node does not exist.
 func (client *k8sClusterApi) identifyManagingMachine(nodeName string) (*machinev1beta1.Machine, error) {
-	// This step simply verifies that the node exists
+	// Check if a node with the passed name exists.
 	_, err := client.k8sClient.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		machineName := nodeName
+		// We get the machine name as is in the stitched env.
+		machine, err := client.machine.Get(machineName, metav1.GetOptions{})
+		if err == nil {
+			return machine, nil
+		}
+
+		return nil, fmt.Errorf("No node or a machine found named %s: %v ", machineName, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("Error retrieving node %s: %v", nodeName, err)
 	}
