@@ -116,7 +116,8 @@ type Controller interface {
 type machineSetController struct {
 	request     *actionRequest              // The action request
 	machineSet  *machinev1beta1.MachineSet  // the MachineSet controlling the machine
-	machineList *machinev1beta1.MachineList // the Machines managed by the MachineSet before action execution
+	machine     *machinev1beta1.Machine     // The identified Machine, will be used for SUSPEND action
+	machineList *machinev1beta1.MachineList // the Machines managed by the MachineSet before action execution, will be used for PROVISION action
 }
 
 //
@@ -203,13 +204,21 @@ func (controller *machineSetController) checkMachineSet(args ...interface{}) (bo
 	return true, nil
 }
 
-// identifyDiff locates machine in list1 which is not in list2
+// identifyDiff locates machine in list1 which is not in list2.
+// list1 should always have 1 machine more then list2.
 func (controller *machineSetController) identifyDiff(list1, list2 *machinev1beta1.MachineList) *machinev1beta1.Machine {
 	for _, machine1 := range list1.Items {
+		found := false
 		for _, machine2 := range list2.Items {
-			if machine1.Name != machine2.Name {
-				return &machine1
+			if machine1.Name == machine2.Name {
+				found = true
+				break
 			}
+		}
+		if found == true {
+			continue
+		} else {
+			return &machine1
 		}
 	}
 	return nil
@@ -217,33 +226,32 @@ func (controller *machineSetController) identifyDiff(list1, list2 *machinev1beta
 
 // checkSuccess verifies that the action has been successful.
 func (controller *machineSetController) checkSuccess() error {
-	stateDesc := fmt.Sprintf("MachineSet %s contains %d Machines", controller.machineSet.Name, *controller.machineSet.Spec.Replicas)
-	err := controller.waitForState(stateDesc, controller.checkMachineSet, controller.machineSet)
+	machineSet := controller.machineSet
+	oldMachine := controller.machine
+	stateDesc := fmt.Sprintf("MachineSet %s contains %d Machines", machineSet.Name, *machineSet.Spec.Replicas)
+	// This step waits until after replica update, the list of machines matches the replicas.
+	err := controller.waitForState(stateDesc, controller.checkMachineSet, machineSet)
 	if err != nil {
 		return err
 	}
 	// get post-Action list of Machines in the MachineSet
-	machineList, err := controller.request.client.listMachinesInMachineSet(controller.machineSet)
+	machineList, err := controller.request.client.listMachinesInMachineSet(machineSet)
 	if err != nil {
 		return err
 	}
-	// Identify the extra machine.
-	// Wait for the machine provisioning.
+
 	if controller.request.actionType == ProvisionAction {
+		// Identify the extra machine.
 		newMachine := controller.identifyDiff(machineList, controller.machineList)
 		if newMachine == nil {
-			return fmt.Errorf("no new machine has been identified for machineSet %v", controller.machineSet)
+			return fmt.Errorf("no new machine has been identified for machineSet %v", machineSet)
 		}
 		err = controller.waitForMachineProvisioning(newMachine)
 	} else {
-		oldMachine := controller.identifyDiff(controller.machineList, machineList)
-		if oldMachine == nil {
-			return nil
-		}
 		err = controller.waitForMachineDeprovisioning(oldMachine)
 	}
 	if err != nil {
-		return fmt.Errorf("machine failed to provision new machine in machineSet %s: %v", controller.machineSet.Name, err)
+		return fmt.Errorf("machine provision/suspend action failed for %s in machineSet %s: %v", oldMachine.Name, machineSet.Name, err)
 	}
 	return nil
 }
@@ -297,23 +305,27 @@ func (controller *machineSetController) waitForMachineProvisioning(newMachine *m
 }
 
 // isMachineDeletedOrNotReady checks whether the machine is deleted or not ready.
-func (controller *machineSetController) isMachineDeletedOrNotReady(args ...interface{}) (bool, error) {
+func (controller *machineSetController) isMachineDeleted(args ...interface{}) (bool, error) {
 	machineName := args[0].(string)
-	machine, err := controller.request.client.machine.Get(machineName, metav1.GetOptions{})
+	_, err := controller.request.client.machine.Get(machineName, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return true, nil
+	}
 	if err != nil {
-		return true, nil
+		// Error in retrieving the machine, generally such an error except notfound is not
+		// transient and should be reported.
+		return false, err
 	}
-	if machine.ObjectMeta.DeletionTimestamp != nil {
-		return true, nil
-	}
+
+	// TODO: We can put an additional check in future to validate the node also vanishes
 	return false, nil
 }
 
 // waitForMachineDeprovisioning waits for the new machine to be de-provisioned with timeout.
 func (controller *machineSetController) waitForMachineDeprovisioning(machine *machinev1beta1.Machine) error {
-	deletedNName := machine.Name
-	descr := fmt.Sprintf("machine %s deleted or exited Ready state", deletedNName)
-	return controller.waitForState(descr, controller.isMachineDeletedOrNotReady, deletedNName)
+	deletedName := machine.Name
+	descr := fmt.Sprintf("machine %s deleted or exited Ready state", deletedName)
+	return controller.waitForState(descr, controller.isMachineDeleted, deletedName)
 }
 
 // waitForState Is the function that allows to wait for a specific state, or until it times out.
@@ -321,7 +333,7 @@ func (controller *machineSetController) waitForState(stateDesc string, f stateCh
 	for i := 0; i < operationMaxWaits; i++ {
 		ok, err := f(args...)
 		if err != nil {
-			return err
+			return fmt.Errorf("error while waiting for state %v", err)
 		}
 		// We are done, return
 		if ok {
@@ -408,6 +420,6 @@ func newController(namespace string, nodeName string, diff int32, actionType Act
 	}
 
 	request := &actionRequest{client, nodeName, diff, actionType}
-	return &machineSetController{request, machineSet, machineList},
+	return &machineSetController{request, machineSet, machine, machineList},
 		&ownerName, nil
 }
