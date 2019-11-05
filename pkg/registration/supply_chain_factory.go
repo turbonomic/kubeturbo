@@ -25,6 +25,7 @@ var (
 	appCommType              = proto.CommodityDTO_APPLICATION
 	transactionType          = proto.CommodityDTO_TRANSACTION
 	respTimeType             = proto.CommodityDTO_RESPONSE_TIME
+	numPodNumConsumersType   = proto.CommodityDTO_NUMBER_CONSUMERS
 
 	fakeKey = "fake"
 
@@ -32,6 +33,7 @@ var (
 	vMemTemplateComm                        = &proto.TemplateCommodity{CommodityType: &vMemType}
 	vCpuRequestTemplateComm                 = &proto.TemplateCommodity{CommodityType: &vCpuRequestType}
 	vMemRequestTemplateComm                 = &proto.TemplateCommodity{CommodityType: &vMemRequestType}
+	numPodNumConsumersTemplateComm          = &proto.TemplateCommodity{CommodityType: &numPodNumConsumersType}
 	cpuAllocationTemplateCommWithKey        = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuAllocationType}
 	memAllocationTemplateCommWithKey        = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memAllocationType}
 	cpuRequestAllocationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuRequestAllocationType}
@@ -172,6 +174,7 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 		PatchSoldMetadata(proto.CommodityDTO_MEM_ALLOCATION, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_CPU_REQUEST_ALLOCATION, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_MEM_REQUEST_ALLOCATION, fieldsUsedCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_NUMBER_CONSUMERS, fieldsUsedCapacity).
 		Build()
 }
 
@@ -181,11 +184,12 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 	nodeSupplyChainNodeBuilder.SetTemplateType(f.vmTemplateType)
 
 	nodeSupplyChainNodeBuilder = nodeSupplyChainNodeBuilder.
-		Sells(vCpuTemplateComm).        // sells to Pods
-		Sells(vMemTemplateComm).        // sells to Pods
-		Sells(vCpuRequestTemplateComm). // sells to Pods
-		Sells(vMemRequestTemplateComm). // sells to Pods
-		Sells(vmpmAccessTemplateComm)   // sells to Pods
+		Sells(vCpuTemplateComm).              // sells to Pods
+		Sells(vMemTemplateComm).              // sells to Pods
+		Sells(vCpuRequestTemplateComm).       // sells to Pods
+		Sells(vMemRequestTemplateComm).       // sells to Pods
+		Sells(vmpmAccessTemplateComm).        // sells to Pods
+		Sells(numPodNumConsumersTemplateComm) // sells to Pods
 		// also sells Cluster
 
 	return nodeSupplyChainNodeBuilder.Create()
@@ -213,6 +217,7 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Buys(vMemTemplateComm).
 		Buys(vCpuRequestTemplateComm).
 		Buys(vMemRequestTemplateComm).
+		Buys(numPodNumConsumersTemplateComm).
 		Provider(proto.EntityDTO_VIRTUAL_DATACENTER, proto.Provider_LAYERED_OVER).
 		Buys(cpuAllocationTemplateCommWithKey).
 		Buys(memAllocationTemplateCommWithKey).
@@ -226,6 +231,7 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Commodity(vMemType, false).
 		Commodity(vCpuRequestType, false).
 		Commodity(vMemRequestType, false).
+		Commodity(numPodNumConsumersType, false).
 		Commodity(vmPMAccessType, true).
 		Commodity(clusterType, true)
 
