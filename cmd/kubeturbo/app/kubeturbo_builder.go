@@ -11,6 +11,8 @@ import (
 	"syscall"
 
 	apiv1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	versionhelper "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -39,10 +41,15 @@ const (
 	defaultDiscoveryIntervalSec = 600
 	defaultValidationWorkers    = 10
 	defaultValidationTimeout    = 60
+	k8sExtensionsGroupName      = "extensions"
+	k8sAppsGroupName            = "apps"
 )
 
 var (
 	defaultSccSupport = []string{"restricted"}
+
+	// The API group version under which deployments and replicasets are exposed by the given k8s cluster
+	k8sAPIDeploymentReplicasetGV = &schema.GroupVersion{k8sAppsGroupName, "v1"}
 
 	// these variables will be deprecated. Keep it here for backward compatibility only
 	k8sVersion        = "1.8"
@@ -228,6 +235,13 @@ func (s *VMTServer) Run() {
 	isOpenshift := checkServerVersion(kubeClient.DiscoveryClient.RESTClient())
 	glog.V(2).Info("Openshift cluster? ", isOpenshift)
 
+	var err error
+	k8sAPIDeploymentReplicasetGV, err = discoverk8sAPIDeploymentReplicasetGV(kubeClient)
+	if err != nil {
+		glog.Warningf("Failure in discovering k8s deployment and replicaset API group/version: %v", err.Error())
+	}
+	glog.V(2).Infof("Using group version %v for k8s deployments and replicasets", k8sAPIDeploymentReplicasetGV)
+
 	// Allow insecure connection only if it's not an Openshift cluster
 	// For Kubernetes distro, the secure connection to Kubelet will fail due to
 	// the certificate issue of 'doesn't contain any IP SANs'.
@@ -343,4 +357,54 @@ func checkServerVersion(restClient restclient.Interface) bool {
 	}
 
 	return false
+}
+
+func discoverk8sAPIDeploymentReplicasetGV(client *kubernetes.Clientset) (*schema.GroupVersion, error) {
+	// We optimistically use a globally set default if we cannot discover the GV.
+	defaultGV := *k8sAPIDeploymentReplicasetGV
+
+	apiResourceLists, err := client.ServerPreferredResources()
+	if apiResourceLists == nil {
+		return &defaultGV, err
+	}
+	if err != nil {
+		// We don't exit here as ServerPreferredResources can return the resource list even with errors.
+		glog.Warningf("Error listing api resources: %v", err)
+	}
+
+	latestExtensionsVersion := schema.GroupVersion{k8sExtensionsGroupName, ""}
+	latestAppsVersion := schema.GroupVersion{k8sAppsGroupName, ""}
+	for _, apiResourceList := range apiResourceLists {
+		if len(apiResourceList.APIResources) == 0 {
+			continue
+		}
+
+		gv, err := schema.ParseGroupVersion(apiResourceList.GroupVersion)
+		if err != nil {
+			return &defaultGV, fmt.Errorf("Error parsing GroupVersion: %v", err)
+		}
+
+		group := gv.Group
+		version := gv.Version
+		if group == k8sExtensionsGroupName {
+			latestExtensionsVersion.Version = latestComparedVersion(version, latestExtensionsVersion.Version)
+		} else if group == k8sAppsGroupName {
+			latestAppsVersion.Version = latestComparedVersion(version, latestAppsVersion.Version)
+		}
+	}
+
+	if latestAppsVersion.Version != "" {
+		return &latestAppsVersion, nil
+	}
+	if latestExtensionsVersion.Version != "" {
+		return &latestExtensionsVersion, nil
+	}
+	return &defaultGV, nil
+}
+
+func latestComparedVersion(newVersion, existingVersion string) string {
+	if existingVersion != "" && versionhelper.CompareKubeAwareVersionStrings(newVersion, existingVersion) <= 0 {
+		return existingVersion
+	}
+	return newVersion
 }
