@@ -30,7 +30,7 @@ func (s *MachineActionExecutor) unlock(key string) {
 
 // Execute : executes the scale action.
 func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*TurboActionExecutorOutput, error) {
-	machineName := vmDTO.ActionItem.GetTargetSE().GetDisplayName()
+	nodeName := vmDTO.ActionItem.GetTargetSE().GetDisplayName()
 	var actionType ActionType
 	var diff int32
 	switch vmDTO.ActionItem.GetActionType() {
@@ -46,7 +46,7 @@ func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*Turbo
 		return nil, fmt.Errorf("unsupported action type %v", vmDTO.ActionItem.GetActionType())
 	}
 	// Get on with it.
-	controller, key, err := newController(s.cAPINamespace, machineName, diff, actionType,
+	controller, key, err := newController(s.cAPINamespace, nodeName, diff, actionType,
 		s.executor.cApiClient, s.executor.kubeClient)
 	if err != nil {
 		return nil, err

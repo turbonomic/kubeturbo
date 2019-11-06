@@ -2,7 +2,7 @@ package action
 
 import (
 	"fmt"
-	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 	"time"
 
 	client "k8s.io/client-go/kubernetes"
