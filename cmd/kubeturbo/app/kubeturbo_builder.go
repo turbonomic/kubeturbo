@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	versionhelper "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/server/healthz"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -232,10 +233,15 @@ func (s *VMTServer) Run() {
 
 	kubeClient := s.createKubeClientOrDie(kubeConfig)
 
+	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
+	if err != nil {
+		glog.Errorf("Failed to generate dynamic client for kubernetes target: %v", err)
+		os.Exit(1)
+	}
+
 	isOpenshift := checkServerVersion(kubeClient.DiscoveryClient.RESTClient())
 	glog.V(2).Info("Openshift cluster? ", isOpenshift)
 
-	var err error
 	k8sAPIDeploymentReplicasetGV, err = discoverk8sAPIDeploymentReplicasetGV(kubeClient)
 	if err != nil {
 		glog.Warningf("Failure in discovering k8s deployment and replicaset API group/version: %v", err.Error())
