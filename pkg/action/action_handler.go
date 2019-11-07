@@ -2,23 +2,23 @@ package action
 
 import (
 	"fmt"
-	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	"strings"
 	"time"
 
-	client "k8s.io/client-go/kubernetes"
+	"github.com/golang/glog"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	api "k8s.io/api/core/v1"
+	"k8s.io/client-go/dynamic"
+	kubeclient "k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
-	"strings"
-
-	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
+	kubeletclient "github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
-	api "k8s.io/api/core/v1"
 )
 
 const (
@@ -41,15 +41,16 @@ var (
 )
 
 type ActionHandlerConfig struct {
-	kubeClient     *client.Clientset
+	kubeClient     *kubeclient.Clientset
+	dynamicClient  dynamic.Interface
 	cApiClient     *clientset.Clientset
-	kubeletClient  *kubeclient.KubeletClient
+	kubeletClient  *kubeletclient.KubeletClient
 	StopEverything chan struct{}
 	sccAllowedSet  map[string]struct{}
 	cAPINamespace  string
 }
 
-func NewActionHandlerConfig(cApiNamespace string, kubeClient *client.Clientset, kubeletClient *kubeclient.KubeletClient, sccSupport []string) *ActionHandlerConfig {
+func NewActionHandlerConfig(cApiNamespace string, kubeClient *kubeclient.Clientset, kubeletClient *kubeletclient.KubeletClient, dynamicClient dynamic.Interface, sccSupport []string) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
 		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}
@@ -58,6 +59,7 @@ func NewActionHandlerConfig(cApiNamespace string, kubeClient *client.Clientset, 
 
 	config := &ActionHandlerConfig{
 		kubeClient:     kubeClient,
+		dynamicClient:  dynamicClient,
 		kubeletClient:  kubeletClient,
 		StopEverything: make(chan struct{}),
 		sccAllowedSet:  sccAllowedSet,
@@ -100,7 +102,7 @@ func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 // As action executor is stateless, they can be safely reused.
 func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
-	ae := executor.NewTurboK8sActionExecutor(c.kubeClient, c.cApiClient, h.podManager)
+	ae := executor.NewTurboK8sActionExecutor(c.kubeClient, c.dynamicClient, c.cApiClient, h.podManager)
 
 	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet)
 	h.actionExecutors[turboActionPodMove] = reScheduler

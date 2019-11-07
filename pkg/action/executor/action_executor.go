@@ -4,6 +4,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
+	"k8s.io/client-go/dynamic"
 	kclient "k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
@@ -24,15 +25,17 @@ type TurboActionExecutor interface {
 }
 
 type TurboK8sActionExecutor struct {
-	kubeClient *kclient.Clientset
-	cApiClient *clientset.Clientset
-	podManager util.IPodManager
+	kubeClient    *kclient.Clientset
+	dynamicClient dynamic.Interface
+	cApiClient    *clientset.Clientset
+	podManager    util.IPodManager
 }
 
-func NewTurboK8sActionExecutor(kubeClient *kclient.Clientset, cApiClient *clientset.Clientset, podManager util.IPodManager) TurboK8sActionExecutor {
+func NewTurboK8sActionExecutor(kubeClient *kclient.Clientset, dynamicClient dynamic.Interface, cApiClient *clientset.Clientset, podManager util.IPodManager) TurboK8sActionExecutor {
 	return TurboK8sActionExecutor{
-		kubeClient: kubeClient,
-		cApiClient: cApiClient,
-		podManager: podManager,
+		kubeClient:    kubeClient,
+		dynamicClient: dynamicClient,
+		cApiClient:    cApiClient,
+		podManager:    podManager,
 	}
 }

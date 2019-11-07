@@ -85,7 +85,7 @@ func createProbeConfigOrDie(c *Config) *configs.ProbeConfig {
 	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(c.KubeletClient)
 
 	// Create cluster monitoring
-	masterMonitoringConfig := master.NewClusterMonitorConfig(c.KubeClient)
+	masterMonitoringConfig := master.NewClusterMonitorConfig(c.KubeClient, c.DynamicClient)
 
 	// TODO for now kubelet is the only monitoring source. As we have more sources, we should choose what to be added into the slice here.
 	monitoringConfigs := []monitoring.MonitorWorkerConfig{
@@ -97,6 +97,7 @@ func createProbeConfigOrDie(c *Config) *configs.ProbeConfig {
 		StitchingPropertyType: c.StitchingPropType,
 		MonitoringConfigs:     monitoringConfigs,
 		ClusterClient:         c.KubeClient,
+		DynamicClient:         c.DynamicClient,
 		NodeClient:            c.KubeletClient,
 	}
 
@@ -118,7 +119,7 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 	probeConfig := createProbeConfigOrDie(config)
 	discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, config.tapSpec.K8sTargetConfig, config.ValidationWorkers, config.ValidationTimeoutSec)
 
-	actionHandlerConfig := action.NewActionHandlerConfig(config.CAPINamespace, config.KubeClient, config.KubeletClient, config.SccSupport)
+	actionHandlerConfig := action.NewActionHandlerConfig(config.CAPINamespace, config.KubeClient, config.KubeletClient, config.DynamicClient, config.SccSupport)
 
 	// Kubernetes Probe Registration Client
 	registrationClient := registration.NewK8sRegistrationClient(registrationClientConfig)

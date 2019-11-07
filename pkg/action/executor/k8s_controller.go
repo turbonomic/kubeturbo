@@ -1,13 +1,13 @@
 package executor
 
 import (
-	apiappsv1beta1 "k8s.io/api/apps/v1beta1"
+	"fmt"
+
 	apicorev1 "k8s.io/api/core/v1"
-	apiextv1beta1 "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	typedappsv1beta1 "k8s.io/client-go/kubernetes/typed/apps/v1beta1"
-	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	typedextv1beta1 "k8s.io/client-go/kubernetes/typed/extensions/v1beta1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/dynamic"
 )
 
 // k8sController defines a common interface for kubernetes controller actions
@@ -17,7 +17,7 @@ import (
 // - Deployment
 type k8sController interface {
 	get(name string) (*k8sControllerSpec, error)
-	update() error
+	update(updatedSpec *k8sControllerSpec) error
 }
 
 // k8sControllerSpec defines a set of objects that we want to update:
@@ -29,95 +29,66 @@ type k8sControllerSpec struct {
 	podSpec  *apicorev1.PodSpec
 }
 
-// replicationController represents the k8s ReplicationController resource
-type replicationController struct {
-	k8sController
-	client typedcorev1.ReplicationControllerInterface
-	rc     *apicorev1.ReplicationController
+type parentController struct {
+	dynNamespacedClient dynamic.ResourceInterface
+	obj                 *unstructured.Unstructured
 }
 
-// get takes the name of the replicationcontroller,
-// returns and saves the corresponding replicationcontroller object from the server
-func (rc *replicationController) get(name string) (*k8sControllerSpec, error) {
-	var err error
-	rc.rc, err = rc.client.Get(name, metav1.GetOptions{})
+func (c *parentController) get(name string) (*k8sControllerSpec, error) {
+	obj, err := c.dynNamespacedClient.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
-	return &k8sControllerSpec{
-		replicas: rc.rc.Spec.Replicas,
-		podSpec:  &rc.rc.Spec.Template.Spec,
-	}, nil
-}
+	objName := fmt.Sprintf("%s/%s", obj.GetNamespace(), name)
+	kind := obj.GetKind()
 
-// update takes the saved replicationcontroller object and updates it with the server
-func (rc *replicationController) update() error {
-	_, err := rc.client.Update(rc.rc)
-	return err
-}
-
-func (rc *replicationController) String() string {
-	return "ReplicationController"
-}
-
-// replicaSet represents the k8s ReplicaSet resource
-type replicaSet struct {
-	k8sController
-	client typedextv1beta1.ReplicaSetInterface
-	rs     *apiextv1beta1.ReplicaSet
-}
-
-// get takes the name of the replicaset,
-// returns and saves the corresponding replicaset object from the server
-func (rs *replicaSet) get(name string) (*k8sControllerSpec, error) {
-	var err error
-	rs.rs, err = rs.client.Get(name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
+	replicas, found, err := unstructured.NestedInt64(obj.Object, "spec", "replicas")
+	if err != nil || !found {
+		return nil, fmt.Errorf("Error retrieving replicas from %s %s: %v", kind, objName, err)
 	}
-	return &k8sControllerSpec{
-		replicas: rs.rs.Spec.Replicas,
-		podSpec:  &rs.rs.Spec.Template.Spec,
-	}, nil
-}
 
-// update takes the saved replicaset object and updates it with the server
-func (rs *replicaSet) update() error {
-	_, err := rs.client.Update(rs.rs)
-	return err
-}
-
-func (rs *replicaSet) String() string {
-	return "ReplicaSet"
-}
-
-// deployment represents the k8s Deployment resource
-type deployment struct {
-	k8sController
-	client typedappsv1beta1.DeploymentInterface
-	dep    *apiappsv1beta1.Deployment
-}
-
-// get takes the name of the deployment,
-// returns and saves the corresponding deployment object from the server
-func (dep *deployment) get(name string) (*k8sControllerSpec, error) {
-	var err error
-	dep.dep, err = dep.client.Get(name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
+	podSpecUnstructured, found, err := unstructured.NestedFieldCopy(obj.Object, "spec", "template", "spec")
+	if err != nil || !found {
+		return nil, fmt.Errorf("Error retrieving podSpec from %s %s: %v", kind, objName, err)
 	}
+
+	podSpec := apicorev1.PodSpec{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(podSpecUnstructured.(map[string]interface{}), &podSpec); err != nil {
+		return nil, fmt.Errorf("Error converting unstructured pod spec to typed pod spec for %s %s: %v", kind, objName, err)
+	}
+
+	c.obj = obj
+	int32Replicas := int32(replicas)
 	return &k8sControllerSpec{
-		replicas: dep.dep.Spec.Replicas,
-		podSpec:  &dep.dep.Spec.Template.Spec,
+		replicas: &int32Replicas,
+		podSpec:  &podSpec,
 	}, nil
 }
 
-// update takes the saved deployment object and updates it with the server
-func (dep *deployment) update() error {
-	_, err := dep.client.Update(dep.dep)
+func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
+	objName := fmt.Sprintf("%s/%s", c.obj.GetNamespace(), c.obj.GetName())
+	kind := c.obj.GetKind()
+
+	replicaVal := int64(*updatedSpec.replicas)
+	podSpecUnstructured, err := runtime.DefaultUnstructuredConverter.ToUnstructured(updatedSpec.podSpec)
+	if err != nil {
+		return fmt.Errorf("Error converting pod spec to unstructured pod spec for %s %s: %v", kind, objName, err)
+	}
+
+	if err := unstructured.SetNestedField(c.obj.Object, replicaVal, "spec", "replicas"); err != nil {
+		return fmt.Errorf("Error setting replicas into unstructured %s %s: %v", kind, objName, err)
+	}
+	if err := unstructured.SetNestedField(c.obj.Object, podSpecUnstructured, "spec", "template", "spec"); err != nil {
+		return fmt.Errorf("Error setting podSpec into unstructured %s %s: %v", kind, objName, err)
+	}
+
+	_, err = c.dynNamespacedClient.Update(c.obj, metav1.UpdateOptions{})
 	return err
 }
 
-func (dep *deployment) String() string {
-	return "Deployment"
+func (rc *parentController) String() string {
+	if rc.obj != nil {
+		return rc.obj.GetKind()
+	}
+	return "Unknown"
 }
