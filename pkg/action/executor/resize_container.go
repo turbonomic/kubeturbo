@@ -244,6 +244,7 @@ func (r *ContainerResizer) Execute(input *TurboActionExecutorInput) (*TurboActio
 	// execute the Action
 	npod, err := resizeContainer(
 		r.kubeClient,
+		r.dynamicClient,
 		pod,
 		spec,
 		actionItem.GetConsistentScalingCompliance(),

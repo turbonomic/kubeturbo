@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"k8s.io/client-go/dynamic"
 	"math"
 
 	"github.com/golang/glog"
@@ -150,10 +151,10 @@ func genMemoryQuantity(newValue float64) (resource.Quantity, error) {
 	return resource.ParseQuantity(fmt.Sprintf("%dKi", tmp))
 }
 
-func resizeContainer(client *kclient.Clientset, pod *k8sapi.Pod, spec *containerResizeSpec,
+func resizeContainer(client *kclient.Clientset, dynClient dynamic.Interface, pod *k8sapi.Pod, spec *containerResizeSpec,
 	consistentResize bool) (*k8sapi.Pod, error) {
 	if consistentResize {
-		return nil, resizeControllerContainer(client, pod, spec)
+		return nil, resizeControllerContainer(client, dynClient, pod, spec)
 	}
 	return resizeSingleContainer(client, pod, spec)
 }
@@ -168,9 +169,9 @@ func resizeContainer(client *kclient.Clientset, pod *k8sapi.Pod, spec *container
 //   resource, all existing pods that belong to the original ReplicaSet and ReplicationController
 //   are not affected. Only newly created pods (through scaling action) will use the updated
 //   resource
-func resizeControllerContainer(client *kclient.Clientset, pod *k8sapi.Pod, spec *containerResizeSpec) error {
+func resizeControllerContainer(client *kclient.Clientset, dynClient dynamic.Interface, pod *k8sapi.Pod, spec *containerResizeSpec) error {
 	// prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdater(client, pod)
+	controllerUpdater, err := newK8sControllerUpdater(client, dynClient, pod)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return err
