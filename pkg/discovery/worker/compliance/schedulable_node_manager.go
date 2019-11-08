@@ -1,7 +1,6 @@
 package compliance
 
 import (
-	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	api "k8s.io/api/core/v1"
 )
@@ -26,7 +25,6 @@ func (manager *SchedulableNodeManager) checkNodes() {
 	for _, node := range manager.nodes {
 		schedulable := util.NodeIsReady(node) && util.NodeIsSchedulable(node)
 		manager.schedulableNodes[node.Name] = schedulable
-		glog.Infof("##### Node %s: %s #####", node.Name, schedulable)
 	}
 }
 
