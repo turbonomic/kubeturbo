@@ -211,6 +211,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 	// Access commodities: selectors.
 	for key, value := range pod.Spec.NodeSelector {
 		selector := key + "=" + value
+		//glog.V(2).Infof("%s: node selector is %s", pod.Name, selector)
 		accessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
 			Key(selector).
 			Create()
@@ -218,17 +219,6 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 			return nil, err
 		}
 		commoditiesBought = append(commoditiesBought, accessComm)
-	}
-
-	// Access commodity: schedulable
-	if util.Controllable(pod) {
-		schedAccessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
-			Key(schedAccessCommodityKey).
-			Create()
-		if err != nil {
-			return nil, err
-		}
-		commoditiesBought = append(commoditiesBought, schedAccessComm)
 	}
 
 	// Cluster commodity.
