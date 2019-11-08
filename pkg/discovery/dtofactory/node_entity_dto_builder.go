@@ -181,18 +181,6 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 		commoditiesSold = append(commoditiesSold, accessComm)
 	}
 
-	// Access commodity: schedulable.
-	if util.NodeIsReady(node) && util.NodeIsSchedulable(node) {
-		schedAccessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
-			Key(schedAccessCommodityKey).
-			Capacity(accessCommodityDefaultCapacity).
-			Create()
-		if err != nil {
-			return nil, err
-		}
-		commoditiesSold = append(commoditiesSold, schedAccessComm)
-	}
-
 	// Cluster commodity.
 	clusterMetricUID := metrics.GenerateEntityStateMetricUID(metrics.ClusterType, "", metrics.Cluster)
 	clusterInfo, err := builder.metricsSink.GetMetric(clusterMetricUID)
