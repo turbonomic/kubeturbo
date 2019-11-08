@@ -169,7 +169,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 	// Access commodities: labels.
 	for key, value := range node.ObjectMeta.Labels {
 		label := key + "=" + value
-		//glog.V(2).Infof("label for this Node is : %s", label)
+		glog.V(4).Infof("label for this Node is : %s", label)
 
 		accessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
 			Key(label).

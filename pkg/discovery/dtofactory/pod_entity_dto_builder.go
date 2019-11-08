@@ -211,7 +211,6 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 	// Access commodities: selectors.
 	for key, value := range pod.Spec.NodeSelector {
 		selector := key + "=" + value
-		//glog.V(2).Infof("%s: node selector is %s", pod.Name, selector)
 		accessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
 			Key(selector).
 			Create()
