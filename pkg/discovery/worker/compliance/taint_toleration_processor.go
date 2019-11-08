@@ -222,7 +222,7 @@ func createTaintAccessComms(node *api.Node, taintCollection map[api.Taint]string
 				return nil, err
 			}
 			visited[key] = true
-			glog.V(2).Infof("Created access commodity with key %s for node %s", key, node.GetName())
+			glog.V(4).Infof("Created access commodity with key %s for node %s", key, node.GetName())
 
 			accessComms = append(accessComms, accessComm)
 		}
@@ -245,7 +245,6 @@ func createTolerationAccessComms(pod *api.Pod, taintCollection map[api.Taint]str
 		}
 		// If the pod doesn't have the proper toleration, create access commodity to buy
 		if !TolerationsTolerateTaint(pod.Spec.Tolerations, &taint) {
-
 			accessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
 				Key(key).
 				Capacity(accessCommodityDefaultCapacity).
@@ -255,7 +254,7 @@ func createTolerationAccessComms(pod *api.Pod, taintCollection map[api.Taint]str
 				return nil, err
 			}
 			visited[key] = true
-			glog.V(2).Infof("Created access commodity with key %s for pod %s", key, pod.GetName())
+			glog.V(4).Infof("Created access commodity with key %s for pod %s", key, pod.GetName())
 
 			accessComms = append(accessComms, accessComm)
 		}
