@@ -25,6 +25,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/onsi/gomega v0.0.0-20190113212917-5533ce8a0da3 // indirect
+	github.com/openshift/cluster-api v0.0.0-20190822130419-53b696be18ad
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pborman/uuid v1.2.0
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
@@ -55,7 +56,7 @@ require (
 	k8s.io/klog v0.0.0-20190306015804-8e90cee79f82
 	k8s.io/kube-openapi v0.0.0-20190228160746-b3a7cee44a30 // indirect
 	k8s.io/kubernetes v1.13.1
-	sigs.k8s.io/cluster-api v0.0.0-20190418151011-abfd18620fd0
+	sigs.k8s.io/cluster-api v0.0.0-20190418151011-abfd18620fd0 // indirect
 	sigs.k8s.io/controller-runtime v0.1.10 // indirect
 	sigs.k8s.io/testing_frameworks v0.1.1 // indirect
 	sigs.k8s.io/yaml v1.1.0 // indirect
