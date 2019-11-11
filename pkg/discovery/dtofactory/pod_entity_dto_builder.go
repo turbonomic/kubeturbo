@@ -220,17 +220,6 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 		commoditiesBought = append(commoditiesBought, accessComm)
 	}
 
-	// Access commodity: schedulable
-	if util.Controllable(pod) {
-		schedAccessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
-			Key(schedAccessCommodityKey).
-			Create()
-		if err != nil {
-			return nil, err
-		}
-		commoditiesBought = append(commoditiesBought, schedAccessComm)
-	}
-
 	// Cluster commodity.
 	clusterMetricUID := metrics.GenerateEntityStateMetricUID(metrics.ClusterType, "", metrics.Cluster)
 	clusterInfo, err := builder.metricsSink.GetMetric(clusterMetricUID)
