@@ -48,13 +48,13 @@ func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.In
 			Resource: util.ReplicationControllerResName}
 	case util.KindReplicaSet:
 		res = schema.GroupVersionResource{
-			Group:    util.K8sAPIDeploymentReplicasetGV.Group,
-			Version:  util.K8sAPIDeploymentReplicasetGV.Version,
+			Group:    util.K8sAPIDeploymentGV.Group,
+			Version:  util.K8sAPIDeploymentGV.Version,
 			Resource: util.ReplicaSetResName}
 	case util.KindDeployment:
 		res = schema.GroupVersionResource{
-			Group:    util.K8sAPIDeploymentReplicasetGV.Group,
-			Version:  util.K8sAPIDeploymentReplicasetGV.Version,
+			Group:    util.K8sAPIReplicasetGV.Group,
+			Version:  util.K8sAPIReplicasetGV.Version,
 			Resource: util.DeploymentResName}
 	default:
 		err := fmt.Errorf("unsupport controller type %s for pod %s/%s", kind, pod.Namespace, pod.Name)
