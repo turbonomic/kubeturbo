@@ -238,11 +238,17 @@ func (s *VMTServer) Run() {
 	isOpenshift := checkServerVersion(kubeClient.DiscoveryClient.RESTClient())
 	glog.V(2).Info("Openshift cluster? ", isOpenshift)
 
-	util.K8sAPIDeploymentReplicasetGV, err = discoverk8sAPIDeploymentReplicasetGV(kubeClient)
+	util.K8sAPIDeploymentGV, err = discoverk8sAPIResourceGV(kubeClient, util.DeploymentResName)
 	if err != nil {
-		glog.Warningf("Failure in discovering k8s deployment and replicaset API group/version: %v", err.Error())
+		glog.Warningf("Failure in discovering k8s deployment API group/version: %v", err.Error())
 	}
-	glog.V(2).Infof("Using group version %v for k8s deployments and replicasets", util.K8sAPIDeploymentReplicasetGV)
+	glog.V(2).Infof("Using group version %v for k8s deployments", util.K8sAPIDeploymentGV)
+
+	util.K8sAPIReplicasetGV, err = discoverk8sAPIResourceGV(kubeClient, util.ReplicaSetResName)
+	if err != nil {
+		glog.Warningf("Failure in discovering k8s replicaset API group/version: %v", err.Error())
+	}
+	glog.V(2).Infof("Using group version %v for k8s replicasets", util.K8sAPIReplicasetGV)
 
 	// Allow insecure connection only if it's not an Openshift cluster
 	// For Kubernetes distro, the secure connection to Kubelet will fail due to
@@ -362,9 +368,9 @@ func checkServerVersion(restClient restclient.Interface) bool {
 	return false
 }
 
-func discoverk8sAPIDeploymentReplicasetGV(client *kubernetes.Clientset) (schema.GroupVersion, error) {
+func discoverk8sAPIResourceGV(client *kubernetes.Clientset, resourceName string) (schema.GroupVersion, error) {
 	// We optimistically use a globally set default if we cannot discover the GV.
-	defaultGV := util.K8sAPIDeploymentReplicasetGV
+	defaultGV := util.K8sAPIDeploymentReplicasetDefaultGV
 
 	apiResourceLists, err := client.ServerPreferredResources()
 	if apiResourceLists == nil {
@@ -379,6 +385,17 @@ func discoverk8sAPIDeploymentReplicasetGV(client *kubernetes.Clientset) (schema.
 	latestAppsVersion := schema.GroupVersion{Group: util.K8sAppsGroupName, Version: ""}
 	for _, apiResourceList := range apiResourceLists {
 		if len(apiResourceList.APIResources) == 0 {
+			continue
+		}
+
+		found := false
+		for _, apiResource := range apiResourceList.APIResources {
+			if apiResource.Name == resourceName {
+				found = true
+				break
+			}
+		}
+		if found == false {
 			continue
 		}
 

@@ -282,8 +282,8 @@ func GetPodGrandInfo(kclient *client.Clientset, dynClient dynamic.Interface, pod
 		//2.1 get parent object
 
 		rsRes := schema.GroupVersionResource{
-			Group:    commonutil.K8sAPIDeploymentReplicasetGV.Group,
-			Version:  commonutil.K8sAPIDeploymentReplicasetGV.Version,
+			Group:    commonutil.K8sAPIReplicasetGV.Group,
+			Version:  commonutil.K8sAPIReplicasetGV.Version,
 			Resource: commonutil.ReplicaSetResName}
 		rs, err := dynClient.Resource(rsRes).Namespace(pod.Namespace).Get(name, metav1.GetOptions{})
 		if err != nil {
