@@ -1,10 +1,10 @@
 package kubeturbo
 
 import (
+	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	client "k8s.io/client-go/kubernetes"
-	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
 // Configuration created using the parameters passed to the kubeturbo service container.
