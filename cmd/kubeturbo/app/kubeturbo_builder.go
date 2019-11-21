@@ -401,7 +401,7 @@ func discoverk8sAPIResourceGV(client *kubernetes.Clientset, resourceName string)
 
 		gv, err := schema.ParseGroupVersion(apiResourceList.GroupVersion)
 		if err != nil {
-			return defaultGV, fmt.Errorf("Error parsing GroupVersion: %v", err)
+			return defaultGV, fmt.Errorf("error parsing GroupVersion: %v", err)
 		}
 
 		group := gv.Group

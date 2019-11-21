@@ -44,17 +44,17 @@ func (c *parentController) get(name string) (*k8sControllerSpec, error) {
 
 	replicas, found, err := unstructured.NestedInt64(obj.Object, "spec", "replicas")
 	if err != nil || !found {
-		return nil, fmt.Errorf("Error retrieving replicas from %s %s: %v", kind, objName, err)
+		return nil, fmt.Errorf("error retrieving replicas from %s %s: %v", kind, objName, err)
 	}
 
 	podSpecUnstructured, found, err := unstructured.NestedFieldCopy(obj.Object, "spec", "template", "spec")
 	if err != nil || !found {
-		return nil, fmt.Errorf("Error retrieving podSpec from %s %s: %v", kind, objName, err)
+		return nil, fmt.Errorf("error retrieving podSpec from %s %s: %v", kind, objName, err)
 	}
 
 	podSpec := apicorev1.PodSpec{}
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(podSpecUnstructured.(map[string]interface{}), &podSpec); err != nil {
-		return nil, fmt.Errorf("Error converting unstructured pod spec to typed pod spec for %s %s: %v", kind, objName, err)
+		return nil, fmt.Errorf("error converting unstructured pod spec to typed pod spec for %s %s: %v", kind, objName, err)
 	}
 
 	c.obj = obj
@@ -72,14 +72,14 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 	replicaVal := int64(*updatedSpec.replicas)
 	podSpecUnstructured, err := runtime.DefaultUnstructuredConverter.ToUnstructured(updatedSpec.podSpec)
 	if err != nil {
-		return fmt.Errorf("Error converting pod spec to unstructured pod spec for %s %s: %v", kind, objName, err)
+		return fmt.Errorf("error converting pod spec to unstructured pod spec for %s %s: %v", kind, objName, err)
 	}
 
 	if err := unstructured.SetNestedField(c.obj.Object, replicaVal, "spec", "replicas"); err != nil {
-		return fmt.Errorf("Error setting replicas into unstructured %s %s: %v", kind, objName, err)
+		return fmt.Errorf("error setting replicas into unstructured %s %s: %v", kind, objName, err)
 	}
 	if err := unstructured.SetNestedField(c.obj.Object, podSpecUnstructured, "spec", "template", "spec"); err != nil {
-		return fmt.Errorf("Error setting podSpec into unstructured %s %s: %v", kind, objName, err)
+		return fmt.Errorf("error setting podSpec into unstructured %s %s: %v", kind, objName, err)
 	}
 
 	_, err = c.dynNamespacedClient.Update(c.obj, metav1.UpdateOptions{})
