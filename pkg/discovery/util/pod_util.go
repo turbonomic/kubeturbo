@@ -270,7 +270,7 @@ func GetPodParentInfo(pod *api.Pod) (string, string, error) {
 // GetPodGrandInfo gets grandParent (parent's parent) information of a pod: kind, name
 // If parent does not have parent, then return parent info.
 // Note: if parent kind is "ReplicaSet", then its parent's parent can be a "Deployment"
-func GetPodGrandInfo(kclient *client.Clientset, dynClient dynamic.Interface, pod *api.Pod) (string, string, error) {
+func GetPodGrandInfo(dynClient dynamic.Interface, pod *api.Pod) (string, string, error) {
 	//1. get Parent info: kind and name;
 	kind, name, err := GetPodParentInfo(pod)
 	if err != nil {

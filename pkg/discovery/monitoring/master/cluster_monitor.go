@@ -229,7 +229,7 @@ func (m *ClusterMonitor) getPodOwner(pod *api.Pod, dynClient dynamic.Interface) 
 	key := util.PodKeyFunc(pod)
 	glog.V(4).Infof("begin to generate pod[%s]'s Owner metric.", key)
 
-	kind, parentName, err := util.GetPodGrandInfo(m.clusterClient.Clientset, dynClient, pod)
+	kind, parentName, err := util.GetPodGrandInfo(dynClient, pod)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting pod owner: %v", err)
 	}
