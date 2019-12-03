@@ -63,6 +63,7 @@ func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.In
 	return &k8sControllerUpdater{
 		controller: &parentController{
 			dynNamespacedClient: dynamicClient.Resource(res).Namespace(pod.Namespace),
+			name:                kind,
 		},
 		client:    client,
 		name:      name,

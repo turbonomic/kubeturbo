@@ -32,6 +32,7 @@ type k8sControllerSpec struct {
 type parentController struct {
 	dynNamespacedClient dynamic.ResourceInterface
 	obj                 *unstructured.Unstructured
+	name                string
 }
 
 func (c *parentController) get(name string) (*k8sControllerSpec, error) {
@@ -87,8 +88,5 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 }
 
 func (rc *parentController) String() string {
-	if rc.obj != nil {
-		return rc.obj.GetKind()
-	}
-	return "Unknown"
+	return rc.name
 }
