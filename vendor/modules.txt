@@ -222,6 +222,7 @@ k8s.io/apiserver/pkg/util/feature
 k8s.io/apiserver/pkg/util/flag
 # k8s.io/client-go v0.0.0-20181213151034-8d9ed539ba31
 k8s.io/client-go/discovery
+k8s.io/client-go/dynamic
 k8s.io/client-go/kubernetes
 k8s.io/client-go/kubernetes/scheme
 k8s.io/client-go/kubernetes/typed/admissionregistration/v1alpha1

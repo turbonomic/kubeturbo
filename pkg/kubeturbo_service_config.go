@@ -3,8 +3,9 @@ package kubeturbo
 import (
 	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
-	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
-	client "k8s.io/client-go/kubernetes"
+	kubeletclient "github.com/turbonomic/kubeturbo/pkg/kubeclient"
+	"k8s.io/client-go/dynamic"
+	kubeclient "k8s.io/client-go/kubernetes"
 )
 
 // Configuration created using the parameters passed to the kubeturbo service container.
@@ -18,8 +19,9 @@ type Config struct {
 	// VMIsBase: Is VM is the base template from kubeturbo, when stitching with other VM probes, should be false;
 	VMIsBase bool
 
-	Client        *client.Clientset
-	KubeletClient *kubeclient.KubeletClient
+	KubeClient    *kubeclient.Clientset
+	DynamicClient dynamic.Interface
+	KubeletClient *kubeletclient.KubeletClient
 	CAClient      *clientset.Clientset
 
 	// Close this to stop all reflectors
@@ -41,8 +43,13 @@ func NewVMTConfig2() *Config {
 	return cfg
 }
 
-func (c *Config) WithKubeClient(client *client.Clientset) *Config {
-	c.Client = client
+func (c *Config) WithKubeClient(client *kubeclient.Clientset) *Config {
+	c.KubeClient = client
+	return c
+}
+
+func (c *Config) WithDynamicClient(client dynamic.Interface) *Config {
+	c.DynamicClient = client
 	return c
 }
 
@@ -51,7 +58,7 @@ func (c *Config) WithClusterAPIClient(client *clientset.Clientset) *Config {
 	return c
 }
 
-func (c *Config) WithKubeletClient(client *kubeclient.KubeletClient) *Config {
+func (c *Config) WithKubeletClient(client *kubeletclient.KubeletClient) *Config {
 	c.KubeletClient = client
 	return c
 }
