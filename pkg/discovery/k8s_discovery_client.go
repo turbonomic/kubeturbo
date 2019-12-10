@@ -52,7 +52,7 @@ type K8sDiscoveryClient struct {
 }
 
 func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
-	k8sClusterScraper := cluster.NewClusterScraper(config.probeConfig.ClusterClient)
+	k8sClusterScraper := cluster.NewClusterScraper(config.probeConfig.ClusterClient, config.probeConfig.DynamicClient)
 
 	// for discovery tasks
 	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient, config.ValidationWorkers, config.ValidationTimeoutSec)

@@ -7,14 +7,17 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
+
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	client "k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 
-	goutil "github.com/turbonomic/kubeturbo/pkg/util"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
+	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
 )
 
 const (
@@ -267,7 +270,7 @@ func GetPodParentInfo(pod *api.Pod) (string, string, error) {
 // GetPodGrandInfo gets grandParent (parent's parent) information of a pod: kind, name
 // If parent does not have parent, then return parent info.
 // Note: if parent kind is "ReplicaSet", then its parent's parent can be a "Deployment"
-func GetPodGrandInfo(kclient *client.Clientset, pod *api.Pod) (string, string, error) {
+func GetPodGrandInfo(dynClient dynamic.Interface, pod *api.Pod) (string, string, error) {
 	//1. get Parent info: kind and name;
 	kind, name, err := GetPodParentInfo(pod)
 	if err != nil {
@@ -277,7 +280,12 @@ func GetPodGrandInfo(kclient *client.Clientset, pod *api.Pod) (string, string, e
 	//2. if parent is "ReplicaSet", check parent's parent
 	if strings.EqualFold(kind, Kind_ReplicaSet) {
 		//2.1 get parent object
-		rs, err := kclient.ExtensionsV1beta1().ReplicaSets(pod.Namespace).Get(name, metav1.GetOptions{})
+
+		rsRes := schema.GroupVersionResource{
+			Group:    commonutil.K8sAPIReplicasetGV.Group,
+			Version:  commonutil.K8sAPIReplicasetGV.Version,
+			Resource: commonutil.ReplicaSetResName}
+		rs, err := dynClient.Resource(rsRes).Namespace(pod.Namespace).Get(name, metav1.GetOptions{})
 		if err != nil {
 			err = fmt.Errorf("Failed to get ReplicaSet[%v/%v]: %v", pod.Namespace, name, err)
 			glog.Error(err.Error())
@@ -286,8 +294,9 @@ func GetPodGrandInfo(kclient *client.Clientset, pod *api.Pod) (string, string, e
 
 		//2.2 get parent's parent info by parsing ownerReferences:
 		// TODO: The ownerReferences of ReplicaSet is supported only in 1.6.0 and afetr
-		if rs.OwnerReferences != nil && len(rs.OwnerReferences) > 0 {
-			gkind, gname := ParseOwnerReferences(rs.OwnerReferences)
+		rsOwnerReferences := rs.GetOwnerReferences()
+		if rsOwnerReferences != nil && len(rsOwnerReferences) > 0 {
+			gkind, gname := ParseOwnerReferences(rsOwnerReferences)
 			if len(gkind) > 0 && len(gname) > 0 {
 				return gkind, gname, nil
 			}
@@ -307,7 +316,7 @@ func WaitForPodReady(client *client.Clientset, namespace, podName, nodeName stri
 	retry int, interval time.Duration) error {
 	// check pod readiness with retries
 	timeout := time.Duration(retry+1) * interval
-	err := goutil.RetrySimple(retry, timeout, interval, func() (bool, error) {
+	err := commonutil.RetrySimple(retry, timeout, interval, func() (bool, error) {
 		return checkPodNode(client, namespace, podName, nodeName)
 	})
 	// log a list of unique events that belong to the pod

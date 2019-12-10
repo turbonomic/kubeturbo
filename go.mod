@@ -36,7 +36,7 @@ require (
 	github.com/spf13/pflag v1.0.3
 	github.com/stretchr/testify v1.2.2
 	github.com/turbonomic/turbo-api v0.0.0-20180816193551-ed948ba97e70 // indirect
-	github.com/turbonomic/turbo-go-sdk v6.4.1-0.20190920204752-15606b6f2fc8+incompatible
+	github.com/turbonomic/turbo-go-sdk v6.4.1-0.20191120011039-887da256d38c+incompatible
 	go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569 // indirect
 	go.uber.org/multierr v0.0.0-20180122172545-ddea229ff1df // indirect
 	go.uber.org/zap v0.0.0-20180814183419-67bc79d13d15 // indirect
@@ -56,7 +56,6 @@ require (
 	k8s.io/klog v0.0.0-20190306015804-8e90cee79f82
 	k8s.io/kube-openapi v0.0.0-20190228160746-b3a7cee44a30 // indirect
 	k8s.io/kubernetes v1.13.1
-	sigs.k8s.io/cluster-api v0.0.0-20190418151011-abfd18620fd0 // indirect
 	sigs.k8s.io/controller-runtime v0.1.10 // indirect
 	sigs.k8s.io/testing_frameworks v0.1.1 // indirect
 	sigs.k8s.io/yaml v1.1.0 // indirect

@@ -63,7 +63,6 @@ github.com/onsi/gomega v0.0.0-20190113212917-5533ce8a0da3 h1:EooPXg51Tn+xmWPXJUG
 github.com/onsi/gomega v0.0.0-20190113212917-5533ce8a0da3/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/openshift/cluster-api v0.0.0-20190822130419-53b696be18ad h1:t6+UYvBUJD8gXxgrvavZqmd0DRm5vWHgrX0v/GA/0a4=
 github.com/openshift/cluster-api v0.0.0-20190822130419-53b696be18ad/go.mod h1:mNsD1dsD4T57kV4/C6zTHke/Ro166xgnyyRZqkamiEU=
-github.com/openshift/cluster-api v0.0.0-20191003080455-24cfb34ea1f9 h1:H0RCaP7ftrTYu4LRM8d+2bYZpI7jgjtbpzhP/rr2DxQ=
 github.com/patrickmn/go-cache v2.1.0+incompatible h1:HRMgzkcYKYpi3C8ajMPV8OFXaaRUnok+kx1WdO15EQc=
 github.com/patrickmn/go-cache v2.1.0+incompatible/go.mod h1:3Qf8kWWT7OJRJbdiICTKqZju1ZixQ/KpMGzzAfe6+WQ=
 github.com/pborman/uuid v1.2.0 h1:J7Q5mO4ysT1dv8hyrUGHb9+ooztCXu1D8MY8DZYsu3g=
@@ -92,8 +91,8 @@ github.com/stretchr/testify v1.2.2 h1:bSDNvY7ZPG5RlJ8otE/7V6gMiyenm9RtJ7IUVIAoJ1
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/turbonomic/turbo-api v0.0.0-20180816193551-ed948ba97e70 h1:xfnOa96E4g6MRfLPSVyL4Aprmxf8NBjsUyqUoW0VnIs=
 github.com/turbonomic/turbo-api v0.0.0-20180816193551-ed948ba97e70/go.mod h1:L3eNZzTD3Iw8GV+cfeJD/lfDaEGPbZZGQrtml71yG10=
-github.com/turbonomic/turbo-go-sdk v6.4.1-0.20190920204752-15606b6f2fc8+incompatible h1:n4cu0HFWmtWkNHcAWXkLXJhoSjczixToIbN6CiK8+oI=
-github.com/turbonomic/turbo-go-sdk v6.4.1-0.20190920204752-15606b6f2fc8+incompatible/go.mod h1:sKRnBmuIMyFQoQnd0TubqLSN4Kob/KZCe7LIdwoVsVE=
+github.com/turbonomic/turbo-go-sdk v6.4.1-0.20191120011039-887da256d38c+incompatible h1:V+MNNKayDy+aSsGW4VLuX8tse9UIA/RBhCKlxPScDZI=
+github.com/turbonomic/turbo-go-sdk v6.4.1-0.20191120011039-887da256d38c+incompatible/go.mod h1:sKRnBmuIMyFQoQnd0TubqLSN4Kob/KZCe7LIdwoVsVE=
 go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569 h1:nSQar3Y0E3VQF/VdZ8PTAilaXpER+d7ypdABCrpwMdg=
 go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
 go.uber.org/multierr v0.0.0-20180122172545-ddea229ff1df h1:shvkWr0NAZkg4nPuE3XrKP0VuBPijjk3TfX6Y6acFNg=
@@ -157,8 +156,6 @@ k8s.io/kube-openapi v0.0.0-20190228160746-b3a7cee44a30 h1:TRb4wNWoBVrH9plmkp2q86
 k8s.io/kube-openapi v0.0.0-20190228160746-b3a7cee44a30/go.mod h1:BXM9ceUBTj2QnfH2MK1odQs778ajze1RxcmP6S8RVVc=
 k8s.io/kubernetes v1.13.1 h1:IwCCcPOZwY9rKcQyBJYXAE4Wgma4oOW5NYR3HXKFfZ8=
 k8s.io/kubernetes v1.13.1/go.mod h1:ocZa8+6APFNC2tX1DZASIbocyYT5jHzqFVsY5aoB7Jk=
-sigs.k8s.io/cluster-api v0.0.0-20190418151011-abfd18620fd0 h1:mMY9TP1yluHRDLL3LB9Lb1xPc90eBJMUeSPf8cfNqVw=
-sigs.k8s.io/cluster-api v0.0.0-20190418151011-abfd18620fd0/go.mod h1:aEXstFx3krpj6/AOcV/rOP2VLKdrtSNUMDR2Kmt6YSs=
 sigs.k8s.io/controller-runtime v0.1.10 h1:amLOmcekVdnsD1uIpmgRqfTbQWJ2qxvQkcdeFhcotn4=
 sigs.k8s.io/controller-runtime v0.1.10/go.mod h1:HFAYoOh6XMV+jKF1UjFwrknPbowfyHEHHRdJMf2jMX8=
 sigs.k8s.io/testing_frameworks v0.1.1 h1:cP2l8fkA3O9vekpy5Ks8mmA0NW/F7yBdXf8brkWhVrs=
