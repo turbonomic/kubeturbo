@@ -22,26 +22,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# **KubeTurbo** 
+![Docker Pulls](https://img.shields.io/docker/pulls/turbonomic/kubeturbo.svg?maxAge=604800)
 
-1. [Overview](#overview)
-2. [Getting Started](#getting-started)
-3. [Kubeturbo Use Cases](#use-cases)
-4. [Coming Soon](#coming-soon)
+
+Documentation is being maintained on the Wiki for this project.  Visit [Kubeturbo Wiki](https://github.com/turbonomic/kubeturbo/wiki)for the full documentation, examples and guides.
 
 
 ## Overview 
 
 Kubeturbo leverages [Turbonomic's](https://turbonomic.com/) patented analysis engine to provide visibility and control across the entire stack in order to assure the performance of running micro-services in Kubernetes Pods, as well as the efficiency of underlying infrastructure.
 
-## Getting Started 
-
-### Kubeturbo Installation
-* Review the prerequisites and [Deploy Kubeturbo](https://github.com/turbonomic/kubeturbo/tree/master/deploy/README.md).
-* (Optional) To prepare Kubeturbo for debugging, [go here](https://github.com/turbonomic/kubeturbo/tree/master/debugging/README.md).
-* Once deployed, corresponding k8s/OS cluster targets will show up in Turbonomic UI.
-
-<img width="1323" alt="screen shot 2017-06-01 at 10 10 21 am" src="https://cloud.githubusercontent.com/assets/4391815/26683726/c5e06e7c-46b2-11e7-92f2-5f555fe88ea2.png">
 
 ## Use Cases
 * Full-Stack Visibility by leveraging 50+ existing Turbonomic controllers, from on-prem DataCenter to major public cloud providers. No more shadow IT
@@ -68,23 +58,5 @@ Kubeturbo leverages [Turbonomic's](https://turbonomic.com/) patented analysis en
 ![screen shot 2017-06-01 at 9 56 55 am](https://cloud.githubusercontent.com/assets/4391815/26683094/b330c350-46b0-11e7-91e5-a1db65a89d50.png)
 
 
-## Coming Soon
-* What-If Planner in 6.4
-  * A complete What-If sandbox to help you plan your IT changes in advance
-  * Plan for workload change: Add/Remove Containers
-  * Plan for infrastructure change: Add/Remove/Replace Nodes
-* Also in 6.4: 
-    * Manage guaranteed resources: insight into requests across the cluster
-    * Consistent resizing of containers for the same service
-* Storage control for persistent volumes
-* Added dimensions in SLO based control
-    * Manage horizontal scaling of services without thresholds
-    * Manage the trade-offs of performance, availability of resources, and compliance
-    * Leverage your SLO data to add response time and throughput leveraging telemetry data collected  - [Istio](http://istio.io), [Prometheus](http://prometheus.io), etc
-* Support for Cluster Federation Control Plane
-  * Complete visibility for your K8s deployments across different underlying infrastructures
-  * Create affinity/anti-affinity policies directly from Turbonomic UI
-  * Improve cost efficiency by consolidating workload across deployments and identifying the cheapest region and provider to deploy your workload
-  * What-if planning for Cluster Consolidation for federated clusters
 
 
