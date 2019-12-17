@@ -57,7 +57,7 @@ func (builder *HANodesGroupDTOBuilder) Build() []*proto.GroupDTO {
 			glog.Errorf("Failed to build DTO for HA node group %s: %v", groupID, err)
 			continue
 		}
-		glog.V(3).Infof("HA node group: %+v", groupDTO)
+		glog.V(4).Infof("HA node group: %+v", groupDTO)
 		groupDTOs = append(groupDTOs, groupDTO...)
 	}
 	return groupDTOs

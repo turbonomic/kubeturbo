@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"fmt"
+	"strings"
 
 	api "k8s.io/api/core/v1"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -38,6 +40,13 @@ var (
 		metrics.MemoryQuota,
 		metrics.CPURequestQuota,
 		metrics.MemoryRequestQuota,
+	}
+
+	resizeDisabledCommoditiesSold = []metrics.ResourceType{
+		metrics.CPU,
+		metrics.Memory,
+		metrics.CPURequest,
+		metrics.MemoryRequest,
 	}
 )
 
@@ -113,6 +122,35 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 			Controllable: &controllable,
 		})
 
+		// Action settings for a node
+		// Disallow suspend for master nodes
+		// TODO: move this to a util
+		allRoles := sets.NewString()
+		for k, v := range node.Labels {
+			switch {
+			case strings.HasPrefix(k, labelNodeRolePrefix):
+				if role := strings.TrimPrefix(k, labelNodeRolePrefix); len(role) > 0 {
+					allRoles.Insert(role)
+				}
+			case k == nodeLabelRole && v != "":
+				allRoles.Insert(v)
+			}
+		}
+
+		isMasterNode := false
+		masterRole := sets.NewString()
+		masterRole.Insert("master")
+		masterRoles := allRoles.Intersection(masterRole)
+		fmt.Printf("%s - %v [allRoles - %v] [masterRoles - %v]\n", node.Name, node.Labels, allRoles, masterRoles)
+
+		if masterRoles.Len() == 1 {
+			isMasterNode = true
+			entityDTOBuilder.IsSuspendable(false)
+			glog.V(3).Info("%s - master node", node.Name)
+		}
+
+		// Disallow vertical resize for all nodes
+
 		// Power state.
 		// Will be Powered On, only if it is ready and has no issues with kubelet accessibility.
 		if nodeActive {
@@ -136,6 +174,10 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 
 		result = append(result, entityDto)
 		glog.V(4).Infof("node dto : %++v\n", entityDto)
+
+		if isMasterNode {
+			glog.V(4).Infof("node dto : %++v\n", entityDto)
+		}
 	}
 
 	return result, nil
@@ -163,6 +205,10 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.NodeType, key, nodeResourceCommoditiesSold, converter, nil)
 	if err != nil {
 		return nil, err
+	}
+	bool_false := false
+	for _, commSold := range resourceCommoditiesSold {
+		commSold.Resizable = &bool_false
 	}
 	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
 
