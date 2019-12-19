@@ -159,7 +159,7 @@ func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*pr
 	The actual discovery work is done here.
 */
 func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []*proto.GroupDTO, error) {
-	// CREATE CLUSTER, NODES, NAMESPACES AND QUOTAS HERE
+	// CREATE CLUSTER, NODES, NAMESPACES, QUOTAS, SERVICES HERE
 	kubeCluster, err := dc.clusterProcessor.DiscoverCluster()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to process cluster: %v", err)
@@ -209,18 +209,27 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	glog.V(2).Infof("Successfully processed affinity.")
 
 	// Taint-toleration process to create access commodities
+	// Also handles the creation of access commodities to handle unschedulable nodes
 	glog.V(2).Infof("Begin to process taints and tolerations")
-	taintTolerationProcessor, err := compliance.NewTaintTolerationProcessor(dc.k8sClusterScraper)
+	nodesManager := compliance.NewSchedulableNodeManager(clusterSummary)
+
+	taintTolerationProcessor, err := compliance.NewTaintTolerationProcessor(clusterSummary, nodesManager)
 	if err != nil {
 		glog.Errorf("Failed during process taints and tolerations: %v", err)
 	} else {
-		// Add access commodiites to entity DOTs based on the taint-toleration rules
+		// Add access commodities to entity DOTs based on the taint-toleration rules
 		taintTolerationProcessor.Process(entityDTOs)
 	}
+
+	// Anti-Affinity policy to prevent pods on unschedulable nodes to move to other unschedulable nodes
+	targetId := dc.config.targetConfig.TargetIdentifier
+	nodesAntiAffinityGroupBuilder := compliance.NewUnschedulableNodesAntiAffinityGroupDTOBuilder(clusterSummary, targetId,
+		nodesManager)
+	nodeAntiAffinityGroupDTOs := nodesAntiAffinityGroupBuilder.Build()
+
 	glog.V(2).Infof("Successfully processed taints and tolerations.")
 
 	// Discovery worker for creating Group DTOs
-	targetId := dc.config.targetConfig.TargetIdentifier
 	entityGroupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(clusterSummary, targetId)
 	groupDTOs, _ := entityGroupDiscoveryWorker.Do(policyGroupList)
 
@@ -233,5 +242,6 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 		}
 	}
 
+	groupDTOs = append(groupDTOs, nodeAntiAffinityGroupDTOs...)
 	return entityDTOs, groupDTOs, nil
 }

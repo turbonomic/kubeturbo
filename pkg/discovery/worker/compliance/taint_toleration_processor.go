@@ -1,6 +1,7 @@
 package compliance
 
 import (
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	api "k8s.io/api/core/v1"
 
@@ -30,41 +31,36 @@ type TaintTolerationProcessor struct {
 	// Map of node uid indexed by node name
 	nodeNameToUID map[string]string
 
+	cluster *repository.ClusterSummary
+
 	// Manager for schedulable nodes
-	nodesManager *SchedulableNodeManager
+	unSchedulableNodesManager *SchedulableNodeManager
 }
 
-func NewTaintTolerationProcessor(nodeAndPodGetter NodeAndPodGetter) (*TaintTolerationProcessor, error) {
-	nodes, err := nodeAndPodGetter.GetAllNodes()
-	if err != nil {
-		return nil, err
-	}
-	pods, err := nodeAndPodGetter.GetAllPods()
-	if err != nil {
-		return nil, err
-	}
+func NewTaintTolerationProcessor(cluster *repository.ClusterSummary,
+	unSchedulableNodesManager *SchedulableNodeManager) (*TaintTolerationProcessor, error) {
 
 	nodeMap := make(map[string]*api.Node)
-	nodeNameToUID := make(map[string]string)
-
-	for _, node := range nodes {
-		nodeMap[string(node.UID)] = node
-		nodeNameToUID[node.Name] = string(node.UID)
-	}
-
 	podMap := make(map[string]*api.Pod)
-	for _, pod := range pods {
-		podMap[string(pod.UID)] = pod
-	}
 
-	nodesManager := NewSchedulableNodeManager(nodes)
-	nodesManager.checkNodes()
+	nodeNameToUID := cluster.NodeNameUIDMap
+
+	nodeToPodsMap := cluster.NodeNameToPodMap
+	for nodeName, podList := range nodeToPodsMap {
+		node := cluster.NodeMap[nodeName]
+		nodeMap[string(node.UID)] = node
+
+		for _, pod := range podList {
+			podMap[string(pod.UID)] = pod
+		}
+	}
 
 	return &TaintTolerationProcessor{
-		nodes:         nodeMap,
-		pods:          podMap,
-		nodeNameToUID: nodeNameToUID,
-		nodesManager:  nodesManager,
+		nodes:                     nodeMap,
+		pods:                      podMap,
+		nodeNameToUID:             nodeNameToUID,
+		cluster:                   cluster,
+		unSchedulableNodesManager: unSchedulableNodesManager,
 	}, nil
 }
 
@@ -87,12 +83,12 @@ func (t *TaintTolerationProcessor) createAccessCommoditiesSold(nodeDTOs []*proto
 	for _, nodeDTO := range nodeDTOs {
 		node, ok := nodes[*nodeDTO.Id]
 		if !ok {
-			glog.Errorf("Unable to find node object with uid %s", *nodeDTO.Id)
+			glog.Errorf("Unable to find node object with uid %s::%s", *nodeDTO.Id, *nodeDTO.DisplayName)
 			continue
 		}
 
 		// Schedulable
-		schedulableAccessComm, err := createSchedulableSoldComms(node, t.nodesManager)
+		schedulableAccessComm, err := createSchedulableSoldComms(node, t.unSchedulableNodesManager)
 
 		if schedulableAccessComm != nil {
 			nodeDTO.CommoditiesSold = append(nodeDTO.CommoditiesSold, schedulableAccessComm)
@@ -114,7 +110,7 @@ func (t *TaintTolerationProcessor) createAccessCommoditiesBought(podDTOs []*prot
 	for _, podDTO := range podDTOs {
 		pod, ok := pods[*podDTO.Id]
 		if !ok {
-			glog.Errorf("Unable to find pod object with uid %s", *podDTO.Id)
+			glog.Errorf("Unable to find pod object with uid %s::%s", *podDTO.Id, *podDTO.DisplayName)
 			continue
 		}
 
@@ -125,7 +121,7 @@ func (t *TaintTolerationProcessor) createAccessCommoditiesBought(podDTOs []*prot
 		}
 
 		// Schedulable
-		schedulableComm, _ := createSchedulableBoughtComms(pod, t.nodesManager)
+		schedulableComm, _ := createSchedulableBoughtComms(pod, t.unSchedulableNodesManager)
 
 		// Toleration
 		tolerateAccessComms, err := createTolerationAccessComms(pod, taintCollection)

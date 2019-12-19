@@ -1,43 +1,76 @@
 package compliance
 
 import (
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	api "k8s.io/api/core/v1"
 )
 
+// Structure to keep track of the schedulable state of the nodes
 type SchedulableNodeManager struct {
-	nodes            map[string]*api.Node
-	schedulableNodes map[string]bool
+	cluster *repository.ClusterSummary
+
+	// Map of node name and boolean indicating its schedulable state
+	schedulableStateMap map[string]bool
+
+	// List of unschedulable nodes by node name
+	unSchedulableNodes []string
 }
 
-func NewSchedulableNodeManager(nodes []*api.Node) *SchedulableNodeManager {
-	nodeMap := make(map[string]*api.Node)
-	for _, node := range nodes {
-		nodeMap[node.Name] = node
+// Build a map for identifying the UIDs of the pods on the unschedulable nodes
+func (manager *SchedulableNodeManager) buildNodeToPodMap() map[string][]string {
+	nodeToPodsMap := make(map[string][]string)
+
+	nodeNameToPodMap := manager.cluster.NodeNameToPodMap
+	for nodeName, schedulable := range manager.schedulableStateMap {
+		// skip over pods on schedulable nodes
+		if schedulable {
+			continue
+		}
+		podList := nodeNameToPodMap[nodeName]
+		var podUIDList []string
+		for _, pod := range podList {
+			podUIDList = append(podUIDList, string(pod.UID))
+		}
+		nodeToPodsMap[nodeName] = podUIDList
 	}
-	return &SchedulableNodeManager{
-		nodes:            nodeMap,
-		schedulableNodes: make(map[string]bool),
+
+	return nodeToPodsMap
+}
+
+func NewSchedulableNodeManager(cluster *repository.ClusterSummary) *SchedulableNodeManager {
+	manager := &SchedulableNodeManager{
+		cluster:             cluster,
+		schedulableStateMap: make(map[string]bool),
 	}
+
+	manager.checkNodes()
+	return manager
 }
 
 func (manager *SchedulableNodeManager) checkNodes() {
-	for _, node := range manager.nodes {
+	nodeList := manager.cluster.NodeList
+	for _, node := range nodeList {
+		// check for schedulable property
 		schedulable := util.NodeIsReady(node) && util.NodeIsSchedulable(node)
-		manager.schedulableNodes[node.Name] = schedulable
+		manager.schedulableStateMap[node.Name] = schedulable
+
+		if !schedulable {
+			manager.unSchedulableNodes = append(manager.unSchedulableNodes, node.Name)
+		}
 	}
 }
 
 func (manager *SchedulableNodeManager) CheckSchedulable(node *api.Node) bool {
-	if len(manager.schedulableNodes) == 0 {
+	if len(manager.schedulableStateMap) == 0 {
 		manager.checkNodes()
 	}
-	return manager.schedulableNodes[node.Name]
+	return manager.schedulableStateMap[node.Name]
 }
 
 func (manager *SchedulableNodeManager) CheckSchedulableByName(nodeName string) bool {
-	if len(manager.schedulableNodes) == 0 {
+	if len(manager.schedulableStateMap) == 0 {
 		manager.checkNodes()
 	}
-	return manager.schedulableNodes[nodeName]
+	return manager.schedulableStateMap[nodeName]
 }

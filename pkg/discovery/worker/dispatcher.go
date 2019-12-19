@@ -81,7 +81,15 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSumm
 	for assignedNodesCount+perTaskNodeLength <= len(nodes) {
 		currNodes := nodes[assignedNodesCount : assignedNodesCount+perTaskNodeLength]
 
-		currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNodes(currNodes)
+		var currPods []*api.Pod
+		//currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNodes(currNodes)
+		for _, node := range currNodes {
+			runningAndReadyPodsList := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNode(node)
+			currPods = append(currPods, runningAndReadyPodsList...)
+
+			// Save the node to pods map in the cluster summary
+			cluster.SetRunningPodsOnNode(node, runningAndReadyPodsList)
+		}
 
 		currTask := task.NewTask().WithNodes(currNodes).WithPods(currPods).WithCluster(cluster)
 		d.assignTask(currTask)
@@ -92,7 +100,17 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSumm
 	}
 	if assignedNodesCount < len(nodes) {
 		currNodes := nodes[assignedNodesCount:]
-		currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNodes(currNodes)
+		//currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNodes(currNodes)
+		var currPods []*api.Pod
+		//currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNodes(currNodes)
+		for _, node := range currNodes {
+			runningAndReadyPodsList := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNode(node)
+			currPods = append(currPods, runningAndReadyPodsList...)
+
+			// Save the node to pods map in the cluster summary
+			cluster.SetRunningPodsOnNode(node, runningAndReadyPodsList)
+		}
+
 		currTask := task.NewTask().WithNodes(currNodes).WithPods(currPods).WithCluster(cluster)
 		d.assignTask(currTask)
 

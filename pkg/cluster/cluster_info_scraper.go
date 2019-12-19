@@ -182,6 +182,16 @@ func (s *ClusterScraper) GetKubernetesServiceID() (svcID string, err error) {
 	return
 }
 
+func (s *ClusterScraper) GetRunningAndReadyPodsOnNode(node *api.Node) []*api.Pod {
+	nodeRunningPodsList, err := s.findRunningPodsOnNode(node.Name)
+	if err != nil {
+		glog.Errorf("Failed to find running pods in %s", node.Name)
+		return []*api.Pod{}
+	}
+
+	return util.GetReadyPods(nodeRunningPodsList)
+}
+
 func (s *ClusterScraper) GetRunningAndReadyPodsOnNodes(nodeList []*api.Node) []*api.Pod {
 	pods := []*api.Pod{}
 	for _, node := range nodeList {
