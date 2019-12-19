@@ -58,8 +58,7 @@ func TestProcess(t *testing.T) {
 	clusterSummary.SetRunningPodsOnNode(n2, []*api.Pod{pod2})
 	clusterSummary.SetRunningPodsOnNode(n3, []*api.Pod{pod3})
 
-	nodesManager := NewSchedulableNodeManager(clusterSummary)
-
+	nodesManager := NewNodeSchedulabilityManager(clusterSummary)
 	taintTolerationProcessor, err := NewTaintTolerationProcessor(clusterSummary, nodesManager)
 
 	if err != nil {

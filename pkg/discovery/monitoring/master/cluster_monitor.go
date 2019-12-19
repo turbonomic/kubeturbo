@@ -146,7 +146,7 @@ func (m *ClusterMonitor) findNodeStates() {
 //	CPURequest      capacity, used
 //	MemoryRequest   capacity, used
 func (m *ClusterMonitor) genNodeResourceMetrics(node *api.Node, key string) {
-	glog.V(3).Infof("Now get resouce metrics for node %s", key)
+	glog.V(4).Infof("Now get resouce metrics for node %s", key)
 
 	//1. Capacity of CPU and Memory
 	//1.1 Get the total resource of a node

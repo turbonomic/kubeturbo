@@ -211,7 +211,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	// Taint-toleration process to create access commodities
 	// Also handles the creation of access commodities to handle unschedulable nodes
 	glog.V(2).Infof("Begin to process taints and tolerations")
-	nodesManager := compliance.NewSchedulableNodeManager(clusterSummary)
+	nodesManager := compliance.NewNodeSchedulabilityManager(clusterSummary)
 
 	taintTolerationProcessor, err := compliance.NewTaintTolerationProcessor(clusterSummary, nodesManager)
 	if err != nil {
