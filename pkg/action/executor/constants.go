@@ -1,6 +1,8 @@
 package executor
 
-import "time"
+import (
+	"time"
+)
 
 const (
 	defaultRetryLess = 3

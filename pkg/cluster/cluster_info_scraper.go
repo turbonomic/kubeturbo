@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"fmt"
+	"k8s.io/client-go/dynamic"
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,11 +36,13 @@ type ClusterScraperInterface interface {
 
 type ClusterScraper struct {
 	*client.Clientset
+	DynamicClient dynamic.Interface
 }
 
-func NewClusterScraper(kclient *client.Clientset) *ClusterScraper {
+func NewClusterScraper(kclient *client.Clientset, dynamicClient dynamic.Interface) *ClusterScraper {
 	return &ClusterScraper{
-		Clientset: kclient,
+		Clientset:     kclient,
+		DynamicClient: dynamicClient,
 	}
 }
 

@@ -7,6 +7,8 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	kclient "k8s.io/client-go/kubernetes"
 	"time"
 )
@@ -30,36 +32,43 @@ type controllerSpec struct {
 }
 
 // newK8sControllerUpdater returns a k8sControllerUpdater based on the parent kind of a pod
-func newK8sControllerUpdater(client *kclient.Clientset, pod *api.Pod) (*k8sControllerUpdater, error) {
+func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.Interface, pod *api.Pod) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
-	kind, name, err := podutil.GetPodGrandInfo(client, pod)
+	kind, name, err := podutil.GetPodGrandInfo(dynamicClient, pod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get parent info of pod %s/%s: %v", pod.Namespace, pod.Name, err)
 	}
-	var controller k8sController
+
+	var res schema.GroupVersionResource
 	switch kind {
 	case util.KindReplicationController:
-		controller = &replicationController{
-			client: client.CoreV1().ReplicationControllers(pod.Namespace),
-		}
+		res = schema.GroupVersionResource{
+			Group:    util.K8sAPIReplicationControllerGV.Group,
+			Version:  util.K8sAPIReplicationControllerGV.Version,
+			Resource: util.ReplicationControllerResName}
 	case util.KindReplicaSet:
-		controller = &replicaSet{
-			client: client.ExtensionsV1beta1().ReplicaSets(pod.Namespace),
-		}
+		res = schema.GroupVersionResource{
+			Group:    util.K8sAPIDeploymentGV.Group,
+			Version:  util.K8sAPIDeploymentGV.Version,
+			Resource: util.ReplicaSetResName}
 	case util.KindDeployment:
-		controller = &deployment{
-			client: client.AppsV1beta1().Deployments(pod.Namespace),
-		}
+		res = schema.GroupVersionResource{
+			Group:    util.K8sAPIReplicasetGV.Group,
+			Version:  util.K8sAPIReplicasetGV.Version,
+			Resource: util.DeploymentResName}
 	default:
 		err := fmt.Errorf("unsupport controller type %s for pod %s/%s", kind, pod.Namespace, pod.Name)
 		return nil, err
 	}
 	return &k8sControllerUpdater{
-		controller: controller,
-		client:     client,
-		name:       name,
-		namespace:  pod.Namespace,
-		podName:    pod.Name,
+		controller: &parentController{
+			dynNamespacedClient: dynamicClient.Resource(res).Namespace(pod.Namespace),
+			name:                kind,
+		},
+		client:    client,
+		name:      name,
+		namespace: pod.Namespace,
+		podName:   pod.Name,
 	}, nil
 }
 
@@ -95,7 +104,7 @@ func (c *k8sControllerUpdater) update(desired *controllerSpec) error {
 			c.controller, c.namespace, c.podName)
 		return nil
 	}
-	if err := c.controller.update(); err != nil {
+	if err := c.controller.update(current); err != nil {
 		return err
 	}
 	glog.V(2).Infof("Successfully updated %v of pod %s/%s",

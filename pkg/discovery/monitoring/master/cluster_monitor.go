@@ -3,6 +3,7 @@ package master
 import (
 	"errors"
 	"fmt"
+	"k8s.io/client-go/dynamic"
 
 	api "k8s.io/api/core/v1"
 
@@ -209,7 +210,7 @@ func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapa
 	for _, pod := range podList {
 		key := util.PodKeyFunc(pod)
 		// Pod owners
-		podOwner, err := m.getPodOwner(pod)
+		podOwner, err := m.getPodOwner(pod, m.clusterClient.DynamicClient)
 		if err == nil {
 			m.podOwners[key] = podOwner
 		}
@@ -224,11 +225,11 @@ func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapa
 	return
 }
 
-func (m *ClusterMonitor) getPodOwner(pod *api.Pod) (*PodOwner, error) {
+func (m *ClusterMonitor) getPodOwner(pod *api.Pod, dynClient dynamic.Interface) (*PodOwner, error) {
 	key := util.PodKeyFunc(pod)
 	glog.V(4).Infof("begin to generate pod[%s]'s Owner metric.", key)
 
-	kind, parentName, err := util.GetPodGrandInfo(m.clusterClient.Clientset, pod)
+	kind, parentName, err := util.GetPodGrandInfo(dynClient, pod)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting pod owner: %v", err)
 	}

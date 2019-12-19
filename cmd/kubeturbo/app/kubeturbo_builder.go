@@ -11,7 +11,10 @@ import (
 	"syscall"
 
 	apiv1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	versionhelper "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/server/healthz"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -21,6 +24,7 @@ import (
 	clusterclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
+	"github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/kubeturbo/test/flag"
 
 	"github.com/golang/glog"
@@ -225,8 +229,26 @@ func (s *VMTServer) Run() {
 
 	kubeClient := s.createKubeClientOrDie(kubeConfig)
 
+	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
+	if err != nil {
+		glog.Errorf("Failed to generate dynamic client for kubernetes target: %v", err)
+		os.Exit(1)
+	}
+
 	isOpenshift := checkServerVersion(kubeClient.DiscoveryClient.RESTClient())
 	glog.V(2).Info("Openshift cluster? ", isOpenshift)
+
+	util.K8sAPIDeploymentGV, err = discoverk8sAPIResourceGV(kubeClient, util.DeploymentResName)
+	if err != nil {
+		glog.Warningf("Failure in discovering k8s deployment API group/version: %v", err.Error())
+	}
+	glog.V(2).Infof("Using group version %v for k8s deployments", util.K8sAPIDeploymentGV)
+
+	util.K8sAPIReplicasetGV, err = discoverk8sAPIResourceGV(kubeClient, util.ReplicaSetResName)
+	if err != nil {
+		glog.Warningf("Failure in discovering k8s replicaset API group/version: %v", err.Error())
+	}
+	glog.V(2).Infof("Using group version %v for k8s replicasets", util.K8sAPIReplicasetGV)
 
 	// Allow insecure connection only if it's not an Openshift cluster
 	// For Kubernetes distro, the secure connection to Kubelet will fail due to
@@ -250,6 +272,7 @@ func (s *VMTServer) Run() {
 	vmtConfig := kubeturbo.NewVMTConfig2()
 	vmtConfig.WithTapSpec(k8sTAPSpec).
 		WithKubeClient(kubeClient).
+		WithDynamicClient(dynamicClient).
 		WithKubeletClient(kubeletClient).
 		WithClusterAPIClient(caClient).
 		WithVMPriority(s.VMPriority).
@@ -343,4 +366,65 @@ func checkServerVersion(restClient restclient.Interface) bool {
 	}
 
 	return false
+}
+
+func discoverk8sAPIResourceGV(client *kubernetes.Clientset, resourceName string) (schema.GroupVersion, error) {
+	// We optimistically use a globally set default if we cannot discover the GV.
+	defaultGV := util.K8sAPIDeploymentReplicasetDefaultGV
+
+	apiResourceLists, err := client.ServerPreferredResources()
+	if apiResourceLists == nil {
+		return defaultGV, err
+	}
+	if err != nil {
+		// We don't exit here as ServerPreferredResources can return the resource list even with errors.
+		glog.Warningf("Error listing api resources: %v", err)
+	}
+
+	latestExtensionsVersion := schema.GroupVersion{Group: util.K8sExtensionsGroupName, Version: ""}
+	latestAppsVersion := schema.GroupVersion{Group: util.K8sAppsGroupName, Version: ""}
+	for _, apiResourceList := range apiResourceLists {
+		if len(apiResourceList.APIResources) == 0 {
+			continue
+		}
+
+		found := false
+		for _, apiResource := range apiResourceList.APIResources {
+			if apiResource.Name == resourceName {
+				found = true
+				break
+			}
+		}
+		if found == false {
+			continue
+		}
+
+		gv, err := schema.ParseGroupVersion(apiResourceList.GroupVersion)
+		if err != nil {
+			return defaultGV, fmt.Errorf("error parsing GroupVersion: %v", err)
+		}
+
+		group := gv.Group
+		version := gv.Version
+		if group == util.K8sExtensionsGroupName {
+			latestExtensionsVersion.Version = latestComparedVersion(version, latestExtensionsVersion.Version)
+		} else if group == util.K8sAppsGroupName {
+			latestAppsVersion.Version = latestComparedVersion(version, latestAppsVersion.Version)
+		}
+	}
+
+	if latestAppsVersion.Version != "" {
+		return latestAppsVersion, nil
+	}
+	if latestExtensionsVersion.Version != "" {
+		return latestExtensionsVersion, nil
+	}
+	return defaultGV, nil
+}
+
+func latestComparedVersion(newVersion, existingVersion string) string {
+	if existingVersion != "" && versionhelper.CompareKubeAwareVersionStrings(newVersion, existingVersion) <= 0 {
+		return existingVersion
+	}
+	return newVersion
 }
