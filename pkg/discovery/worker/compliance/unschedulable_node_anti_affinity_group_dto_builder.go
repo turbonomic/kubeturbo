@@ -39,7 +39,7 @@ func (builder *UnschedulableNodesAntiAffinityGroupDTOBuilder) Build() []*proto.G
 	var policyDTOs []*proto.GroupDTO
 
 	if len(builder.nodesManager.unSchedulableNodes) <= 1 {
-		glog.Info("Zero or one unschedulable node in the cluster, anti-affinity policies will not be created")
+		glog.V(3).Info("Zero or one unschedulable node in the cluster, anti-affinity policies will not be created")
 		return policyDTOs
 	}
 
@@ -64,7 +64,7 @@ func (builder *UnschedulableNodesAntiAffinityGroupDTOBuilder) Build() []*proto.G
 		podMembers := nodeToPodsMap[nodeName]
 
 		if len(podMembers) == 0 {
-			glog.Infof("No pods on unschedulable node %s, skipping anti-affinity policy", nodeName)
+			glog.V(3).Infof("No pods on unschedulable node %s, skipping anti-affinity policy", nodeName)
 			continue
 		}
 

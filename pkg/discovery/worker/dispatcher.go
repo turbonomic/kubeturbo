@@ -82,7 +82,6 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSumm
 		currNodes := nodes[assignedNodesCount : assignedNodesCount+perTaskNodeLength]
 
 		var currPods []*api.Pod
-		//currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNodes(currNodes)
 		for _, node := range currNodes {
 			runningAndReadyPodsList := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNode(node)
 			currPods = append(currPods, runningAndReadyPodsList...)
@@ -100,9 +99,7 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSumm
 	}
 	if assignedNodesCount < len(nodes) {
 		currNodes := nodes[assignedNodesCount:]
-		//currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNodes(currNodes)
 		var currPods []*api.Pod
-		//currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNodes(currNodes)
 		for _, node := range currNodes {
 			runningAndReadyPodsList := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNode(node)
 			currPods = append(currPods, runningAndReadyPodsList...)
