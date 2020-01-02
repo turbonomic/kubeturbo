@@ -1,6 +1,8 @@
 package compliance
 
 import (
+	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	api "k8s.io/api/core/v1"
 
@@ -30,41 +32,36 @@ type TaintTolerationProcessor struct {
 	// Map of node uid indexed by node name
 	nodeNameToUID map[string]string
 
+	cluster *repository.ClusterSummary
+
 	// Manager for schedulable nodes
-	nodesManager *SchedulableNodeManager
+	nodesManager *NodeSchedulabilityManager
 }
 
-func NewTaintTolerationProcessor(nodeAndPodGetter NodeAndPodGetter) (*TaintTolerationProcessor, error) {
-	nodes, err := nodeAndPodGetter.GetAllNodes()
-	if err != nil {
-		return nil, err
-	}
-	pods, err := nodeAndPodGetter.GetAllPods()
-	if err != nil {
-		return nil, err
-	}
+func NewTaintTolerationProcessor(cluster *repository.ClusterSummary,
+	unSchedulableNodesManager *NodeSchedulabilityManager) (*TaintTolerationProcessor, error) {
 
 	nodeMap := make(map[string]*api.Node)
-	nodeNameToUID := make(map[string]string)
-
-	for _, node := range nodes {
-		nodeMap[string(node.UID)] = node
-		nodeNameToUID[node.Name] = string(node.UID)
-	}
-
 	podMap := make(map[string]*api.Pod)
-	for _, pod := range pods {
-		podMap[string(pod.UID)] = pod
-	}
 
-	nodesManager := NewSchedulableNodeManager(nodes)
-	nodesManager.checkNodes()
+	nodeNameToUID := cluster.NodeNameUIDMap
+
+	nodeToPodsMap := cluster.NodeNameToPodMap
+	for nodeName, podList := range nodeToPodsMap {
+		node := cluster.NodeMap[nodeName]
+		nodeMap[string(node.UID)] = node
+
+		for _, pod := range podList {
+			podMap[string(pod.UID)] = pod
+		}
+	}
 
 	return &TaintTolerationProcessor{
 		nodes:         nodeMap,
 		pods:          podMap,
 		nodeNameToUID: nodeNameToUID,
-		nodesManager:  nodesManager,
+		cluster:       cluster,
+		nodesManager:  unSchedulableNodesManager,
 	}, nil
 }
 
@@ -87,13 +84,15 @@ func (t *TaintTolerationProcessor) createAccessCommoditiesSold(nodeDTOs []*proto
 	for _, nodeDTO := range nodeDTOs {
 		node, ok := nodes[*nodeDTO.Id]
 		if !ok {
-			glog.Errorf("Unable to find node object with uid %s", *nodeDTO.Id)
+			glog.Errorf("Unable to find node object with uid %s::%s", *nodeDTO.Id, *nodeDTO.DisplayName)
 			continue
 		}
 
 		// Schedulable
 		schedulableAccessComm, err := createSchedulableSoldComms(node, t.nodesManager)
-
+		if err != nil {
+			glog.Errorf("Error while creating schedulable commodity for node %s", node.GetName())
+		}
 		if schedulableAccessComm != nil {
 			nodeDTO.CommoditiesSold = append(nodeDTO.CommoditiesSold, schedulableAccessComm)
 		}
@@ -101,7 +100,7 @@ func (t *TaintTolerationProcessor) createAccessCommoditiesSold(nodeDTOs []*proto
 		// Taints
 		taintAccessComms, err := createTaintAccessComms(node, taintCollection)
 		if err != nil {
-			glog.Errorf("Error while process taints for node %s", node.GetName())
+			glog.Errorf("Error while processing taints for node %s", node.GetName())
 			continue
 		}
 
@@ -113,24 +112,28 @@ func (t *TaintTolerationProcessor) createAccessCommoditiesSold(nodeDTOs []*proto
 func (t *TaintTolerationProcessor) createAccessCommoditiesBought(podDTOs []*proto.EntityDTO, pods map[string]*api.Pod, nodeNameToUID map[string]string, taintCollection map[api.Taint]string) {
 	for _, podDTO := range podDTOs {
 		pod, ok := pods[*podDTO.Id]
+
 		if !ok {
-			glog.Errorf("Unable to find pod object with uid %s", *podDTO.Id)
+			glog.Errorf("Unable to find pod object with uid %s", *podDTO.DisplayName)
 			continue
 		}
 
 		providerId, ok := nodeNameToUID[pod.Spec.NodeName]
 		if !ok {
-			glog.Errorf("Unable to find hosting node %s for pod %s", pod.Spec.NodeName, *podDTO.DisplayName)
+			glog.Errorf("Unable to find hosting node %s for pod %s/%s", pod.Spec.NodeName, pod.Namespace, pod.Name)
 			continue
 		}
 
 		// Schedulable
-		schedulableComm, _ := createSchedulableBoughtComms(pod, t.nodesManager)
+		schedulableComm, err := createSchedulableBoughtComms(pod, t.nodesManager)
+		if err != nil {
+			glog.Errorf("Error while creating schedulable commodity for pod %s/%s", pod.Namespace, pod.Name)
+		}
 
 		// Toleration
 		tolerateAccessComms, err := createTolerationAccessComms(pod, taintCollection)
 		if err != nil {
-			glog.Errorf("Error while process tolerations for pod %s", pod.GetName())
+			glog.Errorf("Error while processing tolerations for pod %s/%s", pod.Namespace, pod.Name)
 			continue
 		}
 
@@ -255,6 +258,7 @@ func createTolerationAccessComms(pod *api.Pod, taintCollection map[api.Taint]str
 			}
 			visited[key] = true
 			glog.V(4).Infof("Created access commodity with key %s for pod %s", key, pod.GetName())
+			fmt.Printf("Created access commodity with key %s for pod %s\n", key, pod.GetName())
 
 			accessComms = append(accessComms, accessComm)
 		}
@@ -278,7 +282,7 @@ func TolerationsTolerateTaint(tolerations []api.Toleration, taint *api.Taint) bo
 // Create an access commodity for schedulable nodes to serve as provider for pods.
 // Access commodity with a special key 'schedulable' is used to represent the fact
 // that a node can serve as providers for pods.
-func createSchedulableSoldComms(node *api.Node, nodesManager *SchedulableNodeManager) (*proto.CommodityDTO, error) {
+func createSchedulableSoldComms(node *api.Node, nodesManager *NodeSchedulabilityManager) (*proto.CommodityDTO, error) {
 	// Access commodity: schedulable.
 	schedulable := nodesManager.CheckSchedulable(node)
 
@@ -304,7 +308,7 @@ func createSchedulableSoldComms(node *api.Node, nodesManager *SchedulableNodeMan
 // Create an access commodity for the pods so it can run nodes selling the same commodity.
 // Access commodity with a special key 'schedulable' is used to represent the fact
 // that a pod can run on a node that is a valid provider. This node will sell the corresponding commodity.
-func createSchedulableBoughtComms(pod *api.Pod, nodesManager *SchedulableNodeManager) (*proto.CommodityDTO, error) {
+func createSchedulableBoughtComms(pod *api.Pod, nodesManager *NodeSchedulabilityManager) (*proto.CommodityDTO, error) {
 	nodeName := pod.Spec.NodeName
 	schedulable := nodesManager.CheckSchedulableByName(nodeName)
 
@@ -324,6 +328,8 @@ func createSchedulableBoughtComms(pod *api.Pod, nodesManager *SchedulableNodeMan
 			}
 			return schedAccessComm, nil
 		}
+	} else {
+		glog.V(4).Infof("Skip schedulable commodity for pod %s/%s", pod.Namespace, pod.Name)
 	}
 
 	return nil, nil

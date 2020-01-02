@@ -313,7 +313,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 
 	for _, node := range nodes {
 		if node != nil {
-			glog.V(3).Infof("The node we are parsing is : %v", node.Name)
+			glog.V(4).Infof("Setting up stitching properties for node : %v", node.Name)
 			providerId := node.Spec.ProviderID
 			stitchingManager.SetNodeUuidGetterByProvider(providerId)
 			stitchingManager.StoreStitchingValue(node)
