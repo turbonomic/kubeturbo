@@ -56,6 +56,11 @@ func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.In
 			Group:    util.K8sAPIReplicasetGV.Group,
 			Version:  util.K8sAPIReplicasetGV.Version,
 			Resource: util.DeploymentResName}
+	case util.KindDeploymentConfig:
+		res = schema.GroupVersionResource{
+			Group:    util.OpenShiftAPIDeploymentConfigGV.Group,
+			Version:  util.OpenShiftAPIDeploymentConfigGV.Version,
+			Resource: util.DeploymentConfigResName}
 	default:
 		err := fmt.Errorf("unsupport controller type %s for pod %s/%s", kind, pod.Namespace, pod.Name)
 		return nil, err
