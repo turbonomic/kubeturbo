@@ -83,12 +83,13 @@ func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod, podsNodesMap ma
 		return
 	}
 
+	hostNode := podsNodesMap[pod]
 	for _, node := range am.nodes {
 		if matchesNodeSelector(pod, node) && matchesNodeAffinity(pod, node) {
-			am.addAffinityAccessCommodities(pod, node, nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought)
+			am.addAffinityAccessCommodities(pod, node, hostNode, nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought)
 		}
 		if interPodAffinityMatches(pod, node, podsNodesMap) {
-			am.addAffinityAccessCommodities(pod, node, podAffinityCommodityDTOsSold, podAffinityCommodityDTOsBought)
+			am.addAffinityAccessCommodities(pod, node, hostNode, podAffinityCommodityDTOsSold, podAffinityCommodityDTOsBought)
 		}
 	}
 }
@@ -115,7 +116,7 @@ func getAllPodAffinityTerms(affinity *api.Affinity) []api.PodAffinityTerm {
 	return podAffinityTerms
 }
 
-func (am *AffinityProcessor) addAffinityAccessCommodities(pod *api.Pod, node *api.Node,
+func (am *AffinityProcessor) addAffinityAccessCommodities(pod *api.Pod, node *api.Node, hostingNode *api.Node,
 	affinityAccessCommoditiesSold, affinityAccessCommoditiesBought []*proto.CommodityDTO) {
 
 	// add commodity sold by matching nodes.
@@ -124,9 +125,38 @@ func (am *AffinityProcessor) addAffinityAccessCommodities(pod *api.Pod, node *ap
 	}
 
 	// add commodity bought by pod.
-	if pod.Spec.NodeName == node.Name &&
-		affinityAccessCommoditiesBought != nil && len(affinityAccessCommoditiesBought) > 0 {
-		am.addCommodityBoughtByPod(pod, node, affinityAccessCommoditiesBought)
+	if affinityAccessCommoditiesBought != nil && len(affinityAccessCommoditiesBought) > 0 {
+		if hostingNode != nil {
+			// We always use hosting node as provider while adding pods bought commodities
+			// unless the pod does not have a node assigned yet (which is unlikely).
+			// We do this to also honor a situation where a given pod needs a commodity
+			// but is not available from the node its currently on.
+			// We add the commodity bought under the hosting node as provider (which it might not
+			// be selling anymore) to indicate that the pod still needs this commodity.
+			//
+			// Taking an example: 2 pods say pod1 & pod2 in a cluster with 3 nodes node1, node2 & node3.
+			// At a given time t,
+			//   - pod1 is on node1 (because of affinity to node1).
+			//   - pod2 is created with pod affinity to pod1.
+			//   - pod2 will be placed (by k8s scheduler) on node1 and we will add an access commodity
+			//     say with key access-xxx123 (just an example, its a hash in reality) bought by pod2
+			//     under provider as node1 (via addCommoditySoldByNode() above).
+			//   - We additionally add the same access commodity (with key access-xxx123) under sold
+			//     commodities by node1.
+			// At time t2 pod1 changes its affinity and now is affined to node2 and moves to node2.
+			//   - K8s ignores this change for pod2 as this is a run time change.
+			//   - We find that pod2 has affinity to pod1 but not on the same node as pod1 and take
+			//     following steps to ensure turbo generates an action to move pod2 also to node2:
+			//     - We add an access commodity with key access-xxx123 bought by pod2 under provider
+			//       as node1(pod1's current hostnode) (which is not intuitive. We do this because
+			//       this pod is on node1 and is still buying all other commodities from node1 and
+			//       this is how market understands the commodity need expressed for an entity).
+			//     - Further this access commodity (with key access-xxx123) will now appear under
+			//       sold commodities of node2 and not under node1 (via addCommoditySoldByNode() above).
+			am.addCommodityBoughtByPod(pod, hostingNode, affinityAccessCommoditiesBought)
+		} else {
+			am.addCommodityBoughtByPod(pod, node, affinityAccessCommoditiesBought)
+		}
 	} // end if
 }
 
