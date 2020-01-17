@@ -48,7 +48,7 @@ func (collector *GroupMetricsCollector) CollectGroupMetrics() ([]*repository.Ent
 		}
 		ownerTypeMap = entityGroups[ownerTypeString]
 		if ownerString != "" {
-			entityGroup, groupExists := ownerTypeMap[ownerTypeString]
+			entityGroup, groupExists := ownerTypeMap[ownerString]
 			if !groupExists {
 				// Create a new group for parent type & instance
 				entityGroup, _ := repository.NewEntityGroup(ownerTypeString, ownerString)
