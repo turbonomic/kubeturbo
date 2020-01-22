@@ -46,27 +46,26 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 		if groupExists {
 			// groups by entity type
 			for etype, newmembers := range entityGroup.Members {
-				members, hasMembers := existingGroup.Members[etype]
-				if hasMembers {
-					existingGroup.Members[etype] = append(members, newmembers...)
+				if _, hasMembers := existingGroup.Members[etype]; hasMembers {
+					existingGroup.Members[etype] = append(existingGroup.Members[etype], newmembers...)
 				}
 			}
 
 			// groups by container names
 			for containerName, newMembers := range entityGroup.ContainerGroups {
-				members, hasMembers := existingGroup.ContainerGroups[containerName]
-				if hasMembers {
-					existingGroup.ContainerGroups[containerName] = append(members, newMembers...)
+				if _, hasMembers := existingGroup.ContainerGroups[containerName]; hasMembers {
+					existingGroup.ContainerGroups[containerName] = append(existingGroup.ContainerGroups[containerName], newMembers...)
+				} else {
+					existingGroup.ContainerGroups[containerName] = newMembers
 				}
 			}
-
 		} else {
 			entityGroupMap[groupId] = entityGroup
 		}
 	}
 
 	if glog.V(4) {
-		for _, entityGroup := range entityGroupList {
+		for _, entityGroup := range entityGroupMap {
 			glog.Infof("Group --> %s::%s\n", entityGroup.ParentKind, entityGroup.ParentName)
 			for etype, members := range entityGroup.Members {
 				glog.Infof("	Members: %s -> %s", etype, members)
