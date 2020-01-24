@@ -172,7 +172,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	dc.config.probeConfig.NodeClient.CleanupCache(nodes)
 
 	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
-	entityDTOs, quotaMetricsList, policyGroupList := dc.resultCollector.Collect(workerCount)
+	entityDTOs, quotaMetricsList, entityGroupList := dc.resultCollector.Collect(workerCount)
 
 	// Quota discovery worker to create quota DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType
@@ -220,7 +220,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	// Discovery worker for creating Group DTOs
 	targetId := dc.config.targetConfig.TargetIdentifier
 	entityGroupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(clusterSummary, targetId)
-	groupDTOs, _ := entityGroupDiscoveryWorker.Do(policyGroupList)
+	groupDTOs, _ := entityGroupDiscoveryWorker.Do(entityGroupList)
 
 	glog.V(2).Infof("There are totally %d groups DTOs", len(groupDTOs))
 	if glog.V(4) {
