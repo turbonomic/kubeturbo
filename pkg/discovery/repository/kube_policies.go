@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"fmt"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 )
 
@@ -13,21 +12,14 @@ type EntityGroup struct {
 	ContainerGroups map[string][]string
 }
 
-func NewEntityGroup(kind, name string) (*EntityGroup, error) {
-	if kind == "" {
-		return nil, fmt.Errorf("Invalid parent kind")
-	}
-	groupKey := kind
-	if name != "" {
-		groupKey = fmt.Sprintf("%s::%s", kind, name)
-	}
+func NewEntityGroup(kind, name, groupId string) *EntityGroup {
 	return &EntityGroup{
-		GroupId:         groupKey,
+		GroupId:         groupId,
 		ParentKind:      kind,
 		ParentName:      name,
 		Members:         make(map[metrics.DiscoveredEntityType][]string),
 		ContainerGroups: make(map[string][]string),
-	}, nil
+	}
 }
 
 func (group *EntityGroup) AddMember(entityType metrics.DiscoveredEntityType, member string) {
