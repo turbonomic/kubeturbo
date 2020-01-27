@@ -2,6 +2,7 @@ package compliance
 
 import (
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"testing"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -49,7 +50,16 @@ func TestProcess(t *testing.T) {
 		pods:  []*api.Pod{pod1, pod2, pod3},
 	}
 
-	taintTolerationProcessor, err := NewTaintTolerationProcessor(nodeAndPodGetter)
+	clusterName := "Test"
+	kubeCluster := repository.NewKubeCluster(clusterName, nodeAndPodGetter.nodes)
+
+	clusterSummary := repository.CreateClusterSummary(kubeCluster)
+	clusterSummary.SetRunningPodsOnNode(n1, []*api.Pod{pod1})
+	clusterSummary.SetRunningPodsOnNode(n2, []*api.Pod{pod2})
+	clusterSummary.SetRunningPodsOnNode(n3, []*api.Pod{pod3})
+
+	nodesManager := NewNodeSchedulabilityManager(clusterSummary)
+	taintTolerationProcessor, err := NewTaintTolerationProcessor(clusterSummary, nodesManager)
 
 	if err != nil {
 		t.Errorf("Failed to create TaintTolerationProcessor: %v", err)

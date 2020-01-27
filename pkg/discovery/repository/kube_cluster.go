@@ -18,7 +18,7 @@ type KubeCluster struct {
 	Nodes            map[string]*KubeNode
 	Namespaces       map[string]*KubeNamespace
 	ClusterResources map[metrics.ResourceType]*KubeDiscoveredResource
-	// Map of Service to Pod Ids
+	// Map of Service to Pod cluster Ids
 	Services map[*v1.Service][]string
 }
 
@@ -111,6 +111,7 @@ type ClusterSummary struct {
 	NodeNameUIDMap           map[string]string
 	QuotaNameUIDMap          map[string]string
 	PodClusterIDToServiceMap map[string]*v1.Service
+	NodeNameToPodMap         map[string][]*v1.Pod
 }
 
 func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
@@ -122,6 +123,7 @@ func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
 		NodeNameUIDMap:           make(map[string]string),
 		QuotaNameUIDMap:          make(map[string]string),
 		PodClusterIDToServiceMap: make(map[string]*v1.Service),
+		NodeNameToPodMap:         make(map[string][]*v1.Pod),
 	}
 
 	clusterSummary.computeNodeMap()
@@ -129,6 +131,17 @@ func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
 	clusterSummary.computePodToServiceMap()
 
 	return clusterSummary
+}
+
+func (summary *ClusterSummary) SetRunningPodsOnNode(node *v1.Node, pods []*v1.Pod) {
+
+	if node == nil {
+		glog.Errorf("Null node while setting pods for node")
+		return
+	}
+
+	glog.Infof("Found %d pods for node %s", len(pods), node.Name)
+	summary.NodeNameToPodMap[node.Name] = pods
 }
 
 func (summary *ClusterSummary) computeNodeMap() {
