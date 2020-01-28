@@ -102,6 +102,7 @@ func buildRegexFromList(patterns []string) *regexp.Regexp {
 
 func IsMasterDetected(nodeName string, labelMap map[string]string) bool {
 	result := matches(masterNodeNamePattern, nodeName) || isInMap(labelMap)
+	glog.V(4).Infof("IsMasterDetected: %s = %v", nodeName, result)
 	return result
 }
 

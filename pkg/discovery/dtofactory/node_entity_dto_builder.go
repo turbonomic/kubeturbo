@@ -17,8 +17,6 @@ import (
 const (
 	accessCommodityDefaultCapacity  = 1e10
 	clusterCommodityDefaultCapacity = 1e10
-
-	schedAccessCommodityKey string = "schedulable"
 )
 
 var (
@@ -38,11 +36,11 @@ var (
 		metrics.MemoryRequestQuota,
 	}
 
-	resizeDisabledCommoditiesSold = []metrics.ResourceType{
-		metrics.CPU,
-		metrics.Memory,
-		metrics.CPURequest,
-		metrics.MemoryRequest,
+	resizableCommodities = map[proto.CommodityDTO_CommodityType]bool{
+		proto.CommodityDTO_VCPU:         false,
+		proto.CommodityDTO_VMEM:         false,
+		proto.CommodityDTO_VCPU_REQUEST: false,
+		proto.CommodityDTO_VMEM_REQUEST: false,
 	}
 )
 
@@ -183,10 +181,12 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 		return nil, err
 	}
 
-	// Disallow vertical resize for all nodes
-	bool_false := false
+	// Disable vertical resize of the resource commodities for all nodes
 	for _, commSold := range resourceCommoditiesSold {
-		commSold.Resizable = &bool_false
+		if _, exists := resizableCommodities[commSold.GetCommodityType()]; exists {
+			isResizeable := resizableCommodities[commSold.GetCommodityType()]
+			commSold.Resizable = &isResizeable
+		}
 	}
 	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
 

@@ -139,6 +139,11 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 			glog.V(4).Infof("Pod %v is not controllable.", displayName)
 		}
 
+		entityDTOBuilder.ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
+			Controllable: &controllable,
+			Daemon:       &daemon,
+		})
+
 		entityDTOBuilder = entityDTOBuilder.ContainerPodData(builder.createContainerPodData(pod))
 
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
@@ -157,10 +162,11 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		}
 
 		result = append(result, entityDto)
-		glog.V(4).Infof("pod dto: %++v\n", entityDto)
 
 		if daemon {
-			glog.V(4).Infof("##### DAEMON pod dto: %++v\n", entityDto)
+			glog.V(3).Infof("daemon pod dto:\n %++v\n", entityDto)
+		} else {
+			glog.V(4).Infof("pod dto: %++v\n", entityDto)
 		}
 	}
 
