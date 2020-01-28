@@ -143,7 +143,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
-		// action eligibility
+		// action eligibility for daemon pods
 		if daemon {
 			entityDTOBuilder.IsProvisionable(false)
 			entityDTOBuilder.IsSuspendable(false)

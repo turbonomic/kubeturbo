@@ -44,9 +44,9 @@ var (
 	proxyVMUUID = "Proxy_VM_UUID"
 
 	// External matching property
-	VMIPFieldName  = supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS
-	VMIPFieldPaths = []string{supplychain.SUPPLY_CHAIN_CONSTANT_VIRTUAL_MACHINE_DATA}
-	VMUUID         = supplychain.SUPPLY_CHAIN_CONSTANT_ID
+	VMIPFieldName          = supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS
+	VMIPFieldPaths         = []string{supplychain.SUPPLY_CHAIN_CONSTANT_VIRTUAL_MACHINE_DATA}
+	VMUUID                 = supplychain.SUPPLY_CHAIN_CONSTANT_ID
 	ActionEligibilityField = "actionEligibility"
 )
 
@@ -137,9 +137,9 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 		builder.PropertyCapacity: {},
 	}
 	fieldsUsedCapacityPeak := map[string][]string{
-		builder.PropertyUsed:     {},
-		builder.PropertyCapacity: {},
-		builder.PropertyPeak:     {},
+		builder.PropertyUsed:      {},
+		builder.PropertyCapacity:  {},
+		builder.PropertyPeak:      {},
 		builder.PropertyResizable: {},
 	}
 	mergedEntityMetadataBuilder := builder.NewMergedEntityMetadataBuilder()
