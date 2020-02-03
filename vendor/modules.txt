@@ -33,7 +33,7 @@ github.com/google/uuid
 github.com/googleapis/gnostic/OpenAPIv2
 github.com/googleapis/gnostic/compiler
 github.com/googleapis/gnostic/extensions
-# github.com/gorilla/websocket v0.0.0-20180924232612-3130e8d3f198
+# github.com/gorilla/websocket v1.2.0
 github.com/gorilla/websocket
 # github.com/gregjones/httpcache v0.0.0-20190212212710-3befbb6ad0cc
 github.com/gregjones/httpcache
@@ -89,12 +89,12 @@ github.com/prometheus/procfs/xfs
 github.com/sirupsen/logrus
 # github.com/spf13/pflag v1.0.3
 github.com/spf13/pflag
-# github.com/stretchr/testify v1.2.2
+# github.com/stretchr/testify v1.3.0
 github.com/stretchr/testify/assert
 # github.com/turbonomic/turbo-api v0.0.0-20180816193551-ed948ba97e70
 github.com/turbonomic/turbo-api/pkg/api
 github.com/turbonomic/turbo-api/pkg/client
-# github.com/turbonomic/turbo-go-sdk v6.4.1-0.20191120011039-887da256d38c+incompatible
+# github.com/turbonomic/turbo-go-sdk v0.0.0-20200203194616-ace86b79207d
 github.com/turbonomic/turbo-go-sdk/pkg
 github.com/turbonomic/turbo-go-sdk/pkg/builder
 github.com/turbonomic/turbo-go-sdk/pkg/builder/group

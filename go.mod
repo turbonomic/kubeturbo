@@ -16,7 +16,6 @@ require (
 	github.com/google/go-cmp v0.2.0 // indirect
 	github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf // indirect
 	github.com/googleapis/gnostic v0.0.0-20180520015035-48a0ecefe2e4 // indirect
-	github.com/gorilla/websocket v1.4.1 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190212212710-3befbb6ad0cc // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/json-iterator/go v0.0.0-20180914014843-2433035e5132 // indirect
@@ -34,7 +33,7 @@ require (
 	github.com/sirupsen/logrus v1.2.0 // indirect
 	github.com/spf13/pflag v1.0.3
 	github.com/stretchr/testify v1.3.0
-	github.com/turbonomic/turbo-go-sdk v6.4.1-0.20191120011039-887da256d38c+incompatible
+	github.com/turbonomic/turbo-go-sdk v0.0.0-20200203194616-ace86b79207d
 	go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569 // indirect
 	go.uber.org/multierr v0.0.0-20180122172545-ddea229ff1df // indirect
 	go.uber.org/zap v0.0.0-20180814183419-67bc79d13d15 // indirect
