@@ -68,6 +68,9 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		podID := string(pod.UID)
 		entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, podID)
 
+		// determine if the pod is a daemon set pod as that determines the eligibility of the pod for different actions
+		daemon := util.Daemon(pod)
+
 		// display name.
 		displayName := util.GetPodClusterID(pod)
 		entityDTOBuilder.DisplayName(displayName)
@@ -84,7 +87,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		}
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
-		// commodities bought.
+		// commodities bought - from node provider
 		commoditiesBought, err := builder.getPodCommoditiesBought(pod, cpuFrequency)
 		if err != nil {
 			glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
@@ -98,8 +101,15 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		}
 		provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, providerNodeUID)
 		entityDTOBuilder = entityDTOBuilder.Provider(provider)
+
+		// pods are movable across nodes except for the daemon pods
+		if daemon {
+			entityDTOBuilder.IsMovable(proto.EntityDTO_VIRTUAL_MACHINE, false)
+		}
+
 		entityDTOBuilder.BuysCommodities(commoditiesBought)
 
+		// commodities bought - from namespace provider
 		quotaUID, exists := builder.quotaNameUIDMap[pod.Namespace]
 		if exists {
 			commoditiesBoughtQuota, err := builder.getPodCommoditiesBoughtFromQuota(quotaUID, pod, cpuFrequency)
@@ -110,6 +120,8 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 			provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_DATACENTER, quotaUID)
 			entityDTOBuilder = entityDTOBuilder.Provider(provider)
 			entityDTOBuilder.BuysCommodities(commoditiesBoughtQuota)
+			// pods are not movable across namespaces
+			entityDTOBuilder.IsMovable(proto.EntityDTO_VIRTUAL_DATACENTER, false)
 		} else {
 			glog.Errorf("Failed to get quota for pod: %s", pod.Namespace)
 		}
@@ -126,7 +138,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		if !controllable {
 			glog.V(4).Infof("Pod %v is not controllable.", displayName)
 		}
-		daemon := util.Daemon(pod)
+
 		entityDTOBuilder.ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
 			Controllable: &controllable,
 			Daemon:       &daemon,
@@ -136,6 +148,12 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
+		// action eligibility for daemon pods
+		if daemon {
+			entityDTOBuilder.IsProvisionable(false)
+			entityDTOBuilder.IsSuspendable(false)
+		}
+
 		// build entityDTO.
 		entityDto, err := entityDTOBuilder.Create()
 		if err != nil {
@@ -144,7 +162,12 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		}
 
 		result = append(result, entityDto)
-		glog.V(4).Infof("pod dto: %++v\n", entityDto)
+
+		if daemon {
+			glog.V(3).Infof("daemon pod dto:\n %++v\n", entityDto)
+		} else {
+			glog.V(4).Infof("pod dto: %++v\n", entityDto)
+		}
 	}
 
 	return result, nil
