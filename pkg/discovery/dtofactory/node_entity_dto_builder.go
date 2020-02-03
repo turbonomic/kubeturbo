@@ -121,7 +121,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		isMasterNode := util.DetectMasterRole(node)
 		if isMasterNode {
 			entityDTOBuilder.IsSuspendable(false)
-			glog.V(2).Info("%s is master node", node.Name)
+			glog.V(2).Infof("%s is master node", node.Name)
 		}
 
 		// Power state.
