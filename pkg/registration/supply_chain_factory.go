@@ -300,7 +300,7 @@ func (f *SupplyChainFactory) buildContainer() (*proto.TemplateDTO, error) {
 }
 
 func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
-	appSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_APPLICATION)
+	appSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_APPLICATION_COMPONENT)
 	appSupplyChainNodeBuilder = appSupplyChainNodeBuilder.
 		Sells(applicationTemplateCommWithKey). // The key used to sell to the virtual applications
 		Provider(proto.EntityDTO_CONTAINER, proto.Provider_HOSTING).
@@ -312,9 +312,9 @@ func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO
 }
 
 func (f *SupplyChainFactory) buildVirtualApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
-	vAppSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_VIRTUAL_APPLICATION)
+	vAppSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_SERVICE)
 	vAppSupplyChainNodeBuilder = vAppSupplyChainNodeBuilder.
-		Provider(proto.EntityDTO_APPLICATION, proto.Provider_LAYERED_OVER).
+		Provider(proto.EntityDTO_APPLICATION_COMPONENT, proto.Provider_LAYERED_OVER).
 		Buys(applicationTemplateCommWithKey)
 	return vAppSupplyChainNodeBuilder.Create()
 }
