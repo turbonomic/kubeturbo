@@ -188,7 +188,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	if err != nil {
 		glog.Errorf("Failed to discover services from current Kubernetes cluster with the new discovery framework: %s", err)
 	} else {
-		glog.V(2).Infof("There are %d vApp entityDTOs.", len(serviceDtos))
+		glog.V(2).Infof("There are %d service entityDTOs.", len(serviceDtos))
 		entityDTOs = append(entityDTOs, serviceDtos...)
 	}
 

@@ -24,7 +24,7 @@ const (
 	// The default namespace of entity property
 	DefaultPropertyNamespace string = "DEFAULT"
 
-	// The attribute used for stitching with other probes (e.g., prometurbo) with app and vapp
+	// The attribute used for stitching with other probes (e.g., prometurbo) with app and service
 	AppStitchingAttr string = "IP"
 )
 
