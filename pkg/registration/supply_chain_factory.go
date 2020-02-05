@@ -156,14 +156,14 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	glog.V(4).Infof("Supply chain node: %+v", appSupplyChainNode)
 
 	// Virtual application supply chain template
-	vAppSupplyChainNode, err := f.buildVirtualApplicationSupplyBuilder()
+	serviceSupplyChainNode, err := f.buildServiceSupplyBuilder()
 	if err != nil {
 		return nil, err
 	}
-	glog.V(4).Infof("Supply chain node: %+v", vAppSupplyChainNode)
+	glog.V(4).Infof("Supply chain node: %+v", serviceSupplyChainNode)
 
 	supplyChainBuilder := supplychain.NewSupplyChainBuilder()
-	supplyChainBuilder.Top(vAppSupplyChainNode)
+	supplyChainBuilder.Top(serviceSupplyChainNode)
 	supplyChainBuilder.Entity(appSupplyChainNode)
 	supplyChainBuilder.Entity(containerSupplyChainNode)
 	supplyChainBuilder.Entity(containerSpecSupplyChainNode)
@@ -388,10 +388,10 @@ func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO
 	return appSupplyChainNodeBuilder.Create()
 }
 
-func (f *SupplyChainFactory) buildVirtualApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
-	vAppSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_SERVICE)
-	vAppSupplyChainNodeBuilder = vAppSupplyChainNodeBuilder.
+func (f *SupplyChainFactory) buildServiceSupplyBuilder() (*proto.TemplateDTO, error) {
+	serviceSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_SERVICE)
+	serviceSupplyChainNodeBuilder = serviceSupplyChainNodeBuilder.
 		Provider(proto.EntityDTO_APPLICATION_COMPONENT, proto.Provider_LAYERED_OVER).
 		Buys(applicationTemplateCommWithKey)
-	return vAppSupplyChainNodeBuilder.Create()
+	return serviceSupplyChainNodeBuilder.Create()
 }
