@@ -113,14 +113,14 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	rClient.addActionPolicy(ab, app, appPolicy)
 
 	// 4. service: no actions are supported
-	vApp := proto.EntityDTO_SERVICE
-	vAppPolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	vAppPolicy[proto.ActionItemDTO_PROVISION] = notSupported
-	vAppPolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
-	vAppPolicy[proto.ActionItemDTO_MOVE] = notSupported
-	vAppPolicy[proto.ActionItemDTO_SUSPEND] = notSupported
+	service := proto.EntityDTO_SERVICE
+	servicePolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
+	servicePolicy[proto.ActionItemDTO_PROVISION] = notSupported
+	servicePolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
+	servicePolicy[proto.ActionItemDTO_MOVE] = notSupported
+	servicePolicy[proto.ActionItemDTO_SUSPEND] = notSupported
 
-	rClient.addActionPolicy(ab, vApp, vAppPolicy)
+	rClient.addActionPolicy(ab, service, servicePolicy)
 
 	// 5. node: support provision and suspend; not resize; do not set move
 	node := proto.EntityDTO_VIRTUAL_MACHINE
@@ -143,10 +143,10 @@ func (rClient *K8sRegistrationClient) addActionPolicy(ab *builder.ActionPolicyBu
 	}
 }
 
-func (rclient *K8sRegistrationClient) GetEntityMetadata() []*proto.EntityIdentityMetadata {
+func (rClient *K8sRegistrationClient) GetEntityMetadata() []*proto.EntityIdentityMetadata {
 	glog.V(3).Infof("Begin to build EntityIdentityMetadata")
 
-	result := []*proto.EntityIdentityMetadata{}
+	var result []*proto.EntityIdentityMetadata
 
 	entities := []proto.EntityDTO_EntityType{
 		proto.EntityDTO_VIRTUAL_DATACENTER,
@@ -158,7 +158,7 @@ func (rclient *K8sRegistrationClient) GetEntityMetadata() []*proto.EntityIdentit
 	}
 
 	for _, etype := range entities {
-		meta := rclient.newIdMetaData(etype, []string{propertyId})
+		meta := rClient.newIdMetaData(etype, []string{propertyId})
 		result = append(result, meta)
 	}
 
@@ -167,8 +167,8 @@ func (rclient *K8sRegistrationClient) GetEntityMetadata() []*proto.EntityIdentit
 	return result
 }
 
-func (rclient *K8sRegistrationClient) newIdMetaData(etype proto.EntityDTO_EntityType, names []string) *proto.EntityIdentityMetadata {
-	data := []*proto.EntityIdentityMetadata_PropertyMetadata{}
+func (rClient *K8sRegistrationClient) newIdMetaData(etype proto.EntityDTO_EntityType, names []string) *proto.EntityIdentityMetadata {
+	var data []*proto.EntityIdentityMetadata_PropertyMetadata
 	for _, name := range names {
 		dat := &proto.EntityIdentityMetadata_PropertyMetadata{
 			Name: &name,
