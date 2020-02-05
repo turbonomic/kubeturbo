@@ -44,8 +44,8 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	node := proto.EntityDTO_VIRTUAL_MACHINE
 	pod := proto.EntityDTO_CONTAINER_POD
 	container := proto.EntityDTO_CONTAINER
-	app := proto.EntityDTO_APPLICATION
-	vApp := proto.EntityDTO_VIRTUAL_APPLICATION
+	app := proto.EntityDTO_APPLICATION_COMPONENT
+	vApp := proto.EntityDTO_SERVICE
 
 	move := proto.ActionItemDTO_MOVE
 	resize := proto.ActionItemDTO_RIGHT_SIZE
@@ -123,8 +123,8 @@ func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
 		proto.EntityDTO_CONTAINER_SPEC,
 		proto.EntityDTO_CONTAINER_POD,
 		proto.EntityDTO_CONTAINER,
-		proto.EntityDTO_APPLICATION,
-		proto.EntityDTO_VIRTUAL_APPLICATION,
+		proto.EntityDTO_APPLICATION_COMPONENT,
+		proto.EntityDTO_SERVICE,
 	}
 	entitySet := make(map[proto.EntityDTO_EntityType]struct{})
 
