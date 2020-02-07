@@ -1,7 +1,6 @@
 package compliance
 
 import (
-	"fmt"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	api "k8s.io/api/core/v1"
@@ -258,7 +257,6 @@ func createTolerationAccessComms(pod *api.Pod, taintCollection map[api.Taint]str
 			}
 			visited[key] = true
 			glog.V(4).Infof("Created access commodity with key %s for pod %s", key, pod.GetName())
-			fmt.Printf("Created access commodity with key %s for pod %s\n", key, pod.GetName())
 
 			accessComms = append(accessComms, accessComm)
 		}
