@@ -5,7 +5,7 @@
 # Replace the image with desired version
 image:
   repository: turbonomic/kubeturbo
-  tag: 6.4.3
+  tag: 7.21.0
   pullPolicy: IfNotPresent
 
 #nameOverride: ""
@@ -19,9 +19,10 @@ serverMeta:
   version: TURBONOMIC_SERVER_VERSION
   turboServer: https://Turbo_server_URL
 
-# Turbo server api user and password
+# Turbo server api user and password stored in a secret or optionally specified as username and password
 # The opsManagerUserName requires Turbo administrator role
 restAPIConfig:
+  turbonomicCredentials: "turbonomic-credentials"
   opsManagerUserName: Turbo_username
   opsManagerPassword: Turbo_password
 
