@@ -217,19 +217,19 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 func (builder *containerDTOBuilder) getContainerProperties(pod *api.Pod, index int) []*proto.EntityDTO_EntityProperty {
 	var properties []*proto.EntityDTO_EntityProperty
 	podProperties := builder.addPodProperties(pod, index)
+	properties = append(properties, podProperties...)
 
 	ns := stitching.DefaultPropertyNamespace
 	attr := string(stitching.UUID)
 	value := getContainerStitchingProperty(pod, index)
-	stitchingProperty := &proto.EntityDTO_EntityProperty{
-		Namespace: &ns,
-		Name:      &attr,
-		Value:     &value,
+	if value != "" {
+		stitchingProperty := &proto.EntityDTO_EntityProperty{
+			Namespace: &ns,
+			Name:      &attr,
+			Value:     &value,
+		}
+		properties = append(properties, stitchingProperty)
 	}
-
-	properties = append(properties, podProperties...)
-	properties = append(properties, stitchingProperty)
-
 	return properties
 }
 
@@ -248,7 +248,13 @@ func getContainerStitchingProperty(pod *api.Pod, index int) string {
 	// containerID: docker://986c8fc7247d1ff047f06e8e3487029b89baef1e908d3e334dd94aaa3bf4bc39
 	// or
 	// containerID: cri-o://81ab6978aa3252bc53cfaf7d23b8b1bf5f8f27ff4b9e79a0fbaffebeddaeeb4b
+	if len(pod.Status.ContainerStatuses) <= index {
+		return ""
+	}
 	containerStatus := &(pod.Status.ContainerStatuses[index])
 	cntiduri := strings.Split(containerStatus.ContainerID, "://")
+	if len(cntiduri) <= 1 {
+		return ""
+	}
 	return cntiduri[1]
 }
