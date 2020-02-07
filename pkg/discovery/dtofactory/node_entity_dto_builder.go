@@ -36,6 +36,7 @@ var (
 		metrics.MemoryRequestQuota,
 	}
 
+	// List of commodities and a boolean indicating if the commodity should be resized
 	resizableCommodities = map[proto.CommodityDTO_CommodityType]bool{
 		proto.CommodityDTO_VCPU:         false,
 		proto.CommodityDTO_VMEM:         false,
@@ -121,7 +122,6 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		isMasterNode := util.DetectMasterRole(node)
 		if isMasterNode {
 			entityDTOBuilder.IsSuspendable(false)
-			glog.V(2).Infof("%s is master node", node.Name)
 		}
 
 		// Power state.
@@ -183,8 +183,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 
 	// Disable vertical resize of the resource commodities for all nodes
 	for _, commSold := range resourceCommoditiesSold {
-		if _, exists := resizableCommodities[commSold.GetCommodityType()]; exists {
-			isResizeable := resizableCommodities[commSold.GetCommodityType()]
+		if isResizeable, exists := resizableCommodities[commSold.GetCommodityType()]; exists {
 			commSold.Resizable = &isResizeable
 		}
 	}

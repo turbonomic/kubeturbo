@@ -114,8 +114,7 @@ func DetectMasterRole(node *api.Node) bool {
 	nodeRoles := DetectNodeRoles(node)
 
 	isMasterNode := nodeRoles.Has(masterRoleName)
-
-	fmt.Printf("%s - %v [allRoles - %v] [masterRoles - %v]\n", node.Name, node.Labels, nodeRoles, isMasterNode)
+	glog.V(3).Infof("%s is master node", node.Name)
 
 	return isMasterNode
 }

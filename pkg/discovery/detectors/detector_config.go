@@ -75,7 +75,7 @@ func ValidateAndParseDetectors(masterConfig *MasterNodeDetectors,
 		masterLabelValues[i] = compileOrDie(entry.Value)
 	}
 
-	// Daemon pod detectin by pod name and namespace
+	// Daemon pod detection by pod name and namespace
 	daemonPodNamePattern = buildRegexFromList(daemonConfig.PodNamePatterns)
 	daemonNamespacePattern = buildRegexFromList(daemonConfig.Namespaces)
 
