@@ -2,14 +2,12 @@ package dtofactory
 
 import (
 	"fmt"
-
 	api "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
@@ -19,8 +17,6 @@ import (
 const (
 	accessCommodityDefaultCapacity  = 1e10
 	clusterCommodityDefaultCapacity = 1e10
-
-	schedAccessCommodityKey string = "schedulable"
 )
 
 var (
@@ -38,6 +34,14 @@ var (
 		metrics.MemoryQuota,
 		metrics.CPURequestQuota,
 		metrics.MemoryRequestQuota,
+	}
+
+	// List of commodities and a boolean indicating if the commodity should be resized
+	resizableCommodities = map[proto.CommodityDTO_CommodityType]bool{
+		proto.CommodityDTO_VCPU:         false,
+		proto.CommodityDTO_VMEM:         false,
+		proto.CommodityDTO_VCPU_REQUEST: false,
+		proto.CommodityDTO_VMEM_REQUEST: false,
 	}
 )
 
@@ -113,6 +117,13 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 			Controllable: &controllable,
 		})
 
+		// Action settings for a node
+		// Disallow suspend for master nodes
+		isMasterNode := util.DetectMasterRole(node)
+		if isMasterNode {
+			entityDTOBuilder.IsSuspendable(false)
+		}
+
 		// Power state.
 		// Will be Powered On, only if it is ready and has no issues with kubelet accessibility.
 		if nodeActive {
@@ -135,7 +146,12 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		}
 
 		result = append(result, entityDto)
-		glog.V(4).Infof("node dto : %++v\n", entityDto)
+
+		if isMasterNode {
+			glog.V(3).Infof("master node dto:\n	 %++v\n", entityDto)
+		} else {
+			glog.V(4).Infof("node dto : %++v\n", entityDto)
+		}
 	}
 
 	return result, nil
@@ -163,6 +179,13 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.NodeType, key, nodeResourceCommoditiesSold, converter, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	// Disable vertical resize of the resource commodities for all nodes
+	for _, commSold := range resourceCommoditiesSold {
+		if isResizeable, exists := resizableCommodities[commSold.GetCommodityType()]; exists {
+			commSold.Resizable = &isResizeable
+		}
 	}
 	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
 

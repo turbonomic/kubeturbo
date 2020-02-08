@@ -20,7 +20,7 @@ var masterLabelValues []*regexp.Regexp
 var daemonPodNamePattern *regexp.Regexp
 var daemonNamespacePattern *regexp.Regexp
 
-// HANode detection
+// HANode detection - list of node roles to be detected
 var HANodeRoles sets.String
 
 type NodeLabelEntry struct {
@@ -86,6 +86,7 @@ func ValidateAndParseDetectors(masterConfig *MasterNodeDetectors,
 			HANodeRoles.Insert(role)
 		}
 	}
+	glog.V(2).Infof("##### HARoles to be detected: %v", HANodeRoles)
 }
 
 /*
