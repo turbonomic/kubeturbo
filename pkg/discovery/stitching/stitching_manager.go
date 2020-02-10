@@ -200,13 +200,14 @@ func (s *StitchingManager) getStitchingPropertyName() string {
 }
 
 // Create the meta data that will be used during the reconciliation process.
+// This seems only applicable for VirtualMachines.
 func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_ReplacementEntityMetaData, error) {
 	replacementEntityMetaDataBuilder := builder.NewReplacementEntityMetaDataBuilder()
 	switch s.stitchType {
 	case UUID:
-		replacementEntityMetaDataBuilder.Matching(proxyVMUUID)
+		replacementEntityMetaDataBuilder.Matching(proxyVMUUID).MatchingExternal(supplychain.VM_UUID)
 	case IP:
-		replacementEntityMetaDataBuilder.Matching(proxyVMIP)
+		replacementEntityMetaDataBuilder.Matching(proxyVMIP).MatchingExternal(supplychain.VM_IP)
 	default:
 		return nil, fmt.Errorf("stitching property type %s is not supported", s.stitchType)
 	}
