@@ -16,12 +16,12 @@ import (
 const (
 	UUID StitchingPropertyType = "UUID"
 	IP   StitchingPropertyType = "IP"
-	CNTID StitchingPropertyType = "CNT"
-	CNTFULLID StitchingPropertyType = "CNTFULL"
 
 	// The property used for node property and replacement entity metadata
 	proxyVMIP   string = "Proxy_VM_IP"
 	proxyVMUUID string = "Proxy_VM_UUID"
+	containerID   string = "CNT"
+	containerFullID string = "CNTFULL"
 
 	// The default namespace of entity property
 	DefaultPropertyNamespace string = "DEFAULT"
@@ -200,14 +200,13 @@ func (s *StitchingManager) getStitchingPropertyName() string {
 }
 
 // Create the meta data that will be used during the reconciliation process.
-// This seems only applicable for VirtualMachines.
 func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_ReplacementEntityMetaData, error) {
 	replacementEntityMetaDataBuilder := builder.NewReplacementEntityMetaDataBuilder()
 	switch s.stitchType {
 	case UUID:
-		replacementEntityMetaDataBuilder.Matching(proxyVMUUID).MatchingExternal(supplychain.VM_UUID)
+		replacementEntityMetaDataBuilder.Matching(proxyVMUUID)
 	case IP:
-		replacementEntityMetaDataBuilder.Matching(proxyVMIP).MatchingExternal(supplychain.VM_IP)
+		replacementEntityMetaDataBuilder.Matching(proxyVMIP)
 	default:
 		return nil, fmt.Errorf("stitching property type %s is not supported", s.stitchType)
 	}
