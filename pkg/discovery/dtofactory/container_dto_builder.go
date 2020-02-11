@@ -220,12 +220,12 @@ func (builder *containerDTOBuilder) getContainerProperties(pod *api.Pod, index i
 	properties = append(properties, podProperties...)
 
 	ns := stitching.DefaultPropertyNamespace
-	idattr := stitching.containerID
-	fullidattr := stitching.containerFullID
+	idattr := stitching.ContainerID
+	fullidattr := stitching.ContainerFullID
 	value := getContainerStitchingProperty(pod, index)
 	// Short containerID
-	if len(value) > 11 {
-		cntid:=value[:12]
+	if len(value) >= stitching.ContainerIDlen {
+		cntid := value[:stitching.ContainerIDlen]
 		idStitchingProperty := &proto.EntityDTO_EntityProperty{
 			Namespace: &ns,
 			Name:      &idattr,
