@@ -21,7 +21,7 @@ spec:
       containers:
         - name: kubeturbo
           # Replace the image with desired version. Refer to readme in deploy for more details
-          image: turbonomic/kubeturbo:6.4.0
+          image: turbonomic/kubeturbo:7.21.0
           imagePullPolicy: IfNotPresent
           args:
             - --turboconfig=/etc/kubeturbo/turbo.config
@@ -36,6 +36,9 @@ spec:
             - name: turbo-volume
               mountPath: /etc/kubeturbo
               readOnly: true
+            - name: turbonomic-credentials-volume
+              mountPath: /etc/turbonomic-credentials
+              readOnly: true
             - name: varlog
               mountPath: /var/log
       volumes:
@@ -43,6 +46,12 @@ spec:
           configMap:
             # Update configMap name if needed
             name: turbo-config
+        - name: turbonomic-credentials-volume
+          secret:
+            defaultMode: 420
+            optional: true
+            # Update secret name if needed
+            secretName: turbonomic-credentials
         - name: varlog
           emptyDir: {}
       restartPolicy: Always
