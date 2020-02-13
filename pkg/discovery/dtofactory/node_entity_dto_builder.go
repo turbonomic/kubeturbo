@@ -118,11 +118,9 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		})
 
 		// Action settings for a node
-		// Disallow suspend for master nodes
+		// Allow suspend for all nodes except masters
 		isMasterNode := util.DetectMasterRole(node)
-		if isMasterNode {
-			entityDTOBuilder.IsSuspendable(false)
-		}
+		entityDTOBuilder.IsSuspendable(!isMasterNode)
 
 		// Power state.
 		// Will be Powered On, only if it is ready and has no issues with kubelet accessibility.
