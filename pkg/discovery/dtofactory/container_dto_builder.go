@@ -220,12 +220,14 @@ func (builder *containerDTOBuilder) getContainerProperties(pod *api.Pod, index i
 	properties = append(properties, podProperties...)
 
 	ns := stitching.DefaultPropertyNamespace
+	podidattr := stitching.PodID
 	idattr := stitching.ContainerID
 	fullidattr := stitching.ContainerFullID
-	value := getContainerStitchingProperty(pod, index)
+	containerID := getContainerStitchingProperty(pod, index)
+	podID := string(pod.UID)
 	// Short containerID
-	if len(value) >= stitching.ContainerIDlen {
-		cntid := value[:stitching.ContainerIDlen]
+	if len(containerID) >= stitching.ContainerIDlen {
+		cntid := containerID[:stitching.ContainerIDlen]
 		idStitchingProperty := &proto.EntityDTO_EntityProperty{
 			Namespace: &ns,
 			Name:      &idattr,
@@ -234,13 +236,22 @@ func (builder *containerDTOBuilder) getContainerProperties(pod *api.Pod, index i
 		properties = append(properties, idStitchingProperty)
 	}
 	// Full containerID
-	if value != "" {
+	if containerID != "" {
 		fullIdStitchingProperty := &proto.EntityDTO_EntityProperty{
 			Namespace: &ns,
 			Name:      &fullidattr,
-			Value:     &value,
+			Value:     &containerID,
 		}
 		properties = append(properties, fullIdStitchingProperty)
+	}
+	// Full podID
+	if pod.UID != "" && index < 1 {
+		podStitchingProperty := &proto.EntityDTO_EntityProperty{
+			Namespace: &ns,
+			Name:      &podidattr,
+			Value:     &podID,
+		}
+		properties = append(properties, podStitchingProperty)
 	}
 	return properties
 }
