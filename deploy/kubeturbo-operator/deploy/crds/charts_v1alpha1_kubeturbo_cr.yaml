@@ -1,7 +1,7 @@
 apiVersion: charts.helm.k8s.io/v1alpha1
 kind: Kubeturbo
 metadata:
-  name: kubeturbo-example
+  name: kubeturbo-release
 spec:
   # Default values copied from <project_dir>/helm-charts/kubeturbo/values.yaml
   

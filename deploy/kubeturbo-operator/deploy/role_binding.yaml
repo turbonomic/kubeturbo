@@ -5,6 +5,7 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: kubeturbo-operator
+  namespace: openshift-operators
 roleRef:
   kind: ClusterRole
   name: cluster-admin

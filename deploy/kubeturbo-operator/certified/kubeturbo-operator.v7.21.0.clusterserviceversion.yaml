@@ -2,7 +2,7 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1alpha1","kind":"Kubeturbo","metadata":{"name":"kubeturbo-release"},"spec":{"restAPIConfig":{"opsManagerPassword":"Turbo_password","opsManagerUserName":"Turbo_username"},"serverMeta":{"turboServer":"https://Turbo_server_URL","version":6.4}}}]'
+    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1alpha1","kind":"Kubeturbo","metadata":{"name":"kubeturbo-release"},"spec":{"restAPIConfig":{"opsManagerPassword":"Turbo_password","opsManagerUserName":"Turbo_username"},"serverMeta":{"turboServer":"https://Turbo_server_URL","version":7.21}}}]'
     capabilities: Basic Install
     categories: Monitoring
     certified: "false"
@@ -11,20 +11,23 @@ metadata:
     description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
     repository: https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo-operator
     support: Turbonomic, Inc.
-  name: kubeturbo-operator.v6.4.0
+  name: kubeturbo-operator.v7.21.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
-      - description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
-        displayName: Kubeturbo Operator
-        kind: Kubeturbo
-        name: kubeturbos.charts.helm.k8s.io
-        version: v1alpha1
+    - description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
+      displayName: Kubeturbo Operator
+      kind: Kubeturbo
+      name: kubeturbos.charts.helm.k8s.io
+      version: v1alpha1
   description: |-
-    ### Decision Automation for Kubernetes
-    Turbonomic makes workloads smart—enabling them to self-manage—and determines the specific actions that will drive continuous health:
+    ### Application Resource Management for Kubernetes
+    Turbonomic AI-powered Application Resource Management simultaneously optimizes performance, compliance, and cost in real time.
+    Software manages the complete application stack, automatically. Applications are continually resourced to perform while satisfying business constraints.
+
+    Turbonomic makes workloads smart — enabling them to self-manage and determines the specific actions that will drive continuous health:
 
     * Continuous placement for Pods (rescheduling)
     * Continuous scaling for applications and  the underlying cluster.
@@ -41,163 +44,165 @@ spec:
       mediatype: image/png
   install:
     spec:
-      permissions:
-        - rules:
-            - apiGroups:
-                - ""
-                - apps
-                - extensions
-              resources:
-                - nodes
-                - pods
-                - configmaps
-                - endpoints
-                - events
-                - deployments
-                - replicasets
-                - replicationcontrollers
-                - services
-                - secrets
-                - serviceaccounts
-              verbs:
-                - '*'
-            - apiGroups:
-                - ""
-                - apps
-                - extensions
-                - policy
-              resources:
-                - daemonsets
-                - endpoints
-                - limitranges
-                - namespaces
-                - persistentvolumes
-                - persistentvolumeclaims
-                - poddisruptionbudget
-                - resourcequotas
-                - statefulsets
-              verbs:
-                - get
-                - list
-                - watch
-            - apiGroups:
-                - ""
-              resources:
-                - nodes/spec
-                - nodes/stats
-              verbs:
-                - get
-            - apiGroups:
-                - charts.helm.k8s.io
-              resources:
-                - '*'
-              verbs:
-                - '*'
-          serviceAccountName: kubeturbo-operator
       clusterPermissions:
-        - rules:
-            - apiGroups:
-                - ""
-                - apps
-                - extensions
-              resources:
-                - nodes
-                - pods
-                - configmaps
-                - deployments
-                - replicasets
-                - replicationcontrollers
-                - serviceaccounts
-              verbs:
-                - '*'
-            - apiGroups:
-                - ""
-                - apps
-                - extensions
-                - policy
-              resources:
-                - services
-                - endpoints
-                - namespaces
-                - limitranges
-                - resourcequotas
-                - daemonsets
-                - persistentvolumes
-                - persistentvolumeclaims
-                - poddisruptionbudget
-              verbs:
-                - get
-                - list
-                - watch
-            - apiGroups:
-                - ""
-              resources:
-                - nodes/spec
-                - nodes/stats
-              verbs:
-                - get
-            - apiGroups:
-                - charts.helm.k8s.io
-              resources:
-                - '*'
-              verbs:
-                - '*'
-            - apiGroups:
-                - rbac.authorization.k8s.io
-              resources:
-                - clusterroles
-                - clusterrolebindings
-              verbs:
-                - '*'
-          serviceAccountName: kubeturbo-operator
+      - rules:
+        - apiGroups:
+          - ''
+          - apps
+          - extensions
+          resources:
+          - nodes
+          - pods
+          - configmaps
+          - deployments
+          - replicasets
+          - replicationcontrollers
+          - serviceaccounts
+          verbs:
+          - '*'
+        - apiGroups:
+          - ''
+          - apps
+          - extensions
+          - policy
+          resources:
+          - services
+          - endpoints
+          - namespaces
+          - limitranges
+          - resourcequotas
+          - daemonsets
+          - persistentvolumes
+          - persistentvolumeclaims
+          - poddisruptionbudget
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ''
+          resources:
+          - nodes/spec
+          - nodes/stats
+          verbs:
+          - get
+        - apiGroups:
+          - charts.helm.k8s.io
+          resources:
+          - '*'
+          verbs:
+          - '*'
+        - apiGroups:
+          - rbac.authorization.k8s.io
+          resources:
+          - clusterroles
+          - clusterrolebindings
+          verbs:
+          - '*'
+        serviceAccountName: kubeturbo-operator
       deployments:
-        - name: kubeturbo-operator
-          spec:
-            replicas: 1
-            selector:
-              matchLabels:
+      - name: kubeturbo-operator
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: kubeturbo-operator
+          strategy: {}
+          template:
+            metadata:
+              labels:
                 name: kubeturbo-operator
-            strategy: {}
-            template:
-              metadata:
-                labels:
-                  name: kubeturbo-operator
-              spec:
-                containers:
-                  - env:
-                      - name: WATCH_NAMESPACE
-                        valueFrom:
-                          fieldRef:
-                            fieldPath: metadata.namespace
-                      - name: POD_NAME
-                        valueFrom:
-                          fieldRef:
-                            fieldPath: metadata.name
-                      - name: OPERATOR_NAME
-                        value: kubeturbo-operator
-                    image: registry.connect.redhat.com/turbonomic/kubeturbo-operator:7.21
-                    imagePullPolicy: Always
-                    name: kubeturbo-operator
-                    resources: {}
-                serviceAccountName: kubeturbo-operator
+            spec:
+              containers:
+              - env:
+                - name: WATCH_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: OPERATOR_NAME
+                  value: kubeturbo-operator
+                image: turbonomic/kubeturbo-operator:7.21
+                imagePullPolicy: Always
+                name: kubeturbo-operator
+                resources: {}
+              serviceAccountName: kubeturbo-operator
+      permissions:
+      - rules:
+        - apiGroups:
+          - ''
+          - apps
+          - extensions
+          resources:
+          - nodes
+          - pods
+          - configmaps
+          - endpoints
+          - events
+          - deployments
+          - persistentvolumeclaims
+          - replicasets
+          - replicationcontrollers
+          - services
+          - secrets
+          - serviceaccounts
+          verbs:
+          - '*'
+        - apiGroups:
+          - ''
+          - apps
+          - extensions
+          - policy
+          resources:
+          - daemonsets
+          - endpoints
+          - limitranges
+          - namespaces
+          - persistentvolumes
+          - persistentvolumeclaims
+          - poddisruptionbudget
+          - resourcequotas
+          - services
+          - statefulsets
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ''
+          resources:
+          - nodes/spec
+          - nodes/stats
+          verbs:
+          - get
+        - apiGroups:
+          - charts.helm.k8s.io
+          resources:
+          - '*'
+          verbs:
+          - '*'
+        serviceAccountName: kubeturbo-operator
     strategy: deployment
   installModes:
-    - supported: true
-      type: OwnNamespace
-    - supported: true
-      type: SingleNamespace
-    - supported: false
-      type: MultiNamespace
-    - supported: true
-      type: AllNamespaces
+  - supported: true
+    type: OwnNamespace
+  - supported: true
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
   links:
-    - name: Turbonomic, Inc.
-      url: https://www.turbonomic.com/
-    - name: Kubeturbo Operator
-      url: https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo-operator
+  - name: Turbonomic, Inc.
+    url: https://www.turbonomic.com/
+  - name: Kubeturbo Operator
+    url: https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo-operator
   maintainers:
-    - email: endre.sara@turbonomic.com
-      name: Endre Sara
+  - email: endre.sara@turbonomic.com
+    name: Endre Sara
   maturity: alpha
   provider:
     name: Turbonomic, Inc.
