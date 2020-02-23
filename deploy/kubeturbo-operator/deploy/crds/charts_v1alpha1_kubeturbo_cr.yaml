@@ -1,7 +1,7 @@
 apiVersion: charts.helm.k8s.io/v1alpha1
 kind: Kubeturbo
 metadata:
-  name: kubeturbo-example
+  name: kubeturbo-release
 spec:
   # Default values copied from <project_dir>/helm-charts/kubeturbo/values.yaml
   
@@ -11,11 +11,12 @@ spec:
 
   # Turbo server version and address
   serverMeta:
-    version: 6.4
+    version: 7.21
     turboServer: https://Turbo_server_URL
-  
-  # Turbo server api user and password
+
+  # Turbo server api user and password stored in a secret or optionally specified as username and password
   # The opsManagerUserName requires Turbo administrator role
-  restAPIConfig:
-    opsManagerUserName: Turbo_username
-    opsManagerPassword: Turbo_password
+  #restAPIConfig:
+    #turbonomicCredentialsSecretName: "turbonomic-credentials"
+    #opsManagerUserName: Turbo_username
+    #opsManagerPassword: Turbo_password
