@@ -1,14 +1,15 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   # use this yaml to deploy the kubeturbo pod
   # Provide a value for the deploy/pod name: and update namespace if needed
   name: kubeturbo
   namespace: turbo
-  labels:
-    app: kubeturbo
 spec:
   replicas: 1
+  selector:
+     matchLabels:
+       app.kubernetes.io/name: kubeturbo
   template:
     metadata:
       annotations:
@@ -20,7 +21,7 @@ spec:
       serviceAccount: turbo-user
       containers:
         - name: kubeturbo
-          # Replace the image with desired version. Refer to readme in deploy for more details
+          # Replace the image with desired version of 6.4.4 or 7.x. Refer to readme in deploy for more details
           image: turbonomic/kubeturbo:7.21.0
           imagePullPolicy: IfNotPresent
           args:
