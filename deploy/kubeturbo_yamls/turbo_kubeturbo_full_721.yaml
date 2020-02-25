@@ -1,0 +1,126 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  # turbo is default value used in the samples provided
+  name: turbo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  # Update the namespace value if required
+  name: kubeturbo-user
+  namespace: turbo
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1    
+metadata:
+  # use this yaml to create a binding that will assign cluster-admin to your turbo ServiceAccount 
+  # Provide a value for the binding name: and update namespace if needed
+  name: turbo-all-binding
+  namespace: turbo
+subjects:
+- kind: ServiceAccount
+  # Provide the correct value for service account name: and namespace if needed
+  name: kubeturbo-user
+  namespace: turbo
+roleRef:
+  # User creating this resource must have permissions to add this policy to the SA
+  kind: ClusterRole
+# for other limited cluster admin roles, see samples provided
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # use this yaml to provide details kubeturbo will use to connect to the Turbo Server
+  # requires Turbo Server and kubeturbo pod 6.4.3 and higher 
+  # Provide a value for the config name: and update namespace if needed
+  name: turbo-config
+  namespace: turbo
+data:
+  # Update the values for version, turboServer, opsManagerUserName, opsManagerPassword
+  # For version, use Turbo Server Version, even when running CWOM
+  # The opsManagerUserName requires Turbo administrator role
+  # targetConfig is optional. targetName provides better group naming to identify k8s clusters in UI
+  # Define node groups by node role, and automatically enable placement policies to limit to 1 per host
+  # DaemonSets are identified by default. Use daemonPodDetectors to identify by name patterns using regex or by namespace.
+  turbo.config: |-
+    {
+        "communicationConfig": {
+            "serverMeta": {
+                "version": "7.21",
+                "turboServer": "https://<Turbo_server_URL>"
+            },
+            "restAPIConfig": {
+                "opsManagerUserName": "<Turbo_username>",
+                "opsManagerPassword": "<Turbo_password>"
+            }
+        },
+        "targetConfig": {
+            "targetName":"whateverYouWant"
+        },
+        "HANodeConfig": {
+            "nodeRoles": [ "master", "worker"]
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # use this yaml to deploy the kubeturbo pod 
+  # Provide a value for the deploy/pod name: and update namespace if needed
+  name: kubeturbo
+  namespace: turbo
+spec:
+  replicas: 1
+  selector:
+     matchLabels:
+       app.kubernetes.io/name: kubeturbo
+  template:
+    metadata:
+      annotations:
+        kubeturbo.io/monitored: "false"
+      labels:
+        app.kubernetes.io/name: kubeturbo
+    spec:
+      # Update serviceAccount if needed
+      serviceAccount: kubeturbo-user
+      containers:
+      - name: kubeturbo
+        # Replace the image with desired version:6.4.4 or latest
+        image: turbonomic/kubeturbo:7.21.0
+        imagePullPolicy: Always
+        args:
+          - --turboconfig=/etc/kubeturbo/turbo.config
+          - --v=2
+          # Comment out the following two args if running in k8s 1.10 or older, or
+          # change to https=false and port=10255 if unsecure kubelet read only is configured
+          - --kubelet-https=true
+          - --kubelet-port=10250
+          # Uncomment to stitch using IP, or if using Openstack, Hyper-V/VMM
+          #- --stitch-uuid=false
+        volumeMounts:
+          # volume will be created, any name will work and must match below
+          - name: turbo-volume
+            mountPath: /etc/kubeturbo
+            readOnly: true
+          - name: turbonomic-credentials-volume
+            mountPath: /etc/turbonomic-credentials
+            readOnly: true
+          - name: varlog
+            mountPath: /var/log
+      volumes:
+      - name: turbo-volume
+        configMap:
+         # Update configMap name if needed
+          name: turbo-config
+      - name: turbonomic-credentials-volume
+        secret:
+          defaultMode: 420
+          optional: true
+          # Update secret name if needed
+          secretName: turbonomic-credentials
+      - name: varlog
+        emptyDir: {}
+      restartPolicy: Always
