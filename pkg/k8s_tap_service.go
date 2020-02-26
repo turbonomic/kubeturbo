@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 
@@ -97,8 +98,8 @@ func loadOpsMgrCredentialsFromSecret(tapSpec *K8sTAPServiceSpec) error {
 		return fmt.Errorf("error reading credentials from secret: password: %v", err)
 	}
 
-	tapSpec.OpsManagerUsername = string(username[:len(username)-1])
-	tapSpec.OpsManagerPassword = string(password[:len(password)-1])
+	tapSpec.OpsManagerUsername = strings.TrimSpace(string(username))
+	tapSpec.OpsManagerPassword = strings.TrimSpace(string(password))
 
 	return nil
 }
