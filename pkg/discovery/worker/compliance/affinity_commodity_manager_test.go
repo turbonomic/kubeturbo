@@ -4,11 +4,12 @@ import (
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/mitchellh/hashstructure"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"reflect"
 	"strconv"
 	"testing"
+
+	"github.com/mitchellh/hashstructure"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 func TestGetCommoditySold(t *testing.T) {
@@ -241,7 +242,8 @@ func TestGetAccessCommoditiesForPodAffinityAntiAffinity(t *testing.T) {
 		}
 		acm := NewAffinityCommodityManager()
 
-		commsSold, commsBought, err := acm.GetAccessCommoditiesForPodAffinityAntiAffinity(item.terms)
+		p := &api.Pod{}
+		commsSold, commsBought, err := acm.GetAccessCommoditiesForPodAffinityAntiAffinity(item.terms, p)
 		if err != nil {
 			t.Errorf("Test case %d failed: unexpected error: %s", i, err)
 		}

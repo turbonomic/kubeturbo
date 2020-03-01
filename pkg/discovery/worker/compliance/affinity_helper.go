@@ -113,6 +113,10 @@ type matchingPodAntiAffinityTerm struct {
 func getMatchingAntiAffinityTerms(pod *api.Pod, allPodsNodesMap map[*api.Pod]*api.Node) ([]matchingPodAntiAffinityTerm, error) {
 	var result []matchingPodAntiAffinityTerm
 	for existingPod, existingPodNode := range allPodsNodesMap {
+		// Skip self as allPodsNodesMap contains this pod also
+		if pod.Name == existingPod.Name && pod.Namespace == existingPod.Namespace {
+			continue
+		}
 		affinity := existingPod.Spec.Affinity
 		if affinity != nil && affinity.PodAntiAffinity != nil {
 			for _, term := range getPodAntiAffinityTerms(affinity.PodAntiAffinity) {
@@ -141,7 +145,7 @@ func satisfiesPodsAffinityAntiAffinity(pod *api.Pod, node *api.Node, affinity *a
 			return false
 		}
 		if !termMatches {
-			// If the requirement matches a pod's own labels are namespace, and there are
+			// If the requirement matches a pod's own labels and namespace, and there are
 			// no other such pods, then disregard the requirement. This is necessary to
 			// not block forever because the first pod of the collection can't be scheduled.
 			if matchingPodExists {
@@ -189,6 +193,10 @@ func anyPodMatchesPodAffinityTerm(pod *api.Pod, allPodsNodesMap map[*api.Pod]*ap
 		return false, false, err
 	}
 	for existingPod, existingPodNode := range allPodsNodesMap {
+		// Skip self as allPodsNodesMap contains this pod also
+		if pod.Name == existingPod.Name && pod.Namespace == existingPod.Namespace {
+			continue
+		}
 		match := podMatchesTermsNamespaceAndSelector(existingPod, namespaces, selector)
 		if match {
 			matchingPodExists = true
