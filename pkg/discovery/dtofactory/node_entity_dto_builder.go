@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"fmt"
+
 	api "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
@@ -26,6 +27,7 @@ var (
 		metrics.CPURequest,
 		metrics.MemoryRequest,
 		metrics.NumPods,
+		metrics.VStorage,
 		// TODO, add back provisioned commodity later
 	}
 
@@ -51,7 +53,6 @@ type nodeEntityDTOBuilder struct {
 }
 
 func NewNodeEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager) *nodeEntityDTOBuilder {
-
 	return &nodeEntityDTOBuilder{
 		generalBuilder:   newGeneralBuilder(sink),
 		stitchingManager: stitchingManager,

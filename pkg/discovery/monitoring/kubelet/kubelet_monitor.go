@@ -140,14 +140,29 @@ func (m *KubeletMonitor) parseNodeInfo(node *api.Node, machineInfo *cadvisorapi.
 
 // Parse node stats and put it into sink.
 func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats) {
+	var cpuUsageCore, memoryWorkingSetKiloBytes, rootfsCapacity, rootfsUsed float64
 	// cpu
-	cpuUsageCore := float64(*nodeStats.CPU.UsageNanoCores) / util.NanoToUnit
-	memoryWorkingSetKiloBytes := float64(*nodeStats.Memory.WorkingSetBytes) / util.KilobytesToBytes
+	if nodeStats.CPU.UsageNanoCores != nil {
+		cpuUsageCore = float64(*nodeStats.CPU.UsageNanoCores) / util.NanoToUnit
+	}
+	if nodeStats.Memory.WorkingSetBytes != nil {
+		memoryWorkingSetKiloBytes = float64(*nodeStats.Memory.WorkingSetBytes) / util.KilobytesToBytes
+	}
+	if nodeStats.Fs.CapacityBytes != nil {
+		rootfsCapacity = float64(*nodeStats.Fs.CapacityBytes)
+	}
+	if nodeStats.Fs.UsedBytes != nil {
+		rootfsUsed = float64(*nodeStats.Fs.UsedBytes)
+	}
 
 	key := util.NodeStatsKeyFunc(nodeStats)
-	glog.V(4).Infof("CPU usage of node %s is %.3f core", nodeStats.NodeName, cpuUsageCore)
-	glog.V(4).Infof("Memory working set of node %s is %.3f KB", nodeStats.NodeName, memoryWorkingSetKiloBytes)
+	nodeName := nodeStats.NodeName
+	glog.V(4).Infof("CPU usage of node %s is %.3f core", nodeName, cpuUsageCore)
+	glog.V(4).Infof("Memory working set of node %s is %.3f KB", nodeName, memoryWorkingSetKiloBytes)
+	glog.V(4).Infof("Root File System size for node %s is %.3f bytes", nodeName, rootfsCapacity)
+	glog.V(4).Infof("Root File System used for node %s is %.3f bytes", nodeName, rootfsUsed)
 	m.genUsedMetrics(metrics.NodeType, key, cpuUsageCore, memoryWorkingSetKiloBytes)
+	m.genNodeFSMetrics(metrics.NodeType, key, rootfsCapacity, rootfsUsed)
 }
 
 // Parse pod stats for every pod and put them into sink.
@@ -213,4 +228,10 @@ func (m *KubeletMonitor) genNumConsumersUsedMetrics(etype metrics.DiscoveredEnti
 	// Each pod consumes one from numConsumers / Total available is node allocatable pod number
 	numConsumersMetric := metrics.NewEntityResourceMetric(etype, key, metrics.NumPods, metrics.Used, 1)
 	m.metricSink.AddNewMetricEntries(numConsumersMetric)
+}
+
+func (m *KubeletMonitor) genNodeFSMetrics(etype metrics.DiscoveredEntityType, key string, capacity, used float64) {
+	capacityMetric := metrics.NewEntityResourceMetric(etype, key, metrics.VStorage, metrics.Capacity, capacity)
+	usedMetric := metrics.NewEntityResourceMetric(etype, key, metrics.VStorage, metrics.Used, used)
+	m.metricSink.AddNewMetricEntries(capacityMetric, usedMetric)
 }

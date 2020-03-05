@@ -31,6 +31,7 @@ const (
 	MemoryProvisioned  ResourceType = "MemoryProvisioned"
 	Transaction        ResourceType = "Transaction"
 	NumPods            ResourceType = "NumPods"
+	VStorage           ResourceType = "VStorage"
 
 	Access       ResourceType = "Access"
 	Cluster      ResourceType = "Cluster"
