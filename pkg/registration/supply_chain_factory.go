@@ -2,6 +2,7 @@ package registration
 
 import (
 	"fmt"
+
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
@@ -24,6 +25,7 @@ var (
 	vmPMAccessType           = proto.CommodityDTO_VMPM_ACCESS
 	appCommType              = proto.CommodityDTO_APPLICATION
 	numPodNumConsumersType   = proto.CommodityDTO_NUMBER_CONSUMERS
+	vStorageType             = proto.CommodityDTO_VSTORAGE
 
 	fakeKey = "fake"
 
@@ -32,6 +34,7 @@ var (
 	vCpuRequestTemplateComm                 = &proto.TemplateCommodity{CommodityType: &vCpuRequestType}
 	vMemRequestTemplateComm                 = &proto.TemplateCommodity{CommodityType: &vMemRequestType}
 	numPodNumConsumersTemplateComm          = &proto.TemplateCommodity{CommodityType: &numPodNumConsumersType}
+	vStorageTemplateComm                    = &proto.TemplateCommodity{CommodityType: &vStorageType}
 	cpuAllocationTemplateCommWithKey        = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuAllocationType}
 	memAllocationTemplateCommWithKey        = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memAllocationType}
 	cpuRequestAllocationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &cpuRequestAllocationType}
@@ -175,6 +178,7 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 		PatchSoldMetadata(proto.CommodityDTO_CPU_REQUEST_ALLOCATION, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_MEM_REQUEST_ALLOCATION, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_NUMBER_CONSUMERS, fieldsUsedCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_VSTORAGE, fieldsUsedCapacity).
 		Build()
 }
 
@@ -190,6 +194,7 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 		Sells(vMemRequestTemplateComm).        // sells to Pods
 		Sells(vmpmAccessTemplateComm).         // sells to Pods
 		Sells(numPodNumConsumersTemplateComm). // sells to Pods
+		Sells(vStorageTemplateComm).           // sells to Pods
 		// also sells Cluster to Pods
 		Sells(cpuAllocationTemplateCommWithKey).        //sells to Quotas
 		Sells(memAllocationTemplateCommWithKey).        //sells to Quotas
