@@ -174,7 +174,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	// Discover pods and create DTOs for nodes, pods, containers, application.
 	// Collect the kubePod, quota metrics, groups from all the discovery workers
 	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
-	entityDTOs, podEntitiesMap, quotaMetricsList, policyGroupList := dc.resultCollector.Collect(workerCount)
+	entityDTOs, podEntitiesMap, quotaMetricsList, entityGroupList := dc.resultCollector.Collect(workerCount)
 
 	// Quota discovery worker to create quota DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType
@@ -231,7 +231,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 
 	// Discovery worker for creating Group DTOs
 	entityGroupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(clusterSummary, targetId)
-	groupDTOs, _ := entityGroupDiscoveryWorker.Do(policyGroupList)
+	groupDTOs, _ := entityGroupDiscoveryWorker.Do(entityGroupList)
 
 	glog.V(2).Infof("There are totally %d groups DTOs", len(groupDTOs))
 	if glog.V(4) {

@@ -18,8 +18,12 @@ const (
 	IP   StitchingPropertyType = "IP"
 
 	// The property used for node property and replacement entity metadata
-	proxyVMIP   string = "Proxy_VM_IP"
-	proxyVMUUID string = "Proxy_VM_UUID"
+	proxyVMIP       string = "Proxy_VM_IP"
+	proxyVMUUID     string = "Proxy_VM_UUID"
+	PodID           string = "POD"
+	ContainerID     string = "CNT"
+	ContainerFullID string = "CNTFULL"
+	ContainerIDlen  int    = 12
 
 	// The default namespace of entity property
 	DefaultPropertyNamespace string = "DEFAULT"

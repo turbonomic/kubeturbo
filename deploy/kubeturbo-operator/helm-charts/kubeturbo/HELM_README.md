@@ -31,7 +31,7 @@ The following table shows the values exposed which are also seen in the file [va
 Parameter|Default Value|Required / Opt to Change|Parameter Type
 ------------ | ------------- | --------------- | -------------
 image.repository|turbonomic/kubeturbo|optional|path to repo
-image.tag|6.3|optional|kubeturbo tag
+image.tag|7.21|optional|kubeturbo tag
 image.pullPolicy|IfNotPresent|optional| 
 serverMeta.version| |required|number x.y
 serverMeta.turboServer| |required|https URL to log into Server

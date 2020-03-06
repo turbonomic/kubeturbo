@@ -2,6 +2,8 @@ package dtofactory
 
 import (
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
+	"strings"
 
 	"github.com/golang/glog"
 	api "k8s.io/api/core/v1"
@@ -105,7 +107,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			ebuilder.Provider(provider).BuysCommodities(commoditiesBought)
 
 			//3. set properties
-			properties := builder.addPodProperties(pod, i)
+			properties := builder.getContainerProperties(pod, i)
 			ebuilder.WithProperties(properties)
 
 			//ebuilder.Monitored(util.Monitored(pod))
@@ -212,6 +214,48 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 	return result, nil
 }
 
+func (builder *containerDTOBuilder) getContainerProperties(pod *api.Pod, index int) []*proto.EntityDTO_EntityProperty {
+	var properties []*proto.EntityDTO_EntityProperty
+	podProperties := builder.addPodProperties(pod, index)
+	properties = append(properties, podProperties...)
+
+	ns := stitching.DefaultPropertyNamespace
+	podidattr := stitching.PodID
+	idattr := stitching.ContainerID
+	fullidattr := stitching.ContainerFullID
+	containerID := getContainerStitchingProperty(pod, index)
+	podID := string(pod.UID)
+	// Short containerID
+	if len(containerID) >= stitching.ContainerIDlen {
+		cntid := containerID[:stitching.ContainerIDlen]
+		idStitchingProperty := &proto.EntityDTO_EntityProperty{
+			Namespace: &ns,
+			Name:      &idattr,
+			Value:     &cntid,
+		}
+		properties = append(properties, idStitchingProperty)
+	}
+	// Full containerID
+	if containerID != "" {
+		fullIdStitchingProperty := &proto.EntityDTO_EntityProperty{
+			Namespace: &ns,
+			Name:      &fullidattr,
+			Value:     &containerID,
+		}
+		properties = append(properties, fullIdStitchingProperty)
+	}
+	// Full podID
+	if pod.UID != "" && index < 1 {
+		podStitchingProperty := &proto.EntityDTO_EntityProperty{
+			Namespace: &ns,
+			Name:      &podidattr,
+			Value:     &podID,
+		}
+		properties = append(properties, podStitchingProperty)
+	}
+	return properties
+}
+
 // Get the properties of the hosting pod.
 func (builder *containerDTOBuilder) addPodProperties(pod *api.Pod, index int) []*proto.EntityDTO_EntityProperty {
 	var properties []*proto.EntityDTO_EntityProperty
@@ -219,4 +263,21 @@ func (builder *containerDTOBuilder) addPodProperties(pod *api.Pod, index int) []
 	properties = append(properties, podProperties...)
 
 	return properties
+}
+
+// Get the stitching property for Application.
+func getContainerStitchingProperty(pod *api.Pod, index int) string {
+	// Parse the container id from the status, it is either in the form of
+	// containerID: docker://986c8fc7247d1ff047f06e8e3487029b89baef1e908d3e334dd94aaa3bf4bc39
+	// or
+	// containerID: cri-o://81ab6978aa3252bc53cfaf7d23b8b1bf5f8f27ff4b9e79a0fbaffebeddaeeb4b
+	if len(pod.Status.ContainerStatuses) <= index {
+		return ""
+	}
+	containerStatus := &(pod.Status.ContainerStatuses[index])
+	cntiduri := strings.Split(containerStatus.ContainerID, "://")
+	if len(cntiduri) <= 1 {
+		return ""
+	}
+	return cntiduri[1]
 }

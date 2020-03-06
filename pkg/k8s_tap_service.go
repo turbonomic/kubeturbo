@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 	"io/ioutil"
+	"os"
+	"strings"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 
 	restclient "k8s.io/client-go/rest"
 
@@ -21,6 +24,11 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/master"
+)
+
+const (
+	usernameFilePath = "/etc/turbonomic-credentials/username"
+	passwordFilePath = "/etc/turbonomic-credentials/password"
 )
 
 type K8sTAPServiceSpec struct {
@@ -42,6 +50,11 @@ func ParseK8sTAPServiceSpec(configFile, defaultTargetName string) (*K8sTAPServic
 	if tapSpec.TurboCommunicationConfig == nil {
 		return nil, errors.New("communication config is missing")
 	}
+
+	if err := loadOpsMgrCredentialsFromSecret(tapSpec); err != nil {
+		return nil, err
+	}
+
 	if err := tapSpec.ValidateTurboCommunicationConfig(); err != nil {
 		return nil, err
 	}
@@ -52,6 +65,7 @@ func ParseK8sTAPServiceSpec(configFile, defaultTargetName string) (*K8sTAPServic
 		}
 		tapSpec.K8sTargetConfig = &configs.K8sTargetConfig{TargetIdentifier: defaultTargetName}
 	}
+
 	if err := tapSpec.ValidateK8sTargetConfig(); err != nil {
 		return nil, err
 	}
@@ -61,6 +75,33 @@ func ParseK8sTAPServiceSpec(configFile, defaultTargetName string) (*K8sTAPServic
 		tapSpec.DaemonPodDetectors, tapSpec.HANodeConfig)
 
 	return tapSpec, nil
+}
+
+func loadOpsMgrCredentialsFromSecret(tapSpec *K8sTAPServiceSpec) error {
+	// Return unchanged if the mounted file isn't present
+	// for backward compatibility.
+	if _, err := os.Stat(usernameFilePath); os.IsNotExist(err) {
+		glog.V(3).Infof("credentials from secret unavailable. Checked path: %s", usernameFilePath)
+		return nil
+	}
+	if _, err := os.Stat(passwordFilePath); os.IsNotExist(err) {
+		glog.V(3).Infof("credentials from secret unavailable. Checked path: %s", passwordFilePath)
+		return nil
+	}
+
+	username, err := ioutil.ReadFile(usernameFilePath)
+	if err != nil {
+		return fmt.Errorf("error reading credentials from secret: username: %v", err)
+	}
+	password, err := ioutil.ReadFile(passwordFilePath)
+	if err != nil {
+		return fmt.Errorf("error reading credentials from secret: password: %v", err)
+	}
+
+	tapSpec.OpsManagerUsername = strings.TrimSpace(string(username))
+	tapSpec.OpsManagerPassword = strings.TrimSpace(string(password))
+
+	return nil
 }
 
 func readK8sTAPServiceSpec(path string) (*K8sTAPServiceSpec, error) {

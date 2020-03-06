@@ -48,6 +48,7 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	resize := proto.ActionItemDTO_RIGHT_SIZE
 	provision := proto.ActionItemDTO_PROVISION
 	suspend := proto.ActionItemDTO_SUSPEND
+	scale := proto.ActionItemDTO_SCALE
 
 	expected_pod := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	expected_pod[move] = supported
@@ -77,6 +78,7 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	expected_node[resize] = notSupported
 	expected_node[provision] = supported
 	expected_node[suspend] = supported
+	expected_node[scale] = notSupported
 
 	policies := reg.GetActionPolicy()
 

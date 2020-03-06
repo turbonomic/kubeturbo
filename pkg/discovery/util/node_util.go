@@ -6,8 +6,10 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 	api "k8s.io/api/core/v1"
+	"strings"
 
 	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func GetNodeIPForMonitor(node *api.Node, source types.MonitoringSource) (string, error) {
@@ -76,4 +78,44 @@ func NodeIsControllable(node *api.Node) bool {
 		glog.V(3).Infof("Node %s is not controllable.", node.Name)
 	}
 	return controllable
+}
+
+// There are two node labels that can be used to specify node roles:
+// 1. node-role.kubernetes.io/<role-name>=
+// 2. kubernetes.io/role=<role-name>
+const (
+	// labelNodeRolePrefix is a label prefix for node roles
+	labelNodeRolePrefix = "node-role.kubernetes.io/"
+	// nodeLabelRole specifies the role of a node
+	nodeLabelRole = "kubernetes.io/role"
+
+	masterRoleName = "master"
+)
+
+func DetectNodeRoles(node *api.Node) sets.String {
+	// Parse all roles of a node, and add them to a set
+	allRoles := sets.NewString()
+	for k, v := range node.Labels {
+		switch {
+		case strings.HasPrefix(k, labelNodeRolePrefix):
+			if role := strings.TrimPrefix(k, labelNodeRolePrefix); len(role) > 0 {
+				allRoles.Insert(role)
+			}
+		case k == nodeLabelRole && v != "":
+			allRoles.Insert(v)
+		}
+	}
+
+	// return all the role associated with the node
+	return allRoles
+}
+
+func DetectMasterRole(node *api.Node) bool {
+	nodeRoles := DetectNodeRoles(node)
+
+	isMasterNode := nodeRoles.Has(masterRoleName)
+	if isMasterNode {
+		glog.V(3).Infof("%s is a master node", node.Name)
+	}
+	return isMasterNode
 }
