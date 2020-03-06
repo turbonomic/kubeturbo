@@ -132,7 +132,7 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 }
 
 func (m *KubeletMonitor) parseNodeInfo(node *api.Node, machineInfo *cadvisorapi.MachineInfo) {
-	cpuFrequencyMHz := float64(machineInfo.CpuFrequency) / util.MegaToKilo
+	cpuFrequencyMHz := util.MetricKiloToMega(float64(machineInfo.CpuFrequency))
 	glog.V(4).Infof("node-%s cpuFrequency = %.2fMHz", node.Name, cpuFrequencyMHz)
 	cpuFrequencyMetric := metrics.NewEntityStateMetric(metrics.NodeType, util.NodeKeyFunc(node), metrics.CpuFrequency, cpuFrequencyMHz)
 	m.metricSink.AddNewMetricEntries(cpuFrequencyMetric)
@@ -143,10 +143,10 @@ func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats) {
 	var cpuUsageCore, memoryWorkingSetKiloBytes, rootfsCapacity, rootfsUsed float64
 	// cpu
 	if nodeStats.CPU.UsageNanoCores != nil {
-		cpuUsageCore = float64(*nodeStats.CPU.UsageNanoCores) / util.NanoToUnit
+		cpuUsageCore = util.MetricNanoToUnit(float64(*nodeStats.CPU.UsageNanoCores))
 	}
 	if nodeStats.Memory.WorkingSetBytes != nil {
-		memoryWorkingSetKiloBytes = float64(*nodeStats.Memory.WorkingSetBytes) / util.KilobytesToBytes
+		memoryWorkingSetKiloBytes = util.Base2BytesToKilobytes(float64(*nodeStats.Memory.WorkingSetBytes))
 	}
 	if nodeStats.Fs.CapacityBytes != nil {
 		rootfsCapacity = float64(*nodeStats.Fs.CapacityBytes)
@@ -198,8 +198,8 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats) (float64, floa
 			continue
 		}
 
-		cpuUsed := float64(*(container.CPU.UsageNanoCores)) / util.NanoToUnit
-		memUsed := float64(*(container.Memory.WorkingSetBytes)) / util.KilobytesToBytes
+		cpuUsed := util.MetricNanoToUnit(float64(*container.CPU.UsageNanoCores))
+		memUsed := util.Base2BytesToKilobytes(float64(*container.Memory.WorkingSetBytes))
 
 		totalUsedCPU += cpuUsed
 		totalUsedMem += memUsed

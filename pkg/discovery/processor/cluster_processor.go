@@ -9,7 +9,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 var (
@@ -148,7 +148,7 @@ func checkNode(node *v1.Node, kc kubeclient.KubeHttpClientInterface) (float64, e
 	if err != nil {
 		return 0.0, err
 	}
-	return float64(cpuFreq) / util.MegaToKilo, nil
+	return util.MetricKiloToMega(float64(cpuFreq)), nil
 }
 
 // Query the Kubernetes API Server to get the cluster nodes and namespaces and set in the cluster object

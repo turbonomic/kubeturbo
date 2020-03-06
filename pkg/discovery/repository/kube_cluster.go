@@ -3,11 +3,12 @@ package repository
 import (
 	"bytes"
 	"fmt"
+	"strings"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"k8s.io/api/core/v1"
-	"strings"
+	v1 "k8s.io/api/core/v1"
 )
 
 // Kube Cluster represents the Kubernetes cluster. This object is immutable between discoveries.
@@ -247,14 +248,14 @@ func parseResourceValue(computeResourceType metrics.ResourceType, resourceList v
 	if computeResourceType == metrics.CPU ||
 		computeResourceType == metrics.CPURequest {
 		ctnCpuCapacityMilliCore := resourceList.Cpu().MilliValue()
-		cpuCapacityCore := float64(ctnCpuCapacityMilliCore) / util.MilliToUnit
+		cpuCapacityCore := util.MetricMilliToUnit(float64(ctnCpuCapacityMilliCore))
 		return cpuCapacityCore
 	}
 
 	if computeResourceType == metrics.Memory ||
 		computeResourceType == metrics.MemoryRequest {
 		ctnMemoryCapacityBytes := resourceList.Memory().Value()
-		memoryCapacityKiloBytes := float64(ctnMemoryCapacityBytes) / util.KilobytesToBytes
+		memoryCapacityKiloBytes := util.Base2BytesToKilobytes(float64(ctnMemoryCapacityBytes))
 		return memoryCapacityKiloBytes
 	}
 	return DEFAULT_METRIC_VALUE
@@ -400,14 +401,14 @@ func parseAllocationResourceValue(resource v1.ResourceName, allocationResourceTy
 	if allocationResourceType == metrics.CPUQuota || allocationResourceType == metrics.CPURequestQuota {
 		quantity := resourceList[resource]
 		cpuMilliCore := quantity.MilliValue()
-		cpuCore := float64(cpuMilliCore) / util.MilliToUnit
+		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
 		return cpuCore
 	}
 
 	if allocationResourceType == metrics.MemoryQuota || allocationResourceType == metrics.MemoryRequestQuota {
 		quantity := resourceList[resource]
 		memoryBytes := quantity.Value()
-		memoryKiloBytes := float64(memoryBytes) / util.KilobytesToBytes
+		memoryKiloBytes := util.Base2BytesToKilobytes(float64(memoryBytes))
 		return memoryKiloBytes
 	}
 	return DEFAULT_METRIC_VALUE
