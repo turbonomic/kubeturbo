@@ -127,6 +127,7 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	nodePolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	nodePolicy[proto.ActionItemDTO_PROVISION] = supported
 	nodePolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
+	nodePolicy[proto.ActionItemDTO_SCALE] = notSupported
 	nodePolicy[proto.ActionItemDTO_SUSPEND] = supported
 
 	rClient.addActionPolicy(ab, node, nodePolicy)
