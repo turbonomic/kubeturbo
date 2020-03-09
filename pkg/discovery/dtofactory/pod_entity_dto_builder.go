@@ -32,6 +32,7 @@ var (
 		metrics.CPURequest,
 		metrics.MemoryRequest,
 		metrics.NumPods,
+		metrics.VStorage,
 		// TODO, add back provisioned commodity later
 	}
 
