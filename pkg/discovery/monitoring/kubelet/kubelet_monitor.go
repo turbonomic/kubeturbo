@@ -163,7 +163,7 @@ func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats) {
 	glog.V(4).Infof("Root File System size for node %s is %.3f Megabytes", nodeName, rootfsCapacity)
 	glog.V(4).Infof("Root File System used for node %s is %.3f Megabytes", nodeName, rootfsUsed)
 	m.genUsedMetrics(metrics.NodeType, key, cpuUsageCore, memoryWorkingSetKiloBytes)
-	m.genNodeFSMetrics(metrics.NodeType, key, rootfsCapacity, rootfsUsed)
+	m.genFSMetrics(metrics.NodeType, key, rootfsCapacity, rootfsUsed)
 }
 
 // Parse pod stats for every pod and put them into sink.
@@ -172,13 +172,24 @@ func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats) {
 		pod := &(podStats[i])
 		cpuUsed, memUsed := m.parseContainerStats(pod)
 
+		ephemeralFsCapacity, ephemeralFsUsed := float64(0), float64(0)
+		if pod.EphemeralStorage.CapacityBytes != nil {
+			ephemeralFsCapacity = util.Base2BytesToMegabytes(float64(*pod.EphemeralStorage.CapacityBytes))
+		}
+		if pod.EphemeralStorage.UsedBytes != nil {
+			// OpsMgr server expects the reported size in megabytes
+			ephemeralFsUsed = util.Base2BytesToMegabytes(float64(*pod.EphemeralStorage.UsedBytes))
+		}
+
 		key := util.PodMetricId(&(pod.PodRef))
 		glog.V(4).Infof("Cpu usage of pod %s is %.3f core", key, cpuUsed)
 		glog.V(4).Infof("Memory usage of pod %s is %.3f Kb", key, memUsed)
+		glog.V(4).Infof("Ephemeral fs capacity for pod %s is %.3f Megabytes", key, ephemeralFsCapacity)
+		glog.V(4).Infof("Ephemeral fs used for pod %s is %.3f Megabytes", key, ephemeralFsUsed)
 
-		//fmt.Printf("**** generated pod used metric %s cpuUsed=%f memUsed=%f\n", key, cpuUsed, memUsed)
 		m.genUsedMetrics(metrics.PodType, key, cpuUsed, memUsed)
 		m.genNumConsumersUsedMetrics(metrics.PodType, key)
+		m.genFSMetrics(metrics.PodType, key, ephemeralFsCapacity, ephemeralFsUsed)
 	}
 }
 
@@ -231,7 +242,7 @@ func (m *KubeletMonitor) genNumConsumersUsedMetrics(etype metrics.DiscoveredEnti
 	m.metricSink.AddNewMetricEntries(numConsumersMetric)
 }
 
-func (m *KubeletMonitor) genNodeFSMetrics(etype metrics.DiscoveredEntityType, key string, capacity, used float64) {
+func (m *KubeletMonitor) genFSMetrics(etype metrics.DiscoveredEntityType, key string, capacity, used float64) {
 	capacityMetric := metrics.NewEntityResourceMetric(etype, key, metrics.VStorage, metrics.Capacity, capacity)
 	usedMetric := metrics.NewEntityResourceMetric(etype, key, metrics.VStorage, metrics.Used, used)
 	m.metricSink.AddNewMetricEntries(capacityMetric, usedMetric)
