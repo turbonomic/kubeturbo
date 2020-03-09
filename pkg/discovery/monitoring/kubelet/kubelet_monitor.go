@@ -149,18 +149,19 @@ func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats) {
 		memoryWorkingSetKiloBytes = util.Base2BytesToKilobytes(float64(*nodeStats.Memory.WorkingSetBytes))
 	}
 	if nodeStats.Fs.CapacityBytes != nil {
-		rootfsCapacity = float64(*nodeStats.Fs.CapacityBytes)
+		rootfsCapacity = util.Base2BytesToMegabytes(float64(*nodeStats.Fs.CapacityBytes))
 	}
 	if nodeStats.Fs.UsedBytes != nil {
-		rootfsUsed = float64(*nodeStats.Fs.UsedBytes)
+		// OpsMgr server expects the reported size in megabytes
+		rootfsUsed = util.Base2BytesToMegabytes(float64(*nodeStats.Fs.UsedBytes))
 	}
 
 	key := util.NodeStatsKeyFunc(nodeStats)
 	nodeName := nodeStats.NodeName
 	glog.V(4).Infof("CPU usage of node %s is %.3f core", nodeName, cpuUsageCore)
 	glog.V(4).Infof("Memory working set of node %s is %.3f KB", nodeName, memoryWorkingSetKiloBytes)
-	glog.V(4).Infof("Root File System size for node %s is %.3f bytes", nodeName, rootfsCapacity)
-	glog.V(4).Infof("Root File System used for node %s is %.3f bytes", nodeName, rootfsUsed)
+	glog.V(4).Infof("Root File System size for node %s is %.3f Megabytes", nodeName, rootfsCapacity)
+	glog.V(4).Infof("Root File System used for node %s is %.3f Megabytes", nodeName, rootfsUsed)
 	m.genUsedMetrics(metrics.NodeType, key, cpuUsageCore, memoryWorkingSetKiloBytes)
 	m.genNodeFSMetrics(metrics.NodeType, key, rootfsCapacity, rootfsUsed)
 }

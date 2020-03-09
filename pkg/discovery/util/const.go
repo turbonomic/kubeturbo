@@ -13,7 +13,7 @@ const (
 const (
 	BASE2UNIT float64 = 1 << (10 * iota)
 	BASE2KILO
-	// BASE2MEGA
+	BASE2MEGA
 	// Add more when needed
 )
 
@@ -30,6 +30,10 @@ func MetricNanoToUnit(val float64) float64 {
 
 func Base2BytesToKilobytes(val float64) float64 {
 	return val / BASE2KILO
+}
+
+func Base2BytesToMegabytes(val float64) float64 {
+	return val / BASE2MEGA
 }
 
 func MetricMilliToUnit(val float64) float64 {
