@@ -77,7 +77,7 @@ func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod, podsNodesMap ma
 	}
 
 	podAffinityTerms := getAllPodAffinityTerms(affinity)
-	podAffinityCommodityDTOsSold, podAffinityCommodityDTOsBought, err := am.commManager.GetAccessCommoditiesForPodAffinityAntiAffinity(podAffinityTerms)
+	podAffinityCommodityDTOsSold, podAffinityCommodityDTOsBought, err := am.commManager.GetAccessCommoditiesForPodAffinityAntiAffinity(podAffinityTerms, pod)
 	if err != nil {
 		glog.Errorf("Failed to build commodity for pod affinity: %s", err)
 		return

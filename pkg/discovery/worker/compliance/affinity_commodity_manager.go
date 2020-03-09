@@ -42,11 +42,13 @@ func (acm *AffinityCommodityManager) GetAccessCommoditiesForNodeAffinity(nodeSel
 	return accessCommsSold, accessCommsBought, nil
 }
 
-func (acm *AffinityCommodityManager) GetAccessCommoditiesForPodAffinityAntiAffinity(podAffinityTerm []api.PodAffinityTerm) ([]*proto.CommodityDTO, []*proto.CommodityDTO, error) {
+func (acm *AffinityCommodityManager) GetAccessCommoditiesForPodAffinityAntiAffinity(podAffinityTerm []api.PodAffinityTerm, pod *api.Pod) ([]*proto.CommodityDTO, []*proto.CommodityDTO, error) {
 	var accessCommsSold []*proto.CommodityDTO
 	var accessCommsBought []*proto.CommodityDTO
 	for _, term := range podAffinityTerm {
-		commSold, commBought, err := acm.getCommoditySoldAndBought(term.String())
+		// Add the pod name and namespace in the string to generate hash
+		// to disambiguate the same term on a different pod.
+		commSold, commBought, err := acm.getCommoditySoldAndBought(term.String() + pod.Namespace + pod.Name)
 		if err != nil {
 			return nil, nil, err
 		}
