@@ -60,6 +60,13 @@ func createPodStat(podname string) *stats.PodStats {
 		Containers: containers,
 	}
 
+	fsStats := &stats.FsStats{}
+	capacity := uint64(rand.Intn(200) * 1e9)
+	used := uint64(rand.Intn(100) * 1e9)
+	fsStats.CapacityBytes = &capacity
+	fsStats.UsedBytes = &used
+	pod.EphemeralStorage = fsStats
+
 	return pod
 }
 

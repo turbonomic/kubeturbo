@@ -250,6 +250,7 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Buys(vCpuRequestTemplateComm).
 		Buys(vMemRequestTemplateComm).
 		Buys(numPodNumConsumersTemplateComm).
+		Buys(vStorageTemplateComm).
 		Provider(proto.EntityDTO_VIRTUAL_DATACENTER, proto.Provider_LAYERED_OVER).
 		Buys(cpuAllocationTemplateCommWithKey).
 		Buys(memAllocationTemplateCommWithKey).
