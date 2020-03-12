@@ -8,6 +8,7 @@ actionexecutionsimulator
 
 _output/
 .idea/
+.vscode/
 kubeturbo.iml
 kubeturbo
 kubeturbo.linux

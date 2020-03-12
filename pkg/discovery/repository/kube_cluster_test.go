@@ -2,14 +2,15 @@ package repository
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"testing"
 )
 
 var TestNodes = []struct {
@@ -117,22 +118,22 @@ func TestKubeQuota(t *testing.T) {
 		resource, _ := kubeQuota.GetAllocationResource(metrics.CPUQuota)
 		quantity := hardResourceList[v1.ResourceLimitsCPU]
 		cpuMilliCore := quantity.MilliValue()
-		cpuCore := float64(cpuMilliCore) / util.MilliToUnit
+		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
 		assert.Equal(t, resource.Capacity, cpuCore)
 
 		quantity = usedResourceList[v1.ResourceLimitsCPU]
 		cpuMilliCore = quantity.MilliValue()
-		cpuCore = float64(cpuMilliCore) / util.MilliToUnit
+		cpuCore = util.MetricMilliToUnit(float64(cpuMilliCore))
 		assert.Equal(t, resource.Used, cpuCore)
 
 		resource, _ = kubeQuota.GetAllocationResource(metrics.MemoryQuota)
 		quantity = hardResourceList[v1.ResourceLimitsMemory]
 		memoryBytes := quantity.Value()
-		memoryKiloBytes := float64(memoryBytes) / util.KilobytesToBytes
+		memoryKiloBytes := util.Base2BytesToKilobytes(float64(memoryBytes))
 		assert.Equal(t, resource.Capacity, memoryKiloBytes) // the least of the 3 quotas
 		quantity = usedResourceList[v1.ResourceLimitsMemory]
 		memoryBytes = quantity.Value()
-		memoryKiloBytes = float64(memoryBytes) / util.KilobytesToBytes
+		memoryKiloBytes = util.Base2BytesToKilobytes(float64(memoryBytes))
 		assert.Equal(t, resource.Used, memoryKiloBytes)
 	}
 }
@@ -175,12 +176,12 @@ func TestKubeQuotaWithMissingAllocations(t *testing.T) {
 		resource, _ := kubeQuota.GetAllocationResource(metrics.CPUQuota)
 		quantity := hardResourceList[v1.ResourceLimitsCPU]
 		cpuMilliCore := quantity.MilliValue()
-		cpuCore := float64(cpuMilliCore) / util.MilliToUnit
+		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
 		assert.Equal(t, resource.Capacity, cpuCore)
 
 		quantity = usedResourceList[v1.ResourceLimitsCPU]
 		cpuMilliCore = quantity.MilliValue()
-		cpuCore = float64(cpuMilliCore) / util.MilliToUnit
+		cpuCore = util.MetricMilliToUnit(float64(cpuMilliCore))
 		assert.Equal(t, resource.Used, cpuCore)
 
 		resource, _ = kubeQuota.GetAllocationResource(metrics.MemoryQuota)
@@ -218,11 +219,11 @@ func TestKubeQuotaReconcile(t *testing.T) {
 
 		quantity := resource.MustParse(testQuota.cpuLimit)
 		cpuMilliCore := quantity.MilliValue()
-		cpuCore := float64(cpuMilliCore) / util.MilliToUnit
+		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
 
 		quantity = resource.MustParse(testQuota.memLimit)
 		memoryBytes := quantity.Value()
-		memoryKiloBytes := float64(memoryBytes) / util.KilobytesToBytes
+		memoryKiloBytes := util.Base2BytesToKilobytes(float64(memoryBytes))
 
 		if leastCpuCore == 0.0 || cpuCore < leastCpuCore {
 			leastCpuCore = cpuCore

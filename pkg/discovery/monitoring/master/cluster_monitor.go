@@ -3,6 +3,7 @@ package master
 import (
 	"errors"
 	"fmt"
+
 	"k8s.io/client-go/dynamic"
 
 	api "k8s.io/api/core/v1"
@@ -293,18 +294,18 @@ func (m *ClusterMonitor) genContainerMetrics(pod *api.Pod, podCPU, podMem float6
 		memCapacity := podMem
 
 		if cpuLimit > 1 {
-			cpuCapacity = float64(cpuLimit) / util.MilliToUnit
+			cpuCapacity = util.MetricMilliToUnit(float64(cpuLimit))
 		}
 
 		if memLimit > 1 {
-			memCapacity = float64(memLimit) / util.KilobytesToBytes
+			memCapacity = util.Base2BytesToKilobytes(float64(memLimit))
 		}
 		m.genCapacityMetrics(metrics.ContainerType, containerMId, cpuCapacity, memCapacity)
 
 		//2. reservation
 		requests := container.Resources.Requests
-		cpuRequest := float64(requests.Cpu().MilliValue()) / util.MilliToUnit
-		memRequest := float64(requests.Memory().Value()) / util.KilobytesToBytes
+		cpuRequest := util.MetricMilliToUnit(float64(requests.Cpu().MilliValue()))
+		memRequest := util.Base2BytesToKilobytes(float64(requests.Memory().Value()))
 		m.genReservationMetrics(metrics.ContainerType, containerMId, cpuRequest, memRequest)
 
 		totalCPURequest += cpuRequest
