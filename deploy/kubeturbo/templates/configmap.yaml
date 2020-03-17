@@ -7,11 +7,11 @@ data:
     {
       "communicationConfig": {
         "serverMeta": {
+        {{- if .Values.serverMeta.proxy }}
+          "proxy": "{{ .Values.serverMeta.proxy }}",
+        {{- end }}
           "version": "{{ .Values.serverMeta.version }}",
           "turboServer": "{{ .Values.serverMeta.turboServer }}"
-        {{- if .Values.serverMeta.proxy }}
-          "proxy": "{{ .Values.serverMeta.proxy }}"
-        {{- end }}
         },
         "restAPIConfig": {
           "opsManagerUserName": "{{ .Values.restAPIConfig.opsManagerUserName }}",
