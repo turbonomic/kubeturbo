@@ -316,6 +316,7 @@ func TestAnyPodMatchesPodAffinityTerm(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: &api.Affinity{
@@ -346,6 +347,7 @@ func TestAnyPodMatchesPodAffinityTerm(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: &api.Affinity{
@@ -379,6 +381,7 @@ func TestAnyPodMatchesPodAffinityTerm(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: &api.Affinity{
@@ -409,6 +412,7 @@ func TestAnyPodMatchesPodAffinityTerm(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: &api.Affinity{
@@ -439,6 +443,7 @@ func TestAnyPodMatchesPodAffinityTerm(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: &api.Affinity{
@@ -563,6 +568,7 @@ func TestSatisfiesPodsAffinityAntiAffinity(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: affinity1,
@@ -586,6 +592,7 @@ func TestSatisfiesPodsAffinityAntiAffinity(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: affinity2,
@@ -609,6 +616,7 @@ func TestSatisfiesPodsAffinityAntiAffinity(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: affinity1,
@@ -632,6 +640,7 @@ func TestSatisfiesPodsAffinityAntiAffinity(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: affinity3,
@@ -738,6 +747,7 @@ func TestInterPodAffinityMatches(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: affinity1,
@@ -760,6 +770,7 @@ func TestInterPodAffinityMatches(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: affinity2,
@@ -782,6 +793,7 @@ func TestInterPodAffinityMatches(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: affinity1,
@@ -804,6 +816,7 @@ func TestInterPodAffinityMatches(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: affinity3,
@@ -826,6 +839,7 @@ func TestInterPodAffinityMatches(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 			},
 			node: &node1,
@@ -845,6 +859,7 @@ func TestInterPodAffinityMatches(t *testing.T) {
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabel2,
+					Name:   "p1",
 				},
 				Spec: api.PodSpec{
 					Affinity: &api.Affinity{},

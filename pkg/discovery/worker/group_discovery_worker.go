@@ -84,8 +84,8 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 	groupDTOs = groupDtoBuilder.BuildGroupDTOs()
 
 	// Create DTO for cluster
-	clusterDTO := dtofactory.NewClusterDTOBuilder(worker.cluster, worker.targetId).Build()
-	if clusterDTO != nil {
+	clusterDTOs := dtofactory.NewClusterDTOBuilder(worker.cluster, worker.targetId).Build()
+	for _, clusterDTO := range clusterDTOs {
 		groupDTOs = append(groupDTOs, clusterDTO)
 	}
 
