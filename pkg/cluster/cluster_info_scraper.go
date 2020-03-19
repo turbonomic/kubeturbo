@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"fmt"
+
 	"k8s.io/client-go/dynamic"
 
 	api "k8s.io/api/core/v1"
@@ -32,6 +33,8 @@ type ClusterScraperInterface interface {
 	GetAllEndpoints() ([]*api.Endpoints, error)
 	GetAllServices() ([]*api.Service, error)
 	GetKubernetesServiceID() (svcID string, err error)
+	GetAllPVs() ([]*api.PersistentVolume, error)
+	GetAllPVCs() ([]*api.PersistentVolumeClaim, error)
 }
 
 type ClusterScraper struct {
@@ -221,4 +224,42 @@ func (s *ClusterScraper) findRunningPodsOnNode(nodeName string) ([]*api.Pod, err
 		pods[i] = &podList.Items[i]
 	}
 	return pods, nil
+}
+
+func (s *ClusterScraper) GetAllPVs() ([]*api.PersistentVolume, error) {
+	listOption := metav1.ListOptions{
+		LabelSelector: labelSelectEverything,
+	}
+
+	pvList, err := s.CoreV1().PersistentVolumes().List(listOption)
+	if err != nil {
+		return nil, err
+	}
+
+	pvs := make([]*api.PersistentVolume, len(pvList.Items))
+	for i := 0; i < len(pvList.Items); i++ {
+		pvs[i] = &pvList.Items[i]
+	}
+	return pvs, nil
+}
+
+func (s *ClusterScraper) GetAllPVCs() ([]*api.PersistentVolumeClaim, error) {
+	listOption := metav1.ListOptions{
+		LabelSelector: labelSelectEverything,
+	}
+
+	return s.GetPVCs(api.NamespaceAll, listOption)
+}
+
+func (s *ClusterScraper) GetPVCs(namespace string, opts metav1.ListOptions) ([]*api.PersistentVolumeClaim, error) {
+	pvcList, err := s.CoreV1().PersistentVolumeClaims(namespace).List(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	pvcs := make([]*api.PersistentVolumeClaim, len(pvcList.Items))
+	for i := 0; i < len(pvcList.Items); i++ {
+		pvcs[i] = &pvcList.Items[i]
+	}
+	return pvcs, nil
 }
