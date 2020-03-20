@@ -34,6 +34,7 @@ const (
 	Transaction        ResourceType = "Transaction"
 	NumPods            ResourceType = "NumPods"
 	VStorage           ResourceType = "VStorage"
+	StorageAmount      ResourceType = "StorageAmount"
 
 	Access       ResourceType = "Access"
 	Cluster      ResourceType = "Cluster"
