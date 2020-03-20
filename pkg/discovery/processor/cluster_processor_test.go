@@ -296,6 +296,8 @@ type MockClusterScrapper struct {
 	mockGetAllEndpoints        func() ([]*v1.Endpoints, error)
 	mockGetAllServices         func() ([]*v1.Service, error)
 	mockGetKubernetesServiceID func() (svcID string, err error)
+	mockGetAllPVs              func() ([]*v1.PersistentVolume, error)
+	mockGetAllPVCs             func() ([]*v1.PersistentVolumeClaim, error)
 }
 
 func (s *MockClusterScrapper) GetAllNodes() ([]*v1.Node, error) {
@@ -343,9 +345,24 @@ func (s *MockClusterScrapper) GetKubernetesServiceID() (string, error) {
 	}
 	return "", fmt.Errorf("GetKubernetesServiceID Not implemented")
 }
+
 func (s *MockClusterScrapper) GetAllServices() ([]*v1.Service, error) {
 	if s.mockGetAllServices != nil {
 		return s.mockGetAllServices()
+	}
+	return nil, fmt.Errorf("GetAllServices Not implemented")
+}
+
+func (s *MockClusterScrapper) GetAllPVs() ([]*v1.PersistentVolume, error) {
+	if s.mockGetAllPVs != nil {
+		return s.mockGetAllPVs()
+	}
+	return nil, fmt.Errorf("GetAllServices Not implemented")
+}
+
+func (s *MockClusterScrapper) GetAllPVCs() ([]*v1.PersistentVolumeClaim, error) {
+	if s.mockGetAllPVCs != nil {
+		return s.mockGetAllPVCs()
 	}
 	return nil, fmt.Errorf("GetAllServices Not implemented")
 }
