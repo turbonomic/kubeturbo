@@ -194,6 +194,33 @@ func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats) {
 		m.genUsedMetrics(metrics.PodType, key, cpuUsed, memUsed)
 		m.genNumConsumersUsedMetrics(metrics.PodType, key)
 		m.genFSMetrics(metrics.PodType, key, ephemeralFsCapacity, ephemeralFsUsed)
+
+		m.parseVolumeStats(pod.VolumeStats, key)
+	}
+}
+
+func (m *KubeletMonitor) parseVolumeStats(volStats []stats.VolumeStats, podKey string) {
+	for i := range volStats {
+		volStat := volStats[i]
+		capacity, used := float64(0), float64(0)
+		if volStat.CapacityBytes != nil {
+			capacity = util.Base2BytesToMegabytes(float64(*volStat.CapacityBytes))
+		}
+		if volStat.UsedBytes != nil {
+			used = util.Base2BytesToMegabytes(float64(*volStat.UsedBytes))
+		}
+
+		var pvcRef stats.PVCReference
+		if volStat.PVCRef != nil {
+			pvcRef = *volStat.PVCRef
+		}
+		volKey := util.PodVolumeMetricId(podKey, volStat.Name, pvcRef)
+		// TODO: Generate used on etype pod and capacity on etype volume once
+		// etype volume is in place
+		m.genPVMetrics(metrics.PodType, volKey, capacity, used)
+
+		glog.V(4).Infof("Volume Usage of %s mounted by pod %s is %.3f Megabytes", volStat.Name, podKey, used)
+		glog.V(4).Infof("Volume Capacity of %s mounted by pod %s is %.3f Megabytes", volStat.Name, podKey, capacity)
 	}
 }
 
@@ -260,5 +287,11 @@ func (m *KubeletMonitor) genNumConsumersUsedMetrics(etype metrics.DiscoveredEnti
 func (m *KubeletMonitor) genFSMetrics(etype metrics.DiscoveredEntityType, key string, capacity, used float64) {
 	capacityMetric := metrics.NewEntityResourceMetric(etype, key, metrics.VStorage, metrics.Capacity, capacity)
 	usedMetric := metrics.NewEntityResourceMetric(etype, key, metrics.VStorage, metrics.Used, used)
+	m.metricSink.AddNewMetricEntries(capacityMetric, usedMetric)
+}
+
+func (m *KubeletMonitor) genPVMetrics(etype metrics.DiscoveredEntityType, key string, capacity, used float64) {
+	capacityMetric := metrics.NewEntityResourceMetric(etype, key, metrics.StorageAmount, metrics.Capacity, capacity)
+	usedMetric := metrics.NewEntityResourceMetric(etype, key, metrics.StorageAmount, metrics.Used, used)
 	m.metricSink.AddNewMetricEntries(capacityMetric, usedMetric)
 }
