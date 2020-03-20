@@ -110,3 +110,24 @@ func NodeKeyFromPodFunc(pod *api.Pod) string {
 func VDCIdFunc(namespaceId string) string {
 	return fmt.Sprintf("%s-%s", vdcPrefix, namespaceId)
 }
+
+func PodVolumeMetricId(podKey, pvName string, pvcRef stats.PVCReference) string {
+	volKey := podKey
+	if pvName != "" {
+		volKey = volKey + "-" + pvName
+	}
+
+	pvcRefKey := pvcRefKey(pvcRef)
+	if pvcRefKey != "" {
+		volKey = volKey + "-" + pvcRefKey
+	}
+	return volKey
+}
+
+func pvcRefKey(pvcRef stats.PVCReference) string {
+	key := pvcRef.Name
+	if pvcRef.Namespace != "" {
+		key = pvcRef.Namespace + "/" + key
+	}
+	return key
+}
