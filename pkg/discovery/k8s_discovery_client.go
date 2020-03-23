@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
@@ -227,7 +228,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	// Discover pods and create DTOs for nodes, pods, containers, application.
 	// Collect the kubePod, quota metrics, groups from all the discovery workers
 	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
-	entityDTOs, podEntitiesMap, quotaMetricsList, entityGroupList := dc.resultCollector.Collect(workerCount)
+	entityDTOs, podEntitiesMap, quotaMetricsList, entityGroupList, podVolumeMetrics := dc.resultCollector.Collect(workerCount)
 
 	// Quota discovery worker to create quota DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType
@@ -244,6 +245,15 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 		glog.V(2).Infof("There are %d vApp entityDTOs.", len(serviceDtos))
 		entityDTOs = append(entityDTOs, serviceDtos...)
 	}
+
+	// 4. build entityDTOs for volumes
+	volumeEntityDTOBuilder := dtofactory.NewVolumeEntityDTOBuilder(podVolumeMetrics)
+	volumeEntityDTOs, err := volumeEntityDTOBuilder.BuildEntityDTOs(clusterSummary.VolumeToPodsMap)
+	if err != nil {
+		glog.Errorf("Error while creating volume entityDTOs: %v", err)
+	}
+	glog.V(3).Infof("There are %d Storage Volume entityDTOs.", len(volumeEntityDTOs))
+	entityDTOs = append(entityDTOs, volumeEntityDTOs...)
 
 	// All the DTOs
 	entityDTOs = append(entityDTOs, quotaDtos...)

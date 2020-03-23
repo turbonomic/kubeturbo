@@ -108,7 +108,7 @@ func inverseVolToPodsMap(volToPodsMap map[*v1.PersistentVolume][]repository.PodV
 	for vol, podVols := range volToPodsMap {
 		for _, podVol := range podVols {
 			podToVolsMap[podVol.QualifiedPodName] = append(podToVolsMap[podVol.QualifiedPodName],
-				repository.MountedVolume{vol, podVol.MountName})
+				repository.MountedVolume{UsedVolume: vol, MountName: podVol.MountName})
 		}
 	}
 	return podToVolsMap
