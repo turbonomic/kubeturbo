@@ -3,11 +3,12 @@ package dtofactory
 import (
 	"testing"
 
+	"reflect"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
 )
 
 var builder = &podEntityDTOBuilder{
