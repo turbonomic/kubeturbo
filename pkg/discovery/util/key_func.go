@@ -120,3 +120,7 @@ func PodVolumeMetricId(podKey, volName string) string {
 
 	return volKey
 }
+
+func VolumeKeyFunc(vol *api.PersistentVolume) string {
+	return vol.Name
+}
