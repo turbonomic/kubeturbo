@@ -175,5 +175,8 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.KubeCluster, error) {
 	// Discover Services
 	NewServiceProcessor(p.clusterInfoScraper, kubeCluster).ProcessServices()
 
+	// Discover volumes
+	NewVolumeProcessor(p.clusterInfoScraper, kubeCluster).ProcessVolumes()
+
 	return kubeCluster, nil
 }
