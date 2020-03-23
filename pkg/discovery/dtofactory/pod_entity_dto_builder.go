@@ -2,12 +2,14 @@ package dtofactory
 
 import (
 	"fmt"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 
 	api "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 
@@ -65,8 +67,9 @@ func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *st
 }
 
 // Build entityDTOs based on the given pod list.
-func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.EntityDTO, error) {
+func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod, podToVolsMap map[string][]repository.MountedVolume) ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
+
 	for _, pod := range pods {
 		// id.
 		podID := string(pod.UID)
@@ -154,6 +157,12 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 			entityDTOBuilder.BuysCommodities(commoditiesBoughtQuota)
 			// pods are not movable across WorkloadController
 			entityDTOBuilder.IsMovable(proto.EntityDTO_WORKLOAD_CONTROLLER, false)
+		}
+
+		// Commodities bought from volumes
+		err = builder.buyCommoditiesFromVolumes(pod, podToVolsMap[displayName], entityDTOBuilder)
+		if err != nil {
+			return nil, err
 		}
 
 		// entities' properties.
@@ -347,6 +356,44 @@ func (builder *podEntityDTOBuilder) getQuotaCommoditiesBought(providerUID string
 		commoditiesBought = append(commoditiesBought, commBought)
 	}
 	return commoditiesBought, nil
+}
+
+// Build the CommodityDTOs bought by the pod from the Volumes.
+func (builder *podEntityDTOBuilder) buyCommoditiesFromVolumes(pod *api.Pod, mounts []repository.MountedVolume, dtoBuilder *sdkbuilder.EntityDTOBuilder) error {
+	podKey := util.PodKeyFunc(pod)
+
+	for _, mount := range mounts {
+		mountName := mount.MountName
+		volEntityID := util.PodVolumeMetricId(podKey, mountName)
+		// We use <ns>/<pod-name>/<mounted-vol-name> as the commodity key
+		// to keep the relationship between pod and volume unique.
+		commKey := fmt.Sprintf("%s/%s", podKey, mountName)
+		commBought, err := builder.getResourceCommodityBoughtWithKey(metrics.PodType, volEntityID,
+			metrics.StorageAmount, commKey, nil, nil)
+		if err != nil {
+			glog.Errorf("Failed to build %s bought by pod %s mounted %s from volume %s: %v",
+				metrics.StorageAmount, podKey, mountName, mount.UsedVolume.Name, err)
+			return err
+		}
+
+		if mount.UsedVolume == nil {
+			glog.Errorf("Error when create commoditiesBought for pod %s mounting %s: Cannot find uuid for provider "+
+				"Vol: ", podKey, mountName)
+			continue
+		}
+
+		providerVolUID := string(mount.UsedVolume.UID)
+
+		provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_VOLUME, providerVolUID)
+		dtoBuilder = dtoBuilder.Provider(provider)
+
+		// Each pod mounts any given volume only once
+		var singleCommoditySlice []*proto.CommodityDTO
+		singleCommoditySlice = append(singleCommoditySlice, commBought)
+		dtoBuilder.BuysCommodities(singleCommoditySlice)
+	}
+
+	return nil
 }
 
 // Get the properties of the pod. This includes property related to pod cluster property.
