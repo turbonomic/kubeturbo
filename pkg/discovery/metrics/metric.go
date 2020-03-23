@@ -18,6 +18,7 @@ const (
 	ContainerType   DiscoveredEntityType = "Container"
 	ApplicationType DiscoveredEntityType = "Application"
 	ServiceType     DiscoveredEntityType = "Service"
+	VolumeType      DiscoveredEntityType = "Volume"
 )
 
 const (

@@ -232,11 +232,7 @@ func (m *KubeletMonitor) parseVolumeStats(volStats []stats.VolumeStats, podKey s
 			used = util.Base2BytesToMegabytes(float64(*volStat.UsedBytes))
 		}
 
-		var pvcRef stats.PVCReference
-		if volStat.PVCRef != nil {
-			pvcRef = *volStat.PVCRef
-		}
-		volKey := util.PodVolumeMetricId(podKey, volStat.Name, pvcRef)
+		volKey := util.PodVolumeMetricId(podKey, volStat.Name)
 		// TODO: Generate used on etype pod and capacity on etype volume once
 		// etype volume is in place
 		m.genPVMetrics(metrics.PodType, volKey, capacity, used)

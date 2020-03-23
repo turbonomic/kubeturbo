@@ -3,12 +3,14 @@ package worker
 import (
 	"errors"
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"sync"
 	"time"
 
 	"github.com/golang/glog"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
@@ -359,6 +361,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	// Node providers
 	nodes := currTask.NodeList()
 	cluster := currTask.Cluster()
+	volToPodsMap := currTask.Cluster().VolumeToPodsMap
 
 	for _, node := range nodes {
 		if node != nil {
@@ -391,7 +394,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 
 	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager,
 		nodeNameUIDMap, namespaceUIDMap)
-	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods)
+	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods, volToPodsMap)
 	if err != nil {
 		glog.Errorf("Error while creating pod entityDTOs: %v", err)
 	}

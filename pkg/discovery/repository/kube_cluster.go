@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -21,6 +23,33 @@ type KubeCluster struct {
 	ClusterResources map[metrics.ResourceType]*KubeDiscoveredResource
 	// Map of Service to Pod cluster Ids
 	Services map[*v1.Service][]string
+	// Map of Persistent Volumes to namespace qualified pod names with their
+	// volume names (as named in podSpec).
+	// The unused PV will have the slice value set to nil.
+	VolumeToPodsMap map[*v1.PersistentVolume][]PodVolume
+	// Map of namespace qualified pod name wrt to the volumes they mount.
+	// This map will not feature volumes which are not mounted by any pods.
+	PodToVolumesMap map[string][]MountedVolume
+}
+
+type PodVolume struct {
+	// Namespace qualified pod name.
+	QualifiedPodName string
+	// Name used by the pod to mount the volume.
+	MountName string
+}
+
+type MountedVolume struct {
+	UsedVolume *v1.PersistentVolume
+	MountName  string
+}
+
+// Volume metrics reported for a given pod
+type PodVolumeMetrics struct {
+	Volume   *v1.PersistentVolume
+	Capacity float64
+	Used     float64
+	PodVolume
 }
 
 func NewKubeCluster(clusterName string, nodes []*v1.Node) *KubeCluster {
@@ -413,4 +442,26 @@ func parseAllocationResourceValue(resource v1.ResourceName, allocationResourceTy
 		return memoryKiloBytes
 	}
 	return DEFAULT_METRIC_VALUE
+}
+
+// =================================================================================================
+// The volumes in the cluster
+type KubeVolume struct {
+	*KubeEntity
+	*v1.PersistentVolume
+	ClusterName string
+}
+
+// Create a KubeVolume entity representing a volume in the cluster
+func NewKubeVolume(pv *v1.PersistentVolume, clusterName string) *KubeVolume {
+	entity := NewKubeEntity(metrics.VolumeType, clusterName,
+		pv.ObjectMeta.Namespace, pv.ObjectMeta.Name,
+		string(pv.ObjectMeta.UID))
+
+	volumeEntity := &KubeVolume{
+		KubeEntity:       entity,
+		PersistentVolume: pv,
+	}
+
+	return volumeEntity
 }
