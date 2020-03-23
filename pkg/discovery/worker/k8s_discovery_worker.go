@@ -361,7 +361,10 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	// Node providers
 	nodes := currTask.NodeList()
 	cluster := currTask.Cluster()
-	volToPodsMap := currTask.Cluster().VolumeToPodsMap
+	var volToPodsMap map[*api.PersistentVolume][]repository.PodVolume
+	if cluster != nil {
+		volToPodsMap = cluster.VolumeToPodsMap
+	}
 
 	for _, node := range nodes {
 		if node != nil {
