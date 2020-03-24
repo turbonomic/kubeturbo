@@ -23,6 +23,8 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/onsi/gomega v0.0.0-20190113212917-5533ce8a0da3 // indirect
+	github.com/opencontainers/go-digest v1.0.0-rc1
+	github.com/openshift/api v0.0.0-20190508214137-81d064c11ff2
 	github.com/openshift/cluster-api v0.0.0-20190822130419-53b696be18ad
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pborman/uuid v1.2.0
