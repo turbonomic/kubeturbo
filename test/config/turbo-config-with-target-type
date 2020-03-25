@@ -8,11 +8,7 @@
 			"opsManagerPassword": "bar"
 		}
 	},
-    "targetConfig": {
-          "probeCategory":"pc1",
-          "targetType":"tt1",
-          "address":"addr1",
-          "username":"user1",
-          "password":"passwd1"
-    }
+     	"targetConfig": {
+     		"targetType":"cluster-foo"
+     	}
 }

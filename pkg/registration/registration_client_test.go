@@ -2,9 +2,11 @@ package registration
 
 import (
 	"fmt"
+	"testing"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	"testing"
 )
 
 func xcheck(expected map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability,
@@ -32,7 +34,8 @@ func xcheck(expected map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_Ac
 
 func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	conf := NewRegistrationClientConfig(stitching.UUID, 0, true)
-	reg := NewK8sRegistrationClient(conf)
+	targetConf := &configs.K8sTargetConfig{}
+	reg := NewK8sRegistrationClient(conf, targetConf)
 
 	supported := proto.ActionPolicyDTO_SUPPORTED
 	recommend := proto.ActionPolicyDTO_NOT_EXECUTABLE
@@ -109,7 +112,8 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 
 func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
 	conf := NewRegistrationClientConfig(stitching.UUID, 0, true)
-	reg := NewK8sRegistrationClient(conf)
+	targetConf := &configs.K8sTargetConfig{}
+	reg := NewK8sRegistrationClient(conf, targetConf)
 
 	//1. all the entity types
 	entities := []proto.EntityDTO_EntityType{
