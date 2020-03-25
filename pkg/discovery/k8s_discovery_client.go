@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
@@ -84,19 +85,37 @@ func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTargetInfo {
 	}
 	accountValues = append(accountValues, accVal)
 
-	username := registration.Username
-	accVal = &proto.AccountValue{
-		Key:         &username,
-		StringValue: &targetConf.TargetUsername,
-	}
-	accountValues = append(accountValues, accVal)
+	// Only add the following fields when target has been configured in kubeturbo
+	if targetConf.TargetIdentifier != "" {
+		masterHost := registration.MasterHost
+		accVal = &proto.AccountValue{
+			Key:         &masterHost,
+			StringValue: &targetConf.MasterHost,
+		}
+		accountValues = append(accountValues, accVal)
 
-	password := registration.Password
-	accVal = &proto.AccountValue{
-		Key:         &password,
-		StringValue: &targetConf.TargetPassword,
+		serverVersion := registration.ServerVersion
+		version := strings.Join(targetConf.ServerVersions, ", ")
+		accVal = &proto.AccountValue{
+			Key:         &serverVersion,
+			StringValue: &version,
+		}
+		accountValues = append(accountValues, accVal)
+
+		image := registration.Image
+		accVal = &proto.AccountValue{
+			Key:         &image,
+			StringValue: &targetConf.ProbeContainerImage,
+		}
+		accountValues = append(accountValues, accVal)
+
+		imageID := registration.ImageID
+		accVal = &proto.AccountValue{
+			Key:         &imageID,
+			StringValue: &targetConf.ProbeContainerImageID,
+		}
+		accountValues = append(accountValues, accVal)
 	}
-	accountValues = append(accountValues, accVal)
 
 	targetInfo := sdkprobe.NewTurboTargetInfoBuilder(targetConf.ProbeCategory,
 		targetConf.TargetType, targetID, accountValues).
@@ -105,60 +124,94 @@ func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTargetInfo {
 }
 
 // Validate the Target
-func (dc *K8sDiscoveryClient) Validate(accountValues []*proto.AccountValue) (*proto.ValidationResponse, error) {
+func (dc *K8sDiscoveryClient) Validate(
+	accountValues []*proto.AccountValue) (validationResponse *proto.ValidationResponse, err error) {
+
 	glog.V(2).Infof("Validating Kubernetes target...")
 
-	validationResponse := &proto.ValidationResponse{}
+	defer func() {
+		validationResponse = &proto.ValidationResponse{}
+		if err != nil {
+			glog.Errorf("Failed to validate target: %v.", err)
+			errStr := fmt.Sprintf("%s\n", err)
+			severity := proto.ErrorDTO_CRITICAL
+			var errorDtos []*proto.ErrorDTO
+			errorDto := &proto.ErrorDTO{
+				Severity:    &severity,
+				Description: &errStr,
+			}
+			errorDtos = append(errorDtos, errorDto)
+			validationResponse.ErrorDTO = errorDtos
+		} else {
+			glog.V(2).Infof("Successfully validated target.")
+		}
+	}()
 
-	var err error
+	var targetID string
+	for _, accountValue := range accountValues {
+		glog.V(4).Infof("%v", accountValue)
+		if accountValue.GetKey() == registration.TargetIdentifierField {
+			targetID = accountValue.GetStringValue()
+		}
+	}
+
+	if targetID == "" {
+		err = fmt.Errorf("empty target ID")
+		return
+	}
+
 	if dc.clusterProcessor == nil {
 		err = fmt.Errorf("null cluster processor")
-	} else {
-		err = dc.clusterProcessor.ConnectCluster()
-	}
-	if err != nil {
-		glog.Errorf("Failed to validate target: %v.", err)
-		errStr := fmt.Sprintf("%s\n", err)
-		severity := proto.ErrorDTO_CRITICAL
-		var errorDtos []*proto.ErrorDTO
-		errorDto := &proto.ErrorDTO{
-			Severity:    &severity,
-			Description: &errStr,
-		}
-		errorDtos = append(errorDtos, errorDto)
-		validationResponse.ErrorDTO = errorDtos
-	} else {
-		glog.V(2).Infof("Successfully validated target.")
+		return
 	}
 
-	return validationResponse, nil
+	err = dc.clusterProcessor.ConnectCluster()
+	return
 }
 
 // DiscoverTopology receives a discovery request from server and start probing the k8s.
 // This is a part of the interface that gets registered with and is invoked asynchronously by the GO SDK Probe.
-func (dc *K8sDiscoveryClient) Discover(accountValues []*proto.AccountValue) (*proto.DiscoveryResponse, error) {
+func (dc *K8sDiscoveryClient) Discover(
+	accountValues []*proto.AccountValue) (discoveryResponse *proto.DiscoveryResponse, err error) {
+
 	glog.V(2).Infof("Discovering kubernetes cluster...")
-	currentTime := time.Now()
-	newDiscoveryResultDTOs, groupDTOs, err := dc.discoverWithNewFramework()
-	if err != nil {
-		glog.Errorf("Failed to discover kubernetes cluster: %v", err)
+
+	discoveryResponse = &proto.DiscoveryResponse{}
+
+	var targetID string
+	for _, accountValue := range accountValues {
+		glog.V(4).Infof("%v", accountValue)
+		if accountValue.GetKey() == registration.TargetIdentifierField {
+			targetID = accountValue.GetStringValue()
+		}
 	}
 
-	discoveryResponse := &proto.DiscoveryResponse{
-		DiscoveredGroup: groupDTOs,
-		EntityDTO:       newDiscoveryResultDTOs,
+	if targetID == "" {
+		glog.Errorf("Failed to discover kubernetes cluster: empty target ID")
+		return
+	}
+
+	currentTime := time.Now()
+	newDiscoveryResultDTOs, groupDTOs, err := dc.discoverWithNewFramework(targetID)
+	if err != nil {
+		glog.Errorf("Failed to discover kubernetes cluster: %v", err)
+		return
 	}
 
 	newFrameworkDiscTime := time.Now().Sub(currentTime).Seconds()
+
+	discoveryResponse.DiscoveredGroup = groupDTOs
+	discoveryResponse.EntityDTO = newDiscoveryResultDTOs
+
 	glog.V(2).Infof("Successfully discovered kubernetes cluster in %.3f seconds", newFrameworkDiscTime)
 
-	return discoveryResponse, nil
+	return
 }
 
 /*
 	The actual discovery work is done here.
 */
-func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []*proto.GroupDTO, error) {
+func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*proto.EntityDTO, []*proto.GroupDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES, QUOTAS, SERVICES HERE
 	kubeCluster, err := dc.clusterProcessor.DiscoverCluster()
 	if err != nil {
@@ -222,15 +275,14 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	}
 
 	// Anti-Affinity policy to prevent pods on unschedulable nodes to move to other unschedulable nodes
-	targetId := dc.config.targetConfig.TargetIdentifier
-	nodesAntiAffinityGroupBuilder := compliance.NewUnschedulableNodesAntiAffinityGroupDTOBuilder(clusterSummary, targetId,
-		nodesManager)
+	nodesAntiAffinityGroupBuilder := compliance.NewUnschedulableNodesAntiAffinityGroupDTOBuilder(
+		clusterSummary, targetID, nodesManager)
 	nodeAntiAffinityGroupDTOs := nodesAntiAffinityGroupBuilder.Build()
 
 	glog.V(2).Infof("Successfully processed taints and tolerations.")
 
 	// Discovery worker for creating Group DTOs
-	entityGroupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(clusterSummary, targetId)
+	entityGroupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(clusterSummary, targetID)
 	groupDTOs, _ := entityGroupDiscoveryWorker.Do(entityGroupList)
 
 	glog.V(2).Infof("There are totally %d groups DTOs", len(groupDTOs))
