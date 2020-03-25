@@ -82,11 +82,10 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 		}
 
 		//2. service data.
-		//Use proto.EntityDTO_VirtualApplicationData as there is no proto.EntityDTO_ServiceData
-		serviceData := &proto.EntityDTO_VirtualApplicationData{
+		serviceData := &proto.EntityDTO_ServiceData{
 			ServiceType: &service.Name,
 		}
-		ebuilder.VirtualApplicationData(serviceData)
+		ebuilder.ServiceData(serviceData)
 
 		// set the ip property for stitching
 		ebuilder.WithProperty(getIPProperty(pods))
