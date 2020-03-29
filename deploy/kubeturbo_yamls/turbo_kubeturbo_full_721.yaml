@@ -8,7 +8,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   # Update the namespace value if required
-  name: kubeturbo-user
+  name: turbo-user
   namespace: turbo
 ---
 kind: ClusterRoleBinding
@@ -21,7 +21,7 @@ metadata:
 subjects:
 - kind: ServiceAccount
   # Provide the correct value for service account name: and namespace if needed
-  name: kubeturbo-user
+  name: turbo-user
   namespace: turbo
 roleRef:
   # User creating this resource must have permissions to add this policy to the SA
@@ -85,12 +85,11 @@ spec:
         app.kubernetes.io/name: kubeturbo
     spec:
       # Update serviceAccount if needed
-      serviceAccount: kubeturbo-user
+      serviceAccount: turbo-user
       containers:
       - name: kubeturbo
         # Replace the image with desired version:6.4.4 or latest
-        image: turbonomic/kubeturbo:7.21.0
-        imagePullPolicy: Always
+        image: turbonomic/kubeturbo:7.21.1
         args:
           - --turboconfig=/etc/kubeturbo/turbo.config
           - --v=2
