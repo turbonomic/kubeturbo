@@ -300,7 +300,7 @@ func (worker *k8sDiscoveryWorker) addNodeAllocationMetrics(nodeMetricsCollection
 }
 
 // ================================================================================================
-// Build DTOs for nodes, pods and containers
+// Build DTOs for nodes, pods, containers and containerSpec (an entity type that represents a certain type of containers)
 func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*api.Pod, error) {
 	var result []*proto.EntityDTO
 
@@ -362,6 +362,15 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	}
 	result = append(result, containerDTOs...)
 	glog.V(3).Infof("Worker %s built %d container DTOs.", worker.id, len(containerDTOs))
+
+	// 4. build entityDTOs for ContainerSpec, which is an entity type that represents a certain type of containers
+	containerSpecDTOBuilder := dtofactory.NewContainerSpecDTOBuilder(worker.sink)
+	containerSpecDTOs, err := containerSpecDTOBuilder.BuildDTOs(pods)
+	if err != nil {
+		glog.Errorf("Error while creating ContainerSpec entityDTOs: %v", err)
+	}
+	result = append(result, containerSpecDTOs...)
+	glog.V(3).Infof("Worker %s built %d ContainerSpec DTOs.", worker.id, len(containerSpecDTOs))
 
 	glog.V(2).Infof("Worker %s built total %d entityDTOs.", worker.id, len(result))
 

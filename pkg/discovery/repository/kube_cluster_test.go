@@ -48,9 +48,9 @@ func TestKubeNode(t *testing.T) {
 		resource, _ = kubenode.GetComputeResource(metrics.Memory)
 		assert.Equal(t, resource.Capacity, testNode.memCap/1024)
 
-		resource, _ = kubenode.GetComputeResource(metrics.CPUQuota)
+		resource, _ = kubenode.GetComputeResource(metrics.CPULimitQuota)
 		assert.Nil(t, resource)
-		resource, _ = kubenode.GetComputeResource(metrics.MemoryQuota)
+		resource, _ = kubenode.GetComputeResource(metrics.MemoryLimitQuota)
 		assert.Nil(t, resource)
 
 		resource, _ = kubenode.GetAllocationResource(metrics.CPU)
@@ -115,7 +115,7 @@ func TestKubeQuota(t *testing.T) {
 
 		kubeQuota.ReconcileQuotas(quotaList)
 
-		resource, _ := kubeQuota.GetAllocationResource(metrics.CPUQuota)
+		resource, _ := kubeQuota.GetAllocationResource(metrics.CPULimitQuota)
 		quantity := hardResourceList[v1.ResourceLimitsCPU]
 		cpuMilliCore := quantity.MilliValue()
 		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
@@ -126,7 +126,7 @@ func TestKubeQuota(t *testing.T) {
 		cpuCore = util.MetricMilliToUnit(float64(cpuMilliCore))
 		assert.Equal(t, resource.Used, cpuCore)
 
-		resource, _ = kubeQuota.GetAllocationResource(metrics.MemoryQuota)
+		resource, _ = kubeQuota.GetAllocationResource(metrics.MemoryLimitQuota)
 		quantity = hardResourceList[v1.ResourceLimitsMemory]
 		memoryBytes := quantity.Value()
 		memoryKiloBytes := util.Base2BytesToKilobytes(float64(memoryBytes))
@@ -173,7 +173,7 @@ func TestKubeQuotaWithMissingAllocations(t *testing.T) {
 		kubeQuota := CreateDefaultQuota(cluster, namespace, uuid, clusterResources)
 		kubeQuota.ReconcileQuotas(quotaList)
 
-		resource, _ := kubeQuota.GetAllocationResource(metrics.CPUQuota)
+		resource, _ := kubeQuota.GetAllocationResource(metrics.CPULimitQuota)
 		quantity := hardResourceList[v1.ResourceLimitsCPU]
 		cpuMilliCore := quantity.MilliValue()
 		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
@@ -184,14 +184,14 @@ func TestKubeQuotaWithMissingAllocations(t *testing.T) {
 		cpuCore = util.MetricMilliToUnit(float64(cpuMilliCore))
 		assert.Equal(t, resource.Used, cpuCore)
 
-		resource, _ = kubeQuota.GetAllocationResource(metrics.MemoryQuota)
+		resource, _ = kubeQuota.GetAllocationResource(metrics.MemoryLimitQuota)
 		assert.Equal(t, resource.Capacity, clusterResources[metrics.Memory].Capacity)
 		assert.Equal(t, resource.Used, 0.0)
 
 		for _, testNode := range TestNodeProviders {
 			allocationResources := map[metrics.ResourceType]float64{
-				metrics.CPUQuota:    testNode.cpuUsed,
-				metrics.MemoryQuota: testNode.memUsed,
+				metrics.CPULimitQuota:    testNode.cpuUsed,
+				metrics.MemoryLimitQuota: testNode.memUsed,
 			}
 			kubeQuota.AddNodeProvider(testNode.node, allocationResources)
 		}
@@ -200,9 +200,9 @@ func TestKubeQuotaWithMissingAllocations(t *testing.T) {
 			provider := kubeQuota.GetProvider(testNode.node)
 			assert.NotNil(t, provider)
 			assert.Equal(t, 0, len(provider.BoughtCompute))
-			resource, _ := kubeQuota.GetBoughtResource(testNode.node, metrics.CPUQuota)
+			resource, _ := kubeQuota.GetBoughtResource(testNode.node, metrics.CPULimitQuota)
 			assert.Equal(t, resource.Used, testNode.cpuUsed)
-			resource, _ = kubeQuota.GetBoughtResource(testNode.node, metrics.MemoryQuota)
+			resource, _ = kubeQuota.GetBoughtResource(testNode.node, metrics.MemoryLimitQuota)
 			assert.Equal(t, resource.Used, testNode.memUsed)
 		}
 	}
@@ -258,10 +258,10 @@ func TestKubeQuotaReconcile(t *testing.T) {
 	kubeQuota := CreateDefaultQuota(cluster, namespace, "vdc-uuid", clusterResources)
 	kubeQuota.ReconcileQuotas(quotaList)
 
-	resource, _ := kubeQuota.GetAllocationResource(metrics.CPUQuota)
+	resource, _ := kubeQuota.GetAllocationResource(metrics.CPULimitQuota)
 	assert.Equal(t, resource.Capacity, leastCpuCore) // the least of the 3 quotas
 
-	resource, _ = kubeQuota.GetAllocationResource(metrics.MemoryQuota)
+	resource, _ = kubeQuota.GetAllocationResource(metrics.MemoryLimitQuota)
 	assert.Equal(t, resource.Capacity, leastMemKB) // the least of the 3 quotas
 }
 

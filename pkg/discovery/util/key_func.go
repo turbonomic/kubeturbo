@@ -110,3 +110,7 @@ func NodeKeyFromPodFunc(pod *api.Pod) string {
 func VDCIdFunc(namespaceId string) string {
 	return fmt.Sprintf("%s-%s", vdcPrefix, namespaceId)
 }
+
+func ContainerSpecIdFunc(controllerUID string, containerName string) string {
+	return controllerUID + "/" + containerName
+}
