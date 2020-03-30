@@ -99,6 +99,7 @@ type TaskResult struct {
 	podEntities      []*repository.KubePod
 	kubeControllers  []*repository.KubeController
 	containerSpecs   []*repository.ContainerSpec
+	podVolumeMetrics []*repository.PodVolumeMetrics
 }
 
 func NewTaskResult(workerID string, state TaskResultState) *TaskResult {
@@ -140,6 +141,10 @@ func (r *TaskResult) ContainerSpecs() []*repository.ContainerSpec {
 	return r.containerSpecs
 }
 
+func (r *TaskResult) PodVolumeMetrics() []*repository.PodVolumeMetrics {
+	return r.podVolumeMetrics
+}
+
 func (r *TaskResult) Err() error {
 	return r.err
 }
@@ -176,5 +181,10 @@ func (r *TaskResult) WithKubeControllers(kubeControllers []*repository.KubeContr
 
 func (r *TaskResult) WithContainerSpecs(containerSpecs []*repository.ContainerSpec) *TaskResult {
 	r.containerSpecs = containerSpecs
+	return r
+}
+
+func (r *TaskResult) WithPodVolumeMetrics(podVolumeMetrics []*repository.PodVolumeMetrics) *TaskResult {
+	r.podVolumeMetrics = podVolumeMetrics
 	return r
 }

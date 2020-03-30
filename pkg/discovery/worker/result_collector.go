@@ -28,7 +28,7 @@ func (rc *ResultCollector) ResultPool() chan *task.TaskResult {
 }
 
 func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*repository.KubePod,
-	[]*repository.NamespaceMetrics, []*repository.EntityGroup, []*repository.KubeController, []*repository.ContainerSpec) {
+	[]*repository.NamespaceMetrics, []*repository.EntityGroup, []*repository.KubeController, []*repository.ContainerSpec, []*repository.PodVolumeMetrics) {
 	discoveryResult := []*proto.EntityDTO{}
 	namespaceMetrics := []*repository.NamespaceMetrics{}
 	entityGroupList := []*repository.EntityGroup{}
@@ -36,6 +36,7 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*r
 	podEntitiesMap := make(map[string]*repository.KubePod)
 	var kubeControllerList []*repository.KubeController
 	var containerSpecs []*repository.ContainerSpec
+	podVolumeMetrics := []*repository.PodVolumeMetrics{}
 	glog.V(2).Infof("Waiting for results from %d workers.", count)
 
 	stopChan := make(chan struct{})
@@ -57,6 +58,8 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*r
 					namespaceMetrics = append(namespaceMetrics, result.NamespaceMetrics()...)
 					// Group data from different workers
 					entityGroupList = append(entityGroupList, result.EntityGroups()...)
+					// Volume metrics from different workers
+					podVolumeMetrics = append(podVolumeMetrics, result.PodVolumeMetrics()...)
 					// Pod data with apps from different workers
 					for _, kubePod := range result.PodEntities() {
 						podEntitiesMap[kubePod.PodClusterId] = kubePod
@@ -79,5 +82,5 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*r
 		glog.Errorf("One or more discovery worker failed: %s", strings.Join(discoveryErrorString, "\t\t"))
 	}
 
-	return discoveryResult, podEntitiesMap, namespaceMetrics, entityGroupList, kubeControllerList, containerSpecs
+	return discoveryResult, podEntitiesMap, namespaceMetrics, entityGroupList, kubeControllerList, containerSpecs, podVolumeMetrics
 }
