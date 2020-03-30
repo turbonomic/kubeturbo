@@ -26,6 +26,7 @@ var (
 	appCommType              = proto.CommodityDTO_APPLICATION
 	numPodNumConsumersType   = proto.CommodityDTO_NUMBER_CONSUMERS
 	vStorageType             = proto.CommodityDTO_VSTORAGE
+	storageAmountType        = proto.CommodityDTO_STORAGE_AMOUNT
 
 	fakeKey = "fake"
 
@@ -41,6 +42,7 @@ var (
 	memRequestAllocationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &memRequestAllocationType}
 	vmpmAccessTemplateComm                  = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
 	applicationTemplateCommWithKey          = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
+	storageAmountTemplateCommWithKey        = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &storageAmountType}
 
 	// Internal matching property
 	proxyVMIP   = "Proxy_VM_IP"
@@ -119,6 +121,13 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	}
 	glog.V(4).Infof("Supply chain node: %+v", vAppSupplyChainNode)
 
+	// Virtual volume supply chain template
+	volumeSupplyChainNode, err := f.buildVolumeSupplyBuilder()
+	if err != nil {
+		return nil, err
+	}
+	glog.V(4).Infof("Supply chain node: %+v", volumeSupplyChainNode)
+
 	supplyChainBuilder := supplychain.NewSupplyChainBuilder()
 	supplyChainBuilder.Top(vAppSupplyChainNode)
 	supplyChainBuilder.Entity(appSupplyChainNode)
@@ -126,6 +135,7 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	supplyChainBuilder.Entity(podSupplyChainNode)
 	supplyChainBuilder.Entity(quotaSupplyChainNode)
 	supplyChainBuilder.Entity(nodeSupplyChainNode)
+	supplyChainBuilder.Entity(volumeSupplyChainNode)
 
 	return supplyChainBuilder.Create()
 }
@@ -179,6 +189,7 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 		PatchSoldMetadata(proto.CommodityDTO_MEM_REQUEST_ALLOCATION, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_NUMBER_CONSUMERS, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_VSTORAGE, fieldsUsedCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_STORAGE_AMOUNT, fieldsUsedCapacity).
 		Build()
 }
 
@@ -255,7 +266,9 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Buys(cpuAllocationTemplateCommWithKey).
 		Buys(memAllocationTemplateCommWithKey).
 		Buys(cpuRequestAllocationTemplateCommWithKey).
-		Buys(memRequestAllocationTemplateCommWithKey)
+		Buys(memRequestAllocationTemplateCommWithKey).
+		Provider(proto.EntityDTO_VIRTUAL_VOLUME, proto.Provider_LAYERED_OVER).
+		Buys(storageAmountTemplateCommWithKey)
 
 	// Link from Pod to VM
 	vmPodExtLinkBuilder := supplychain.NewExternalEntityLinkBuilder()
@@ -327,4 +340,15 @@ func (f *SupplyChainFactory) buildVirtualApplicationSupplyBuilder() (*proto.Temp
 		Provider(proto.EntityDTO_APPLICATION, proto.Provider_LAYERED_OVER).
 		Buys(applicationTemplateCommWithKey)
 	return vAppSupplyChainNodeBuilder.Create()
+}
+
+func (f *SupplyChainFactory) buildVolumeSupplyBuilder() (*proto.TemplateDTO, error) {
+	volumeSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_VIRTUAL_VOLUME)
+	//	volumeSupplyChainNodeBuilder.SetPriority(f.vmPriority)
+	//	volumeSupplyChainNodeBuilder.SetTemplateType(f.vmTemplateType)
+
+	volumeSupplyChainNodeBuilder = volumeSupplyChainNodeBuilder.
+		Sells(storageAmountTemplateCommWithKey) // sells to Pods
+
+	return volumeSupplyChainNodeBuilder.Create()
 }
