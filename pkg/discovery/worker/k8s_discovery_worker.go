@@ -209,6 +209,8 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	nodeMetricsCollection := metricsCollector.CollectNodeMetrics(podMetricsCollection)
 	quotaMetricsCollection := metricsCollector.CollectQuotaMetrics(podMetricsCollection)
 
+	podVolumeMetricsCollection := metricsCollector.CollectPodVolumeMetrics()
+
 	// Add the allocation metrics in the sink for the pods and the nodes
 	worker.addPodAllocationMetrics(podMetricsCollection)
 	worker.addNodeAllocationMetrics(nodeMetricsCollection)
@@ -244,6 +246,10 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	// return container and pod groups created by this worker
 	if len(entityGroups) > 0 {
 		result.WithEntityGroups(entityGroups)
+	}
+
+	if len(podVolumeMetricsCollection) > 0 {
+		result.WithPodVolumeMetrics(podVolumeMetricsCollection)
 	}
 
 	return result
@@ -311,9 +317,9 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	// Node providers
 	nodes := currTask.NodeList()
 	cluster := currTask.Cluster()
-	var volToPodsMap map[*api.PersistentVolume][]repository.PodVolume
+	var podToVolsMap map[string][]repository.MountedVolume
 	if cluster != nil {
-		volToPodsMap = cluster.VolumeToPodsMap
+		podToVolsMap = cluster.PodToVolumesMap
 	}
 
 	for _, node := range nodes {
@@ -347,7 +353,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 
 	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager,
 		nodeNameUIDMap, quotaNameUIDMap)
-	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods, volToPodsMap)
+	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods, podToVolsMap)
 	if err != nil {
 		glog.Errorf("Error while creating pod entityDTOs: %v", err)
 	}
@@ -366,6 +372,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 		glog.Errorf("Error while creating container entityDTOs: %v", err)
 	}
 	result = append(result, containerDTOs...)
+
 	glog.V(3).Infof("Worker %s built %d container DTOs.", worker.id, len(containerDTOs))
 
 	glog.V(2).Infof("Worker %s built total %d entityDTOs.", worker.id, len(result))
