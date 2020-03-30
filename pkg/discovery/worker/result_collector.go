@@ -20,6 +20,7 @@ type DiscoveryResult struct {
 	EntityGroups         []*repository.EntityGroup
 	KubeControllers      []*repository.KubeController
 	ContainerSpecMetrics []*repository.ContainerSpecMetrics
+	PodVolumeMetrics     []*repository.PodVolumeMetrics
 	PodEntitiesMap       map[string]*repository.KubePod
 	SuccessCount         int
 	ErrorCount           int
@@ -60,6 +61,8 @@ func (rc *ResultCollector) Collect(count int) *DiscoveryResult {
 					result.NamespaceMetrics = append(result.NamespaceMetrics, taskResult.NamespaceMetrics()...)
 					// Group data from different workers
 					result.EntityGroups = append(result.EntityGroups, taskResult.EntityGroups()...)
+					// Volume metrics from different workers
+					result.PodVolumeMetrics = append(result.PodVolumeMetrics, taskResult.PodVolumeMetrics()...)
 					// Pod data with apps from different workers
 					for _, kubePod := range taskResult.PodEntities() {
 						result.PodEntitiesMap[kubePod.PodClusterId] = kubePod

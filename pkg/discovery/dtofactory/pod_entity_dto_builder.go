@@ -3,8 +3,6 @@ package dtofactory
 import (
 	"fmt"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-
 	api "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"

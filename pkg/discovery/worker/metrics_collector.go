@@ -2,12 +2,13 @@ package worker
 
 import (
 	"fmt"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 // Collects allocation metrics for quotas, nodes and pods using the compute resource usages for pods
@@ -186,6 +187,55 @@ func collectContainersComputeResources(pod *v1.Pod) (float64, float64, float64, 
 		totalMemRequests += util.Base2BytesToKilobytes(float64(requests.Memory().Value()))
 	}
 	return totalCPULimits, totalCPURequests, totalMemLimits, totalMemRequests
+}
+
+func (collector *MetricsCollector) CollectPodVolumeMetrics() []*repository.PodVolumeMetrics {
+	var podVolumeMetricsCollection []*repository.PodVolumeMetrics
+
+	var podToVolsMap map[string][]repository.MountedVolume
+	if collector.Cluster.PodToVolumesMap != nil {
+		podToVolsMap = collector.Cluster.PodToVolumesMap
+	}
+
+	metricsSink := collector.MetricsSink
+	//Iterate over all the pods in the collection
+	for _, pod := range collector.PodList {
+		podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		podVols, exists := podToVolsMap[podKey]
+		if !exists {
+			continue
+		}
+
+		for _, podVol := range podVols {
+			podVolumeMetric := repository.PodVolumeMetrics{}
+			volKey := util.PodVolumeMetricId(podKey, podVol.MountName)
+			found := false
+
+			metricUID := metrics.GenerateEntityResourceMetricUID(metrics.PodType, volKey,
+				metrics.StorageAmount, metrics.Used)
+			metric, _ := metricsSink.GetMetric(metricUID)
+			if metric != nil && metric.GetValue() != nil {
+				podVolumeMetric.Used = metric.GetValue().(float64)
+				found = true
+			}
+
+			metricUID = metrics.GenerateEntityResourceMetricUID(metrics.PodType, volKey,
+				metrics.StorageAmount, metrics.Capacity)
+			metric, _ = metricsSink.GetMetric(metricUID)
+			if metric != nil && metric.GetValue() != nil {
+				podVolumeMetric.Capacity = metric.GetValue().(float64)
+				found = true
+			}
+
+			if found == true {
+				podVolumeMetric.QualifiedPodName = podKey
+				podVolumeMetric.MountName = podVol.MountName
+				podVolumeMetric.Volume = podVol.UsedVolume
+				podVolumeMetricsCollection = append(podVolumeMetricsCollection, &podVolumeMetric)
+			}
+		}
+	}
+	return podVolumeMetricsCollection
 }
 
 // Create namespace metrics for all the namespace entities and set the quota sold usage handled by this metric collector.

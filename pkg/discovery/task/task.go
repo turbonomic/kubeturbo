@@ -1,8 +1,9 @@
 package task
 
 import (
-	api "k8s.io/api/core/v1"
 	"strings"
+
+	api "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
@@ -116,6 +117,7 @@ type TaskResult struct {
 	podEntities          []*repository.KubePod
 	kubeControllers      []*repository.KubeController
 	containerSpecMetrics []*repository.ContainerSpecMetrics
+	podVolumeMetrics     []*repository.PodVolumeMetrics
 }
 
 func NewTaskResult(workerID string, state TaskResultState) *TaskResult {
@@ -157,6 +159,10 @@ func (r *TaskResult) ContainerSpecMetrics() []*repository.ContainerSpecMetrics {
 	return r.containerSpecMetrics
 }
 
+func (r *TaskResult) PodVolumeMetrics() []*repository.PodVolumeMetrics {
+	return r.podVolumeMetrics
+}
+
 func (r *TaskResult) Err() error {
 	return r.err
 }
@@ -193,5 +199,10 @@ func (r *TaskResult) WithKubeControllers(kubeControllers []*repository.KubeContr
 
 func (r *TaskResult) WithContainerSpecMetrics(containerSpecMetrics []*repository.ContainerSpecMetrics) *TaskResult {
 	r.containerSpecMetrics = containerSpecMetrics
+	return r
+}
+
+func (r *TaskResult) WithPodVolumeMetrics(podVolumeMetrics []*repository.PodVolumeMetrics) *TaskResult {
+	r.podVolumeMetrics = podVolumeMetrics
 	return r
 }
