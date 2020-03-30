@@ -46,6 +46,7 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	container := proto.EntityDTO_CONTAINER
 	app := proto.EntityDTO_APPLICATION_COMPONENT
 	service := proto.EntityDTO_SERVICE
+	vol := proto.EntityDTO_VIRTUAL_VOLUME
 
 	move := proto.ActionItemDTO_MOVE
 	resize := proto.ActionItemDTO_RIGHT_SIZE
@@ -83,6 +84,12 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	expected_node[suspend] = supported
 	expected_node[scale] = notSupported
 
+	expected_vol := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
+	expected_vol[resize] = notSupported
+	expected_vol[provision] = recommend
+	expected_vol[suspend] = notSupported
+	expected_vol[scale] = recommend
+
 	policies := reg.GetActionPolicy()
 
 	for _, item := range policies {
@@ -99,6 +106,8 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 			expected = expected_node
 		} else if entity == service {
 			expected = expected_service
+		} else if entity == vol {
+			expected = expected_vol
 		} else {
 			t.Errorf("Unknown entity type: %v", entity)
 			continue
@@ -125,6 +134,7 @@ func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
 		proto.EntityDTO_CONTAINER,
 		proto.EntityDTO_APPLICATION_COMPONENT,
 		proto.EntityDTO_SERVICE,
+		proto.EntityDTO_VIRTUAL_VOLUME,
 	}
 	entitySet := make(map[proto.EntityDTO_EntityType]struct{})
 
