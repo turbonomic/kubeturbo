@@ -22,7 +22,7 @@ var (
 		metrics.MemoryProvisioned:  proto.CommodityDTO_MEM_PROVISIONED,
 		metrics.Transaction:        proto.CommodityDTO_TRANSACTION,
 		metrics.CPULimitQuota:      proto.CommodityDTO_VCPU_LIMIT_QUOTA,
-		metrics.MemoryLimitQuota:   proto.CommodityDTO_VMEM_REQUEST_QUOTA,
+		metrics.MemoryLimitQuota:   proto.CommodityDTO_VMEM_LIMIT_QUOTA,
 		metrics.CPURequestQuota:    proto.CommodityDTO_VCPU_REQUEST_QUOTA,
 		metrics.MemoryRequestQuota: proto.CommodityDTO_VMEM_REQUEST_QUOTA,
 		metrics.NumPods:            proto.CommodityDTO_NUMBER_CONSUMERS,
