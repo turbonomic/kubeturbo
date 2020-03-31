@@ -8,7 +8,5 @@
             "opsManagerPassword": "bar"
         }
     },
-    "targetConfig": {
-        "targetName":"cluster-foo"
-    }
+    "targetConfig": {}
 }

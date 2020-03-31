@@ -2,7 +2,6 @@ package configs
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 
@@ -42,9 +41,6 @@ func (config *K8sTargetConfig) ValidateK8sTargetConfig() error {
 	// Determine target type
 	prefix := defaultTargetType + "-"
 	if config.TargetType == "" {
-		if config.TargetIdentifier == "" {
-			return fmt.Errorf("neither targetType nor targetIdentifier is specified")
-		}
 		config.TargetType = config.TargetIdentifier
 	}
 	// Prefix targetType with Kubernetes if needed

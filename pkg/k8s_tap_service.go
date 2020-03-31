@@ -36,7 +36,7 @@ type K8sTAPServiceSpec struct {
 	*detectors.HANodeConfig           `json:"HANodeConfig,omitempty"`
 }
 
-func ParseK8sTAPServiceSpec(configFile string) (*K8sTAPServiceSpec, error) {
+func ParseK8sTAPServiceSpec(configFile string, defaultTargetName string) (*K8sTAPServiceSpec, error) {
 	// load the config
 	tapSpec, err := readK8sTAPServiceSpec(configFile)
 	if err != nil {
@@ -49,7 +49,16 @@ func ParseK8sTAPServiceSpec(configFile string) (*K8sTAPServiceSpec, error) {
 	}
 
 	if tapSpec.K8sTargetConfig == nil {
-		return nil, errors.New("target configuration is missing")
+		// The targetConfig is missing, create one
+		tapSpec.K8sTargetConfig = &configs.K8sTargetConfig{}
+	}
+
+	if tapSpec.TargetIdentifier == "" && tapSpec.TargetType == "" {
+		// Neither targetIdentifier nor targetType is specified, set a default target name
+		if defaultTargetName == "" {
+			return nil, errors.New("default target name is empty")
+		}
+		tapSpec.TargetIdentifier = defaultTargetName
 	}
 
 	if err := loadOpsMgrCredentialsFromSecret(tapSpec); err != nil {
@@ -57,7 +66,9 @@ func ParseK8sTAPServiceSpec(configFile string) (*K8sTAPServiceSpec, error) {
 	}
 
 	if tapSpec.TargetIdentifier == "" {
-		// Fill in the username and password to pass communication configuration validation
+		// Only target type is specified, i.e., we want register probe without adding target
+		// There is no need for username and password, but we still fill in some default values
+		// in order to pass validation of communication configuration in turbo-go-sdk
 		tapSpec.OpsManagerUsername = defaultUsername
 		tapSpec.OpsManagerPassword = defaultPassword
 	}
