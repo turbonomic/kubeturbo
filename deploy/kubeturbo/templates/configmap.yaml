@@ -21,10 +21,17 @@ data:
       "HANodeConfig": {
         "nodeRoles": [{{ .Values.HANodeConfig.nodeRoles }}]
       {{- if .Values.targetConfig }}
-        {{- if .Values.targetConfig.targetName }}
+        {{- if or .Values.targetConfig.targetName .Values.targetConfig.targetType }}
       },
       "targetConfig": {
+          {{- if and .Values.targetConfig.targetName .Values.targetConfig.targetType }}
+        "targetName": "{{ .Values.targetConfig.targetName }}",
+        "targetType": "{{ .Values.targetConfig.targetType }}"
+          {{- else if .Values.targetConfig.targetName }}
         "targetName": "{{ .Values.targetConfig.targetName }}"
+          {{- else }}
+        "targetType": "{{ .Values.targetConfig.targetType }}"
+          {{- end}}
         {{- end }}
       {{- end }}
       {{- if .Values.daemonPodDetectors }}
