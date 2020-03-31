@@ -243,7 +243,7 @@ func (s *VMTServer) Run() {
 
 	glog.V(3).Infof("Turbonomic config path is: %v", s.K8sTAPSpec)
 
-	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec)
+	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec, kubeConfig.Host)
 	if err != nil {
 		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
 		os.Exit(1)

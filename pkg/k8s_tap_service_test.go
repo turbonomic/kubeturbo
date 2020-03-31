@@ -8,66 +8,97 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 )
 
-func TestParseK8sTAPServiceSpecWithNeitherTargetNameNorTargetType(t *testing.T) {
+func TestParseK8sTAPServiceSpecWithMissingTargetConfig(t *testing.T) {
+	defaultTargetName := "target-foo"
 	configPath := "../test/config/turbo-config"
 
-	_, err := ParseK8sTAPServiceSpec(configPath)
-	if err == nil {
-		t.Fatalf("Error while parsing the spec file %s: "+
-			"spec with neither targetName nor targetType is not allowed", configPath)
+	config, err := ParseK8sTAPServiceSpec(configPath, defaultTargetName)
+	if err != nil {
+		t.Fatalf("Error while parsing the spec file %s: %v", configPath, err)
 	}
+
+	// Check target config
+	checkStartWith(config.ProbeCategory, "Cloud Native", t)
+	check(config.TargetType, "Kubernetes-"+defaultTargetName, t)
+	check(config.TargetIdentifier, "Kubernetes-"+defaultTargetName, t)
+
+	// Check comm config
+	check(config.TurboServer, "https://127.1.1.1:9444", t)
+	check(config.OpsManagerUsername, "foo", t)
+	check(config.OpsManagerPassword, "bar", t)
+}
+
+func TestParseK8sTAPServiceSpecWithEmptyTargetConfig(t *testing.T) {
+	defaultTargetName := "target-foo"
+	configPath := "../test/config/turbo-config-with-empty-targetconfig"
+
+	config, err := ParseK8sTAPServiceSpec(configPath, defaultTargetName)
+	if err != nil {
+		t.Fatalf("Error while parsing the spec file %s: %v", configPath, err)
+	}
+
+	// Check target config
+	checkStartWith(config.ProbeCategory, "Cloud Native", t)
+	check(config.TargetType, "Kubernetes-"+defaultTargetName, t)
+	check(config.TargetIdentifier, "Kubernetes-"+defaultTargetName, t)
 }
 
 func TestParseK8sTAPServiceSpecWithTargetType(t *testing.T) {
+	defaultTargetName := "target-foo"
 	configPath := "../test/config/turbo-config-with-target-type"
 
-	got, err := ParseK8sTAPServiceSpec(configPath)
-
+	config, err := ParseK8sTAPServiceSpec(configPath, defaultTargetName)
 	if err != nil {
 		t.Fatalf("Error while parsing the spec file %s: %v", configPath, err)
 	}
 
 	// Check target config
-	checkStartWith(got.TargetType, "Kubernetes-", t)
-	checkStartWith(got.ProbeCategory, "Cloud Native", t)
-	check(got.TargetIdentifier, "", t)
+	checkStartWith(config.ProbeCategory, "Cloud Native", t)
+	check(config.TargetType, "Kubernetes-cluster-foo", t)
+	check(config.TargetIdentifier, "", t)
 
 	// Check comm config
-	check(got.TurboServer, "https://127.1.1.1:9444", t)
-	check(got.RestAPIConfig.OpsManagerUsername, defaultUsername, t)
-	check(got.RestAPIConfig.OpsManagerPassword, defaultPassword, t)
+	check(config.TurboServer, "https://127.1.1.1:9444", t)
+	check(config.OpsManagerUsername, defaultUsername, t)
+	check(config.OpsManagerPassword, defaultPassword, t)
 }
 
 func TestParseK8sTAPServiceSpecWithTargetName(t *testing.T) {
+	defaultTargetName := "target-foo"
 	configPath := "../test/config/turbo-config-with-target-name"
 
-	got, err := ParseK8sTAPServiceSpec(configPath)
-
+	config, err := ParseK8sTAPServiceSpec(configPath, defaultTargetName)
 	if err != nil {
 		t.Fatalf("Error while parsing the spec file %s: %v", configPath, err)
 	}
 
 	// Check target config
-	checkStartWith(got.ProbeCategory, "Cloud Native", t)
+	checkStartWith(config.ProbeCategory, "Cloud Native", t)
 	// The target name should be the one from the config file
-	check(got.TargetType, "Kubernetes-cluster-foo", t)
-	check(got.TargetIdentifier, "Kubernetes-cluster-foo", t)
+	check(config.TargetType, "Kubernetes-cluster-foo", t)
+	check(config.TargetIdentifier, "Kubernetes-cluster-foo", t)
+	check(config.OpsManagerUsername, "foo", t)
+	check(config.OpsManagerPassword, "bar", t)
 }
 
 func TestParseK8sTAPServiceSpecWithTargetNameAndTargetType(t *testing.T) {
+	defaultTargetName := "target-foo"
 	configPath := "../test/config/turbo-config-with-target-name-and-target-type"
 
-	got, err := ParseK8sTAPServiceSpec(configPath)
+	config, err := ParseK8sTAPServiceSpec(configPath, defaultTargetName)
 
 	if err != nil {
 		t.Fatalf("Error while parsing the spec file %s: %v", configPath, err)
 	}
 
 	// Check target config
-	checkStartWith(got.ProbeCategory, "Cloud Native", t)
+	checkStartWith(config.ProbeCategory, "Cloud Native", t)
 	// The target name should be the one from the config file
-	check(got.TargetType, "Kubernetes-Openshift", t)
-	check(got.TargetIdentifier, "Kubernetes-cluster-foo", t)
+	check(config.TargetType, "Kubernetes-Openshift", t)
+	check(config.TargetIdentifier, "Kubernetes-cluster-foo", t)
+	check(config.OpsManagerUsername, "foo", t)
+	check(config.OpsManagerPassword, "bar", t)
+
 }
 
 func check(got, want string, t *testing.T) {
