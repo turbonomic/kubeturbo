@@ -55,7 +55,7 @@ func TestPodFlags(t *testing.T) {
 func dumpPodFlags(pods []*api.Pod) {
 	// This code dumps the attributes of the saved topology
 	for i, pod := range pods {
-		parentKind, _, _ := podutil.GetPodParentInfo(pod)
+		parentKind, _, _, _ := podutil.GetPodParentInfo(pod)
 		fmt.Printf("Pod %d: controllable = %v, parentKind = %s\n", i,
 			podutil.Controllable(pod),
 			parentKind)

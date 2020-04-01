@@ -23,8 +23,8 @@ const (
 	Memory             ResourceType = "Memory"
 	CPURequest         ResourceType = "CPURequest"
 	MemoryRequest      ResourceType = "MemoryRequest"
-	CPUQuota           ResourceType = "CPUQuota"
-	MemoryQuota        ResourceType = "MemoryQuota"
+	CPULimitQuota      ResourceType = "CPULimitQuota"
+	MemoryLimitQuota   ResourceType = "MemoryLimitQuota"
 	CPURequestQuota    ResourceType = "CPURequestQuota"
 	MemoryRequestQuota ResourceType = "MemoryRequestQuota"
 	CPUProvisioned     ResourceType = "CPUProvisioned"
@@ -38,6 +38,7 @@ const (
 	CpuFrequency ResourceType = "CpuFrequency"
 	Owner        ResourceType = "Owner"
 	OwnerType    ResourceType = "OwnerType"
+	OwnerUID     ResourceType = "OwnerUID"
 )
 
 var (
@@ -49,16 +50,16 @@ var (
 
 	// Mapping of Kubernetes API Server resource names to the allocation resource types
 	KubeQuotaResourceTypes = map[v1.ResourceName]ResourceType{
-		v1.ResourceLimitsCPU:      CPUQuota,
-		v1.ResourceLimitsMemory:   MemoryQuota,
+		v1.ResourceLimitsCPU:      CPULimitQuota,
+		v1.ResourceLimitsMemory:   MemoryLimitQuota,
 		v1.ResourceRequestsCPU:    CPURequestQuota,
 		v1.ResourceRequestsMemory: MemoryRequestQuota,
 	}
 
 	// Mapping of allocation to compute resources
 	QuotaToComputeMap = map[ResourceType]ResourceType{
-		CPUQuota:           CPU,
-		MemoryQuota:        Memory,
+		CPULimitQuota:      CPU,
+		MemoryLimitQuota:   Memory,
 		CPURequestQuota:    CPURequest,
 		MemoryRequestQuota: MemoryRequest,
 	}

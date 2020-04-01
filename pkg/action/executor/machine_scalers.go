@@ -396,7 +396,7 @@ func newController(namespace string, nodeName string, diff int32, actionType Act
 
 	ownerKind, ownerName := "", ""
 	if machine.OwnerReferences != nil && len(machine.OwnerReferences) > 0 {
-		ownerKind, ownerName = discoveryutil.ParseOwnerReferences(machine.OwnerReferences)
+		ownerKind, ownerName, _ = discoveryutil.ParseOwnerReferences(machine.OwnerReferences)
 		if !(len(ownerKind) > 0 && len(ownerName) > 0) {
 			return nil, nil, fmt.Errorf("OwnerRef missing from machine %s which manages %s.", machine.Name, nodeName)
 		}

@@ -74,9 +74,9 @@ func makeKubeNodes() []*repository.KubeNode {
 
 type TestQuota struct {
 	name            string
-	cpuQuota        string
+	cpuLimitQuota   string
 	cpuUsed         string
-	memQuota        string
+	memLimitQuota   string
 	memUsed         string
 	cpuRequestQuota string
 	cpuRequestUsed  string
@@ -157,14 +157,14 @@ func makeKubeQuotas() []*repository.KubeQuota {
 
 		hardResourceList := v1.ResourceList{}
 		usedResourceList := v1.ResourceList{}
-		if testQuota.cpuQuota != "0" {
-			hardResourceList[v1.ResourceLimitsCPU] = k8sres.MustParse(testQuota.cpuQuota)
+		if testQuota.cpuLimitQuota != "0" {
+			hardResourceList[v1.ResourceLimitsCPU] = k8sres.MustParse(testQuota.cpuLimitQuota)
 			usedResourceList[v1.ResourceLimitsCPU] = k8sres.MustParse(testQuota.cpuUsed)
 			hardResourceList[v1.ResourceRequestsCPU] = k8sres.MustParse(testQuota.cpuRequestQuota)
 			usedResourceList[v1.ResourceRequestsCPU] = k8sres.MustParse(testQuota.cpuRequestUsed)
 		}
-		if testQuota.memQuota != "0" {
-			hardResourceList[v1.ResourceLimitsMemory] = k8sres.MustParse(testQuota.memQuota)
+		if testQuota.memLimitQuota != "0" {
+			hardResourceList[v1.ResourceLimitsMemory] = k8sres.MustParse(testQuota.memLimitQuota)
 			usedResourceList[v1.ResourceLimitsMemory] = k8sres.MustParse(testQuota.memUsed)
 			hardResourceList[v1.ResourceRequestsMemory] = k8sres.MustParse(testQuota.memRequestQuota)
 			usedResourceList[v1.ResourceRequestsMemory] = k8sres.MustParse(testQuota.memRequestUsed)
@@ -197,9 +197,9 @@ func makeKubeQuotas() []*repository.KubeQuota {
 
 		for _, node := range TestNodes {
 			allocationResourceMap := make(map[metrics.ResourceType]float64)
-			allocationResourceMap[metrics.CPUQuota] = node.cpuCap * 0.033
+			allocationResourceMap[metrics.CPULimitQuota] = node.cpuCap * 0.033
 			allocationResourceMap[metrics.CPURequestQuota] = node.cpuCap * 0.033
-			allocationResourceMap[metrics.MemoryQuota] = node.memCap * 0.033
+			allocationResourceMap[metrics.MemoryLimitQuota] = node.memCap * 0.033
 			allocationResourceMap[metrics.MemoryRequestQuota] = node.memCap * 0.033
 			kubeQuota.AddNodeProvider(node.name, allocationResourceMap)
 		}
