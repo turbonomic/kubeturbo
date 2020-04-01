@@ -34,7 +34,7 @@ type controllerSpec struct {
 // newK8sControllerUpdater returns a k8sControllerUpdater based on the parent kind of a pod
 func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.Interface, pod *api.Pod) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
-	kind, name, err := podutil.GetPodGrandInfo(dynamicClient, pod)
+	kind, name, _, err := podutil.GetPodGrandInfo(dynamicClient, pod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get parent info of pod %s/%s: %v", pod.Namespace, pod.Name, err)
 	}

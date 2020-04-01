@@ -164,7 +164,7 @@ func (r *ReScheduler) reSchedule(pod *api.Pod, node *api.Node) (*api.Pod, error)
 		return nil, err
 	}
 
-	parentKind, parentName, err := podutil.GetPodParentInfo(pod)
+	parentKind, parentName, _, err := podutil.GetPodParentInfo(pod)
 	if err != nil {
 		err = fmt.Errorf("Cannot get parent info of pod [%v]: %v", fullName, err)
 		glog.Errorf("Move action aborted: %v.", err)

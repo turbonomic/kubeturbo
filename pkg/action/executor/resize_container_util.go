@@ -198,7 +198,7 @@ func resizeControllerContainer(client *kclient.Clientset, dynClient dynamic.Inte
 func resizeSingleContainer(client *kclient.Clientset, originalPod *k8sapi.Pod, spec *containerResizeSpec) (*k8sapi.Pod, error) {
 	// check parent controller of the original pod
 	fullName := util.BuildIdentifier(originalPod.Namespace, originalPod.Name)
-	parentKind, parentName, err := podutil.GetPodParentInfo(originalPod)
+	parentKind, parentName, _, err := podutil.GetPodParentInfo(originalPod)
 	if err != nil {
 		glog.Errorf("Resize action failed: failed to get pod[%s] parent info: %v.", fullName, err)
 		return nil, err
