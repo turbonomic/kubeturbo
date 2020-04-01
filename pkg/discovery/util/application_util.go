@@ -23,7 +23,7 @@ func GetAppType(pod *api.Pod) string {
 		}
 		return result
 	} else {
-		_, parentName, err := GetPodParentInfo(pod)
+		_, parentName, _, err := GetPodParentInfo(pod)
 		if err != nil {
 			glog.Errorf("fail to getAppType: %v", err.Error())
 			return ""

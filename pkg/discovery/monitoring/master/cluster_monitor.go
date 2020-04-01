@@ -38,6 +38,7 @@ type ClusterMonitor struct {
 type PodOwner struct {
 	kind string
 	name string
+	uid  string
 }
 
 func NewClusterMonitor(config *ClusterMonitorConfig) (*ClusterMonitor, error) {
@@ -230,15 +231,15 @@ func (m *ClusterMonitor) getPodOwner(pod *api.Pod, dynClient dynamic.Interface) 
 	key := util.PodKeyFunc(pod)
 	glog.V(4).Infof("begin to generate pod[%s]'s Owner metric.", key)
 
-	kind, parentName, err := util.GetPodGrandInfo(dynClient, pod)
+	kind, parentName, uid, err := util.GetPodGrandInfo(dynClient, pod)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting pod owner: %v", err)
 	}
 
-	if parentName == "" || kind == "" {
-		return nil, fmt.Errorf("Invalid pod owner %s::%s", kind, parentName)
+	if parentName == "" || kind == "" || uid == "" {
+		return nil, fmt.Errorf("Invalid pod owner %s::%s::%s", kind, parentName, uid)
 	}
-	return &PodOwner{kind: kind, name: parentName}, nil
+	return &PodOwner{kind: kind, name: parentName, uid: uid}, nil
 }
 
 // genPodMetrics: based on hosting Node's cpuCapacity and memCapacity
@@ -267,7 +268,7 @@ func (m *ClusterMonitor) genPodMetrics(pod *api.Pod, nodeCPUCapacity, nodeMemCap
 	//3. Owner
 	podOwner, exists := m.podOwners[key]
 	if exists && podOwner != nil {
-		m.genOwnerMetrics(metrics.PodType, key, podOwner.kind, podOwner.name)
+		m.genOwnerMetrics(metrics.PodType, key, podOwner.kind, podOwner.name, podOwner.uid)
 	}
 
 	return podCPURequest, podMemRequest
@@ -314,19 +315,21 @@ func (m *ClusterMonitor) genContainerMetrics(pod *api.Pod, podCPU, podMem float6
 		//3. Owner
 		podOwner, exists := m.podOwners[podKey]
 		if exists && podOwner != nil {
-			m.genOwnerMetrics(metrics.ContainerType, containerMId, podOwner.kind, podOwner.name)
+			m.genOwnerMetrics(metrics.ContainerType, containerMId, podOwner.kind, podOwner.name, podOwner.uid)
 		}
 	}
 
 	return totalCPURequest, totalMemRequest
 }
 
-func (m *ClusterMonitor) genOwnerMetrics(etype metrics.DiscoveredEntityType, key string, kind, parentName string) {
-	if parentName != "" && kind != "" {
+func (m *ClusterMonitor) genOwnerMetrics(etype metrics.DiscoveredEntityType, key, kind, parentName, uid string) {
+	if parentName != "" && kind != "" && uid != "" {
 		ownerMetric := metrics.NewEntityStateMetric(etype, key, metrics.Owner, parentName)
 		ownerTypeMetric := metrics.NewEntityStateMetric(etype, key, metrics.OwnerType, kind)
+		ownerUIDMetric := metrics.NewEntityStateMetric(etype, key, metrics.OwnerUID, uid)
 		m.sink.AddNewMetricEntries(ownerMetric)
 		m.sink.AddNewMetricEntries(ownerTypeMetric)
+		m.sink.AddNewMetricEntries(ownerUIDMetric)
 	}
 }
 

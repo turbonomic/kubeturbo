@@ -32,8 +32,8 @@ var (
 	}
 
 	allocationResourceCommoditiesSold = []metrics.ResourceType{
-		metrics.CPUQuota,
-		metrics.MemoryQuota,
+		metrics.CPULimitQuota,
+		metrics.MemoryLimitQuota,
 		metrics.CPURequestQuota,
 		metrics.MemoryRequestQuota,
 	}
@@ -234,12 +234,12 @@ func (builder *nodeEntityDTOBuilder) getAllocationCommoditiesSold(node *api.Node
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cpu frequency from sink for node %s: %s", key, err)
 	}
-	// cpuQuota and cpuRequestQuota needs to be converted from number of cores to frequency.
+	// cpuLimitQuota and cpuRequestQuota needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(
 		func(input float64) float64 {
 			return input * cpuFrequency
 		},
-		metrics.CPUQuota, metrics.CPURequestQuota)
+		metrics.CPULimitQuota, metrics.CPURequestQuota)
 
 	// Resource Commodities
 	var resourceCommoditiesSold []*proto.CommodityDTO
