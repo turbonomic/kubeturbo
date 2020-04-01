@@ -52,6 +52,7 @@ func (builder *containerSpecDTOBuilder) getControllerUIDToContainersMap(pods []*
 		}
 		controllerUID, err := builder.getControllerUID(metrics.PodType, util.PodKeyFunc(pod))
 		if err != nil {
+			glog.Errorf("Error getting controller UID: %v", err)
 			continue
 		}
 		containerSet, exist := controllerUIDToContainersMap[controllerUID]
@@ -70,12 +71,12 @@ func (builder *containerSpecDTOBuilder) getControllerUID(entityType metrics.Disc
 	ownerUIDMetricId := metrics.GenerateEntityStateMetricUID(entityType, entityKey, metrics.OwnerUID)
 	ownerUIDMetric, err := builder.metricsSink.GetMetric(ownerUIDMetricId)
 	if err != nil {
-		return "", fmt.Errorf("Error getting owner UID for pod %s --> %v\n", entityKey, err)
+		return "", fmt.Errorf("error getting owner UID for pod %s --> %v", entityKey, err)
 	}
 	ownerUID := ownerUIDMetric.GetValue()
 	controllerUID, ok := ownerUID.(string)
 	if !ok {
-		return "", fmt.Errorf("Error getting owner UID for pod %s\n", entityKey)
+		return "", fmt.Errorf("error getting owner UID for pod %s", entityKey)
 	}
 	return controllerUID, nil
 }

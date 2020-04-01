@@ -111,6 +111,8 @@ func VDCIdFunc(namespaceId string) string {
 	return fmt.Sprintf("%s-%s", vdcPrefix, namespaceId)
 }
 
+// Construct containerSpecId based on controller UID and container name,
+// e.g. "aba54eb8-3bca-11ea-bd96-005056803564/kubeturbo"
 func ContainerSpecIdFunc(controllerUID string, containerName string) string {
 	return controllerUID + "/" + containerName
 }
