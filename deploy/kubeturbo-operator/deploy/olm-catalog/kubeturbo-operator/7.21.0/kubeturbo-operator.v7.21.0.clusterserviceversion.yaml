@@ -2,7 +2,7 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1alpha1","kind":"Kubeturbo","metadata":{"name":"kubeturbo-release"},"spec":{"serverMeta":{"turboServer":"https://Turbo_server_URL","version":7.21}}}]'
+    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1alpha1","kind":"Kubeturbo","metadata":{"name":"kubeturbo-release"}}]'
     capabilities: Basic Install
     categories: Monitoring
     certified: "false"
@@ -17,11 +17,11 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
-    - description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
-      displayName: Kubeturbo Operator
-      kind: Kubeturbo
-      name: kubeturbos.charts.helm.k8s.io
-      version: v1alpha1
+      - description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
+        displayName: Kubeturbo Operator
+        kind: Kubeturbo
+        name: kubeturbos.charts.helm.k8s.io
+        version: v1alpha1
   description: |-
     ### Application Resource Management for Kubernetes
     Turbonomic AI-powered Application Resource Management simultaneously optimizes performance, compliance, and cost in real time.
