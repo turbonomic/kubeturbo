@@ -88,30 +88,30 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		}
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
-		if pod.OwnerReferences != nil {
-			// If pod is deployed by k8s controller, pod buys commodities from node provider
-			commoditiesBought, err := builder.getPodCommoditiesBought(pod, cpuFrequency)
-			if err != nil {
-				glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
-				continue
-			}
-			providerNodeUID, exist := builder.nodeNameUIDMap[pod.Spec.NodeName]
-			if !exist {
-				glog.Errorf("Error when create commoditiesBought for pod %s: Cannot find uuid for provider "+
-					"node.", displayName)
-				continue
-			}
-			provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, providerNodeUID)
-			entityDTOBuilder = entityDTOBuilder.Provider(provider)
+		// commodities bought - from node provider
+		commoditiesBought, err := builder.getPodCommoditiesBought(pod, cpuFrequency)
+		if err != nil {
+			glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
+			continue
+		}
+		providerNodeUID, exist := builder.nodeNameUIDMap[pod.Spec.NodeName]
+		if !exist {
+			glog.Errorf("Error when create commoditiesBought for pod %s: Cannot find uuid for provider "+
+				"node.", displayName)
+			continue
+		}
+		provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, providerNodeUID)
+		entityDTOBuilder = entityDTOBuilder.Provider(provider)
 
-			// pods are movable across nodes except for the daemon pods
-			if daemon {
-				entityDTOBuilder.IsMovable(proto.EntityDTO_VIRTUAL_MACHINE, false)
-			}
+		// pods are movable across nodes except for the daemon pods
+		if daemon {
+			entityDTOBuilder.IsMovable(proto.EntityDTO_VIRTUAL_MACHINE, false)
+		}
 
-			entityDTOBuilder.BuysCommodities(commoditiesBought)
-		} else {
-			// else if it is bare pod deployed without k8s controller, pod buys commodities directly from namespace provider
+		entityDTOBuilder.BuysCommodities(commoditiesBought)
+
+		if pod.OwnerReferences == nil {
+			// If it is bare pod deployed without k8s controller, pod buys commodities directly from namespace provider
 			namespaceUID, exists := builder.namespaceUIDMap[pod.Namespace]
 			if exists {
 				commoditiesBoughtQuota, err := builder.getPodCommoditiesBoughtFromNamespace(namespaceUID, pod, cpuFrequency)
@@ -128,6 +128,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 				glog.Errorf("Failed to get namespaceUID from namespace %s for pod %s", pod.Namespace, pod.Name)
 			}
 		}
+		// TODO Yue if pod is deployed by k8s controller, pod buys quota commodities from WorkloadController
 
 		// entities' properties.
 		properties, err := builder.getPodProperties(pod)
