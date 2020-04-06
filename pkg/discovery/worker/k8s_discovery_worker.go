@@ -197,20 +197,18 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	}
 	wg.Wait()
 
-	// Collect usages for pods in different quotas and create used and capacity
-	// metrics for the allocation resources of the nodes, quotas and pods
+	// Collect usages for pods in different namespaces and create used and capacity
+	// metrics for the allocation resources of the namespaces and pods
 	metricsCollector := NewMetricsCollector(worker, currTask)
 
 	podMetricsCollection, err := metricsCollector.CollectPodMetrics()
 	if err != nil {
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
-	nodeMetricsCollection := metricsCollector.CollectNodeMetrics(podMetricsCollection)
-	quotaMetricsCollection := metricsCollector.CollectQuotaMetrics(podMetricsCollection)
+	namespaceMetricsCollection := metricsCollector.CollectNamespaceMetrics(podMetricsCollection)
 
 	// Add the allocation metrics in the sink for the pods and the nodes
 	worker.addPodAllocationMetrics(podMetricsCollection)
-	worker.addNodeAllocationMetrics(nodeMetricsCollection)
 
 	// Build Entity groups
 	groupsCollector := NewGroupMetricsCollector(worker, currTask)
@@ -236,9 +234,9 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	result := task.NewTaskResult(worker.id, task.TaskSucceeded).WithContent(entityDTOs)
 	// In addition, return pod entities with the associated app DTOs for creating service DTOs
 	result.WithPodEntities(podEntities)
-	// return the quota metrics created by this worker
-	if len(quotaMetricsCollection) > 0 {
-		result.WithQuotaMetrics(quotaMetricsCollection)
+	// return the namespace metrics created by this worker
+	if len(namespaceMetricsCollection) > 0 {
+		result.WithNamespaceMetrics(namespaceMetricsCollection)
 	}
 	// return container and pod groups created by this worker
 	if len(entityGroups) > 0 {
@@ -249,13 +247,13 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 }
 
 // =================================================================================================
-func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection PodMetricsByNodeAndQuota) {
+func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection PodMetricsByNodeAndNamespace) {
 	etype := metrics.PodType
 	for _, podsByQuotaMap := range podMetricsCollection {
 		for _, podMetricsList := range podsByQuotaMap {
 			for _, podMetrics := range podMetricsList {
 				podKey := podMetrics.PodKey
-				for resourceType, usedValue := range podMetrics.AllocationBought {
+				for resourceType, usedValue := range podMetrics.QuotaUsed {
 					// Generate the metrics in the sink
 					allocationUsedMetric := metrics.NewEntityResourceMetric(etype,
 						podKey, resourceType,
@@ -265,6 +263,7 @@ func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection P
 						allocationUsedMetric.GetUID(), podMetrics.PodName, usedValue)
 				}
 
+				// TODO Yue: update logic here to add new metrics for quota capacity instead of updating compute capacity
 				for resourceType, capValue := range podMetrics.ComputeCapacity {
 					computeCapMetric := metrics.NewEntityResourceMetric(etype,
 						podKey, resourceType,
@@ -274,27 +273,6 @@ func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection P
 						computeCapMetric.GetUID(), podMetrics.PodName, capValue)
 				}
 			}
-		}
-	}
-}
-
-func (worker *k8sDiscoveryWorker) addNodeAllocationMetrics(nodeMetricsCollection NodeMetricsCollection) {
-	entityType := metrics.NodeType
-	for _, nodeMetrics := range nodeMetricsCollection {
-		nodeKey := nodeMetrics.NodeKey
-		for _, allocationResource := range metrics.QuotaResources {
-			capValue := nodeMetrics.AllocationCap[allocationResource]
-			allocationCapMetric := metrics.NewEntityResourceMetric(entityType, nodeKey,
-				allocationResource, metrics.Capacity, capValue)
-			worker.sink.AddNewMetricEntries(allocationCapMetric)
-
-			usedValue := nodeMetrics.AllocationUsed[allocationResource]
-			allocationUsedMetric := metrics.NewEntityResourceMetric(entityType, nodeKey,
-				allocationResource, metrics.Used, usedValue)
-			worker.sink.AddNewMetricEntries(allocationUsedMetric)
-
-			glog.V(4).Infof("Created %s sold for node %s, used: %f, cap: %f.",
-				allocationResource, nodeMetrics.NodeName, usedValue, capValue)
 		}
 	}
 }
@@ -331,17 +309,17 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	result = append(result, nodeEntityDTOs...)
 
 	// 2. build entityDTOs for pods
-	quotaNameUIDMap := make(map[string]string)
+	namespaceUIDMap := make(map[string]string)
 	nodeNameUIDMap := make(map[string]string)
 	if cluster != nil {
-		quotaNameUIDMap = cluster.QuotaNameUIDMap // quota providers
+		namespaceUIDMap = cluster.NamespaceUIDMap // quota providers
 		nodeNameUIDMap = cluster.NodeNameUIDMap   // node providers
 	}
 	pods := currTask.PodList()
 	glog.V(3).Infof("Worker %s received %d pods.", worker.id, len(pods))
 
 	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager,
-		nodeNameUIDMap, quotaNameUIDMap)
+		nodeNameUIDMap, namespaceUIDMap)
 	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods)
 	if err != nil {
 		glog.Errorf("Error while creating pod entityDTOs: %v", err)

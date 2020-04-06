@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	applicationCommodityDefaultCapacity = 1e10
+	applicationCommodityDefaultCapacity = 1e9
 )
 
 var (
@@ -36,7 +36,7 @@ var (
 		// TODO, add back provisioned commodity later
 	}
 
-	podResourceCommodityBoughtFromQuota = []metrics.ResourceType{
+	podResourceCommodityBoughtFromNamespace = []metrics.ResourceType{
 		metrics.CPULimitQuota,
 		metrics.MemoryLimitQuota,
 		metrics.CPURequestQuota,
@@ -48,15 +48,15 @@ type podEntityDTOBuilder struct {
 	generalBuilder
 	stitchingManager *stitching.StitchingManager
 	nodeNameUIDMap   map[string]string
-	quotaNameUIDMap  map[string]string
+	namespaceUIDMap  map[string]string
 }
 
 func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager,
-	nodeNameUIDMap, quotaNameUIDMap map[string]string) *podEntityDTOBuilder {
+	nodeNameUIDMap, namespaceUIDMap map[string]string) *podEntityDTOBuilder {
 	return &podEntityDTOBuilder{
 		generalBuilder:   newGeneralBuilder(sink),
 		nodeNameUIDMap:   nodeNameUIDMap,
-		quotaNameUIDMap:  quotaNameUIDMap,
+		namespaceUIDMap:  namespaceUIDMap,
 		stitchingManager: stitchingManager,
 	}
 }
@@ -88,43 +88,45 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		}
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
-		// commodities bought - from node provider
-		commoditiesBought, err := builder.getPodCommoditiesBought(pod, cpuFrequency)
-		if err != nil {
-			glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
-			continue
-		}
-		providerNodeUID, exist := builder.nodeNameUIDMap[pod.Spec.NodeName]
-		if !exist {
-			glog.Errorf("Error when create commoditiesBought for pod %s: Cannot find uuid for provider "+
-				"node.", displayName)
-			continue
-		}
-		provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, providerNodeUID)
-		entityDTOBuilder = entityDTOBuilder.Provider(provider)
-
-		// pods are movable across nodes except for the daemon pods
-		if daemon {
-			entityDTOBuilder.IsMovable(proto.EntityDTO_VIRTUAL_MACHINE, false)
-		}
-
-		entityDTOBuilder.BuysCommodities(commoditiesBought)
-
-		// commodities bought - from namespace provider
-		quotaUID, exists := builder.quotaNameUIDMap[pod.Namespace]
-		if exists {
-			commoditiesBoughtQuota, err := builder.getPodCommoditiesBoughtFromQuota(quotaUID, pod, cpuFrequency)
+		if pod.OwnerReferences != nil {
+			// If pod is deployed by k8s controller, pod buys commodities from node provider
+			commoditiesBought, err := builder.getPodCommoditiesBought(pod, cpuFrequency)
 			if err != nil {
 				glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
 				continue
 			}
-			provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_DATACENTER, quotaUID)
+			providerNodeUID, exist := builder.nodeNameUIDMap[pod.Spec.NodeName]
+			if !exist {
+				glog.Errorf("Error when create commoditiesBought for pod %s: Cannot find uuid for provider "+
+					"node.", displayName)
+				continue
+			}
+			provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, providerNodeUID)
 			entityDTOBuilder = entityDTOBuilder.Provider(provider)
-			entityDTOBuilder.BuysCommodities(commoditiesBoughtQuota)
-			// pods are not movable across namespaces
-			entityDTOBuilder.IsMovable(proto.EntityDTO_VIRTUAL_DATACENTER, false)
+
+			// pods are movable across nodes except for the daemon pods
+			if daemon {
+				entityDTOBuilder.IsMovable(proto.EntityDTO_VIRTUAL_MACHINE, false)
+			}
+
+			entityDTOBuilder.BuysCommodities(commoditiesBought)
 		} else {
-			glog.Errorf("Failed to get quota for pod: %s", pod.Namespace)
+			// else if it is bare pod deployed without k8s controller, pod buys commodities directly from namespace provider
+			namespaceUID, exists := builder.namespaceUIDMap[pod.Namespace]
+			if exists {
+				commoditiesBoughtQuota, err := builder.getPodCommoditiesBoughtFromNamespace(namespaceUID, pod, cpuFrequency)
+				if err != nil {
+					glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
+					continue
+				}
+				provider := sdkbuilder.CreateProvider(proto.EntityDTO_NAMESPACE, namespaceUID)
+				entityDTOBuilder = entityDTOBuilder.Provider(provider)
+				entityDTOBuilder.BuysCommodities(commoditiesBoughtQuota)
+				// pods are not movable across namespaces
+				entityDTOBuilder.IsMovable(proto.EntityDTO_NAMESPACE, false)
+			} else {
+				glog.Errorf("Failed to get namespaceUID from namespace %s for pod %s", pod.Namespace, pod.Name)
+			}
 		}
 
 		// entities' properties.
@@ -174,6 +176,8 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 	return result, nil
 }
 
+// TODO Yue: update the function to have a pod sell VPURequest/VMemRequest, VCPULimitQuota/VMemLimitQuota,
+// VCPURequestQuota/VMemRequestQuota commodities.
 // Build the CommodityDTOs sold  by the pod for vCPU, vMem and VMPMAcces.
 // VMPMAccess is used to bind container to the hosting pod so the container is not moved out of the pod
 func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
@@ -267,7 +271,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 }
 
 // Build the CommodityDTOs bought by the pod from the quota provider.
-func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromQuota(quotaUID string, pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromNamespace(quotaUID string, pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 	key := util.PodKeyFunc(pod)
 
@@ -277,7 +281,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromQuota(quotaUID st
 	}, metrics.CPULimitQuota, metrics.CPURequestQuota)
 
 	// Resource Commodities.
-	for _, resourceType := range podResourceCommodityBoughtFromQuota {
+	for _, resourceType := range podResourceCommodityBoughtFromNamespace {
 		commBought, err := builder.getResourceCommodityBoughtWithKey(metrics.PodType, key,
 			resourceType, quotaUID, converter, nil)
 		if err != nil {
@@ -287,6 +291,15 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromQuota(quotaUID st
 		}
 		commoditiesBought = append(commoditiesBought, commBought)
 	}
+
+	// Access commodity.
+	accessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
+		Key(pod.Namespace).
+		Create()
+	if err != nil {
+		return nil, err
+	}
+	commoditiesBought = append(commoditiesBought, accessComm)
 	return commoditiesBought, nil
 }
 

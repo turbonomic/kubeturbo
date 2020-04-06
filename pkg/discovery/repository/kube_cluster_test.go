@@ -72,24 +72,13 @@ var TestQuotas = []struct {
 	{"quota3", "6000m", "300m", "6Ki", "5Ki"},
 }
 
-var TestNodeProviders = []struct {
-	node    string
-	cpuUsed float64
-	memUsed float64
-}{
-	{"node1", 1.0, 100 * 1024 * 1024.0},
-	{"node2", 0.5, 150 * 1024.0 * 1024.0},
-	{"node3", 1.5, 250 * 1024.0 * 1024.0},
-}
-
-func TestKubeQuota(t *testing.T) {
+func TestKubeNamespace(t *testing.T) {
 	namespace := "ns1"
 	cluster := "cluster1"
 
-	var clusterResources map[metrics.ResourceType]*KubeDiscoveredResource
 	for i, testQuota := range TestQuotas {
-		uuid := fmt.Sprintf("vdc-%d", i)
-		kubeQuota := CreateDefaultQuota(cluster, namespace, uuid, clusterResources)
+		uuid := fmt.Sprintf("namespace-%d", i)
+		kubeNamespace := CreateDefaultKubeNamespace(cluster, namespace, uuid)
 		hardResourceList := v1.ResourceList{
 			v1.ResourceLimitsCPU:    resource.MustParse(testQuota.cpuLimit),
 			v1.ResourceLimitsMemory: resource.MustParse(testQuota.memLimit),
@@ -113,9 +102,9 @@ func TestKubeQuota(t *testing.T) {
 		var quotaList []*v1.ResourceQuota
 		quotaList = append(quotaList, quota)
 
-		kubeQuota.ReconcileQuotas(quotaList)
+		kubeNamespace.ReconcileQuotas(quotaList)
 
-		resource, _ := kubeQuota.GetAllocationResource(metrics.CPULimitQuota)
+		resource, _ := kubeNamespace.GetAllocationResource(metrics.CPULimitQuota)
 		quantity := hardResourceList[v1.ResourceLimitsCPU]
 		cpuMilliCore := quantity.MilliValue()
 		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
@@ -126,7 +115,7 @@ func TestKubeQuota(t *testing.T) {
 		cpuCore = util.MetricMilliToUnit(float64(cpuMilliCore))
 		assert.Equal(t, resource.Used, cpuCore)
 
-		resource, _ = kubeQuota.GetAllocationResource(metrics.MemoryLimitQuota)
+		resource, _ = kubeNamespace.GetAllocationResource(metrics.MemoryLimitQuota)
 		quantity = hardResourceList[v1.ResourceLimitsMemory]
 		memoryBytes := quantity.Value()
 		memoryKiloBytes := util.Base2BytesToKilobytes(float64(memoryBytes))
@@ -138,14 +127,9 @@ func TestKubeQuota(t *testing.T) {
 	}
 }
 
-func TestKubeQuotaWithMissingAllocations(t *testing.T) {
+func TestKubeNamespaceWithMissingAllocations(t *testing.T) {
 	namespace := "ns1"
 	cluster := "cluster1"
-
-	clusterResources := map[metrics.ResourceType]*KubeDiscoveredResource{
-		metrics.CPU:    &KubeDiscoveredResource{Type: metrics.CPU, Capacity: 8.0},
-		metrics.Memory: &KubeDiscoveredResource{Type: metrics.Memory, Capacity: 16 * 1024},
-	}
 
 	for i, testQuota := range TestQuotas {
 		hardResourceList := v1.ResourceList{
@@ -169,11 +153,11 @@ func TestKubeQuotaWithMissingAllocations(t *testing.T) {
 		var quotaList []*v1.ResourceQuota
 		quotaList = append(quotaList, quota)
 
-		uuid := fmt.Sprintf("vdc-%d", i)
-		kubeQuota := CreateDefaultQuota(cluster, namespace, uuid, clusterResources)
-		kubeQuota.ReconcileQuotas(quotaList)
+		uuid := fmt.Sprintf("namespace-%d", i)
+		kubeNamespace := CreateDefaultKubeNamespace(cluster, namespace, uuid)
+		kubeNamespace.ReconcileQuotas(quotaList)
 
-		resource, _ := kubeQuota.GetAllocationResource(metrics.CPULimitQuota)
+		resource, _ := kubeNamespace.GetAllocationResource(metrics.CPULimitQuota)
 		quantity := hardResourceList[v1.ResourceLimitsCPU]
 		cpuMilliCore := quantity.MilliValue()
 		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
@@ -184,35 +168,16 @@ func TestKubeQuotaWithMissingAllocations(t *testing.T) {
 		cpuCore = util.MetricMilliToUnit(float64(cpuMilliCore))
 		assert.Equal(t, resource.Used, cpuCore)
 
-		resource, _ = kubeQuota.GetAllocationResource(metrics.MemoryLimitQuota)
-		assert.Equal(t, resource.Capacity, clusterResources[metrics.Memory].Capacity)
+		resource, _ = kubeNamespace.GetAllocationResource(metrics.MemoryLimitQuota)
+		assert.Equal(t, resource.Capacity, DEFAULT_METRIC_CAPACITY_VALUE)
 		assert.Equal(t, resource.Used, 0.0)
-
-		for _, testNode := range TestNodeProviders {
-			allocationResources := map[metrics.ResourceType]float64{
-				metrics.CPULimitQuota:    testNode.cpuUsed,
-				metrics.MemoryLimitQuota: testNode.memUsed,
-			}
-			kubeQuota.AddNodeProvider(testNode.node, allocationResources)
-		}
-
-		for _, testNode := range TestNodeProviders {
-			provider := kubeQuota.GetProvider(testNode.node)
-			assert.NotNil(t, provider)
-			assert.Equal(t, 0, len(provider.BoughtCompute))
-			resource, _ := kubeQuota.GetBoughtResource(testNode.node, metrics.CPULimitQuota)
-			assert.Equal(t, resource.Used, testNode.cpuUsed)
-			resource, _ = kubeQuota.GetBoughtResource(testNode.node, metrics.MemoryLimitQuota)
-			assert.Equal(t, resource.Used, testNode.memUsed)
-		}
 	}
 }
 
-func TestKubeQuotaReconcile(t *testing.T) {
+func TestKubeNamespaceQuotaReconcile(t *testing.T) {
 	namespace := "ns1"
 	cluster := "cluster1"
 
-	var clusterResources map[metrics.ResourceType]*KubeDiscoveredResource
 	var quotaList []*v1.ResourceQuota
 	var leastCpuCore, leastMemKB float64
 	for _, testQuota := range TestQuotas {
@@ -255,34 +220,33 @@ func TestKubeQuotaReconcile(t *testing.T) {
 		}
 		quotaList = append(quotaList, quota)
 	}
-	kubeQuota := CreateDefaultQuota(cluster, namespace, "vdc-uuid", clusterResources)
-	kubeQuota.ReconcileQuotas(quotaList)
+	kubeNamespace := CreateDefaultKubeNamespace(cluster, namespace, "namespace-uuid")
+	kubeNamespace.ReconcileQuotas(quotaList)
 
-	resource, _ := kubeQuota.GetAllocationResource(metrics.CPULimitQuota)
+	resource, _ := kubeNamespace.GetAllocationResource(metrics.CPULimitQuota)
 	assert.Equal(t, resource.Capacity, leastCpuCore) // the least of the 3 quotas
 
-	resource, _ = kubeQuota.GetAllocationResource(metrics.MemoryLimitQuota)
+	resource, _ = kubeNamespace.GetAllocationResource(metrics.MemoryLimitQuota)
 	assert.Equal(t, resource.Capacity, leastMemKB) // the least of the 3 quotas
 }
 
-func TestQuotaNames(t *testing.T) {
+func TestNamespaceNames(t *testing.T) {
 	clusterName := "k8s-cluster"
 	namespaceName := "kube-system"
 	namespaceId := "21c65de7-f4e9-11e7-acc0-005056802f41"
-	clusterResources := make(map[metrics.ResourceType]*KubeDiscoveredResource)
 
-	quotaId := util.VDCIdFunc(namespaceId)
-	quota := CreateDefaultQuota(clusterName, namespaceName, quotaId, clusterResources)
+	quotaId := util.NamespaceIdFunc(namespaceId)
+	kubeNamespace := CreateDefaultKubeNamespace(clusterName, namespaceName, quotaId)
 
-	if quota.UID != quotaId {
-		t.Errorf("quota.UID is wrong: %v Vs. %v", quota.UID, quotaId)
+	if kubeNamespace.UID != quotaId {
+		t.Errorf("kubeNamespace.UID is wrong: %v Vs. %v", kubeNamespace.UID, quotaId)
 	}
 
-	if quota.ClusterName != clusterName {
-		t.Errorf("quota.clusterName is wrong:%v Vs. %v", quota.ClusterName, clusterName)
+	if kubeNamespace.ClusterName != clusterName {
+		t.Errorf("kubeNamespace.clusterName is wrong:%v Vs. %v", kubeNamespace.ClusterName, clusterName)
 	}
 
-	if quota.Name != namespaceName {
-		t.Errorf("quota.name is wrong: %v Vs. %v", quota.Name, namespaceName)
+	if kubeNamespace.Name != namespaceName {
+		t.Errorf("kubeNamespace.name is wrong: %v Vs. %v", kubeNamespace.Name, namespaceName)
 	}
 }

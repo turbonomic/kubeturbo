@@ -1,7 +1,9 @@
 package processor
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -82,8 +84,15 @@ func TestProcessNamespaces(t *testing.T) {
 	namespaceProcessor.ProcessNamespaces()
 	nsMap := ks.Namespaces
 	assert.Equal(t, len(nsMap), len(mockNamepaces))
+	mockedNamespaces := map[string]struct{}{
+		"test-ns1": {},
+		"test-ns2": {},
+		"test-ns3": {},
+		"test-ns4": {},
+	}
 	for _, ns := range nsMap {
-		assert.NotNil(t, ns.Quota)
-		assert.Equal(t, ns.Name, ns.Quota.Name)
+		assert.Equal(t, metrics.NamespaceType, ns.EntityType)
+		_, exists := mockedNamespaces[ns.Name]
+		assert.True(t, exists, fmt.Sprintf("namespace %s does not exist", ns.Name))
 	}
 }

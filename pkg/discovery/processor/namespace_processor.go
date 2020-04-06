@@ -41,27 +41,18 @@ func (p *NamespaceProcessor) ProcessNamespaces() {
 
 	namespaces := make(map[string]*repository.KubeNamespace)
 	for _, item := range namespaceList {
-		namespace := &repository.KubeNamespace{
-			ClusterName: clusterName,
-			Name:        item.Name,
-		}
-
-		// the default quota object
-		quotaUID := util.VDCIdFunc(string(item.UID))
-		quotaEntity := repository.CreateDefaultQuota(clusterName,
-			namespace.Name,
-			quotaUID,
-			p.KubeCluster.ClusterResources)
+		// Create default namespace object
+		kubeNamespaceUID := util.NamespaceIdFunc(string(item.UID))
+		kubeNamespace := repository.CreateDefaultKubeNamespace(clusterName, item.Name, kubeNamespaceUID)
 
 		// update the default quota limits using the defined resource quota objects
 		quotaList, hasQuota := quotaMap[item.Name]
 		if hasQuota {
-			quotaEntity.QuotaList = quotaList
-			quotaEntity.ReconcileQuotas(quotaList)
+			kubeNamespace.QuotaList = quotaList
+			kubeNamespace.ReconcileQuotas(quotaList)
 		}
-		namespace.Quota = quotaEntity
-		namespaces[item.Name] = namespace
-		glog.V(4).Infof("Created namespace entity: %s.", namespace.String())
+		namespaces[item.Name] = kubeNamespace
+		glog.V(4).Infof("Created namespace entity: %s.", kubeNamespace.String())
 
 	}
 	p.KubeCluster.Namespaces = namespaces

@@ -225,14 +225,14 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	dc.config.probeConfig.NodeClient.CleanupCache(nodes)
 
 	// Discover pods and create DTOs for nodes, pods, containers, application.
-	// Collect the kubePod, quota metrics, groups from all the discovery workers
+	// Collect the kubePod, kubeNamespace metrics, groups from all the discovery workers
 	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
-	entityDTOs, podEntitiesMap, quotaMetricsList, entityGroupList := dc.resultCollector.Collect(workerCount)
+	entityDTOs, podEntitiesMap, namespaceMetricsList, entityGroupList := dc.resultCollector.Collect(workerCount)
 
-	// Quota discovery worker to create quota DTOs
+	// Quota discovery worker to create namespace DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType
 	quotasDiscoveryWorker := worker.Newk8sResourceQuotasDiscoveryWorker(clusterSummary, stitchType)
-	quotaDtos, _ := quotasDiscoveryWorker.Do(quotaMetricsList)
+	namespaceDtos, _ := quotasDiscoveryWorker.Do(namespaceMetricsList)
 
 	// Service DTOs
 	glog.V(2).Infof("Begin to generate service EntityDTOs.")
@@ -246,7 +246,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	}
 
 	// All the DTOs
-	entityDTOs = append(entityDTOs, quotaDtos...)
+	entityDTOs = append(entityDTOs, namespaceDtos...)
 
 	glog.V(2).Infof("There are totally %d entityDTOs.", len(entityDTOs))
 

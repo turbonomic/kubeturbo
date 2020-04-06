@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	appIdPrefix = "App"
-	vdcPrefix   = "k8s-vdc"
+	appIdPrefix     = "App"
+	namespacePrefix = "k8s-namespace"
 )
 
 func PodMetricId(pod *stats.PodReference) string {
@@ -107,8 +107,8 @@ func NodeKeyFromPodFunc(pod *api.Pod) string {
 	return pod.Spec.NodeName
 }
 
-func VDCIdFunc(namespaceId string) string {
-	return fmt.Sprintf("%s-%s", vdcPrefix, namespaceId)
+func NamespaceIdFunc(namespaceId string) string {
+	return fmt.Sprintf("%s-%s", namespacePrefix, namespaceId)
 }
 
 // Construct containerSpecId based on controller UID and container name,

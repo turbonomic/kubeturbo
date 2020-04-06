@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	accessCommodityDefaultCapacity  = 1e10
-	clusterCommodityDefaultCapacity = 1e10
+	accessCommodityDefaultCapacity  = 1e9
+	clusterCommodityDefaultCapacity = 1e9
 )
 
 var (
