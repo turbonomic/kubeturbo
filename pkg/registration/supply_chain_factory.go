@@ -214,7 +214,8 @@ func (f *SupplyChainFactory) buildNamespaceSupplyBuilder() (*proto.TemplateDTO, 
 		Sells(cpuLimitQuotaTemplateCommWithKey).
 		Sells(memLimitQuotaTemplateCommWithKey).
 		Sells(cpuRequestQuotaTemplateCommWithKey).
-		Sells(memRequestQuotaTemplateCommWithKey)
+		Sells(memRequestQuotaTemplateCommWithKey).
+		Sells(vmpmAccessTemplateComm)
 	return namespaceSupplyChainNodeBuilder.Create()
 }
 
