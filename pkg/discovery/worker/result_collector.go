@@ -28,9 +28,9 @@ func (rc *ResultCollector) ResultPool() chan *task.TaskResult {
 }
 
 func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*repository.KubePod,
-	[]*repository.QuotaMetrics, []*repository.EntityGroup) {
+	[]*repository.NamespaceMetrics, []*repository.EntityGroup) {
 	discoveryResult := []*proto.EntityDTO{}
-	quotaMetricsList := []*repository.QuotaMetrics{}
+	namespaceMetrics := []*repository.NamespaceMetrics{}
 	entityGroupList := []*repository.EntityGroup{}
 	discoveryErrorString := []string{}
 	podEntitiesMap := make(map[string]*repository.KubePod)
@@ -51,8 +51,8 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*r
 				} else {
 					// Entity DTOs for pods, nodes, containers from different workers
 					discoveryResult = append(discoveryResult, result.Content()...)
-					// Quota metrics from different workers
-					quotaMetricsList = append(quotaMetricsList, result.QuotaMetrics()...)
+					// Namespace metrics from different workers
+					namespaceMetrics = append(namespaceMetrics, result.NamespaceMetrics()...)
 					// Group data from different workers
 					entityGroupList = append(entityGroupList, result.EntityGroups()...)
 					// Pod data with apps from different workers
@@ -73,5 +73,5 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*r
 		glog.Errorf("One or more discovery worker failed: %s", strings.Join(discoveryErrorString, "\t\t"))
 	}
 
-	return discoveryResult, podEntitiesMap, quotaMetricsList, entityGroupList
+	return discoveryResult, podEntitiesMap, namespaceMetrics, entityGroupList
 }

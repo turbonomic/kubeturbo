@@ -165,7 +165,7 @@ func (rClient *K8sRegistrationClient) GetEntityMetadata() (result []*proto.Entit
 	glog.V(3).Infof("Begin to build EntityIdentityMetadata")
 
 	entities := []proto.EntityDTO_EntityType{
-		proto.EntityDTO_VIRTUAL_DATACENTER,
+		proto.EntityDTO_NAMESPACE,
 		proto.EntityDTO_VIRTUAL_MACHINE,
 		proto.EntityDTO_CONTAINER_SPEC,
 		proto.EntityDTO_CONTAINER_POD,
