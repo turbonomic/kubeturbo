@@ -14,7 +14,7 @@ var TestEntities = []struct {
 	{metrics.NodeType, "node1", "node1"},
 	{metrics.PodType, "pod1", "pod1"},
 	{metrics.ContainerType, "container1", "container1"},
-	{metrics.QuotaType, "quota1", "quota1"},
+	{metrics.NamespaceType, "namespace1", "namespace1"},
 }
 
 var TestSoldResources = []struct {

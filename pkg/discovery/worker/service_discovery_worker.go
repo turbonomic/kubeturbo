@@ -14,7 +14,7 @@ const (
 	k8sSvcDiscWorkerID string = "ServiceDiscoveryWorker"
 )
 
-// Converts the cluster quotaEntity and QuotaMetrics objects to create Quota DTOs
+// Converts the cluster podEntity to create service DTOs
 type k8sServiceDiscoveryWorker struct {
 	id         string
 	Cluster    *repository.ClusterSummary
