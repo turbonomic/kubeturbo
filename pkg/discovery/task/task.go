@@ -66,13 +66,13 @@ type TaskResultState string
 // A TaskResult contains a state, indicate whether the task is finished successfully; a err if there is any; a list of
 // EntityDTO.
 type TaskResult struct {
-	workerID     string
-	state        TaskResultState
-	err          error
-	content      []*proto.EntityDTO
-	quotaMetrics []*repository.QuotaMetrics
-	entityGroups []*repository.EntityGroup
-	podEntities  []*repository.KubePod
+	workerID         string
+	state            TaskResultState
+	err              error
+	content          []*proto.EntityDTO
+	namespaceMetrics []*repository.NamespaceMetrics
+	entityGroups     []*repository.EntityGroup
+	podEntities      []*repository.KubePod
 }
 
 func NewTaskResult(workerID string, state TaskResultState) *TaskResult {
@@ -98,8 +98,8 @@ func (r *TaskResult) PodEntities() []*repository.KubePod {
 	return r.podEntities
 }
 
-func (r *TaskResult) QuotaMetrics() []*repository.QuotaMetrics {
-	return r.quotaMetrics
+func (r *TaskResult) NamespaceMetrics() []*repository.NamespaceMetrics {
+	return r.namespaceMetrics
 }
 
 func (r *TaskResult) EntityGroups() []*repository.EntityGroup {
@@ -125,8 +125,8 @@ func (r *TaskResult) WithPodEntities(podEntities []*repository.KubePod) *TaskRes
 	return r
 }
 
-func (r *TaskResult) WithQuotaMetrics(quotaMetrics []*repository.QuotaMetrics) *TaskResult {
-	r.quotaMetrics = quotaMetrics
+func (r *TaskResult) WithNamespaceMetrics(namespaceMetrics []*repository.NamespaceMetrics) *TaskResult {
+	r.namespaceMetrics = namespaceMetrics
 	return r
 }
 

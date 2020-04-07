@@ -117,7 +117,7 @@ func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
 
 	//1. all the entity types
 	entities := []proto.EntityDTO_EntityType{
-		proto.EntityDTO_VIRTUAL_DATACENTER,
+		proto.EntityDTO_NAMESPACE,
 		proto.EntityDTO_VIRTUAL_MACHINE,
 		proto.EntityDTO_CONTAINER_SPEC,
 		proto.EntityDTO_CONTAINER_POD,

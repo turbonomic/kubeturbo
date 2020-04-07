@@ -94,12 +94,13 @@ func (kc *KubeCluster) computeClusterResources() {
 	}
 }
 
-func (kc *KubeCluster) GetQuota(namespace string) *KubeQuota {
+func (kc *KubeCluster) GetKubeNamespace(namespace string) *KubeNamespace {
 	kubeNamespace, exists := kc.Namespaces[namespace]
 	if !exists {
+		glog.Errorf("Cannot find KubeNamespace entity for namespace %s", namespace)
 		return nil
 	}
-	return kubeNamespace.Quota
+	return kubeNamespace
 }
 
 // Summary object to get the nodes, quotas and namespaces in the cluster
@@ -108,9 +109,9 @@ type ClusterSummary struct {
 	// Computed
 	NodeMap                  map[string]*v1.Node
 	NodeList                 []*v1.Node
-	QuotaMap                 map[string]*KubeQuota
+	NamespaceMap             map[string]*KubeNamespace
 	NodeNameUIDMap           map[string]string
-	QuotaNameUIDMap          map[string]string
+	NamespaceUIDMap          map[string]string
 	PodClusterIDToServiceMap map[string]*v1.Service
 	NodeNameToPodMap         map[string][]*v1.Pod
 }
@@ -120,9 +121,9 @@ func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
 		KubeCluster:              kubeCluster,
 		NodeMap:                  make(map[string]*v1.Node),
 		NodeList:                 []*v1.Node{},
-		QuotaMap:                 make(map[string]*KubeQuota),
+		NamespaceMap:             make(map[string]*KubeNamespace),
 		NodeNameUIDMap:           make(map[string]string),
-		QuotaNameUIDMap:          make(map[string]string),
+		NamespaceUIDMap:          make(map[string]string),
 		PodClusterIDToServiceMap: make(map[string]*v1.Service),
 		NodeNameToPodMap:         make(map[string][]*v1.Pod),
 	}
@@ -157,13 +158,11 @@ func (summary *ClusterSummary) computeNodeMap() {
 }
 
 func (getter *ClusterSummary) computeQuotaMap() {
-	getter.QuotaMap = make(map[string]*KubeQuota)
-	getter.QuotaNameUIDMap = make(map[string]string)
+	getter.NamespaceMap = make(map[string]*KubeNamespace)
+	getter.NamespaceUIDMap = make(map[string]string)
 	for namespaceName, namespace := range getter.Namespaces {
-		if namespace.Quota != nil {
-			getter.QuotaMap[namespaceName] = namespace.Quota
-			getter.QuotaNameUIDMap[namespace.Name] = namespace.Quota.UID
-		}
+		getter.NamespaceMap[namespaceName] = namespace
+		getter.NamespaceUIDMap[namespace.Name] = namespace.UID
 	}
 	return
 }
@@ -179,7 +178,10 @@ func (summary *ClusterSummary) computePodToServiceMap() {
 }
 
 // =================================================================================================
-const DEFAULT_METRIC_VALUE float64 = 0.0
+const (
+	DEFAULT_METRIC_VALUE          float64 = 0.0
+	DEFAULT_METRIC_CAPACITY_VALUE         = 1e12
+)
 
 // The node in the cluster
 type KubeNode struct {
@@ -264,91 +266,62 @@ func parseResourceValue(computeResourceType metrics.ResourceType, resourceList v
 // =================================================================================================
 // The namespace in the cluster
 type KubeNamespace struct {
-	Name        string
-	ClusterName string
-	Quota       *KubeQuota
-}
-
-func (namespaceEntity *KubeNamespace) String() string {
-	var buffer bytes.Buffer
-	line := fmt.Sprintf("Namespace:%s\n", namespaceEntity.Name)
-	buffer.WriteString(line)
-	line = fmt.Sprintf(namespaceEntity.Quota.String())
-	buffer.WriteString(line)
-	return buffer.String()
-}
-
-// The quota defined for a namespace
-type KubeQuota struct {
 	*KubeEntity
+	// List of quotas defined for a namespace
 	QuotaList               []*v1.ResourceQuota
 	AverageNodeCpuFrequency float64
-	AllocationDefined       map[metrics.ResourceType]bool
+	QuotaDefined            map[metrics.ResourceType]bool
 }
 
-func (quotaEntity *KubeQuota) String() string {
+func (kubeNamespace *KubeNamespace) String() string {
 	var buffer bytes.Buffer
-
-	if len(quotaEntity.QuotaList) > 0 {
+	line := fmt.Sprintf("Namespace:%s\n", kubeNamespace.Name)
+	buffer.WriteString(line)
+	if len(kubeNamespace.QuotaList) > 0 {
 		var quotaNames []string
-		for _, quota := range quotaEntity.QuotaList {
+		for _, quota := range kubeNamespace.QuotaList {
 			quotaNames = append(quotaNames, quota.Name)
 		}
 		quotaStr := strings.Join(quotaNames, ",")
-		line := fmt.Sprintf("Contains resource quota(s) : %s\n", quotaStr)
+		line = fmt.Sprintf("Contains resource quota(s) : %s\n", quotaStr)
 		buffer.WriteString(line)
 	}
 
 	var prefix string
-	if len(quotaEntity.QuotaList) == 0 {
+	if len(kubeNamespace.QuotaList) == 0 {
 		prefix = "Default "
 	} else {
 		prefix = "Reconciled "
 	}
 	buffer.WriteString(prefix)
-	buffer.WriteString(quotaEntity.KubeEntity.String())
+	buffer.WriteString(kubeNamespace.KubeEntity.String())
 
 	return buffer.String()
 }
 
-// Create a Quota object for a namespace.
-// The resource quota limits are based on the cluster compute resource limits.
-func CreateDefaultQuota(clusterName, namespace, uuid string,
-	clusterResources map[metrics.ResourceType]*KubeDiscoveredResource) *KubeQuota {
-	quota := &KubeQuota{
-		KubeEntity: NewKubeEntity(metrics.QuotaType, clusterName,
+// Create default KubeNamespace object.
+// Set default resource quota limits and requests capacity to infinity (1e9) because when quota is not configured on namespace
+// we want quota commodities sold by namespace have least impact on Market analysis results of containers and pods.
+// Will update resource quota capacity when calling ReconcileQuotas func if ResourceQuota is configured on the namespace.
+func CreateDefaultKubeNamespace(clusterName, namespace, uuid string) *KubeNamespace {
+	kubeNamespace := &KubeNamespace{
+		KubeEntity: NewKubeEntity(metrics.NamespaceType, clusterName,
 			namespace, namespace, uuid),
-		QuotaList:         []*v1.ResourceQuota{},
-		AllocationDefined: make(map[metrics.ResourceType]bool),
+		QuotaList:    []*v1.ResourceQuota{},
+		QuotaDefined: make(map[metrics.ResourceType]bool),
 	}
 
 	// create quota allocation resources
 	for _, rt := range metrics.QuotaResources {
-		computeType, exists := metrics.QuotaToComputeMap[rt] //corresponding compute resource
-		if exists {
-			capacity := float64(0.0)
-			computeResource, hasCompute := clusterResources[computeType]
-			if hasCompute {
-				capacity = computeResource.Capacity
-			}
-			quota.AddAllocationResource(rt, capacity, DEFAULT_METRIC_VALUE)
-			// used values for the sold resources are obtained while parsing the quota objects
-			// or by adding the usages of pod compute resources running in the namespace
-		} else {
-			glog.Errorf("Cannot find allocation resource type %s for namespace %s",
-				rt, quota.Name)
-		}
+		kubeNamespace.AddAllocationResource(rt, DEFAULT_METRIC_CAPACITY_VALUE, DEFAULT_METRIC_VALUE)
 	}
-
-	// node providers will be added by the quota discovery worker when the usage values are available
-	glog.V(3).Infof("Created default quota for namespace : %s", namespace)
-	return quota
+	return kubeNamespace
 }
 
-// Combining the quota limits for various resource quota objects defined in the namesapce.
+// Combining the quota limits for various resource quota objects defined in the namespace.
 // Multiple quota limits for the same resource, if any, are reconciled by selecting the
 // most restrictive limit value.
-func (quotaEntity *KubeQuota) ReconcileQuotas(quotas []*v1.ResourceQuota) {
+func (kubeNamespace *KubeNamespace) ReconcileQuotas(quotas []*v1.ResourceQuota) {
 	// Quota resources by collecting resources from the list of resource quota objects
 	var quotaNames []string
 	for _, item := range quotas {
@@ -364,15 +337,15 @@ func (quotaEntity *KubeQuota) ReconcileQuotas(quotas []*v1.ResourceQuota) {
 			if !isAllocationType { // skip if it is not a allocation type resource
 				continue
 			}
-			// Quota is defined for the allocation resource
-			quotaEntity.AllocationDefined[resourceType] = true
+			// Quota is defined for the quota resource
+			kubeNamespace.QuotaDefined[resourceType] = true
 
 			// Parse the CPU  values into number of cores, Memory values into KBytes
 			capacityValue := parseAllocationResourceValue(resource, resourceType, resourceHardList)
 			usedValue := parseAllocationResourceValue(resource, resourceType, resourceUsedList)
 
-			// Update the quota entity resource with the most restrictive quota value
-			existingResource, err := quotaEntity.GetAllocationResource(resourceType)
+			// Update the namespace entity resource with the most restrictive quota value
+			existingResource, err := kubeNamespace.GetAllocationResource(resourceType)
 			if err == nil {
 				if existingResource.Capacity == DEFAULT_METRIC_VALUE || capacityValue < existingResource.Capacity {
 					existingResource.Capacity = capacityValue
@@ -380,18 +353,18 @@ func (quotaEntity *KubeQuota) ReconcileQuotas(quotas []*v1.ResourceQuota) {
 				}
 			} else {
 				// create resource if it does not exist
-				quotaEntity.AddAllocationResource(resourceType, capacityValue, usedValue)
+				kubeNamespace.AddAllocationResource(resourceType, capacityValue, usedValue)
 			}
 		}
 	}
 	quotaListStr := strings.Join(quotaNames, ",")
-	glog.V(4).Infof("Reconciled Quota %s from %s"+
+	glog.V(4).Infof("Reconciled Namespace %s from resource quota(s) %s"+
 		"[CPULimitQuota:%t, MemoryLimitQuota:%t CPURequestQuota:%t, MemoryRequestQuota:%t]",
-		quotaEntity.Name, quotaListStr,
-		quotaEntity.AllocationDefined[metrics.CPULimitQuota],
-		quotaEntity.AllocationDefined[metrics.MemoryLimitQuota],
-		quotaEntity.AllocationDefined[metrics.CPURequestQuota],
-		quotaEntity.AllocationDefined[metrics.MemoryRequestQuota])
+		kubeNamespace.Name, quotaListStr,
+		kubeNamespace.QuotaDefined[metrics.CPULimitQuota],
+		kubeNamespace.QuotaDefined[metrics.MemoryLimitQuota],
+		kubeNamespace.QuotaDefined[metrics.CPURequestQuota],
+		kubeNamespace.QuotaDefined[metrics.MemoryRequestQuota])
 }
 
 // Parse the CPU and Memory resource values.
@@ -412,19 +385,4 @@ func parseAllocationResourceValue(resource v1.ResourceName, allocationResourceTy
 		return memoryKiloBytes
 	}
 	return DEFAULT_METRIC_VALUE
-}
-
-func (quotaEntity *KubeQuota) AddNodeProvider(nodeUID string,
-	allocationBought map[metrics.ResourceType]float64) {
-	if allocationBought == nil {
-		glog.V(2).Infof("%s : missing metrics for node %s\n", quotaEntity.Name, nodeUID)
-		allocationBought := make(map[metrics.ResourceType]float64)
-		for _, rt := range metrics.QuotaResources {
-			allocationBought[rt] = DEFAULT_METRIC_VALUE
-		}
-	}
-
-	for resourceType, resourceUsed := range allocationBought {
-		quotaEntity.AddProviderResource(metrics.NodeType, nodeUID, resourceType, resourceUsed)
-	}
 }

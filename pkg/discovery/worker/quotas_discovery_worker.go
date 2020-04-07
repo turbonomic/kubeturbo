@@ -13,7 +13,7 @@ const (
 	k8sQuotasWorkerID string = "ResourceQuotasDiscoveryWorker"
 )
 
-// Converts the cluster quotaEntity and QuotaMetrics objects to create Quota DTOs
+// Converts the cluster namespaceEntity and NamespaceMetrics objects to create Namespace DTOs
 type k8sResourceQuotasDiscoveryWorker struct {
 	id         string
 	Cluster    *repository.ClusterSummary
@@ -29,30 +29,23 @@ func Newk8sResourceQuotasDiscoveryWorker(cluster *repository.ClusterSummary, pTy
 	}
 }
 
-func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repository.QuotaMetrics,
+func (worker *k8sResourceQuotasDiscoveryWorker) Do(namespaceMetricsList []*repository.NamespaceMetrics,
 ) ([]*proto.EntityDTO, error) {
 	// Combine quota discovery results from different nodes
-	quotaMetricsMap := make(map[string]*repository.QuotaMetrics)
+	namespaceMetricsMap := make(map[string]*repository.NamespaceMetrics)
 
-	// combine quota metrics results from different discovery workers
+	// combine namespace metrics results from different discovery workers
 	// each worker will provide the allocation bought for a set of nodes and
 	// the allocation used for the pods running on those nodes
-	for _, quotaMetrics := range quotaMetricsList {
-		glog.V(4).Infof("Merging metrics of %s for nodes %s",
-			quotaMetrics.QuotaName, quotaMetrics.NodeProviders)
-		existingMetric, exists := quotaMetricsMap[quotaMetrics.QuotaName]
+	for _, namespaceMetrics := range namespaceMetricsList {
+		existingMetric, exists := namespaceMetricsMap[namespaceMetrics.Namespace]
 		if !exists {
 			// first time that this quota is seen
-			quotaMetricsMap[quotaMetrics.QuotaName] = quotaMetrics
+			namespaceMetricsMap[namespaceMetrics.Namespace] = namespaceMetrics
 			continue
 		}
-		// merge the provider node metrics into the existing quota metrics
-		for node, nodeMap := range quotaMetrics.AllocationBoughtMap {
-			existingMetric.UpdateAllocationBought(node, nodeMap)
-		}
-
-		// merge the pod usage from this quota metrics into the existing quota metrics
-		existingMetric.UpdateAllocationSoldUsed(quotaMetrics.AllocationSoldUsed)
+		// merge the pod usage from this namespace metrics into the existing namespace metrics
+		existingMetric.UpdateQuotaSoldUsed(namespaceMetrics.QuotaSoldUsed)
 	}
 
 	kubeNodes := worker.Cluster.Nodes
@@ -71,50 +64,41 @@ func (worker *k8sResourceQuotasDiscoveryWorker) Do(quotaMetricsList []*repositor
 	averageNodeFrequency := totalNodeFrequency / float64(activeNodeCount)
 	glog.V(2).Infof("Average cluster node cpu frequency in MHz: %f", averageNodeFrequency)
 
-	// Create the allocation resources for all quota entities using the metrics object
-	for quotaName, quotaEntity := range worker.Cluster.QuotaMap {
-		// the quota metrics
-		quotaMetrics, exists := quotaMetricsMap[quotaName]
+	// Create the quota resources for all kubeNamespace entities using the metrics object
+	for namespace, kubeNamespaceEntity := range worker.Cluster.NamespaceMap {
+		// the namespace metrics
+		namespaceMetrics, exists := namespaceMetricsMap[namespace]
 		if !exists {
-			glog.Errorf("Missing allocation metrics for quota %s", quotaName)
+			glog.Errorf("Missing quota metrics for namespace %s", namespace)
 			continue
 		}
-		quotaEntity.AverageNodeCpuFrequency = averageNodeFrequency
+		kubeNamespaceEntity.AverageNodeCpuFrequency = averageNodeFrequency
 
-		// Bought resources from each node
-		// create provider entity for each node
-		for _, node := range kubeNodes {
-			// Do not include the node that is not ready
-			// We still want to include the scheduledisabled nodes in the relationship
-			nodeUID := node.UID
-			quotaEntity.AddNodeProvider(nodeUID, quotaMetrics.AllocationBoughtMap[nodeUID])
-		}
-
-		// Create sold allocation commodity for the types that are not defined in the namespace quota objects
-		for resourceType, used := range quotaMetrics.AllocationSoldUsed {
-			existingResource, _ := quotaEntity.GetResource(resourceType)
+		// Create sold allocation commodity for the types that are not defined in the kubeNamespace objects
+		for resourceType, used := range namespaceMetrics.QuotaSoldUsed {
+			existingResource, _ := kubeNamespaceEntity.GetResource(resourceType)
 			// Check if there is a quota set for this allocation resource
 			// If it is set, the allocation usage available from the namespace
 			// resource quota object is used
-			if quotaEntity.AllocationDefined[resourceType] {
+			if kubeNamespaceEntity.QuotaDefined[resourceType] {
 				glog.V(4).Infof("Quota is defined for %s::%s. "+
 					"Usage reported by the quota: %f, usage of all pods in the quota: %f",
-					quotaName, resourceType, existingResource.Used, used)
+					namespace, resourceType, existingResource.Used, used)
 				continue
 			} else {
 				glog.V(4).Infof("Quota is not defined for %s::%s. Setting its usage to the sum of "+
-					"usage across all pods in the quota: %f", quotaName, resourceType, used)
+					"usage across all pods in the quota: %f", namespace, resourceType, used)
 				existingResource.Used = used
 			}
 		}
 	}
 
-	for _, quotaEntity := range worker.Cluster.QuotaMap {
-		glog.V(4).Infof("Discovered quota entity: %s", quotaEntity)
+	for _, kubeNamespaceEntity := range worker.Cluster.NamespaceMap {
+		glog.V(4).Infof("Discovered namespace entity: %s", kubeNamespaceEntity)
 	}
 
-	// Create DTOs for each quota entity
-	quotaDtoBuilder := dtofactory.NewQuotaEntityDTOBuilder(worker.Cluster.QuotaMap, worker.Cluster.Nodes, worker.stitchType)
-	quotaDtos, _ := quotaDtoBuilder.BuildEntityDTOs()
-	return quotaDtos, nil
+	// Create DTOs for each namespace entity
+	namespaceEntityDTOBuilder := dtofactory.NewNamespaceEntityDTOBuilder(worker.Cluster.NamespaceMap)
+	namespaceEntityDtos, _ := namespaceEntityDTOBuilder.BuildEntityDTOs()
+	return namespaceEntityDtos, nil
 }
