@@ -235,11 +235,10 @@ func TestNamespaceNames(t *testing.T) {
 	namespaceName := "kube-system"
 	namespaceId := "21c65de7-f4e9-11e7-acc0-005056802f41"
 
-	quotaId := util.NamespaceIdFunc(namespaceId)
-	kubeNamespace := CreateDefaultKubeNamespace(clusterName, namespaceName, quotaId)
+	kubeNamespace := CreateDefaultKubeNamespace(clusterName, namespaceName, namespaceId)
 
-	if kubeNamespace.UID != quotaId {
-		t.Errorf("kubeNamespace.UID is wrong: %v Vs. %v", kubeNamespace.UID, quotaId)
+	if kubeNamespace.UID != namespaceId {
+		t.Errorf("kubeNamespace.UID is wrong: %v Vs. %v", kubeNamespace.UID, namespaceId)
 	}
 
 	if kubeNamespace.ClusterName != clusterName {

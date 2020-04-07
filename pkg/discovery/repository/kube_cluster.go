@@ -180,7 +180,7 @@ func (summary *ClusterSummary) computePodToServiceMap() {
 // =================================================================================================
 const (
 	DEFAULT_METRIC_VALUE          float64 = 0.0
-	DEFAULT_METRIC_CAPACITY_VALUE         = 1e9
+	DEFAULT_METRIC_CAPACITY_VALUE         = 1e12
 )
 
 // The node in the cluster

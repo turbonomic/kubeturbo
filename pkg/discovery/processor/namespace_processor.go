@@ -4,7 +4,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 )
 
 // Class to query the multiple namespace objects data from the Kubernetes API server
@@ -42,7 +41,7 @@ func (p *NamespaceProcessor) ProcessNamespaces() {
 	namespaces := make(map[string]*repository.KubeNamespace)
 	for _, item := range namespaceList {
 		// Create default namespace object
-		kubeNamespaceUID := util.NamespaceIdFunc(string(item.UID))
+		kubeNamespaceUID := string(item.UID)
 		kubeNamespace := repository.CreateDefaultKubeNamespace(clusterName, item.Name, kubeNamespaceUID)
 
 		// update the default quota limits using the defined resource quota objects

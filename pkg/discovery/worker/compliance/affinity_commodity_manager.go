@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	accessCommodityDefaultCapacity = 1e9
+	accessCommodityDefaultCapacity = 1e10
 )
 
 type AffinityCommodityManager struct {
