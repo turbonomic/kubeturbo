@@ -292,15 +292,6 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBoughtFromNamespace(quotaUI
 		}
 		commoditiesBought = append(commoditiesBought, commBought)
 	}
-
-	// Access commodity.
-	accessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
-		Key(pod.Namespace).
-		Create()
-	if err != nil {
-		return nil, err
-	}
-	commoditiesBought = append(commoditiesBought, accessComm)
 	return commoditiesBought, nil
 }
 

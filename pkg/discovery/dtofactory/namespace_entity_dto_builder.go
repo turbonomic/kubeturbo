@@ -38,17 +38,6 @@ func (builder *namespaceEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 			glog.Errorf("Error creating commoditiesSold for %s: %s", namespace.Name, err)
 			continue
 		}
-
-		// VMPMAccess commodity sold.
-		namespaceAccessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
-			Key(displayName).
-			Capacity(accessCommodityDefaultCapacity).
-			Create()
-		if err != nil {
-			glog.Errorf("Error creating access commodity for %s: %s", displayName, err)
-		}
-		commoditiesSold = append(commoditiesSold, namespaceAccessComm)
-
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
