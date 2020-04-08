@@ -171,17 +171,21 @@ func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats) {
 	for i := range podStats {
 		pod := &(podStats[i])
 		cpuUsed, memUsed := m.parseContainerStats(pod)
+		key := util.PodMetricId(&(pod.PodRef))
 
 		ephemeralFsCapacity, ephemeralFsUsed := float64(0), float64(0)
-		if pod.EphemeralStorage.CapacityBytes != nil {
-			ephemeralFsCapacity = util.Base2BytesToMegabytes(float64(*pod.EphemeralStorage.CapacityBytes))
-		}
-		if pod.EphemeralStorage.UsedBytes != nil {
-			// OpsMgr server expects the reported size in megabytes
-			ephemeralFsUsed = util.Base2BytesToMegabytes(float64(*pod.EphemeralStorage.UsedBytes))
+		if pod.EphemeralStorage != nil {
+			if pod.EphemeralStorage.CapacityBytes != nil {
+				ephemeralFsCapacity = util.Base2BytesToMegabytes(float64(*pod.EphemeralStorage.CapacityBytes))
+			}
+			if pod.EphemeralStorage.UsedBytes != nil {
+				// OpsMgr server expects the reported size in megabytes
+				ephemeralFsUsed = util.Base2BytesToMegabytes(float64(*pod.EphemeralStorage.UsedBytes))
+			}
+		} else {
+			glog.V(4).Infof("Ephemeral fs status is not available for pod %v", key)
 		}
 
-		key := util.PodMetricId(&(pod.PodRef))
 		glog.V(4).Infof("Cpu usage of pod %s is %.3f core", key, cpuUsed)
 		glog.V(4).Infof("Memory usage of pod %s is %.3f Kb", key, memUsed)
 		glog.V(4).Infof("Ephemeral fs capacity for pod %s is %.3f Megabytes", key, ephemeralFsCapacity)
