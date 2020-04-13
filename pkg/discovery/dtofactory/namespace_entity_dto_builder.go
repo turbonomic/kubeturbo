@@ -40,6 +40,10 @@ func (builder *namespaceEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 		}
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
+		// Namespace entity cannot be provisioned or suspended by Turbonomic analysis
+		entityDTOBuilder.IsProvisionable(false)
+		entityDTOBuilder.IsSuspendable(false)
+
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
 		// build entityDTO.
@@ -91,6 +95,7 @@ func (builder *namespaceEntityDTOBuilder) getQuotaCommoditiesSold(kubeNamespace 
 
 		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
 		commSoldBuilder.Used(usedValue)
+		commSoldBuilder.Peak(usedValue)
 		commSoldBuilder.Capacity(capacityValue)
 		commSoldBuilder.Resizable(false)
 		commSoldBuilder.Key(kubeNamespace.UID)

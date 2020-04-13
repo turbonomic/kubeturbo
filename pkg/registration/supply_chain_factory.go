@@ -91,12 +91,26 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	}
 	glog.V(4).Infof("Supply chain node: %+v", namespaceSupplyChainNode)
 
+	// Workload Controller supply chain template
+	workloadControllerSupplyChainNode, err := f.buildWorkloadControllerSupplyBuilder()
+	if err != nil {
+		return nil, err
+	}
+	glog.V(4).Infof("Supply chain node: %+v", workloadControllerSupplyChainNode)
+
 	// Pod supply chain template
 	podSupplyChainNode, err := f.buildPodSupplyBuilder()
 	if err != nil {
 		return nil, err
 	}
 	glog.V(4).Infof("Supply chain node: %+v", podSupplyChainNode)
+
+	// ContainerSpec supply chain template
+	containerSpecSupplyChainNode, err := f.buildContainerSpecSupplyBuilder()
+	if err != nil {
+		return nil, err
+	}
+	glog.V(4).Infof("Supply chain node: %+v", containerSpecSupplyChainNode)
 
 	// Container supply chain template
 	containerSupplyChainNode, err := f.buildContainer()
@@ -119,19 +133,13 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	}
 	glog.V(4).Infof("Supply chain node: %+v", vAppSupplyChainNode)
 
-	// ContainerSpec supply chain template
-	containerSpecSupplyChainNode, err := f.buildContainerSpecSupplyBuilder()
-	if err != nil {
-		return nil, err
-	}
-	glog.V(4).Infof("Supply chain node: %+v", containerSpecSupplyChainNode)
-
 	supplyChainBuilder := supplychain.NewSupplyChainBuilder()
 	supplyChainBuilder.Top(vAppSupplyChainNode)
 	supplyChainBuilder.Entity(appSupplyChainNode)
 	supplyChainBuilder.Entity(containerSupplyChainNode)
 	supplyChainBuilder.Entity(containerSpecSupplyChainNode)
 	supplyChainBuilder.Entity(podSupplyChainNode)
+	supplyChainBuilder.Entity(workloadControllerSupplyChainNode)
 	supplyChainBuilder.Entity(namespaceSupplyChainNode)
 	supplyChainBuilder.Entity(nodeSupplyChainNode)
 
@@ -218,6 +226,21 @@ func (f *SupplyChainFactory) buildNamespaceSupplyBuilder() (*proto.TemplateDTO, 
 	return namespaceSupplyChainNodeBuilder.Create()
 }
 
+func (f *SupplyChainFactory) buildWorkloadControllerSupplyBuilder() (*proto.TemplateDTO, error) {
+	workloadControllerSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER)
+	workloadControllerSupplyChainNodeBuilder = workloadControllerSupplyChainNodeBuilder.
+		Sells(cpuLimitQuotaTemplateCommWithKey).
+		Sells(memLimitQuotaTemplateCommWithKey).
+		Sells(cpuRequestQuotaTemplateCommWithKey).
+		Sells(memRequestQuotaTemplateCommWithKey).
+		Provider(proto.EntityDTO_NAMESPACE, proto.Provider_HOSTING).
+		Buys(cpuLimitQuotaTemplateCommWithKey).
+		Buys(memLimitQuotaTemplateCommWithKey).
+		Buys(cpuRequestQuotaTemplateCommWithKey).
+		Buys(memRequestQuotaTemplateCommWithKey)
+	return workloadControllerSupplyChainNodeBuilder.Create()
+}
+
 func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error) {
 	podSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER_POD)
 	podSupplyChainNodeBuilder = podSupplyChainNodeBuilder.
@@ -276,6 +299,12 @@ func (f *SupplyChainFactory) addVMStitchingProperty(extLinkBuilder *supplychain.
 	return nil
 }
 
+func (f *SupplyChainFactory) buildContainerSpecSupplyBuilder() (*proto.TemplateDTO, error) {
+	containerSpecSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER_SPEC)
+	// TODO set up commodities sold by ContainerSpec here
+	return containerSpecSupplyChainNodeBuilder.Create()
+}
+
 func (f *SupplyChainFactory) buildContainer() (*proto.TemplateDTO, error) {
 	builder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER).
 		Sells(vCpuTemplateComm).
@@ -307,10 +336,4 @@ func (f *SupplyChainFactory) buildVirtualApplicationSupplyBuilder() (*proto.Temp
 		Provider(proto.EntityDTO_APPLICATION, proto.Provider_LAYERED_OVER).
 		Buys(applicationTemplateCommWithKey)
 	return vAppSupplyChainNodeBuilder.Create()
-}
-
-func (f *SupplyChainFactory) buildContainerSpecSupplyBuilder() (*proto.TemplateDTO, error) {
-	containerSpecSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER_SPEC)
-	// TODO set up commodities sold by ContainerSpec here
-	return containerSpecSupplyChainNodeBuilder.Create()
 }
