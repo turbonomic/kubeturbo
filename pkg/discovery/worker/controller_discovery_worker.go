@@ -10,12 +10,12 @@ import (
 )
 
 // Converts the cluster K8s controller objects to entity DTOs
-type ControllerDiscoveryWorker struct {
+type K8sControllerDiscoveryWorker struct {
 	cluster *repository.ClusterSummary
 }
 
-func NewControllerDiscoveryWorker(cluster *repository.ClusterSummary) *ControllerDiscoveryWorker {
-	return &ControllerDiscoveryWorker{
+func NewK8sControllerDiscoveryWorker(cluster *repository.ClusterSummary) *K8sControllerDiscoveryWorker {
+	return &K8sControllerDiscoveryWorker{
 		cluster: cluster,
 	}
 }
@@ -24,7 +24,7 @@ func NewControllerDiscoveryWorker(cluster *repository.ClusterSummary) *Controlle
 // It merges the pods belonging to the same controller but discovered by different discovery workers, and aggregates
 // allocation resources usage of the same KubeController from different workers.
 // Then it creates entity DTOs for the K8s controllers to be sent to the Turbonomic server.
-func (worker *ControllerDiscoveryWorker) Do(kubeControllers []*repository.KubeController) ([]*proto.EntityDTO, error) {
+func (worker *K8sControllerDiscoveryWorker) Do(kubeControllers []*repository.KubeController) ([]*proto.EntityDTO, error) {
 	namespacesMap := worker.cluster.NamespaceMap
 	// Map from controller UID to the corresponding kubeController
 	kubeControllersMap := make(map[string]*repository.KubeController)
