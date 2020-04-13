@@ -58,5 +58,3 @@ require (
 	sigs.k8s.io/testing_frameworks v0.1.1 // indirect
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )
-
-replace github.com/turbonomic/turbo-go-sdk => ../turbo-go-sdk
