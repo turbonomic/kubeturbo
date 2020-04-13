@@ -65,13 +65,6 @@ func ParseK8sTAPServiceSpec(configFile string, defaultTargetName string) (*K8sTA
 		return nil, err
 	}
 
-	if tapSpec.TargetIdentifier == "" {
-		// Only target type is specified, i.e., we want register probe without adding target
-		// There is no need for username and password, but we still fill in some default values
-		// in order to pass validation of communication configuration in turbo-go-sdk
-		tapSpec.OpsManagerUsername = defaultUsername
-		tapSpec.OpsManagerPassword = defaultPassword
-	}
 	if err := tapSpec.ValidateTurboCommunicationConfig(); err != nil {
 		return nil, err
 	}
