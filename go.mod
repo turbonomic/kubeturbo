@@ -35,7 +35,7 @@ require (
 	github.com/sirupsen/logrus v1.2.0 // indirect
 	github.com/spf13/pflag v1.0.3
 	github.com/stretchr/testify v1.3.0
-	github.com/turbonomic/turbo-go-sdk v0.0.0-20200316032753-8ec05236846c
+	github.com/turbonomic/turbo-go-sdk v0.0.0-20200413141242-49bd2491d252
 	go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569 // indirect
 	go.uber.org/multierr v0.0.0-20180122172545-ddea229ff1df // indirect
 	go.uber.org/zap v0.0.0-20180814183419-67bc79d13d15 // indirect
@@ -58,3 +58,5 @@ require (
 	sigs.k8s.io/testing_frameworks v0.1.1 // indirect
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )
+
+replace github.com/turbonomic/turbo-go-sdk => ../turbo-go-sdk
