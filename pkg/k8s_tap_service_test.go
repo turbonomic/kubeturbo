@@ -28,6 +28,19 @@ func TestParseK8sTAPServiceSpecWithMissingTargetConfig(t *testing.T) {
 	check(config.OpsManagerPassword, "bar", t)
 }
 
+func TestParseK8sTAPServiceSpecWithIncompleteCredential(t *testing.T) {
+	defaultTargetName := "target-foo"
+	configPath := "../test/config/turbo-config-with-incomplete-credential"
+
+	_, err := ParseK8sTAPServiceSpec(configPath, defaultTargetName)
+	if err == nil {
+		t.Fatalf("Expect error from parsing %s", configPath)
+	}
+	if !strings.Contains(err.Error(), "both username and password must be provided") {
+		t.Fatalf("Expect error string to contain \"both username and password must be provided\"")
+	}
+}
+
 func TestParseK8sTAPServiceSpecWithEmptyTargetConfig(t *testing.T) {
 	defaultTargetName := "target-foo"
 	configPath := "../test/config/turbo-config-with-empty-targetconfig"
@@ -59,8 +72,8 @@ func TestParseK8sTAPServiceSpecWithTargetType(t *testing.T) {
 
 	// Check comm config
 	check(config.TurboServer, "https://127.1.1.1:9444", t)
-	check(config.OpsManagerUsername, defaultUsername, t)
-	check(config.OpsManagerPassword, defaultPassword, t)
+	check(config.OpsManagerUsername, "foo", t)
+	check(config.OpsManagerPassword, "bar", t)
 }
 
 func TestParseK8sTAPServiceSpecWithTargetName(t *testing.T) {
