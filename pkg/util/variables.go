@@ -3,9 +3,14 @@ package util
 import "k8s.io/apimachinery/pkg/runtime/schema"
 
 const (
-	KindReplicationController = "ReplicationController"
-	KindReplicaSet            = "ReplicaSet"
+	// Kubernetes workload controller types
+	KindCronJob               = "CronJob"
+	KindDaemonSet             = "DaemonSet"
 	KindDeployment            = "Deployment"
+	KindJob                   = "Job"
+	KindReplicaSet            = "ReplicaSet"
+	KindReplicationController = "ReplicationController"
+	KindStatefulSet           = "StatefulSet"
 
 	K8sExtensionsGroupName = "extensions"
 	K8sAppsGroupName       = "apps"

@@ -264,6 +264,36 @@ func parseResourceValue(computeResourceType metrics.ResourceType, resourceList v
 }
 
 // =================================================================================================
+// K8s controller in the cluster
+type KubeController struct {
+	*KubeEntity
+	ControllerType string
+	Pods           []*v1.Pod
+}
+
+func NewKubeController(clusterName, namespace, name, controllerType, uid string) *KubeController {
+	entity := NewKubeEntity(metrics.ControllerType, clusterName, namespace, name, uid)
+	return &KubeController{
+		KubeEntity:     entity,
+		ControllerType: controllerType,
+		Pods:           []*v1.Pod{},
+	}
+}
+
+// Construct controller full name by: "namespace/controllerType/controllerName"
+func (kubeController *KubeController) GetFullName() string {
+	return kubeController.Namespace + "/" + kubeController.ControllerType + "/" + kubeController.Name
+}
+
+func (kubeController *KubeController) String() string {
+	var buffer bytes.Buffer
+	line := fmt.Sprintf("K8s controller: %s\n", kubeController.GetFullName())
+	buffer.WriteString(line)
+	buffer.WriteString(kubeController.KubeEntity.String())
+	return buffer.String()
+}
+
+// =================================================================================================
 // The namespace in the cluster
 type KubeNamespace struct {
 	*KubeEntity
