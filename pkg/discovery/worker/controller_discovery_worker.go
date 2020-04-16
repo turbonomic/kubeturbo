@@ -63,6 +63,8 @@ func (worker *K8sControllerDiscoveryWorker) Do(kubeControllers []*repository.Kub
 				resource.Used += usedValue
 			}
 			// Update the pod lists of the existing KubeController
+			// TODO yue will use the pods of each KubeController to create ContainerSpec entity DTOs to simplify the logic
+			// in container_spec_entity_dto_builder.go
 			existingKubeController.Pods = append(existingKubeController.Pods, kubeController.Pods...)
 		}
 

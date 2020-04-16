@@ -242,7 +242,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 
 	// K8s workload controller discovery worker to create WorkloadController DTOs
 	controllerDiscoveryWorker := worker.NewK8sControllerDiscoveryWorker(clusterSummary)
-	workloadControllerDtos, _ := controllerDiscoveryWorker.Do(kubeControllerList)
+	workloadControllerDtos, err := controllerDiscoveryWorker.Do(kubeControllerList)
 	if err != nil {
 		glog.Errorf("Failed to discover workload controllers from current Kubernetes cluster with the new discovery framework: %s", err)
 	} else {
