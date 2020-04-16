@@ -138,7 +138,6 @@ func createCommoditiesBought(key string) []*proto.CommodityDTO {
 			Key:           &key,
 			Used:          &resource.Used,
 			Peak:          &resource.Used,
-			Resizable:     &testResizable,
 		}
 		commoditiesBought = append(commoditiesBought, commodityDTO)
 	}
