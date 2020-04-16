@@ -224,15 +224,31 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	// Call cache cleanup
 	dc.config.probeConfig.NodeClient.CleanupCache(nodes)
 
-	// Discover pods and create DTOs for nodes, pods, containers, application.
-	// Collect the kubePod, kubeNamespace metrics, groups from all the discovery workers
+	// Discover pods and create DTOs for nodes, namespaces, controllers, pods, containers, application.
+	// Collect the kubePod, kubeNamespace metrics, groups and kubeControllers from all the discovery workers
 	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
-	entityDTOs, podEntitiesMap, namespaceMetricsList, entityGroupList := dc.resultCollector.Collect(workerCount)
+	entityDTOs, podEntitiesMap, namespaceMetricsList, entityGroupList, kubeControllerList := dc.resultCollector.Collect(workerCount)
 
-	// Quota discovery worker to create namespace DTOs
+	// Namespace discovery worker to create namespace DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType
-	quotasDiscoveryWorker := worker.Newk8sResourceQuotasDiscoveryWorker(clusterSummary, stitchType)
-	namespaceDtos, _ := quotasDiscoveryWorker.Do(namespaceMetricsList)
+	namespacesDiscoveryWorker := worker.Newk8sNamespaceDiscoveryWorker(clusterSummary, stitchType)
+	namespaceDtos, err := namespacesDiscoveryWorker.Do(namespaceMetricsList)
+	if err != nil {
+		glog.Errorf("Failed to discover namespaces from current Kubernetes cluster with the new discovery framework: %s", err)
+	} else {
+		glog.V(2).Infof("There are %d namespace entityDTOs.", len(namespaceDtos))
+		entityDTOs = append(entityDTOs, namespaceDtos...)
+	}
+
+	// K8s workload controller discovery worker to create WorkloadController DTOs
+	controllerDiscoveryWorker := worker.NewK8sControllerDiscoveryWorker(clusterSummary)
+	workloadControllerDtos, err := controllerDiscoveryWorker.Do(kubeControllerList)
+	if err != nil {
+		glog.Errorf("Failed to discover workload controllers from current Kubernetes cluster with the new discovery framework: %s", err)
+	} else {
+		glog.V(2).Infof("There are %d WorkloadController entityDTOs.", len(workloadControllerDtos))
+		entityDTOs = append(entityDTOs, workloadControllerDtos...)
+	}
 
 	// Service DTOs
 	glog.V(2).Infof("Begin to generate service EntityDTOs.")
@@ -244,9 +260,6 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 		glog.V(2).Infof("There are %d vApp entityDTOs.", len(serviceDtos))
 		entityDTOs = append(entityDTOs, serviceDtos...)
 	}
-
-	// All the DTOs
-	entityDTOs = append(entityDTOs, namespaceDtos...)
 
 	glog.V(2).Infof("There are totally %d entityDTOs.", len(entityDTOs))
 

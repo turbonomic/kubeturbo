@@ -73,6 +73,7 @@ type TaskResult struct {
 	namespaceMetrics []*repository.NamespaceMetrics
 	entityGroups     []*repository.EntityGroup
 	podEntities      []*repository.KubePod
+	kubeControllers  []*repository.KubeController
 }
 
 func NewTaskResult(workerID string, state TaskResultState) *TaskResult {
@@ -106,6 +107,10 @@ func (r *TaskResult) EntityGroups() []*repository.EntityGroup {
 	return r.entityGroups
 }
 
+func (r *TaskResult) KubeControllers() []*repository.KubeController {
+	return r.kubeControllers
+}
+
 func (r *TaskResult) Err() error {
 	return r.err
 }
@@ -132,5 +137,10 @@ func (r *TaskResult) WithNamespaceMetrics(namespaceMetrics []*repository.Namespa
 
 func (r *TaskResult) WithEntityGroups(entityGroups []*repository.EntityGroup) *TaskResult {
 	r.entityGroups = entityGroups
+	return r
+}
+
+func (r *TaskResult) WithKubeControllers(kubeControllers []*repository.KubeController) *TaskResult {
+	r.kubeControllers = kubeControllers
 	return r
 }

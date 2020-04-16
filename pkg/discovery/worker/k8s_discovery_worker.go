@@ -210,6 +210,14 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	// Add the allocation metrics in the sink for the pods and the nodes
 	worker.addPodAllocationMetrics(podMetricsCollection)
 
+	// Collect allocation metrics for K8s controllers where usage values are aggregated from pods and capacity values
+	// are from namespaces quota capacity
+	controllerMetricsCollector := NewControllerMetricsCollector(worker, currTask)
+	kubeControllers, err := controllerMetricsCollector.CollectControllerMetrics()
+	if err != nil {
+		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
+	}
+
 	// Build Entity groups
 	groupsCollector := NewGroupMetricsCollector(worker, currTask)
 	entityGroups, _ := groupsCollector.CollectGroupMetrics()
@@ -242,7 +250,10 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	if len(entityGroups) > 0 {
 		result.WithEntityGroups(entityGroups)
 	}
-
+	// Return k8s controllers created by this worker
+	if len(kubeControllers) > 0 {
+		result.WithKubeControllers(kubeControllers)
+	}
 	return result
 }
 

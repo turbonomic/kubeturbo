@@ -14,22 +14,22 @@ const (
 )
 
 // Converts the cluster namespaceEntity and NamespaceMetrics objects to create Namespace DTOs
-type k8sResourceQuotasDiscoveryWorker struct {
+type k8sNamespaceDiscoveryWorker struct {
 	id         string
 	Cluster    *repository.ClusterSummary
 	stitchType stitching.StitchingPropertyType
 }
 
-func Newk8sResourceQuotasDiscoveryWorker(cluster *repository.ClusterSummary, pType stitching.StitchingPropertyType,
-) *k8sResourceQuotasDiscoveryWorker {
-	return &k8sResourceQuotasDiscoveryWorker{
+func Newk8sNamespaceDiscoveryWorker(cluster *repository.ClusterSummary, pType stitching.StitchingPropertyType,
+) *k8sNamespaceDiscoveryWorker {
+	return &k8sNamespaceDiscoveryWorker{
 		Cluster:    cluster,
 		id:         k8sQuotasWorkerID,
 		stitchType: pType,
 	}
 }
 
-func (worker *k8sResourceQuotasDiscoveryWorker) Do(namespaceMetricsList []*repository.NamespaceMetrics,
+func (worker *k8sNamespaceDiscoveryWorker) Do(namespaceMetricsList []*repository.NamespaceMetrics,
 ) ([]*proto.EntityDTO, error) {
 	// Combine quota discovery results from different nodes
 	namespaceMetricsMap := make(map[string]*repository.NamespaceMetrics)

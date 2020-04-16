@@ -28,12 +28,13 @@ func (rc *ResultCollector) ResultPool() chan *task.TaskResult {
 }
 
 func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*repository.KubePod,
-	[]*repository.NamespaceMetrics, []*repository.EntityGroup) {
+	[]*repository.NamespaceMetrics, []*repository.EntityGroup, []*repository.KubeController) {
 	discoveryResult := []*proto.EntityDTO{}
 	namespaceMetrics := []*repository.NamespaceMetrics{}
 	entityGroupList := []*repository.EntityGroup{}
 	discoveryErrorString := []string{}
 	podEntitiesMap := make(map[string]*repository.KubePod)
+	var kubeControllerList []*repository.KubeController
 	glog.V(2).Infof("Waiting for results from %d workers.", count)
 
 	stopChan := make(chan struct{})
@@ -59,6 +60,8 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*r
 					for _, kubePod := range result.PodEntities() {
 						podEntitiesMap[kubePod.PodClusterId] = kubePod
 					}
+					// K8s controller data from different workers
+					kubeControllerList = append(kubeControllerList, result.KubeControllers()...)
 				}
 				wg.Done()
 			}
@@ -73,5 +76,5 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*r
 		glog.Errorf("One or more discovery worker failed: %s", strings.Join(discoveryErrorString, "\t\t"))
 	}
 
-	return discoveryResult, podEntitiesMap, namespaceMetrics, entityGroupList
+	return discoveryResult, podEntitiesMap, namespaceMetrics, entityGroupList, kubeControllerList
 }
