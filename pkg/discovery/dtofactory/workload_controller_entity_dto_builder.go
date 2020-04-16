@@ -111,7 +111,6 @@ func (builder *workloadControllerDTOBuilder) getCommoditiesBought(kubeController
 		commBoughtBuilder := sdkbuilder.NewCommodityDTOBuilder(commodityType)
 		commBoughtBuilder.Used(resource.Used)
 		commBoughtBuilder.Peak(resource.Used)
-		commBoughtBuilder.Resizable(false)
 		commBoughtBuilder.Key(namespaceUID)
 		commBought, err := commBoughtBuilder.Create()
 		if err != nil {

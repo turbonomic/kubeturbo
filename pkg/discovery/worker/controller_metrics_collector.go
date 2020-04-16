@@ -144,7 +144,12 @@ func (collector *ControllerMetricsCollector) updateQuotaResourcesUsed(kubeContro
 				continue
 			}
 			if cpuFrequency > 0.0 {
-				resourceUsed *= cpuFrequency
+				usedValue := resourceUsed * cpuFrequency
+				if usedValue > 0.0 {
+					glog.V(4).Infof("Changing usage of %s::%s from pod %s from %f cores to %f MHz",
+						kubeController.GetFullName(), resourceType, pod.Name, resourceUsed, usedValue)
+				}
+				resourceUsed = usedValue
 			}
 		}
 		// Get existing resource of the given resourceType where used value is to be updated

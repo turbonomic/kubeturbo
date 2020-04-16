@@ -24,6 +24,7 @@ func NewK8sControllerDiscoveryWorker(cluster *repository.ClusterSummary) *K8sCon
 // It merges the pods belonging to the same controller but discovered by different discovery workers, and aggregates
 // allocation resources usage of the same KubeController from different workers.
 // Then it creates entity DTOs for the K8s controllers to be sent to the Turbonomic server.
+// This runs after cluster NamespaceMap is populated.
 func (worker *K8sControllerDiscoveryWorker) Do(kubeControllers []*repository.KubeController) ([]*proto.EntityDTO, error) {
 	namespacesMap := worker.cluster.NamespaceMap
 	// Map from controller UID to the corresponding kubeController
@@ -37,12 +38,17 @@ func (worker *K8sControllerDiscoveryWorker) Do(kubeControllers []*repository.Kub
 				glog.Errorf("Namespace %s does not exist in cluster %s", kubeController.Namespace, worker.cluster.Name)
 				continue
 			}
+			averageNodeCpuFrequency := kubeNamespace.AverageNodeCpuFrequency
+			if averageNodeCpuFrequency <= 0.0 {
+				glog.Errorf("Average node CPU frequency is not larger than zero in namespace %s. Skip KubeController %s",
+					kubeNamespace.Name, kubeController.GetFullName())
+				continue
+			}
 			for resourceType, resource := range kubeController.AllocationResources {
 				// For CPU resources, convert the capacity values expressed in number of cores to MHz.
 				// Skip the conversion if capacity value is repository.DEFAULT_METRIC_CAPACITY_VALUE (infinity), which
 				// means resource quota is not configured on the corresponding namespace.
-				if metrics.IsCPUType(resourceType) && resource.Capacity != repository.DEFAULT_METRIC_CAPACITY_VALUE &&
-					kubeNamespace.AverageNodeCpuFrequency > 0.0 {
+				if metrics.IsCPUType(resourceType) && resource.Capacity != repository.DEFAULT_METRIC_CAPACITY_VALUE {
 					newCapacity := resource.Capacity * kubeNamespace.AverageNodeCpuFrequency
 					glog.V(4).Infof("Changing capacity of %s::%s from %f cores to %f MHz",
 						kubeController.GetFullName(), resourceType, resource.Capacity, newCapacity)
