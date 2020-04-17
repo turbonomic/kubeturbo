@@ -74,13 +74,15 @@ var (
 	vMemRequestQuotaTemplateCommWithKeyResold = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vMemRequestQuotaType, IsResold: &commIsResold}
 
 	// Internal matching property
-	proxyVMIP   = "Proxy_VM_IP"
-	proxyVMUUID = "Proxy_VM_UUID"
+	proxyVMIP       = "Proxy_VM_IP"
+	proxyVMUUID     = "Proxy_VM_UUID"
+	proxyVolumeUUID = "Proxy_Volume_UUID"
 
 	// External matching property
 	VMIPFieldName          = supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS
 	VMIPFieldPaths         = []string{supplychain.SUPPLY_CHAIN_CONSTANT_VIRTUAL_MACHINE_DATA}
 	VMUUID                 = supplychain.SUPPLY_CHAIN_CONSTANT_ID
+	VOLUMEUUID             = supplychain.SUPPLY_CHAIN_CONSTANT_ID
 	ActionEligibilityField = "actionEligibility"
 )
 
@@ -166,6 +168,10 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 
 	// Virtual volume supply chain template
 	volumeSupplyChainNode, err := f.buildVolumeSupplyBuilder()
+	if err != nil {
+		return nil, err
+	}
+	volumeSupplyChainNode.MergedEntityMetaData, err = f.buildVolumeMergedEntityMetadata()
 	if err != nil {
 		return nil, err
 	}
@@ -414,4 +420,23 @@ func (f *SupplyChainFactory) buildVolumeSupplyBuilder() (*proto.TemplateDTO, err
 		Sells(storageAmountTemplateCommWithKey) // sells to Pods
 
 	return volumeSupplyChainNodeBuilder.Create()
+}
+
+// Stitching metadata required for stitching with XL
+func (f *SupplyChainFactory) buildVolumeMergedEntityMetadata() (*proto.MergedEntityMetadata, error) {
+	fieldsUsedCapacity := map[string][]string{
+		builder.PropertyUsed:     {},
+		builder.PropertyCapacity: {},
+	}
+
+	mergedEntityMetadataBuilder := builder.NewMergedEntityMetadataBuilder()
+
+	mergedEntityMetadataBuilder.PatchField(ActionEligibilityField, []string{})
+	mergedEntityMetadataBuilder.
+		InternalMatchingProperty(proxyVolumeUUID).
+		ExternalMatchingField(VOLUMEUUID, []string{})
+
+	return mergedEntityMetadataBuilder.
+		PatchSoldMetadata(proto.CommodityDTO_STORAGE_AMOUNT, fieldsUsedCapacity).
+		Build()
 }
