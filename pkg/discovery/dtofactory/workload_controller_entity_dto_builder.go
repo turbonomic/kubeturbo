@@ -61,8 +61,8 @@ func (builder *workloadControllerDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, er
 		// To connect WorkloadController to ContainerSpec entity, WorkloadController consistsOf the associated ContainerSpecs.
 		// The platform will translate this into the following relation:
 		// WorkloadController owns Containers
-		containerSpecs := builder.getContainerSpecs(kubeController)
-		entityDTOBuilder.ConsistsOf(containerSpecs)
+		containerSpecsIds := builder.getContainerSpecIds(kubeController)
+		entityDTOBuilder.ConsistsOf(containerSpecsIds)
 
 		// Create WorkloadControllerData to store controller type data
 		entityDTOBuilder.WorkloadControllerData(builder.createWorkloadControllerData(kubeController))
@@ -130,19 +130,19 @@ func (builder *workloadControllerDTOBuilder) getCommoditiesBought(kubeController
 }
 
 // Get a slice of containerSpec id from the given KubeController entity
-func (builder *workloadControllerDTOBuilder) getContainerSpecs(kubeController *repository.KubeController) []string {
+func (builder *workloadControllerDTOBuilder) getContainerSpecIds(kubeController *repository.KubeController) []string {
 	containerNameSet := make(map[string]struct{})
 	for _, pod := range kubeController.Pods {
 		for _, container := range pod.Spec.Containers {
 			containerNameSet[container.Name] = struct{}{}
 		}
 	}
-	var containerSpecs []string
+	var containerSpecIds []string
 	for containerName := range containerNameSet {
-		containerSpecID := discoveryUtil.ContainerSpecIdFunc(kubeController.UID, containerName)
-		containerSpecs = append(containerSpecs, containerSpecID)
+		containerSpecId := discoveryUtil.ContainerSpecIdFunc(kubeController.UID, containerName)
+		containerSpecIds = append(containerSpecIds, containerSpecId)
 	}
-	return containerSpecs
+	return containerSpecIds
 }
 
 func (builder *workloadControllerDTOBuilder) createWorkloadControllerData(kubeController *repository.KubeController) *proto.EntityDTO_WorkloadControllerData {

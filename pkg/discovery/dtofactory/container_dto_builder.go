@@ -71,7 +71,10 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 		}
 		podId := string(pod.UID)
 		podMId := util.PodMetricIdAPI(pod)
-		controllerUID, _ := util.GetControllerUID(pod, builder.metricsSink)
+		controllerUID, err := util.GetControllerUID(pod, builder.metricsSink)
+		if err != nil {
+			glog.Errorf("Error getting controller UID from pod %d, %v", pod.Name, err)
+		}
 		for i := range pod.Spec.Containers {
 			container := &(pod.Spec.Containers[i])
 
@@ -113,8 +116,10 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			//4. To connect Container to ContainerSpec entity, Container is LayeredOver the associated ContainerSpec.
 			// The platform will translate this into the following relation:
 			// ContainerSpec aggregates Containers
-			containerSpecId := util.ContainerSpecIdFunc(controllerUID, container.Name)
-			ebuilder.LayeredOver([]string{containerSpecId})
+			if controllerUID != "" {
+				containerSpecId := util.ContainerSpecIdFunc(controllerUID, container.Name)
+				ebuilder.LayeredOver([]string{containerSpecId})
+			}
 
 			//ebuilder.Monitored(util.Monitored(pod))
 			ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)

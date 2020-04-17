@@ -132,9 +132,9 @@ func TestGetContainerSpecs(t *testing.T) {
 		},
 	}
 	kubeController.Pods = append(kubeController.Pods, pod1, pod2)
-	containerSpecs := testWorkloadControllerDTOBuilder.getContainerSpecs(kubeController)
-	expectedContainerSpecs := []string{"controllerUID/Foo", "controllerUID/Bar"}
-	assert.ElementsMatch(t, expectedContainerSpecs, containerSpecs)
+	containerSpecIds := testWorkloadControllerDTOBuilder.getContainerSpecIds(kubeController)
+	expectedContainerSpecIds := []string{"controllerUID/Foo", "controllerUID/Bar"}
+	assert.ElementsMatch(t, expectedContainerSpecIds, containerSpecIds)
 }
 
 func createKubeController(clustername, namespace, name, controllerType, uid string,
