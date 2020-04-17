@@ -6,6 +6,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	api "k8s.io/api/core/v1"
 	"testing"
 )
 
@@ -101,6 +102,39 @@ func TestBuildDTOs(t *testing.T) {
 			assert.EqualValues(t, expectedWorkloadControllerData2, workloadControllerData2)
 		}
 	}
+}
+
+func TestGetContainerSpecs(t *testing.T) {
+	kubeController := repository.NewKubeController("testCluster", "testNamespace", "test",
+		util.KindDeployment, "controllerUID")
+	pod1 := &api.Pod{
+		Spec: api.PodSpec{
+			Containers: []api.Container{
+				{
+					Name: "Foo",
+				},
+				{
+					Name: "Bar",
+				},
+			},
+		},
+	}
+	pod2 := &api.Pod{
+		Spec: api.PodSpec{
+			Containers: []api.Container{
+				{
+					Name: "Foo",
+				},
+				{
+					Name: "Bar",
+				},
+			},
+		},
+	}
+	kubeController.Pods = append(kubeController.Pods, pod1, pod2)
+	containerSpecs := testWorkloadControllerDTOBuilder.getContainerSpecs(kubeController)
+	expectedContainerSpecs := []string{"controllerUID/Foo", "controllerUID/Bar"}
+	assert.ElementsMatch(t, expectedContainerSpecs, containerSpecs)
 }
 
 func createKubeController(clustername, namespace, name, controllerType, uid string,
