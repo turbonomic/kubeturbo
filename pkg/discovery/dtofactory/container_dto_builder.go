@@ -73,7 +73,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 		podMId := util.PodMetricIdAPI(pod)
 		controllerUID, err := util.GetControllerUID(pod, builder.metricsSink)
 		if err != nil {
-			glog.Errorf("Error getting controller UID from pod %d, %v", pod.Name, err)
+			glog.Errorf("Error getting controller UID from pod %s, %v", pod.Name, err)
 		}
 		for i := range pod.Spec.Containers {
 			container := &(pod.Spec.Containers[i])
