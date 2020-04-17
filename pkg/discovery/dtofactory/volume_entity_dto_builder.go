@@ -7,6 +7,7 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
@@ -35,13 +36,28 @@ func (builder *volumeEntityDTOBuilder) BuildEntityDTOs(volToPodsMap map[*api.Per
 
 		commoditiesSold, cap, err := builder.getVolumeCommoditiesSold(vol, podVolumes)
 		if err != nil {
-			glog.Errorf("Error when create commoditiesSold for volume %s: %s", displayName, err)
+			glog.Errorf("Error creating commoditiesSold for volume %s: %s", displayName, err)
 		}
 
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
+		var vols []*api.PersistentVolume
+		vols = append(vols, vol)
+		volStitchingMgr := stitching.NewVolumeStitchingManager()
+		err = volStitchingMgr.ProcessVolumes(vols)
+		if err != nil {
+			glog.Errorf("Error generating stitching metadata for volume %s: %s", displayName, err)
+		} else {
+			// reconciliation meta data
+			metaData, err := volStitchingMgr.GenerateReconciliationMetaData()
+			if err != nil {
+				glog.Errorf("Failed to build reconciliation metadata for volume %s: %s", displayName, err)
+			}
+			entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
+		}
+
 		// entities' properties.
-		properties := builder.getVolumeProperties(vol)
+		properties := builder.getVolumeProperties(vol, volStitchingMgr)
 		entityDTOBuilder = entityDTOBuilder.WithProperties(properties)
 
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
@@ -117,12 +133,22 @@ func (builder *volumeEntityDTOBuilder) getVolumeMetrics(vol *api.PersistentVolum
 }
 
 // Get the properties of the volume.
-// TODO(irfanurrehman): Add stitching properties.
-func (builder *volumeEntityDTOBuilder) getVolumeProperties(vol *api.PersistentVolume) []*proto.EntityDTO_EntityProperty {
+func (builder *volumeEntityDTOBuilder) getVolumeProperties(vol *api.PersistentVolume, stitchingMgr *stitching.VolumeStitchingManager) []*proto.EntityDTO_EntityProperty {
 	var properties []*proto.EntityDTO_EntityProperty
 
 	volProperty := property.BuildVolumeProperties(vol)
 	properties = append(properties, volProperty)
+
+	// stitching property.
+	isForReconcile := true
+	stitchingProperty, err := stitchingMgr.BuildDTOProperty(isForReconcile)
+	if err != nil {
+		glog.Errorf("failed to build stitching properties for volume %s: %s", vol.Name, err)
+	} else {
+		glog.V(4).Infof("Volume %s will be reconciled with %s: %s", vol.Name, *stitchingProperty.Name,
+			*stitchingProperty.Value)
+	}
+	properties = append(properties, stitchingProperty)
 
 	return properties
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	v1 "k8s.io/api/core/v1"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -136,7 +137,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod, podToVolsMa
 		}
 
 		// entities' properties.
-		properties, err := builder.getPodProperties(pod)
+		properties, err := builder.getPodProperties(pod, podToVolsMap[displayName])
 		if err != nil {
 			glog.Errorf("Failed to get required pod properties: %s", err)
 			continue
@@ -337,7 +338,7 @@ func (builder *podEntityDTOBuilder) buyCommoditiesFromVolumes(pod *api.Pod, moun
 }
 
 // Get the properties of the pod. This includes property related to pod cluster property.
-func (builder *podEntityDTOBuilder) getPodProperties(pod *api.Pod) ([]*proto.EntityDTO_EntityProperty, error) {
+func (builder *podEntityDTOBuilder) getPodProperties(pod *api.Pod, vols []repository.MountedVolume) ([]*proto.EntityDTO_EntityProperty, error) {
 	var properties []*proto.EntityDTO_EntityProperty
 	// additional node cluster info property.
 	podProperties := property.BuildPodProperties(pod)
@@ -354,6 +355,24 @@ func (builder *podEntityDTOBuilder) getPodProperties(pod *api.Pod) ([]*proto.Ent
 		return nil, fmt.Errorf("failed to build EntityDTO for Pod %s: %s", podClusterID, err)
 	}
 	properties = append(properties, stitchingProperty)
+
+	if len(vols) > 0 {
+		var apiVols []*v1.PersistentVolume
+		for _, vol := range vols {
+			apiVols = append(apiVols, vol.UsedVolume)
+		}
+
+		m := stitching.NewVolumeStitchingManager()
+		err := m.ProcessVolumes(apiVols)
+		if err == nil {
+			p, err := m.BuildDTOProperty(false)
+			if err == nil {
+				properties = append(properties, p)
+			} else {
+				glog.Errorf("failed to build Volume stitching properties for Pod %s: %s", podClusterID, err)
+			}
+		}
+	}
 
 	return properties, nil
 }
