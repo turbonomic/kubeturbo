@@ -11,8 +11,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-
-	cadvisorapi "github.com/google/cadvisor/info/v1"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
@@ -24,6 +23,9 @@ type KubeletMonitor struct {
 
 	kubeletClient *kubeclient.KubeletClient
 
+	// Backup k8s client for node cpufrequency
+	kubeClient *kubernetes.Clientset
+
 	metricSink *metrics.EntityMetricSink
 
 	stopCh chan struct{}
@@ -34,6 +36,7 @@ type KubeletMonitor struct {
 func NewKubeletMonitor(config *KubeletMonitorConfig) (*KubeletMonitor, error) {
 	return &KubeletMonitor{
 		kubeletClient: config.kubeletClient,
+		kubeClient:    config.kubeClient,
 		metricSink:    metrics.NewEntityMetricSink(),
 		stopCh:        make(chan struct{}, 1),
 	}, nil
@@ -98,21 +101,19 @@ func (m *KubeletMonitor) RetrieveResourceStat() error {
 // Retrieve resource metrics for the given node.
 func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 	kc := m.kubeletClient
+
+	nodefreq, err := kc.GetNodeCpuFrequency(node)
+	if err != nil {
+		glog.Errorf("Failed to get resource metrics (cpufreq) from %s: %s", node.Name, err)
+		return
+	}
+	m.parseNodeCpuFreq(node, nodefreq)
+
 	ip, err := util.GetNodeIPForMonitor(node, types.KubeletSource)
 	if err != nil {
-		glog.Errorf("Failed to get resource metrics from %s: %s", node.Name, err)
+		glog.Errorf("Failed to get resource metrics summary from %s: %s", node.Name, err)
 		return
 	}
-
-	// get machine information
-	machineInfo, err := kc.GetMachineInfo(ip)
-	if err != nil {
-		glog.Errorf("Failed to get machine information from %s: %s", node.Name, err)
-		return
-	}
-	glog.V(4).Infof("Machine info of %s is %++v", node.Name, machineInfo)
-	m.parseNodeInfo(node, machineInfo)
-
 	// get summary information about the given node and the pods running on it.
 	summary, err := kc.GetSummary(ip)
 	if err != nil {
@@ -131,8 +132,7 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 	glog.V(4).Infof("Finished scrape node %s.", node.Name)
 }
 
-func (m *KubeletMonitor) parseNodeInfo(node *api.Node, machineInfo *cadvisorapi.MachineInfo) {
-	cpuFrequencyMHz := float64(machineInfo.CpuFrequency) / util.MegaToKilo
+func (m *KubeletMonitor) parseNodeCpuFreq(node *api.Node, cpuFrequencyMHz float64) {
 	glog.V(4).Infof("node-%s cpuFrequency = %.2fMHz", node.Name, cpuFrequencyMHz)
 	cpuFrequencyMetric := metrics.NewEntityStateMetric(metrics.NodeType, util.NodeKeyFunc(node), metrics.CpuFrequency, cpuFrequencyMHz)
 	m.metricSink.AddNewMetricEntries(cpuFrequencyMetric)

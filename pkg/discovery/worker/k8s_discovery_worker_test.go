@@ -1,15 +1,16 @@
 package worker
 
 import (
+	"reflect"
+	"testing"
+	"time"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"reflect"
-	"testing"
-	"time"
 )
 
 func TestCalTimeOut(t *testing.T) {
@@ -46,7 +47,7 @@ func TestCalTimeOut(t *testing.T) {
 }
 
 func TestBuildDTOsWithMissingMetrics(t *testing.T) {
-	workerConfig := NewK8sDiscoveryWorkerConfig("UUID").WithMonitoringWorkerConfig(kubelet.NewKubeletMonitorConfig(nil))
+	workerConfig := NewK8sDiscoveryWorkerConfig("UUID").WithMonitoringWorkerConfig(kubelet.NewKubeletMonitorConfig(nil, nil))
 	worker, err := NewK8sDiscoveryWorker(workerConfig, "wid-1")
 	if err != nil {
 		t.Errorf("Error while creating discovery worker: %v", err)

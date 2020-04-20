@@ -11,7 +11,6 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	idutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
@@ -57,29 +56,24 @@ func NewContainerResizer(ae TurboK8sActionExecutor, kubeletClient *kubeclient.Ku
 	}
 }
 
-// get node cpu frequency, in KHz;
-func (r *ContainerResizer) getNodeCPUFrequency(host string) (uint64, error) {
+// get node cpu frequency, in MHz;
+func (r *ContainerResizer) getNodeCPUFrequency(host string) (float64, error) {
 	// always access kubelet via node IP
 	node, err := util.GetNodebyName(r.kubeClient, host)
 	if err != nil {
 		return 1, fmt.Errorf("failed to get node by name: %v", err)
 	}
 
-	ip, err := podutil.GetNodeIP(node)
-	if err != nil {
-		return 1, fmt.Errorf("failed to get IP of node %v: %v", node, err)
-	}
-
-	return r.kubeletClient.GetMachineCpuFrequency(ip)
+	return r.kubeletClient.GetNodeCpuFrequency(node)
 }
 
 func (r *ContainerResizer) setCPUQuantity(cpuMhz float64, host string, rlist k8sapi.ResourceList) error {
-	cpuFrequency, err := r.getNodeCPUFrequency(host)
+	nodeCpuFrequency, err := r.getNodeCPUFrequency(host)
 	if err != nil {
 		return fmt.Errorf("failed to get node[%s] cpu frequency: %v", host, err)
 	}
 
-	cpuQuantity, err := genCPUQuantity(cpuMhz, cpuFrequency)
+	cpuQuantity, err := genCPUQuantity(cpuMhz, nodeCpuFrequency)
 	if err != nil {
 		return fmt.Errorf("failed to generate CPU quantity: %v", err)
 	}

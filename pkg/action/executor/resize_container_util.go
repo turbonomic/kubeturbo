@@ -2,8 +2,9 @@ package executor
 
 import (
 	"fmt"
-	"k8s.io/client-go/dynamic"
 	"math"
+
+	"k8s.io/client-go/dynamic"
 
 	"github.com/golang/glog"
 
@@ -131,10 +132,10 @@ func updateResourceAmount(podSpec *k8sapi.PodSpec, spec *containerResizeSpec) (b
 // Generate a resource.Quantity for CPU.
 // it will convert CPU unit from MHz to CPU.core time in milliSeconds
 // @newValue is from OpsMgr, in MHz
-// @cpuFrequency is from kubeletClient, in KHz
-func genCPUQuantity(newValue float64, cpuFrequency uint64) (resource.Quantity, error) {
-	tmp := newValue * 1000 * 1000 //to KHz and to milliSeconds
-	tmp = tmp / float64(cpuFrequency)
+// @nodeCpuFrequency is from kubeletClient, in MHz
+func genCPUQuantity(newValue float64, nodeCpuFrequency float64) (resource.Quantity, error) {
+	tmp := newValue * 1000 // to milliSeconds
+	tmp = tmp / nodeCpuFrequency
 	cpuTime := int(math.Ceil(tmp))
 	if cpuTime < 1 {
 		cpuTime = 1

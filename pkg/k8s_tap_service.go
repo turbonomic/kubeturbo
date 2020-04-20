@@ -82,7 +82,7 @@ func createTargetConfig(kubeConfig *restclient.Config) *configs.K8sTargetConfig 
 
 func createProbeConfigOrDie(c *Config) *configs.ProbeConfig {
 	// Create Kubelet monitoring
-	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(c.KubeletClient)
+	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(c.KubeletClient, c.KubeClient)
 
 	// Create cluster monitoring
 	masterMonitoringConfig := master.NewClusterMonitorConfig(c.KubeClient, c.DynamicClient)
