@@ -99,6 +99,9 @@ type VMTServer struct {
 
 	// The Cluster API namespace
 	ClusterAPINamespace string
+
+	// Busybox image uri used for cpufreq getter job
+	BusyboxImage string
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -132,6 +135,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.ValidationTimeout, "validation-timeout-sec", defaultValidationTimeout, "The validation timeout in seconds")
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all")
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")
+	fs.StringVar(&s.BusyboxImage, "busybox-image", "busybox", "The complete image uri used for fallback node cpu frequency getter job.")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -169,13 +173,13 @@ func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubern
 	return kubeClient
 }
 
-func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config) *kubeclient.KubeletClient {
+func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, fallbackClient *kubernetes.Clientset, busyboxImage string) *kubeclient.KubeletClient {
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
 		ForceSelfSignedCerts(s.ForceSelfSignedCerts).
 		// Timeout(to).
-		Create()
+		Create(fallbackClient, busyboxImage)
 	if err != nil {
 		glog.Errorf("Fatal error: failed to create kubeletClient: %v", err)
 		os.Exit(1)
@@ -252,7 +256,7 @@ func (s *VMTServer) Run() {
 	// Collect target and probe info such as master host, server version, probe container image, etc
 	k8sTAPSpec.CollectK8sTargetAndProbeInfo(kubeConfig, kubeClient)
 
-	kubeletClient := s.createKubeletClientOrDie(kubeConfig)
+	kubeletClient := s.createKubeletClientOrDie(kubeConfig, kubeClient, s.BusyboxImage)
 	caClient, err := clusterclient.NewForConfig(kubeConfig)
 	if err != nil {
 		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())

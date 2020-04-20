@@ -33,10 +33,10 @@ const (
 	TurboControllableAnnotation string = "kubeturbo.io/controllable"
 )
 
-type podEvent struct {
-	eType   string
-	reason  string
-	message string
+type PodEvent struct {
+	EType   string
+	Reason  string
+	Message string
 }
 
 // IsControllableFromAnnotation checks whether a Kubernetes object is controllable or not by its annotation.
@@ -321,12 +321,12 @@ func WaitForPodReady(client *client.Clientset, namespace, podName, nodeName stri
 	})
 	// log a list of unique events that belong to the pod
 	// warning events are logged in Error level, other events are logged in Info level
-	podEvents := getPodEvents(client, namespace, podName)
+	podEvents := GetPodEvents(client, namespace, podName)
 	for _, pe := range podEvents {
-		if pe.eType == api.EventTypeWarning {
-			glog.Errorf("Pod %s: %s", podName, pe.message)
+		if pe.EType == api.EventTypeWarning {
+			glog.Errorf("Pod %s: %s", podName, pe.Message)
 		} else {
-			glog.V(2).Infof("Pod %s: %s", podName, pe.message)
+			glog.V(2).Infof("Pod %s: %s", podName, pe.Message)
 		}
 	}
 	return err
@@ -402,8 +402,8 @@ func getPodWarnings(pod *api.Pod, podName string) (warnings []string) {
 
 // getPodEvents gets a list of unique events that belong to the given pod
 // These events can be very long, and will only be written to the log file
-func getPodEvents(kubeClient *client.Clientset, namespace, name string) (podEvents []podEvent) {
-	podEvents = []podEvent{}
+func GetPodEvents(kubeClient *client.Clientset, namespace, name string) (podEvents []PodEvent) {
+	podEvents = []PodEvent{}
 	// Get the pod
 	pod, err := kubeClient.CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
@@ -423,10 +423,10 @@ func getPodEvents(kubeClient *client.Clientset, namespace, name string) (podEven
 			continue
 		}
 		visited[item.Reason] = true
-		podEvents = append(podEvents, podEvent{
-			eType:   item.Type,
-			reason:  item.Reason,
-			message: item.Message,
+		podEvents = append(podEvents, PodEvent{
+			EType:   item.Type,
+			Reason:  item.Reason,
+			Message: item.Message,
 		})
 	}
 	return

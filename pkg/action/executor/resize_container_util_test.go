@@ -2,14 +2,15 @@ package executor
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/golang/glog"
 	k8sapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"testing"
 )
 
 func TestGenCPUQuantity(t *testing.T) {
-	nodeCPUfreq := uint64(2600000) //khz
+	nodeCPUfreq := float64(2600) //MHz
 	reqArray := []int{2600, 1300, 0, 5200}
 	expectArray := []int{1000, 500, 1, 2000}
 

@@ -1,10 +1,11 @@
 package kubeclient
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
-	"testing"
 )
 
 func constuctNodes(ip string) []*v1.Node {
@@ -67,7 +68,7 @@ func TestKubeletClientCacheNil(t *testing.T) {
 	kubeConf := &rest.Config{}
 	conf := NewKubeletConfig(kubeConf)
 
-	kc, _ := conf.Create()
+	kc, _ := conf.Create(nil, "busybox")
 	entry := &CacheEntry{}
 	kc.cache["host_1"] = entry
 	assert.False(t, kc.HasCacheBeenUsed("host_1"))
