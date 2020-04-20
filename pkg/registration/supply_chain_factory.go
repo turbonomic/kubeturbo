@@ -246,6 +246,12 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 	podSupplyChainNodeBuilder = podSupplyChainNodeBuilder.
 		Sells(vCpuTemplateComm). //sells to containers
 		Sells(vMemTemplateComm).
+		Sells(vCpuRequestTemplateComm).
+		Sells(vMemRequestTemplateComm).
+		Sells(cpuLimitQuotaTemplateCommWithKey).
+		Sells(memLimitQuotaTemplateCommWithKey).
+		Sells(cpuRequestQuotaTemplateCommWithKey).
+		Sells(memRequestQuotaTemplateCommWithKey).
 		Sells(vmpmAccessTemplateComm).
 		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_HOSTING).
 		Buys(vCpuTemplateComm).
@@ -254,6 +260,11 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Buys(vMemRequestTemplateComm).
 		Buys(numPodNumConsumersTemplateComm).
 		Buys(vStorageTemplateComm).
+		Provider(proto.EntityDTO_WORKLOAD_CONTROLLER, proto.Provider_HOSTING).
+		Buys(cpuLimitQuotaTemplateCommWithKey).
+		Buys(memLimitQuotaTemplateCommWithKey).
+		Buys(cpuRequestQuotaTemplateCommWithKey).
+		Buys(memRequestQuotaTemplateCommWithKey).
 		Provider(proto.EntityDTO_NAMESPACE, proto.Provider_HOSTING).
 		Buys(cpuLimitQuotaTemplateCommWithKey).
 		Buys(memLimitQuotaTemplateCommWithKey).
@@ -309,10 +320,18 @@ func (f *SupplyChainFactory) buildContainer() (*proto.TemplateDTO, error) {
 	builder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER).
 		Sells(vCpuTemplateComm).
 		Sells(vMemTemplateComm).
+		Sells(vCpuRequestTemplateComm).
+		Sells(vMemRequestTemplateComm).
 		Sells(applicationTemplateCommWithKey).
 		Provider(proto.EntityDTO_CONTAINER_POD, proto.Provider_HOSTING).
 		Buys(vCpuTemplateComm).
 		Buys(vMemTemplateComm).
+		Buys(vCpuRequestTemplateComm).
+		Buys(vMemRequestTemplateComm).
+		Buys(cpuLimitQuotaTemplateCommWithKey).
+		Buys(memLimitQuotaTemplateCommWithKey).
+		Buys(cpuRequestQuotaTemplateCommWithKey).
+		Buys(memRequestQuotaTemplateCommWithKey).
 		Buys(vmpmAccessTemplateComm)
 
 	return builder.Create()
