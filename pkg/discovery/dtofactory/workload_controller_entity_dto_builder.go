@@ -3,6 +3,7 @@ package dtofactory
 import (
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	discoveryUtil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -56,6 +57,12 @@ func (builder *workloadControllerDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, er
 			glog.Errorf("Failed to get namespaceUID from namespace %s for controller %s", kubeController.Namespace,
 				kubeController.GetFullName())
 		}
+
+		// To connect WorkloadController to ContainerSpec entity, WorkloadController consistsOf the associated ContainerSpecs.
+		// The platform will translate this into the following relation:
+		// WorkloadController owns Containers
+		containerSpecsIds := builder.getContainerSpecIds(kubeController)
+		entityDTOBuilder.ConsistsOf(containerSpecsIds)
 
 		// Create WorkloadControllerData to store controller type data
 		entityDTOBuilder.WorkloadControllerData(builder.createWorkloadControllerData(kubeController))
@@ -120,6 +127,22 @@ func (builder *workloadControllerDTOBuilder) getCommoditiesBought(kubeController
 		commoditiesBought = append(commoditiesBought, commBought)
 	}
 	return commoditiesBought, nil
+}
+
+// Get a slice of containerSpec id from the given KubeController entity
+func (builder *workloadControllerDTOBuilder) getContainerSpecIds(kubeController *repository.KubeController) []string {
+	containerNameSet := make(map[string]struct{})
+	for _, pod := range kubeController.Pods {
+		for _, container := range pod.Spec.Containers {
+			containerNameSet[container.Name] = struct{}{}
+		}
+	}
+	var containerSpecIds []string
+	for containerName := range containerNameSet {
+		containerSpecId := discoveryUtil.ContainerSpecIdFunc(kubeController.UID, containerName)
+		containerSpecIds = append(containerSpecIds, containerSpecId)
+	}
+	return containerSpecIds
 }
 
 func (builder *workloadControllerDTOBuilder) createWorkloadControllerData(kubeController *repository.KubeController) *proto.EntityDTO_WorkloadControllerData {
