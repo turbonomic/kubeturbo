@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"strings"
 	"time"
 
@@ -304,6 +305,22 @@ func GetPodGrandInfo(dynClient dynamic.Interface, pod *api.Pod) (string, string,
 	}
 
 	return kind, name, uid, nil
+}
+
+// Get controller UID from the given pod and metrics sink.
+func GetControllerUID(pod *api.Pod, metricsSink *metrics.EntityMetricSink) (string, error) {
+	podKey := PodKeyFunc(pod)
+	ownerUIDMetricId := metrics.GenerateEntityStateMetricUID(metrics.PodType, podKey, metrics.OwnerUID)
+	ownerUIDMetric, err := metricsSink.GetMetric(ownerUIDMetricId)
+	if err != nil {
+		return "", fmt.Errorf("error getting owner UID for pod %s --> %v", podKey, err)
+	}
+	ownerUID := ownerUIDMetric.GetValue()
+	controllerUID, ok := ownerUID.(string)
+	if !ok {
+		return "", fmt.Errorf("error getting owner UID for pod %s", podKey)
+	}
+	return controllerUID, nil
 }
 
 // WaitForPodReady checks the readiness of a given pod with a retry limit and a timeout, whichever
