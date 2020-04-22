@@ -35,6 +35,10 @@ var (
 	vMemRequestTemplateComm            = &proto.TemplateCommodity{CommodityType: &vMemRequestType}
 	numPodNumConsumersTemplateComm     = &proto.TemplateCommodity{CommodityType: &numPodNumConsumersType}
 	vStorageTemplateComm               = &proto.TemplateCommodity{CommodityType: &vStorageType}
+	cpuLimitQuotaTemplateComm          = &proto.TemplateCommodity{CommodityType: &vCpuLimitQuotaType}
+	memLimitQuotaTemplateComm          = &proto.TemplateCommodity{CommodityType: &vMemLimitQuotaType}
+	cpuRequestQuotaTemplateComm        = &proto.TemplateCommodity{CommodityType: &vCpuRequestQuotaType}
+	memRequestQuotaTemplateComm        = &proto.TemplateCommodity{CommodityType: &vMemRequestQuotaType}
 	cpuLimitQuotaTemplateCommWithKey   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuLimitQuotaType}
 	memLimitQuotaTemplateCommWithKey   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vMemLimitQuotaType}
 	cpuRequestQuotaTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuRequestQuotaType}
@@ -248,10 +252,10 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Sells(vMemTemplateComm).
 		Sells(vCpuRequestTemplateComm).
 		Sells(vMemRequestTemplateComm).
-		Sells(cpuLimitQuotaTemplateCommWithKey).
-		Sells(memLimitQuotaTemplateCommWithKey).
-		Sells(cpuRequestQuotaTemplateCommWithKey).
-		Sells(memRequestQuotaTemplateCommWithKey).
+		Sells(cpuLimitQuotaTemplateComm).
+		Sells(memLimitQuotaTemplateComm).
+		Sells(cpuRequestQuotaTemplateComm).
+		Sells(memRequestQuotaTemplateComm).
 		Sells(vmpmAccessTemplateComm).
 		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_HOSTING).
 		Buys(vCpuTemplateComm).
@@ -317,7 +321,7 @@ func (f *SupplyChainFactory) buildContainerSpecSupplyBuilder() (*proto.TemplateD
 }
 
 func (f *SupplyChainFactory) buildContainer() (*proto.TemplateDTO, error) {
-	builder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER).
+	containerSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER).
 		Sells(vCpuTemplateComm).
 		Sells(vMemTemplateComm).
 		Sells(vCpuRequestTemplateComm).
@@ -328,13 +332,13 @@ func (f *SupplyChainFactory) buildContainer() (*proto.TemplateDTO, error) {
 		Buys(vMemTemplateComm).
 		Buys(vCpuRequestTemplateComm).
 		Buys(vMemRequestTemplateComm).
-		Buys(cpuLimitQuotaTemplateCommWithKey).
-		Buys(memLimitQuotaTemplateCommWithKey).
-		Buys(cpuRequestQuotaTemplateCommWithKey).
-		Buys(memRequestQuotaTemplateCommWithKey).
+		Buys(cpuLimitQuotaTemplateComm).
+		Buys(memLimitQuotaTemplateComm).
+		Buys(cpuRequestQuotaTemplateComm).
+		Buys(memRequestQuotaTemplateComm).
 		Buys(vmpmAccessTemplateComm)
 
-	return builder.Create()
+	return containerSupplyChainNodeBuilder.Create()
 }
 
 func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
