@@ -171,7 +171,8 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 	// Kubernetes Probe Action Execution Client
 	actionHandler := action.NewActionHandler(actionHandlerConfig)
 
-	probeBuilder := probe.NewProbeBuilder(config.tapSpec.TargetType, config.tapSpec.ProbeCategory).
+	probeBuilder := probe.NewProbeBuilder(config.tapSpec.TargetType,
+		config.tapSpec.ProbeCategory, config.tapSpec.ProbeUICategory).
 		WithDiscoveryOptions(probe.FullRediscoveryIntervalSecondsOption(int32(config.DiscoveryIntervalSec))).
 		RegisteredBy(registrationClient).
 		WithActionPolicies(registrationClient).
