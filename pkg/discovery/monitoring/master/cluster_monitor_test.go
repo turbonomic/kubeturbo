@@ -25,20 +25,26 @@ var expectedMetrics = map[string]float64{
 	// Pod metrics
 	"Pod-default/mypod-CPU-Capacity":       2,
 	"Pod-default/mypod-Memory-Capacity":    8.388608e+06,
-	"Pod-default/mypod-CPU-Reservation":    0.26,
-	"Pod-default/mypod-Memory-Reservation": 262144,
 	"Pod-default/mypod-CPURequest-Used":    0.26,
 	"Pod-default/mypod-MemoryRequest-Used": 262144,
 
 	// Container metrics
-	"Container-default/mypod/twitter-cass-tweet-CPU-Capacity":       0.25,
-	"Container-default/mypod/twitter-cass-tweet-Memory-Capacity":    262144,
-	"Container-default/mypod/twitter-cass-tweet-CPU-Reservation":    0.25,
-	"Container-default/mypod/twitter-cass-tweet-Memory-Reservation": 262144,
-	"Container-default/mypod/istio-proxy-CPU-Capacity":              2,
-	"Container-default/mypod/istio-proxy-Memory-Capacity":           8.388608e+06,
-	"Container-default/mypod/istio-proxy-CPU-Reservation":           0.01,
-	"Container-default/mypod/istio-proxy-Memory-Reservation":        0,
+	"Container-default/mypod/twitter-cass-tweet-CPU-Capacity":            0.25,
+	"Container-default/mypod/twitter-cass-tweet-Memory-Capacity":         262144,
+	"Container-default/mypod/twitter-cass-tweet-CPURequest-Capacity":     0.25,
+	"Container-default/mypod/twitter-cass-tweet-MemoryRequest-Capacity":  262144,
+	"Container-default/mypod/istio-proxy-CPU-Capacity":                   2,
+	"Container-default/mypod/istio-proxy-Memory-Capacity":                8.388608e+06,
+	"Container-default/mypod/istio-proxy-CPURequest-Capacity":            0.01,
+	"Container-default/mypod/istio-proxy-MemoryRequest-Capacity":         0,
+	"Container-default/mypod/twitter-cass-tweet-CPULimitQuota-Used":      0.25,
+	"Container-default/mypod/twitter-cass-tweet-MemoryLimitQuota-Used":   262144,
+	"Container-default/mypod/twitter-cass-tweet-CPURequestQuota-Used":    0.25,
+	"Container-default/mypod/twitter-cass-tweet-MemoryRequestQuota-Used": 262144,
+	"Container-default/mypod/istio-proxy-CPULimitQuota-Used":             2,
+	"Container-default/mypod/istio-proxy-CPURequestQuota-Used":           0.01,
+	"Container-default/mypod/istio-proxy-MemoryLimitQuota-Used":          8.388608e+06,
+	"Container-default/mypod/istio-proxy-MemoryRequestQuota-Used":        0,
 }
 
 func genCPUQuantity(cores float32) resource.Quantity {
@@ -152,6 +158,6 @@ func TestGenNodeResourceMetrics(t *testing.T) {
 		if err != nil {
 			t.Errorf("Failed to validate metric: %v", err)
 		}
-		assert.EqualValues(t, value, metric.GetValue())
+		assert.EqualValues(t, value, metric.GetValue(), fmt.Sprintf("Metric values are not equal for %s", name))
 	}
 }

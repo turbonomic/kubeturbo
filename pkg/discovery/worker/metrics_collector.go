@@ -113,28 +113,10 @@ func (collector *MetricsCollector) CollectPodMetrics() (PodMetricsByNodeAndNames
 		// quota metrics for the pod
 		podMetrics := createPodMetrics(pod, kubeNamespace.Name, collector.MetricsSink)
 
-		// TODO Yue: remove the logic of updating pod compute capacity based on namespace quota because pod will be selling
-		// quota commodities with quota capacity
-		// Find if the pod's resource quota has limits defined for compute resources.
-		// If true, then the pod compute capacity which defaults to node compute capacity
-		// should be replaced with the corresponding quota limit when the quota limit is
-		// set and is smaller than the node compute capacity.
-		// The new compute capacity is set in the PodMetrics and the discovery worker
-		// will add it to the metrics sink
-		etype := metrics.PodType
-		for _, computeType := range metrics.ComputeResources {
-			computeCapMetricUID := metrics.GenerateEntityResourceMetricUID(etype,
-				podMetrics.PodKey, computeType, metrics.Capacity)
-			computeCapMetric, _ := collector.MetricsSink.GetMetric(computeCapMetricUID)
-			if computeCapMetric != nil && computeCapMetric.GetValue() != nil {
-				podCpuCap := computeCapMetric.GetValue().(float64)
-
-				var quotaComputeCap float64
-				quotaComputeCap = getQuotaComputeCapacity(kubeNamespace, computeType)
-				if quotaComputeCap != repository.DEFAULT_METRIC_VALUE && quotaComputeCap < podCpuCap {
-					podMetrics.ComputeCapacity[computeType] = quotaComputeCap
-				}
-			}
+		// Set pod resource quota capacity as the quota capacity of the namespace.
+		for _, quotaResourceType := range metrics.QuotaResources {
+			quotaResourceCap := getResourceQuotaCapacity(kubeNamespace, quotaResourceType)
+			podMetrics.QuotaCapacity[quotaResourceType] = quotaResourceCap
 		}
 
 		// Set the metrics in the map by node and namespace
@@ -148,18 +130,16 @@ func (collector *MetricsCollector) CollectPodMetrics() (PodMetricsByNodeAndNames
 	return podCollectionMap, nil
 }
 
-// Return the Limits set for compute resources in a namespace resource quota
-func getQuotaComputeCapacity(namespaceEntity *repository.KubeNamespace, computeType metrics.ResourceType,
+// Return the capacity for the resource quota in a namespace
+func getResourceQuotaCapacity(namespaceEntity *repository.KubeNamespace, quotaResourceType metrics.ResourceType,
 ) float64 {
-	allocationType, exists := metrics.ComputeToQuotaMap[computeType]
-	if !exists {
-		return repository.DEFAULT_METRIC_VALUE
-	}
-	quotaCompute, err := namespaceEntity.GetAllocationResource(allocationType)
+	allocationResource, err := namespaceEntity.GetAllocationResource(quotaResourceType)
 	if err != nil { //compute limit is not set
-		return repository.DEFAULT_METRIC_VALUE
+		glog.Errorf("Error getting allocation resource for %s from namespace entity %s: %v", quotaResourceType,
+			namespaceEntity.Name, err)
+		return repository.DEFAULT_METRIC_CAPACITY_VALUE
 	}
-	return quotaCompute.Capacity
+	return allocationResource.Capacity
 }
 
 // Create PodMetrics for the given pod.
@@ -167,26 +147,12 @@ func getQuotaComputeCapacity(namespaceEntity *repository.KubeNamespace, computeT
 // requests of all containers of the given pod.
 func createPodMetrics(pod *v1.Pod, namespace string, metricsSink *metrics.EntityMetricSink,
 ) *repository.PodMetrics {
-	etype := metrics.PodType
 	podKey := util.PodKeyFunc(pod)
 
 	// quota metrics for the pod
 	podMetrics := repository.NewPodMetrics(pod.Name, namespace, pod.Spec.NodeName)
 	podMetrics.PodKey = podKey
 
-	// get the compute resource usages
-	for _, computeType := range metrics.ComputeResources {
-		computeUsedMetricUID := metrics.GenerateEntityResourceMetricUID(etype, podKey,
-			computeType, metrics.Used)
-		computeUsedMetric, _ := metricsSink.GetMetric(computeUsedMetricUID)
-		if computeUsedMetric != nil && computeUsedMetric.GetValue() != nil {
-			podMetrics.ComputeUsed[computeType] =
-				computeUsedMetric.GetValue().(float64)
-		} else {
-			glog.Errorf("Cannot find usage of compute resource %s for pod %s.",
-				computeType, pod.Name)
-		}
-	}
 	totalCPULimits, totalCPURequests, totalMemLimits, totalMemRequests := collectContainersComputeResources(pod)
 	// assign compute resource usages to quota resources
 	for _, resourceType := range metrics.QuotaResources {
