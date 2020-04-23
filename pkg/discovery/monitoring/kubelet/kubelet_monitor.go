@@ -222,9 +222,13 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats) (float64, floa
 
 		//1. container Used
 		containerMId := util.ContainerMetricId(podMId, container.Name)
+		// Generate used metrics for VCPU and VMemory commodities
 		m.genUsedMetrics(metrics.ContainerType, containerMId, cpuUsed, memUsed)
+		// Generate used metrics for VCPURequest and VMemRequest commodities
+		m.genRequestUsedMetrics(metrics.ContainerType, containerMId, cpuUsed, memUsed)
 
-		glog.V(4).Infof("container[%s-%s] cpu/memory usage:%.3f, %.3f", pod.PodRef.Name, container.Name, cpuUsed, memUsed)
+		glog.V(4).Infof("container[%s-%s] cpu/memory/cpuRequest/memoryRequest usage:%.3f, %.3f, %.3f, %.3f",
+			pod.PodRef.Name, container.Name, cpuUsed, memUsed, cpuUsed, memUsed)
 
 		//2. app Used
 		appMId := util.ApplicationMetricId(containerMId)
@@ -238,6 +242,13 @@ func (m *KubeletMonitor) genUsedMetrics(etype metrics.DiscoveredEntityType, key 
 	cpuMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPU, metrics.Used, cpu)
 	memMetric := metrics.NewEntityResourceMetric(etype, key, metrics.Memory, metrics.Used, memory)
 	m.metricSink.AddNewMetricEntries(cpuMetric, memMetric)
+}
+
+// genRequestUsedMetrics generates used metrics for VCPURequest and VMemRequest commodity
+func (m *KubeletMonitor) genRequestUsedMetrics(etype metrics.DiscoveredEntityType, key string, cpu, memory float64) {
+	cpuRequestMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPURequest, metrics.Used, cpu)
+	memRequestMetric := metrics.NewEntityResourceMetric(etype, key, metrics.MemoryRequest, metrics.Used, memory)
+	m.metricSink.AddNewMetricEntries(cpuRequestMetric, memRequestMetric)
 }
 
 func (m *KubeletMonitor) genNumConsumersUsedMetrics(etype metrics.DiscoveredEntityType, key string) {

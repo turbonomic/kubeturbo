@@ -10,22 +10,18 @@ type PodMetrics struct {
 	Namespace string
 	NodeName  string
 	PodKey    string
-	// Compute resource used and capacity
-	ComputeUsed     map[metrics.ResourceType]float64
-	ComputeCapacity map[metrics.ResourceType]float64
-	// Amount of used quota resources bought from its resource quota provider
-	QuotaUsed map[metrics.ResourceType]float64
-	// TODO Yue add QuotaCapacity (map[metrics.ResourceType]float64) to store quota resource capacity for pod
+	// Quota resources used and capacity
+	QuotaUsed     map[metrics.ResourceType]float64
+	QuotaCapacity map[metrics.ResourceType]float64
 }
 
 func NewPodMetrics(podName, namespace, nodeName string) *PodMetrics {
 	return &PodMetrics{
-		PodName:         podName,
-		Namespace:       namespace,
-		NodeName:        nodeName,
-		QuotaUsed:       make(map[metrics.ResourceType]float64),
-		ComputeUsed:     make(map[metrics.ResourceType]float64),
-		ComputeCapacity: make(map[metrics.ResourceType]float64),
+		PodName:       podName,
+		Namespace:     namespace,
+		NodeName:      nodeName,
+		QuotaUsed:     make(map[metrics.ResourceType]float64),
+		QuotaCapacity: make(map[metrics.ResourceType]float64),
 	}
 }
 

@@ -274,14 +274,13 @@ func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection P
 						allocationUsedMetric.GetUID(), podMetrics.PodName, usedValue)
 				}
 
-				// TODO Yue: update logic here to add new metrics for quota capacity instead of updating compute capacity
-				for resourceType, capValue := range podMetrics.ComputeCapacity {
-					computeCapMetric := metrics.NewEntityResourceMetric(etype,
+				for resourceType, capValue := range podMetrics.QuotaCapacity {
+					allocationCapMetric := metrics.NewEntityResourceMetric(etype,
 						podKey, resourceType,
 						metrics.Capacity, capValue)
-					worker.sink.AddNewMetricEntries(computeCapMetric)
-					glog.V(4).Infof("Updated %s capacity for pod %s: %f.",
-						computeCapMetric.GetUID(), podMetrics.PodName, capValue)
+					worker.sink.AddNewMetricEntries(allocationCapMetric)
+					glog.V(4).Infof("Created %s capacity for pod %s: %f.",
+						allocationCapMetric.GetUID(), podMetrics.PodName, capValue)
 				}
 			}
 		}
