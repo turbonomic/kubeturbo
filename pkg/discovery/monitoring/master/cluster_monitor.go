@@ -290,7 +290,7 @@ func (m *ClusterMonitor) genContainerMetrics(pod *api.Pod, podCPU, podMem float6
 		container := &(pod.Spec.Containers[i])
 		containerMId := util.ContainerMetricId(podMId, container.Name)
 
-		//1. CPU, memory, CPULimitQuota and MemoryLimitQuota capacity
+		//1. CPU, Memory, CPULimitQuota and MemoryLimitQuota capacity
 		limits := container.Resources.Limits
 		cpuLimit := limits.Cpu().MilliValue()
 		memLimit := limits.Memory().Value()
@@ -308,7 +308,7 @@ func (m *ClusterMonitor) genContainerMetrics(pod *api.Pod, podCPU, podMem float6
 		// Generate resource limit quota metrics with used value as CPU/memory resource capacity
 		m.genLimitQuotaUsedMetrics(metrics.ContainerType, containerMId, cpuCapacity, memCapacity)
 
-		//2. CPU, memory requests, CPURequestQuota and MemoryRequestQuota capacity
+		//2. CPURequest, MemoryRequest, CPURequestQuota and MemoryRequestQuota capacity
 		requests := container.Resources.Requests
 		cpuRequest := util.MetricMilliToUnit(float64(requests.Cpu().MilliValue()))
 		memRequest := util.Base2BytesToKilobytes(float64(requests.Memory().Value()))

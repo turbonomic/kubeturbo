@@ -274,8 +274,8 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 	}
 	result = append(result, commodities...)
 
-	//1b. CPURequest, CPURequestQuota
-	// Container buys CPURequest and CPURequestQuota commodities only if CPU request is set on the container
+	//1b. vCPURequest, vCPURequestQuota
+	// Container buys vCPURequest and vCPURequestQuota commodities only if CPU request is set on the container
 	if isCpuRequestSet {
 		cpuRequestCommBought, err := builder.createRequestCommodityBought(containerEntityType, metrics.CPURequest, containerMId, converter)
 		if err != nil {
@@ -289,8 +289,8 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 		result = append(result, cpuRequestQuotaCommBought...)
 	}
 
-	//1c. MemoryRequest, MemoryRequestQuota
-	// Container buys MemoryRequest and MemoryRequestQuota commodities only if memory request is set on the container
+	//1c. vMemoryRequest, vMemoryRequestQuota
+	// Container buys vMemoryRequest and vMemoryRequestQuota commodities only if memory request is set on the container
 	if isMemRequestSet {
 		memRequestCommSold, err := builder.createRequestCommodityBought(containerEntityType, metrics.MemoryRequest, containerMId, nil)
 		if err != nil {
@@ -304,8 +304,8 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 		result = append(result, memRequestQuotaCommBought...)
 	}
 
-	//1d. CPU limit quota
-	// Container buys CPULimitQuota commodity only if CPU limit is set on the container
+	//1d. vCPULimitQuota
+	// Container buys vCPULimitQuota commodity only if CPU limit is set on the container
 	if isCpuLimitSet {
 		cpuLimitQuotaCommBought, err := builder.createCommoditiesBought(containerEntityType, cpuLimitQuotaCommodityBought, containerMId, converter)
 		if err != nil {
@@ -314,8 +314,8 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 		result = append(result, cpuLimitQuotaCommBought...)
 	}
 
-	//1e. Memory limit quota
-	// Container buys MemoryLimitQuota commodity only if memory limit is set on the container
+	//1e. vMemoryLimitQuota
+	// Container buys vMemoryLimitQuota commodity only if memory limit is set on the container
 	if isMemLimitSet {
 		memLimitQuotaCommBought, err := builder.createCommoditiesBought(containerEntityType, memoryLimitQuotaCommodityBought, containerMId, nil)
 		if err != nil {

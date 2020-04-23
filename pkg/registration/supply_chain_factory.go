@@ -29,22 +29,34 @@ var (
 
 	fakeKey = "fake"
 
-	vCpuTemplateComm                   = &proto.TemplateCommodity{CommodityType: &vCpuType}
-	vMemTemplateComm                   = &proto.TemplateCommodity{CommodityType: &vMemType}
-	vCpuRequestTemplateComm            = &proto.TemplateCommodity{CommodityType: &vCpuRequestType}
-	vMemRequestTemplateComm            = &proto.TemplateCommodity{CommodityType: &vMemRequestType}
-	numPodNumConsumersTemplateComm     = &proto.TemplateCommodity{CommodityType: &numPodNumConsumersType}
-	vStorageTemplateComm               = &proto.TemplateCommodity{CommodityType: &vStorageType}
-	cpuLimitQuotaTemplateComm          = &proto.TemplateCommodity{CommodityType: &vCpuLimitQuotaType}
-	memLimitQuotaTemplateComm          = &proto.TemplateCommodity{CommodityType: &vMemLimitQuotaType}
-	cpuRequestQuotaTemplateComm        = &proto.TemplateCommodity{CommodityType: &vCpuRequestQuotaType}
-	memRequestQuotaTemplateComm        = &proto.TemplateCommodity{CommodityType: &vMemRequestQuotaType}
-	cpuLimitQuotaTemplateCommWithKey   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuLimitQuotaType}
-	memLimitQuotaTemplateCommWithKey   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vMemLimitQuotaType}
-	cpuRequestQuotaTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuRequestQuotaType}
-	memRequestQuotaTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vMemRequestQuotaType}
-	vmpmAccessTemplateComm             = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
-	applicationTemplateCommWithKey     = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
+	commIsOptional = true
+
+	vCpuTemplateComm               = &proto.TemplateCommodity{CommodityType: &vCpuType}
+	vMemTemplateComm               = &proto.TemplateCommodity{CommodityType: &vMemType}
+	vCpuRequestTemplateComm        = &proto.TemplateCommodity{CommodityType: &vCpuRequestType}
+	vMemRequestTemplateComm        = &proto.TemplateCommodity{CommodityType: &vMemRequestType}
+	numPodNumConsumersTemplateComm = &proto.TemplateCommodity{CommodityType: &numPodNumConsumersType}
+	vStorageTemplateComm           = &proto.TemplateCommodity{CommodityType: &vStorageType}
+	vCpuLimitQuotaTemplateComm     = &proto.TemplateCommodity{CommodityType: &vCpuLimitQuotaType}
+	vMemLimitQuotaTemplateComm     = &proto.TemplateCommodity{CommodityType: &vMemLimitQuotaType}
+	vCpuRequestQuotaTemplateComm   = &proto.TemplateCommodity{CommodityType: &vCpuRequestQuotaType}
+	vMemRequestQuotaTemplateComm   = &proto.TemplateCommodity{CommodityType: &vMemRequestQuotaType}
+
+	// Optional TemplateCommodity
+	vCpuRequestTemplateCommOpt      = &proto.TemplateCommodity{CommodityType: &vCpuRequestType, Optional: &commIsOptional}
+	vMemRequestTemplateCommOpt      = &proto.TemplateCommodity{CommodityType: &vMemRequestType, Optional: &commIsOptional}
+	vCpuLimitQuotaTemplateCommOpt   = &proto.TemplateCommodity{CommodityType: &vCpuLimitQuotaType, Optional: &commIsOptional}
+	vMemLimitQuotaTemplateCommOpt   = &proto.TemplateCommodity{CommodityType: &vMemLimitQuotaType, Optional: &commIsOptional}
+	vCpuRequestQuotaTemplateCommOpt = &proto.TemplateCommodity{CommodityType: &vCpuRequestQuotaType, Optional: &commIsOptional}
+	vMemRequestQuotaTemplateCommOpt = &proto.TemplateCommodity{CommodityType: &vMemRequestQuotaType, Optional: &commIsOptional}
+
+	// TemplateCommodity with key
+	vCpuLimitQuotaTemplateCommWithKey   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuLimitQuotaType}
+	vMemLimitQuotaTemplateCommWithKey   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vMemLimitQuotaType}
+	vCpuRequestQuotaTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuRequestQuotaType}
+	vMemRequestQuotaTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vMemRequestQuotaType}
+	vmpmAccessTemplateComm              = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
+	applicationTemplateCommWithKey      = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
 
 	// Internal matching property
 	proxyVMIP   = "Proxy_VM_IP"
@@ -223,25 +235,25 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 func (f *SupplyChainFactory) buildNamespaceSupplyBuilder() (*proto.TemplateDTO, error) {
 	namespaceSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_NAMESPACE)
 	namespaceSupplyChainNodeBuilder = namespaceSupplyChainNodeBuilder.
-		Sells(cpuLimitQuotaTemplateCommWithKey).
-		Sells(memLimitQuotaTemplateCommWithKey).
-		Sells(cpuRequestQuotaTemplateCommWithKey).
-		Sells(memRequestQuotaTemplateCommWithKey)
+		Sells(vCpuLimitQuotaTemplateCommWithKey).
+		Sells(vMemLimitQuotaTemplateCommWithKey).
+		Sells(vCpuRequestQuotaTemplateCommWithKey).
+		Sells(vMemRequestQuotaTemplateCommWithKey)
 	return namespaceSupplyChainNodeBuilder.Create()
 }
 
 func (f *SupplyChainFactory) buildWorkloadControllerSupplyBuilder() (*proto.TemplateDTO, error) {
 	workloadControllerSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER)
 	workloadControllerSupplyChainNodeBuilder = workloadControllerSupplyChainNodeBuilder.
-		Sells(cpuLimitQuotaTemplateCommWithKey).
-		Sells(memLimitQuotaTemplateCommWithKey).
-		Sells(cpuRequestQuotaTemplateCommWithKey).
-		Sells(memRequestQuotaTemplateCommWithKey).
+		Sells(vCpuLimitQuotaTemplateCommWithKey).
+		Sells(vMemLimitQuotaTemplateCommWithKey).
+		Sells(vCpuRequestQuotaTemplateCommWithKey).
+		Sells(vMemRequestQuotaTemplateCommWithKey).
 		Provider(proto.EntityDTO_NAMESPACE, proto.Provider_HOSTING).
-		Buys(cpuLimitQuotaTemplateCommWithKey).
-		Buys(memLimitQuotaTemplateCommWithKey).
-		Buys(cpuRequestQuotaTemplateCommWithKey).
-		Buys(memRequestQuotaTemplateCommWithKey)
+		Buys(vCpuLimitQuotaTemplateCommWithKey).
+		Buys(vMemLimitQuotaTemplateCommWithKey).
+		Buys(vCpuRequestQuotaTemplateCommWithKey).
+		Buys(vMemRequestQuotaTemplateCommWithKey)
 	return workloadControllerSupplyChainNodeBuilder.Create()
 }
 
@@ -252,10 +264,10 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Sells(vMemTemplateComm).
 		Sells(vCpuRequestTemplateComm).
 		Sells(vMemRequestTemplateComm).
-		Sells(cpuLimitQuotaTemplateComm).
-		Sells(memLimitQuotaTemplateComm).
-		Sells(cpuRequestQuotaTemplateComm).
-		Sells(memRequestQuotaTemplateComm).
+		Sells(vCpuLimitQuotaTemplateComm).
+		Sells(vMemLimitQuotaTemplateComm).
+		Sells(vCpuRequestQuotaTemplateComm).
+		Sells(vMemRequestQuotaTemplateComm).
 		Sells(vmpmAccessTemplateComm).
 		Provider(proto.EntityDTO_VIRTUAL_MACHINE, proto.Provider_HOSTING).
 		Buys(vCpuTemplateComm).
@@ -265,15 +277,15 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Buys(numPodNumConsumersTemplateComm).
 		Buys(vStorageTemplateComm).
 		Provider(proto.EntityDTO_WORKLOAD_CONTROLLER, proto.Provider_HOSTING).
-		Buys(cpuLimitQuotaTemplateCommWithKey).
-		Buys(memLimitQuotaTemplateCommWithKey).
-		Buys(cpuRequestQuotaTemplateCommWithKey).
-		Buys(memRequestQuotaTemplateCommWithKey).
+		Buys(vCpuLimitQuotaTemplateCommWithKey).
+		Buys(vMemLimitQuotaTemplateCommWithKey).
+		Buys(vCpuRequestQuotaTemplateCommWithKey).
+		Buys(vMemRequestQuotaTemplateCommWithKey).
 		Provider(proto.EntityDTO_NAMESPACE, proto.Provider_HOSTING).
-		Buys(cpuLimitQuotaTemplateCommWithKey).
-		Buys(memLimitQuotaTemplateCommWithKey).
-		Buys(cpuRequestQuotaTemplateCommWithKey).
-		Buys(memRequestQuotaTemplateCommWithKey)
+		Buys(vCpuLimitQuotaTemplateCommWithKey).
+		Buys(vMemLimitQuotaTemplateCommWithKey).
+		Buys(vCpuRequestQuotaTemplateCommWithKey).
+		Buys(vMemRequestQuotaTemplateCommWithKey)
 
 	// Link from Pod to VM
 	vmPodExtLinkBuilder := supplychain.NewExternalEntityLinkBuilder()
@@ -324,18 +336,18 @@ func (f *SupplyChainFactory) buildContainer() (*proto.TemplateDTO, error) {
 	containerSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER).
 		Sells(vCpuTemplateComm).
 		Sells(vMemTemplateComm).
-		Sells(vCpuRequestTemplateComm).
-		Sells(vMemRequestTemplateComm).
+		Sells(vCpuRequestTemplateCommOpt).
+		Sells(vMemRequestTemplateCommOpt).
 		Sells(applicationTemplateCommWithKey).
 		Provider(proto.EntityDTO_CONTAINER_POD, proto.Provider_HOSTING).
 		Buys(vCpuTemplateComm).
 		Buys(vMemTemplateComm).
-		Buys(vCpuRequestTemplateComm).
-		Buys(vMemRequestTemplateComm).
-		Buys(cpuLimitQuotaTemplateComm).
-		Buys(memLimitQuotaTemplateComm).
-		Buys(cpuRequestQuotaTemplateComm).
-		Buys(memRequestQuotaTemplateComm).
+		Buys(vCpuRequestTemplateCommOpt).
+		Buys(vMemRequestTemplateCommOpt).
+		Buys(vCpuLimitQuotaTemplateCommOpt).
+		Buys(vMemLimitQuotaTemplateCommOpt).
+		Buys(vCpuRequestQuotaTemplateCommOpt).
+		Buys(vMemRequestQuotaTemplateCommOpt).
 		Buys(vmpmAccessTemplateComm)
 
 	return containerSupplyChainNodeBuilder.Create()

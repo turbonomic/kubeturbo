@@ -218,9 +218,9 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats) (float64, floa
 
 		//1. container Used
 		containerMId := util.ContainerMetricId(podMId, container.Name)
-		// Generate used metrics for VCPU and VMemory commodity
+		// Generate used metrics for VCPU and VMemory commodities
 		m.genUsedMetrics(metrics.ContainerType, containerMId, cpuUsed, memUsed)
-		// Generate used metrics for VCPURequest and VMemRequest commodity
+		// Generate used metrics for VCPURequest and VMemRequest commodities
 		m.genRequestUsedMetrics(metrics.ContainerType, containerMId, cpuUsed, memUsed)
 
 		glog.V(4).Infof("container[%s-%s] cpu/memory/cpuRequest/memoryRequest usage:%.3f, %.3f, %.3f, %.3f",

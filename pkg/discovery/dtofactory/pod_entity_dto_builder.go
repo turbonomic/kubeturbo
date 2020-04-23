@@ -222,7 +222,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequ
 		return nil, err
 	}
 	if len(resourceCommoditiesSold) != len(podResourceCommoditySold) {
-		err = fmt.Errorf("mismatch num of bought commidities from node (%d Vs. %d) for pod %s", len(resourceCommoditiesSold), len(podResourceCommoditySold), pod.Name)
+		err = fmt.Errorf("mismatch num of sold commodities (%d Vs. %d) for pod %s", len(resourceCommoditiesSold), len(podResourceCommoditySold), pod.Name)
 		glog.Error(err)
 		return nil, err
 	}
@@ -241,7 +241,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequ
 	return commoditiesSold, nil
 }
 
-// getPodQuotaCommoditiesSold build the quota commodity DTOs sold by tge pod
+// getPodQuotaCommoditiesSold builds the quota commodity DTOs sold by the pod
 func (builder *podEntityDTOBuilder) getPodQuotaCommoditiesSold(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
 	// CPU resource needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(func(input float64) float64 {
@@ -263,7 +263,7 @@ func (builder *podEntityDTOBuilder) getPodQuotaCommoditiesSold(pod *api.Pod, cpu
 		return nil, err
 	}
 	if len(quotaCommoditiesSold) != len(podQuotaCommodities) {
-		err = fmt.Errorf("mismatch num of bought commidities from node (%d Vs. %d) for pod %s", len(quotaCommoditiesSold), len(podQuotaCommodities), pod.Name)
+		err = fmt.Errorf("mismatch num of sold commidities (%d Vs. %d) for pod %s", len(quotaCommoditiesSold), len(podQuotaCommodities), pod.Name)
 		glog.Error(err)
 		return nil, err
 	}
