@@ -305,20 +305,6 @@ func TestPodMetricsCollectionSingleNode(t *testing.T) {
 		metric_cpuRequestCap_pod2_n1_ns3,
 	)
 
-	podCpuCapMap := map[string]float64{
-		pod_ns1_n1.Name:  metric_cpuCap_pod_n1_ns1.GetValue().(float64),
-		pod_ns2_n1.Name:  metric_cpuCap_pod_n1_ns2.GetValue().(float64),
-		pod1_ns3_n1.Name: metric_cpuCap_pod1_n1_ns3.GetValue().(float64),
-		pod2_ns3_n1.Name: metric_cpuCap_pod2_n1_ns3.GetValue().(float64),
-	}
-
-	podCpuRequestCapMap := map[string]float64{
-		pod_ns1_n1.Name:  metric_cpuRequestCap_pod_n1_ns1.GetValue().(float64),
-		pod_ns2_n1.Name:  metric_cpuRequestCap_pod_n1_ns2.GetValue().(float64),
-		pod1_ns3_n1.Name: metric_cpuRequestCap_pod1_n1_ns3.GetValue().(float64),
-		pod2_ns3_n1.Name: metric_cpuRequestCap_pod2_n1_ns3.GetValue().(float64),
-	}
-
 	// Set limits for ns1 and ns2 for CPU,
 	// compute capacity for the pods in these namespaces will be changed to the quota limit value
 	_ = kubens1.SetResourceCapacity(metrics.CPULimitQuota, 3.0)
@@ -365,35 +351,20 @@ func TestPodMetricsCollectionSingleNode(t *testing.T) {
 					_, exists := allocationMap[allocationType]
 					assert.True(t, exists)
 				}
-				kubeNamespace := collector.Cluster.NamespaceMap[podMetrics.Namespace]
-				quotaCpu, _ := kubeNamespace.GetAllocationResource(metrics.CPULimitQuota)
-				computeCapMap := podMetrics.ComputeCapacity
-				if quotaCpu.Capacity < podCpuCapMap[podMetrics.PodName] {
-					// assert that the pod's compute metrics is changed to the
-					// match the kubeNamespace's compute limit metrics
-					podCpuCap, exists := computeCapMap[metrics.CPU]
-					assert.True(t, exists)
-					assert.Equal(t, quotaCpu.Capacity, podCpuCap)
-				} else {
-					computeCapMap := podMetrics.ComputeCapacity
-					_, exists := computeCapMap[metrics.CPU]
-					assert.False(t, exists)
-				}
-				quotaCpuRequest, _ := kubeNamespace.GetAllocationResource(metrics.CPURequestQuota)
-				if quotaCpuRequest.Capacity < podCpuRequestCapMap[podMetrics.PodName] {
-					// assert that the pod's compute metrics is changed to the
-					// match the kubeNamespace's compute limit metrics
-					podCpuRequestCap, exists := computeCapMap[metrics.CPURequest]
-					assert.True(t, exists)
-					assert.Equal(t, quotaCpuRequest.Capacity, podCpuRequestCap)
-				} else {
-					computeCapMap := podMetrics.ComputeCapacity
-					_, exists := computeCapMap[metrics.CPURequest]
-					assert.False(t, exists)
-				}
 
-				_, exists = computeCapMap[metrics.Memory]
-				assert.False(t, exists)
+				// pod quota capacity map from quota resource type to capacity value
+				quotaCapacity := podMetrics.QuotaCapacity
+				kubeNamespace := collector.Cluster.NamespaceMap[podMetrics.Namespace]
+
+				expectedCPULimitQuota, _ := kubeNamespace.GetAllocationResource(metrics.CPULimitQuota)
+				podCPULimitQuotaCap, exists := quotaCapacity[metrics.CPULimitQuota]
+				assert.True(t, exists)
+				assert.Equal(t, expectedCPULimitQuota.Capacity, podCPULimitQuotaCap)
+
+				expectedCPURequestQuota, _ := kubeNamespace.GetAllocationResource(metrics.CPURequestQuota)
+				podCPURequestQuotaCap, exists := quotaCapacity[metrics.CPURequestQuota]
+				assert.True(t, exists)
+				assert.Equal(t, expectedCPURequestQuota.Capacity, podCPURequestQuotaCap)
 			}
 		}
 	}
