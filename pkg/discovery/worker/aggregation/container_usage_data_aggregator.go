@@ -23,7 +23,7 @@ type ContainerUsageDataAggregator interface {
 	AggregationStrategy() string
 	// Aggregate aggregates commodities usage data based on the given list of commodity DTOs of a commodity type and
 	// aggregation strategy, and returns aggregated capacity, used and peak values.
-	Aggregate(containerCommodities []*proto.CommodityDTO) (float64, float64, float64)
+	Aggregate(containerCommodities []*proto.CommodityDTO) (float64, float64, float64, error)
 }
 
 // ---------------- Average usage data aggregation strategy ----------------
@@ -35,9 +35,9 @@ func (avgUsageDataAggregator *avgUsageDataAggregator) AggregationStrategy() stri
 	return avgUsageDataAggregator.aggregationStrategy
 }
 
-func (avgUsageDataAggregator *avgUsageDataAggregator) Aggregate(commodities []*proto.CommodityDTO) (float64, float64, float64) {
+func (avgUsageDataAggregator *avgUsageDataAggregator) Aggregate(commodities []*proto.CommodityDTO) (float64, float64, float64, error) {
 	// TODO aggregate average utilization data
-	return 0.0, 0.0, 0.0
+	return 0.0, 0.0, 0.0, nil
 }
 
 // ---------------- Max usage data aggregation strategy ----------------
@@ -49,7 +49,7 @@ func (maxUsageDataAggregator *maxUsageDataAggregator) AggregationStrategy() stri
 	return maxUsageDataAggregator.aggregationStrategy
 }
 
-func (maxUsageDataAggregator *maxUsageDataAggregator) Aggregate(commodities []*proto.CommodityDTO) (float64, float64, float64) {
+func (maxUsageDataAggregator *maxUsageDataAggregator) Aggregate(commodities []*proto.CommodityDTO) (float64, float64, float64, error) {
 	// TODO aggregate max utilization data
-	return 0.0, 0.0, 0.0
+	return 0.0, 0.0, 0.0, nil
 }

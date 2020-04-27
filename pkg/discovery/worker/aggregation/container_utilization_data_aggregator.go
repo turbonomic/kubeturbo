@@ -24,7 +24,7 @@ type ContainerUtilizationDataAggregator interface {
 	// Aggregate aggregates commodities utilization data based on the given list of commodity DTOs of a commodity type
 	// and aggregation strategy, and returns aggregated utilization data which contains utilization data points, last
 	// point timestamp milliseconds and interval milliseconds
-	Aggregate(commodities []*proto.CommodityDTO) ([]float64, int64, int32)
+	Aggregate(commodities []*proto.CommodityDTO, lastPointTimestampMs int64) ([]float64, int64, int32, error)
 }
 
 // ---------------- All utilization data aggregation strategy ----------------
@@ -36,9 +36,10 @@ func (allDataAggregator *allUtilizationDataAggregator) AggregationStrategy() str
 	return allDataAggregator.aggregationStrategy
 }
 
-func (allDataAggregator *allUtilizationDataAggregator) Aggregate(commodities []*proto.CommodityDTO) ([]float64, int64, int32) {
+func (allDataAggregator *allUtilizationDataAggregator) Aggregate(commodities []*proto.CommodityDTO,
+	lastPointTimestampMs int64) ([]float64, int64, int32, error) {
 	// TODO aggregate all utilization data
-	return []float64{}, 0, 0
+	return []float64{}, 0, 0, nil
 }
 
 // ---------------- Max utilization data aggregation strategy ----------------
@@ -50,7 +51,8 @@ func (maxDataAggregator *maxUtilizationDataAggregator) AggregationStrategy() str
 	return maxDataAggregator.aggregationStrategy
 }
 
-func (maxDataAggregator *maxUtilizationDataAggregator) Aggregate(commodities []*proto.CommodityDTO) ([]float64, int64, int32) {
+func (maxDataAggregator *maxUtilizationDataAggregator) Aggregate(commodities []*proto.CommodityDTO,
+	lastPointTimestampMs int64) ([]float64, int64, int32, error) {
 	// TODO aggregate max utilization data
-	return []float64{}, 0, 0
+	return []float64{}, 0, 0, nil
 }

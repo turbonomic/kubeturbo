@@ -6,6 +6,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"time"
 )
 
 var (
@@ -73,11 +74,24 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpec *reposi
 		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(commodityType)
 
 		// Aggregate container replicas utilization data
-		utilizationDataPoints, lastPointTimestampMs, intervalMs := builder.containerUtilizationDataAggregator.Aggregate(commodities)
+		currentMs := time.Now().UnixNano() / int64(time.Millisecond)
+		utilizationDataPoints, lastPointTimestampMs, intervalMs, err :=
+			builder.containerUtilizationDataAggregator.Aggregate(commodities, currentMs)
+		if err != nil {
+			glog.Errorf("Error to aggregate commodity utilization data for ContainerSpec %s, %v",
+				containerSpec.ContainerSpecId, err)
+			continue
+		}
 		commSoldBuilder.UtilizationData(utilizationDataPoints, lastPointTimestampMs, intervalMs)
 
 		// Aggregate container replicas usage data (capacity, used and peak)
-		aggregatedCap, aggregatedUsed, aggregatedPeak := builder.containerUsageDataAggregator.Aggregate(commodities)
+		aggregatedCap, aggregatedUsed, aggregatedPeak, err :=
+			builder.containerUsageDataAggregator.Aggregate(commodities)
+		if err != nil {
+			glog.Errorf("Error to aggregate commodity usage data for ContainerSpec %s, %v",
+				containerSpec.ContainerSpecId, err)
+			continue
+		}
 		commSoldBuilder.Capacity(aggregatedCap)
 		commSoldBuilder.Peak(aggregatedPeak)
 		commSoldBuilder.Used(aggregatedUsed)
