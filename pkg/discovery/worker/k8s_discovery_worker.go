@@ -223,7 +223,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	entityGroups, _ := groupsCollector.CollectGroupMetrics()
 
 	// Build DTOs after getting the metrics
-	entityDTOs, podsWithDtos, err := worker.buildDTOs(currTask)
+	entityDTOs, podsWithDtos, containerSpecs, err := worker.buildDTOs(currTask)
 	if err != nil {
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
@@ -253,6 +253,10 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	// Return k8s controllers created by this worker
 	if len(kubeControllers) > 0 {
 		result.WithKubeControllers(kubeControllers)
+	}
+	// Return ContainerSpec with each individual container replica commodities data created by this worker
+	if len(containerSpecs) > 0 {
+		result.WithContainerSpecs(containerSpecs)
 	}
 	return result
 }
@@ -288,8 +292,8 @@ func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection P
 }
 
 // ================================================================================================
-// Build DTOs for nodes, pods, containers and containerSpec (an entity type that represents a certain type of containers)
-func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*api.Pod, error) {
+// Build DTOs for nodes, pods, containers
+func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*api.Pod, []*repository.ContainerSpec, error) {
 	var result []*proto.EntityDTO
 
 	// 0. setUp nodeName to nodeId mapping
@@ -343,7 +347,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 
 	// 3. build entityDTOs for containers
 	containerDTOBuilder := dtofactory.NewContainerDTOBuilder(worker.sink)
-	containerDTOs, err := containerDTOBuilder.BuildDTOs(pods)
+	containerDTOs, containerSpecs, err := containerDTOBuilder.BuildDTOs(pods)
 	// util.DumpTopology(containerDTOs, "test-topology.dat")
 	if err != nil {
 		glog.Errorf("Error while creating container entityDTOs: %v", err)
@@ -351,19 +355,11 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	result = append(result, containerDTOs...)
 	glog.V(3).Infof("Worker %s built %d container DTOs.", worker.id, len(containerDTOs))
 
-	// 4. build entityDTOs for ContainerSpec, which is an entity type that represents a certain type of containers
-	containerSpecDTOBuilder := dtofactory.NewContainerSpecDTOBuilder(worker.sink)
-	containerSpecDTOs, err := containerSpecDTOBuilder.BuildDTOs(pods)
-	if err != nil {
-		glog.Errorf("Error while creating ContainerSpec entityDTOs: %v", err)
-	}
-	result = append(result, containerSpecDTOs...)
-	glog.V(3).Infof("Worker %s built %d ContainerSpec DTOs.", worker.id, len(containerSpecDTOs))
-
 	glog.V(2).Infof("Worker %s built total %d entityDTOs.", worker.id, len(result))
 
-	// Return the DTOs created, also return the list of pods with valid DTOs
-	return result, pods, nil
+	// Return the DTOs created, also return the list of pods with valid DTOs and list of containerSpecs with VCPU and VMem
+	// commodity DTOs sold by container replicas
+	return result, pods, containerSpecs, nil
 }
 
 // Build App DTOs using the list of pods with valid DTOs

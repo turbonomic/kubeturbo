@@ -1,82 +1,95 @@
 package dtofactory
 
 import (
-	"fmt"
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	api "k8s.io/api/core/v1"
+)
+
+var (
+	ContainerSpecCommoditiesSold = []proto.CommodityDTO_CommodityType{
+		proto.CommodityDTO_VCPU,
+		proto.CommodityDTO_VMEM,
+	}
 )
 
 type containerSpecDTOBuilder struct {
-	generalBuilder
+	// Map from ContainerSpec ID to ContainerSpec entity which contains list of individual container replica commodities
+	// data to be aggregated
+	containerSpecMap map[string]*repository.ContainerSpec
+	// Aggregator to aggregate container replicas commodity utilization data
+	containerUtilizationDataAggregator aggregation.ContainerUtilizationDataAggregator
+	// Aggregator to aggregate container replicas commodity usage data (used, peak and capacity)
+	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator
 }
 
-func NewContainerSpecDTOBuilder(sink *metrics.EntityMetricSink) *containerSpecDTOBuilder {
+func NewContainerSpecDTOBuilder(containerSpecMap map[string]*repository.ContainerSpec,
+	containerUtilizationDataAggregator aggregation.ContainerUtilizationDataAggregator,
+	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator) *containerSpecDTOBuilder {
 	return &containerSpecDTOBuilder{
-		generalBuilder: newGeneralBuilder(sink),
+		containerSpecMap:                   containerSpecMap,
+		containerUtilizationDataAggregator: containerUtilizationDataAggregator,
+		containerUsageDataAggregator:       containerUsageDataAggregator,
 	}
 }
 
-// TODO consider passing []*repository.KubeContainer as argument which stores commodities data of each container instance
-func (builder *containerSpecDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityDTO, error) {
+func (builder *containerSpecDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
-	controllerUIDToContainersMap := builder.getControllerUIDToContainersMap(pods)
-	for controllerUID, containersSet := range controllerUIDToContainersMap {
-		for containerName := range containersSet {
-			containerSpecID := util.ContainerSpecIdFunc(controllerUID, containerName)
-			entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_SPEC, containerSpecID)
-			entityDTOBuilder.DisplayName(containerName)
-
-			// Make ContainerSpec entity not monitored
-			entityDTOBuilder.Monitored(false)
-			dto, err := entityDTOBuilder.Create()
-			if err != nil {
-				glog.Errorf("failed to build ContainerSpec[%s] entityDTO: %v", containerName, err)
-			}
-			result = append(result, dto)
+	for containerSpecId, containerSpec := range builder.containerSpecMap {
+		entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_SPEC, containerSpecId)
+		entityDTOBuilder.DisplayName(containerSpec.ContainerSpecName)
+		commoditiesSold, err := builder.getCommoditiesSold(containerSpec)
+		if err != nil {
+			glog.Errorf("Error to create commodities sold by ContainerSpec %s, %v", containerSpecId, err)
+			continue
 		}
+		entityDTOBuilder.SellsCommodities(commoditiesSold)
+		// ContainerSpec entity is not monitored and will not be sent to Market analysis engine in turbo server
+		entityDTOBuilder.Monitored(false)
+		dto, err := entityDTOBuilder.Create()
+		if err != nil {
+			glog.Errorf("Failed to build ContainerSpec[%s] entityDTO: %v", containerSpecId, err)
+			continue
+		}
+		result = append(result, dto)
 	}
 	return result, nil
 }
 
-// Get a map from controller ID to set of container names.
-func (builder *containerSpecDTOBuilder) getControllerUIDToContainersMap(pods []*api.Pod) map[string]map[string]struct{} {
-	controllerUIDToContainersMap := make(map[string]map[string]struct{})
-	for _, pod := range pods {
-		if pod.OwnerReferences == nil {
-			// If pod has no OwnerReferences, it is a bare pod without controller. Skip this.
+// getCommoditiesSold gets commodity DTOs with aggregated container utilization and usage data.
+func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpec *repository.ContainerSpec) ([]*proto.CommodityDTO, error) {
+	var commoditiesSold []*proto.CommodityDTO
+	for _, commodityType := range ContainerSpecCommoditiesSold {
+		// commodities is a list of commodity DTOs of commodityType sold by container replicas represented by this
+		// ContainerSpec entity
+		commodities, exists := containerSpec.ContainerCommodities[commodityType]
+		if !exists {
+			glog.Errorf("ContainerSpec %s has no %s commodity from the collected ContainerSpec",
+				containerSpec.ContainerSpecId, commodityType)
 			continue
 		}
-		controllerUID, err := builder.getControllerUID(metrics.PodType, util.PodKeyFunc(pod))
-		if err != nil {
-			glog.Errorf("Error getting controller UID: %v", err)
-			continue
-		}
-		containerSet, exist := controllerUIDToContainersMap[controllerUID]
-		if !exist {
-			containerSet = make(map[string]struct{})
-		}
-		for _, container := range pod.Spec.Containers {
-			containerSet[container.Name] = struct{}{}
-		}
-		controllerUIDToContainersMap[controllerUID] = containerSet
-	}
-	return controllerUIDToContainersMap
-}
+		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(commodityType)
 
-func (builder *containerSpecDTOBuilder) getControllerUID(entityType metrics.DiscoveredEntityType, entityKey string) (string, error) {
-	ownerUIDMetricId := metrics.GenerateEntityStateMetricUID(entityType, entityKey, metrics.OwnerUID)
-	ownerUIDMetric, err := builder.metricsSink.GetMetric(ownerUIDMetricId)
-	if err != nil {
-		return "", fmt.Errorf("error getting owner UID for pod %s --> %v", entityKey, err)
+		// Aggregate container replicas utilization data
+		utilizationDataPoints, lastPointTimestampMs, intervalMs := builder.containerUtilizationDataAggregator.Aggregate(commodities)
+		commSoldBuilder.UtilizationData(utilizationDataPoints, lastPointTimestampMs, intervalMs)
+
+		// Aggregate container replicas usage data (capacity, used and peak)
+		aggregatedCap, aggregatedUsed, aggregatedPeak := builder.containerUsageDataAggregator.Aggregate(commodities)
+		commSoldBuilder.Capacity(aggregatedCap)
+		commSoldBuilder.Peak(aggregatedPeak)
+		commSoldBuilder.Used(aggregatedUsed)
+
+		// ContainerSpec sells inactive commodities
+		commSoldBuilder.Active(false)
+		commSold, err := commSoldBuilder.Create()
+		if err != nil {
+			glog.Errorf("Failed to build commodity sold %s: %v", commodityType, err)
+			continue
+		}
+		commoditiesSold = append(commoditiesSold, commSold)
 	}
-	ownerUID := ownerUIDMetric.GetValue()
-	controllerUID, ok := ownerUID.(string)
-	if !ok {
-		return "", fmt.Errorf("error getting owner UID for pod %s", entityKey)
-	}
-	return controllerUID, nil
+	return commoditiesSold, nil
 }

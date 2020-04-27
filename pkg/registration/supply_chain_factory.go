@@ -347,7 +347,9 @@ func (f *SupplyChainFactory) addVMStitchingProperty(extLinkBuilder *supplychain.
 
 func (f *SupplyChainFactory) buildContainerSpecSupplyBuilder() (*proto.TemplateDTO, error) {
 	containerSpecSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER_SPEC)
-	// TODO set up commodities sold by ContainerSpec here
+	containerSpecSupplyChainNodeBuilder = containerSpecSupplyChainNodeBuilder.
+		Sells(vCpuTemplateComm).
+		Sells(vMemTemplateComm)
 	return containerSpecSupplyChainNodeBuilder.Create()
 }
 

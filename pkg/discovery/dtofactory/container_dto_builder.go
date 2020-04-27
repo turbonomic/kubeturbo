@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"strings"
 
@@ -91,8 +92,9 @@ func (builder *containerDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, 
 	return cpuFrequency, nil
 }
 
-func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityDTO, error) {
+func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityDTO, []*repository.ContainerSpec, error) {
 	var result []*proto.EntityDTO
+	var containerSpecList []*repository.ContainerSpec
 
 	for _, pod := range pods {
 		nodeCPUFrequency, err := builder.getNodeCPUFrequency(pod)
@@ -102,9 +104,14 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 		}
 		podId := string(pod.UID)
 		podMId := util.PodMetricIdAPI(pod)
-		controllerUID, err := util.GetControllerUID(pod, builder.metricsSink)
-		if err != nil {
-			glog.Errorf("Error getting controller UID from pod %s, %v", pod.Name, err)
+		controllerUID := ""
+		if pod.OwnerReferences != nil {
+			// Get controllerUID only if Pod is deployed by a K8s controller (pod.OwnerReferences != nil).
+			controllerUID, err = util.GetControllerUID(pod, builder.metricsSink)
+			if err != nil {
+				glog.Errorf("Error getting controller UID from pod %s, %v", pod.Name, err)
+				continue
+			}
 		}
 		for i := range pod.Spec.Containers {
 			container := &(pod.Spec.Containers[i])
@@ -114,6 +121,23 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 
 			name := util.ContainerNameFunc(pod, container)
 			ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER, containerId).DisplayName(name)
+
+			// Create ContainerSpec object to collect VCPU and VMem commodities sold data of each individual container
+			// replica for a ContainerSpec entity. ContainerSpec entity which represents a certain type of container
+			// replicas deployed by a K8s controller.
+			var containerSpec *repository.ContainerSpec
+			if controllerUID != "" {
+				// Create ContainerSpec only when controller is available from Pod
+				containerSpecId := util.ContainerSpecIdFunc(controllerUID, container.Name)
+				containerSpec = repository.NewContainerSpec(pod.Namespace, controllerUID, container.Name,
+					containerSpecId)
+				containerSpecList = append(containerSpecList, containerSpec)
+
+				// To connect Container to ContainerSpec entity, Container is LayeredOver by the associated ContainerSpec.
+				// The platform will translate this into the following relation:
+				// ContainerSpec aggregates Containers
+				ebuilder.LayeredOver([]string{containerSpecId})
+			}
 
 			//1. commodities sold
 			isCpuLimitSet := !container.Resources.Limits.Cpu().IsZero()
@@ -133,7 +157,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 				glog.V(4).Infof("Container[%s] has no request set for Memory", name)
 			}
 			commoditiesSold, err := builder.getCommoditiesSold(name, containerId, containerMId, nodeCPUFrequency,
-				isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet)
+				isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet, containerSpec)
 			if err != nil {
 				glog.Errorf("failed to create commoditiesSold for container[%s]: %v", name, err)
 				continue
@@ -153,14 +177,6 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			//3. set properties
 			properties := builder.getContainerProperties(pod, i)
 			ebuilder.WithProperties(properties)
-
-			//4. To connect Container to ContainerSpec entity, Container is LayeredOver the associated ContainerSpec.
-			// The platform will translate this into the following relation:
-			// ContainerSpec aggregates Containers
-			if controllerUID != "" {
-				containerSpecId := util.ContainerSpecIdFunc(controllerUID, container.Name)
-				ebuilder.LayeredOver([]string{containerSpecId})
-			}
 
 			//ebuilder.Monitored(util.Monitored(pod))
 			ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
@@ -182,12 +198,13 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 		}
 	}
 
-	return result, nil
+	return result, containerSpecList, nil
 }
 
-//vCPU, vMem, vCPURequest, vMemRequest and Application are sold by Container
+// vCPU, vMem, vCPURequest, vMemRequest and Application are sold by Container.
+// Store vCPU and vMem commodity DTOs of each container to ContainerSpec.
 func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerId, containerMId string, cpuFrequency float64,
-	isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet bool) ([]*proto.CommodityDTO, error) {
+	isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet bool, containerSpec *repository.ContainerSpec) ([]*proto.CommodityDTO, error) {
 
 	var result []*proto.CommodityDTO
 	containerEntityType := metrics.ContainerType
@@ -218,6 +235,18 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 		return nil, err
 	}
 	result = append(result, commodities...)
+	if containerSpec != nil {
+		// Store container VCPU and VMem commodity DTOs to ContainerSpec if ContainerSpec is not nil
+		for _, commodityDTO := range commodities {
+			containerCommodities, exists := containerSpec.ContainerCommodities[*commodityDTO.CommodityType]
+			if !exists {
+				containerCommodities = []*proto.CommodityDTO{}
+			}
+			// Store VCPU and VMem commodity DTOs to ContainerSpec
+			containerCommodities = append(containerCommodities, commodityDTO)
+			containerSpec.ContainerCommodities[*commodityDTO.CommodityType] = containerCommodities
+		}
+	}
 
 	//1c. vCPURequest
 	// Container sells vCPURequest commodity only if CPU request is set on the container

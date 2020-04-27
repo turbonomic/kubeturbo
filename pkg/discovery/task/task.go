@@ -74,6 +74,7 @@ type TaskResult struct {
 	entityGroups     []*repository.EntityGroup
 	podEntities      []*repository.KubePod
 	kubeControllers  []*repository.KubeController
+	containerSpecs   []*repository.ContainerSpec
 }
 
 func NewTaskResult(workerID string, state TaskResultState) *TaskResult {
@@ -111,6 +112,10 @@ func (r *TaskResult) KubeControllers() []*repository.KubeController {
 	return r.kubeControllers
 }
 
+func (r *TaskResult) ContainerSpecs() []*repository.ContainerSpec {
+	return r.containerSpecs
+}
+
 func (r *TaskResult) Err() error {
 	return r.err
 }
@@ -142,5 +147,10 @@ func (r *TaskResult) WithEntityGroups(entityGroups []*repository.EntityGroup) *T
 
 func (r *TaskResult) WithKubeControllers(kubeControllers []*repository.KubeController) *TaskResult {
 	r.kubeControllers = kubeControllers
+	return r
+}
+
+func (r *TaskResult) WithContainerSpecs(containerSpecs []*repository.ContainerSpec) *TaskResult {
+	r.containerSpecs = containerSpecs
 	return r
 }
