@@ -1,10 +1,10 @@
 package worker
 
 import (
+	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	"gotest.tools/assert"
 	"reflect"
 	"testing"
 )
