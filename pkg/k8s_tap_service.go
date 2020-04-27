@@ -122,7 +122,7 @@ func readK8sTAPServiceSpec(path string) (*K8sTAPServiceSpec, error) {
 
 func createProbeConfigOrDie(c *Config) *configs.ProbeConfig {
 	// Create Kubelet monitoring
-	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(c.KubeletClient)
+	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(c.KubeletClient, c.KubeClient)
 
 	// Create cluster monitoring
 	masterMonitoringConfig := master.NewClusterMonitorConfig(c.KubeClient, c.DynamicClient)
