@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	"strings"
 	"time"
 
@@ -227,7 +228,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	// Discover pods and create DTOs for nodes, namespaces, controllers, pods, containers, application.
 	// Collect the kubePod, kubeNamespace metrics, groups and kubeControllers from all the discovery workers
 	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
-	entityDTOs, podEntitiesMap, namespaceMetricsList, entityGroupList, kubeControllerList := dc.resultCollector.Collect(workerCount)
+	entityDTOs, podEntitiesMap, namespaceMetricsList, entityGroupList, kubeControllerList, containerSpecs := dc.resultCollector.Collect(workerCount)
 
 	// Namespace discovery worker to create namespace DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType
@@ -248,6 +249,21 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	} else {
 		glog.V(2).Infof("There are %d WorkloadController entityDTOs.", len(workloadControllerDtos))
 		entityDTOs = append(entityDTOs, workloadControllerDtos...)
+	}
+
+	// K8s container spec discovery worker to create ContainerSpec DTOs by aggregating commodities data of container
+	// replicas. ContainerSpec is an entity type which represents a certain type of container replicas deployed by a
+	// K8s controller.
+	// TODO use DefaultContainerUtilizationDataAggStrategy and DefaultContainerUsageDataAggStrategy here. Will make
+	// utilizationDataAggStrategy and usageDataAggStrategy configurable through arguments when starting kubeturbo.
+	containerSpecDiscoveryWorker := worker.NewK8sContainerSpecDiscoveryWorker()
+	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(containerSpecs, aggregation.DefaultContainerUtilizationDataAggStrategy,
+		aggregation.DefaultContainerUsageDataAggStrategy)
+	if err != nil {
+		glog.Errorf("Failed to discover ContainerSpecs from current Kubernetes cluster with the new discovery framework: %s", err)
+	} else {
+		glog.V(2).Infof("There are %d ContainerSpec entityDTOs", len(containerSpecDtos))
+		entityDTOs = append(entityDTOs, containerSpecDtos...)
 	}
 
 	// Service DTOs
