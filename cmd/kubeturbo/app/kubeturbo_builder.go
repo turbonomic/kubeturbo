@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -99,6 +100,11 @@ type VMTServer struct {
 
 	// The Cluster API namespace
 	ClusterAPINamespace string
+
+	// Strategy to aggregate Container utilization data on ContainerSpec entity
+	containerUtilizationDataAggStrategy string
+	// Strategy to aggregate Container usage data on ContainerSpec entity
+	containerUsageDataAggStrategy string
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -132,6 +138,8 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.ValidationTimeout, "validation-timeout-sec", defaultValidationTimeout, "The validation timeout in seconds")
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all")
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")
+	fs.StringVar(&s.containerUtilizationDataAggStrategy, "cnt-utilization-data-agg-strategy", agg.DefaultContainerUtilizationDataAggStrategy, "Container utilization data aggregation strategy")
+	fs.StringVar(&s.containerUsageDataAggStrategy, "cnt-usage-data-agg-strategy", agg.DefaultContainerUsageDataAggStrategy, "Container usage data aggregation strategy")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -273,7 +281,9 @@ func (s *VMTServer) Run() {
 		WithValidationTimeout(s.ValidationTimeout).
 		WithValidationWorkers(s.ValidationWorkers).
 		WithSccSupport(s.sccSupport).
-		WithCAPINamespace(s.ClusterAPINamespace)
+		WithCAPINamespace(s.ClusterAPINamespace).
+		WithContainerUtilizationDataAggStrategy(s.containerUtilizationDataAggStrategy).
+		WithContainerUsageDataAggStrategy(s.containerUsageDataAggStrategy)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service
