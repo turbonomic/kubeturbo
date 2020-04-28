@@ -6,12 +6,13 @@ import (
 	"math"
 )
 
-var (
-	avgUsageDataStrategy = "avgUsageData"
-	maxUsageDataStrategy = "maxUsageData"
-
+const (
+	avgUsageDataStrategy                 = "avgUsageData"
+	maxUsageDataStrategy                 = "maxUsageData"
 	DefaultContainerUsageDataAggStrategy = avgUsageDataStrategy
+)
 
+var (
 	// Map from the configured utilization data aggregation strategy to utilization data aggregator
 	ContainerUsageDataAggregators = map[string]ContainerUsageDataAggregator{
 		avgUsageDataStrategy: &avgUsageDataAggregator{aggregationStrategy: "average usage data strategy"},
