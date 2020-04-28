@@ -3,6 +3,7 @@ package repository
 import (
 	"bytes"
 	"fmt"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"strings"
 
 	"github.com/golang/glog"
@@ -264,6 +265,31 @@ func parseResourceValue(computeResourceType metrics.ResourceType, resourceList v
 }
 
 // =================================================================================================
+// ContainerSpec models the shared portion of individual container replicas defined by the controller that manages the
+// pods where the containers run.
+type ContainerSpec struct {
+	Namespace         string
+	ControllerUID     string
+	ContainerSpecName string
+	ContainerSpecId   string
+	// Container replicas number
+	ContainerReplicas int32
+	// Map from commodity type to list of commodity DTOs of this commodity type sold by container replicas of the
+	// same ContainerSpec entity
+	ContainerCommodities map[proto.CommodityDTO_CommodityType][]*proto.CommodityDTO
+}
+
+func NewContainerSpec(namespace, controllerUID, containerName, containerSpecId string) *ContainerSpec {
+	return &ContainerSpec{
+		Namespace:            namespace,
+		ControllerUID:        controllerUID,
+		ContainerSpecName:    containerName,
+		ContainerSpecId:      containerSpecId,
+		ContainerReplicas:    1,
+		ContainerCommodities: make(map[proto.CommodityDTO_CommodityType][]*proto.CommodityDTO),
+	}
+}
+
 // K8s controller in the cluster
 type KubeController struct {
 	*KubeEntity

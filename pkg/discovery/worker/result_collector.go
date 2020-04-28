@@ -28,13 +28,14 @@ func (rc *ResultCollector) ResultPool() chan *task.TaskResult {
 }
 
 func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*repository.KubePod,
-	[]*repository.NamespaceMetrics, []*repository.EntityGroup, []*repository.KubeController) {
+	[]*repository.NamespaceMetrics, []*repository.EntityGroup, []*repository.KubeController, []*repository.ContainerSpec) {
 	discoveryResult := []*proto.EntityDTO{}
 	namespaceMetrics := []*repository.NamespaceMetrics{}
 	entityGroupList := []*repository.EntityGroup{}
 	discoveryErrorString := []string{}
 	podEntitiesMap := make(map[string]*repository.KubePod)
 	var kubeControllerList []*repository.KubeController
+	var containerSpecs []*repository.ContainerSpec
 	glog.V(2).Infof("Waiting for results from %d workers.", count)
 
 	stopChan := make(chan struct{})
@@ -62,6 +63,8 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*r
 					}
 					// K8s controller data from different workers
 					kubeControllerList = append(kubeControllerList, result.KubeControllers()...)
+					// ContainerSpecs with individual container replica commodities data from different discovery workers
+					containerSpecs = append(containerSpecs, result.ContainerSpecs()...)
 				}
 				wg.Done()
 			}
@@ -76,5 +79,5 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*r
 		glog.Errorf("One or more discovery worker failed: %s", strings.Join(discoveryErrorString, "\t\t"))
 	}
 
-	return discoveryResult, podEntitiesMap, namespaceMetrics, entityGroupList, kubeControllerList
+	return discoveryResult, podEntitiesMap, namespaceMetrics, entityGroupList, kubeControllerList, containerSpecs
 }
