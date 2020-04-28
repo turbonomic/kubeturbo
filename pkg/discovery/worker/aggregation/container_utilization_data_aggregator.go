@@ -25,8 +25,7 @@ type ContainerUtilizationDataAggregator interface {
 	// AggregationStrategy returns aggregation strategy of this data aggregator
 	AggregationStrategy() string
 	// Aggregate aggregates commodities utilization data based on the given list of commodity DTOs of a commodity type
-	// and aggregation strategy, and returns aggregated utilization data which contains utilization data points, last
-	// point timestamp milliseconds and interval milliseconds
+	// and aggregation strategy, and returns aggregated utilization data points.
 	Aggregate(commodities []*proto.CommodityDTO) ([]float64, error)
 }
 
