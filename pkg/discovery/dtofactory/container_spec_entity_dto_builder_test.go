@@ -22,11 +22,11 @@ func Test_containerSpecDTOBuilder_getCommoditiesSold(t *testing.T) {
 		ContainerCommodities: map[proto.CommodityDTO_CommodityType][]*proto.CommodityDTO{
 			cpuCommType: {
 				createCommodityDTO(proto.CommodityDTO_VCPU, 1.0, 1.0, 2.0),
-				createCommodityDTO(proto.CommodityDTO_VCPU, 2.0, 2.0, 3.0),
+				createCommodityDTO(proto.CommodityDTO_VCPU, 3.0, 3.0, 4.0),
 			},
 			memCommType: {
 				createCommodityDTO(proto.CommodityDTO_VMEM, 1.0, 1.0, 2.0),
-				createCommodityDTO(proto.CommodityDTO_VMEM, 2.0, 2.0, 3.0),
+				createCommodityDTO(proto.CommodityDTO_VMEM, 3.0, 3.0, 4.0),
 			},
 		},
 	}
@@ -41,7 +41,11 @@ func Test_containerSpecDTOBuilder_getCommoditiesSold(t *testing.T) {
 	assert.Equal(t, 2, len(commodityDTOs))
 	for _, commodityDTO := range commodityDTOs {
 		assert.Equal(t, false, *commodityDTO.Active)
-		// TODO test utilizationData and usage data
+		// Parse values to int to avoid tolerance of float values
+		assert.Equal(t, 2, int(*commodityDTO.Used))
+		assert.Equal(t, 2, int(*commodityDTO.Peak))
+		assert.Equal(t, 3, int(*commodityDTO.Capacity))
+		assert.Equal(t, 2, len(commodityDTO.UtilizationData.Point))
 	}
 }
 
