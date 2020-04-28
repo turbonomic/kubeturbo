@@ -74,15 +74,16 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpec *reposi
 		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(commodityType)
 
 		// Aggregate container replicas utilization data
-		currentMs := time.Now().UnixNano() / int64(time.Millisecond)
-		utilizationDataPoints, lastPointTimestampMs, intervalMs, err :=
-			builder.containerUtilizationDataAggregator.Aggregate(commodities, currentMs)
+		utilizationDataPoints, err := builder.containerUtilizationDataAggregator.Aggregate(commodities)
 		if err != nil {
 			glog.Errorf("Error aggregating commodity utilization data for ContainerSpec %s, %v",
 				containerSpec.ContainerSpecId, err)
 			continue
 		}
-		commSoldBuilder.UtilizationData(utilizationDataPoints, lastPointTimestampMs, intervalMs)
+		currentMs := time.Now().UnixNano() / int64(time.Millisecond)
+		// Currently we only collect one set of metrics data points from Kubernetes within a discovery cycle so the
+		// lastPointTimestampMs of utilizationData is current timestamp in milliseconds and intervalMs is 0.
+		commSoldBuilder.UtilizationData(utilizationDataPoints, currentMs, 0)
 
 		// Aggregate container replicas usage data (capacity, used and peak)
 		aggregatedCap, aggregatedUsed, aggregatedPeak, err :=

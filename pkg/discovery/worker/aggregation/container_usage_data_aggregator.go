@@ -1,15 +1,18 @@
 package aggregation
 
 import (
+	"fmt"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"math"
+)
+
+const (
+	avgUsageDataStrategy                 = "avgUsageData"
+	maxUsageDataStrategy                 = "maxUsageData"
+	DefaultContainerUsageDataAggStrategy = avgUsageDataStrategy
 )
 
 var (
-	avgUsageDataStrategy = "avgUsageData"
-	maxUsageDataStrategy = "maxUsageData"
-
-	DefaultContainerUsageDataAggStrategy = avgUsageDataStrategy
-
 	// Map from the configured utilization data aggregation strategy to utilization data aggregator
 	ContainerUsageDataAggregators = map[string]ContainerUsageDataAggregator{
 		avgUsageDataStrategy: &avgUsageDataAggregator{aggregationStrategy: "average usage data strategy"},
@@ -36,8 +39,23 @@ func (avgUsageDataAggregator *avgUsageDataAggregator) AggregationStrategy() stri
 }
 
 func (avgUsageDataAggregator *avgUsageDataAggregator) Aggregate(commodities []*proto.CommodityDTO) (float64, float64, float64, error) {
-	// TODO aggregate average utilization data
-	return 0.0, 0.0, 0.0, nil
+	if len(commodities) == 0 {
+		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty",
+			avgUsageDataAggregator.AggregationStrategy())
+		return 0.0, 0.0, 0.0, err
+	}
+	capacitySum := 0.0
+	usedSum := 0.0
+	peakSum := 0.0
+	for _, commodity := range commodities {
+		capacitySum += *commodity.Capacity
+		usedSum += *commodity.Used
+		peakSum += *commodity.Peak
+	}
+	avgCapacity := capacitySum / float64(len(commodities))
+	avgUsed := usedSum / float64(len(commodities))
+	avgPeak := peakSum / float64(len(commodities))
+	return avgCapacity, avgUsed, avgPeak, nil
 }
 
 // ---------------- Max usage data aggregation strategy ----------------
@@ -50,6 +68,18 @@ func (maxUsageDataAggregator *maxUsageDataAggregator) AggregationStrategy() stri
 }
 
 func (maxUsageDataAggregator *maxUsageDataAggregator) Aggregate(commodities []*proto.CommodityDTO) (float64, float64, float64, error) {
-	// TODO aggregate max utilization data
-	return 0.0, 0.0, 0.0, nil
+	if len(commodities) == 0 {
+		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty",
+			maxUsageDataAggregator.AggregationStrategy())
+		return 0.0, 0.0, 0.0, err
+	}
+	maxCapacity := 0.0
+	maxUsed := 0.0
+	maxPeak := 0.0
+	for _, commodity := range commodities {
+		maxCapacity = math.Max(maxCapacity, *commodity.Capacity)
+		maxUsed = math.Max(maxUsed, *commodity.Used)
+		maxPeak = math.Max(maxPeak, *commodity.Peak)
+	}
+	return maxCapacity, maxUsed, maxPeak, nil
 }
