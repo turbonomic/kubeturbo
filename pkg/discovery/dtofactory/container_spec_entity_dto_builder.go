@@ -43,7 +43,7 @@ func (builder *containerSpecDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 		entityDTOBuilder.DisplayName(containerSpec.ContainerSpecName)
 		commoditiesSold, err := builder.getCommoditiesSold(containerSpec)
 		if err != nil {
-			glog.Errorf("Error to create commodities sold by ContainerSpec %s, %v", containerSpecId, err)
+			glog.Errorf("Error creating commodities sold by ContainerSpec %s, %v", containerSpecId, err)
 			continue
 		}
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
@@ -78,7 +78,7 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpec *reposi
 		utilizationDataPoints, lastPointTimestampMs, intervalMs, err :=
 			builder.containerUtilizationDataAggregator.Aggregate(commodities, currentMs)
 		if err != nil {
-			glog.Errorf("Error to aggregate commodity utilization data for ContainerSpec %s, %v",
+			glog.Errorf("Error aggregating commodity utilization data for ContainerSpec %s, %v",
 				containerSpec.ContainerSpecId, err)
 			continue
 		}
@@ -88,7 +88,7 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpec *reposi
 		aggregatedCap, aggregatedUsed, aggregatedPeak, err :=
 			builder.containerUsageDataAggregator.Aggregate(commodities)
 		if err != nil {
-			glog.Errorf("Error to aggregate commodity usage data for ContainerSpec %s, %v",
+			glog.Errorf("Error aggregating commodity usage data for ContainerSpec %s, %v",
 				containerSpec.ContainerSpecId, err)
 			continue
 		}

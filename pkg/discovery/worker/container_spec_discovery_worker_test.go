@@ -11,14 +11,14 @@ import (
 
 func Test_k8sContainerSpecDiscoveryWorker_getContainerDataAggregator(t *testing.T) {
 	worker := &k8sContainerSpecDiscoveryWorker{}
-	utilizationDataAggregator, usageDataAggregator := worker.getContainerDataAggregator("allUtilizationData", "maxUsageData")
+	utilizationDataAggregator, usageDataAggregator := worker.getContainerDataAggregators("allUtilizationData", "maxUsageData")
 	assert.Equal(t, agg.ContainerUtilizationDataAggregators["allUtilizationData"], utilizationDataAggregator)
 	assert.Equal(t, agg.ContainerUsageDataAggregators["maxUsageData"], usageDataAggregator)
 }
 
 func Test_k8sContainerSpecDiscoveryWorker_getContainerDataAggregator_defaultStrategy(t *testing.T) {
 	worker := &k8sContainerSpecDiscoveryWorker{}
-	utilizationDataAggregator, usageDataAggregator := worker.getContainerDataAggregator("testUtilizationDataStrategy", "testUsageDataStrategy")
+	utilizationDataAggregator, usageDataAggregator := worker.getContainerDataAggregators("testUtilizationDataStrategy", "testUsageDataStrategy")
 	// If input utilizationDataAggStrategy and usageDataAggStrategy are not support, use default data aggregators
 	assert.Equal(t, agg.ContainerUtilizationDataAggregators[agg.DefaultContainerUtilizationDataAggStrategy], utilizationDataAggregator)
 	assert.Equal(t, agg.ContainerUsageDataAggregators[agg.DefaultContainerUsageDataAggStrategy], usageDataAggregator)

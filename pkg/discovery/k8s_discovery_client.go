@@ -255,7 +255,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	// replicas. ContainerSpec is an entity type which represents a certain type of container replicas deployed by a
 	// K8s controller.
 	// TODO use DefaultContainerUtilizationDataAggStrategy and DefaultContainerUsageDataAggStrategy here. Will make
-	// utilizationDataAggStrategy and usageDataAggStrategy configurable through configMap.
+	// utilizationDataAggStrategy and usageDataAggStrategy configurable through arguments when starting kubeturbo.
 	containerSpecDiscoveryWorker := worker.NewK8sContainerSpecDiscoveryWorker()
 	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(containerSpecs, aggregation.DefaultContainerUtilizationDataAggStrategy,
 		aggregation.DefaultContainerUsageDataAggStrategy)

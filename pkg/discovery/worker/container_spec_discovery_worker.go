@@ -24,7 +24,7 @@ func NewK8sContainerSpecDiscoveryWorker() *k8sContainerSpecDiscoveryWorker {
 func (worker *k8sContainerSpecDiscoveryWorker) Do(containerSpecs []*repository.ContainerSpec,
 	utilizationDataAggStrategy, usageDataAggStrategy string) ([]*proto.EntityDTO, error) {
 	// Get data aggregators based on the given data aggregation strategies
-	utilizationDataAggregator, usageDataAggregator := worker.getContainerDataAggregator(utilizationDataAggStrategy, usageDataAggStrategy)
+	utilizationDataAggregator, usageDataAggregator := worker.getContainerDataAggregators(utilizationDataAggStrategy, usageDataAggStrategy)
 	// Create containerSpecs map from ContainerSpec ID to ContainerSpec with merge commodities data of container replicas
 	containerSpecMap := worker.createContainerSpecMap(containerSpecs)
 	containerSpecEntityDTOBuilder := dtofactory.NewContainerSpecDTOBuilder(containerSpecMap, utilizationDataAggregator,
@@ -36,9 +36,9 @@ func (worker *k8sContainerSpecDiscoveryWorker) Do(containerSpecs []*repository.C
 	return containerSpecEntityDTOs, nil
 }
 
-// getContainerDataAggregator returns utilization and usage data aggregator based on the given utilization and usage data
-// aggregation strategies. If given data aggregation strategies are not supported, use default strategies.
-func (worker *k8sContainerSpecDiscoveryWorker) getContainerDataAggregator(utilizationDataAggStrategy,
+// getContainerDataAggregators returns utilization and usage data aggregators based on the given utilization and usage
+// data aggregation strategies. If given data aggregation strategies are not supported, use default strategies.
+func (worker *k8sContainerSpecDiscoveryWorker) getContainerDataAggregators(utilizationDataAggStrategy,
 	usageDataAggStrategy string) (agg.ContainerUtilizationDataAggregator, agg.ContainerUsageDataAggregator) {
 	utilizationDataAggregator, exists := agg.ContainerUtilizationDataAggregators[utilizationDataAggStrategy]
 	if !exists {
@@ -51,7 +51,7 @@ func (worker *k8sContainerSpecDiscoveryWorker) getContainerDataAggregator(utiliz
 	usageDataAggregator, exists := agg.ContainerUsageDataAggregators[usageDataAggStrategy]
 	if !exists {
 		glog.Errorf("Container usage data aggregation strategy %s is not supported. Use default % strategy",
-			utilizationDataAggStrategy, agg.DefaultContainerUsageDataAggStrategy)
+			usageDataAggStrategy, agg.DefaultContainerUsageDataAggStrategy)
 		usageDataAggregator = agg.ContainerUsageDataAggregators[agg.DefaultContainerUsageDataAggStrategy]
 	}
 	glog.Infof("ContainerSpec will aggregate Containers usage data by %s", usageDataAggregator.AggregationStrategy())
@@ -82,6 +82,9 @@ func (worker *k8sContainerSpecDiscoveryWorker) createContainerSpecMap(containerS
 			// Increment number of container replicas
 			existingContainerSpec.ContainerReplicas++
 		}
+	}
+	for containerSpecId, containerSpec := range containerSpecMap {
+		glog.V(4).Infof("Discovered ContainerSpec entity %s has %d container replicas", containerSpecId, containerSpec.ContainerReplicas)
 	}
 	return containerSpecMap
 }

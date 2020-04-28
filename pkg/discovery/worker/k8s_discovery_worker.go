@@ -293,6 +293,8 @@ func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection P
 
 // ================================================================================================
 // Build DTOs for nodes, pods, containers
+// And return a slice of ContainerSpec objects sent by this discovery worker to be used to build ContainerSpec entityDTOs
+// in the new discovery framework in k8s_discovery_client
 func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*api.Pod, []*repository.ContainerSpec, error) {
 	var result []*proto.EntityDTO
 
