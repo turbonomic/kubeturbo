@@ -10,7 +10,7 @@ var (
 	maxUtilizationDataStrategy = "maxUtilizationData"
 	allUtilizationDataStrategy = "allUtilizationData"
 
-	DefaultContainerUtilizationDataAggStrategy = maxUtilizationDataStrategy
+	DefaultContainerUtilizationDataAggStrategy = allUtilizationDataStrategy
 
 	// Map from the configured utilization data aggregation strategy to utilization data aggregator
 	ContainerUtilizationDataAggregators = map[string]ContainerUtilizationDataAggregator{

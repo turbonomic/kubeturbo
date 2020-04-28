@@ -61,7 +61,7 @@ func TestBuildDTOsWithMissingMetrics(t *testing.T) {
 
 	currTask := task.NewTask().WithNodes([]*api.Node{node}).WithPods([]*api.Pod{pod})
 
-	_, _, err = worker.buildDTOs(currTask)
+	_, _, _, err = worker.buildDTOs(currTask)
 	if err != nil {
 		t.Errorf("Error while building DTOs: %v", err)
 	}
