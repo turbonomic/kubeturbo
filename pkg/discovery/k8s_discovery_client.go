@@ -2,7 +2,6 @@ package discovery
 
 import (
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	"strings"
 	"time"
 
@@ -30,16 +29,22 @@ type DiscoveryClientConfig struct {
 	targetConfig         *configs.K8sTargetConfig
 	ValidationWorkers    int
 	ValidationTimeoutSec int
+	// Strategy to aggregate Container utilization data on ContainerSpec entity
+	containerUtilizationDataAggStrategy string
+	// Strategy to aggregate Container usage data on ContainerSpec entity
+	containerUsageDataAggStrategy string
 }
 
 func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 	targetConfig *configs.K8sTargetConfig, ValidationWorkers int,
-	ValidationTimeoutSec int) *DiscoveryClientConfig {
+	ValidationTimeoutSec int, containerUtilizationDataAggStrategy, containerUsageDataAggStrategy string) *DiscoveryClientConfig {
 	return &DiscoveryClientConfig{
-		probeConfig:          probeConfig,
-		targetConfig:         targetConfig,
-		ValidationWorkers:    ValidationWorkers,
-		ValidationTimeoutSec: ValidationTimeoutSec,
+		probeConfig:                         probeConfig,
+		targetConfig:                        targetConfig,
+		ValidationWorkers:                   ValidationWorkers,
+		ValidationTimeoutSec:                ValidationTimeoutSec,
+		containerUtilizationDataAggStrategy: containerUtilizationDataAggStrategy,
+		containerUsageDataAggStrategy:       containerUsageDataAggStrategy,
 	}
 }
 
@@ -254,11 +259,9 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	// K8s container spec discovery worker to create ContainerSpec DTOs by aggregating commodities data of container
 	// replicas. ContainerSpec is an entity type which represents a certain type of container replicas deployed by a
 	// K8s controller.
-	// TODO use DefaultContainerUtilizationDataAggStrategy and DefaultContainerUsageDataAggStrategy here. Will make
-	// utilizationDataAggStrategy and usageDataAggStrategy configurable through arguments when starting kubeturbo.
 	containerSpecDiscoveryWorker := worker.NewK8sContainerSpecDiscoveryWorker()
-	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(containerSpecs, aggregation.DefaultContainerUtilizationDataAggStrategy,
-		aggregation.DefaultContainerUsageDataAggStrategy)
+	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(containerSpecs, dc.config.containerUtilizationDataAggStrategy,
+		dc.config.containerUsageDataAggStrategy)
 	if err != nil {
 		glog.Errorf("Failed to discover ContainerSpecs from current Kubernetes cluster with the new discovery framework: %s", err)
 	} else {

@@ -22,8 +22,7 @@ var (
 
 // ContainerUsageDataAggregator interface represents a type of container usage data aggregator
 type ContainerUsageDataAggregator interface {
-	// AggregationStrategy returns aggregation strategy of this data aggregator
-	AggregationStrategy() string
+	String() string
 	// Aggregate aggregates commodities usage data based on the given list of commodity DTOs of a commodity type and
 	// aggregation strategy, and returns aggregated capacity, used and peak values.
 	Aggregate(containerCommodities []*proto.CommodityDTO) (float64, float64, float64, error)
@@ -34,14 +33,13 @@ type avgUsageDataAggregator struct {
 	aggregationStrategy string
 }
 
-func (avgUsageDataAggregator *avgUsageDataAggregator) AggregationStrategy() string {
+func (avgUsageDataAggregator *avgUsageDataAggregator) String() string {
 	return avgUsageDataAggregator.aggregationStrategy
 }
 
 func (avgUsageDataAggregator *avgUsageDataAggregator) Aggregate(commodities []*proto.CommodityDTO) (float64, float64, float64, error) {
 	if len(commodities) == 0 {
-		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty",
-			avgUsageDataAggregator.AggregationStrategy())
+		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty", avgUsageDataAggregator)
 		return 0.0, 0.0, 0.0, err
 	}
 	capacitySum := 0.0
@@ -63,14 +61,13 @@ type maxUsageDataAggregator struct {
 	aggregationStrategy string
 }
 
-func (maxUsageDataAggregator *maxUsageDataAggregator) AggregationStrategy() string {
+func (maxUsageDataAggregator *maxUsageDataAggregator) String() string {
 	return maxUsageDataAggregator.aggregationStrategy
 }
 
 func (maxUsageDataAggregator *maxUsageDataAggregator) Aggregate(commodities []*proto.CommodityDTO) (float64, float64, float64, error) {
 	if len(commodities) == 0 {
-		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty",
-			maxUsageDataAggregator.AggregationStrategy())
+		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty", maxUsageDataAggregator)
 		return 0.0, 0.0, 0.0, err
 	}
 	maxCapacity := 0.0

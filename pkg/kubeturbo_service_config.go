@@ -33,6 +33,11 @@ type Config struct {
 
 	SccSupport    []string
 	CAPINamespace string
+
+	// Strategy to aggregate Container utilization data on ContainerSpec entity
+	containerUtilizationDataAggStrategy string
+	// Strategy to aggregate Container usage data on ContainerSpec entity
+	containerUsageDataAggStrategy string
 }
 
 func NewVMTConfig2() *Config {
@@ -110,5 +115,15 @@ func (c *Config) WithSccSupport(sccSupport []string) *Config {
 
 func (c *Config) WithCAPINamespace(CAPINamespace string) *Config {
 	c.CAPINamespace = CAPINamespace
+	return c
+}
+
+func (c *Config) WithContainerUtilizationDataAggStrategy(containerUtilizationDataAggStrategy string) *Config {
+	c.containerUtilizationDataAggStrategy = containerUtilizationDataAggStrategy
+	return c
+}
+
+func (c *Config) WithContainerUsageDataAggStrategy(containerUsageDataAggStrategy string) *Config {
+	c.containerUsageDataAggStrategy = containerUsageDataAggStrategy
 	return c
 }

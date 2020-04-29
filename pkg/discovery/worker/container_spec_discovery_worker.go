@@ -42,19 +42,19 @@ func (worker *k8sContainerSpecDiscoveryWorker) getContainerDataAggregators(utili
 	usageDataAggStrategy string) (agg.ContainerUtilizationDataAggregator, agg.ContainerUsageDataAggregator) {
 	utilizationDataAggregator, exists := agg.ContainerUtilizationDataAggregators[utilizationDataAggStrategy]
 	if !exists {
-		glog.Errorf("Container utilization data aggregation strategy %s is not supported. Use default % strategy",
+		glog.Errorf("Container utilization data aggregation strategy '%s' is not supported. Use default '%s' strategy",
 			utilizationDataAggStrategy, agg.DefaultContainerUtilizationDataAggStrategy)
 		utilizationDataAggregator = agg.ContainerUtilizationDataAggregators[agg.DefaultContainerUtilizationDataAggStrategy]
 	}
-	glog.Infof("ContainerSpec will aggregate Containers utilization data by %s", utilizationDataAggregator.AggregationStrategy())
+	glog.Infof("ContainerSpec will aggregate Containers utilization data by '%s'", utilizationDataAggregator)
 
 	usageDataAggregator, exists := agg.ContainerUsageDataAggregators[usageDataAggStrategy]
 	if !exists {
-		glog.Errorf("Container usage data aggregation strategy %s is not supported. Use default % strategy",
+		glog.Errorf("Container usage data aggregation strategy '%s' is not supported. Use default '%s' strategy",
 			usageDataAggStrategy, agg.DefaultContainerUsageDataAggStrategy)
 		usageDataAggregator = agg.ContainerUsageDataAggregators[agg.DefaultContainerUsageDataAggStrategy]
 	}
-	glog.Infof("ContainerSpec will aggregate Containers usage data by %s", usageDataAggregator.AggregationStrategy())
+	glog.Infof("ContainerSpec will aggregate Containers usage data by '%s'", usageDataAggregator)
 	return utilizationDataAggregator, usageDataAggregator
 }
 
