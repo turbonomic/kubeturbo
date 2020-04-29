@@ -22,8 +22,7 @@ var (
 
 // ContainerUtilizationDataAggregator interface represents a type of container utilization data aggregator
 type ContainerUtilizationDataAggregator interface {
-	// AggregationStrategy returns aggregation strategy of this data aggregator
-	AggregationStrategy() string
+	String() string
 	// Aggregate aggregates commodities utilization data based on the given list of commodity DTOs of a commodity type
 	// and aggregation strategy, and returns aggregated utilization data points.
 	Aggregate(commodities []*proto.CommodityDTO) ([]float64, error)
@@ -34,14 +33,13 @@ type allUtilizationDataAggregator struct {
 	aggregationStrategy string
 }
 
-func (allDataAggregator *allUtilizationDataAggregator) AggregationStrategy() string {
+func (allDataAggregator *allUtilizationDataAggregator) String() string {
 	return allDataAggregator.aggregationStrategy
 }
 
 func (allDataAggregator *allUtilizationDataAggregator) Aggregate(commodities []*proto.CommodityDTO) ([]float64, error) {
 	if len(commodities) == 0 {
-		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty",
-			allDataAggregator.AggregationStrategy())
+		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty", allDataAggregator)
 		return []float64{}, err
 	}
 	var utilizationDataPoints []float64
@@ -50,7 +48,7 @@ func (allDataAggregator *allUtilizationDataAggregator) Aggregate(commodities []*
 		capacity := *commodity.Capacity
 		if capacity == 0.0 {
 			err := fmt.Errorf("error to aggregate %s commodities using %s : capacity is 0", commodity.CommodityType,
-				allDataAggregator.AggregationStrategy())
+				allDataAggregator)
 			return []float64{}, err
 		}
 		utilization := used / capacity * 100
@@ -64,14 +62,13 @@ type maxUtilizationDataAggregator struct {
 	aggregationStrategy string
 }
 
-func (maxDataAggregator *maxUtilizationDataAggregator) AggregationStrategy() string {
+func (maxDataAggregator *maxUtilizationDataAggregator) String() string {
 	return maxDataAggregator.aggregationStrategy
 }
 
 func (maxDataAggregator *maxUtilizationDataAggregator) Aggregate(commodities []*proto.CommodityDTO) ([]float64, error) {
 	if len(commodities) == 0 {
-		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty",
-			maxDataAggregator.AggregationStrategy())
+		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty", maxDataAggregator)
 		return []float64{}, err
 	}
 	maxUtilization := 0.0
@@ -80,7 +77,7 @@ func (maxDataAggregator *maxUtilizationDataAggregator) Aggregate(commodities []*
 		capacity := *commodity.Capacity
 		if capacity == 0.0 {
 			err := fmt.Errorf("error to aggregate %s commodities using %s : capacity is 0", commodity.CommodityType,
-				maxDataAggregator.AggregationStrategy())
+				maxDataAggregator)
 			return []float64{}, err
 		}
 		utilization := used / capacity * 100
