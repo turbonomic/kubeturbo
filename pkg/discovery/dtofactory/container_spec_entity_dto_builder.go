@@ -97,7 +97,13 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpec *reposi
 		commSoldBuilder.Peak(aggregatedPeak)
 		commSoldBuilder.Used(aggregatedUsed)
 
-		// ContainerSpec sells inactive commodities
+		// Commodities sold by ContainerSpec entities have resizable flag as true so as to update resizable flag to
+		// the commodities sold by corresponding Container entities in the server side when taking historical percentile
+		// utilization data into consideration for resizing.
+		commSoldBuilder.Resizable(true)
+
+		// Commodities sold by ContainerSpec entities are inactive because they won't be analyzed directly in Market
+		// analysis engine.
 		commSoldBuilder.Active(false)
 		commSold, err := commSoldBuilder.Create()
 		if err != nil {
