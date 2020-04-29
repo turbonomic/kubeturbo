@@ -41,6 +41,7 @@ func Test_containerSpecDTOBuilder_getCommoditiesSold(t *testing.T) {
 	assert.Equal(t, 2, len(commodityDTOs))
 	for _, commodityDTO := range commodityDTOs {
 		assert.Equal(t, false, *commodityDTO.Active)
+		assert.Equal(t, true, *commodityDTO.Resizable)
 		// Parse values to int to avoid tolerance of float values
 		assert.Equal(t, 2, int(*commodityDTO.Used))
 		assert.Equal(t, 2, int(*commodityDTO.Peak))
