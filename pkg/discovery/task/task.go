@@ -66,13 +66,15 @@ type TaskResultState string
 // A TaskResult contains a state, indicate whether the task is finished successfully; a err if there is any; a list of
 // EntityDTO.
 type TaskResult struct {
-	workerID     string
-	state        TaskResultState
-	err          error
-	content      []*proto.EntityDTO
-	quotaMetrics []*repository.QuotaMetrics
-	entityGroups []*repository.EntityGroup
-	podEntities  []*repository.KubePod
+	workerID         string
+	state            TaskResultState
+	err              error
+	content          []*proto.EntityDTO
+	namespaceMetrics []*repository.NamespaceMetrics
+	entityGroups     []*repository.EntityGroup
+	podEntities      []*repository.KubePod
+	kubeControllers  []*repository.KubeController
+	containerSpecs   []*repository.ContainerSpec
 }
 
 func NewTaskResult(workerID string, state TaskResultState) *TaskResult {
@@ -98,12 +100,20 @@ func (r *TaskResult) PodEntities() []*repository.KubePod {
 	return r.podEntities
 }
 
-func (r *TaskResult) QuotaMetrics() []*repository.QuotaMetrics {
-	return r.quotaMetrics
+func (r *TaskResult) NamespaceMetrics() []*repository.NamespaceMetrics {
+	return r.namespaceMetrics
 }
 
 func (r *TaskResult) EntityGroups() []*repository.EntityGroup {
 	return r.entityGroups
+}
+
+func (r *TaskResult) KubeControllers() []*repository.KubeController {
+	return r.kubeControllers
+}
+
+func (r *TaskResult) ContainerSpecs() []*repository.ContainerSpec {
+	return r.containerSpecs
 }
 
 func (r *TaskResult) Err() error {
@@ -125,12 +135,22 @@ func (r *TaskResult) WithPodEntities(podEntities []*repository.KubePod) *TaskRes
 	return r
 }
 
-func (r *TaskResult) WithQuotaMetrics(quotaMetrics []*repository.QuotaMetrics) *TaskResult {
-	r.quotaMetrics = quotaMetrics
+func (r *TaskResult) WithNamespaceMetrics(namespaceMetrics []*repository.NamespaceMetrics) *TaskResult {
+	r.namespaceMetrics = namespaceMetrics
 	return r
 }
 
 func (r *TaskResult) WithEntityGroups(entityGroups []*repository.EntityGroup) *TaskResult {
 	r.entityGroups = entityGroups
+	return r
+}
+
+func (r *TaskResult) WithKubeControllers(kubeControllers []*repository.KubeController) *TaskResult {
+	r.kubeControllers = kubeControllers
+	return r
+}
+
+func (r *TaskResult) WithContainerSpecs(containerSpecs []*repository.ContainerSpec) *TaskResult {
+	r.containerSpecs = containerSpecs
 	return r
 }

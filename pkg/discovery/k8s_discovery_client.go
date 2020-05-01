@@ -29,16 +29,22 @@ type DiscoveryClientConfig struct {
 	targetConfig         *configs.K8sTargetConfig
 	ValidationWorkers    int
 	ValidationTimeoutSec int
+	// Strategy to aggregate Container utilization data on ContainerSpec entity
+	containerUtilizationDataAggStrategy string
+	// Strategy to aggregate Container usage data on ContainerSpec entity
+	containerUsageDataAggStrategy string
 }
 
 func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 	targetConfig *configs.K8sTargetConfig, ValidationWorkers int,
-	ValidationTimeoutSec int) *DiscoveryClientConfig {
+	ValidationTimeoutSec int, containerUtilizationDataAggStrategy, containerUsageDataAggStrategy string) *DiscoveryClientConfig {
 	return &DiscoveryClientConfig{
-		probeConfig:          probeConfig,
-		targetConfig:         targetConfig,
-		ValidationWorkers:    ValidationWorkers,
-		ValidationTimeoutSec: ValidationTimeoutSec,
+		probeConfig:                         probeConfig,
+		targetConfig:                        targetConfig,
+		ValidationWorkers:                   ValidationWorkers,
+		ValidationTimeoutSec:                ValidationTimeoutSec,
+		containerUtilizationDataAggStrategy: containerUtilizationDataAggStrategy,
+		containerUsageDataAggStrategy:       containerUsageDataAggStrategy,
 	}
 }
 
@@ -224,15 +230,44 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	// Call cache cleanup
 	dc.config.probeConfig.NodeClient.CleanupCache(nodes)
 
-	// Discover pods and create DTOs for nodes, pods, containers, application.
-	// Collect the kubePod, quota metrics, groups from all the discovery workers
+	// Discover pods and create DTOs for nodes, namespaces, controllers, pods, containers, application.
+	// Collect the kubePod, kubeNamespace metrics, groups and kubeControllers from all the discovery workers
 	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
-	entityDTOs, podEntitiesMap, quotaMetricsList, entityGroupList := dc.resultCollector.Collect(workerCount)
+	entityDTOs, podEntitiesMap, namespaceMetricsList, entityGroupList, kubeControllerList, containerSpecs := dc.resultCollector.Collect(workerCount)
 
-	// Quota discovery worker to create quota DTOs
+	// Namespace discovery worker to create namespace DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType
-	quotasDiscoveryWorker := worker.Newk8sResourceQuotasDiscoveryWorker(clusterSummary, stitchType)
-	quotaDtos, _ := quotasDiscoveryWorker.Do(quotaMetricsList)
+	namespacesDiscoveryWorker := worker.Newk8sNamespaceDiscoveryWorker(clusterSummary, stitchType)
+	namespaceDtos, err := namespacesDiscoveryWorker.Do(namespaceMetricsList)
+	if err != nil {
+		glog.Errorf("Failed to discover namespaces from current Kubernetes cluster with the new discovery framework: %s", err)
+	} else {
+		glog.V(2).Infof("There are %d namespace entityDTOs.", len(namespaceDtos))
+		entityDTOs = append(entityDTOs, namespaceDtos...)
+	}
+
+	// K8s workload controller discovery worker to create WorkloadController DTOs
+	controllerDiscoveryWorker := worker.NewK8sControllerDiscoveryWorker(clusterSummary)
+	workloadControllerDtos, err := controllerDiscoveryWorker.Do(kubeControllerList)
+	if err != nil {
+		glog.Errorf("Failed to discover workload controllers from current Kubernetes cluster with the new discovery framework: %s", err)
+	} else {
+		glog.V(2).Infof("There are %d WorkloadController entityDTOs.", len(workloadControllerDtos))
+		entityDTOs = append(entityDTOs, workloadControllerDtos...)
+	}
+
+	// K8s container spec discovery worker to create ContainerSpec DTOs by aggregating commodities data of container
+	// replicas. ContainerSpec is an entity type which represents a certain type of container replicas deployed by a
+	// K8s controller.
+	containerSpecDiscoveryWorker := worker.NewK8sContainerSpecDiscoveryWorker()
+	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(containerSpecs, dc.config.containerUtilizationDataAggStrategy,
+		dc.config.containerUsageDataAggStrategy)
+	if err != nil {
+		glog.Errorf("Failed to discover ContainerSpecs from current Kubernetes cluster with the new discovery framework: %s", err)
+	} else {
+		glog.V(2).Infof("There are %d ContainerSpec entityDTOs", len(containerSpecDtos))
+		entityDTOs = append(entityDTOs, containerSpecDtos...)
+	}
 
 	// Service DTOs
 	glog.V(2).Infof("Begin to generate service EntityDTOs.")
@@ -244,9 +279,6 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 		glog.V(2).Infof("There are %d vApp entityDTOs.", len(serviceDtos))
 		entityDTOs = append(entityDTOs, serviceDtos...)
 	}
-
-	// All the DTOs
-	entityDTOs = append(entityDTOs, quotaDtos...)
 
 	glog.V(2).Infof("There are totally %d entityDTOs.", len(entityDTOs))
 

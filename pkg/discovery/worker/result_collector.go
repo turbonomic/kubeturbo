@@ -28,12 +28,14 @@ func (rc *ResultCollector) ResultPool() chan *task.TaskResult {
 }
 
 func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*repository.KubePod,
-	[]*repository.QuotaMetrics, []*repository.EntityGroup) {
+	[]*repository.NamespaceMetrics, []*repository.EntityGroup, []*repository.KubeController, []*repository.ContainerSpec) {
 	discoveryResult := []*proto.EntityDTO{}
-	quotaMetricsList := []*repository.QuotaMetrics{}
+	namespaceMetrics := []*repository.NamespaceMetrics{}
 	entityGroupList := []*repository.EntityGroup{}
 	discoveryErrorString := []string{}
 	podEntitiesMap := make(map[string]*repository.KubePod)
+	var kubeControllerList []*repository.KubeController
+	var containerSpecs []*repository.ContainerSpec
 	glog.V(2).Infof("Waiting for results from %d workers.", count)
 
 	stopChan := make(chan struct{})
@@ -51,14 +53,18 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*r
 				} else {
 					// Entity DTOs for pods, nodes, containers from different workers
 					discoveryResult = append(discoveryResult, result.Content()...)
-					// Quota metrics from different workers
-					quotaMetricsList = append(quotaMetricsList, result.QuotaMetrics()...)
+					// Namespace metrics from different workers
+					namespaceMetrics = append(namespaceMetrics, result.NamespaceMetrics()...)
 					// Group data from different workers
 					entityGroupList = append(entityGroupList, result.EntityGroups()...)
 					// Pod data with apps from different workers
 					for _, kubePod := range result.PodEntities() {
 						podEntitiesMap[kubePod.PodClusterId] = kubePod
 					}
+					// K8s controller data from different workers
+					kubeControllerList = append(kubeControllerList, result.KubeControllers()...)
+					// ContainerSpecs with individual container replica commodities data from different discovery workers
+					containerSpecs = append(containerSpecs, result.ContainerSpecs()...)
 				}
 				wg.Done()
 			}
@@ -73,5 +79,5 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*r
 		glog.Errorf("One or more discovery worker failed: %s", strings.Join(discoveryErrorString, "\t\t"))
 	}
 
-	return discoveryResult, podEntitiesMap, quotaMetricsList, entityGroupList
+	return discoveryResult, podEntitiesMap, namespaceMetrics, entityGroupList, kubeControllerList, containerSpecs
 }

@@ -7,101 +7,59 @@ import (
 // Collection of allocation resources bought by a pod
 type PodMetrics struct {
 	PodName   string
-	QuotaName string
+	Namespace string
 	NodeName  string
 	PodKey    string
-	// Compute resource used and capacity
-	ComputeUsed     map[metrics.ResourceType]float64
-	ComputeCapacity map[metrics.ResourceType]float64
-	// Amount of Allocation resources bought from its resource quota provider
-	AllocationBought map[metrics.ResourceType]float64
+	// Quota resources used and capacity
+	QuotaUsed     map[metrics.ResourceType]float64
+	QuotaCapacity map[metrics.ResourceType]float64
 }
 
-func NewPodMetrics(podName, quotaName, nodeName string) *PodMetrics {
+func NewPodMetrics(podName, namespace, nodeName string) *PodMetrics {
 	return &PodMetrics{
-		PodName:          podName,
-		QuotaName:        quotaName,
-		NodeName:         nodeName,
-		AllocationBought: make(map[metrics.ResourceType]float64),
-		ComputeUsed:      make(map[metrics.ResourceType]float64),
-		ComputeCapacity:  make(map[metrics.ResourceType]float64),
+		PodName:       podName,
+		Namespace:     namespace,
+		NodeName:      nodeName,
+		QuotaUsed:     make(map[metrics.ResourceType]float64),
+		QuotaCapacity: make(map[metrics.ResourceType]float64),
 	}
 }
 
-// Collection of allocation resources sold by a node
-type NodeMetrics struct {
-	NodeName string
-	NodeKey  string
-	// Amount of Allocation resources used by different quotas
-	AllocationUsed map[metrics.ResourceType]float64
-	// Amount of Allocation resources sold to all quotas
-	AllocationCap map[metrics.ResourceType]float64
+// Collection of quota resources sold by a namespace entity
+type NamespaceMetrics struct {
+	Namespace string
+	// Amount of quota resources used by the pods running in the namespace
+	QuotaSoldUsed map[metrics.ResourceType]float64
 }
 
-func NewNodeMetrics(nodeName string) *NodeMetrics {
-	return &NodeMetrics{
-		NodeName:       nodeName,
-		AllocationUsed: make(map[metrics.ResourceType]float64),
-		AllocationCap:  make(map[metrics.ResourceType]float64),
+func NewNamespaceMetrics(namespace string) *NamespaceMetrics {
+	return &NamespaceMetrics{
+		Namespace:     namespace,
+		QuotaSoldUsed: make(map[metrics.ResourceType]float64),
 	}
 }
 
-// Collection of allocation resources bought by a quota
-type QuotaMetrics struct {
-	QuotaName string
-	// Amount of allocation resources bought from each node provider
-	AllocationBoughtMap map[string]map[metrics.ResourceType]float64
-	// Amount of allocation resources used by the pods running in the quota
-	AllocationSoldUsed map[metrics.ResourceType]float64
-	NodeProviders      []string
-}
-
-func NewQuotaMetrics(nodeName string) *QuotaMetrics {
-	return &QuotaMetrics{
-		QuotaName:           nodeName,
-		AllocationBoughtMap: make(map[string]map[metrics.ResourceType]float64),
-		AllocationSoldUsed:  make(map[metrics.ResourceType]float64),
-	}
-}
-
-func CreateDefaultQuotaMetrics(quotaName string, nodeUIDs []string) *QuotaMetrics {
-	quotaMetrics := NewQuotaMetrics(quotaName)
-	// allocations bought from node providers
-	for _, nodeUID := range nodeUIDs {
-		emptyMap := make(map[metrics.ResourceType]float64)
-		for _, rt := range metrics.QuotaResources {
-			emptyMap[rt] = 0.0
-		}
-		quotaMetrics.AllocationBoughtMap[nodeUID] = emptyMap
-	}
-	// allocations sold
+func CreateDefaultNamespaceMetrics(namespace string) *NamespaceMetrics {
+	namespaceMetrics := NewNamespaceMetrics(namespace)
+	// quotas sold
 	for _, allocationResource := range metrics.QuotaResources {
-		quotaMetrics.AllocationSoldUsed[allocationResource] = 0.0
+		namespaceMetrics.QuotaSoldUsed[allocationResource] = 0.0
 	}
-	return quotaMetrics
+	return namespaceMetrics
 }
 
-func (quotaMetrics *QuotaMetrics) UpdateAllocationBought(nodeUID string, allocationBought map[metrics.ResourceType]float64) {
-	if quotaMetrics.AllocationBoughtMap == nil {
-		quotaMetrics.AllocationBoughtMap = make(map[string]map[metrics.ResourceType]float64)
+func (namespaceMetrics *NamespaceMetrics) UpdateQuotaSoldUsed(quotaSoldUsed map[metrics.ResourceType]float64) {
+	if namespaceMetrics.QuotaSoldUsed == nil {
+		namespaceMetrics.QuotaSoldUsed = make(map[metrics.ResourceType]float64)
 	}
-	if nodeUID != "" {
-		quotaMetrics.AllocationBoughtMap[nodeUID] = allocationBought
-	}
-}
-
-func (quotaMetrics *QuotaMetrics) UpdateAllocationSoldUsed(allocationSoldUsed map[metrics.ResourceType]float64) {
-	if quotaMetrics.AllocationSoldUsed == nil {
-		quotaMetrics.AllocationSoldUsed = make(map[metrics.ResourceType]float64)
-	}
-	for resourceType, used := range allocationSoldUsed {
+	for resourceType, used := range quotaSoldUsed {
 		var totalUsed float64
-		currentUsed, exists := quotaMetrics.AllocationSoldUsed[resourceType]
+		currentUsed, exists := namespaceMetrics.QuotaSoldUsed[resourceType]
 		if !exists {
 			totalUsed = used
 		} else {
 			totalUsed = currentUsed + used
 		}
-		quotaMetrics.AllocationSoldUsed[resourceType] = totalUsed
+		namespaceMetrics.QuotaSoldUsed[resourceType] = totalUsed
 	}
 }

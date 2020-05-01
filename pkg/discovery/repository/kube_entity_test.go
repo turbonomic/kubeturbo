@@ -14,7 +14,7 @@ var TestEntities = []struct {
 	{metrics.NodeType, "node1", "node1"},
 	{metrics.PodType, "pod1", "pod1"},
 	{metrics.ContainerType, "container1", "container1"},
-	{metrics.QuotaType, "quota1", "quota1"},
+	{metrics.NamespaceType, "namespace1", "namespace1"},
 }
 
 var TestSoldResources = []struct {
@@ -23,8 +23,8 @@ var TestSoldResources = []struct {
 }{
 	{metrics.CPU, 200},
 	{metrics.Memory, 2},
-	{metrics.MemoryQuota, 1},
-	{metrics.CPUQuota, 100},
+	{metrics.MemoryLimitQuota, 1},
+	{metrics.CPULimitQuota, 100},
 }
 
 var TestProvider = []struct {
@@ -34,7 +34,7 @@ var TestProvider = []struct {
 }{
 	{metrics.NodeType, "node1", map[metrics.ResourceType]float64{metrics.CPU: 500, metrics.Memory: 3}},
 	{metrics.NodeType, "node2", map[metrics.ResourceType]float64{metrics.CPU: 500, metrics.Memory: 3}},
-	{metrics.NodeType, "node3", map[metrics.ResourceType]float64{metrics.CPUQuota: 500}},
+	{metrics.NodeType, "node3", map[metrics.ResourceType]float64{metrics.CPULimitQuota: 500}},
 }
 
 func TestKubeEntity(t *testing.T) {

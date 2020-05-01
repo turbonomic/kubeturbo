@@ -197,27 +197,33 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	}
 	wg.Wait()
 
-	// Collect usages for pods in different quotas and create used and capacity
-	// metrics for the allocation resources of the nodes, quotas and pods
+	// Collect usages for pods in different namespaces and create used and capacity
+	// metrics for the allocation resources of the namespaces and pods
 	metricsCollector := NewMetricsCollector(worker, currTask)
 
 	podMetricsCollection, err := metricsCollector.CollectPodMetrics()
 	if err != nil {
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
-	nodeMetricsCollection := metricsCollector.CollectNodeMetrics(podMetricsCollection)
-	quotaMetricsCollection := metricsCollector.CollectQuotaMetrics(podMetricsCollection)
+	namespaceMetricsCollection := metricsCollector.CollectNamespaceMetrics(podMetricsCollection)
 
 	// Add the allocation metrics in the sink for the pods and the nodes
 	worker.addPodAllocationMetrics(podMetricsCollection)
-	worker.addNodeAllocationMetrics(nodeMetricsCollection)
+
+	// Collect allocation metrics for K8s controllers where usage values are aggregated from pods and capacity values
+	// are from namespaces quota capacity
+	controllerMetricsCollector := NewControllerMetricsCollector(worker, currTask)
+	kubeControllers, err := controllerMetricsCollector.CollectControllerMetrics()
+	if err != nil {
+		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
+	}
 
 	// Build Entity groups
 	groupsCollector := NewGroupMetricsCollector(worker, currTask)
 	entityGroups, _ := groupsCollector.CollectGroupMetrics()
 
 	// Build DTOs after getting the metrics
-	entityDTOs, podsWithDtos, err := worker.buildDTOs(currTask)
+	entityDTOs, podsWithDtos, containerSpecs, err := worker.buildDTOs(currTask)
 	if err != nil {
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
@@ -236,26 +242,33 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	result := task.NewTaskResult(worker.id, task.TaskSucceeded).WithContent(entityDTOs)
 	// In addition, return pod entities with the associated app DTOs for creating service DTOs
 	result.WithPodEntities(podEntities)
-	// return the quota metrics created by this worker
-	if len(quotaMetricsCollection) > 0 {
-		result.WithQuotaMetrics(quotaMetricsCollection)
+	// return the namespace metrics created by this worker
+	if len(namespaceMetricsCollection) > 0 {
+		result.WithNamespaceMetrics(namespaceMetricsCollection)
 	}
 	// return container and pod groups created by this worker
 	if len(entityGroups) > 0 {
 		result.WithEntityGroups(entityGroups)
 	}
-
+	// Return k8s controllers created by this worker
+	if len(kubeControllers) > 0 {
+		result.WithKubeControllers(kubeControllers)
+	}
+	// Return ContainerSpec with each individual container replica commodities data created by this worker
+	if len(containerSpecs) > 0 {
+		result.WithContainerSpecs(containerSpecs)
+	}
 	return result
 }
 
 // =================================================================================================
-func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection PodMetricsByNodeAndQuota) {
+func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection PodMetricsByNodeAndNamespace) {
 	etype := metrics.PodType
 	for _, podsByQuotaMap := range podMetricsCollection {
 		for _, podMetricsList := range podsByQuotaMap {
 			for _, podMetrics := range podMetricsList {
 				podKey := podMetrics.PodKey
-				for resourceType, usedValue := range podMetrics.AllocationBought {
+				for resourceType, usedValue := range podMetrics.QuotaUsed {
 					// Generate the metrics in the sink
 					allocationUsedMetric := metrics.NewEntityResourceMetric(etype,
 						podKey, resourceType,
@@ -265,43 +278,24 @@ func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection P
 						allocationUsedMetric.GetUID(), podMetrics.PodName, usedValue)
 				}
 
-				for resourceType, capValue := range podMetrics.ComputeCapacity {
-					computeCapMetric := metrics.NewEntityResourceMetric(etype,
+				for resourceType, capValue := range podMetrics.QuotaCapacity {
+					allocationCapMetric := metrics.NewEntityResourceMetric(etype,
 						podKey, resourceType,
 						metrics.Capacity, capValue)
-					worker.sink.AddNewMetricEntries(computeCapMetric)
-					glog.V(4).Infof("Updated %s capacity for pod %s: %f.",
-						computeCapMetric.GetUID(), podMetrics.PodName, capValue)
+					worker.sink.AddNewMetricEntries(allocationCapMetric)
+					glog.V(4).Infof("Created %s capacity for pod %s: %f.",
+						allocationCapMetric.GetUID(), podMetrics.PodName, capValue)
 				}
 			}
 		}
 	}
 }
 
-func (worker *k8sDiscoveryWorker) addNodeAllocationMetrics(nodeMetricsCollection NodeMetricsCollection) {
-	entityType := metrics.NodeType
-	for _, nodeMetrics := range nodeMetricsCollection {
-		nodeKey := nodeMetrics.NodeKey
-		for _, allocationResource := range metrics.QuotaResources {
-			capValue := nodeMetrics.AllocationCap[allocationResource]
-			allocationCapMetric := metrics.NewEntityResourceMetric(entityType, nodeKey,
-				allocationResource, metrics.Capacity, capValue)
-			worker.sink.AddNewMetricEntries(allocationCapMetric)
-
-			usedValue := nodeMetrics.AllocationUsed[allocationResource]
-			allocationUsedMetric := metrics.NewEntityResourceMetric(entityType, nodeKey,
-				allocationResource, metrics.Used, usedValue)
-			worker.sink.AddNewMetricEntries(allocationUsedMetric)
-
-			glog.V(4).Infof("Created %s sold for node %s, used: %f, cap: %f.",
-				allocationResource, nodeMetrics.NodeName, usedValue, capValue)
-		}
-	}
-}
-
 // ================================================================================================
-// Build DTOs for nodes, pods and containers
-func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*api.Pod, error) {
+// Build DTOs for nodes, pods, containers
+// And return a slice of ContainerSpec objects sent by this discovery worker to be used to build ContainerSpec entityDTOs
+// in the new discovery framework in k8s_discovery_client
+func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*api.Pod, []*repository.ContainerSpec, error) {
 	var result []*proto.EntityDTO
 
 	// 0. setUp nodeName to nodeId mapping
@@ -331,17 +325,17 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	result = append(result, nodeEntityDTOs...)
 
 	// 2. build entityDTOs for pods
-	quotaNameUIDMap := make(map[string]string)
+	namespaceUIDMap := make(map[string]string)
 	nodeNameUIDMap := make(map[string]string)
 	if cluster != nil {
-		quotaNameUIDMap = cluster.QuotaNameUIDMap // quota providers
+		namespaceUIDMap = cluster.NamespaceUIDMap // quota providers
 		nodeNameUIDMap = cluster.NodeNameUIDMap   // node providers
 	}
 	pods := currTask.PodList()
 	glog.V(3).Infof("Worker %s received %d pods.", worker.id, len(pods))
 
 	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager,
-		nodeNameUIDMap, quotaNameUIDMap)
+		nodeNameUIDMap, namespaceUIDMap)
 	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods)
 	if err != nil {
 		glog.Errorf("Error while creating pod entityDTOs: %v", err)
@@ -355,7 +349,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 
 	// 3. build entityDTOs for containers
 	containerDTOBuilder := dtofactory.NewContainerDTOBuilder(worker.sink)
-	containerDTOs, err := containerDTOBuilder.BuildDTOs(pods)
+	containerDTOs, containerSpecs, err := containerDTOBuilder.BuildDTOs(pods)
 	// util.DumpTopology(containerDTOs, "test-topology.dat")
 	if err != nil {
 		glog.Errorf("Error while creating container entityDTOs: %v", err)
@@ -365,8 +359,9 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 
 	glog.V(2).Infof("Worker %s built total %d entityDTOs.", worker.id, len(result))
 
-	// Return the DTOs created, also return the list of pods with valid DTOs
-	return result, pods, nil
+	// Return the DTOs created, also return the list of pods with valid DTOs and list of containerSpecs with VCPU and VMem
+	// commodity DTOs sold by container replicas
+	return result, pods, containerSpecs, nil
 }
 
 // Build App DTOs using the list of pods with valid DTOs

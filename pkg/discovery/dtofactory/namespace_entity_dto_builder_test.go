@@ -5,7 +5,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	v1 "k8s.io/api/core/v1"
 	k8sres "k8s.io/apimachinery/pkg/api/resource"
@@ -72,11 +71,11 @@ func makeKubeNodes() []*repository.KubeNode {
 	return kubenodes
 }
 
-type TestQuota struct {
+type TestNamespace struct {
 	name            string
-	cpuQuota        string
+	cpuLimitQuota   string
 	cpuUsed         string
-	memQuota        string
+	memLimitQuota   string
 	memUsed         string
 	cpuRequestQuota string
 	cpuRequestUsed  string
@@ -84,9 +83,9 @@ type TestQuota struct {
 	memRequestUsed  string
 }
 
-var TestQuotas = []TestQuota{
+var TestNamespaces = []TestNamespace{
 	{
-		"quota1",
+		"namespace1",
 		"4",
 		"3",
 		"8Gi",
@@ -97,7 +96,7 @@ var TestQuotas = []TestQuota{
 		"2Gi",
 	},
 	{
-		"quota2",
+		"namespace2",
 		"0.5",
 		"0.3",
 		"7Mi",
@@ -108,7 +107,7 @@ var TestQuotas = []TestQuota{
 		"2Gi",
 	},
 	{
-		"quota3",
+		"namespace3",
 		"6000m",
 		"300m",
 		"6Ki",
@@ -119,7 +118,7 @@ var TestQuotas = []TestQuota{
 		"2Ki",
 	},
 	{
-		"quota4",
+		"namespace4",
 		"0",
 		"0",
 		"6Ki",
@@ -131,11 +130,11 @@ var TestQuotas = []TestQuota{
 	},
 }
 
-func makeKubeQuotas() []*repository.KubeQuota {
+func makeKubeNamespaces() []*repository.KubeNamespace {
 	namespace := "ns1"
 	cluster := "cluster1"
 
-	var kubeQuotas []*repository.KubeQuota
+	var kubeQuotas []*repository.KubeNamespace
 	resourceMap := make(map[metrics.ResourceType]float64)
 	for _, node := range TestNodes {
 		resourceMap[metrics.CPU] = resourceMap[metrics.CPU] + node.cpuCap
@@ -151,20 +150,20 @@ func makeKubeQuotas() []*repository.KubeQuota {
 		}
 		clusterResources[rt] = r
 	}
-	for i, testQuota := range TestQuotas {
-		uuid := fmt.Sprintf("vdc-%d", i)
-		kubeQuota := repository.CreateDefaultQuota(cluster, namespace, uuid, clusterResources)
+	for i, testQuota := range TestNamespaces {
+		uuid := fmt.Sprintf("namespace-%d", i)
+		kubeNamespace := repository.CreateDefaultKubeNamespace(cluster, namespace, uuid)
 
 		hardResourceList := v1.ResourceList{}
 		usedResourceList := v1.ResourceList{}
-		if testQuota.cpuQuota != "0" {
-			hardResourceList[v1.ResourceLimitsCPU] = k8sres.MustParse(testQuota.cpuQuota)
+		if testQuota.cpuLimitQuota != "0" {
+			hardResourceList[v1.ResourceLimitsCPU] = k8sres.MustParse(testQuota.cpuLimitQuota)
 			usedResourceList[v1.ResourceLimitsCPU] = k8sres.MustParse(testQuota.cpuUsed)
 			hardResourceList[v1.ResourceRequestsCPU] = k8sres.MustParse(testQuota.cpuRequestQuota)
 			usedResourceList[v1.ResourceRequestsCPU] = k8sres.MustParse(testQuota.cpuRequestUsed)
 		}
-		if testQuota.memQuota != "0" {
-			hardResourceList[v1.ResourceLimitsMemory] = k8sres.MustParse(testQuota.memQuota)
+		if testQuota.memLimitQuota != "0" {
+			hardResourceList[v1.ResourceLimitsMemory] = k8sres.MustParse(testQuota.memLimitQuota)
 			usedResourceList[v1.ResourceLimitsMemory] = k8sres.MustParse(testQuota.memUsed)
 			hardResourceList[v1.ResourceRequestsMemory] = k8sres.MustParse(testQuota.memRequestQuota)
 			usedResourceList[v1.ResourceRequestsMemory] = k8sres.MustParse(testQuota.memRequestUsed)
@@ -184,12 +183,12 @@ func makeKubeQuotas() []*repository.KubeQuota {
 
 		var quotaList []*v1.ResourceQuota
 		quotaList = append(quotaList, quota)
-		kubeQuota.ReconcileQuotas(quotaList)
+		kubeNamespace.ReconcileQuotas(quotaList)
 
 		// simulate pod usage values for the allocation resource commodities without quota limit
 		for _, resourceType := range metrics.QuotaResources {
-			if !kubeQuota.AllocationDefined[resourceType] {
-				resource := kubeQuota.AllocationResources[resourceType]
+			if !kubeNamespace.QuotaDefined[resourceType] {
+				resource := kubeNamespace.AllocationResources[resourceType]
 				computeType := metrics.QuotaToComputeMap[resourceType]
 				resource.Used = clusterResources[computeType].Capacity * 0.1
 			}
@@ -197,25 +196,24 @@ func makeKubeQuotas() []*repository.KubeQuota {
 
 		for _, node := range TestNodes {
 			allocationResourceMap := make(map[metrics.ResourceType]float64)
-			allocationResourceMap[metrics.CPUQuota] = node.cpuCap * 0.033
+			allocationResourceMap[metrics.CPULimitQuota] = node.cpuCap * 0.033
 			allocationResourceMap[metrics.CPURequestQuota] = node.cpuCap * 0.033
-			allocationResourceMap[metrics.MemoryQuota] = node.memCap * 0.033
+			allocationResourceMap[metrics.MemoryLimitQuota] = node.memCap * 0.033
 			allocationResourceMap[metrics.MemoryRequestQuota] = node.memCap * 0.033
-			kubeQuota.AddNodeProvider(node.name, allocationResourceMap)
 		}
-		kubeQuota.AverageNodeCpuFrequency = CPUFrequency
-		kubeQuotas = append(kubeQuotas, kubeQuota)
+		kubeNamespace.AverageNodeCpuFrequency = CPUFrequency
+		kubeQuotas = append(kubeQuotas, kubeNamespace)
 	}
 
 	return kubeQuotas
 }
 
-func TestBuildQuotaDto(t *testing.T) {
+func TestBuildNamespaceDto(t *testing.T) {
 
-	quotaMap := make(map[string]*repository.KubeQuota)
-	quotaList := makeKubeQuotas()
-	for _, kubeQuota := range quotaList {
-		quotaMap[kubeQuota.UID] = kubeQuota
+	namespaceMap := make(map[string]*repository.KubeNamespace)
+	namespaceList := makeKubeNamespaces()
+	for _, kubeNamespace := range namespaceList {
+		namespaceMap[kubeNamespace.UID] = kubeNamespace
 	}
 
 	nodeMapByUID := make(map[string]*repository.KubeNode)
@@ -224,14 +222,18 @@ func TestBuildQuotaDto(t *testing.T) {
 		nodeMapByUID[kubeNode.UID] = kubeNode
 	}
 
-	builder := NewQuotaEntityDTOBuilder(quotaMap, nodeMapByUID, stitching.UUID)
+	builder := NewNamespaceEntityDTOBuilder(namespaceMap)
 	dtos, err := builder.BuildEntityDTOs()
 	assert.Nil(t, err)
 
 	for _, dto := range dtos {
 		commSoldList := dto.GetCommoditiesSold()
 		for _, commSold := range commSoldList {
-			assert.EqualValues(t, dto.GetId(), commSold.GetKey())
+			if proto.CommodityDTO_VMPM_ACCESS.String() == commSold.CommodityType.String() {
+				assert.EqualValues(t, dto.GetDisplayName(), commSold.GetKey())
+			} else {
+				assert.EqualValues(t, dto.GetId(), commSold.GetKey())
+			}
 		}
 		commMap := make(map[proto.CommodityDTO_CommodityType]*proto.CommodityDTO)
 		for _, commSold := range commSoldList {
@@ -246,17 +248,21 @@ func TestBuildQuotaDto(t *testing.T) {
 			comm, exists := commMap[commType]
 			assert.True(t, exists, fmt.Sprintf("%s does not exist", commType))
 			assert.EqualValues(t, dto.GetId(), comm.GetKey())
-			quota, exists := quotaMap[dto.GetId()]
+			kubeNamespace, exists := namespaceMap[dto.GetId()]
 			assert.True(t, exists)
 
-			resource, exists := quota.AllocationResources[allocationResource]
+			resource, exists := kubeNamespace.AllocationResources[allocationResource]
 			assert.True(t, exists, fmt.Sprintf("%v does not exist", resource))
 			if metrics.IsCPUType(allocationResource) {
-				assert.EqualValues(t, resource.Capacity*CPUFrequency, comm.GetCapacity())
+				if dto.GetId() == "namespace-3" {
+					assert.EqualValues(t, resource.Capacity, comm.GetCapacity())
+				} else {
+					assert.EqualValues(t, resource.Capacity*CPUFrequency, comm.GetCapacity())
+				}
 			} else {
 				assert.EqualValues(t, resource.Capacity, comm.GetCapacity())
 			}
-			if metrics.IsCPUType(allocationResource) && quota.AllocationDefined[allocationResource] {
+			if metrics.IsCPUType(allocationResource) && kubeNamespace.QuotaDefined[allocationResource] {
 				assert.EqualValues(t, resource.Used*CPUFrequency, comm.GetUsed())
 			}
 		}
@@ -289,5 +295,5 @@ func TestBuildQuotaDto(t *testing.T) {
 	}
 
 	//fmt.Printf("DTOs: %++v\n", dtos)
-	assert.EqualValues(t, len(TestQuotas), len(dtos))
+	assert.EqualValues(t, len(TestNamespaces), len(dtos))
 }

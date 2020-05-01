@@ -10,8 +10,9 @@ type ResourceType string
 
 const (
 	ClusterType     DiscoveredEntityType = "Cluster"
-	QuotaType       DiscoveredEntityType = "Quota"
+	NamespaceType   DiscoveredEntityType = "Namespace"
 	NodeType        DiscoveredEntityType = "Node"
+	ControllerType  DiscoveredEntityType = "Controller"
 	PodType         DiscoveredEntityType = "Pod"
 	ContainerType   DiscoveredEntityType = "Container"
 	ApplicationType DiscoveredEntityType = "Application"
@@ -23,8 +24,8 @@ const (
 	Memory             ResourceType = "Memory"
 	CPURequest         ResourceType = "CPURequest"
 	MemoryRequest      ResourceType = "MemoryRequest"
-	CPUQuota           ResourceType = "CPUQuota"
-	MemoryQuota        ResourceType = "MemoryQuota"
+	CPULimitQuota      ResourceType = "CPULimitQuota"
+	MemoryLimitQuota   ResourceType = "MemoryLimitQuota"
 	CPURequestQuota    ResourceType = "CPURequestQuota"
 	MemoryRequestQuota ResourceType = "MemoryRequestQuota"
 	CPUProvisioned     ResourceType = "CPUProvisioned"
@@ -38,6 +39,7 @@ const (
 	CpuFrequency ResourceType = "CpuFrequency"
 	Owner        ResourceType = "Owner"
 	OwnerType    ResourceType = "OwnerType"
+	OwnerUID     ResourceType = "OwnerUID"
 )
 
 var (
@@ -49,30 +51,42 @@ var (
 
 	// Mapping of Kubernetes API Server resource names to the allocation resource types
 	KubeQuotaResourceTypes = map[v1.ResourceName]ResourceType{
-		v1.ResourceLimitsCPU:      CPUQuota,
-		v1.ResourceLimitsMemory:   MemoryQuota,
+		v1.ResourceLimitsCPU:      CPULimitQuota,
+		v1.ResourceLimitsMemory:   MemoryLimitQuota,
 		v1.ResourceRequestsCPU:    CPURequestQuota,
 		v1.ResourceRequestsMemory: MemoryRequestQuota,
 	}
 
-	// Mapping of allocation to compute resources
+	// Mapping of quota to compute resources
 	QuotaToComputeMap = map[ResourceType]ResourceType{
-		CPUQuota:           CPU,
-		MemoryQuota:        Memory,
+		CPULimitQuota:      CPU,
+		MemoryLimitQuota:   Memory,
 		CPURequestQuota:    CPURequest,
 		MemoryRequestQuota: MemoryRequest,
+	}
+
+	// Set of resource limit quota types
+	QuotaLimitTypes = map[ResourceType]struct{}{
+		CPULimitQuota:    {},
+		MemoryLimitQuota: {},
+	}
+
+	// Set of resource request quota types
+	QuotaRequestTypes = map[ResourceType]struct{}{
+		CPURequestQuota:    {},
+		MemoryRequestQuota: {},
 	}
 
 	// List of Compute resources
 	ComputeResources []ResourceType
 
-	// List of Allocation resources
+	// List of Quota resources
 	QuotaResources []ResourceType
 
 	// List of cpu related metrics
 	CPUResources map[ResourceType]bool
 
-	// Mapping of compute to allocation resources
+	// Mapping of compute to quota resources
 	ComputeToQuotaMap map[ResourceType]ResourceType
 )
 

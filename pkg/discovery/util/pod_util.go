@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"strings"
 	"time"
 
@@ -91,7 +92,7 @@ func isMirrorPod(pod *api.Pod) bool {
 
 // Check is a pod is created by the given type of entity.
 func isPodCreatedBy(pod *api.Pod, kind string) bool {
-	parentKind, _, err := GetPodParentInfo(pod)
+	parentKind, _, _, err := GetPodParentInfo(pod)
 	if err != nil {
 		glog.Errorf("%++v", err)
 	}
@@ -215,7 +216,7 @@ func ParsePodDisplayName(displayName string) (string, string, error) {
 	return namespace, name, nil
 }
 
-func ParseOwnerReferences(owners []metav1.OwnerReference) (string, string) {
+func ParseOwnerReferences(owners []metav1.OwnerReference) (string, string, string) {
 	for i := range owners {
 		owner := &owners[i]
 
@@ -225,21 +226,21 @@ func ParseOwnerReferences(owners []metav1.OwnerReference) (string, string) {
 		}
 
 		if *(owner.Controller) && len(owner.Kind) > 0 && len(owner.Name) > 0 {
-			return owner.Kind, owner.Name
+			return owner.Kind, owner.Name, string(owner.UID)
 		}
 	}
 
-	return "", ""
+	return "", "", ""
 }
 
-// GetPodParentInfo gets parent information of a pod
-func GetPodParentInfo(pod *api.Pod) (string, string, error) {
+// GetPodParentInfo gets parent information of a pod: kind, name, uid
+func GetPodParentInfo(pod *api.Pod) (string, string, string, error) {
 	//1. check ownerReferences:
 
 	if pod.OwnerReferences != nil && len(pod.OwnerReferences) > 0 {
-		kind, name := ParseOwnerReferences(pod.OwnerReferences)
+		kind, name, uid := ParseOwnerReferences(pod.OwnerReferences)
 		if len(kind) > 0 && len(name) > 0 {
-			return kind, name, nil
+			return kind, name, uid, nil
 		}
 	}
 
@@ -255,26 +256,26 @@ func GetPodParentInfo(pod *api.Pod) (string, string, error) {
 			if err := json.Unmarshal([]byte(value), &ref); err != nil {
 				err = fmt.Errorf("failed to decode parent annoation: %v", err)
 				glog.Errorf("%v\n%v", err, value)
-				return "", "", err
+				return "", "", "", err
 			}
 
-			return ref.Reference.Kind, ref.Reference.Name, nil
+			return ref.Reference.Kind, ref.Reference.Name, string(ref.Reference.UID), nil
 		}
 	}
 
 	glog.V(4).Infof("no parent-info for pod-%v/%v in Annotations.", pod.Namespace, pod.Name)
 
-	return "", "", nil
+	return "", "", "", nil
 }
 
-// GetPodGrandInfo gets grandParent (parent's parent) information of a pod: kind, name
+// GetPodGrandInfo gets grandParent (parent's parent) information of a pod: kind, name, uid
 // If parent does not have parent, then return parent info.
 // Note: if parent kind is "ReplicaSet", then its parent's parent can be a "Deployment"
-func GetPodGrandInfo(dynClient dynamic.Interface, pod *api.Pod) (string, string, error) {
+func GetPodGrandInfo(dynClient dynamic.Interface, pod *api.Pod) (string, string, string, error) {
 	//1. get Parent info: kind and name;
-	kind, name, err := GetPodParentInfo(pod)
+	kind, name, uid, err := GetPodParentInfo(pod)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	//2. if parent is "ReplicaSet", check parent's parent
@@ -289,21 +290,37 @@ func GetPodGrandInfo(dynClient dynamic.Interface, pod *api.Pod) (string, string,
 		if err != nil {
 			err = fmt.Errorf("Failed to get ReplicaSet[%v/%v]: %v", pod.Namespace, name, err)
 			glog.Error(err.Error())
-			return "", "", err
+			return "", "", "", err
 		}
 
 		//2.2 get parent's parent info by parsing ownerReferences:
 		// TODO: The ownerReferences of ReplicaSet is supported only in 1.6.0 and afetr
 		rsOwnerReferences := rs.GetOwnerReferences()
 		if rsOwnerReferences != nil && len(rsOwnerReferences) > 0 {
-			gkind, gname := ParseOwnerReferences(rsOwnerReferences)
-			if len(gkind) > 0 && len(gname) > 0 {
-				return gkind, gname, nil
+			gkind, gname, guid := ParseOwnerReferences(rsOwnerReferences)
+			if len(gkind) > 0 && len(gname) > 0 && len(guid) > 0 {
+				return gkind, gname, guid, nil
 			}
 		}
 	}
 
-	return kind, name, nil
+	return kind, name, uid, nil
+}
+
+// Get controller UID from the given pod and metrics sink.
+func GetControllerUID(pod *api.Pod, metricsSink *metrics.EntityMetricSink) (string, error) {
+	podKey := PodKeyFunc(pod)
+	ownerUIDMetricId := metrics.GenerateEntityStateMetricUID(metrics.PodType, podKey, metrics.OwnerUID)
+	ownerUIDMetric, err := metricsSink.GetMetric(ownerUIDMetricId)
+	if err != nil {
+		return "", fmt.Errorf("error getting owner UID for pod %s --> %v", podKey, err)
+	}
+	ownerUID := ownerUIDMetric.GetValue()
+	controllerUID, ok := ownerUID.(string)
+	if !ok {
+		return "", fmt.Errorf("error getting owner UID for pod %s", podKey)
+	}
+	return controllerUID, nil
 }
 
 // WaitForPodReady checks the readiness of a given pod with a retry limit and a timeout, whichever
