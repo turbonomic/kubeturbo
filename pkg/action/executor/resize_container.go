@@ -67,13 +67,8 @@ func (r *ContainerResizer) getNodeCPUFrequency(host string) (float64, error) {
 	return r.kubeletClient.GetNodeCpuFrequency(node)
 }
 
-func (r *ContainerResizer) setCPUQuantity(cpuMhz float64, host string, rlist k8sapi.ResourceList) error {
-	nodeCpuFrequency, err := r.getNodeCPUFrequency(host)
-	if err != nil {
-		return fmt.Errorf("failed to get node[%s] cpu frequency: %v", host, err)
-	}
-
-	cpuQuantity, err := genCPUQuantity(cpuMhz, nodeCpuFrequency)
+func (r *ContainerResizer) setCPUQuantity(milicores float64, host string, rlist k8sapi.ResourceList) error {
+	cpuQuantity, err := genCPUMilicoreQuantity(milicores)
 	if err != nil {
 		return fmt.Errorf("failed to generate CPU quantity: %v", err)
 	}
@@ -85,7 +80,7 @@ func (r *ContainerResizer) setCPUQuantity(cpuMhz float64, host string, rlist k8s
 func (r *ContainerResizer) buildResourceList(pod *k8sapi.Pod, cType proto.CommodityDTO_CommodityType,
 	amount float64, result k8sapi.ResourceList) error {
 	switch cType {
-	case proto.CommodityDTO_VCPU:
+	case proto.CommodityDTO_VCPU_MILICORE:
 		host := pod.Spec.NodeName
 		err := r.setCPUQuantity(amount, host, result)
 		if err != nil {

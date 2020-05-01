@@ -2,7 +2,6 @@ package dtofactory
 
 import (
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 
 	api "k8s.io/api/core/v1"
 
@@ -23,14 +22,14 @@ const (
 
 var (
 	podResourceCommoditySold = []metrics.ResourceType{
-		metrics.CPU,
+		metrics.CPUMili,
 		metrics.Memory,
 		metrics.CPURequest,
 		metrics.MemoryRequest,
 	}
 
 	podResourceCommodityBoughtFromNode = []metrics.ResourceType{
-		metrics.CPU,
+		metrics.CPUMili,
 		metrics.Memory,
 		metrics.CPURequest,
 		metrics.MemoryRequest,
@@ -78,19 +77,15 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		// display name.
 		displayName := util.GetPodClusterID(pod)
 		entityDTOBuilder.DisplayName(displayName)
-		cpuFrequency, err := builder.getNodeCPUFrequency(util.NodeKeyFromPodFunc(pod))
-		if err != nil {
-			glog.Errorf("Failed to build EntityDTO for pod %s: %v", displayName, err)
-			continue
-		}
+
 		// consumption resource commodities sold
-		commoditiesSold, err := builder.getPodCommoditiesSold(pod, cpuFrequency)
+		commoditiesSold, err := builder.getPodCommoditiesSold(pod)
 		if err != nil {
 			glog.Errorf("Error when create commoditiesSold for pod %s: %s", displayName, err)
 			continue
 		}
 		// allocation resource commodities sold
-		quotaCommoditiesSold, err := builder.getPodQuotaCommoditiesSold(pod, cpuFrequency)
+		quotaCommoditiesSold, err := builder.getPodQuotaCommoditiesSold(pod)
 		if err != nil {
 			glog.Errorf("Error when create quotaCommoditiesSold for pod %s: %s", displayName, err)
 			continue
@@ -99,7 +94,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 		// commodities bought - from node provider
-		commoditiesBought, err := builder.getPodCommoditiesBought(pod, cpuFrequency)
+		commoditiesBought, err := builder.getPodCommoditiesBought(pod)
 		if err != nil {
 			glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
 			continue
@@ -124,7 +119,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		if pod.OwnerReferences == nil {
 			namespaceUID, exists := builder.namespaceUIDMap[pod.Namespace]
 			if exists {
-				commoditiesBoughtQuota, err := builder.getQuotaCommoditiesBought(namespaceUID, pod, cpuFrequency)
+				commoditiesBoughtQuota, err := builder.getQuotaCommoditiesBought(namespaceUID, pod)
 				if err != nil {
 					glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
 					continue
@@ -144,7 +139,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 				glog.Errorf("Error when creating commoditiesBought for pod %s: %v", displayName, err)
 				continue
 			}
-			commoditiesBoughtQuota, err := builder.getQuotaCommoditiesBought(controllerUID, pod, cpuFrequency)
+			commoditiesBoughtQuota, err := builder.getQuotaCommoditiesBought(controllerUID, pod)
 			if err != nil {
 				glog.Errorf("Error when creating commoditiesBought for pod %s: %v", displayName, err)
 				continue
@@ -206,18 +201,15 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 // VCPURequestQuota/VMemRequestQuota commodities.
 // Build the CommodityDTOs sold  by the pod for vCPU, vMem and VMPMAcces.
 // VMPMAccess is used to bind container to the hosting pod so the container is not moved out of the pod
-func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
-
-	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
-	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPURequest)
 
 	attributeSetter := NewCommodityAttrSetter()
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(false) }, podResourceCommoditySold...)
 
 	// Resource Commodities
 	podMId := util.PodMetricIdAPI(pod)
-	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.PodType, podMId, podResourceCommoditySold, converter, attributeSetter)
+	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.PodType, podMId, podResourceCommoditySold, nil, attributeSetter)
 	if err != nil {
 		return nil, err
 	}
@@ -242,23 +234,13 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(pod *api.Pod, cpuFrequ
 }
 
 // getPodQuotaCommoditiesSold builds the quota commodity DTOs sold by the pod
-func (builder *podEntityDTOBuilder) getPodQuotaCommoditiesSold(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
-	// CPU resource needs to be converted from number of cores to frequency.
-	converter := NewConverter().Set(func(input float64) float64 {
-		// If CPU resource quota capacity is repository.DEFAULT_METRIC_CAPACITY_VALUE (infinity), skip converting from
-		// cores to frequency.
-		if input == repository.DEFAULT_METRIC_CAPACITY_VALUE {
-			return input
-		}
-		return input * cpuFrequency
-	}, metrics.CPULimitQuota, metrics.CPURequestQuota)
-
+func (builder *podEntityDTOBuilder) getPodQuotaCommoditiesSold(pod *api.Pod) ([]*proto.CommodityDTO, error) {
 	attributeSetter := NewCommodityAttrSetter()
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(false) }, podQuotaCommodities...)
 
 	// Resource Commodities
 	podMId := util.PodMetricIdAPI(pod)
-	quotaCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.PodType, podMId, podQuotaCommodities, converter, attributeSetter)
+	quotaCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.PodType, podMId, podQuotaCommodities, nil, attributeSetter)
 	if err != nil {
 		return nil, err
 	}
@@ -272,15 +254,12 @@ func (builder *podEntityDTOBuilder) getPodQuotaCommoditiesSold(pod *api.Pod, cpu
 
 // Build the CommodityDTOs bought by the pod from the node provider.
 // Commodities bought are vCPU, vMem vmpm access, cluster
-func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
-
-	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
-	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPURequest)
 
 	// Resource Commodities.
 	podMId := util.PodMetricIdAPI(pod)
-	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.PodType, podMId, podResourceCommodityBoughtFromNode, converter, nil)
+	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.PodType, podMId, podResourceCommodityBoughtFromNode, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -326,19 +305,14 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, cpuFre
 }
 
 // Build the CommodityDTOs bought by the pod from the quota provider.
-func (builder *podEntityDTOBuilder) getQuotaCommoditiesBought(providerUID string, pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *podEntityDTOBuilder) getQuotaCommoditiesBought(providerUID string, pod *api.Pod) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 	key := util.PodKeyFunc(pod)
-
-	// cpu allocation needs to be converted from number of cores to frequency.
-	converter := NewConverter().Set(func(input float64) float64 {
-		return input * cpuFrequency
-	}, metrics.CPULimitQuota, metrics.CPURequestQuota)
 
 	// Resource Commodities.
 	for _, resourceType := range podQuotaCommodities {
 		commBought, err := builder.getResourceCommodityBoughtWithKey(metrics.PodType, key,
-			resourceType, providerUID, converter, nil)
+			resourceType, providerUID, nil, nil)
 		if err != nil {
 			glog.Errorf("Failed to build %s bought by pod %s from quota provider %s: %v",
 				resourceType, key, providerUID, err)

@@ -140,10 +140,10 @@ func (m *KubeletMonitor) parseNodeCpuFreq(node *api.Node, cpuFrequencyMHz float6
 
 // Parse node stats and put it into sink.
 func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats) {
-	var cpuUsageCore, memoryWorkingSetKiloBytes, rootfsCapacity, rootfsUsed float64
+	var cpuUsageMiliCore, memoryWorkingSetKiloBytes, rootfsCapacity, rootfsUsed float64
 	// cpu
 	if nodeStats.CPU.UsageNanoCores != nil {
-		cpuUsageCore = util.MetricNanoToUnit(float64(*nodeStats.CPU.UsageNanoCores))
+		cpuUsageMiliCore = util.MetricNanoToMili(float64(*nodeStats.CPU.UsageNanoCores))
 	}
 	if nodeStats.Memory.WorkingSetBytes != nil {
 		memoryWorkingSetKiloBytes = util.Base2BytesToKilobytes(float64(*nodeStats.Memory.WorkingSetBytes))
@@ -158,11 +158,11 @@ func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats) {
 
 	key := util.NodeStatsKeyFunc(nodeStats)
 	nodeName := nodeStats.NodeName
-	glog.V(4).Infof("CPU usage of node %s is %.3f core", nodeName, cpuUsageCore)
+	glog.V(4).Infof("CPU usage of node %s is %.3f Milicore", nodeName, cpuUsageMiliCore)
 	glog.V(4).Infof("Memory working set of node %s is %.3f KB", nodeName, memoryWorkingSetKiloBytes)
 	glog.V(4).Infof("Root File System size for node %s is %.3f Megabytes", nodeName, rootfsCapacity)
 	glog.V(4).Infof("Root File System used for node %s is %.3f Megabytes", nodeName, rootfsUsed)
-	m.genUsedMetrics(metrics.NodeType, key, cpuUsageCore, memoryWorkingSetKiloBytes)
+	m.genUsedMetrics(metrics.NodeType, key, cpuUsageMiliCore, memoryWorkingSetKiloBytes)
 	m.genFSMetrics(metrics.NodeType, key, rootfsCapacity, rootfsUsed)
 }
 
@@ -186,7 +186,7 @@ func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats) {
 			glog.V(4).Infof("Ephemeral fs status is not available for pod %v", key)
 		}
 
-		glog.V(4).Infof("Cpu usage of pod %s is %.3f core", key, cpuUsed)
+		glog.V(4).Infof("Cpu usage of pod %s is %.3f Milicore", key, cpuUsed)
 		glog.V(4).Infof("Memory usage of pod %s is %.3f Kb", key, memUsed)
 		glog.V(4).Infof("Ephemeral fs capacity for pod %s is %.3f Megabytes", key, ephemeralFsCapacity)
 		glog.V(4).Infof("Ephemeral fs used for pod %s is %.3f Megabytes", key, ephemeralFsUsed)
@@ -214,7 +214,7 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats) (float64, floa
 			continue
 		}
 
-		cpuUsed := util.MetricNanoToUnit(float64(*container.CPU.UsageNanoCores))
+		cpuUsed := util.MetricNanoToMili(float64(*container.CPU.UsageNanoCores))
 		memUsed := util.Base2BytesToKilobytes(float64(*container.Memory.WorkingSetBytes))
 
 		totalUsedCPU += cpuUsed
@@ -238,8 +238,8 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats) (float64, floa
 	return totalUsedCPU, totalUsedMem
 }
 
-func (m *KubeletMonitor) genUsedMetrics(etype metrics.DiscoveredEntityType, key string, cpu, memory float64) {
-	cpuMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPU, metrics.Used, cpu)
+func (m *KubeletMonitor) genUsedMetrics(etype metrics.DiscoveredEntityType, key string, cpuMili, memory float64) {
+	cpuMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPUMili, metrics.Used, cpuMili)
 	memMetric := metrics.NewEntityResourceMetric(etype, key, metrics.Memory, metrics.Used, memory)
 	m.metricSink.AddNewMetricEntries(cpuMetric, memMetric)
 }

@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	vCpuType               = proto.CommodityDTO_VCPU
+	vCpuType               = proto.CommodityDTO_VCPU_MILICORE
 	vMemType               = proto.CommodityDTO_VMEM
 	vCpuRequestType        = proto.CommodityDTO_VCPU_REQUEST
 	vMemRequestType        = proto.CommodityDTO_VMEM_REQUEST
@@ -214,7 +214,7 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 	return mergedEntityMetadataBuilder.
 		PatchSoldMetadata(proto.CommodityDTO_CLUSTER, fieldsCapactiy).
 		PatchSoldMetadata(proto.CommodityDTO_VMPM_ACCESS, fieldsCapactiy).
-		PatchSoldMetadata(proto.CommodityDTO_VCPU, fieldsUsedCapacityPeak).
+		PatchSoldMetadata(proto.CommodityDTO_VCPU_MILICORE, fieldsUsedCapacityPeak).
 		PatchSoldMetadata(proto.CommodityDTO_VMEM, fieldsUsedCapacityPeak).
 		PatchSoldMetadata(proto.CommodityDTO_VCPU_REQUEST, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_VMEM_REQUEST, fieldsUsedCapacity).

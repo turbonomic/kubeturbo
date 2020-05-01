@@ -136,11 +136,15 @@ func updateResourceAmount(podSpec *k8sapi.PodSpec, spec *containerResizeSpec) (b
 func genCPUQuantity(newValue float64, nodeCpuFrequency float64) (resource.Quantity, error) {
 	tmp := newValue * 1000 // to milliSeconds
 	tmp = tmp / nodeCpuFrequency
-	cpuTime := int(math.Ceil(tmp))
-	if cpuTime < 1 {
-		cpuTime = 1
+	return genCPUMilicoreQuantity(tmp)
+}
+
+func genCPUMilicoreQuantity(miliValue float64) (resource.Quantity, error) {
+	miliValueWhole := int(math.Ceil(miliValue))
+	if miliValueWhole < 1 {
+		miliValueWhole = 1
 	}
-	return resource.ParseQuantity(fmt.Sprintf("%dm", cpuTime))
+	return resource.ParseQuantity(fmt.Sprintf("%dm", miliValueWhole))
 }
 
 // generate a resource.Quantity for Memory

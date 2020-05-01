@@ -22,7 +22,7 @@ const (
 
 var (
 	nodeResourceCommoditiesSold = []metrics.ResourceType{
-		metrics.CPU,
+		metrics.CPUMili,
 		metrics.Memory,
 		metrics.CPURequest,
 		metrics.MemoryRequest,
@@ -40,10 +40,10 @@ var (
 
 	// List of commodities and a boolean indicating if the commodity should be resized
 	resizableCommodities = map[proto.CommodityDTO_CommodityType]bool{
-		proto.CommodityDTO_VCPU:         false,
-		proto.CommodityDTO_VMEM:         false,
-		proto.CommodityDTO_VCPU_REQUEST: false,
-		proto.CommodityDTO_VMEM_REQUEST: false,
+		proto.CommodityDTO_VCPU_MILICORE: false,
+		proto.CommodityDTO_VMEM:          false,
+		proto.CommodityDTO_VCPU_REQUEST:  false,
+		proto.CommodityDTO_VMEM_REQUEST:  false,
 	}
 )
 
@@ -163,19 +163,9 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 	var commoditiesSold []*proto.CommodityDTO
 	// get cpu frequency
 	key := util.NodeKeyFunc(node)
-	cpuFrequency, err := builder.getNodeCPUFrequency(key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get cpu frequency from sink for node %s: %s", key, err)
-	}
-	// cpu and cpu request needs to be converted from number of cores to frequency.
-	converter := NewConverter().Set(
-		func(input float64) float64 {
-			return input * cpuFrequency
-		},
-		metrics.CPU, metrics.CPURequest)
 
 	// Resource Commodities
-	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.NodeType, key, nodeResourceCommoditiesSold, converter, nil)
+	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.NodeType, key, nodeResourceCommoditiesSold, nil, nil)
 	if err != nil {
 		return nil, err
 	}

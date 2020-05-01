@@ -21,6 +21,7 @@ const (
 
 const (
 	CPU                ResourceType = "CPU"
+	CPUMili            ResourceType = "VCPUMili"
 	Memory             ResourceType = "Memory"
 	CPURequest         ResourceType = "CPURequest"
 	MemoryRequest      ResourceType = "MemoryRequest"
@@ -45,7 +46,7 @@ const (
 var (
 	// Mapping of Kubernetes API Server resource names to the compute resource types
 	KubeComputeResourceTypes = map[v1.ResourceName][]ResourceType{
-		v1.ResourceCPU:    {CPU, CPURequest},
+		v1.ResourceCPU:    {CPUMili, CPURequest},
 		v1.ResourceMemory: {Memory, MemoryRequest},
 	}
 
@@ -59,7 +60,7 @@ var (
 
 	// Mapping of quota to compute resources
 	QuotaToComputeMap = map[ResourceType]ResourceType{
-		CPULimitQuota:      CPU,
+		CPULimitQuota:      CPUMili,
 		MemoryLimitQuota:   Memory,
 		CPURequestQuota:    CPURequest,
 		MemoryRequestQuota: MemoryRequest,

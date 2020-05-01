@@ -1,17 +1,18 @@
 package dtofactory
 
 import (
+	"time"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	"time"
 )
 
 var (
 	ContainerSpecCommoditiesSold = []proto.CommodityDTO_CommodityType{
-		proto.CommodityDTO_VCPU,
+		proto.CommodityDTO_VCPU_MILICORE,
 		proto.CommodityDTO_VMEM,
 	}
 )

@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"fmt"
+
 	api "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
@@ -17,7 +18,7 @@ import (
 
 var (
 	applicationResourceCommodityBought = []metrics.ResourceType{
-		metrics.CPU,
+		metrics.CPUMili,
 		metrics.Memory,
 	}
 )
@@ -56,10 +57,6 @@ func (builder *applicationEntityDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (f
 func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
 	podFullName := util.GetPodClusterID(pod)
-	nodeCPUFrequency, err := builder.getNodeCPUFrequency(pod)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build application DTOs for pod[%s]: %v", podFullName, err)
-	}
 	podId := string(pod.UID)
 	podMId := util.PodMetricIdAPI(pod)
 
@@ -85,7 +82,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 		ebuilder.SellsCommodities(commoditiesSold)
 
 		//3. bought commodities: vcpu/vmem/application
-		commoditiesBought, err := builder.getApplicationCommoditiesBought(appMId, podFullName, containerId, nodeCPUFrequency)
+		commoditiesBought, err := builder.getApplicationCommoditiesBought(appMId, podFullName, containerId)
 		if err != nil {
 			glog.Errorf("Failed to create Application(%s) entityDTO: %v", displayName, err)
 			continue
@@ -164,13 +161,11 @@ func (builder *applicationEntityDTOBuilder) getCommoditiesSold(pod *api.Pod, ind
 
 // Build the bought commodities by each application.
 // An application buys vCPU, vMem and Application commodity from a container.
-func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appMId, podName, containerId string, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appMId, podName, containerId string) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 
-	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU)
-
 	// Resource commodities.
-	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.ApplicationType, appMId, applicationResourceCommodityBought, converter, nil)
+	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.ApplicationType, appMId, applicationResourceCommodityBought, nil, nil)
 	if err != nil {
 		return nil, err
 	}

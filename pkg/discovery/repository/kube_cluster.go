@@ -3,8 +3,9 @@ package repository
 import (
 	"bytes"
 	"fmt"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"strings"
+
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -248,11 +249,9 @@ func (nodeEntity *KubeNode) String() string {
 }
 
 func parseResourceValue(computeResourceType metrics.ResourceType, resourceList v1.ResourceList) float64 {
-	if computeResourceType == metrics.CPU ||
+	if computeResourceType == metrics.CPUMili ||
 		computeResourceType == metrics.CPURequest {
-		ctnCpuCapacityMilliCore := resourceList.Cpu().MilliValue()
-		cpuCapacityCore := util.MetricMilliToUnit(float64(ctnCpuCapacityMilliCore))
-		return cpuCapacityCore
+		return float64(resourceList.Cpu().MilliValue())
 	}
 
 	if computeResourceType == metrics.Memory ||

@@ -25,12 +25,11 @@ func GetPodResourceLimits(pod *api.Pod) (cpuCapacity float64, memCapacity float6
 	return
 }
 
-// CPU returned is in core; Memory is in Kb
-func GetCpuAndMemoryValues(resource api.ResourceList) (cpuCapacityCore, memoryCapacityKiloBytes float64) {
+// CPU returned is in milicore; Memory is in Kb
+func GetCpuAndMemoryValues(resource api.ResourceList) (cpuCapacityMilicore, memoryCapacityKiloBytes float64) {
+	cpuCapacityMilicore = float64(resource.Cpu().MilliValue())
 	ctnMemoryCapacityBytes := resource.Memory().Value()
-	ctnCpuCapacityMilliCore := resource.Cpu().MilliValue()
 	memoryCapacityKiloBytes = Base2BytesToKilobytes(float64(ctnMemoryCapacityBytes))
-	cpuCapacityCore = MetricMilliToUnit(float64(ctnCpuCapacityMilliCore))
 
 	return
 }

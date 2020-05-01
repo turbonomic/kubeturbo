@@ -218,7 +218,7 @@ func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_Re
 	capacityOnlyPropertyNames := []string{builder.PropertyCapacity}
 	replacementEntityMetaDataBuilder.PatchSellingWithProperty(proto.CommodityDTO_CLUSTER, capacityOnlyPropertyNames).
 		PatchSellingWithProperty(proto.CommodityDTO_VMPM_ACCESS, capacityOnlyPropertyNames).
-		PatchSellingWithProperty(proto.CommodityDTO_VCPU, vcpuUsedAndCapacityPropertyNames).
+		PatchSellingWithProperty(proto.CommodityDTO_VCPU_MILICORE, vcpuUsedAndCapacityPropertyNames).
 		PatchSellingWithProperty(proto.CommodityDTO_VMEM, usedAndCapacityPropertyNames).
 		PatchSellingWithProperty(proto.CommodityDTO_VCPU_REQUEST, usedAndCapacityPropertyNames).
 		PatchSellingWithProperty(proto.CommodityDTO_VMEM_REQUEST, usedAndCapacityPropertyNames).

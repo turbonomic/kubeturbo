@@ -14,7 +14,7 @@ import (
 var (
 	// This map maps resource type to commodity types defined in ProtoBuf.
 	rTypeMapping = map[metrics.ResourceType]proto.CommodityDTO_CommodityType{
-		metrics.CPU:                proto.CommodityDTO_VCPU,
+		metrics.CPUMili:            proto.CommodityDTO_VCPU_MILICORE,
 		metrics.Memory:             proto.CommodityDTO_VMEM,
 		metrics.CPURequest:         proto.CommodityDTO_VCPU_REQUEST,
 		metrics.MemoryRequest:      proto.CommodityDTO_VMEM_REQUEST,
@@ -136,11 +136,6 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 	cType, exist := rTypeMapping[resourceType]
 	if !exist {
 		return nil, fmt.Errorf("unsupported commodity type %s", resourceType)
-	}
-
-	// check for the unit converter for cpu resources
-	if metrics.IsCPUType(resourceType) && converter == nil {
-		return nil, fmt.Errorf("missing cpu converter")
 	}
 
 	commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
@@ -267,11 +262,6 @@ func (builder generalBuilder) getResourceCommodityBoughtWithKey(entityType metri
 	cType, exist := rTypeMapping[resourceType]
 	if !exist {
 		return nil, fmt.Errorf("unsupported commodity type %s", resourceType)
-	}
-
-	// check for the unit converter for cpu resources
-	if metrics.IsCPUType(resourceType) && converter == nil {
-		return nil, fmt.Errorf("missing cpu converter")
 	}
 
 	commBoughtBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)

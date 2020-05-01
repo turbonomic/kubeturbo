@@ -2,9 +2,10 @@ package dtofactory
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
-	"strings"
 
 	"github.com/golang/glog"
 	api "k8s.io/api/core/v1"
@@ -18,19 +19,19 @@ import (
 
 var (
 	cpuCommodities = []metrics.ResourceType{
-		metrics.CPU,
+		metrics.CPUMili,
 		metrics.CPURequest,
 		metrics.CPULimitQuota,
 		metrics.CPURequestQuota,
 	}
 
 	commoditySold = []metrics.ResourceType{
-		metrics.CPU,
+		metrics.CPUMili,
 		metrics.Memory,
 	}
 
 	cpuCommoditySold = []metrics.ResourceType{
-		metrics.CPU,
+		metrics.CPUMili,
 	}
 
 	memCommoditySold = []metrics.ResourceType{
@@ -46,7 +47,7 @@ var (
 	}
 
 	commodityBought = []metrics.ResourceType{
-		metrics.CPU,
+		metrics.CPUMili,
 		metrics.Memory,
 	}
 
@@ -95,13 +96,9 @@ func (builder *containerDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, 
 func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityDTO, []*repository.ContainerSpec, error) {
 	var result []*proto.EntityDTO
 	var containerSpecList []*repository.ContainerSpec
+	var err error
 
 	for _, pod := range pods {
-		nodeCPUFrequency, err := builder.getNodeCPUFrequency(pod)
-		if err != nil {
-			glog.Errorf("failed to build ContainerDTOs for pod[%s]: %v", pod.Name, err)
-			continue
-		}
 		podId := string(pod.UID)
 		podMId := util.PodMetricIdAPI(pod)
 		controllerUID := ""
@@ -156,7 +153,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			if !isMemRequestSet {
 				glog.V(4).Infof("Container[%s] has no request set for Memory", name)
 			}
-			commoditiesSold, err := builder.getCommoditiesSold(name, containerId, containerMId, nodeCPUFrequency,
+			commoditiesSold, err := builder.getCommoditiesSold(name, containerId, containerMId,
 				isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet, containerSpec)
 			if err != nil {
 				glog.Errorf("failed to create commoditiesSold for container[%s]: %v", name, err)
@@ -165,7 +162,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			ebuilder.SellsCommodities(commoditiesSold)
 
 			//2. commodities bought
-			commoditiesBought, err := builder.getCommoditiesBought(podId, name, containerMId, nodeCPUFrequency,
+			commoditiesBought, err := builder.getCommoditiesBought(podId, name, containerMId,
 				isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet)
 			if err != nil {
 				glog.Errorf("failed to create commoditiesBought for container[%s]: %v", name, err)
@@ -203,18 +200,17 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 
 // vCPU, vMem, vCPURequest, vMemRequest and Application are sold by Container.
 // Store vCPU and vMem commodity DTOs of each container to ContainerSpec.
-func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerId, containerMId string, cpuFrequency float64,
+func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerId, containerMId string,
 	isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet bool, containerSpec *repository.ContainerSpec) ([]*proto.CommodityDTO, error) {
 
 	var result []*proto.CommodityDTO
 	containerEntityType := metrics.ContainerType
 
-	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, cpuCommodities...)
 	//1a. vCPU
 	cpuAttrSetter := NewCommodityAttrSetter()
-	cpuAttrSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(isCpuLimitSet) }, metrics.CPU)
+	cpuAttrSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(isCpuLimitSet) }, metrics.CPUMili)
 
-	cpuCommodities, err := builder.getResourceCommoditiesSold(containerEntityType, containerMId, cpuCommoditySold, converter, cpuAttrSetter)
+	cpuCommodities, err := builder.getResourceCommoditiesSold(containerEntityType, containerMId, cpuCommoditySold, nil, cpuAttrSetter)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +247,7 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 	//1c. vCPURequest
 	// Container sells vCPURequest commodity only if CPU request is set on the container
 	if isCpuRequestSet {
-		cpuRequestCommodities, err := builder.createCommoditiesSold(containerEntityType, cpuRequestCommodity, containerMId, converter)
+		cpuRequestCommodities, err := builder.createCommoditiesSold(containerEntityType, cpuRequestCommodity, containerMId, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -293,17 +289,16 @@ func (builder *containerDTOBuilder) createCommoditiesSold(entityType metrics.Dis
 // vCPU, vMem, vCPURequest, vMemRequest, vCPULimitQuota, vCPURequestQuota, vMemLimitQuota, vMemRequestQuota and VMPMAccess
 // are bought by Container from Pod;
 // the VMPMAccess is to bind the container to the hosting pod.
-func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, containerMId string, cpuFrequency float64,
+func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, containerMId string,
 	isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet bool) ([]*proto.CommodityDTO, error) {
 	var result []*proto.CommodityDTO
 	containerEntityType := metrics.ContainerType
 
-	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, cpuCommodities...)
 	//1a. vCPU & vMem
 	attributeSetter := NewCommodityAttrSetter()
-	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPU, metrics.Memory)
+	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, metrics.CPUMili, metrics.Memory)
 
-	commodities, err := builder.getResourceCommoditiesBought(containerEntityType, containerMId, commodityBought, converter, attributeSetter)
+	commodities, err := builder.getResourceCommoditiesBought(containerEntityType, containerMId, commodityBought, nil, attributeSetter)
 	if err != nil {
 		return nil, err
 	}
@@ -317,12 +312,12 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 	//1b. vCPURequest, vCPURequestQuota
 	// Container buys vCPURequest and vCPURequestQuota commodities only if CPU request is set on the container
 	if isCpuRequestSet {
-		cpuRequestCommBought, err := builder.createRequestCommodityBought(containerEntityType, metrics.CPURequest, containerMId, converter)
+		cpuRequestCommBought, err := builder.createRequestCommodityBought(containerEntityType, metrics.CPURequest, containerMId, nil)
 		if err != nil {
 			return nil, err
 		}
 		result = append(result, cpuRequestCommBought)
-		cpuRequestQuotaCommBought, err := builder.createCommoditiesBought(containerEntityType, cpuRequestQuotaCommodityBought, containerMId, converter)
+		cpuRequestQuotaCommBought, err := builder.createCommoditiesBought(containerEntityType, cpuRequestQuotaCommodityBought, containerMId, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -347,7 +342,7 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 	//1d. vCPULimitQuota
 	// Container buys vCPULimitQuota commodity only if CPU limit is set on the container
 	if isCpuLimitSet {
-		cpuLimitQuotaCommBought, err := builder.createCommoditiesBought(containerEntityType, cpuLimitQuotaCommodityBought, containerMId, converter)
+		cpuLimitQuotaCommBought, err := builder.createCommoditiesBought(containerEntityType, cpuLimitQuotaCommodityBought, containerMId, nil)
 		if err != nil {
 			return nil, err
 		}
