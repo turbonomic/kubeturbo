@@ -120,7 +120,7 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	rClient.addActionPolicy(ab, container, containerPolicy)
 
 	// 3. application: only recommend provision and suspend; all else are not supported
-	app := proto.EntityDTO_APPLICATION_COMPONENT
+	app := proto.EntityDTO_APPLICATION
 	appPolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	appPolicy[proto.ActionItemDTO_PROVISION] = recommend
 	appPolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
@@ -129,8 +129,8 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 
 	rClient.addActionPolicy(ab, app, appPolicy)
 
-	// 4. service: no actions are supported
-	vApp := proto.EntityDTO_SERVICE
+	// 4. virtual application: no actions are supported
+	vApp := proto.EntityDTO_VIRTUAL_APPLICATION
 	vAppPolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	vAppPolicy[proto.ActionItemDTO_PROVISION] = notSupported
 	vAppPolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
@@ -169,8 +169,8 @@ func (rClient *K8sRegistrationClient) GetEntityMetadata() (result []*proto.Entit
 		proto.EntityDTO_VIRTUAL_MACHINE,
 		proto.EntityDTO_CONTAINER_POD,
 		proto.EntityDTO_CONTAINER,
-		proto.EntityDTO_APPLICATION_COMPONENT,
-		proto.EntityDTO_SERVICE,
+		proto.EntityDTO_APPLICATION,
+		proto.EntityDTO_VIRTUAL_APPLICATION,
 	}
 
 	for _, etype := range entities {

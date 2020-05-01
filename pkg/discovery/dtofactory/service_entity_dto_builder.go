@@ -72,7 +72,7 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 		id := string(service.UID)
 		displayName := fmt.Sprintf("%s-%s", vAppPrefix, serviceName)
 
-		ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_SERVICE, id).
+		ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_APPLICATION, id).
 			DisplayName(displayName)
 
 		//1. commodities bought
@@ -126,7 +126,7 @@ func (builder *ServiceEntityDTOBuilder) createCommodityBought(ebuilder *sdkbuild
 				glog.Errorf("failed to get commodity bought from container[%s]: %v", containerName, err)
 				continue
 			}
-			provider := sdkbuilder.CreateProvider(proto.EntityDTO_APPLICATION_COMPONENT, appId)
+			provider := sdkbuilder.CreateProvider(proto.EntityDTO_APPLICATION, appId)
 			ebuilder.Provider(provider).BuysCommodities(bought)
 			foundProvider = true
 		}
