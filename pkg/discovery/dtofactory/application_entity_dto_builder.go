@@ -73,7 +73,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 
 		displayName := util.ApplicationDisplayName(podFullName, container.Name)
 
-		ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_APPLICATION_COMPONENT, appId).
+		ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_APPLICATION, appId).
 			DisplayName(displayName)
 
 		//2. sold commodities: transaction and responseTime

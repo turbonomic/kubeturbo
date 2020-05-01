@@ -113,14 +113,14 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	glog.V(4).Infof("Supply chain node: %+v", appSupplyChainNode)
 
 	// Virtual application supply chain template
-	serviceSupplyChainNode, err := f.buildServiceSupplyBuilder()
+	vAppSupplyChainNode, err := f.buildVirtualApplicationSupplyBuilder()
 	if err != nil {
 		return nil, err
 	}
-	glog.V(4).Infof("Supply chain node: %+v", serviceSupplyChainNode)
+	glog.V(4).Infof("Supply chain node: %+v", vAppSupplyChainNode)
 
 	supplyChainBuilder := supplychain.NewSupplyChainBuilder()
-	supplyChainBuilder.Top(serviceSupplyChainNode)
+	supplyChainBuilder.Top(vAppSupplyChainNode)
 	supplyChainBuilder.Entity(appSupplyChainNode)
 	supplyChainBuilder.Entity(containerSupplyChainNode)
 	supplyChainBuilder.Entity(podSupplyChainNode)
@@ -310,7 +310,7 @@ func (f *SupplyChainFactory) buildContainer() (*proto.TemplateDTO, error) {
 }
 
 func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
-	appSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_APPLICATION_COMPONENT)
+	appSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_APPLICATION)
 	appSupplyChainNodeBuilder = appSupplyChainNodeBuilder.
 		Sells(applicationTemplateCommWithKey). // The key used to sell to the virtual applications
 		Provider(proto.EntityDTO_CONTAINER, proto.Provider_HOSTING).
@@ -321,10 +321,10 @@ func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO
 	return appSupplyChainNodeBuilder.Create()
 }
 
-func (f *SupplyChainFactory) buildServiceSupplyBuilder() (*proto.TemplateDTO, error) {
-	serviceSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_SERVICE)
-	serviceSupplyChainNodeBuilder = serviceSupplyChainNodeBuilder.
-		Provider(proto.EntityDTO_APPLICATION_COMPONENT, proto.Provider_LAYERED_OVER).
+func (f *SupplyChainFactory) buildVirtualApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
+	vAppSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_VIRTUAL_APPLICATION)
+	vAppSupplyChainNodeBuilder = vAppSupplyChainNodeBuilder.
+		Provider(proto.EntityDTO_APPLICATION, proto.Provider_LAYERED_OVER).
 		Buys(applicationTemplateCommWithKey)
-	return serviceSupplyChainNodeBuilder.Create()
+	return vAppSupplyChainNodeBuilder.Create()
 }
