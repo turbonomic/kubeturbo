@@ -101,6 +101,8 @@ github.com/turbonomic/turbo-api v0.0.0-20200413140231-3bef8fb11708 h1:ez1BHxInhr
 github.com/turbonomic/turbo-api v0.0.0-20200413140231-3bef8fb11708/go.mod h1:L3eNZzTD3Iw8GV+cfeJD/lfDaEGPbZZGQrtml71yG10=
 github.com/turbonomic/turbo-go-sdk v0.0.0-20200413141242-49bd2491d252 h1:iUnsgaouQgMl2UFxMmmjV8jgc2ZdA4JrQTJkzHrb1as=
 github.com/turbonomic/turbo-go-sdk v0.0.0-20200413141242-49bd2491d252/go.mod h1:DwkvRAGoVOYvirqInjPb5U31UEe69i32EhNeDigLiU8=
+github.com/turbonomic/turbo-go-sdk v0.0.0-20200501222831-8802d333fc3c h1:eVtT1p1e2A+WN628nLsjoFY+C6MsEe2mRjSTbPW65oQ=
+github.com/turbonomic/turbo-go-sdk v0.0.0-20200501222831-8802d333fc3c/go.mod h1:DwkvRAGoVOYvirqInjPb5U31UEe69i32EhNeDigLiU8=
 go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569 h1:nSQar3Y0E3VQF/VdZ8PTAilaXpER+d7ypdABCrpwMdg=
 go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
 go.uber.org/multierr v0.0.0-20180122172545-ddea229ff1df h1:shvkWr0NAZkg4nPuE3XrKP0VuBPijjk3TfX6Y6acFNg=
