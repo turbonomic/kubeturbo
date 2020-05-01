@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	servicePrefix string = "Service"
+	vAppPrefix string = "vApp"
 )
 
 var (
@@ -70,7 +70,7 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 		}
 
 		id := string(service.UID)
-		displayName := fmt.Sprintf("%s-%s", servicePrefix, serviceName)
+		displayName := fmt.Sprintf("%s-%s", vAppPrefix, serviceName)
 
 		ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_SERVICE, id).
 			DisplayName(displayName)
@@ -81,12 +81,11 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 			continue
 		}
 
-		//2. service data.
-		//Use proto.EntityDTO_VirtualApplicationData as there is no proto.EntityDTO_ServiceData
-		serviceData := &proto.EntityDTO_VirtualApplicationData{
+		//2. virtual application data.
+		vAppData := &proto.EntityDTO_VirtualApplicationData{
 			ServiceType: &service.Name,
 		}
-		ebuilder.VirtualApplicationData(serviceData)
+		ebuilder.VirtualApplicationData(vAppData)
 
 		// set the ip property for stitching
 		ebuilder.WithProperty(getIPProperty(pods))
@@ -167,13 +166,13 @@ func (builder *ServiceEntityDTOBuilder) getCommoditiesBought(appDTO *proto.Entit
 	return commoditiesBoughtFromApp, nil
 }
 
-// Get the IP property of the service for stitching purpose
+// Get the IP property of the vApp for stitching purpose
 func getIPProperty(pods []*api.Pod) *proto.EntityDTO_EntityProperty {
 	ns := stitching.DefaultPropertyNamespace
 	attr := stitching.AppStitchingAttr
 	ips := []string{}
 	for _, pod := range pods {
-		ips = append(ips, servicePrefix+"-"+pod.Status.PodIP)
+		ips = append(ips, vAppPrefix+"-"+pod.Status.PodIP)
 	}
 	ip := strings.Join(ips, ",")
 	ipProperty := &proto.EntityDTO_EntityProperty{

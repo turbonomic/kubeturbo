@@ -130,14 +130,14 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	rClient.addActionPolicy(ab, app, appPolicy)
 
 	// 4. service: no actions are supported
-	service := proto.EntityDTO_SERVICE
-	servicePolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	servicePolicy[proto.ActionItemDTO_PROVISION] = notSupported
-	servicePolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
-	servicePolicy[proto.ActionItemDTO_MOVE] = notSupported
-	servicePolicy[proto.ActionItemDTO_SUSPEND] = notSupported
+	vApp := proto.EntityDTO_SERVICE
+	vAppPolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
+	vAppPolicy[proto.ActionItemDTO_PROVISION] = notSupported
+	vAppPolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
+	vAppPolicy[proto.ActionItemDTO_MOVE] = notSupported
+	vAppPolicy[proto.ActionItemDTO_SUSPEND] = notSupported
 
-	rClient.addActionPolicy(ab, service, servicePolicy)
+	rClient.addActionPolicy(ab, vApp, vAppPolicy)
 
 	// 5. node: support provision and suspend; not resize; do not set move
 	node := proto.EntityDTO_VIRTUAL_MACHINE
@@ -161,10 +161,8 @@ func (rClient *K8sRegistrationClient) addActionPolicy(ab *builder.ActionPolicyBu
 	}
 }
 
-func (rClient *K8sRegistrationClient) GetEntityMetadata() []*proto.EntityIdentityMetadata {
+func (rClient *K8sRegistrationClient) GetEntityMetadata() (result []*proto.EntityIdentityMetadata) {
 	glog.V(3).Infof("Begin to build EntityIdentityMetadata")
-
-	var result []*proto.EntityIdentityMetadata
 
 	entities := []proto.EntityDTO_EntityType{
 		proto.EntityDTO_VIRTUAL_DATACENTER,
