@@ -72,7 +72,7 @@ func createPodStat(podname string) *stats.PodStats {
 
 func checkPodMetrics(sink *metrics.EntityMetricSink, podMId string, pod *stats.PodStats) error {
 	etype := metrics.PodType
-	resources := []metrics.ResourceType{metrics.CPU, metrics.Memory}
+	resources := []metrics.ResourceType{metrics.CPUMili, metrics.Memory}
 
 	for _, res := range resources {
 		mid := metrics.GenerateEntityResourceMetricUID(etype, podMId, res, metrics.Used)
@@ -83,11 +83,11 @@ func checkPodMetrics(sink *metrics.EntityMetricSink, podMId string, pod *stats.P
 
 		value := tmp.GetValue().(float64)
 		expected := float64(0.0)
-		if res == metrics.CPU {
+		if res == metrics.CPUMili {
 			for _, c := range pod.Containers {
 				expected += float64(*c.CPU.UsageNanoCores)
 			}
-			expected = util.MetricNanoToUnit(expected)
+			expected = util.MetricNanoToMili(expected)
 		} else {
 			for _, c := range pod.Containers {
 				expected += float64(*c.Memory.WorkingSetBytes)
@@ -107,7 +107,7 @@ func checkPodMetrics(sink *metrics.EntityMetricSink, podMId string, pod *stats.P
 
 func checkContainerMetrics(sink *metrics.EntityMetricSink, containerMId string, container *stats.ContainerStats) error {
 	etype := metrics.ContainerType
-	resources := []metrics.ResourceType{metrics.CPU, metrics.Memory}
+	resources := []metrics.ResourceType{metrics.CPUMili, metrics.Memory}
 
 	for _, res := range resources {
 		mid := metrics.GenerateEntityResourceMetricUID(etype, containerMId, res, metrics.Used)
@@ -118,9 +118,9 @@ func checkContainerMetrics(sink *metrics.EntityMetricSink, containerMId string, 
 
 		value := tmp.GetValue().(float64)
 		expected := float64(0.0)
-		if res == metrics.CPU {
+		if res == metrics.CPUMili {
 			expected += float64(*container.CPU.UsageNanoCores)
-			expected = util.MetricNanoToUnit(expected)
+			expected = util.MetricNanoToMili(expected)
 		} else {
 			expected += float64(*container.Memory.WorkingSetBytes)
 			expected = util.Base2BytesToKilobytes(expected)
@@ -137,7 +137,7 @@ func checkContainerMetrics(sink *metrics.EntityMetricSink, containerMId string, 
 
 func checkApplicationMetrics(sink *metrics.EntityMetricSink, appMId string, container *stats.ContainerStats) error {
 	etype := metrics.ApplicationType
-	resources := []metrics.ResourceType{metrics.CPU, metrics.Memory}
+	resources := []metrics.ResourceType{metrics.CPUMili, metrics.Memory}
 
 	for _, res := range resources {
 		mid := metrics.GenerateEntityResourceMetricUID(etype, appMId, res, metrics.Used)
@@ -148,9 +148,9 @@ func checkApplicationMetrics(sink *metrics.EntityMetricSink, appMId string, cont
 
 		value := tmp.GetValue().(float64)
 		expected := float64(0.0)
-		if res == metrics.CPU {
+		if res == metrics.CPUMili {
 			expected += float64(*container.CPU.UsageNanoCores)
-			expected = util.MetricNanoToUnit(expected)
+			expected = util.MetricNanoToMili(expected)
 		} else {
 			expected += float64(*container.Memory.WorkingSetBytes)
 			expected = util.Base2BytesToKilobytes(expected)

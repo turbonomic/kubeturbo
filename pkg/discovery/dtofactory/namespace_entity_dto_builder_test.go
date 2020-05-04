@@ -2,6 +2,8 @@ package dtofactory
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -10,7 +12,6 @@ import (
 	k8sres "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"testing"
 )
 
 const CPUFrequency float64 = 2663.778000
@@ -137,7 +138,7 @@ func makeKubeNamespaces() []*repository.KubeNamespace {
 	var kubeQuotas []*repository.KubeNamespace
 	resourceMap := make(map[metrics.ResourceType]float64)
 	for _, node := range TestNodes {
-		resourceMap[metrics.CPU] = resourceMap[metrics.CPU] + node.cpuCap
+		resourceMap[metrics.CPUMili] = resourceMap[metrics.CPUMili] + node.cpuCap
 		resourceMap[metrics.Memory] = resourceMap[metrics.Memory] + node.memCap
 		resourceMap[metrics.CPURequest] = resourceMap[metrics.CPURequest] + node.cpuCap
 		resourceMap[metrics.MemoryRequest] = resourceMap[metrics.MemoryRequest] + node.memCap

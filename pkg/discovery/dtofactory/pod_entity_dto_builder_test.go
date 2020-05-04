@@ -3,11 +3,12 @@ package dtofactory
 import (
 	"testing"
 
+	"reflect"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
 )
 
 var builder = &podEntityDTOBuilder{
@@ -23,7 +24,7 @@ func Test_podEntityDTOBuilder_getPodCommoditiesBought_Error(t *testing.T) {
 }
 
 func Test_podEntityDTOBuilder_getPodCommoditiesBoughtFromQuota_Error(t *testing.T) {
-	if _, err := builder.getQuotaCommoditiesBought("quota1", &api.Pod{}, 100.0); err == nil {
+	if _, err := builder.getQuotaCommoditiesBought("quota1", &api.Pod{}); err == nil {
 		t.Errorf("Error thrown expected")
 	}
 }
@@ -72,8 +73,8 @@ func Test_podEntityDTOBuilder_createContainerPodData(t *testing.T) {
 	}
 }
 
-func testGetCommoditiesWithError(t *testing.T, f func(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error)) {
-	if _, err := f(&api.Pod{}, 100.0); err == nil {
+func testGetCommoditiesWithError(t *testing.T, f func(pod *api.Pod) ([]*proto.CommodityDTO, error)) {
+	if _, err := f(&api.Pod{}); err == nil {
 		t.Errorf("Error thrown expected")
 	}
 }

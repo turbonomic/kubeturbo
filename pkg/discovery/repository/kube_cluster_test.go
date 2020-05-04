@@ -19,15 +19,17 @@ var TestNodes = []struct {
 	memCap  float64
 	cluster string
 }{
-	{"node1", 4.0, 819200, "cluster1"},
-	{"node2", 5.0, 614400, "cluster1"},
-	{"node3", 6.0, 409600, "cluster1"},
+	{"node1", 4000.0, 819200, "cluster1"},
+	{"node2", 5000.0, 614400, "cluster1"},
+	{"node3", 6000.0, 409600, "cluster1"},
 }
 
 func TestKubeNode(t *testing.T) {
 	for _, testNode := range TestNodes {
 		resourceList := v1.ResourceList{
-			v1.ResourceCPU:    resource.MustParse(fmt.Sprint(testNode.cpuCap)),
+			// We query cpu capacity as milicores from node properties.
+			// What we set here is cpu cores.
+			v1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%d", int(testNode.cpuCap/1000))),
 			v1.ResourceMemory: resource.MustParse(fmt.Sprint(testNode.memCap)),
 		}
 
@@ -43,7 +45,7 @@ func TestKubeNode(t *testing.T) {
 
 		kubenode := NewKubeNode(n1, testNode.cluster)
 
-		resource, _ := kubenode.GetComputeResource(metrics.CPU)
+		resource, _ := kubenode.GetComputeResource(metrics.CPUMili)
 		assert.Equal(t, resource.Capacity, testNode.cpuCap)
 		resource, _ = kubenode.GetComputeResource(metrics.Memory)
 		assert.Equal(t, resource.Capacity, testNode.memCap/1024)
@@ -53,7 +55,7 @@ func TestKubeNode(t *testing.T) {
 		resource, _ = kubenode.GetComputeResource(metrics.MemoryLimitQuota)
 		assert.Nil(t, resource)
 
-		resource, _ = kubenode.GetAllocationResource(metrics.CPU)
+		resource, _ = kubenode.GetAllocationResource(metrics.CPUMili)
 		assert.Nil(t, resource)
 		resource, _ = kubenode.GetAllocationResource(metrics.Memory)
 		assert.Nil(t, resource)

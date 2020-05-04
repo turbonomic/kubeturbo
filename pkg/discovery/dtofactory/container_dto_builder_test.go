@@ -2,6 +2,9 @@ package dtofactory
 
 import (
 	"fmt"
+	"reflect"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -10,8 +13,6 @@ import (
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"reflect"
-	"testing"
 )
 
 var (
@@ -28,7 +29,7 @@ var (
 	memCap           = 3.0
 	nodeCpuFrequency = 2048.0
 
-	cpuCommType = proto.CommodityDTO_VCPU
+	cpuCommType = proto.CommodityDTO_VCPU_MILICORE
 	memCommType = proto.CommodityDTO_VMEM
 
 	testPod = &api.Pod{
@@ -43,17 +44,17 @@ var (
 	}
 
 	containerFooCPUUsed = metrics.NewEntityResourceMetric(metrics.ContainerType,
-		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameFoo), metrics.CPU, metrics.Used, cpuUsed)
+		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameFoo), metrics.CPUMili, metrics.Used, cpuUsed)
 	containerFooCPUCap = metrics.NewEntityResourceMetric(metrics.ContainerType,
-		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameFoo), metrics.CPU, metrics.Capacity, cpuCap)
+		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameFoo), metrics.CPUMili, metrics.Capacity, cpuCap)
 	containerFooMemUsed = metrics.NewEntityResourceMetric(metrics.ContainerType,
 		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameFoo), metrics.Memory, metrics.Used, memUsed)
 	containerFooMemCap = metrics.NewEntityResourceMetric(metrics.ContainerType,
 		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameFoo), metrics.Memory, metrics.Capacity, memCap)
 	containerBarCPUUsed = metrics.NewEntityResourceMetric(metrics.ContainerType,
-		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameBar), metrics.CPU, metrics.Used, cpuUsed)
+		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameBar), metrics.CPUMili, metrics.Used, cpuUsed)
 	containerBarCPUCap = metrics.NewEntityResourceMetric(metrics.ContainerType,
-		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameBar), metrics.CPU, metrics.Capacity, cpuCap)
+		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameBar), metrics.CPUMili, metrics.Capacity, cpuCap)
 	containerBarMemUsed = metrics.NewEntityResourceMetric(metrics.ContainerType,
 		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameBar), metrics.Memory, metrics.Used, memUsed)
 	containerBarMemCap = metrics.NewEntityResourceMetric(metrics.ContainerType,
@@ -152,9 +153,9 @@ func Test_containerDTOBuilder_BuildDTOs_withContainerSpec(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(containerSpecs))
 
-	cpuUsedFreq := cpuUsed * nodeCpuFrequency
-	cpuPeakFreq := cpuUsed * nodeCpuFrequency
-	cpuCapFreq := cpuCap * nodeCpuFrequency
+	cpuUsedFreq := cpuUsed
+	cpuPeakFreq := cpuUsed
+	cpuCapFreq := cpuCap
 	commIsResizable := false
 	expectedContainerSpec := &repository.ContainerSpec{
 		Namespace:         namespace,

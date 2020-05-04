@@ -129,7 +129,7 @@ func TestComputeClusterResources(t *testing.T) {
 	}
 	// Among all nodes, one of the nodes is not schedulable, so the capacity should be 3 * node capacity
 	assert.Equal(t, int32(24032436), int32(resourceMap["Memory"].Capacity))
-	assert.Equal(t, int8(12), int8(resourceMap["CPU"].Capacity))
+	assert.Equal(t, int32(12000), int32(resourceMap["VCPUMili"].Capacity))
 
 	kubeCluster = repository.NewKubeCluster(testClusterName, createMockNodes(allocatableCpuOnlyMap, schedulableNodeMap))
 	resourceMap = kubeCluster.ClusterResources

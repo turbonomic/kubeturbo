@@ -1,9 +1,10 @@
 package repository
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"testing"
 )
 
 var TestEntities = []struct {
@@ -21,7 +22,7 @@ var TestSoldResources = []struct {
 	resourceType metrics.ResourceType
 	capacity     float64
 }{
-	{metrics.CPU, 200},
+	{metrics.CPUMili, 200},
 	{metrics.Memory, 2},
 	{metrics.MemoryLimitQuota, 1},
 	{metrics.CPULimitQuota, 100},
@@ -32,8 +33,8 @@ var TestProvider = []struct {
 	providerId     string
 	boughtResource map[metrics.ResourceType]float64
 }{
-	{metrics.NodeType, "node1", map[metrics.ResourceType]float64{metrics.CPU: 500, metrics.Memory: 3}},
-	{metrics.NodeType, "node2", map[metrics.ResourceType]float64{metrics.CPU: 500, metrics.Memory: 3}},
+	{metrics.NodeType, "node1", map[metrics.ResourceType]float64{metrics.CPUMili: 500, metrics.Memory: 3}},
+	{metrics.NodeType, "node2", map[metrics.ResourceType]float64{metrics.CPUMili: 500, metrics.Memory: 3}},
 	{metrics.NodeType, "node3", map[metrics.ResourceType]float64{metrics.CPULimitQuota: 500}},
 }
 
