@@ -21,6 +21,7 @@ var (
 		"ReplicaSet":            true,
 		"ReplicationController": true,
 		"StatefulSet":           true,
+		"DeploymentConfig":      true,
 	}
 )
 
