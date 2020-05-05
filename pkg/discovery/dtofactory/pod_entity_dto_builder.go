@@ -121,7 +121,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		entityDTOBuilder.BuysCommodities(commoditiesBought)
 
 		// If it is bare pod deployed without k8s controller, pod buys quota commodities directly from Namespace provider
-		if pod.OwnerReferences == nil {
+		if !util.HasController(pod) {
 			namespaceUID, exists := builder.namespaceUIDMap[pod.Namespace]
 			if exists {
 				commoditiesBoughtQuota, err := builder.getQuotaCommoditiesBought(namespaceUID, pod, cpuFrequency)

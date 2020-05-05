@@ -102,9 +102,8 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpec *reposi
 		// utilization data into consideration for resizing.
 		commSoldBuilder.Resizable(true)
 
-		// Commodities sold by ContainerSpec entities are inactive because they won't be analyzed directly in Market
-		// analysis engine.
-		commSoldBuilder.Active(false)
+		// Commodities sold by ContainerSpec entities are active so that they can be stored in database in Turbo server.
+		commSoldBuilder.Active(true)
 		commSold, err := commSoldBuilder.Create()
 		if err != nil {
 			glog.Errorf("Failed to build commodity sold %s: %v", commodityType, err)

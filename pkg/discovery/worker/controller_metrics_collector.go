@@ -40,8 +40,8 @@ func (collector *ControllerMetricsCollector) CollectControllerMetrics() ([]*repo
 	kubeControllersMap := make(map[string]*repository.KubeController)
 	var kubeControllerList []*repository.KubeController
 	for _, pod := range collector.podList {
-		if pod.OwnerReferences == nil {
-			// If pod has no OwnerReferences, it is a bare pod without controller. Skip this.
+		if !util.HasController(pod) {
+			// If pod has no Controller, it is a bare pod directly deployed on Namespace. Skip this.
 			glog.V(4).Infof("Skip creating KubeController for bare Pod %s", util.PodKeyFunc(pod))
 			continue
 		}

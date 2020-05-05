@@ -26,6 +26,9 @@ const (
 	Kind_ReplicationController string = "ReplicationController"
 	Kind_ReplicaSet            string = "ReplicaSet"
 	Kind_Job                   string = "Job"
+	// Node owner reference kind is injected by Kubelet if Pod is mirror Pod starting from K8s v1.17
+	// https://github.com/kubernetes/enhancements/blob/master/keps/sig-auth/20190916-noderestriction-pods.md#ownerreferences
+	Kind_Node string = "Node"
 
 	// A flag indicating whether the object should be controllable or not.
 	// only value="false" indicating the object should not be controllable by kubeturbo.
@@ -77,6 +80,14 @@ func Controllable(pod *api.Pod) bool {
 	return controllable
 }
 
+// hasController checks if a pod is deployed by K8s controller
+func HasController(pod *api.Pod) bool {
+	if pod.OwnerReferences == nil {
+		return false
+	}
+	return !hasNodeOwner(pod)
+}
+
 // Check if a pod is a mirror pod.
 func isMirrorPod(pod *api.Pod) bool {
 	annotations := pod.Annotations
@@ -84,6 +95,17 @@ func isMirrorPod(pod *api.Pod) bool {
 		return false
 	}
 	if _, exist := annotations[kubelettypes.ConfigMirrorAnnotationKey]; exist {
+		glog.V(4).Infof("Find a mirror pod: %s/%s", pod.Namespace, pod.Name)
+		return true
+	}
+	return hasNodeOwner(pod)
+}
+
+// hasNodeOwner checks if a pod has a single owner reference with kind as Node. Node owner reference is injected by Kubelet
+// to identify if a pod is mirror pod starting in K8s v1.17:
+// https://github.com/kubernetes/enhancements/blob/master/keps/sig-auth/20190916-noderestriction-pods.md#ownerreferences
+func hasNodeOwner(pod *api.Pod) bool {
+	if pod.OwnerReferences != nil && len(pod.OwnerReferences) == 1 && pod.OwnerReferences[0].Kind == Kind_Node {
 		glog.V(4).Infof("Find a mirror pod: %s/%s", pod.Namespace, pod.Name)
 		return true
 	}
