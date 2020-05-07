@@ -250,8 +250,10 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 
 	//1c. vCPURequest
 	// Container sells vCPURequest commodity only if CPU request is set on the container
+	// TODO temporarily set isResizable to false for VCPURequest and VMemRequest commodities sold by containers to avoid
+	// suspicious resizing actions before we implement the full support to resize requests commodities
 	if isCpuRequestSet {
-		cpuRequestCommodities, err := builder.createCommoditiesSold(containerEntityType, cpuRequestCommodity, containerMId, converter)
+		cpuRequestCommodities, err := builder.createCommoditiesSold(containerEntityType, cpuRequestCommodity, containerMId, converter, false)
 		if err != nil {
 			return nil, err
 		}
@@ -261,7 +263,7 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 	//1d. vMemRequest
 	// Container sells vMemRequest commodity only if memory request is set on the container
 	if isMemRequestSet {
-		memRequestCommodities, err := builder.createCommoditiesSold(containerEntityType, memRequestCommodity, containerMId, nil)
+		memRequestCommodities, err := builder.createCommoditiesSold(containerEntityType, memRequestCommodity, containerMId, nil, false)
 		if err != nil {
 			return nil, err
 		}
@@ -283,9 +285,9 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 
 // createCommoditiesSold creates a slice of resource commodities sold of the given resourceType.
 func (builder *containerDTOBuilder) createCommoditiesSold(entityType metrics.DiscoveredEntityType,
-	resourceTypes []metrics.ResourceType, containerMId string, converter *converter) ([]*proto.CommodityDTO, error) {
+	resourceTypes []metrics.ResourceType, containerMId string, converter *converter, isResizable bool) ([]*proto.CommodityDTO, error) {
 	attrSetter := NewCommodityAttrSetter()
-	attrSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, resourceTypes...)
+	attrSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(isResizable) }, resourceTypes...)
 	commoditiesSold, err := builder.getResourceCommoditiesSold(entityType, containerMId, resourceTypes, converter, attrSetter)
 	return commoditiesSold, err
 }
