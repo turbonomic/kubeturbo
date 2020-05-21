@@ -230,23 +230,11 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 
 	commodities := append(cpuCommodities, memCommodities...)
 	if len(commodities) != len(commoditySold) {
-		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for container:%s, %s", len(commodities), len(commoditySold), containerName, containerMId)
+		err = fmt.Errorf("mismatch num of commodities (%d Vs. %d) for container:%s, %s", len(commodities), len(commoditySold), containerName, containerMId)
 		glog.Error(err)
 		return nil, err
 	}
 	result = append(result, commodities...)
-	if containerSpec != nil {
-		// Store container VCPU and VMem commodity DTOs to ContainerSpec if ContainerSpec is not nil
-		for _, commodityDTO := range commodities {
-			containerCommodities, exists := containerSpec.ContainerCommodities[*commodityDTO.CommodityType]
-			if !exists {
-				containerCommodities = []*proto.CommodityDTO{}
-			}
-			// Store VCPU and VMem commodity DTOs to ContainerSpec
-			containerCommodities = append(containerCommodities, commodityDTO)
-			containerSpec.ContainerCommodities[*commodityDTO.CommodityType] = containerCommodities
-		}
-	}
 
 	//1c. vCPURequest
 	// Container sells vCPURequest commodity only if CPU request is set on the container
@@ -258,6 +246,7 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 			return nil, err
 		}
 		result = append(result, cpuRequestCommodities...)
+		commodities = append(commodities, cpuRequestCommodities...)
 	}
 
 	//1d. vMemRequest
@@ -268,6 +257,20 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 			return nil, err
 		}
 		result = append(result, memRequestCommodities...)
+		commodities = append(commodities, memRequestCommodities...)
+	}
+
+	if containerSpec != nil {
+		// Store container VCPU and VMem commodity DTOs to ContainerSpec if ContainerSpec is not nil
+		for _, commodityDTO := range commodities {
+			containerCommodities, exists := containerSpec.ContainerCommodities[*commodityDTO.CommodityType]
+			if !exists {
+				containerCommodities = []*proto.CommodityDTO{}
+			}
+			// Store VCPU and VMem commodity DTOs to ContainerSpec
+			containerCommodities = append(containerCommodities, commodityDTO)
+			containerSpec.ContainerCommodities[*commodityDTO.CommodityType] = containerCommodities
+		}
 	}
 
 	//2. Application

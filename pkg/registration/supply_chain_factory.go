@@ -349,7 +349,9 @@ func (f *SupplyChainFactory) buildContainerSpecSupplyBuilder() (*proto.TemplateD
 	containerSpecSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER_SPEC)
 	containerSpecSupplyChainNodeBuilder = containerSpecSupplyChainNodeBuilder.
 		Sells(vCpuTemplateComm).
-		Sells(vMemTemplateComm)
+		Sells(vMemTemplateComm).
+		Sells(vCpuRequestTemplateCommOpt).
+		Sells(vMemRequestTemplateCommOpt)
 	return containerSpecSupplyChainNodeBuilder.Create()
 }
 
