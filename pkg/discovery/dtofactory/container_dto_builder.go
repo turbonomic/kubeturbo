@@ -2,9 +2,10 @@ package dtofactory
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
-	"strings"
 
 	"github.com/golang/glog"
 	api "k8s.io/api/core/v1"
@@ -261,7 +262,8 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 	}
 
 	if containerSpec != nil {
-		// Store container VCPU and VMem commodity DTOs to ContainerSpec if ContainerSpec is not nil
+		// Store container VCPU, VMem, VCPURequest (if present), and VMemRequest (if present),
+		// commodity DTOs to ContainerSpec if ContainerSpec is not nil
 		for _, commodityDTO := range commodities {
 			containerCommodities, exists := containerSpec.ContainerCommodities[*commodityDTO.CommodityType]
 			if !exists {
