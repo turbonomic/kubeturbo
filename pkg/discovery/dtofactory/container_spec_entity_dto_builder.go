@@ -13,6 +13,8 @@ var (
 	ContainerSpecCommoditiesSold = []proto.CommodityDTO_CommodityType{
 		proto.CommodityDTO_VCPU,
 		proto.CommodityDTO_VMEM,
+		proto.CommodityDTO_VCPU_REQUEST,
+		proto.CommodityDTO_VMEM_REQUEST,
 	}
 )
 

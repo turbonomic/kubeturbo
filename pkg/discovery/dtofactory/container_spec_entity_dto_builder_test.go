@@ -28,6 +28,10 @@ func Test_containerSpecDTOBuilder_getCommoditiesSold(t *testing.T) {
 				createCommodityDTO(proto.CommodityDTO_VMEM, 1.0, 1.0, 2.0),
 				createCommodityDTO(proto.CommodityDTO_VMEM, 3.0, 3.0, 4.0),
 			},
+			memRequestCommType: {
+				createCommodityDTO(proto.CommodityDTO_VMEM_REQUEST, 1.0, 1.0, 2.0),
+				createCommodityDTO(proto.CommodityDTO_VMEM_REQUEST, 3.0, 3.0, 4.0),
+			},
 		},
 	}
 
@@ -38,7 +42,7 @@ func Test_containerSpecDTOBuilder_getCommoditiesSold(t *testing.T) {
 	}
 	commodityDTOs, err := builder.getCommoditiesSold(&containerSpecs)
 	assert.Nil(t, err)
-	assert.Equal(t, 2, len(commodityDTOs))
+	assert.Equal(t, 3, len(commodityDTOs))
 	for _, commodityDTO := range commodityDTOs {
 		assert.Equal(t, true, *commodityDTO.Active)
 		assert.Equal(t, true, *commodityDTO.Resizable)
