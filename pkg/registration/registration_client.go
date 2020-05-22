@@ -149,6 +149,13 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 
 	rClient.addActionPolicy(ab, node, nodePolicy)
 
+	// 6. workload controller: support  resize
+	controller := proto.EntityDTO_WORKLOAD_CONTROLLER
+	controllerPolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
+	controllerPolicy[proto.ActionItemDTO_RIGHT_SIZE] = supported
+
+	rClient.addActionPolicy(ab, controller, controllerPolicy)
+
 	return ab.Create()
 }
 

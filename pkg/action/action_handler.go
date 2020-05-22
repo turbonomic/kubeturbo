@@ -38,6 +38,8 @@ var (
 	turboActionContainerResize  = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_CONTAINER}
 	turboActionMachineProvision = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_VIRTUAL_MACHINE}
 	turboActionMachineSuspend   = turboActionType{proto.ActionItemDTO_SUSPEND, proto.EntityDTO_VIRTUAL_MACHINE}
+	turboActionControllerResize  = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_WORKLOAD_CONTROLLER}
+
 )
 
 type ActionHandlerConfig struct {
@@ -115,6 +117,9 @@ func (h *ActionHandler) registerActionExecutors() {
 	containerResizer := executor.NewContainerResizer(ae, c.kubeletClient, c.sccAllowedSet)
 	h.actionExecutors[turboActionContainerResize] = containerResizer
 
+	controllerResize := executor.NewControllerMergeResizer(ae, c.kubeletClient)
+	h.actionExecutors[turboActionControllerResize] = controllerResize
+
 	// Only register the actions when API client is non-nil.
 	if ok, err := executor.IsClusterAPIEnabled(c.cAPINamespace, c.cApiClient, c.kubeClient); ok && err == nil {
 		machineScaler := executor.NewMachineActionExecutor(c.cAPINamespace, ae)
@@ -138,6 +143,8 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 		return h.failedResult(err.Error()), err
 	}
 
+	// TODO: SEND the whole DTO
+	glog.Infof("Execute action for %++v --> %++v",  actionExecutionDTO.GetActionType(), actionExecutionDTO)
 	actionItemDTO := actionExecutionDTO.GetActionItem()[0]
 
 	// 2. keep sending fake progress to prevent timeout
@@ -149,6 +156,7 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	glog.V(3).Infof("Now wait for action result")
 	err := h.execute(actionItemDTO)
 	if err != nil {
+		glog.Errorf("action execution error %++v", err)
 		return h.failedResult(err.Error()), nil
 	}
 

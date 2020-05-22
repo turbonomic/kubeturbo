@@ -132,6 +132,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 				containerSpecId := util.ContainerSpecIdFunc(controllerUID, container.Name)
 				containerSpec = repository.NewContainerSpec(pod.Namespace, controllerUID, container.Name,
 					containerSpecId)
+				containerSpec.AddContainerUID(containerId)
 				containerSpecList = append(containerSpecList, containerSpec)
 
 				// To connect Container to ContainerSpec entity, Container is LayeredOver by the associated ContainerSpec.
