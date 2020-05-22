@@ -2,6 +2,7 @@ package worker
 
 import (
 	"fmt"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -63,6 +64,7 @@ func (worker *k8sContainerSpecDiscoveryWorker) getContainerDataAggregators(utili
 func (worker *k8sContainerSpecDiscoveryWorker) createContainerSpecMap(containerSpecList []*repository.ContainerSpec) map[string]*repository.ContainerSpec {
 	// Map from ContainerSpec ID to ContainerSpec object
 	containerSpecMap := make(map[string]*repository.ContainerSpec)
+	//containers := make(map[string][]string)
 	for _, containerSpec := range containerSpecList {
 		containerSpecId := containerSpec.ContainerSpecId
 		existingContainerSpec, exists := containerSpecMap[containerSpecId]

@@ -3,8 +3,9 @@ package repository
 import (
 	"bytes"
 	"fmt"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"strings"
+
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -272,6 +273,7 @@ type ContainerSpec struct {
 	ControllerUID     string
 	ContainerSpecName string
 	ContainerSpecId   string
+	ContainerIDs      []string
 	// Container replicas number
 	ContainerReplicas int32
 	// Map from commodity type to list of commodity DTOs of this commodity type sold by container replicas of the
@@ -288,6 +290,10 @@ func NewContainerSpec(namespace, controllerUID, containerName, containerSpecId s
 		ContainerReplicas:    1,
 		ContainerCommodities: make(map[proto.CommodityDTO_CommodityType][]*proto.CommodityDTO),
 	}
+}
+
+func (spec *ContainerSpec) AddContainerUID(containerID string) {
+	spec.ContainerIDs = append(spec.ContainerIDs, containerID)
 }
 
 // K8s controller in the cluster

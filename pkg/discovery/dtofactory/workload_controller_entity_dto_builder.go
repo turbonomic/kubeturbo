@@ -29,7 +29,6 @@ func (builder *workloadControllerDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, er
 		// Id
 		workloadControllerId := kubeController.UID
 		entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER, workloadControllerId)
-
 		// Display name
 		workloadControllerDisplayName := kubeController.Name
 		entityDTOBuilder.DisplayName(workloadControllerDisplayName)
