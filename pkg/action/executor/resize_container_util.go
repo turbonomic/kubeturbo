@@ -17,7 +17,7 @@ import (
 )
 
 // update the Pod.Containers[index]'s Resources.Requests
-func updateReservation(container *k8sapi.Container, patchReservation k8sapi.ResourceList) bool {
+func updateRequests(container *k8sapi.Container, patchReservation k8sapi.ResourceList) bool {
 	glog.V(4).Infof("Begin to update Request(Reservation).")
 	changed := false
 
@@ -45,7 +45,7 @@ func updateReservation(container *k8sapi.Container, patchReservation k8sapi.Reso
 }
 
 // update the Pod.Containers[index]'s Resources.Limits
-func updateCapacity(container *k8sapi.Container, patchCapacity k8sapi.ResourceList) bool {
+func updateLimits(container *k8sapi.Container, patchCapacity k8sapi.ResourceList) bool {
 	glog.V(4).Infof("Begin to update Capacity.")
 	changed := false
 
@@ -109,12 +109,12 @@ func updateResourceAmount(podSpec *k8sapi.PodSpec, spec *containerResizeSpec) (b
 	//2. update Limits
 	changed := false
 	if spec.NewCapacity != nil && len(spec.NewCapacity) > 0 {
-		changed = changed || updateCapacity(container, spec.NewCapacity)
+		changed = changed || updateLimits(container, spec.NewCapacity)
 	}
 
 	//3. update Requests
 	if spec.NewRequest != nil && len(spec.NewRequest) > 0 {
-		changed = changed || updateReservation(container, spec.NewRequest)
+		changed = changed || updateRequests(container, spec.NewRequest)
 	}
 
 	//4. check the new Limits vs. Requests, make sure Limits >= Requests

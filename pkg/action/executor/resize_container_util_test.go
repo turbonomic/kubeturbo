@@ -142,7 +142,7 @@ func TestUpdateCapacity(t *testing.T) {
 	}
 
 	//c := NewContainerResizer(nil, nil, "1.5", "aa", nil)
-	updateCapacity(container, patch)
+	updateLimits(container, patch)
 	if err := compareResourceList(container.Resources.Limits, 250, 500); err != nil {
 		t.Error(err)
 	}
