@@ -288,6 +288,8 @@ k8s.io/klog
 k8s.io/kube-openapi/pkg/util/proto
 # k8s.io/kubernetes v1.13.1
 k8s.io/kubernetes/pkg/apis/core
+k8s.io/kubernetes/pkg/apis/core/helper
+k8s.io/kubernetes/pkg/apis/core/v1/helper
 k8s.io/kubernetes/pkg/apis/scheduling
 k8s.io/kubernetes/pkg/features
 k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1
