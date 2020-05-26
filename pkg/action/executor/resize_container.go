@@ -20,6 +20,18 @@ const (
 	smallestAmount float64 = 1.0
 )
 
+var (
+	resourceCommodities = map[proto.CommodityDTO_CommodityType]struct{}{
+		proto.CommodityDTO_VCPU: {},
+		proto.CommodityDTO_VMEM: {},
+	}
+
+	resourceRequestCommodities = map[proto.CommodityDTO_CommodityType]struct{}{
+		proto.CommodityDTO_VCPU_REQUEST: {},
+		proto.CommodityDTO_VMEM_REQUEST: {},
+	}
+)
+
 type containerResizeSpec struct {
 	// the new capacity of the resources
 	NewCapacity k8sapi.ResourceList
@@ -85,13 +97,13 @@ func (r *ContainerResizer) setCPUQuantity(cpuMhz float64, host string, rlist k8s
 func (r *ContainerResizer) buildResourceList(pod *k8sapi.Pod, cType proto.CommodityDTO_CommodityType,
 	amount float64, result k8sapi.ResourceList) error {
 	switch cType {
-	case proto.CommodityDTO_VCPU:
+	case proto.CommodityDTO_VCPU, proto.CommodityDTO_VCPU_REQUEST:
 		host := pod.Spec.NodeName
 		err := r.setCPUQuantity(amount, host, result)
 		if err != nil {
 			return fmt.Errorf("failed to build cpu.Capacity: %v", err)
 		}
-	case proto.CommodityDTO_VMEM:
+	case proto.CommodityDTO_VMEM, proto.CommodityDTO_VMEM_REQUEST:
 		memory, err := genMemoryQuantity(amount)
 		if err != nil {
 			return fmt.Errorf("failed to build mem.Capacity: %v", err)
@@ -131,11 +143,20 @@ func (r *ContainerResizer) buildResourceLists(pod *k8sapi.Pod, actionItem *proto
 	//1. check capacity change
 	change, amount := getNewAmount(comm1.GetCapacity(), comm2.GetCapacity())
 	if change {
-		if err := r.buildResourceList(pod, cType, amount, spec.NewCapacity); err != nil {
-			return fmt.Errorf("failed to build resource list when resize %v capacity to %v: %v",
-				cType.String(), amount, err)
+		var resourceList k8sapi.ResourceList
+		if _, exists := resourceCommodities[cType]; exists {
+			resourceList = spec.NewCapacity
+		} else if _, exists := resourceRequestCommodities[cType]; exists {
+			resourceList = spec.NewRequest
+		} else {
+			return fmt.Errorf("failed to build resource list when resize %s capacity to %v: %s commodity type is not supported",
+				cType, amount, cType)
 		}
-		glog.V(3).Infof("Resize pod-%v %v Capacity to %v", pod.Name, cType.String(), amount)
+		if err := r.buildResourceList(pod, cType, amount, resourceList); err != nil {
+			return fmt.Errorf("failed to build resource list when resize %s capacity to %v: %v",
+				cType, amount, err)
+		}
+		glog.V(3).Infof("Resize pod-%s %s Capacity to %v", pod.Name, cType, amount)
 	}
 
 	//2. check reservation

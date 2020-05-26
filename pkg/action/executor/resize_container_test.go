@@ -2,6 +2,8 @@ package executor
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	k8sapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
@@ -244,5 +246,40 @@ func TestSetZeroRequestCPUMemory2(t *testing.T) {
 		t.Error("Failed to set CPU zero request")
 	} else {
 		fmt.Printf("rtype=%v, v=%++v", rtypeCPU, v)
+	}
+}
+
+func TestBuildResourceListsWithLimits(t *testing.T) {
+	actionItem := &proto.ActionItemDTO{
+		CurrentComm: mockCommodity(proto.CommodityDTO_VMEM, 10),
+		NewComm:     mockCommodity(proto.CommodityDTO_VMEM, 20),
+	}
+	spec := NewContainerResizeSpec(0)
+	resizer := &ContainerResizer{}
+	resizer.buildResourceLists(createPod(), actionItem, spec)
+
+	assert.Equal(t, 0, len(spec.NewRequest))
+	newMemoryCapacity := spec.NewCapacity[k8sapi.ResourceMemory]
+	assert.Equal(t, "20Ki", newMemoryCapacity.String())
+}
+
+func TestBuildResourceListsWithRequests(t *testing.T) {
+	actionItem := &proto.ActionItemDTO{
+		CurrentComm: mockCommodity(proto.CommodityDTO_VMEM_REQUEST, 10),
+		NewComm:     mockCommodity(proto.CommodityDTO_VMEM_REQUEST, 20),
+	}
+	spec := NewContainerResizeSpec(0)
+	resizer := &ContainerResizer{}
+	resizer.buildResourceLists(createPod(), actionItem, spec)
+
+	assert.Equal(t, 0, len(spec.NewCapacity))
+	newMemoryRequests := spec.NewRequest[k8sapi.ResourceMemory]
+	assert.EqualValues(t, "20Ki", newMemoryRequests.String())
+}
+
+func mockCommodity(commodityType proto.CommodityDTO_CommodityType, capacity float64) *proto.CommodityDTO {
+	return &proto.CommodityDTO{
+		CommodityType: &commodityType,
+		Capacity:      &capacity,
 	}
 }
