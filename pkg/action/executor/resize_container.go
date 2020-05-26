@@ -149,14 +149,14 @@ func (r *ContainerResizer) buildResourceLists(pod *k8sapi.Pod, actionItem *proto
 		} else if _, exists := resourceRequestCommodities[cType]; exists {
 			resourceList = spec.NewRequest
 		} else {
-			return fmt.Errorf("failed to build resource list when resize %v capacity to %v: %v commodity type is not supported",
-				cType.String(), amount, cType.String())
+			return fmt.Errorf("failed to build resource list when resize %s capacity to %v: %s commodity type is not supported",
+				cType, amount, cType)
 		}
 		if err := r.buildResourceList(pod, cType, amount, resourceList); err != nil {
-			return fmt.Errorf("failed to build resource list when resize %v capacity to %v: %v",
-				cType.String(), amount, err)
+			return fmt.Errorf("failed to build resource list when resize %s capacity to %v: %v",
+				cType, amount, err)
 		}
-		glog.V(3).Infof("Resize pod-%v %v Capacity to %v", pod.Name, cType.String(), amount)
+		glog.V(3).Infof("Resize pod-%s %s Capacity to %v", pod.Name, cType, amount)
 	}
 
 	//2. check reservation
