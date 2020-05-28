@@ -158,17 +158,6 @@ func (r *ContainerResizer) buildResourceLists(pod *k8sapi.Pod, actionItem *proto
 		}
 		glog.V(3).Infof("Resize pod-%s %s Capacity to %v", pod.Name, cType, amount)
 	}
-
-	//2. check reservation
-	change, amount = getNewAmount(comm1.GetReservation(), comm2.GetReservation())
-	if change {
-		if err := r.buildResourceList(pod, cType, amount, spec.NewRequest); err != nil {
-			return fmt.Errorf("failed to build resource list when resize %v reservation to %v: %v",
-				cType.String(), amount, err)
-		}
-		glog.V(3).Infof("Resize pod-%v %v Reservation to %v", pod.Name, cType.String(), amount)
-	}
-
 	return nil
 }
 

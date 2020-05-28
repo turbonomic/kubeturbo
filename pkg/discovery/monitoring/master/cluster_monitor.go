@@ -265,8 +265,6 @@ func (m *ClusterMonitor) genPodMetrics(pod *api.Pod, nodeCPUCapacity, nodeMemCap
 	podCPURequest, podMemRequest := m.genContainerMetrics(pod, cpuCapacity, memCapacity)
 	//2.2 Generate capacity metric for CPURequest and MemRequest. Pod requests capacity is node Allocatable
 	m.genRequestCapacityMetrics(metrics.PodType, podMId, nodeCPUAllocatable, nodeMemAllocatable)
-	// TODO remove genReservationMetrics once we have full support to resize requests commodities
-	m.genReservationMetrics(metrics.PodType, podMId, podCPURequest, podMemRequest)
 	//2.3 Generate used metric for CPURequest and MemRequest
 	m.genRequestUsedMetrics(metrics.PodType, podMId, podCPURequest, podMemRequest)
 
@@ -317,8 +315,6 @@ func (m *ClusterMonitor) genContainerMetrics(pod *api.Pod, podCPU, podMem float6
 		m.genRequestCapacityMetrics(metrics.ContainerType, containerMId, cpuRequest, memRequest)
 		// Generate resource request quota metrics with used value as CPU/memory resource request capacity
 		m.genRequestQuotaUsedMetrics(metrics.ContainerType, containerMId, cpuRequest, memRequest)
-		// TODO remove genReservationMetrics once we have full support to resize requests commodities
-		m.genReservationMetrics(metrics.ContainerType, containerMId, cpuRequest, memRequest)
 
 		totalCPURequest += cpuRequest
 		totalMemRequest += memRequest
@@ -376,15 +372,6 @@ func (m *ClusterMonitor) genLimitQuotaUsedMetrics(etype metrics.DiscoveredEntity
 func (m *ClusterMonitor) genRequestQuotaUsedMetrics(etype metrics.DiscoveredEntityType, key string, cpu, memory float64) {
 	cpuMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPURequestQuota, metrics.Used, cpu)
 	memMetric := metrics.NewEntityResourceMetric(etype, key, metrics.MemoryRequestQuota, metrics.Used, memory)
-	m.sink.AddNewMetricEntries(cpuMetric, memMetric)
-}
-
-// TODO remove this function of generating reservation (request) metrics on VCPU and VMemory commodities once we implement
-// the full support to resize requests commodities
-// genReservationMetrics generates reservation (equivalent of request) metrics for VCPU and VMemory commodity
-func (m *ClusterMonitor) genReservationMetrics(etype metrics.DiscoveredEntityType, key string, cpu, memory float64) {
-	cpuMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPU, metrics.Reservation, cpu)
-	memMetric := metrics.NewEntityResourceMetric(etype, key, metrics.Memory, metrics.Reservation, memory)
 	m.sink.AddNewMetricEntries(cpuMetric, memMetric)
 }
 

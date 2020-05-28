@@ -17,8 +17,8 @@ import (
 )
 
 // update the Pod.Containers[index]'s Resources.Requests
-func updateRequests(container *k8sapi.Container, patchReservation k8sapi.ResourceList) bool {
-	glog.V(4).Infof("Begin to update Request(Reservation).")
+func updateRequests(container *k8sapi.Container, patchRequests k8sapi.ResourceList) bool {
+	glog.V(4).Infof("Begin to update Request.")
 	changed := false
 
 	//1. get the original requests
@@ -28,7 +28,7 @@ func updateRequests(container *k8sapi.Container, patchReservation k8sapi.Resourc
 	}
 
 	//2. apply the patch
-	for k, v := range patchReservation {
+	for k, v := range patchRequests {
 		oldv, exist := result[k]
 		if !exist || oldv.Cmp(v) != 0 {
 			result[k] = v
@@ -74,7 +74,6 @@ func updateLimits(container *k8sapi.Container, patchCapacity k8sapi.ResourceList
 }
 
 // make sure that the Request.Value is not bigger than the Limit.Value
-// Note: It is certain that OpsMgr will make sure reservation is less than capacity.
 func checkLimitsRequests(container *k8sapi.Container) error {
 	if container.Resources.Limits == nil || container.Resources.Requests == nil {
 		return nil

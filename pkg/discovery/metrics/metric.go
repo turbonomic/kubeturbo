@@ -144,9 +144,8 @@ func IsCPUType(resourceType ResourceType) bool {
 type MetricProp string
 
 const (
-	Capacity    MetricProp = "Capacity"
-	Used        MetricProp = "Used"
-	Reservation MetricProp = "Reservation"
+	Capacity MetricProp = "Capacity"
+	Used     MetricProp = "Used"
 )
 
 type Metric interface {

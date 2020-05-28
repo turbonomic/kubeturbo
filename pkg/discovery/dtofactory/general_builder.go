@@ -226,24 +226,6 @@ func (builder generalBuilder) getResourceCommoditiesBought(entityType metrics.Di
 		// set peak value as the used value
 		commBoughtBuilder.Peak(usedValue)
 
-		// set reservation value if any
-		reservedMetricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID,
-			rType, metrics.Reservation)
-		reservedMetric, err := builder.metricsSink.GetMetric(reservedMetricUID)
-		if err != nil {
-			// not every commodity has reserved value.
-			glog.V(4).Infof("%s::%s Reservation not set for commodity %s: %s",
-				entityType, entityID, rType, err)
-		} else {
-			reservedValue := reservedMetric.GetValue().(float64)
-			if reservedValue != 0 {
-				if converter != nil && converter.Convertible(rType) {
-					reservedValue = converter.Convert(rType, reservedValue)
-				}
-				commBoughtBuilder.Reservation(reservedValue)
-			}
-		}
-
 		// set additional attribute
 		if commodityAttrSetter != nil && commodityAttrSetter.Settable(rType) {
 			commodityAttrSetter.Set(rType, commBoughtBuilder)
@@ -287,14 +269,6 @@ func (builder generalBuilder) getResourceCommodityBoughtWithKey(entityType metri
 	// set peak value as the used value
 	commBoughtBuilder.Peak(usedValue)
 
-	// set reservation value if any
-	reservationValue, _ := builder.metricValue(entityType, entityID,
-		resourceType, metrics.Reservation, converter)
-	if reservationValue != 0 {
-		glog.V(4).Infof("%s::%s Reservation set for commodity %s: %s",
-			entityType, entityID, resourceType, err)
-		commBoughtBuilder.Reservation(reservationValue)
-	}
 	// set additional attribute
 	if commodityAttrSetter != nil && commodityAttrSetter.Settable(resourceType) {
 		commodityAttrSetter.Set(resourceType, commBoughtBuilder)
