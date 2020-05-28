@@ -239,10 +239,8 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 
 	//1c. vCPURequest
 	// Container sells vCPURequest commodity only if CPU request is set on the container
-	// TODO temporarily set isResizable to false for VCPURequest and VMemRequest commodities sold by containers to avoid
-	// suspicious resizing actions before we implement the full support to resize requests commodities
 	if isCpuRequestSet {
-		cpuRequestCommodities, err := builder.createCommoditiesSold(containerEntityType, cpuRequestCommodity, containerMId, converter, false)
+		cpuRequestCommodities, err := builder.createCommoditiesSold(containerEntityType, cpuRequestCommodity, containerMId, converter, true)
 		if err != nil {
 			return nil, err
 		}
@@ -253,7 +251,7 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 	//1d. vMemRequest
 	// Container sells vMemRequest commodity only if memory request is set on the container
 	if isMemRequestSet {
-		memRequestCommodities, err := builder.createCommoditiesSold(containerEntityType, memRequestCommodity, containerMId, nil, false)
+		memRequestCommodities, err := builder.createCommoditiesSold(containerEntityType, memRequestCommodity, containerMId, nil, true)
 		if err != nil {
 			return nil, err
 		}

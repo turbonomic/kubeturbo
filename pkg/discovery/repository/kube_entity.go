@@ -37,9 +37,8 @@ type KubeResourceProvider struct {
 // Abstraction for a resource that a kubernetes entity will be buy from its provider
 // in the Turbonomic server supply chain
 type KubeBoughtResource struct {
-	Type        metrics.ResourceType
-	Used        float64
-	Reservation float64
+	Type metrics.ResourceType
+	Used float64
 }
 
 // Creates a new entity for the given entity type and uid.

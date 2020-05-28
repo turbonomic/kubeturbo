@@ -170,7 +170,8 @@ func Test_containerDTOBuilder_BuildDTOs_withContainerSpec(t *testing.T) {
 	cpuUsedFreq := cpuUsed * nodeCpuFrequency
 	cpuPeakFreq := cpuUsed * nodeCpuFrequency
 	cpuCapFreq := cpuCap * nodeCpuFrequency
-	commIsResizable := false
+	commNotResizable := false
+	commIsResizable := true
 	expectedContainerSpec := &repository.ContainerSpec{
 		Namespace:         namespace,
 		ControllerUID:     controllerUID,
@@ -183,7 +184,7 @@ func Test_containerDTOBuilder_BuildDTOs_withContainerSpec(t *testing.T) {
 				Used:          &cpuUsedFreq,
 				Peak:          &cpuPeakFreq,
 				Capacity:      &cpuCapFreq,
-				Resizable:     &commIsResizable,
+				Resizable:     &commNotResizable,
 			},
 			},
 			memCommType: {{
@@ -191,7 +192,7 @@ func Test_containerDTOBuilder_BuildDTOs_withContainerSpec(t *testing.T) {
 				Used:          &memUsed,
 				Peak:          &memUsed,
 				Capacity:      &memCap,
-				Resizable:     &commIsResizable,
+				Resizable:     &commNotResizable,
 			},
 			},
 			memRequestCommType: {{
