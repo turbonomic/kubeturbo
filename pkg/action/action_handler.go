@@ -38,8 +38,7 @@ var (
 	turboActionContainerResize  = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_CONTAINER}
 	turboActionMachineProvision = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_VIRTUAL_MACHINE}
 	turboActionMachineSuspend   = turboActionType{proto.ActionItemDTO_SUSPEND, proto.EntityDTO_VIRTUAL_MACHINE}
-	turboActionControllerResize  = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_WORKLOAD_CONTROLLER}
-
+	turboActionControllerResize = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_WORKLOAD_CONTROLLER}
 )
 
 type ActionHandlerConfig struct {
@@ -117,7 +116,7 @@ func (h *ActionHandler) registerActionExecutors() {
 	containerResizer := executor.NewContainerResizer(ae, c.kubeletClient, c.sccAllowedSet)
 	h.actionExecutors[turboActionContainerResize] = containerResizer
 
-	controllerResize := executor.NewControllerMergeResizer(ae, c.kubeletClient)
+	controllerResize := executor.NewWorkloadControllerResizer(ae, c.kubeletClient)
 	h.actionExecutors[turboActionControllerResize] = controllerResize
 
 	// Only register the actions when API client is non-nil.
@@ -144,8 +143,8 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	}
 
 	// TODO: SEND the whole DTO
-	glog.Infof("Execute action for %++v --> %++v",  actionExecutionDTO.GetActionType(), actionExecutionDTO)
-	actionItemDTO := actionExecutionDTO.GetActionItem()[0]
+	glog.Infof("Execute action for %++v --> %++v", actionExecutionDTO.GetActionType(), actionExecutionDTO)
+	//actionItemDTO := actionExecutionDTO.GetActionItem()[0]
 
 	// 2. keep sending fake progress to prevent timeout
 	stop := make(chan struct{})
@@ -154,7 +153,7 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 
 	// 3. execute the action
 	glog.V(3).Infof("Now wait for action result")
-	err := h.execute(actionItemDTO)
+	err := h.execute(actionExecutionDTO.GetActionItem())
 	if err != nil {
 		glog.Errorf("action execution error %++v", err)
 		return h.failedResult(err.Error()), nil
@@ -168,7 +167,7 @@ func isPodAction(actionItem *proto.ActionItemDTO) bool {
 		actionItem.GetTargetSE().GetEntityType() == proto.EntityDTO_CONTAINER
 }
 
-func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
+func (h *ActionHandler) execute(actionItems []*proto.ActionItemDTO) error {
 	// Only acquire lock for pod actions so they can be sequentialized
 	// We sequentialize pod actions because there could be different types of actions
 	// generated for the same pod at the same time, e.g., resize and provision
@@ -176,6 +175,8 @@ func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
 	// the same machine, this is because there will not be resize action for machines,
 	// and we do not want to queue multiple provision/suspend action for the same machine
 	var pod *api.Pod
+	// This works for all the other actions which get only a single action
+	actionItem := actionItems[0]
 	if isPodAction(actionItem) {
 		// getLock() returns error if it times out (default timeout value is set in lockStore
 		lock, err := h.lockStore.getLock(actionItem)
@@ -197,8 +198,8 @@ func (h *ActionHandler) execute(actionItem *proto.ActionItemDTO) error {
 	}
 
 	input := &executor.TurboActionExecutorInput{
-		ActionItem: actionItem,
-		Pod:        pod,
+		ActionItems: actionItems,
+		Pod:         pod,
 	}
 
 	actionType := getTurboActionType(actionItem)
