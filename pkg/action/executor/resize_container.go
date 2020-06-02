@@ -228,7 +228,7 @@ func (r *ContainerResizer) buildResizeSpec(actionItem *proto.ActionItemDTO, pod 
 // Execute executes the container resize action
 // The error info will be shown in UI
 func (r *ContainerResizer) Execute(input *TurboActionExecutorInput) (*TurboActionExecutorOutput, error) {
-	actionItem := input.ActionItem
+	actionItem := input.ActionItems[0]
 	pod := input.Pod
 
 	// check if the pod privilege is supported

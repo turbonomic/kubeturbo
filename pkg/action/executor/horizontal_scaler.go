@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+
 	"github.com/golang/glog"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
@@ -19,7 +20,7 @@ func NewHorizontalScaler(ae TurboK8sActionExecutor) *HorizontalScaler {
 }
 
 func (h *HorizontalScaler) Execute(input *TurboActionExecutorInput) (*TurboActionExecutorOutput, error) {
-	actionItem := input.ActionItem
+	actionItem := input.ActionItems[0]
 	pod := input.Pod
 
 	//1. Get replica diff

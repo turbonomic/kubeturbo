@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -30,10 +31,10 @@ func (s *MachineActionExecutor) unlock(key string) {
 
 // Execute : executes the scale action.
 func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*TurboActionExecutorOutput, error) {
-	nodeName := vmDTO.ActionItem.GetTargetSE().GetDisplayName()
+	nodeName := vmDTO.ActionItems[0].GetTargetSE().GetDisplayName()
 	var actionType ActionType
 	var diff int32
-	switch vmDTO.ActionItem.GetActionType() {
+	switch vmDTO.ActionItems[0].GetActionType() {
 	case proto.ActionItemDTO_PROVISION:
 		actionType = ProvisionAction
 		diff = 1
@@ -43,7 +44,7 @@ func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*Turbo
 		diff = -1
 		break
 	default:
-		return nil, fmt.Errorf("unsupported action type %v", vmDTO.ActionItem.GetActionType())
+		return nil, fmt.Errorf("unsupported action type %v", vmDTO.ActionItems[0].GetActionType())
 	}
 	// Get on with it.
 	controller, key, err := newController(s.cAPINamespace, nodeName, diff, actionType,

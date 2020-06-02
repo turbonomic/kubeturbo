@@ -26,7 +26,7 @@ func NewReScheduler(ae TurboK8sActionExecutor, sccAllowedSet map[string]struct{}
 
 // Execute executes the move action. The error message will be shown in UI.
 func (r *ReScheduler) Execute(input *TurboActionExecutorInput) (*TurboActionExecutorOutput, error) {
-	actionItem := input.ActionItem
+	actionItem := input.ActionItems[0]
 	pod := input.Pod
 
 	//1. get target Pod and new hosting Node
