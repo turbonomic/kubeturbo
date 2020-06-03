@@ -2,6 +2,9 @@ package executor
 
 import (
 	"fmt"
+	"strconv"
+	"time"
+
 	"github.com/golang/glog"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/util"
@@ -10,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	kclient "k8s.io/client-go/kubernetes"
-	"time"
 )
 
 // k8sControllerUpdater defines a specific k8s controller resource
@@ -28,7 +30,7 @@ type k8sControllerUpdater struct {
 // - resizeSpec: the index and new resource requirement of a container
 type controllerSpec struct {
 	replicasDiff int32
-	resizeSpec   *containerResizeSpec
+	resizeSpecs  []*containerResizeSpec
 }
 
 // newK8sControllerUpdater returns a k8sControllerUpdater based on the parent kind of a pod
@@ -78,12 +80,12 @@ func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.In
 }
 
 // updateWithRetry updates a specific k8s controller with retry and timeout
-func (c *k8sControllerUpdater) updateWithRetry(spec *controllerSpec) error {
+func (c *k8sControllerUpdater) updateWithRetry(ctlrSpec *controllerSpec) error {
 	retryNum := defaultRetryLess
 	interval := defaultUpdateReplicaSleep
 	timeout := time.Duration(retryNum+1) * interval
 	err := util.RetryDuring(retryNum, timeout, interval, func() error {
-		return c.update(spec)
+		return c.update(ctlrSpec)
 	})
 	return err
 }
@@ -136,9 +138,16 @@ func (c *k8sControllerUpdater) reconcile(current *k8sControllerSpec, desired *co
 	}
 	// This may be a vertical scale
 	// Check and update resource limits/requests of the container in the pod specification
-	glog.V(4).Infof("Update container %v/%v-%v resources in the pod specification.",
-		c.namespace, c.podName, desired.resizeSpec.Index)
-	updated, err := updateResourceAmount(current.podSpec, desired.resizeSpec)
+	indexes := ""
+	for _, spec := range desired.resizeSpecs {
+		if indexes == "" {
+			indexes = strconv.Itoa(spec.Index) + ","
+		}
+		indexes = indexes + strconv.Itoa(spec.Index) + ","
+	}
+	glog.V(4).Infof("Try to update resources for container indexes: %s in pod %v/%v's spec.",
+		indexes, c.namespace, c.podName)
+	updated, err := updateResourceAmount(current.podSpec, desired.resizeSpecs)
 	if err != nil {
 		return false, err
 	}
