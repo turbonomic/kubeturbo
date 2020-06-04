@@ -116,8 +116,8 @@ func (h *ActionHandler) registerActionExecutors() {
 	containerResizer := executor.NewContainerResizer(ae, c.kubeletClient, c.sccAllowedSet)
 	h.actionExecutors[turboActionContainerResize] = containerResizer
 
-	controllerResize := executor.NewWorkloadControllerResizer(ae, c.kubeletClient)
-	h.actionExecutors[turboActionControllerResize] = controllerResize
+	controllerResizer := executor.NewWorkloadControllerResizer(ae, c.kubeletClient, c.sccAllowedSet)
+	h.actionExecutors[turboActionControllerResize] = controllerResizer
 
 	// Only register the actions when API client is non-nil.
 	if ok, err := executor.IsClusterAPIEnabled(c.cAPINamespace, c.cApiClient, c.kubeClient); ok && err == nil {
@@ -142,10 +142,6 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 		return h.failedResult(err.Error()), err
 	}
 
-	// TODO: SEND the whole DTO
-	glog.Infof("Execute action for %++v --> %++v", actionExecutionDTO.GetActionType(), actionExecutionDTO)
-	//actionItemDTO := actionExecutionDTO.GetActionItem()[0]
-
 	// 2. keep sending fake progress to prevent timeout
 	stop := make(chan struct{})
 	defer close(stop)
@@ -162,9 +158,11 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	return h.goodResult(), nil
 }
 
-func isPodAction(actionItem *proto.ActionItemDTO) bool {
-	return actionItem.GetTargetSE().GetEntityType() == proto.EntityDTO_CONTAINER_POD ||
-		actionItem.GetTargetSE().GetEntityType() == proto.EntityDTO_CONTAINER
+func isPodRelevantAction(actionItem *proto.ActionItemDTO) bool {
+	entityType := actionItem.GetTargetSE().GetEntityType()
+	return entityType == proto.EntityDTO_CONTAINER_POD ||
+		entityType == proto.EntityDTO_CONTAINER ||
+		entityType == proto.EntityDTO_WORKLOAD_CONTROLLER
 }
 
 func (h *ActionHandler) execute(actionItems []*proto.ActionItemDTO) error {
@@ -175,10 +173,13 @@ func (h *ActionHandler) execute(actionItems []*proto.ActionItemDTO) error {
 	// the same machine, this is because there will not be resize action for machines,
 	// and we do not want to queue multiple provision/suspend action for the same machine
 	var pod *api.Pod
-	// This works for all the other actions which get only a single action
+	// This works for all the actions
+	// Actions which have multiple items (WORKLOAD_CONTROLLER) will pull the podSpec
+	// for the container listed in the item. The podSpec will be same across all pod replicas
 	actionItem := actionItems[0]
-	if isPodAction(actionItem) {
+	if isPodRelevantAction(actionItem) {
 		// getLock() returns error if it times out (default timeout value is set in lockStore
+		// TODO(irfanurrehman): Revisit this locking strategy wrt to the merged actions
 		lock, err := h.lockStore.getLock(actionItem)
 		if err != nil {
 			return err
@@ -217,28 +218,51 @@ func (h *ActionHandler) execute(actionItems []*proto.ActionItemDTO) error {
 }
 
 // Finds the pod associated to the action item DTO. The pod, if any, will be used to lock the associated actions.
-// - Pod Move/Provision/Suspend: returns the target SE in the action item
-// - Container Resize: returns the the hostedBy SE in the action item
-// - Machine Provision/Suspend: returns nil
+// - Pod Move/Provision/Suspend: uses the target SE in the action item
+// - Container Resize: uses the hostedBy SE in the action item
+// - WorkloadController Resize: uses the current SE in the action item
 func (h *ActionHandler) getRelatedPod(actionItem *proto.ActionItemDTO) (*api.Pod, error) {
-	var podEntity *proto.EntityDTO
+	var actionEntity *proto.EntityDTO
 	actionType := getTurboActionType(actionItem)
 	switch actionType {
 	case turboActionContainerResize:
-		podEntity = actionItem.GetHostedBySE()
+		actionEntity = actionItem.GetHostedBySE()
 	case turboActionPodMove, turboActionPodProvision, turboActionPodSuspend:
-		podEntity = actionItem.GetTargetSE()
-	case turboActionMachineProvision, turboActionMachineSuspend:
-		// This branch is not called right now. Implement for the sake of completeness.
-		return nil, nil
+		actionEntity = actionItem.GetTargetSE()
+	case turboActionControllerResize:
+		actionEntity = actionItem.GetCurrentSE()
 	default:
 		return nil, fmt.Errorf("unsupported turbo action type %v", actionType)
 	}
 
-	if podEntity == nil {
+	if actionEntity == nil {
 		return nil, fmt.Errorf("nil pod entity in actionItem")
 	}
-	return h.podManager.GetPodFromDisplayNameOrUUID(podEntity.GetDisplayName(), podEntity.GetId())
+
+	var podDisplayName, podID string
+	switch actionType {
+	case turboActionContainerResize, turboActionPodMove, turboActionPodProvision, turboActionPodSuspend:
+		podDisplayName = actionEntity.GetDisplayName()
+		podID = actionEntity.GetId()
+	case turboActionControllerResize:
+		var err error
+		podDisplayName, err = getPodDisplayName(actionEntity)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return h.podManager.GetPodFromDisplayNameOrUUID(podDisplayName, podID)
+}
+
+func getPodDisplayName(actionEntity *proto.EntityDTO) (string, error) {
+	cntDisplayName := actionEntity.GetDisplayName()
+	names := strings.Split(cntDisplayName, "/")
+	if len(names) < 3 {
+		return "", fmt.Errorf("Invalid container display name in action entity: %s", cntDisplayName)
+	}
+
+	return names[0] + "/" + names[1], nil
 }
 
 // Processes the output of the action execution generated by the executor.
