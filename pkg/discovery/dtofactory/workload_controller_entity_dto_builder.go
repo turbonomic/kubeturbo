@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	discoveryUtil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/util"
@@ -71,11 +72,13 @@ func (builder *workloadControllerDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, er
 		entityDTOBuilder.IsSuspendable(false)
 
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
+		entityDTOBuilder.WithProperty(property.BuildWorkloadControllerNsProperty(kubeController.Namespace))
 
 		entityDTO, err := entityDTOBuilder.Create()
 		if err != nil {
 			glog.Errorf("failed to build WorkloadController[%s] entityDTO: %v", workloadControllerDisplayName, err)
 		}
+
 		result = append(result, entityDTO)
 	}
 	return result, nil

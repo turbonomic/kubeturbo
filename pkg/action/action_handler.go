@@ -116,8 +116,8 @@ func (h *ActionHandler) registerActionExecutors() {
 	containerResizer := executor.NewContainerResizer(ae, c.kubeletClient, c.sccAllowedSet)
 	h.actionExecutors[turboActionContainerResize] = containerResizer
 
-	controllerResize := executor.NewWorkloadControllerResizer(ae, c.kubeletClient)
-	h.actionExecutors[turboActionControllerResize] = controllerResize
+	controllerResizer := executor.NewWorkloadControllerResizer(ae, c.kubeletClient, c.sccAllowedSet)
+	h.actionExecutors[turboActionControllerResize] = controllerResizer
 
 	// Only register the actions when API client is non-nil.
 	if ok, err := executor.IsClusterAPIEnabled(c.cAPINamespace, c.cApiClient, c.kubeClient); ok && err == nil {
@@ -142,10 +142,6 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 		return h.failedResult(err.Error()), err
 	}
 
-	// TODO: SEND the whole DTO
-	glog.Infof("Execute action for %++v --> %++v", actionExecutionDTO.GetActionType(), actionExecutionDTO)
-	//actionItemDTO := actionExecutionDTO.GetActionItem()[0]
-
 	// 2. keep sending fake progress to prevent timeout
 	stop := make(chan struct{})
 	defer close(stop)
@@ -162,9 +158,10 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	return h.goodResult(), nil
 }
 
-func isPodAction(actionItem *proto.ActionItemDTO) bool {
-	return actionItem.GetTargetSE().GetEntityType() == proto.EntityDTO_CONTAINER_POD ||
-		actionItem.GetTargetSE().GetEntityType() == proto.EntityDTO_CONTAINER
+func isPodRelevantAction(actionItem *proto.ActionItemDTO) bool {
+	entityType := actionItem.GetTargetSE().GetEntityType()
+	return entityType == proto.EntityDTO_CONTAINER_POD ||
+		entityType == proto.EntityDTO_CONTAINER
 }
 
 func (h *ActionHandler) execute(actionItems []*proto.ActionItemDTO) error {
@@ -175,9 +172,11 @@ func (h *ActionHandler) execute(actionItems []*proto.ActionItemDTO) error {
 	// the same machine, this is because there will not be resize action for machines,
 	// and we do not want to queue multiple provision/suspend action for the same machine
 	var pod *api.Pod
-	// This works for all the other actions which get only a single action
+	// This works for all the actions
+	// Actions with multiple action items (WORKLOAD_CONTROLLER) does not get the pod here; it
+	// rather queries the pod again from the apiserver later in this flow.
 	actionItem := actionItems[0]
-	if isPodAction(actionItem) {
+	if isPodRelevantAction(actionItem) {
 		// getLock() returns error if it times out (default timeout value is set in lockStore
 		lock, err := h.lockStore.getLock(actionItem)
 		if err != nil {
@@ -217,9 +216,8 @@ func (h *ActionHandler) execute(actionItems []*proto.ActionItemDTO) error {
 }
 
 // Finds the pod associated to the action item DTO. The pod, if any, will be used to lock the associated actions.
-// - Pod Move/Provision/Suspend: returns the target SE in the action item
-// - Container Resize: returns the the hostedBy SE in the action item
-// - Machine Provision/Suspend: returns nil
+// - Pod Move/Provision/Suspend: uses the target SE in the action item
+// - Container Resize: uses the hostedBy SE in the action item
 func (h *ActionHandler) getRelatedPod(actionItem *proto.ActionItemDTO) (*api.Pod, error) {
 	var podEntity *proto.EntityDTO
 	actionType := getTurboActionType(actionItem)

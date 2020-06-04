@@ -9,9 +9,8 @@ import (
 	k8sapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	idutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
-
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	idutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )

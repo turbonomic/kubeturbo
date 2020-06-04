@@ -110,12 +110,12 @@ func updateResourceAmount(podSpec *k8sapi.PodSpec, specs []*containerResizeSpec)
 
 		//2. update Limits
 		if spec.NewCapacity != nil && len(spec.NewCapacity) > 0 {
-			changed = changed || updateLimits(container, spec.NewCapacity)
+			changed = updateLimits(container, spec.NewCapacity)
 		}
 
 		//3. update Requests
 		if spec.NewRequest != nil && len(spec.NewRequest) > 0 {
-			changed = changed || updateRequests(container, spec.NewRequest)
+			changed = updateRequests(container, spec.NewRequest)
 		}
 
 		//4. check the new Limits vs. Requests, make sure Limits >= Requests
@@ -175,7 +175,7 @@ func resizeContainer(client *kclient.Clientset, dynClient dynamic.Interface, pod
 //   resource
 func resizeControllerContainer(client *kclient.Clientset, dynClient dynamic.Interface, pod *k8sapi.Pod, spec *containerResizeSpec) error {
 	// prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdater(client, dynClient, pod)
+	controllerUpdater, err := newK8sControllerUpdaterViaPod(client, dynClient, pod)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return err

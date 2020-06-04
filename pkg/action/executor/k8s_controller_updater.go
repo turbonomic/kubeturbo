@@ -33,15 +33,38 @@ type controllerSpec struct {
 	resizeSpecs  []*containerResizeSpec
 }
 
-// newK8sControllerUpdater returns a k8sControllerUpdater based on the parent kind of a pod
-func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.Interface, pod *api.Pod) (*k8sControllerUpdater, error) {
+// newK8sControllerUpdaterViaPod returns a k8sControllerUpdater based on the parent kind of a pod
+func newK8sControllerUpdaterViaPod(client *kclient.Clientset, dynamicClient dynamic.Interface, pod *api.Pod) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
 	kind, name, _, err := podutil.GetPodGrandInfo(dynamicClient, pod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get parent info of pod %s/%s: %v", pod.Namespace, pod.Name, err)
 	}
 
-	var res schema.GroupVersionResource
+	return newK8sControllerUpdater(client, dynamicClient, kind, name, pod.Name, pod.Namespace)
+}
+
+// newK8sControllerUpdater returns a k8sControllerUpdater based on the controller kind
+func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.Interface, kind, controllerName, podName, namespace string) (*k8sControllerUpdater, error) {
+	res, err := GetSupportedResUsingKind(kind, namespace, controllerName)
+	if err != nil {
+		return nil, err
+	}
+	return &k8sControllerUpdater{
+		controller: &parentController{
+			dynNamespacedClient: dynamicClient.Resource(res).Namespace(namespace),
+			name:                kind,
+		},
+		client:    client,
+		name:      controllerName,
+		namespace: namespace,
+		podName:   podName,
+	}, nil
+}
+
+func GetSupportedResUsingKind(kind, namespace, name string) (schema.GroupVersionResource, error) {
+	res := schema.GroupVersionResource{}
+	var err error
 	switch kind {
 	case util.KindReplicationController:
 		res = schema.GroupVersionResource{
@@ -50,13 +73,13 @@ func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.In
 			Resource: util.ReplicationControllerResName}
 	case util.KindReplicaSet:
 		res = schema.GroupVersionResource{
-			Group:    util.K8sAPIDeploymentGV.Group,
-			Version:  util.K8sAPIDeploymentGV.Version,
+			Group:    util.K8sAPIReplicasetGV.Group,
+			Version:  util.K8sAPIReplicasetGV.Version,
 			Resource: util.ReplicaSetResName}
 	case util.KindDeployment:
 		res = schema.GroupVersionResource{
-			Group:    util.K8sAPIReplicasetGV.Group,
-			Version:  util.K8sAPIReplicasetGV.Version,
+			Group:    util.K8sAPIDeploymentGV.Group,
+			Version:  util.K8sAPIDeploymentGV.Version,
 			Resource: util.DeploymentResName}
 	case util.KindDeploymentConfig:
 		res = schema.GroupVersionResource{
@@ -64,19 +87,9 @@ func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.In
 			Version:  util.OpenShiftAPIDeploymentConfigGV.Version,
 			Resource: util.DeploymentConfigResName}
 	default:
-		err := fmt.Errorf("unsupport controller type %s for pod %s/%s", kind, pod.Namespace, pod.Name)
-		return nil, err
+		err = fmt.Errorf("unsupport controller type %s for %s/%s", kind, namespace, name)
 	}
-	return &k8sControllerUpdater{
-		controller: &parentController{
-			dynNamespacedClient: dynamicClient.Resource(res).Namespace(pod.Namespace),
-			name:                kind,
-		},
-		client:    client,
-		name:      name,
-		namespace: pod.Namespace,
-		podName:   pod.Name,
-	}, nil
+	return res, err
 }
 
 // updateWithRetry updates a specific k8s controller with retry and timeout
@@ -142,8 +155,9 @@ func (c *k8sControllerUpdater) reconcile(current *k8sControllerSpec, desired *co
 	for _, spec := range desired.resizeSpecs {
 		if indexes == "" {
 			indexes = strconv.Itoa(spec.Index) + ","
+		} else {
+			indexes = indexes + strconv.Itoa(spec.Index) + ","
 		}
-		indexes = indexes + strconv.Itoa(spec.Index) + ","
 	}
 	glog.V(4).Infof("Try to update resources for container indexes: %s in pod %v/%v's spec.",
 		indexes, c.namespace, c.podName)
