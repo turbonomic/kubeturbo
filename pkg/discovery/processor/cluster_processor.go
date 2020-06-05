@@ -7,9 +7,8 @@ import (
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 var (
@@ -72,12 +71,12 @@ func (p *ClusterProcessor) checkNodesWorker(work chan *v1.Node, done chan bool, 
 			glog.V(4).Infof("Node verifier worker %d finished. No more work.", index)
 			return
 		}
-		nodeCpuFrequency, err := checkNode(node, p.nodeScrapper)
+		err := checkNode(node, p.nodeScrapper)
 		if err != nil {
 			glog.Errorf("Failed to verify node %s: %v.", node.Name, err)
 		} else {
 			// Log the success and send the response to everybody
-			glog.V(2).Infof("Successfully verified node %s [cpu:%v MHz].", node.Name, nodeCpuFrequency)
+			glog.V(2).Infof("Successfully verified node %s.", node.Name)
 			done <- true
 			// Force return here. We are done and notified everybody.
 			glog.V(4).Infof("Node verifier worker %d finished. Successful verification.", index)
@@ -141,14 +140,14 @@ func (p *ClusterProcessor) connectToNodes() (bool, error) {
 	return false, fmt.Errorf("timeout when connecting to nodes")
 }
 
-// Checks the node connectivity be obtaining its CPU frequency
-func checkNode(node *v1.Node, kc kubeclient.KubeHttpClientInterface) (float64, error) {
+// Checks the node connectivity be querying the kubelet summary endpoint
+func checkNode(node *v1.Node, kc kubeclient.KubeHttpClientInterface) error {
 	ip := repository.ParseNodeIP(node, v1.NodeInternalIP)
-	cpuFreq, err := kc.GetMachineCpuFrequency(ip)
+	_, err := kc.GetSummary(ip)
 	if err != nil {
-		return 0.0, err
+		return err
 	}
-	return float64(cpuFreq) / util.MegaToKilo, nil
+	return nil
 }
 
 // Query the Kubernetes API Server to get the cluster nodes and namespaces and set in the cluster object

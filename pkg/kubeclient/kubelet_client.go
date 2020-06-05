@@ -3,19 +3,23 @@ package kubeclient
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/golang/glog"
-	cadvisorapi "github.com/google/cadvisor/info/v1"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"io/ioutil"
-	"k8s.io/api/core/v1"
-	netutil "k8s.io/apimachinery/pkg/util/net"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/transport"
-	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/golang/glog"
+	cadvisorapi "github.com/google/cadvisor/info/v1"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	v1 "k8s.io/api/core/v1"
+	netutil "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/transport"
+	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 )
 
 const (
@@ -33,15 +37,16 @@ type KubeHttpClientInterface interface {
 	ExecuteRequestAndGetValue(host string, endpoint string, value interface{}) error
 	GetSummary(host string) (*stats.Summary, error)
 	GetMachineInfo(host string) (*cadvisorapi.MachineInfo, error)
-	GetMachineCpuFrequency(host string) (uint64, error)
+	GetNodeCpuFrequency(node *v1.Node) (float64, error)
 }
 
 // Cache structure.
 // TODO(MB): Make sure the nodes that are no longer discovered are being removed from the cache!
 type CacheEntry struct {
 	statsSummary *stats.Summary
-	machineInfo  *cadvisorapi.MachineInfo
-	used         bool
+	// nodes cpu frequency in MHz as expected by server
+	nodeCpuFreq *float64
+	used        bool
 }
 
 // Cleanup the cache.
@@ -75,11 +80,13 @@ func (client *KubeletClient) CleanupCache(nodes []*v1.Node) int {
 // Since http.Client is thread safe (https://golang.org/src/net/http/client.go)
 // KubeletClient is also thread-safe if concurrent goroutines won't change the fields.
 type KubeletClient struct {
-	client    *http.Client
-	scheme    string
-	port      int
-	cache     map[string]*CacheEntry
-	cacheLock sync.Mutex
+	client              *http.Client
+	scheme              string
+	port                int
+	cache               map[string]*CacheEntry
+	cacheLock           sync.Mutex
+	fallbkCpuFreqGetter *NodeCpuFrequencyGetter
+	defaultCpuFreq      float64
 }
 
 func (client *KubeletClient) ExecuteRequestAndGetValue(host string, endpoint string, value interface{}) error {
@@ -137,6 +144,10 @@ func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 				return nil, err
 			}
 			glog.V(2).Infof("unable to retrieve machine[%s] summary: %v. Using cached value", host, err)
+			// TODO(irfanurrehman): Improve the node check [fn checknode()].
+			// This looks flawed. The same is also used as checknode;
+			// if ExecuteRequestAndGetValue() returns error, checknode should get error
+			// rather then a value from cache.
 			return entry.statsSummary, nil
 		} else {
 			glog.Errorf("failed to get machine[%s] summary: %v. No cache available", host, err)
@@ -150,7 +161,6 @@ func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 	} else {
 		entry := &CacheEntry{
 			statsSummary: summary,
-			machineInfo:  nil,
 			used:         false,
 		}
 		client.cache[host] = entry
@@ -158,51 +168,82 @@ func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 	return summary, err
 }
 
-func (client *KubeletClient) GetMachineInfo(host string) (*cadvisorapi.MachineInfo, error) {
-	// Get the data
-	var minfo cadvisorapi.MachineInfo
-	err := client.ExecuteRequestAndGetValue(host, specPath, &minfo)
-	// Lock and check cache
-	client.cacheLock.Lock()
-	defer client.cacheLock.Unlock()
-	entry, entryPresent := client.cache[host]
+// get node single-core Frequency, in MHz
+func (client *KubeletClient) GetNodeCpuFrequency(node *v1.Node) (float64, error) {
+	ip, err := util.GetNodeIPForMonitor(node, types.KubeletSource)
 	if err != nil {
-		if entryPresent {
-			entry.used = true
-			if entry.machineInfo == nil {
-				glog.V(2).Infof("unable to retrieve machine[%s] machine info: %v. The cached value unavailable", host, err)
-				return nil, err
-			}
-			glog.V(2).Infof("unable to retrieve machine[%s] machine info: %v. Using cached value", host, err)
-			return entry.machineInfo, nil
-		} else {
-			glog.Errorf("failed to get machine[%s] machine info: %v. No cache available", host, err)
-			return &minfo, err
+		glog.Errorf("Failed to IP for node %s: %s", node.Name, err)
+		return 0, err
+	}
+
+	// Get value from cache if exists
+	client.cacheLock.Lock()
+	entry, entryPresent := client.cache[ip]
+	if entryPresent {
+		if entry.nodeCpuFreq != nil {
+			nodeFreq := *entry.nodeCpuFreq
+			client.cacheLock.Unlock()
+			return nodeFreq, nil
 		}
 	}
-	// Fill in the cache
+	client.cacheLock.Unlock()
+
+	// We could not get a valid cpu frequency from cache, discover it.
+	var nodeFreq float64
+	minfo, err := client.GetMachineInfo(ip)
+	freqDiscovered := true
+	if err != nil {
+		glog.Errorf("Failed to get machine[%s] cpu.frequency from kubelet: %v. Will try pod based getter.", node.Name, err)
+		nodeIsActive := util.NodeIsReady(node) && util.NodeIsSchedulable(node)
+		if nodeIsActive {
+			nodeFreq, err = client.fallbkCpuFreqGetter.GetFrequency(node.Name)
+			if err != nil {
+				glog.Errorf("Failed to get cpufreq from getter %s: %s. Default value will be used.", node.Name, err)
+				freqDiscovered = false
+			}
+		} else {
+			freqDiscovered = false
+		}
+	} else {
+		nodeFreq = float64(minfo.CpuFrequency) / 1000
+	}
+
+	if !freqDiscovered {
+		// We probably could not discover the cpufreq by any means and default
+		// value is what we need to stick to. However, we might be able to discover
+		// a valid one in the next discovery cycle.
+
+		return client.defaultCpuFreq, nil
+	}
+
+	// We optimistically set a cpu frequency of last discovered node as default.
+	// Clusters more often then not have similar nodes.
+	client.defaultCpuFreq = nodeFreq
+
+	// Update cache
+	client.cacheLock.Lock()
+	defer client.cacheLock.Unlock()
 	if entryPresent {
-		entry.used = false
-		entry.machineInfo = &minfo
+		client.cache[ip].nodeCpuFreq = &nodeFreq
 	} else {
 		entry := &CacheEntry{
 			statsSummary: nil,
-			machineInfo:  &minfo,
-			used:         false,
+			nodeCpuFreq:  &nodeFreq,
 		}
-		client.cache[host] = entry
+		client.cache[ip] = entry
 	}
-	return &minfo, err
+
+	return nodeFreq, nil
 }
 
-// get machine single-core Frequency, in Khz
-func (client *KubeletClient) GetMachineCpuFrequency(host string) (uint64, error) {
-	minfo, err := client.GetMachineInfo(host)
+func (client *KubeletClient) GetMachineInfo(ip string) (*cadvisorapi.MachineInfo, error) {
+	var minfo cadvisorapi.MachineInfo
+	err := client.ExecuteRequestAndGetValue(ip, specPath, &minfo)
 	if err != nil {
-		glog.Errorf("failed to get machine[%s] cpu.frequency: %v", host, err)
-		return 0, err
+		return nil, err
 	}
-	return minfo.CpuFrequency, nil
+
+	return &minfo, nil
 }
 
 func (client *KubeletClient) HasCacheBeenUsed(host string) bool {
@@ -256,7 +297,7 @@ func (kc *KubeletConfig) Timeout(timeout int) *KubeletConfig {
 	return kc
 }
 
-func (kc *KubeletConfig) Create() (*KubeletClient, error) {
+func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, busyboxImage string) (*KubeletClient, error) {
 	// 1. http transport
 	transport, err := makeTransport(kc.kubeConfig, kc.enableHttps, kc.tlsTimeOut, kc.forceSelfSignedCerts)
 	if err != nil {
@@ -275,10 +316,12 @@ func (kc *KubeletConfig) Create() (*KubeletClient, error) {
 
 	// 3. create a KubeletClient
 	return &KubeletClient{
-		client: c,
-		scheme: scheme,
-		port:   kc.port,
-		cache:  make(map[string]*CacheEntry),
+		client:              c,
+		scheme:              scheme,
+		port:                kc.port,
+		cache:               make(map[string]*CacheEntry),
+		fallbkCpuFreqGetter: NewNodeCpuFrequencyGetter(fallbackClient, busyboxImage),
+		defaultCpuFreq:      DefaultCpuFreq,
 	}, nil
 }
 
