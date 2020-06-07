@@ -69,7 +69,7 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpec *reposi
 		// ContainerSpec entity
 		commodities, exists := containerSpec.ContainerCommodities[commodityType]
 		if !exists {
-			glog.Errorf("ContainerSpec %s has no %s commodity from the collected ContainerSpec",
+			glog.V(4).Infof("ContainerSpec %s has no %s commodity from the collected ContainerSpec",
 				containerSpec.ContainerSpecId, commodityType)
 			continue
 		}
