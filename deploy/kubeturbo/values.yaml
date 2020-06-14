@@ -5,7 +5,7 @@
 # Replace the image with desired version
 image:
   repository: turbonomic/kubeturbo
-  tag: 7.21.2
+  tag: 7.22.2
   pullPolicy: IfNotPresent
 
 #nameOverride: ""
@@ -16,7 +16,7 @@ roleName: "cluster-admin"
 
 # Turbo server version and address
 serverMeta:
-  version: 7.21
+  version: 7.22
   turboServer: https://Turbo_server_URL
 #  proxy: http://username:password@proxyserver:proxyport
 

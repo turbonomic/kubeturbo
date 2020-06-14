@@ -11,7 +11,7 @@ metadata:
     description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
     repository: https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo-operator
     support: Turbonomic, Inc.
-  name: kubeturbo-operator.v7.21.0
+  name: kubeturbo-operator.v7.21.4
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -181,7 +181,7 @@ spec:
                       - name: OPERATOR_NAME
                         value: kubeturbo-operator
                       - name: RELATED_IMAGE_KUBETURBO
-                        value: registry.connect.redhat.com/turbonomic/kubeturbo@sha256:f344edd69f35a609615fccdd39dfc1bc3c67090d54605793c7e3998ff4c36801
+                        value: registry.connect.redhat.com/turbonomic/kubeturbo@sha256:cf7098afe4cfedc4f1800bd2380ddc3f5c87c96e7bc56b1b7f26239b9dc94164
                     image: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:59bd48018333ddd2c91c5ec3a6d7cb113904fe344684c7a62b98e26a915cb765
                     imagePullPolicy: Always
                     name: kubeturbo-operator
@@ -208,4 +208,5 @@ spec:
   maturity: alpha
   provider:
     name: Turbonomic, Inc.
-  version: 7.21.0
+  replaces: kubeturbo-operator.v7.21.0
+  version: 7.21.4
