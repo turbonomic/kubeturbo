@@ -197,15 +197,11 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 	switch f.stitchingPropertyType {
 	case stitching.UUID:
 		mergedEntityMetadataBuilder.
-			InternalMatchingType(builder.MergedEntityMetadata_STRING).
 			InternalMatchingProperty(proxyVMUUID).
-			ExternalMatchingType(builder.MergedEntityMetadata_STRING).
 			ExternalMatchingField(VMUUID, []string{})
 	case stitching.IP:
 		mergedEntityMetadataBuilder.
-			InternalMatchingType(builder.MergedEntityMetadata_LIST_STRING).
 			InternalMatchingPropertyWithDelimiter(proxyVMIP, ",").
-			ExternalMatchingType(builder.MergedEntityMetadata_LIST_STRING).
 			ExternalMatchingFieldWithDelimiter(VMIPFieldName, VMIPFieldPaths, ",")
 	default:
 		return nil, fmt.Errorf("stitching property type %s is not supported",
