@@ -151,6 +151,7 @@ func TestGetCommoditySoldAndBought(t *testing.T) {
 				}(),
 				Key: func() *string {
 					s := getKey("nodeSelectorTermStringHash")
+					s = "nodeSelectorTermStringHash" + "|" + s
 					return &s
 				}(),
 			},
@@ -165,6 +166,7 @@ func TestGetCommoditySoldAndBought(t *testing.T) {
 				}(),
 				Key: func() *string {
 					s := getKey("nodeSelectorTermStringHash")
+					s = "nodeSelectorTermStringHash" + "|" + s
 					return &s
 				}(),
 			},
@@ -173,7 +175,7 @@ func TestGetCommoditySoldAndBought(t *testing.T) {
 
 	for i, item := range table {
 		acm := NewAffinityCommodityManager()
-		commSold, commBought, err := acm.getCommoditySoldAndBought(item.termString)
+		commSold, commBought, err := acm.getCommoditySoldAndBought(item.termString, item.termString)
 		if err != nil {
 			t.Errorf("Test case %d failed: unexpected error: %s", i, err)
 		}
@@ -228,7 +230,8 @@ func TestGetAccessCommoditiesForPodAffinityAntiAffinity(t *testing.T) {
 		expectedCommoditiesSold := []*proto.CommodityDTO{}
 		expectedCommoditiesBought := []*proto.CommodityDTO{}
 		for _, term := range item.terms {
-			key := getKey(term.String())
+			// The '/' replaces an empty 'namespace/podname' string in this test
+			key := getReadablePodAffinityTermString(term) + "|/|" + getKey(term.String())
 			expectedCommoditiesSold = append(expectedCommoditiesSold, &proto.CommodityDTO{
 
 				CommodityType: &cType,
@@ -292,7 +295,7 @@ func TestGetAccessCommoditiesForNodeAffinity(t *testing.T) {
 		expectedCommoditiesSold := []*proto.CommodityDTO{}
 		expectedCommoditiesBought := []*proto.CommodityDTO{}
 		for _, term := range item.terms {
-			key := getKey(term.String())
+			key := getReadableNodeSelectorTermString(term) + "|" + getKey(term.String())
 			expectedCommoditiesSold = append(expectedCommoditiesSold, &proto.CommodityDTO{
 
 				CommodityType: &cType,

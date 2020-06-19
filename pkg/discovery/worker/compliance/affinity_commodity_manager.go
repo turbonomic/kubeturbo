@@ -3,8 +3,11 @@ package compliance
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	api "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -32,7 +35,7 @@ func (acm *AffinityCommodityManager) GetAccessCommoditiesForNodeAffinity(nodeSel
 	var accessCommsSold []*proto.CommodityDTO
 	var accessCommsBought []*proto.CommodityDTO
 	for _, term := range nodeSelectorTerms {
-		commSold, commBought, err := acm.getCommoditySoldAndBought(term.String())
+		commSold, commBought, err := acm.getCommoditySoldAndBought(getReadableNodeSelectorTermString(term), term.String())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -42,13 +45,14 @@ func (acm *AffinityCommodityManager) GetAccessCommoditiesForNodeAffinity(nodeSel
 	return accessCommsSold, accessCommsBought, nil
 }
 
-func (acm *AffinityCommodityManager) GetAccessCommoditiesForPodAffinityAntiAffinity(podAffinityTerm []api.PodAffinityTerm, pod *api.Pod) ([]*proto.CommodityDTO, []*proto.CommodityDTO, error) {
+func (acm *AffinityCommodityManager) GetAccessCommoditiesForPodAffinityAntiAffinity(podAffinityTerms []api.PodAffinityTerm, pod *api.Pod) ([]*proto.CommodityDTO, []*proto.CommodityDTO, error) {
 	var accessCommsSold []*proto.CommodityDTO
 	var accessCommsBought []*proto.CommodityDTO
-	for _, term := range podAffinityTerm {
+	for _, term := range podAffinityTerms {
 		// Add the pod name and namespace in the string to generate hash
 		// to disambiguate the same term on a different pod.
-		commSold, commBought, err := acm.getCommoditySoldAndBought(term.String() + pod.Namespace + pod.Name)
+		displayString := getReadablePodAffinityTermString(term) + "|" + pod.Namespace + "/" + pod.Name
+		commSold, commBought, err := acm.getCommoditySoldAndBought(displayString, term.String())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -58,11 +62,13 @@ func (acm *AffinityCommodityManager) GetAccessCommoditiesForPodAffinityAntiAffin
 	return accessCommsSold, accessCommsBought, nil
 }
 
-func (acm *AffinityCommodityManager) getCommoditySoldAndBought(termString string) (*proto.CommodityDTO, *proto.CommodityDTO, error) {
-	key, err := generateKey(termString)
+func (acm *AffinityCommodityManager) getCommoditySoldAndBought(displayString, termString string) (*proto.CommodityDTO, *proto.CommodityDTO, error) {
+	hash, err := generateKey(termString)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate hash: %s", err)
 	}
+	key := displayString + "|" + hash
+
 	commSold, err := acm.getCommoditySold(key)
 	if err != nil {
 		// return immediately even if only one failed.
@@ -123,4 +129,29 @@ func generateKey(termString string) (string, error) {
 
 	key := strconv.FormatUint(hashCode, 10)
 	return key, nil
+}
+
+func getReadableNodeSelectorTermString(term api.NodeSelectorTerm) string {
+	expressionsString, fieldsString := "", ""
+	expressionsSelectors, err := corev1helper.NodeSelectorRequirementsAsSelector(term.MatchExpressions)
+	if err != nil {
+		expressionsString = "<error>"
+	} else {
+		expressionsString = expressionsSelectors.String()
+	}
+	fieldsSelectors, err := corev1helper.NodeSelectorRequirementsAsSelector(term.MatchFields)
+	if err != nil {
+		fieldsString = "<error>"
+	} else {
+		fieldsString = fieldsSelectors.String()
+	}
+
+	return "[" + expressionsString + "][" + fieldsString + "]"
+}
+
+func getReadablePodAffinityTermString(term api.PodAffinityTerm) string {
+	selectorString := metav1.FormatLabelSelector(term.LabelSelector)
+	namespaces := strings.Join(term.Namespaces, ",")
+
+	return "[" + selectorString + "][Namespace: " + namespaces + "][TopologyKey: " + term.TopologyKey + "]"
 }
