@@ -67,7 +67,7 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 
 	expected_app := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	expected_app[move] = notSupported
-	expected_app[resize] = notSupported
+	expected_app[resize] = recommend
 	expected_app[provision] = recommend
 	expected_app[suspend] = recommend
 

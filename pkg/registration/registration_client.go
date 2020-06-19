@@ -123,7 +123,7 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	app := proto.EntityDTO_APPLICATION_COMPONENT
 	appPolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	appPolicy[proto.ActionItemDTO_PROVISION] = recommend
-	appPolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
+	appPolicy[proto.ActionItemDTO_RIGHT_SIZE] = recommend
 	appPolicy[proto.ActionItemDTO_MOVE] = notSupported
 	appPolicy[proto.ActionItemDTO_SUSPEND] = recommend
 
