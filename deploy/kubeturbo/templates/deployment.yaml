@@ -24,6 +24,9 @@ spec:
       serviceAccount: turbo-user
       containers:
         - name: {{ .Chart.Name }}
+{{- if .Values.image.related }}
+          image: {{ .Values.image.related }}
+{{- else }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:

@@ -22,7 +22,7 @@ spec:
       containers:
       - name: kubeturbo
         # Replace the image with desired version:6.4.4 or latest
-        image: turbonomic/kubeturbo:7.21.2
+        image: turbonomic/kubeturbo:7.22.2
         args:
           - --turboconfig=/etc/kubeturbo/turbo.config
           - --v=2

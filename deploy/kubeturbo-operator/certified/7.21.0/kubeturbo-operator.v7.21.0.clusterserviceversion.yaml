@@ -11,7 +11,7 @@ metadata:
     description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
     repository: https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo-operator
     support: Turbonomic, Inc.
-  name: kubeturbo-operator.v7.21.0
+  name: kubeturbo-marketplace-operator.v7.21.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
