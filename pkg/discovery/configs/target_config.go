@@ -18,6 +18,7 @@ import (
 
 const (
 	defaultProbeCategory   = "Cloud Native"
+	defaultProbeUICategory = "Cloud Native"
 	defaultTargetType      = "Kubernetes"
 	versionPathOpenshiftV3 = "/version/openshift"
 	versionPathOpenshiftV4 = "/apis/config.openshift.io/v1/clusterversions/version"
@@ -32,6 +33,7 @@ type K8sTargetInfo struct {
 
 type K8sTargetConfig struct {
 	ProbeCategory    string `json:"probeCategory,omitempty"`
+	ProbeUICategory  string `json:"probeUICategory,omitempty"`
 	TargetType       string `json:"targetType,omitempty"`
 	TargetIdentifier string `json:"targetName,omitempty"`
 	K8sTargetInfo
@@ -49,6 +51,9 @@ func (config *K8sTargetConfig) ValidateK8sTargetConfig() error {
 	}
 	if config.ProbeCategory == "" {
 		config.ProbeCategory = defaultProbeCategory
+	}
+	if config.ProbeUICategory == "" {
+		config.ProbeUICategory = defaultProbeUICategory
 	}
 	// Determine target ID
 	if config.TargetIdentifier != "" {
