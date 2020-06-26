@@ -153,6 +153,7 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	controller := proto.EntityDTO_WORKLOAD_CONTROLLER
 	controllerPolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	controllerPolicy[proto.ActionItemDTO_RIGHT_SIZE] = supported
+	controllerPolicy[proto.ActionItemDTO_SCALE] = supported
 
 	rClient.addActionPolicy(ab, controller, controllerPolicy)
 
@@ -168,10 +169,38 @@ func (rClient *K8sRegistrationClient) addActionPolicy(ab *builder.ActionPolicyBu
 	}
 }
 
-func (rClient *K8sRegistrationClient) GetEntityMetadata() []*proto.EntityIdentityMetadata {
-	glog.V(3).Infof("Begin to build EntityIdentityMetadata")
+func (rClient *K8sRegistrationClient) GetActionMergePolicy() []*proto.ActionMergePolicyDTO {
+	glog.V(2).Infof("******** Begin to build Action Merge Policies")
+	ab := builder.NewActionMergePolicyBuilder()
 
-	var result []*proto.EntityIdentityMetadata
+	actionMergeTarget := builder.NewActionDeDuplicateAndAggregationTargetBuilder().
+		DeDuplicatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_CONTAINER_SPEC,
+																proto.ConnectedEntity_AGGREGATED_BY_CONNECTION)).
+		AggregatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER,
+																proto.ConnectedEntity_CONTROLLED_BY_CONNECTION))
+
+	actionMergeTarget2 := builder.NewActionDeDuplicateAndAggregationTargetBuilder().
+		DeDuplicatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_CONTAINER_SPEC,
+																	proto.ConnectedEntity_AGGREGATED_BY_CONNECTION)).
+		AggregatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER,
+																proto.ConnectedEntity_OWNS_CONNECTION))
+
+	containerResizeMerge := builder.NewResizeMergeSpecBuilder().
+		ForEntityType(proto.EntityDTO_CONTAINER).
+		ForCommodity(proto.CommodityDTO_VCPU).
+		ForCommodity(proto.CommodityDTO_VMEM).
+		DeDuplicateAndAggregateBy(actionMergeTarget).
+		DeDuplicateAndAggregateBy(actionMergeTarget2)
+
+	ab.ForResizeAction(proto.EntityDTO_CONTAINER, containerResizeMerge)
+
+	glog.Infof("----------> %++v", ab.Create())
+
+	return ab.Create()
+}
+
+func (rClient *K8sRegistrationClient) GetEntityMetadata() (result []*proto.EntityIdentityMetadata) {
+	glog.V(3).Infof("Begin to build EntityIdentityMetadata")
 
 	entities := []proto.EntityDTO_EntityType{
 		proto.EntityDTO_NAMESPACE,

@@ -198,16 +198,15 @@ func (dc *K8sDiscoveryClient) Discover(
 	}
 
 	currentTime := time.Now()
-	newDiscoveryResultDTOs, groupDTOs, actionSpecDTOs, err := dc.discoverWithNewFramework(targetID)
+	newDiscoveryResultDTOs, groupDTOs, err := dc.discoverWithNewFramework(targetID)
 	if err != nil {
 		glog.Errorf("Failed to discover kubernetes cluster: %v", err)
 		return
 	}
 
 	discoveryResponse = &proto.DiscoveryResponse{
-		DiscoveredGroup:  groupDTOs,
-		EntityDTO:        newDiscoveryResultDTOs,
-		ActionMergeSpecs: actionSpecDTOs,
+		DiscoveredGroup: groupDTOs,
+		EntityDTO:       newDiscoveryResultDTOs,
 	}
 
 	newFrameworkDiscTime := time.Now().Sub(currentTime).Seconds()
@@ -219,11 +218,11 @@ func (dc *K8sDiscoveryClient) Discover(
 /*
 	The actual discovery work is done here.
 */
-func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*proto.EntityDTO, []*proto.GroupDTO, []*proto.ActionMergeSpec, error) {
+func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*proto.EntityDTO, []*proto.GroupDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES, QUOTAS, SERVICES HERE
 	kubeCluster, err := dc.clusterProcessor.DiscoverCluster()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to process cluster: %v", err)
+		return nil, nil, fmt.Errorf("failed to process cluster: %v", err)
 	}
 	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 
@@ -331,9 +330,5 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 
 	groupDTOs = append(groupDTOs, nodeAntiAffinityGroupDTOs...)
 
-	// Discovery worker for creating Group DTOs
-	actionSpecWorker := worker.Newk8sActionSpecWorker(clusterSummary, targetID)
-	actionSpecDTOs, _ := actionSpecWorker.Do(containerSpecsList)
-
-	return entityDTOs, groupDTOs, actionSpecDTOs, nil
+	return entityDTOs, groupDTOs, nil
 }
