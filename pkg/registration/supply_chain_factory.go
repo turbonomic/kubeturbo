@@ -156,14 +156,14 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	glog.V(4).Infof("Supply chain node: %+v", appSupplyChainNode)
 
 	// Virtual application supply chain template
-	vAppSupplyChainNode, err := f.buildVirtualApplicationSupplyBuilder()
+	serviceSupplyChainNode, err := f.buildServiceSupplyBuilder()
 	if err != nil {
 		return nil, err
 	}
-	glog.V(4).Infof("Supply chain node: %+v", vAppSupplyChainNode)
+	glog.V(4).Infof("Supply chain node: %+v", serviceSupplyChainNode)
 
 	supplyChainBuilder := supplychain.NewSupplyChainBuilder()
-	supplyChainBuilder.Top(vAppSupplyChainNode)
+	supplyChainBuilder.Top(serviceSupplyChainNode)
 	supplyChainBuilder.Entity(appSupplyChainNode)
 	supplyChainBuilder.Entity(containerSupplyChainNode)
 	supplyChainBuilder.Entity(containerSpecSupplyChainNode)
@@ -197,15 +197,11 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 	switch f.stitchingPropertyType {
 	case stitching.UUID:
 		mergedEntityMetadataBuilder.
-			InternalMatchingType(builder.MergedEntityMetadata_STRING).
 			InternalMatchingProperty(proxyVMUUID).
-			ExternalMatchingType(builder.MergedEntityMetadata_STRING).
 			ExternalMatchingField(VMUUID, []string{})
 	case stitching.IP:
 		mergedEntityMetadataBuilder.
-			InternalMatchingType(builder.MergedEntityMetadata_LIST_STRING).
 			InternalMatchingPropertyWithDelimiter(proxyVMIP, ",").
-			ExternalMatchingType(builder.MergedEntityMetadata_LIST_STRING).
 			ExternalMatchingFieldWithDelimiter(VMIPFieldName, VMIPFieldPaths, ",")
 	default:
 		return nil, fmt.Errorf("stitching property type %s is not supported",
@@ -377,7 +373,7 @@ func (f *SupplyChainFactory) buildContainer() (*proto.TemplateDTO, error) {
 }
 
 func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
-	appSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_APPLICATION)
+	appSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_APPLICATION_COMPONENT)
 	appSupplyChainNodeBuilder = appSupplyChainNodeBuilder.
 		Sells(applicationTemplateCommWithKey). // The key used to sell to the virtual applications
 		Provider(proto.EntityDTO_CONTAINER, proto.Provider_HOSTING).
@@ -388,10 +384,10 @@ func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO
 	return appSupplyChainNodeBuilder.Create()
 }
 
-func (f *SupplyChainFactory) buildVirtualApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
-	vAppSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_VIRTUAL_APPLICATION)
-	vAppSupplyChainNodeBuilder = vAppSupplyChainNodeBuilder.
-		Provider(proto.EntityDTO_APPLICATION, proto.Provider_LAYERED_OVER).
+func (f *SupplyChainFactory) buildServiceSupplyBuilder() (*proto.TemplateDTO, error) {
+	serviceSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_SERVICE)
+	serviceSupplyChainNodeBuilder = serviceSupplyChainNodeBuilder.
+		Provider(proto.EntityDTO_APPLICATION_COMPONENT, proto.Provider_LAYERED_OVER).
 		Buys(applicationTemplateCommWithKey)
-	return vAppSupplyChainNodeBuilder.Create()
+	return serviceSupplyChainNodeBuilder.Create()
 }

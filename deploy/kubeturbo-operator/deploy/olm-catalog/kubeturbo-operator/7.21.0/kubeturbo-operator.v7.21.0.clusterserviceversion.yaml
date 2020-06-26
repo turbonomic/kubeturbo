@@ -6,7 +6,7 @@ metadata:
     capabilities: Basic Install
     categories: Monitoring
     certified: "false"
-    containerImage: turbonomic/kubeturbo-operator:7.21
+    containerImage: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:59bd48018333ddd2c91c5ec3a6d7cb113904fe344684c7a62b98e26a915cb765
     createdAt: 2019-05-01T00:00:00.000Z
     description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
     repository: https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo-operator
@@ -17,11 +17,11 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
-      - description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
-        displayName: Kubeturbo Operator
-        kind: Kubeturbo
-        name: kubeturbos.charts.helm.k8s.io
-        version: v1alpha1
+    - description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
+      displayName: Kubeturbo Operator
+      kind: Kubeturbo
+      name: kubeturbos.charts.helm.k8s.io
+      version: v1alpha1
   description: |-
     ### Application Resource Management for Kubernetes
     Turbonomic AI-powered Application Resource Management simultaneously optimizes performance, compliance, and cost in real time.
@@ -180,7 +180,9 @@ spec:
                             fieldPath: metadata.name
                       - name: OPERATOR_NAME
                         value: kubeturbo-operator
-                    image: turbonomic/kubeturbo-operator:7.21
+                      - name: RELATED_IMAGE_KUBETURBO
+                        value: registry.connect.redhat.com/turbonomic/kubeturbo@sha256:f344edd69f35a609615fccdd39dfc1bc3c67090d54605793c7e3998ff4c36801
+                    image: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:59bd48018333ddd2c91c5ec3a6d7cb113904fe344684c7a62b98e26a915cb765
                     imagePullPolicy: Always
                     name: kubeturbo-operator
                     resources: {}
@@ -206,5 +208,4 @@ spec:
   maturity: alpha
   provider:
     name: Turbonomic, Inc.
-  replaces: kubeturbo-operator.v6.4.0
   version: 7.21.0

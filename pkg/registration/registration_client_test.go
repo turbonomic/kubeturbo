@@ -44,9 +44,10 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	node := proto.EntityDTO_VIRTUAL_MACHINE
 	pod := proto.EntityDTO_CONTAINER_POD
 	container := proto.EntityDTO_CONTAINER
-	app := proto.EntityDTO_APPLICATION
-	vApp := proto.EntityDTO_VIRTUAL_APPLICATION
+
 	wCtrl := proto.EntityDTO_WORKLOAD_CONTROLLER
+	app := proto.EntityDTO_APPLICATION_COMPONENT
+	service := proto.EntityDTO_SERVICE
 
 	move := proto.ActionItemDTO_MOVE
 	resize := proto.ActionItemDTO_RIGHT_SIZE
@@ -68,15 +69,15 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 
 	expected_app := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	expected_app[move] = notSupported
-	expected_app[resize] = notSupported
+	expected_app[resize] = recommend
 	expected_app[provision] = recommend
 	expected_app[suspend] = recommend
 
-	expected_vApp := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	expected_vApp[move] = notSupported
-	expected_vApp[resize] = notSupported
-	expected_vApp[provision] = notSupported
-	expected_vApp[suspend] = notSupported
+	expected_service := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
+	expected_service[move] = notSupported
+	expected_service[resize] = notSupported
+	expected_service[provision] = notSupported
+	expected_service[suspend] = notSupported
 
 	expected_node := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	expected_node[resize] = notSupported
@@ -101,10 +102,10 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 			expected = expected_app
 		} else if entity == node {
 			expected = expected_node
-		} else if entity == vApp {
-			expected = expected_vApp
 		} else if entity == wCtrl {
 			expected = expected_wCtrl
+		} else if entity == service {
+			expected = expected_service
 		} else {
 			t.Errorf("Unknown entity type: %v", entity)
 			continue
@@ -129,8 +130,8 @@ func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
 		proto.EntityDTO_CONTAINER_SPEC,
 		proto.EntityDTO_CONTAINER_POD,
 		proto.EntityDTO_CONTAINER,
-		proto.EntityDTO_APPLICATION,
-		proto.EntityDTO_VIRTUAL_APPLICATION,
+		proto.EntityDTO_APPLICATION_COMPONENT,
+		proto.EntityDTO_SERVICE,
 	}
 	entitySet := make(map[proto.EntityDTO_EntityType]struct{})
 

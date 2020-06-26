@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	vAppPrefix string = "vApp"
+	servicePrefix string = "Service"
 )
 
 var (
@@ -70,9 +70,9 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 		}
 
 		id := string(service.UID)
-		displayName := fmt.Sprintf("%s-%s", vAppPrefix, serviceName)
+		displayName := fmt.Sprintf("%s-%s", servicePrefix, serviceName)
 
-		ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_APPLICATION, id).
+		ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_SERVICE, id).
 			DisplayName(displayName)
 
 		//1. commodities bought
@@ -81,11 +81,11 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 			continue
 		}
 
-		//2. virtual application data.
-		vAppData := &proto.EntityDTO_VirtualApplicationData{
+		//2. service data.
+		serviceData := &proto.EntityDTO_ServiceData{
 			ServiceType: &service.Name,
 		}
-		ebuilder.VirtualApplicationData(vAppData)
+		ebuilder.ServiceData(serviceData)
 
 		// set the ip property for stitching
 		ebuilder.WithProperty(getIPProperty(pods))
@@ -126,7 +126,7 @@ func (builder *ServiceEntityDTOBuilder) createCommodityBought(ebuilder *sdkbuild
 				glog.Errorf("failed to get commodity bought from container[%s]: %v", containerName, err)
 				continue
 			}
-			provider := sdkbuilder.CreateProvider(proto.EntityDTO_APPLICATION, appId)
+			provider := sdkbuilder.CreateProvider(proto.EntityDTO_APPLICATION_COMPONENT, appId)
 			ebuilder.Provider(provider).BuysCommodities(bought)
 			foundProvider = true
 		}
@@ -166,13 +166,13 @@ func (builder *ServiceEntityDTOBuilder) getCommoditiesBought(appDTO *proto.Entit
 	return commoditiesBoughtFromApp, nil
 }
 
-// Get the IP property of the vApp for stitching purpose
+// Get the IP property of the service for stitching purpose
 func getIPProperty(pods []*api.Pod) *proto.EntityDTO_EntityProperty {
 	ns := stitching.DefaultPropertyNamespace
 	attr := stitching.AppStitchingAttr
 	ips := []string{}
 	for _, pod := range pods {
-		ips = append(ips, vAppPrefix+"-"+pod.Status.PodIP)
+		ips = append(ips, servicePrefix+"-"+pod.Status.PodIP)
 	}
 	ip := strings.Join(ips, ",")
 	ipProperty := &proto.EntityDTO_EntityProperty{
