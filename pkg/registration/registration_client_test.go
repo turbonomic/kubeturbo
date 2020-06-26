@@ -86,6 +86,7 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 
 	expected_wCtrl := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	expected_wCtrl[resize] = supported
+	expected_wCtrl[scale] = supported
 
 	policies := reg.GetActionPolicy()
 
