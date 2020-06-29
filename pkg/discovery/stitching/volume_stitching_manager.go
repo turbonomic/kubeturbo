@@ -39,6 +39,8 @@ func (s *VolumeStitchingManager) ProcessVolumes(vols []*api.PersistentVolume) er
 		switch {
 		case vol.Spec.AWSElasticBlockStore != nil:
 			uuidGetter = &awsVolumeUUIDGetter{}
+		case vol.Spec.AzureDisk != nil || vol.Spec.AzureFile != nil:
+			uuidGetter = &azureVolumeUUIDGetter{}
 		default:
 			uuidGetter = &defaultVolumeUUIDGetter{}
 		}
@@ -151,4 +153,32 @@ func (aws *awsVolumeUUIDGetter) GetVolumeUUID(vol *api.PersistentVolume) (string
 
 	result := fmt.Sprintf(awsVolFormat, region, parts[1])
 	return result, nil
+}
+
+type azureVolumeUUIDGetter struct {
+}
+
+func (azure *azureVolumeUUIDGetter) Name() string {
+	return "AZURE"
+}
+
+func (azure *azureVolumeUUIDGetter) GetVolumeUUID(vol *api.PersistentVolume) (string, error) {
+	if vol.Spec.AzureDisk == nil {
+		return "", fmt.Errorf("not a valid Azure provisioned volume: %v", vol.Name)
+	}
+	// TODO: handle azureFile type if and when we come across a k8s environment
+	// which uses that.
+
+	diskURI := vol.Spec.AzureDisk.DataDiskURI
+	//1. Get uuid by replacing the '/' with '::' in the path:
+	// /subscriptions/6a5d73a4-e446-4c75-8f18-073b2f60d851/resourceGroups/
+	// mc_adveng_aks-virtual_westus/providers/Microsoft.Compute/disks/
+	// kubernetes-dynamic-pvc-0a2016c8-095c-481e-800d-684e277234e4
+	// ->
+	// ::subscriptions::6a5d73a4-e446-4c75-8f18-073b2f60d851::resourceGroups::
+	//  mc_adveng_aks-virtual_westus::providers::Microsoft.Compute::disks::
+	//  kubernetes-dynamic-pvc-0a2016c8-095c-481e-800d-684e277234e4
+	stitchingUUID := strings.ToLower(strings.ReplaceAll(diskURI, "/", "::"))
+
+	return stitchingUUID, nil
 }
