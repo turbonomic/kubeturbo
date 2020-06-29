@@ -1,6 +1,8 @@
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 h1:w+iIsaOQNcT7OZ575w+acHgRric5iCyQh+xv+KJ4HB8=
 github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78/go.mod h1:LmzpDX56iTiv29bbRTIsUNlaFfuhWRQBWjQdVyAevI8=
+github.com/avast/retry-go v2.6.0+incompatible h1:FelcMrm7Bxacr1/RM8+/eqkDkmVN7tjlsy51dOzB3LI=
+github.com/avast/retry-go v2.6.0+incompatible/go.mod h1:XtSnn+n/sHqQIpZ10K1qAevBhOOCWBLXXy3hyiqqBrY=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 h1:xJ4a3vCFaGF/jqvzLMYoU8P317H5OQ+Via4RmuPwCS0=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -99,10 +101,10 @@ github.com/stretchr/testify v1.2.2 h1:bSDNvY7ZPG5RlJ8otE/7V6gMiyenm9RtJ7IUVIAoJ1
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/stretchr/testify v1.3.0 h1:TivCn/peBQ7UY8ooIcPgZFpTNSz0Q2U6UrFlUfqbe0Q=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
-github.com/turbonomic/turbo-api v0.0.0-20200413140231-3bef8fb11708 h1:ez1BHxInhrLoSoXYvuHyZwJTJaS0H/c+2axY8VZIW+c=
-github.com/turbonomic/turbo-api v0.0.0-20200413140231-3bef8fb11708/go.mod h1:L3eNZzTD3Iw8GV+cfeJD/lfDaEGPbZZGQrtml71yG10=
-github.com/turbonomic/turbo-go-sdk v0.0.0-20200619031438-0fd6c38a54e7 h1:TBRb3uQCn6orrgL8PSai1B+WE2IwN6F56WlwuptIhYI=
-github.com/turbonomic/turbo-go-sdk v0.0.0-20200619031438-0fd6c38a54e7/go.mod h1:80tK3rQ6cafsQglfkF7KYElmiveLMrjR9IavC2vMopk=
+github.com/turbonomic/turbo-api v0.0.0-20200626181019-5fce6eb1eda1 h1:iUWNvQpIGi09rQQTmnQzt25S3l/G6m9pDEJQiMoIVgc=
+github.com/turbonomic/turbo-api v0.0.0-20200626181019-5fce6eb1eda1/go.mod h1:L3eNZzTD3Iw8GV+cfeJD/lfDaEGPbZZGQrtml71yG10=
+github.com/turbonomic/turbo-go-sdk v0.0.0-20200629163936-aea1176139b5 h1:D8eZ3z9OJQLYUAgUO0ikslSCeYmqh2A78CaHtajUl80=
+github.com/turbonomic/turbo-go-sdk v0.0.0-20200629163936-aea1176139b5/go.mod h1:xXDxYTreywHuuMuXuzGeJ7wtpnHPD2E+3NPeAZQEmPI=
 go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569 h1:nSQar3Y0E3VQF/VdZ8PTAilaXpER+d7ypdABCrpwMdg=
 go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
 go.uber.org/multierr v0.0.0-20180122172545-ddea229ff1df h1:shvkWr0NAZkg4nPuE3XrKP0VuBPijjk3TfX6Y6acFNg=
