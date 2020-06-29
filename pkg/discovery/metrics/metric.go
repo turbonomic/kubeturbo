@@ -9,7 +9,7 @@ type DiscoveredEntityType string
 type ResourceType string
 
 const (
-	ClusterType     DiscoveredEntityType = "Cluster"
+	ClusterType     DiscoveredEntityType = "VMCluster"
 	NamespaceType   DiscoveredEntityType = "Namespace"
 	NodeType        DiscoveredEntityType = "Node"
 	ControllerType  DiscoveredEntityType = "Controller"
