@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder/group"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -40,8 +41,8 @@ func (builder *clusterDTOBuilder) Build() []*proto.GroupDTO {
 	}
 	// Create a regular group of VM without cluster constraint
 	// This group can be removed when the server is upgraded to 7.21.2+
-	vmGroupID := fmt.Sprintf("%s[VM]", builder.targetId)
-	vmGroupDisplayName := fmt.Sprintf("VMs By Cluster [%s]", builder.targetId)
+	vmGroupID := fmt.Sprintf("%s-%s", builder.targetId, metrics.ClusterType)
+	vmGroupDisplayName := fmt.Sprintf("%s/%s", metrics.ClusterType, builder.targetId)
 	vmGroupDTO, err := group.StaticGroup(vmGroupID).
 		OfType(proto.EntityDTO_VIRTUAL_MACHINE).
 		WithEntities(members).

@@ -106,7 +106,7 @@ func (builder *groupDTOBuilder) createGroupsByEntityType(entityGroup *repository
 	groupId := entityGroup.GroupId
 	isClusterWideGroup := entityGroup.ParentName == ""
 	if isClusterWideGroup {
-		groupId = fmt.Sprintf("%s::All %ss", entityGroup.GroupId, entityGroup.ParentKind)
+		groupId = fmt.Sprintf("%s/All", entityGroup.GroupId)
 	}
 
 	// resize setting for entities is based on the parent type of the group and if sub groups will be created.
@@ -144,7 +144,7 @@ func (builder *groupDTOBuilder) createSubGroups(entityGroup *repository.EntityGr
 		etype := metrics.ContainerType
 		protoType := proto.EntityDTO_CONTAINER
 
-		groupId := fmt.Sprintf("%s::%s", entityGroup.GroupId, containerName)
+		groupId := fmt.Sprintf("%s/%s", entityGroup.GroupId, containerName)
 
 		// resize policy setting based on the parent type of the group
 		resizeFlag := isConsistentResizableByParent(entityGroup)
@@ -164,8 +164,8 @@ func (builder *groupDTOBuilder) createGroup(entityGroup *repository.EntityGroup,
 	memberList []string, consistentResizeFlag bool) *proto.GroupDTO {
 
 	// group id created using the parent type, name and target identifier
-	id := fmt.Sprintf("%s-%s[%s]", groupId, builder.targetId, entityType)
-	displayName := fmt.Sprintf("%ss By %s [%s]", entityType, groupId, builder.targetId)
+	id := fmt.Sprintf("%s-%s-%s", groupId, builder.targetId, entityType)
+	displayName := fmt.Sprintf("%s %ss", groupId, entityType)
 
 	// static group
 	groupBuilder := group.StaticGroup(id).

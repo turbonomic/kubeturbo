@@ -44,7 +44,7 @@ func (collector *GroupMetricsCollector) CollectGroupMetrics() ([]*repository.Ent
 		}
 
 		podId := string(pod.UID)
-		groupKey := fmt.Sprintf("%s::%s/%s", ownerTypeString, pod.Namespace, ownerString)
+		groupKey := fmt.Sprintf("%s/%s/%s", ownerTypeString, pod.Namespace, ownerString)
 
 		// group1 = A group for each parent qualified as namespace/parentName of this kind/type
 		if _, groupExists := entityGroups[groupKey]; !groupExists {
