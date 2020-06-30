@@ -1,10 +1,11 @@
 package dtofactory
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"reflect"
 	"testing"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
 )
@@ -66,8 +67,10 @@ func Test_getCommoditiesSold(t *testing.T) {
 }
 
 func createCommodity(commType proto.CommodityDTO_CommodityType, key string) *proto.CommodityDTO {
+	capacity := sdkbuilder.AppCommodityDefaultCapacity
 	return &proto.CommodityDTO{
 		CommodityType: &commType,
 		Key:           &key,
+		Capacity:      &capacity,
 	}
 }
