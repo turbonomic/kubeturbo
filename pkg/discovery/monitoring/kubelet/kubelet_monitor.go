@@ -142,16 +142,16 @@ func (m *KubeletMonitor) parseNodeCpuFreq(node *api.Node, cpuFrequencyMHz float6
 func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats) {
 	var cpuUsageCore, memoryWorkingSetKiloBytes, rootfsCapacity, rootfsUsed float64
 	// cpu
-	if nodeStats.CPU.UsageNanoCores != nil {
+	if nodeStats.CPU != nil && nodeStats.CPU.UsageNanoCores != nil {
 		cpuUsageCore = util.MetricNanoToUnit(float64(*nodeStats.CPU.UsageNanoCores))
 	}
-	if nodeStats.Memory.WorkingSetBytes != nil {
+	if nodeStats.Memory != nil && nodeStats.Memory.WorkingSetBytes != nil {
 		memoryWorkingSetKiloBytes = util.Base2BytesToKilobytes(float64(*nodeStats.Memory.WorkingSetBytes))
 	}
-	if nodeStats.Fs.CapacityBytes != nil {
+	if nodeStats.Fs != nil && nodeStats.Fs.CapacityBytes != nil {
 		rootfsCapacity = util.Base2BytesToMegabytes(float64(*nodeStats.Fs.CapacityBytes))
 	}
-	if nodeStats.Fs.UsedBytes != nil {
+	if nodeStats.Fs != nil && nodeStats.Fs.UsedBytes != nil {
 		// OpsMgr server expects the reported size in megabytes
 		rootfsUsed = util.Base2BytesToMegabytes(float64(*nodeStats.Fs.UsedBytes))
 	}
