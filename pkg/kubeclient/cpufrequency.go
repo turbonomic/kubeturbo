@@ -22,6 +22,7 @@ import (
 
 const (
 	kubeturboNamespace = "KUBETURBO_NAMESPACE"
+	defaultNamespace   = "default"
 	DefaultCpuFreq     = float64(2000) //MHz
 )
 
@@ -43,6 +44,9 @@ func (n *NodeCpuFrequencyGetter) GetFrequency(nodeName string) (float64, error) 
 
 	// TODO: See if retries are needed
 	namespace := os.Getenv(kubeturboNamespace)
+	if namespace == "" {
+		namespace = defaultNamespace
+	}
 	job, err := n.createJob(nodeName, namespace)
 	if err != nil {
 		return 0, err
@@ -192,6 +196,14 @@ func getCpuFreqJobDefinition(nodeName, busyboxImage string) *batchv1.Job {
 		},
 		Spec: batchv1.JobSpec{
 			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						// This is to ensure istio sidecars are not injected into this jobs pod
+						// Ref k8s [No solution]: https://github.com/kubernetes/kubernetes/issues/25908
+						// Ref Istio [Workaround] : https://github.com/istio/istio/issues/11045
+						"sidecar.istio.io/inject": "false",
+					},
+				},
 				Spec: corev1.PodSpec{
 					NodeName:      nodeName,
 					RestartPolicy: "Never",
