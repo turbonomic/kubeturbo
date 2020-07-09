@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"fmt"
+
 	"k8s.io/client-go/dynamic"
 
 	api "k8s.io/api/core/v1"
@@ -205,6 +206,23 @@ func (s *ClusterScraper) GetRunningAndReadyPodsOnNodes(nodeList []*api.Node) []*
 	return util.GetReadyPods(pods)
 }
 
+func (s *ClusterScraper) GetAllRunningAndReadyPods() ([]*api.Pod, error) {
+	pods := []*api.Pod{}
+	fieldSelector, err := fields.ParseSelector("status.phase=" + string(api.PodRunning))
+	if err != nil {
+		return pods, fmt.Errorf("failed to fetch all running and ready pods in cluster: %v", err)
+	}
+
+	listOption := metav1.ListOptions{
+		FieldSelector: fieldSelector.String(),
+	}
+	pods, err = s.GetPods(api.NamespaceAll, listOption)
+	if err != nil {
+		return pods, fmt.Errorf("failed to fetch all running and ready pods in cluster: %v", err)
+	}
+	return util.GetReadyPods(pods), nil
+}
+
 // TODO, create a local pod, node cache to avoid too many API request.
 func (s *ClusterScraper) findRunningPodsOnNode(nodeName string) ([]*api.Pod, error) {
 	fieldSelector, err := fields.ParseSelector("spec.nodeName=" + nodeName + ",status.phase=" +
@@ -212,13 +230,9 @@ func (s *ClusterScraper) findRunningPodsOnNode(nodeName string) ([]*api.Pod, err
 	if err != nil {
 		return nil, err
 	}
-	podList, err := s.CoreV1().Pods(api.NamespaceAll).List(metav1.ListOptions{FieldSelector: fieldSelector.String()})
-	if err != nil {
-		return nil, err
+
+	listOption := metav1.ListOptions{
+		FieldSelector: fieldSelector.String(),
 	}
-	pods := make([]*api.Pod, len(podList.Items))
-	for i := 0; i < len(podList.Items); i++ {
-		pods[i] = &podList.Items[i]
-	}
-	return pods, nil
+	return s.GetPods(api.NamespaceAll, listOption)
 }
