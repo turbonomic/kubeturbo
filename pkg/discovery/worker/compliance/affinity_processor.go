@@ -39,7 +39,7 @@ func NewAffinityProcessor(config *affinityProcessorConfig) (*AffinityProcessor, 
 	if err != nil {
 		return nil, err
 	}
-	allPods, err := config.k8sClusterScraper.GetAllPods()
+	allPods, err := config.k8sClusterScraper.GetAllRunningAndReadyPods()
 	if err != nil {
 		return nil, err
 	}
