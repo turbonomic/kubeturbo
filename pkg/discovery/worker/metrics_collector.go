@@ -193,14 +193,15 @@ func (collector *MetricsCollector) CollectPodVolumeMetrics() []*repository.PodVo
 	var podVolumeMetricsCollection []*repository.PodVolumeMetrics
 
 	var podToVolsMap map[string][]repository.MountedVolume
-	if collector.Cluster.PodToVolumesMap != nil {
-		podToVolsMap = collector.Cluster.PodToVolumesMap
+	if collector.Cluster.PodToVolumesMap == nil {
+		return podVolumeMetricsCollection
 	}
+	podToVolsMap = collector.Cluster.PodToVolumesMap
 
 	metricsSink := collector.MetricsSink
 	//Iterate over all the pods in the collection
 	for _, pod := range collector.PodList {
-		podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		podKey := util.PodKeyFunc(pod)
 		podVols, exists := podToVolsMap[podKey]
 		if !exists {
 			continue

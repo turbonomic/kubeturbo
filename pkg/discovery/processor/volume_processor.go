@@ -1,11 +1,10 @@
 package processor
 
 import (
-	"fmt"
-
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -79,7 +78,7 @@ func (p *VolumeProcessor) ProcessVolumes() {
 					if pvc != nil {
 						if claim.ClaimName == pvc.Name {
 							pVol := repository.PodVolume{
-								QualifiedPodName: fmt.Sprintf("%s/%s", pod.Namespace, pod.Name),
+								QualifiedPodName: util.PodKeyFunc(pod),
 								MountName:        vol.Name,
 							}
 							volumeToPodsMap[pv] = append(volumeToPodsMap[pv], pVol)

@@ -236,7 +236,6 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 		PatchSoldMetadata(proto.CommodityDTO_VMEM_REQUEST_QUOTA, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_NUMBER_CONSUMERS, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_VSTORAGE, fieldsUsedCapacity).
-		PatchSoldMetadata(proto.CommodityDTO_STORAGE_AMOUNT, fieldsUsedCapacity).
 		Build()
 }
 

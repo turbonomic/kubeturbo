@@ -387,9 +387,7 @@ func (builder *podEntityDTOBuilder) buyCommoditiesFromVolumes(pod *api.Pod, moun
 		dtoBuilder = dtoBuilder.Provider(provider)
 
 		// Each pod mounts any given volume only once
-		var singleCommoditySlice []*proto.CommodityDTO
-		singleCommoditySlice = append(singleCommoditySlice, commBought)
-		dtoBuilder.BuysCommodities(singleCommoditySlice)
+		dtoBuilder.BuysCommodities([]*proto.CommodityDTO{commBought})
 	}
 
 	return nil

@@ -357,14 +357,14 @@ func (s *MockClusterScrapper) GetAllPVs() ([]*v1.PersistentVolume, error) {
 	if s.mockGetAllPVs != nil {
 		return s.mockGetAllPVs()
 	}
-	return nil, fmt.Errorf("GetAllServices Not implemented")
+	return nil, fmt.Errorf("GetAllPVs Not implemented")
 }
 
 func (s *MockClusterScrapper) GetAllPVCs() ([]*v1.PersistentVolumeClaim, error) {
 	if s.mockGetAllPVCs != nil {
 		return s.mockGetAllPVCs()
 	}
-	return nil, fmt.Errorf("GetAllServices Not implemented")
+	return nil, fmt.Errorf("GetAllPVCs Not implemented")
 }
 
 // Implements the KubeHttpClientInterface
