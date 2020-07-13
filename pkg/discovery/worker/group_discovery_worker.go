@@ -90,10 +90,10 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 	}
 
 	// Create static groups for HA Nodes
-	HANodeGroupDTOs := dtofactory.
-		NewHANodesGroupDTOBuilder(worker.cluster, worker.targetId).
+	NodeRolesGroupDTOs := dtofactory.
+		NewNodeRolesGroupDTOBuilder(worker.cluster, worker.targetId).
 		Build()
-	groupDTOs = append(groupDTOs, HANodeGroupDTOs...)
+	groupDTOs = append(groupDTOs, NodeRolesGroupDTOs...)
 
 	return groupDTOs, nil
 }
