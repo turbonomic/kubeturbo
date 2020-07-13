@@ -286,9 +286,10 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	volumeEntityDTOs, err := volumeEntityDTOBuilder.BuildEntityDTOs(clusterSummary.VolumeToPodsMap)
 	if err != nil {
 		glog.Errorf("Error while creating volume entityDTOs: %v", err)
+	} else {
+		glog.V(2).Infof("There are %d Storage Volume entityDTOs.", len(volumeEntityDTOs))
+		entityDTOs = append(entityDTOs, volumeEntityDTOs...)
 	}
-	glog.V(3).Infof("There are %d Storage Volume entityDTOs.", len(volumeEntityDTOs))
-	entityDTOs = append(entityDTOs, volumeEntityDTOs...)
 
 	glog.V(2).Infof("There are totally %d entityDTOs.", len(entityDTOs))
 
