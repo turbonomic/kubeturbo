@@ -2,6 +2,7 @@ package action
 
 import (
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"strings"
 	"time"
 
@@ -48,9 +49,12 @@ type ActionHandlerConfig struct {
 	StopEverything chan struct{}
 	sccAllowedSet  map[string]struct{}
 	cAPINamespace  string
+	// ormClient provides the capability to update the corresponding CR for an Operator managed resource.
+	ormClient *resourcemapping.ORMClient
 }
 
-func NewActionHandlerConfig(cApiNamespace string, cApiClient *clientset.Clientset, kubeClient *kubeclient.Clientset, kubeletClient *kubeletclient.KubeletClient, dynamicClient dynamic.Interface, sccSupport []string) *ActionHandlerConfig {
+func NewActionHandlerConfig(cApiNamespace string, cApiClient *clientset.Clientset, kubeClient *kubeclient.Clientset,
+	kubeletClient *kubeletclient.KubeletClient, dynamicClient dynamic.Interface, sccSupport []string, ormClient *resourcemapping.ORMClient) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
 		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}
@@ -65,6 +69,7 @@ func NewActionHandlerConfig(cApiNamespace string, cApiClient *clientset.Clientse
 		sccAllowedSet:  sccAllowedSet,
 		cAPINamespace:  cApiNamespace,
 		cApiClient:     cApiClient,
+		ormClient:      ormClient,
 	}
 
 	return config
@@ -103,7 +108,7 @@ func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 // As action executor is stateless, they can be safely reused.
 func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
-	ae := executor.NewTurboK8sActionExecutor(c.kubeClient, c.dynamicClient, c.cApiClient, h.podManager)
+	ae := executor.NewTurboK8sActionExecutor(c.kubeClient, c.dynamicClient, c.cApiClient, h.podManager, h.config.ormClient)
 
 	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet)
 	h.actionExecutors[turboActionPodMove] = reScheduler

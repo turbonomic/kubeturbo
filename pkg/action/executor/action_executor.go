@@ -3,6 +3,7 @@ package executor
 import (
 	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
@@ -29,13 +30,16 @@ type TurboK8sActionExecutor struct {
 	dynamicClient dynamic.Interface
 	cApiClient    *clientset.Clientset
 	podManager    util.IPodManager
+	ormClient     *resourcemapping.ORMClient
 }
 
-func NewTurboK8sActionExecutor(kubeClient *kclient.Clientset, dynamicClient dynamic.Interface, cApiClient *clientset.Clientset, podManager util.IPodManager) TurboK8sActionExecutor {
+func NewTurboK8sActionExecutor(kubeClient *kclient.Clientset, dynamicClient dynamic.Interface, cApiClient *clientset.Clientset,
+	podManager util.IPodManager, ormSpec *resourcemapping.ORMClient) TurboK8sActionExecutor {
 	return TurboK8sActionExecutor{
 		kubeClient:    kubeClient,
 		dynamicClient: dynamicClient,
 		cApiClient:    cApiClient,
 		podManager:    podManager,
+		ormClient:     ormSpec,
 	}
 }

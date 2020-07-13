@@ -2,12 +2,21 @@ package util
 
 import (
 	"fmt"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/util/jsonpath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/golang/glog"
 )
+
+//  PatchValue specifies a patch operation for a string.
+type PatchValue struct {
+	Op    string      `json:"op"`
+	Path  string      `json:"path"`
+	Value interface{} `json:"value"`
+}
 
 // CompareVersion compares two version strings, for example:
 // v1: "1.4.9",  v2: "1.5", then return -1
@@ -110,4 +119,29 @@ func RetrySimple(attempts int, timeout, sleep time.Duration, myfunc func() (bool
 
 	glog.Errorf("Failed after %d attepmts, last error: %v", attempts, err)
 	return err
+}
+
+// NestedField returns the value of a nested field in the given object based on the given JSON-Path.
+func NestedField(obj *unstructured.Unstructured, name, path string) (interface{}, bool, error) {
+	j := jsonpath.New(name).AllowMissingKeys(true)
+	template := fmt.Sprintf("{%s}", path)
+	err := j.Parse(template)
+	if err != nil {
+		return nil, false, err
+	}
+	results, err := j.FindResults(obj.UnstructuredContent())
+	if err != nil {
+		return nil, false, err
+	}
+	if len(results) == 0 || len(results[0]) == 0 {
+		return nil, false, nil
+	}
+	// The input path refers to a unique field, we can assume to have only one result or none.
+	value := results[0][0].Interface()
+	return value, true, nil
+}
+
+// JSONPath construct JSON-Path from given slice of fields.
+func JSONPath(fields []string) string {
+	return "." + strings.Join(fields, ".")
 }

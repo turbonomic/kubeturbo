@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,7 +33,7 @@ type controllerSpec struct {
 }
 
 // newK8sControllerUpdater returns a k8sControllerUpdater based on the parent kind of a pod
-func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.Interface, pod *api.Pod) (*k8sControllerUpdater, error) {
+func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.Interface, pod *api.Pod, ormClient *resourcemapping.ORMClient) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
 	kind, name, _, err := podutil.GetPodGrandInfo(dynamicClient, pod)
 	if err != nil {
@@ -69,6 +70,7 @@ func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.In
 		controller: &parentController{
 			dynNamespacedClient: dynamicClient.Resource(res).Namespace(pod.Namespace),
 			name:                kind,
+			ormClient:           ormClient,
 		},
 		client:    client,
 		name:      name,

@@ -158,9 +158,10 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 
 	probeConfig := createProbeConfigOrDie(config)
 	discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, config.tapSpec.K8sTargetConfig, config.ValidationWorkers,
-		config.ValidationTimeoutSec, config.containerUtilizationDataAggStrategy, config.containerUsageDataAggStrategy)
+		config.ValidationTimeoutSec, config.containerUtilizationDataAggStrategy, config.containerUsageDataAggStrategy, config.ORMClient)
 
-	actionHandlerConfig := action.NewActionHandlerConfig(config.CAPINamespace, config.CAClient, config.KubeClient, config.KubeletClient, config.DynamicClient, config.SccSupport)
+	actionHandlerConfig := action.NewActionHandlerConfig(config.CAPINamespace, config.CAClient, config.KubeClient,
+		config.KubeletClient, config.DynamicClient, config.SccSupport, config.ORMClient)
 
 	// Kubernetes Probe Registration Client
 	registrationClient := registration.NewK8sRegistrationClient(registrationClientConfig, config.tapSpec.K8sTargetConfig)

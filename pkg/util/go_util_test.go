@@ -2,8 +2,33 @@ package util
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"reflect"
 	"testing"
 	"time"
+)
+
+var (
+	testObj = &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"component": "api",
+			"containers": []map[string]interface{}{
+				{
+					"name":     "foo",
+					"resource": "memory",
+				},
+				{
+					"name": "bar",
+					"resource": map[string]map[string]string{
+						"limits": {
+							"memory": "4Gi",
+						},
+					},
+				},
+			},
+		},
+	}
 )
 
 func TestCompareVersion(t *testing.T) {
@@ -145,4 +170,74 @@ func TestRetryDuring_Timeout(t *testing.T) {
 	if a != b+1 {
 		t.Errorf("RetryDuring test failed [%v Vs. %v]", a, b+1)
 	}
+}
+
+func TestNestedField(t *testing.T) {
+	type args struct {
+		obj  *unstructured.Unstructured
+		name string
+		path string
+	}
+	tests := []struct {
+		args      args
+		value     interface{}
+		found     bool
+		expectErr bool
+	}{
+		{
+			args: args{
+				obj:  testObj,
+				name: "test1",
+				path: ".component",
+			},
+			value:     "api",
+			found:     true,
+			expectErr: false,
+		},
+		{
+			args: args{
+				obj:  testObj,
+				name: "test2",
+				path: ".containers[?(@.name=='bar')].resource",
+			},
+			value: map[string]map[string]string{
+				"limits": {
+					"memory": "4Gi",
+				},
+			},
+			found:     true,
+			expectErr: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.args.name, func(t *testing.T) {
+			value, found, err := NestedField(testObj, test.args.name, test.args.path)
+			if (err != nil) != test.expectErr {
+				t.Errorf("NestedField() error = %v, expectErr %v", err, test.expectErr)
+				return
+			}
+			if !reflect.DeepEqual(value, test.value) {
+				t.Errorf("NestedField() value = %v, value %v", value, test.value)
+			}
+			if found != test.found {
+				t.Errorf("NestedField() found = %v, value %v", found, test.found)
+			}
+		})
+	}
+}
+
+func TestNestedField_NotFound(t *testing.T) {
+	path := ".containers[?(@.name=='baz')].resource"
+	value, found, err := NestedField(testObj, "test", path)
+	assert.Nil(t, err)
+	assert.False(t, found)
+	assert.Nil(t, value)
+}
+
+func TestNestedField_ExpectErr(t *testing.T) {
+	path := "component"
+	value, found, err := NestedField(testObj, "test", path)
+	assert.NotNil(t, err)
+	assert.False(t, found)
+	assert.Nil(t, value)
 }
