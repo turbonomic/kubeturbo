@@ -119,9 +119,9 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		})
 
 		// Action settings for a node
-		// Allow suspend for all nodes except masters
-		isMasterNode := util.DetectMasterRole(node)
-		entityDTOBuilder.IsSuspendable(!isMasterNode)
+		// Allow suspend for all nodes except those marked as HA via kubeturbo config
+		isHANode := util.DetectHARole(node)
+		entityDTOBuilder.IsSuspendable(!isHANode)
 
 		// Power state.
 		// Will be Powered On, only if it is ready and has no issues with kubelet accessibility.
@@ -146,11 +146,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 
 		result = append(result, entityDto)
 
-		if isMasterNode {
-			glog.V(3).Infof("master node dto:\n	 %++v\n", entityDto)
-		} else {
-			glog.V(4).Infof("node dto : %++v\n", entityDto)
-		}
+		glog.V(3).Infof("node dto : %++v\n", entityDto)
 	}
 
 	return result, nil
