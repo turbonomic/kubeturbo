@@ -3,10 +3,11 @@ package util
 import (
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 	api "k8s.io/api/core/v1"
-	"strings"
 
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -88,8 +89,6 @@ const (
 	labelNodeRolePrefix = "node-role.kubernetes.io/"
 	// nodeLabelRole specifies the role of a node
 	nodeLabelRole = "kubernetes.io/role"
-
-	masterRoleName = "master"
 )
 
 func DetectNodeRoles(node *api.Node) sets.String {
@@ -110,12 +109,12 @@ func DetectNodeRoles(node *api.Node) sets.String {
 	return allRoles
 }
 
-func DetectMasterRole(node *api.Node) bool {
+func DetectHARole(node *api.Node) bool {
 	nodeRoles := DetectNodeRoles(node)
 
-	isMasterNode := nodeRoles.Has(masterRoleName)
-	if isMasterNode {
-		glog.V(3).Infof("%s is a master node", node.Name)
+	isHANode := nodeRoles.Intersection(detectors.HANodeRoles).Len() > 0
+	if isHANode {
+		glog.V(2).Infof("%s is a HA node and will be marked Non Suspendable.", node.Name)
 	}
-	return isMasterNode
+	return isHANode
 }
