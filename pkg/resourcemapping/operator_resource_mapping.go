@@ -2,7 +2,6 @@ package resourcemapping
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/util"
@@ -10,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"reflect"
 	"strings"
@@ -26,9 +24,6 @@ const (
 	resourceMappingComponentName = "componentName"
 	resourceMappingSrcPath       = "srcPath"
 	resourceMappingDestPath      = "destPath"
-
-	patchAddOperation     = "add"
-	patchReplaceOperation = "replace"
 )
 
 var (
@@ -68,14 +63,6 @@ func NewORMClient(dynamicClient dynamic.Interface, apiExtClient *apiextclient.Ap
 		apiExtClient:            apiExtClient,
 		operatorResourceSpecMap: make(map[string]*ORMSpec),
 	}
-}
-
-// patchValue specifies the operation, path and new value to update a JSON document.
-// JSON patch document is defined in https://tools.ietf.org/html/rfc6902#section-3
-type patchValue struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
-	Value interface{} `json:"value"`
 }
 
 // CacheORMSpecMap clears cached operatorResourceSpecMap data and repopulate the map based on newly discovered Operator
@@ -277,34 +264,21 @@ func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unst
 				updatedControllerObj.GetKind(), updatedControllerObj.GetName(), srcPath, operatorRes)
 			continue
 		}
-
-		origCRValue, found, err := util.NestedField(operatorCR, "destPath", destPath)
-		var patchOperation string
-		if !found && err == nil {
-			// If operatorCR doesn't have existing value set on destPath, use "add" operation
-			patchOperation = patchAddOperation
-		} else if err == nil {
-			// If operatorCR has existing value set on destPath, use "replace" operation
-			patchOperation = patchReplaceOperation
-		} else {
-			return fmt.Errorf("failed to update CR %s for %s in namespace %s: %v", operatorRes, componentKey, resourceNamespace, err)
+		fields := strings.Split(destPath, ".")
+		if len(fields) < 2 {
+			return fmt.Errorf("failed to update %v to CR %s for %s in namespace %s: '%s' is invalid path", newValue, operatorRes, componentKey, resourceNamespace, destPath)
 		}
-		// Construct the operation path for JSON-Patch by replacing "." with "/" as delimiter. The path in JSON-Patch is
-		// interpreted as JSON-Pointer defined in IETF RFC 6901 (https://tools.ietf.org/html/rfc6901#section-3)
-		destPath = strings.Replace(destPath, ".", "/", -1)
-		patchVal := []patchValue{{
-			Op:    patchOperation,
-			Path:  destPath,
-			Value: newValue,
-		}}
-		patchBytes, err := json.Marshal(patchVal)
+		origCRValue, _, err := util.NestedField(operatorCR, resourceMappingDestPath, destPath)
 		if err != nil {
-			return fmt.Errorf("failed to update CR %s '%s' for %s in namespace %s: %v", operatorRes, destPath, componentKey, resourceNamespace, err)
+			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
 		}
-
-		_, err = dynResourceClient.Patch(operatorResName, types.JSONPatchType, patchBytes, metav1.UpdateOptions{})
+		err = unstructured.SetNestedField(operatorCR.Object, newValue, fields[1:]...)
 		if err != nil {
-			return fmt.Errorf("failed to update CR %s '%s' for %s in namespace %s: %v", operatorRes, destPath, componentKey, resourceNamespace, err)
+			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
+		}
+		_, err = dynResourceClient.Update(operatorCR, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
 		}
 		updated = true
 		glog.Infof("Successfully updated CR %s '%s' from %v to %v for %s in namespace %s", operatorRes, destPath, origCRValue, newValue, componentKey, resourceNamespace)
@@ -351,11 +325,11 @@ func (ormClient *ORMClient) parsePath(resourceMappingTemplate map[string]interfa
 
 // needsUpdate returns false if values from origControllerObj and updatedControllerObj are the same for the same srcPath.
 func (ormClient *ORMClient) needsUpdate(origControllerObj, updatedControllerObj *unstructured.Unstructured, srcPath string) (interface{}, bool, error) {
-	oldVal, found, err := util.NestedField(origControllerObj, "srcPath", srcPath)
+	oldVal, found, err := util.NestedField(origControllerObj, resourceMappingSrcPath, srcPath)
 	if err != nil || !found {
 		return nil, false, fmt.Errorf("failed to get value from path '%s' in origControllerObj: %v", srcPath, err)
 	}
-	newVal, found, err := util.NestedField(updatedControllerObj, "srcPath", srcPath)
+	newVal, found, err := util.NestedField(updatedControllerObj, resourceMappingSrcPath, srcPath)
 	if err != nil || !found {
 		return nil, false, fmt.Errorf("failed to get value from path '%s' in updatedControllerObj: %v", srcPath, err)
 	}
