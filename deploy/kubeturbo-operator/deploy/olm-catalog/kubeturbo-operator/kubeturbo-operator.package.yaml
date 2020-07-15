@@ -1,7 +1,7 @@
 packageName: kubeturbo-certified
 channels:
   - name: stable
-    currentCSV: kubeturbo-operator.v7.22.2
+    currentCSV: kubeturbo-operator.v7.22.4
   - name: alpha
-    currentCSV: kubeturbo-operator.v7.22.0
+    currentCSV: kubeturbo-operator.v7.22.3
 defaultChannel: stable
