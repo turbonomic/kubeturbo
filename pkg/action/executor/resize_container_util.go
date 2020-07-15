@@ -100,6 +100,7 @@ func checkLimitsRequests(container *k8sapi.Container) error {
 func updateResourceAmount(podSpec *k8sapi.PodSpec, specs []*containerResizeSpec) (bool, error) {
 	changed := false
 	for _, spec := range specs {
+		thisSpecChanged := false
 		//1. get container
 		index := spec.Index
 		if index >= len(podSpec.Containers) {
@@ -110,12 +111,12 @@ func updateResourceAmount(podSpec *k8sapi.PodSpec, specs []*containerResizeSpec)
 
 		//2. update Limits
 		if spec.NewCapacity != nil && len(spec.NewCapacity) > 0 {
-			changed = updateLimits(container, spec.NewCapacity)
+			thisSpecChanged = thisSpecChanged || updateLimits(container, spec.NewCapacity)
 		}
 
 		//3. update Requests
 		if spec.NewRequest != nil && len(spec.NewRequest) > 0 {
-			changed = updateRequests(container, spec.NewRequest)
+			thisSpecChanged = thisSpecChanged || updateRequests(container, spec.NewRequest)
 		}
 
 		//4. check the new Limits vs. Requests, make sure Limits >= Requests
@@ -124,9 +125,13 @@ func updateResourceAmount(podSpec *k8sapi.PodSpec, specs []*containerResizeSpec)
 			return false, err
 		}
 
-		if !changed {
-			glog.V(2).Infof("Container %v resources are not changed.", container.Name)
+		if thisSpecChanged {
+			glog.V(4).Infof("Container %v resources changed.", container.Name)
+		} else {
+			glog.V(4).Infof("Container %v resources are not changed.", container.Name)
 		}
+
+		changed = changed || thisSpecChanged
 	}
 
 	return changed, nil

@@ -188,6 +188,8 @@ func (rClient *K8sRegistrationClient) GetActionMergePolicy() []*proto.ActionMerg
 		ForEntityType(proto.EntityDTO_CONTAINER).
 		ForCommodity(proto.CommodityDTO_VCPU).
 		ForCommodity(proto.CommodityDTO_VMEM).
+		ForCommodity(proto.CommodityDTO_VCPU_REQUEST).
+		ForCommodity(proto.CommodityDTO_VMEM_REQUEST).
 		DeDuplicateAndAggregateBy(actionMergeTarget).
 		DeDuplicateAndAggregateBy(actionMergeTarget2)
 
