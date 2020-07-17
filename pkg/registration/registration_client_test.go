@@ -46,6 +46,7 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	container := proto.EntityDTO_CONTAINER
 	app := proto.EntityDTO_APPLICATION_COMPONENT
 	service := proto.EntityDTO_SERVICE
+	wCtrl := proto.EntityDTO_WORKLOAD_CONTROLLER
 
 	move := proto.ActionItemDTO_MOVE
 	resize := proto.ActionItemDTO_RIGHT_SIZE
@@ -83,6 +84,10 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	expected_node[suspend] = supported
 	expected_node[scale] = notSupported
 
+	expected_wCtrl := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
+	expected_wCtrl[resize] = supported
+	expected_wCtrl[scale] = supported
+
 	policies := reg.GetActionPolicy()
 
 	for _, item := range policies {
@@ -99,6 +104,8 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 			expected = expected_node
 		} else if entity == service {
 			expected = expected_service
+		} else if entity == wCtrl {
+			expected = expected_wCtrl
 		} else {
 			t.Errorf("Unknown entity type: %v", entity)
 			continue

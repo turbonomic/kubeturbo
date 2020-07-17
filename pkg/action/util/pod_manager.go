@@ -2,11 +2,12 @@ package util
 
 import (
 	"fmt"
+
 	"github.com/golang/glog"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	api "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes/typed/core/v1"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
 const (
@@ -81,8 +82,6 @@ func (p *PodCachedManager) getRunningPod(podClient v1.PodInterface, name, uid st
 	if pod, err := podutil.GetPodInPhase(podClient, name, api.PodRunning); err == nil {
 		return pod, nil
 	}
-
-	// Pod is not found by name. Try using uid to get the pod (more expensive call).
 
 	// Try using uid to search for the pod (for truncated display name issue).
 	// Try using the cached uid first.

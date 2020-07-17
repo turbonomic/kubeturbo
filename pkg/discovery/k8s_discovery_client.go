@@ -204,11 +204,12 @@ func (dc *K8sDiscoveryClient) Discover(
 		return
 	}
 
+	discoveryResponse = &proto.DiscoveryResponse{
+		DiscoveredGroup: groupDTOs,
+		EntityDTO:       newDiscoveryResultDTOs,
+	}
+
 	newFrameworkDiscTime := time.Now().Sub(currentTime).Seconds()
-
-	discoveryResponse.DiscoveredGroup = groupDTOs
-	discoveryResponse.EntityDTO = newDiscoveryResultDTOs
-
 	glog.V(2).Infof("Successfully discovered kubernetes cluster in %.3f seconds", newFrameworkDiscTime)
 
 	return
@@ -233,7 +234,8 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	// Discover pods and create DTOs for nodes, namespaces, controllers, pods, containers, application.
 	// Collect the kubePod, kubeNamespace metrics, groups and kubeControllers from all the discovery workers
 	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
-	entityDTOs, podEntitiesMap, namespaceMetricsList, entityGroupList, kubeControllerList, containerSpecs := dc.resultCollector.Collect(workerCount)
+	entityDTOs, podEntitiesMap, namespaceMetricsList, entityGroupList, kubeControllerList, containerSpecsList :=
+		dc.resultCollector.Collect(workerCount)
 
 	// Namespace discovery worker to create namespace DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType
@@ -260,7 +262,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	// replicas. ContainerSpec is an entity type which represents a certain type of container replicas deployed by a
 	// K8s controller.
 	containerSpecDiscoveryWorker := worker.NewK8sContainerSpecDiscoveryWorker()
-	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(containerSpecs, dc.config.containerUtilizationDataAggStrategy,
+	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(containerSpecsList, dc.config.containerUtilizationDataAggStrategy,
 		dc.config.containerUsageDataAggStrategy)
 	if err != nil {
 		glog.Errorf("Failed to discover ContainerSpecs from current Kubernetes cluster with the new discovery framework: %s", err)
@@ -327,5 +329,6 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	}
 
 	groupDTOs = append(groupDTOs, nodeAntiAffinityGroupDTOs...)
+
 	return entityDTOs, groupDTOs, nil
 }
