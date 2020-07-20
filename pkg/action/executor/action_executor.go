@@ -11,8 +11,8 @@ import (
 )
 
 type TurboActionExecutorInput struct {
-	ActionItem *proto.ActionItemDTO
-	Pod        *api.Pod
+	ActionItems []*proto.ActionItemDTO
+	Pod         *api.Pod
 }
 
 type TurboActionExecutorOutput struct {

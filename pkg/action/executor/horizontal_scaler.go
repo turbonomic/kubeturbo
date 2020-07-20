@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+
 	"github.com/golang/glog"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
@@ -19,7 +20,7 @@ func NewHorizontalScaler(ae TurboK8sActionExecutor) *HorizontalScaler {
 }
 
 func (h *HorizontalScaler) Execute(input *TurboActionExecutorInput) (*TurboActionExecutorOutput, error) {
-	actionItem := input.ActionItem
+	actionItem := input.ActionItems[0]
 	pod := input.Pod
 
 	//1. Get replica diff
@@ -29,7 +30,7 @@ func (h *HorizontalScaler) Execute(input *TurboActionExecutorInput) (*TurboActio
 		return nil, err
 	}
 	//2. Prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdater(h.kubeClient, h.dynamicClient, pod, h.ormClient)
+	controllerUpdater, err := newK8sControllerUpdaterViaPod(h.kubeClient, h.dynamicClient, pod, h.ormClient)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return &TurboActionExecutorOutput{}, err

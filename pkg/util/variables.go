@@ -21,6 +21,9 @@ const (
 	ReplicaSetResName            = "replicasets"
 	DeploymentResName            = "deployments"
 	DeploymentConfigResName      = "deploymentconfigs"
+	JobResName                   = "jobs"
+	StatefulSetResName           = "statefulsets"
+	DaemonSetResName             = "daemonsets"
 )
 
 // The API group version under which deployments and replicasets are exposed by the k8s cluster as of today

@@ -178,6 +178,7 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		RegisteredBy(registrationClient).
 		WithActionPolicies(registrationClient).
 		WithEntityMetadata(registrationClient).
+		WithActionMergePolicies(registrationClient).
 		ExecutesActionsBy(actionHandler)
 
 	if len(config.tapSpec.TargetIdentifier) > 0 {

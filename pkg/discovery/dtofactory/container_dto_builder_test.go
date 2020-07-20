@@ -177,6 +177,7 @@ func Test_containerDTOBuilder_BuildDTOs_withContainerSpec(t *testing.T) {
 		ControllerUID:     controllerUID,
 		ContainerSpecName: containerNameFoo,
 		ContainerSpecId:   "controller-UID/foo",
+		ContainerIDs:      []string{"pod-UID-0"},
 		ContainerReplicas: 1,
 		ContainerCommodities: map[proto.CommodityDTO_CommodityType][]*proto.CommodityDTO{
 			cpuCommType: {{
@@ -206,7 +207,7 @@ func Test_containerDTOBuilder_BuildDTOs_withContainerSpec(t *testing.T) {
 		},
 	}
 	if !reflect.DeepEqual(expectedContainerSpec, containerSpecs[0]) {
-		t.Errorf("Test case failed: BuildDTOs_withoutContainerSpec:\nexpected:\n%++v\nactual:\n%++v",
+		t.Errorf("Test case failed: BuildDTOs_withContainerSpec:\nexpected:\n%++v\nactual:\n%++v",
 			expectedContainerSpec, containerSpecs[0])
 	}
 }

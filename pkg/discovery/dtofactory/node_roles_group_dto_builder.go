@@ -37,8 +37,10 @@ func (builder *NodeRolesGroupDTOBuilder) Build() []*proto.GroupDTO {
 		var err error
 		roleName := role.roleName
 		if role.isHA {
-			groupID := fmt.Sprintf("NodeRole[HA]-%s-%s", roleName, builder.targetId)
-			displayName := fmt.Sprintf("NodeRole[HA]::%s [%s]", roleName, builder.targetId)
+			groupID := fmt.Sprintf("NodeRole-%s-%s", roleName, builder.targetId)
+			displayName := fmt.Sprintf("[HA]NodeRole::%s [%s]", roleName, builder.targetId)
+			// The group is automatically created when this policy is created.
+			// The display name used for the group is the groupID.
 			dtos, err = group.DoNotPlaceTogether(groupID).
 				WithDisplayName(displayName).
 				OnSellerType(proto.EntityDTO_PHYSICAL_MACHINE).

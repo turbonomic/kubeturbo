@@ -193,24 +193,14 @@ func (r *ContainerResizer) setZeroRequest(pod *k8sapi.Pod, containerIdx int, spe
 	}
 }
 
-func (r *ContainerResizer) buildResizeSpec(actionItem *proto.ActionItemDTO, pod *k8sapi.Pod) (*containerResizeSpec, error) {
-
-	// get hosting Pod and containerIndex
-	entity := actionItem.GetTargetSE()
-	containerId := entity.GetId()
-
-	_, containerIndex, err := idutil.ParseContainerId(containerId)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse container index to build resizeAction: %v", err)
-	}
-
+func (r *ContainerResizer) buildResizeSpec(actionItem *proto.ActionItemDTO, pod *k8sapi.Pod, containerIndex int) (*containerResizeSpec, error) {
 	if containerIndex < 0 || containerIndex > len(pod.Spec.Containers) {
 		return nil, fmt.Errorf("invalid containerIndex %d", containerIndex)
 	}
 
 	// build the new resource requirements
 	resizeSpec := NewContainerResizeSpec(containerIndex)
-	if err = r.buildResourceLists(pod, actionItem, resizeSpec); err != nil {
+	if err := r.buildResourceLists(pod, actionItem, resizeSpec); err != nil {
 		return nil, fmt.Errorf("failed to build resizeSpec: %v", err)
 	}
 
@@ -228,7 +218,7 @@ func (r *ContainerResizer) buildResizeSpec(actionItem *proto.ActionItemDTO, pod 
 // Execute executes the container resize action
 // The error info will be shown in UI
 func (r *ContainerResizer) Execute(input *TurboActionExecutorInput) (*TurboActionExecutorOutput, error) {
-	actionItem := input.ActionItem
+	actionItem := input.ActionItems[0]
 	pod := input.Pod
 
 	// check if the pod privilege is supported
@@ -238,8 +228,17 @@ func (r *ContainerResizer) Execute(input *TurboActionExecutorInput) (*TurboActio
 		return &TurboActionExecutorOutput{}, err
 	}
 
+	// get hosting Pod and containerIndex
+	entity := actionItem.GetTargetSE()
+	containerId := entity.GetId()
+
+	_, containerIndex, err := idutil.ParseContainerId(containerId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse container index to build resizeAction: %v", err)
+	}
+
 	// build resize specification
-	spec, err := r.buildResizeSpec(actionItem, pod)
+	spec, err := r.buildResizeSpec(actionItem, pod, containerIndex)
 	if err != nil {
 		glog.Errorf("Failed to execute resize action: %v", err)
 		return &TurboActionExecutorOutput{}, err
