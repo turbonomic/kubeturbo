@@ -165,10 +165,10 @@ func (ormClient *ORMClient) populateORMTemplateMap(ormCR unstructured.Unstructur
 	if err != nil {
 		return nil, fmt.Errorf("no data under '%s' in ORM CR %s: %v", util.JSONPath(ormResourceMappingsPath), ormCRName, err)
 	}
-	for _, resourceMapping := range resourceMappings {
+	for rmInd, resourceMapping := range resourceMappings {
 		rm, ok := resourceMapping.(map[string]interface{})
 		if !ok {
-			glog.Errorf("ResourceMapping does not have the expected 'map[string]interface{}' structure in ORM CR %s", ormCRName)
+			glog.Errorf("ResourceMappings[%v] does not have the expected 'map[string]interface{}' structure in ORM CR %s", rmInd, ormCRName)
 			continue
 		}
 		srcResourceKind, found, err := unstructured.NestedString(rm, srcResourceSpecKindPath...)
@@ -191,10 +191,10 @@ func (ormClient *ORMClient) populateORMTemplateMap(ormCR unstructured.Unstructur
 		}
 
 		rmTemplates := make([]map[string]interface{}, 0, len(resourceMappingTemplates))
-		for _, resourceMappingTemplate := range resourceMappingTemplates {
+		for rmtInd, resourceMappingTemplate := range resourceMappingTemplates {
 			rmTemplate, ok := resourceMappingTemplate.(map[string]interface{})
 			if !ok {
-				glog.Errorf("resourceMappingTemplate does not have the expected 'map[string]interface{}' structure in ORM CR %s", ormCRName)
+				glog.Errorf("ResourceMappings[%v] resourceMappingTemplates[%v] does not have the expected 'map[string]interface{}' structure in ORM CR %s", rmInd, rmtInd, ormCRName)
 				continue
 			}
 			rmTemplates = append(rmTemplates, rmTemplate)
@@ -283,6 +283,10 @@ func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unst
 		updated = true
 		glog.Infof("Successfully updated CR %s '%s' from %v to %v for %s in namespace %s", operatorRes, destPath, origCRValue, newValue, componentKey, resourceNamespace)
 	}
+	// If needsUpdate is false at this stage, it means there are some changes turbo server is recommending to make but not
+	// defined in the ORM resource mapping templates. In this case, either the resource field is missing to be defined in
+	// ORM CR or the field is not allowed to be changed, like a fixed value managed by Operator. We send an action failure
+	// notification here because nothing gets changes after the action execution.
 	if !updated {
 		return fmt.Errorf("failed to update CR %s for %s in namespace %s: missing resource mapping template", operatorRes, componentKey, resourceNamespace)
 	}

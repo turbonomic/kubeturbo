@@ -72,7 +72,14 @@ func TestORMClient_parseSrcAndDestPath(t *testing.T) {
 		resourceMappingTemplate2[k] = v
 	}
 	resourceMappingTemplate2[resourceMappingComponentName] = "api"
-	resourceMappingTemplate3 := make(map[string]interface{})
+
+	resourceMappingTemplate3 := map[string]interface{}{
+		"srcPath":  `.spec.template.spec.container.0.resources`,
+		"destPath": `.spec.resources`,
+	}
+	resourceMappingTemplate3[resourceMappingComponentName] = "api"
+
+	resourceMappingTemplate4 := make(map[string]interface{})
 
 	tests := []struct {
 		name                    string
@@ -98,6 +105,13 @@ func TestORMClient_parseSrcAndDestPath(t *testing.T) {
 		{
 			name:                    "parseSrcAndDestPathWithErr",
 			resourceMappingTemplate: resourceMappingTemplate3,
+			expectSrcPath:           ".spec.template.spec.container.0.resources",
+			expectDestPath:          ".spec.resources",
+			expectErr:               false,
+		},
+		{
+			name:                    "parseSrcAndDestPathWithErr",
+			resourceMappingTemplate: resourceMappingTemplate4,
 			expectSrcPath:           "",
 			expectDestPath:          "",
 			expectErr:               true,
