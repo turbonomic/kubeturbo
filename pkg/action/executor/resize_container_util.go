@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"math"
 
 	"k8s.io/client-go/dynamic"
@@ -161,9 +162,9 @@ func genMemoryQuantity(newValue float64) (resource.Quantity, error) {
 }
 
 func resizeContainer(client *kclient.Clientset, dynClient dynamic.Interface, pod *k8sapi.Pod, spec *containerResizeSpec,
-	consistentResize bool) (*k8sapi.Pod, error) {
+	consistentResize bool, ormSpec *resourcemapping.ORMClient) (*k8sapi.Pod, error) {
 	if consistentResize {
-		return nil, resizeControllerContainer(client, dynClient, pod, spec)
+		return nil, resizeControllerContainer(client, dynClient, pod, spec, ormSpec)
 	}
 	return resizeSingleContainer(client, pod, spec)
 }
@@ -178,9 +179,10 @@ func resizeContainer(client *kclient.Clientset, dynClient dynamic.Interface, pod
 //   resource, all existing pods that belong to the original ReplicaSet and ReplicationController
 //   are not affected. Only newly created pods (through scaling action) will use the updated
 //   resource
-func resizeControllerContainer(client *kclient.Clientset, dynClient dynamic.Interface, pod *k8sapi.Pod, spec *containerResizeSpec) error {
+func resizeControllerContainer(client *kclient.Clientset, dynClient dynamic.Interface, pod *k8sapi.Pod,
+	spec *containerResizeSpec, ormClient *resourcemapping.ORMClient) error {
 	// prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdaterViaPod(client, dynClient, pod)
+	controllerUpdater, err := newK8sControllerUpdaterViaPod(client, dynClient, pod, ormClient)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return err

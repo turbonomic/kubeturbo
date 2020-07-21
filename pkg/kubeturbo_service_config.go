@@ -4,6 +4,7 @@ import (
 	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	kubeletclient "github.com/turbonomic/kubeturbo/pkg/kubeclient"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"k8s.io/client-go/dynamic"
 	kubeclient "k8s.io/client-go/kubernetes"
 )
@@ -23,6 +24,9 @@ type Config struct {
 	DynamicClient dynamic.Interface
 	KubeletClient *kubeletclient.KubeletClient
 	CAClient      *clientset.Clientset
+	// ORMClient builds operator resource mapping templates fetched from OperatorResourceMapping CR in discovery client
+	// and provides the capability to update the corresponding CR for an Operator managed resource in action execution client.
+	ORMClient *resourcemapping.ORMClient
 
 	// Close this to stop all reflectors
 	StopEverything chan struct{}
@@ -65,6 +69,11 @@ func (c *Config) WithClusterAPIClient(client *clientset.Clientset) *Config {
 
 func (c *Config) WithKubeletClient(client *kubeletclient.KubeletClient) *Config {
 	c.KubeletClient = client
+	return c
+}
+
+func (c *Config) WithORMClient(client *resourcemapping.ORMClient) *Config {
+	c.ORMClient = client
 	return c
 }
 

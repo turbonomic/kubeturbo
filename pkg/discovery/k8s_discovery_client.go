@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"strings"
 	"time"
 
@@ -33,11 +34,15 @@ type DiscoveryClientConfig struct {
 	containerUtilizationDataAggStrategy string
 	// Strategy to aggregate Container usage data on ContainerSpec entity
 	containerUsageDataAggStrategy string
+	// ORMClient builds operator resource mapping templates fetched from OperatorResourceMapping CR so that action
+	// execution client will be able to execute action on operator-managed resources based on resource mapping templates.
+	ormClient *resourcemapping.ORMClient
 }
 
 func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 	targetConfig *configs.K8sTargetConfig, ValidationWorkers int,
-	ValidationTimeoutSec int, containerUtilizationDataAggStrategy, containerUsageDataAggStrategy string) *DiscoveryClientConfig {
+	ValidationTimeoutSec int, containerUtilizationDataAggStrategy,
+	containerUsageDataAggStrategy string, ormClient *resourcemapping.ORMClient) *DiscoveryClientConfig {
 	return &DiscoveryClientConfig{
 		probeConfig:                         probeConfig,
 		targetConfig:                        targetConfig,
@@ -45,6 +50,7 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 		ValidationTimeoutSec:                ValidationTimeoutSec,
 		containerUtilizationDataAggStrategy: containerUtilizationDataAggStrategy,
 		containerUsageDataAggStrategy:       containerUsageDataAggStrategy,
+		ormClient:                           ormClient,
 	}
 }
 
@@ -225,6 +231,12 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 		return nil, nil, fmt.Errorf("failed to process cluster: %v", err)
 	}
 	clusterSummary := repository.CreateClusterSummary(kubeCluster)
+
+	// Cache operatorResourceSpecMap in ormClient
+	numCRs := dc.config.ormClient.CacheORMSpecMap()
+	if numCRs > 0 {
+		glog.Infof("Discovered %v Operator managed Custom Resources in cluster %s.", numCRs, targetID)
+	}
 
 	// Multiple discovery workers to create node and pod DTOs
 	nodes := clusterSummary.NodeList
