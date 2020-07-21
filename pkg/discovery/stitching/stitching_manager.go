@@ -72,7 +72,7 @@ func (s *StitchingManager) SetNodeUuidGetterByProvider(providerId string) {
 	}
 
 	s.uuidGetter = getter
-	glog.V(3).Infof("Node UUID getter is: %v", getter.Name())
+	glog.V(4).Infof("Node UUID getter is: %v", getter.Name())
 }
 
 func (s *StitchingManager) GetStitchType() StitchingPropertyType {

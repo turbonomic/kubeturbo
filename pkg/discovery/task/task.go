@@ -2,6 +2,7 @@ package task
 
 import (
 	api "k8s.io/api/core/v1"
+	"strings"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
@@ -59,6 +60,14 @@ func (t *Task) PodList() []*api.Pod {
 
 func (t *Task) Cluster() *repository.ClusterSummary {
 	return t.cluster
+}
+
+func (t *Task) String() string {
+	var nodes []string
+	for _, node := range t.nodeList {
+		nodes = append(nodes, node.GetName())
+	}
+	return t.uid + " " + strings.Join(nodes, ",")
 }
 
 type TaskResultState string

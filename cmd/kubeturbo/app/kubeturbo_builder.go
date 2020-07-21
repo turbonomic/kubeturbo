@@ -43,6 +43,8 @@ const (
 	defaultDiscoveryIntervalSec = 600
 	defaultValidationWorkers    = 10
 	defaultValidationTimeout    = 60
+	defaultDiscoveryWorkers     = 4
+	defaultDiscoveryTimeoutSec  = 180
 )
 
 var (
@@ -90,6 +92,10 @@ type VMTServer struct {
 	ValidationWorkers int
 	ValidationTimeout int
 
+	// Discovery related config
+	DiscoveryWorkers    int
+	DiscoveryTimeoutSec int
+
 	// The Openshift SCC list allowed for action execution
 	sccSupport []string
 
@@ -133,6 +139,8 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.DiscoveryIntervalSec, "discovery-interval-sec", defaultDiscoveryIntervalSec, "The discovery interval in seconds")
 	fs.IntVar(&s.ValidationWorkers, "validation-workers", defaultValidationWorkers, "The validation workers")
 	fs.IntVar(&s.ValidationTimeout, "validation-timeout-sec", defaultValidationTimeout, "The validation timeout in seconds")
+	fs.IntVar(&s.DiscoveryWorkers, "discovery-workers", defaultDiscoveryWorkers, "The number of discovery workers")
+	fs.IntVar(&s.DiscoveryTimeoutSec, "discovery-timeout-sec", defaultDiscoveryTimeoutSec, "The discovery timeout in seconds for each discovery worker")
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all")
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")
 	fs.StringVar(&s.BusyboxImage, "busybox-image", "busybox", "The complete image uri used for fallback node cpu frequency getter job.")
@@ -285,6 +293,8 @@ func (s *VMTServer) Run() {
 		WithDiscoveryInterval(s.DiscoveryIntervalSec).
 		WithValidationTimeout(s.ValidationTimeout).
 		WithValidationWorkers(s.ValidationWorkers).
+		WithDiscoveryWorkers(s.DiscoveryWorkers).
+		WithDiscoveryTimeout(s.DiscoveryTimeoutSec).
 		WithSccSupport(s.sccSupport).
 		WithCAPINamespace(s.ClusterAPINamespace)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)

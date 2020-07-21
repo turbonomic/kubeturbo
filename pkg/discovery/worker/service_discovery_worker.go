@@ -165,7 +165,8 @@ func findPodEndpoints(service *api.Service, endpointMap map[string]*api.Endpoint
 			}
 
 			if !strings.EqualFold(target.Kind, "Pod") {
-				glog.Warningf("service: %v depends on non-Pod entity: %+v", serviceClusterID, target)
+				glog.Warningf("service: %v depends on non-Pod entity with kind %v and name %v",
+					serviceClusterID, target.Kind, target.Name)
 				continue
 			}
 			podName := target.Name

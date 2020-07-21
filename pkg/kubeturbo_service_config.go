@@ -28,6 +28,8 @@ type Config struct {
 	StopEverything chan struct{}
 
 	DiscoveryIntervalSec int
+	DiscoveryWorkers     int
+	DiscoveryTimeoutSec  int
 	ValidationWorkers    int
 	ValidationTimeoutSec int
 
@@ -100,6 +102,16 @@ func (c *Config) WithValidationTimeout(di int) *Config {
 
 func (c *Config) WithValidationWorkers(di int) *Config {
 	c.ValidationWorkers = di
+	return c
+}
+
+func (c *Config) WithDiscoveryWorkers(workers int) *Config {
+	c.DiscoveryWorkers = workers
+	return c
+}
+
+func (c *Config) WithDiscoveryTimeout(timeout int) *Config {
+	c.DiscoveryTimeoutSec = timeout
 	return c
 }
 

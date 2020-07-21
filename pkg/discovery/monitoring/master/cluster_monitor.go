@@ -79,7 +79,7 @@ func (m *ClusterMonitor) RetrieveClusterStat() error {
 	defer close(m.stopCh)
 
 	if m.nodeList == nil {
-		return errors.New("Invalid nodeList or empty nodeList. Nothing to monitor")
+		return errors.New("invalid nodeList or empty nodeList. Nothing to monitor")
 	}
 	select {
 	case <-m.stopCh:
@@ -87,7 +87,7 @@ func (m *ClusterMonitor) RetrieveClusterStat() error {
 	default:
 		err := m.findClusterID()
 		if err != nil {
-			return fmt.Errorf("Failed to find cluster ID based on Kubernetes service: %v", err)
+			return fmt.Errorf("failed to find cluster ID based on Kubernetes service: %v", err)
 		}
 		select {
 		case <-m.stopCh:
@@ -117,6 +117,7 @@ func (m *ClusterMonitor) findClusterID() error {
 	// TODO use a constant for cluster commodity key.
 	clusterInfo := metrics.NewEntityStateMetric(metrics.ClusterType, "", metrics.Cluster, kubernetesSvcID)
 	m.sink.AddNewMetricEntries(clusterInfo)
+	glog.V(2).Infof("Successfully added cluster info metrics for cluster %v", kubernetesSvcID)
 	return nil
 }
 
@@ -134,7 +135,7 @@ func (m *ClusterMonitor) findNodeStates() {
 		// node labels
 		labelMetrics := parseNodeLabels(node)
 		m.sink.AddNewMetricEntries(labelMetrics)
-
+		glog.V(3).Infof("Successfully generated label metrics for node %s", key)
 		// owner labels - TODO:
 
 	}
@@ -146,7 +147,7 @@ func (m *ClusterMonitor) findNodeStates() {
 //	CPURequest      capacity, used
 //	MemoryRequest   capacity, used
 func (m *ClusterMonitor) genNodeResourceMetrics(node *api.Node, key string) {
-	glog.V(3).Infof("Now get resouce metrics for node %s", key)
+	glog.V(3).Infof("Now get resource metrics for node %s", key)
 
 	//1. Capacity of CPU and Memory
 	//1.1 Get the total resource of a node
@@ -177,6 +178,7 @@ func (m *ClusterMonitor) genNodeResourceMetrics(node *api.Node, key string) {
 	m.genRequestUsedMetrics(metrics.NodeType, key, nodeCPURequestUsed, nodeMemRequestUsed)
 	glog.V(4).Infof("CPURequest used of node %s is %f core", node.Name, nodeCPURequestUsed)
 	glog.V(4).Infof("MemoryRequest used of node %s is %f Kb", node.Name, nodeMemRequestUsed)
+	glog.V(3).Infof("Successfully generated resource metrics for node %s", key)
 }
 
 // Parse the labels of a node and create one EntityStateMetric
@@ -222,6 +224,7 @@ func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapa
 	}
 
 	numPods = float64(len(podList))
+	glog.V(3).Infof("Successfully generated pod metrics for node %v.", node.Name)
 	return
 }
 

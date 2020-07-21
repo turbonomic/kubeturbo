@@ -4,23 +4,21 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
-
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-
-	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/cluster"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 const (
-	// TODO make this number programmatically.
-	workerCount int = 4
+	minDiscoveryWorker = 1
+	maxDiscoveryWorker = 10
 )
 
 type DiscoveryClientConfig struct {
@@ -28,16 +26,31 @@ type DiscoveryClientConfig struct {
 	targetConfig         *configs.K8sTargetConfig
 	ValidationWorkers    int
 	ValidationTimeoutSec int
+	DiscoveryWorkers     int
+	DiscoveryTimeoutSec  int
 }
 
-func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
-	targetConfig *configs.K8sTargetConfig, ValidationWorkers int,
-	ValidationTimeoutSec int) *DiscoveryClientConfig {
+func NewDiscoveryConfig(probeConfig *configs.ProbeConfig, targetConfig *configs.K8sTargetConfig,
+	validationWorkers int, validationTimeoutSec int,
+	discoveryWorkers int, discoveryTimeoutMin int) *DiscoveryClientConfig {
+	if discoveryWorkers < minDiscoveryWorker {
+		glog.Warningf("Invalid number of discovery workers %v, set it to %v.",
+			discoveryWorkers, minDiscoveryWorker)
+		discoveryWorkers = minDiscoveryWorker
+	} else if discoveryWorkers > maxDiscoveryWorker {
+		glog.Warningf("Discovery workers %v is higher than %v, set it to %v.", discoveryWorkers,
+			maxDiscoveryWorker, maxDiscoveryWorker)
+		discoveryWorkers = maxDiscoveryWorker
+	} else {
+		glog.Infof("Number of discovery workers: %v.", discoveryWorkers)
+	}
 	return &DiscoveryClientConfig{
 		probeConfig:          probeConfig,
 		targetConfig:         targetConfig,
-		ValidationWorkers:    ValidationWorkers,
-		ValidationTimeoutSec: ValidationTimeoutSec,
+		ValidationWorkers:    validationWorkers,
+		ValidationTimeoutSec: validationTimeoutSec,
+		DiscoveryWorkers:     discoveryWorkers,
+		DiscoveryTimeoutSec:  discoveryTimeoutMin,
 	}
 }
 
@@ -45,21 +58,22 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 type K8sDiscoveryClient struct {
 	config            *DiscoveryClientConfig
 	k8sClusterScraper *cluster.ClusterScraper
-
-	clusterProcessor *processor.ClusterProcessor
-	dispatcher       *worker.Dispatcher
-	resultCollector  *worker.ResultCollector
+	clusterProcessor  *processor.ClusterProcessor
+	dispatcher        *worker.Dispatcher
+	resultCollector   *worker.ResultCollector
 }
 
 func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	k8sClusterScraper := cluster.NewClusterScraper(config.probeConfig.ClusterClient, config.probeConfig.DynamicClient)
 
 	// for discovery tasks
-	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient, config.ValidationWorkers, config.ValidationTimeoutSec)
+	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient,
+		config.ValidationWorkers, config.ValidationTimeoutSec)
 	// make maxWorkerCount of result collector twice the worker count.
-	resultCollector := worker.NewResultCollector(workerCount * 2)
+	resultCollector := worker.NewResultCollector(config.DiscoveryWorkers * 2)
 
-	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig, workerCount)
+	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
+		config.DiscoveryWorkers, config.DiscoveryTimeoutSec)
 	dispatcher := worker.NewDispatcher(dispatcherConfig)
 	dispatcher.Init(resultCollector)
 
@@ -171,8 +185,8 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework() ([]*proto.EntityDTO, []
 	// Call cache cleanup
 	dc.config.probeConfig.NodeClient.CleanupCache(nodes)
 
-	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
-	entityDTOs, quotaMetricsList, entityGroupList := dc.resultCollector.Collect(workerCount)
+	taskCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
+	entityDTOs, quotaMetricsList, entityGroupList := dc.resultCollector.Collect(taskCount)
 
 	// Quota discovery worker to create quota DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType

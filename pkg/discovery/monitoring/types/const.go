@@ -7,6 +7,7 @@ const (
 	K8sConntrackSource MonitoringSource = "K8sConntrack"
 	ClusterSource      MonitoringSource = "Cluster"
 	PrometheusSource   MonitoringSource = "Prometheus"
+	DummySource        MonitoringSource = "Dummy" //Testing only
 )
 
 type MonitorType string
@@ -14,4 +15,5 @@ type MonitorType string
 const (
 	ResourceMonitor MonitorType = "ResourceMonitor"
 	StateMonitor    MonitorType = "StateMonitor"
+	DummyMonitor    MonitorType = "DummyMonitor"
 )
