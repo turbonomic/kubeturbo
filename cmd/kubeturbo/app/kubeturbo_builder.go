@@ -185,11 +185,11 @@ func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubern
 // The forceSelfSignedCerts will be used as follows:
 // * If it is false, which means we are in the environment where we must use proper certificates, then we don't force self-signed certs.
 // * If it is true, then we use whatever flag we passed through the command line.
-func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, forceSelfSignedCerts bool, fallbackClient *kubernetes.Clientset, busyboxImage string) *kubeclient.KubeletClient {
+func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, fallbackClient *kubernetes.Clientset, busyboxImage string) *kubeclient.KubeletClient {
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
-		ForceSelfSignedCerts(forceSelfSignedCerts && s.ForceSelfSignedCerts).
+		ForceSelfSignedCerts(s.ForceSelfSignedCerts).
 		// Timeout(to).
 		Create(fallbackClient, busyboxImage)
 	if err != nil {
@@ -266,7 +266,7 @@ func (s *VMTServer) Run() {
 	// For Kubernetes distro, the secure connection to Kubelet will fail due to
 	// the certificate issue of 'doesn't contain any IP SANs'.
 	// See https://github.com/kubernetes/kubernetes/issues/59372
-	kubeletClient := s.createKubeletClientOrDie(kubeConfig, !isOpenshift, kubeClient, s.BusyboxImage)
+	kubeletClient := s.createKubeletClientOrDie(kubeConfig, kubeClient, s.BusyboxImage)
 	caClient, err := clusterclient.NewForConfig(kubeConfig)
 	if err != nil {
 		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
