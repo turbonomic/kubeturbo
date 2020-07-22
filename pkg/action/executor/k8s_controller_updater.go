@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/glog"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,18 +35,18 @@ type controllerSpec struct {
 }
 
 // newK8sControllerUpdaterViaPod returns a k8sControllerUpdater based on the parent kind of a pod
-func newK8sControllerUpdaterViaPod(client *kclient.Clientset, dynamicClient dynamic.Interface, pod *api.Pod) (*k8sControllerUpdater, error) {
+func newK8sControllerUpdaterViaPod(client *kclient.Clientset, dynamicClient dynamic.Interface, pod *api.Pod, ormClient *resourcemapping.ORMClient) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
 	kind, name, _, err := podutil.GetPodGrandInfo(dynamicClient, pod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get parent info of pod %s/%s: %v", pod.Namespace, pod.Name, err)
 	}
 
-	return newK8sControllerUpdater(client, dynamicClient, kind, name, pod.Name, pod.Namespace)
+	return newK8sControllerUpdater(client, dynamicClient, ormClient, kind, name, pod.Name, pod.Namespace)
 }
 
 // newK8sControllerUpdater returns a k8sControllerUpdater based on the controller kind
-func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.Interface, kind, controllerName, podName, namespace string) (*k8sControllerUpdater, error) {
+func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.Interface, ormClient *resourcemapping.ORMClient, kind, controllerName, podName, namespace string) (*k8sControllerUpdater, error) {
 	res, err := GetSupportedResUsingKind(kind, namespace, controllerName)
 	if err != nil {
 		return nil, err
@@ -54,6 +55,7 @@ func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.In
 		controller: &parentController{
 			dynNamespacedClient: dynamicClient.Resource(res).Namespace(namespace),
 			name:                kind,
+			ormClient:           ormClient,
 		},
 		client:    client,
 		name:      controllerName,

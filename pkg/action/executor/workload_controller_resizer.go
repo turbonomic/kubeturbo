@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 
 	"github.com/golang/glog"
 	k8sapi "k8s.io/api/core/v1"
@@ -65,6 +66,7 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 	err = resizeWorkloadController(
 		r.kubeClient,
 		r.dynamicClient,
+		r.ormClient,
 		kind,
 		controllerName,
 		pod.Name,
@@ -166,10 +168,10 @@ func (r *WorkloadControllerResizer) getChildPod(parentKind, namespace, name stri
 
 }
 
-func resizeWorkloadController(client *kclient.Clientset, dynClient dynamic.Interface,
+func resizeWorkloadController(client *kclient.Clientset, dynClient dynamic.Interface, ormClient *resourcemapping.ORMClient,
 	kind, controllerName, podName, namespace string, specs []*containerResizeSpec) error {
 	// prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdater(client, dynClient, kind,
+	controllerUpdater, err := newK8sControllerUpdater(client, dynClient, ormClient, kind,
 		controllerName, podName, namespace)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)

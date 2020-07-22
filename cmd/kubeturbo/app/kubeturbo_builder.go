@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -13,6 +14,7 @@ import (
 
 	clusterclient "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 	apiv1 "k8s.io/api/core/v1"
+	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	versionhelper "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/server/healthz"
@@ -241,6 +243,11 @@ func (s *VMTServer) Run() {
 		glog.Fatalf("Failed to generate dynamic client for kubernetes target: %v", err)
 	}
 
+	apiExtClient, err := apiextclient.NewForConfig(kubeConfig)
+	if err != nil {
+		glog.Fatalf("Failed to generate apiExtensions client for kubernetes target: %v", err)
+	}
+
 	util.K8sAPIDeploymentGV, err = discoverk8sAPIResourceGV(kubeClient, util.DeploymentResName)
 	if err != nil {
 		glog.Warningf("Failure in discovering k8s deployment API group/version: %v", err.Error())
@@ -271,11 +278,14 @@ func (s *VMTServer) Run() {
 		caClient = nil
 	}
 
+	ormClient := resourcemapping.NewORMClient(dynamicClient, apiExtClient)
+
 	// Configuration for creating the Kubeturbo TAP service
 	vmtConfig := kubeturbo.NewVMTConfig2()
 	vmtConfig.WithTapSpec(k8sTAPSpec).
 		WithKubeClient(kubeClient).
 		WithDynamicClient(dynamicClient).
+		WithORMClient(ormClient).
 		WithKubeletClient(kubeletClient).
 		WithClusterAPIClient(caClient).
 		WithVMPriority(s.VMPriority).
