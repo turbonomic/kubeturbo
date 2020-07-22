@@ -197,7 +197,7 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 	switch f.stitchingPropertyType {
 	case stitching.UUID:
 		mergedEntityMetadataBuilder.
-			InternalMatchingProperty(proxyVMUUID).
+			InternalMatchingPropertyWithDelimiter(proxyVMUUID, ",").
 			ExternalMatchingField(VMUUID, []string{})
 	case stitching.IP:
 		mergedEntityMetadataBuilder.

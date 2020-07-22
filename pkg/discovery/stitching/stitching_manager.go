@@ -67,7 +67,9 @@ func (s *StitchingManager) SetNodeUuidGetterByProvider(providerId string) {
 
 	getter = &defaultNodeUUIDGetter{}
 
-	if strings.HasPrefix(providerId, awsPrefix) {
+	if strings.HasPrefix(providerId, vspherePrefix) {
+		getter = &vsphereNodeUUIDGetter{}
+	} else if strings.HasPrefix(providerId, awsPrefix) {
 		getter = &awsNodeUUIDGetter{}
 	} else if strings.HasPrefix(providerId, azurePrefix) {
 		getter = &azureNodeUUIDGetter{}

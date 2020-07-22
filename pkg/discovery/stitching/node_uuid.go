@@ -3,15 +3,17 @@ package stitching
 import (
 	"bytes"
 	"fmt"
+	"strings"
+
 	"github.com/golang/glog"
 	api "k8s.io/api/core/v1"
-	"strings"
 )
 
 const (
 	awsPrefix     = "aws:///"
 	azurePrefix   = "azure:///"
 	gcePrefix     = "gce://"
+	vspherePrefix = "vsphere://"
 	uuidSeparator = "-"
 
 	awsFormat   = "aws::%v::VM::%v"
@@ -201,6 +203,50 @@ func (gce *gceNodeUUIDGetter) GetUUID(node *api.Node) (string, error) {
 
 	result := fmt.Sprintf(gceFormat, region, instanceId)
 	return result, nil
+}
+
+/**
+Input Vsphere.k8s.Node info:
+ spec:
+   // The systemUUID identifies a node uniquely in most older environments and
+   // matches that discovered by vsphere.
+   // In newer versions (eg. tanzu) the id discovered from insfrastructure is
+   // populated in the providerID.
+   // We observe both fields and if both are present we send both, else send only
+   // the information deciphered from providerID.
+   systemUUID: 4200C244-1E27-8473-AB44-999195DE924C
+   providerID: vsphere://29e465c7-74d4-4a63-9ce4-41a7c04ba01d
+
+ Output:  29e465c7-74d4-4a63-9ce4-41a7c04ba01d,4200c244-1e27-8473-ab44-999195de924c
+*/
+
+type vsphereNodeUUIDGetter struct {
+}
+
+func (v *vsphereNodeUUIDGetter) Name() string {
+	return "Vsphere"
+}
+
+func (v *vsphereNodeUUIDGetter) GetUUID(node *api.Node) (string, error) {
+	providerId := node.Spec.ProviderID
+	if !strings.HasPrefix(providerId, vspherePrefix) {
+		glog.Errorf("Not a valid Vspehere node uuid: %++v", node)
+		return "", fmt.Errorf("Invalid")
+	}
+
+	//1. Get the suffix, this is one of our ids:
+	//   29e465c7-74d4-4a63-9ce4-41a7c04ba01d
+	stitchingID := strings.ToLower(providerId[len(vspherePrefix):])
+
+	//2. Check if node.Status.NodeInfo.SystemUUID is filled by provider
+	//   If it is, append that as another id.
+	//   29e465c7-74d4-4a63-9ce4-41a7c04ba01d,4200c244-1e27-8473-ab44-999195de924c
+	systemUUID := strings.ToLower(node.Status.NodeInfo.SystemUUID)
+	if systemUUID != "" && systemUUID != stitchingID {
+		stitchingID = fmt.Sprintf("%s,%s", stitchingID, systemUUID)
+	}
+
+	return stitchingID, nil
 }
 
 func reverseUuid(oid string) (string, error) {
