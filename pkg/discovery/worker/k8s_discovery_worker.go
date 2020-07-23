@@ -171,8 +171,8 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 				w.ReceiveTask(resourceMonitorTask)
 				t := time.NewTimer(timeoutSecond)
 				go func() {
-					glog.V(2).Infof("A %s monitoring worker from discovery worker %v is invoked.",
-						w.GetMonitoringSource(), worker.id)
+					glog.V(2).Infof("A %s monitoring worker from discovery worker %v is invoked for task %s.",
+						w.GetMonitoringSource(), worker.id, resourceMonitorTask)
 					// Assign task to monitoring worker.
 					monitoringSink := w.Do()
 					select {
@@ -196,7 +196,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 					return
 				case <-t.C:
 					glog.Errorf("%s monitoring worker from discovery worker %v exceeds the max time limit for "+
-						"completing the task: %v", w.GetMonitoringSource(), worker.id, timeoutSecond)
+						"completing the task %s: %v", w.GetMonitoringSource(), worker.id, resourceMonitorTask, timeoutSecond)
 					timeout = true
 					stopCh <- struct{}{}
 					//glog.Infof("%s stop", w.GetMonitoringSource())
