@@ -76,7 +76,7 @@ func (p *VolumeProcessor) ProcessVolumes() {
 				claim := vol.VolumeSource.PersistentVolumeClaim
 				if claim != nil {
 					if pvc != nil {
-						if claim.ClaimName == pvc.Name {
+						if pod.Namespace == pvc.Namespace && claim.ClaimName == pvc.Name {
 							pVol := repository.PodVolume{
 								QualifiedPodName: util.PodKeyFunc(pod),
 								MountName:        vol.Name,
