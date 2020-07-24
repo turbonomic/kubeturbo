@@ -20,9 +20,9 @@ func NewEntityMetricSink() *EntityMetricSink {
 }
 
 // Add one or more metric entries to sink.
-func (s *EntityMetricSink) AddNewMetricEntries(metric ...Metric) {
+func (s *EntityMetricSink) AddNewMetricEntries(metrics ...Metric) {
 	entries := make(map[string]interface{})
-	for _, m := range metric {
+	for _, m := range metrics {
 		key := m.GetUID()
 		entries[key] = m
 	}
@@ -30,6 +30,10 @@ func (s *EntityMetricSink) AddNewMetricEntries(metric ...Metric) {
 }
 
 func (s *EntityMetricSink) UpdateMetricEntry(metric Metric) {
+	m, exists := s.data.Get(metric.GetUID())
+	if exists {
+		metric.UpdateValue(m)
+	}
 	s.AddNewMetricEntries(metric)
 }
 
