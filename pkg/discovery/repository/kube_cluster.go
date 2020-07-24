@@ -392,7 +392,6 @@ func (kubeNamespace *KubeNamespace) ReconcileQuotas(quotas []*v1.ResourceQuota) 
 		// Resources in each quota
 		resourceStatus := item.Status
 		resourceHardList := resourceStatus.Hard
-		resourceUsedList := resourceStatus.Used
 
 		for resource, _ := range resourceHardList {
 			resourceType, isAllocationType := metrics.KubeQuotaResourceTypes[resource]
@@ -404,18 +403,18 @@ func (kubeNamespace *KubeNamespace) ReconcileQuotas(quotas []*v1.ResourceQuota) 
 
 			// Parse the CPU  values into number of cores, Memory values into KBytes
 			capacityValue := parseAllocationResourceValue(resource, resourceType, resourceHardList)
-			usedValue := parseAllocationResourceValue(resource, resourceType, resourceUsedList)
 
 			// Update the namespace entity resource with the most restrictive quota value
 			existingResource, err := kubeNamespace.GetAllocationResource(resourceType)
 			if err == nil {
 				if existingResource.Capacity == DEFAULT_METRIC_VALUE || capacityValue < existingResource.Capacity {
 					existingResource.Capacity = capacityValue
-					existingResource.Used = usedValue
 				}
 			} else {
-				// create resource if it does not exist
-				kubeNamespace.AddAllocationResource(resourceType, capacityValue, usedValue)
+				// Create resource if it does not exist
+				// Used value will be updated in namespace_discovery_worker which is the sum of limits/request from all
+				// containers running on this namespace
+				kubeNamespace.AddAllocationResource(resourceType, capacityValue, DEFAULT_METRIC_VALUE)
 			}
 		}
 	}

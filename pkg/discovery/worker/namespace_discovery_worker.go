@@ -77,19 +77,11 @@ func (worker *k8sNamespaceDiscoveryWorker) Do(namespaceMetricsList []*repository
 		// Create sold allocation commodity for the types that are not defined in the kubeNamespace objects
 		for resourceType, used := range namespaceMetrics.QuotaSoldUsed {
 			existingResource, _ := kubeNamespaceEntity.GetResource(resourceType)
-			// Check if there is a quota set for this allocation resource
-			// If it is set, the allocation usage available from the namespace
-			// resource quota object is used
-			if kubeNamespaceEntity.QuotaDefined[resourceType] {
-				glog.V(4).Infof("Quota is defined for %s::%s. "+
-					"Usage reported by the quota: %f, usage of all pods in the quota: %f",
-					namespace, resourceType, existingResource.Used, used)
-				continue
-			} else {
-				glog.V(4).Infof("Quota is not defined for %s::%s. Setting its usage to the sum of "+
-					"usage across all pods in the quota: %f", namespace, resourceType, used)
-				existingResource.Used = used
-			}
+			// Set used value collected from namespaceMetrics to kubeNamespaceEntity, which is the sum of limits/request
+			// from all running containers on this namespace.
+			// If resource is CPU type, used value has already been converted from cores to MHz when collecting namespace
+			// metrics in metrics_collector.
+			existingResource.Used = used
 		}
 	}
 
