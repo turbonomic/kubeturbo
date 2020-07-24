@@ -2,6 +2,7 @@ package task
 
 import (
 	api "k8s.io/api/core/v1"
+	"strings"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
@@ -15,8 +16,8 @@ const (
 )
 
 type Task struct {
-	uid string
-
+	uid      string
+	name     string
 	nodeList []*api.Node
 	podList  []*api.Pod
 	cluster  *repository.ClusterSummary
@@ -24,14 +25,22 @@ type Task struct {
 
 // Worker task is consisted of a list of nodes the worker must discover.
 func NewTask() *Task {
+	uid := uuid.NewUUID().String()
+	name := strings.Split(uid, "-")[0]
 	return &Task{
-		uid: uuid.NewUUID().String(),
+		uid:  uid,
+		name: name,
 	}
 }
 
 // Assign nodes to the task.
 func (t *Task) WithNodes(nodeList []*api.Node) *Task {
 	t.nodeList = nodeList
+	return t
+}
+
+func (t *Task) WithNode(node *api.Node) *Task {
+	t.nodeList = append(t.nodeList, node)
 	return t
 }
 
@@ -59,6 +68,14 @@ func (t *Task) PodList() []*api.Pod {
 
 func (t *Task) Cluster() *repository.ClusterSummary {
 	return t.cluster
+}
+
+func (t *Task) String() string {
+	var nodes []string
+	for _, node := range t.nodeList {
+		nodes = append(nodes, node.GetName())
+	}
+	return "[id: " + t.name + ", node: " + strings.Join(nodes, ",") + "]"
 }
 
 type TaskResultState string

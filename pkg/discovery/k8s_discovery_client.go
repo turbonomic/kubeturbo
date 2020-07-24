@@ -2,27 +2,25 @@ package discovery
 
 import (
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
-
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-
-	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/cluster"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 const (
-	// TODO make this number programmatically.
-	workerCount int = 4
+	minDiscoveryWorker = 1
+	maxDiscoveryWorker = 10
 )
 
 type DiscoveryClientConfig struct {
@@ -30,6 +28,8 @@ type DiscoveryClientConfig struct {
 	targetConfig         *configs.K8sTargetConfig
 	ValidationWorkers    int
 	ValidationTimeoutSec int
+	DiscoveryWorkers     int
+	DiscoveryTimeoutSec  int
 	// Strategy to aggregate Container utilization data on ContainerSpec entity
 	containerUtilizationDataAggStrategy string
 	// Strategy to aggregate Container usage data on ContainerSpec entity
@@ -42,7 +42,19 @@ type DiscoveryClientConfig struct {
 func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 	targetConfig *configs.K8sTargetConfig, ValidationWorkers int,
 	ValidationTimeoutSec int, containerUtilizationDataAggStrategy,
-	containerUsageDataAggStrategy string, ormClient *resourcemapping.ORMClient) *DiscoveryClientConfig {
+	containerUsageDataAggStrategy string, ormClient *resourcemapping.ORMClient,
+	discoveryWorkers int, discoveryTimeoutMin int) *DiscoveryClientConfig {
+	if discoveryWorkers < minDiscoveryWorker {
+		glog.Warningf("Invalid number of discovery workers %v, set it to %v.",
+			discoveryWorkers, minDiscoveryWorker)
+		discoveryWorkers = minDiscoveryWorker
+	} else if discoveryWorkers > maxDiscoveryWorker {
+		glog.Warningf("Discovery workers %v is higher than %v, set it to %v.", discoveryWorkers,
+			maxDiscoveryWorker, maxDiscoveryWorker)
+		discoveryWorkers = maxDiscoveryWorker
+	} else {
+		glog.Infof("Number of discovery workers: %v.", discoveryWorkers)
+	}
 	return &DiscoveryClientConfig{
 		probeConfig:                         probeConfig,
 		targetConfig:                        targetConfig,
@@ -51,6 +63,8 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 		containerUtilizationDataAggStrategy: containerUtilizationDataAggStrategy,
 		containerUsageDataAggStrategy:       containerUsageDataAggStrategy,
 		ormClient:                           ormClient,
+		DiscoveryWorkers:                    discoveryWorkers,
+		DiscoveryTimeoutSec:                 discoveryTimeoutMin,
 	}
 }
 
@@ -58,21 +72,22 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 type K8sDiscoveryClient struct {
 	config            *DiscoveryClientConfig
 	k8sClusterScraper *cluster.ClusterScraper
-
-	clusterProcessor *processor.ClusterProcessor
-	dispatcher       *worker.Dispatcher
-	resultCollector  *worker.ResultCollector
+	clusterProcessor  *processor.ClusterProcessor
+	dispatcher        *worker.Dispatcher
+	resultCollector   *worker.ResultCollector
 }
 
 func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	k8sClusterScraper := cluster.NewClusterScraper(config.probeConfig.ClusterClient, config.probeConfig.DynamicClient)
 
 	// for discovery tasks
-	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient, config.ValidationWorkers, config.ValidationTimeoutSec)
+	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient,
+		config.ValidationWorkers, config.ValidationTimeoutSec)
 	// make maxWorkerCount of result collector twice the worker count.
-	resultCollector := worker.NewResultCollector(workerCount * 2)
+	resultCollector := worker.NewResultCollector(config.DiscoveryWorkers * 2)
 
-	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig, workerCount)
+	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
+		config.DiscoveryWorkers, config.DiscoveryTimeoutSec)
 	dispatcher := worker.NewDispatcher(dispatcherConfig)
 	dispatcher.Init(resultCollector)
 
@@ -245,56 +260,55 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 
 	// Discover pods and create DTOs for nodes, namespaces, controllers, pods, containers, application.
 	// Collect the kubePod, kubeNamespace metrics, groups and kubeControllers from all the discovery workers
-	workerCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
-	entityDTOs, podEntitiesMap, namespaceMetricsList, entityGroupList, kubeControllerList, containerSpecsList :=
-		dc.resultCollector.Collect(workerCount)
+	taskCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
+	result := dc.resultCollector.Collect(taskCount)
 
 	// Namespace discovery worker to create namespace DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType
 	namespacesDiscoveryWorker := worker.Newk8sNamespaceDiscoveryWorker(clusterSummary, stitchType)
-	namespaceDtos, err := namespacesDiscoveryWorker.Do(namespaceMetricsList)
+	namespaceDtos, err := namespacesDiscoveryWorker.Do(result.NamespaceMetrics)
 	if err != nil {
 		glog.Errorf("Failed to discover namespaces from current Kubernetes cluster with the new discovery framework: %s", err)
 	} else {
 		glog.V(2).Infof("There are %d namespace entityDTOs.", len(namespaceDtos))
-		entityDTOs = append(entityDTOs, namespaceDtos...)
+		result.EntityDTOs = append(result.EntityDTOs, namespaceDtos...)
 	}
 
 	// K8s workload controller discovery worker to create WorkloadController DTOs
 	controllerDiscoveryWorker := worker.NewK8sControllerDiscoveryWorker(clusterSummary)
-	workloadControllerDtos, err := controllerDiscoveryWorker.Do(kubeControllerList)
+	workloadControllerDtos, err := controllerDiscoveryWorker.Do(result.KubeControllers)
 	if err != nil {
 		glog.Errorf("Failed to discover workload controllers from current Kubernetes cluster with the new discovery framework: %s", err)
 	} else {
 		glog.V(2).Infof("There are %d WorkloadController entityDTOs.", len(workloadControllerDtos))
-		entityDTOs = append(entityDTOs, workloadControllerDtos...)
+		result.EntityDTOs = append(result.EntityDTOs, workloadControllerDtos...)
 	}
 
 	// K8s container spec discovery worker to create ContainerSpec DTOs by aggregating commodities data of container
 	// replicas. ContainerSpec is an entity type which represents a certain type of container replicas deployed by a
 	// K8s controller.
 	containerSpecDiscoveryWorker := worker.NewK8sContainerSpecDiscoveryWorker()
-	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(containerSpecsList, dc.config.containerUtilizationDataAggStrategy,
+	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(result.ContainerSpecs, dc.config.containerUtilizationDataAggStrategy,
 		dc.config.containerUsageDataAggStrategy)
 	if err != nil {
 		glog.Errorf("Failed to discover ContainerSpecs from current Kubernetes cluster with the new discovery framework: %s", err)
 	} else {
 		glog.V(2).Infof("There are %d ContainerSpec entityDTOs", len(containerSpecDtos))
-		entityDTOs = append(entityDTOs, containerSpecDtos...)
+		result.EntityDTOs = append(result.EntityDTOs, containerSpecDtos...)
 	}
 
 	// Service DTOs
 	glog.V(2).Infof("Begin to generate service EntityDTOs.")
 	svcDiscWorker := worker.Newk8sServiceDiscoveryWorker(clusterSummary)
-	serviceDtos, err := svcDiscWorker.Do(podEntitiesMap)
+	serviceDtos, err := svcDiscWorker.Do(result.PodEntitiesMap)
 	if err != nil {
 		glog.Errorf("Failed to discover services from current Kubernetes cluster with the new discovery framework: %s", err)
 	} else {
 		glog.V(2).Infof("There are %d service entityDTOs.", len(serviceDtos))
-		entityDTOs = append(entityDTOs, serviceDtos...)
+		result.EntityDTOs = append(result.EntityDTOs, serviceDtos...)
 	}
 
-	glog.V(2).Infof("There are totally %d entityDTOs.", len(entityDTOs))
+	glog.V(2).Infof("There are totally %d entityDTOs.", len(result.EntityDTOs))
 
 	// affinity process
 	glog.V(2).Infof("Begin to process affinity.")
@@ -303,7 +317,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	if err != nil {
 		glog.Errorf("Failed during process affinity rules: %s", err)
 	} else {
-		entityDTOs = affinityProcessor.ProcessAffinityRules(entityDTOs)
+		result.EntityDTOs = affinityProcessor.ProcessAffinityRules(result.EntityDTOs)
 	}
 	glog.V(2).Infof("Successfully processed affinity.")
 
@@ -317,7 +331,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 		glog.Errorf("Failed during process taints and tolerations: %v", err)
 	} else {
 		// Add access commodities to entity DOTs based on the taint-toleration rules
-		taintTolerationProcessor.Process(entityDTOs)
+		taintTolerationProcessor.Process(result.EntityDTOs)
 	}
 
 	// Anti-Affinity policy to prevent pods on unschedulable nodes to move to other unschedulable nodes
@@ -329,7 +343,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 
 	// Discovery worker for creating Group DTOs
 	entityGroupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(clusterSummary, targetID)
-	groupDTOs, _ := entityGroupDiscoveryWorker.Do(entityGroupList)
+	groupDTOs, _ := entityGroupDiscoveryWorker.Do(result.EntityGroups)
 
 	glog.V(2).Infof("There are totally %d groups DTOs", len(groupDTOs))
 	if glog.V(4) {
@@ -342,5 +356,5 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 
 	groupDTOs = append(groupDTOs, nodeAntiAffinityGroupDTOs...)
 
-	return entityDTOs, groupDTOs, nil
+	return result.EntityDTOs, groupDTOs, nil
 }

@@ -2,28 +2,28 @@ package worker
 
 import (
 	"fmt"
+	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	api "k8s.io/api/core/v1"
-	"math"
-
-	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 type DispatcherConfig struct {
 	clusterInfoScraper *cluster.ClusterScraper
 	probeConfig        *configs.ProbeConfig
-
-	workerCount int
+	workerCount        int
+	workerTimeoutSec   int
 }
 
-func NewDispatcherConfig(clusterInfoScraper *cluster.ClusterScraper, probeConfig *configs.ProbeConfig, workerCount int) *DispatcherConfig {
+func NewDispatcherConfig(clusterInfoScraper *cluster.ClusterScraper, probeConfig *configs.ProbeConfig,
+	workerCount int, workerTimeoutSec int) *DispatcherConfig {
 	return &DispatcherConfig{
 		clusterInfoScraper: clusterInfoScraper,
 		probeConfig:        probeConfig,
 		workerCount:        workerCount,
+		workerTimeoutSec:   workerTimeoutSec,
 	}
 }
 
@@ -47,7 +47,7 @@ func (d *Dispatcher) Init(c *ResultCollector) {
 	// Create discovery workers
 	for i := 0; i < d.config.workerCount; i++ {
 		// Create the worker instance
-		workerConfig := NewK8sDiscoveryWorkerConfig(d.config.probeConfig.StitchingPropertyType)
+		workerConfig := NewK8sDiscoveryWorkerConfig(d.config.probeConfig.StitchingPropertyType, d.config.workerTimeoutSec)
 		for _, mc := range d.config.probeConfig.MonitoringConfigs {
 			workerConfig.WithMonitoringWorkerConfig(mc)
 		}
@@ -63,59 +63,22 @@ func (d *Dispatcher) Init(c *ResultCollector) {
 
 // Register the k8sDiscoveryWorker and its monitoring workers
 func (d *Dispatcher) RegisterWorker(worker *k8sDiscoveryWorker) {
+	// Return the free worker to the pool
 	d.workerPool <- worker.taskChan
 }
 
-// Create Task objects for discovery and monitoring for each group of the nodes and pods
+// Create Task objects for discovery and monitoring for each node, and the pods and containers on that node
 // Dispatch the task to the pool, task will be picked by the k8sDiscoveryWorker
-// Receives the complete list of nodes in the cluster that are divided in groups and submitted as
-// Tasks to the DiscoveryWorkers to carry out the discovery of the pods, containers and resources
 func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSummary) int {
-
-	// make sure when len(node) < workerCount, worker will receive at most 1 node to discover
-	perTaskNodeLength := int(math.Ceil(float64(len(nodes)) / float64(d.config.workerCount)))
-	glog.V(3).Infof("The number of nodes per task is: %d", perTaskNodeLength)
-	assignedNodesCount := 0
-	assignedWorkerCount := 0
-	// Divide up the nodes into groups and assign each group to a separate task
-	for assignedNodesCount+perTaskNodeLength <= len(nodes) {
-		currNodes := nodes[assignedNodesCount : assignedNodesCount+perTaskNodeLength]
-
-		var currPods []*api.Pod
-		for _, node := range currNodes {
-			runningAndReadyPodsList := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNode(node)
-			currPods = append(currPods, runningAndReadyPodsList...)
-
-			// Save the node to pods map in the cluster summary
-			cluster.SetRunningPodsOnNode(node, runningAndReadyPodsList)
+	go func() {
+		for _, node := range nodes {
+			currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNode(node)
+			currTask := task.NewTask().WithNode(node).WithPods(currPods).WithCluster(cluster)
+			glog.V(2).Infof("Dispatching task %v", currTask)
+			d.assignTask(currTask)
 		}
-
-		currTask := task.NewTask().WithNodes(currNodes).WithPods(currPods).WithCluster(cluster)
-		d.assignTask(currTask)
-
-		assignedNodesCount += perTaskNodeLength
-
-		assignedWorkerCount++
-	}
-	if assignedNodesCount < len(nodes) {
-		currNodes := nodes[assignedNodesCount:]
-		var currPods []*api.Pod
-		for _, node := range currNodes {
-			runningAndReadyPodsList := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNode(node)
-			currPods = append(currPods, runningAndReadyPodsList...)
-
-			// Save the node to pods map in the cluster summary
-			cluster.SetRunningPodsOnNode(node, runningAndReadyPodsList)
-		}
-
-		currTask := task.NewTask().WithNodes(currNodes).WithPods(currPods).WithCluster(cluster)
-		d.assignTask(currTask)
-
-		assignedWorkerCount++
-	}
-	glog.V(2).Infof("Dispatched discovery task to %d workers", assignedWorkerCount)
-
-	return assignedWorkerCount
+	}()
+	return len(nodes)
 }
 
 // Assign task to the k8sDiscoveryWorker
