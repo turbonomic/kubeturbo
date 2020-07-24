@@ -78,19 +78,6 @@ func (builder *namespaceEntityDTOBuilder) getQuotaCommoditiesSold(kubeNamespace 
 					kubeNamespace.Name, resourceType, capacityValue, newVal)
 				capacityValue = newVal
 			}
-
-			// Modify the used value only if the quota is set for the resource type.
-			// This is because the used value is obtained from the resource quota objects
-			// and represented in number of cores.
-			// If quota is not set for the resource type, the usage is sum of resource
-			// usages for all the pods in the namespace and
-			// has been converted to MHz using the hosting node's CPU frequency
-			if kubeNamespace.QuotaDefined[resourceType] {
-				newVal := usedValue * kubeNamespace.AverageNodeCpuFrequency
-				glog.V(4).Infof("Changing usage of %s::%s from %f cores to %f MHz",
-					kubeNamespace.Name, resourceType, usedValue, newVal)
-				usedValue = newVal
-			}
 		}
 
 		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)

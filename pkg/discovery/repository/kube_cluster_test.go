@@ -63,13 +63,11 @@ func TestKubeNode(t *testing.T) {
 var TestQuotas = []struct {
 	name     string
 	cpuLimit string
-	cpuUsed  string
 	memLimit string
-	memUsed  string
 }{
-	{"quota1", "4", "3", "8Gi", "5Gi"},
-	{"quota2", "0.5", "0.3", "7Mi", "5Gi"},
-	{"quota3", "6000m", "300m", "6Ki", "5Ki"},
+	{"quota1", "4", "8Gi"},
+	{"quota2", "0.5", "7Mi"},
+	{"quota3", "6000m", "6Ki"},
 }
 
 func TestKubeNamespace(t *testing.T) {
@@ -83,10 +81,6 @@ func TestKubeNamespace(t *testing.T) {
 			v1.ResourceLimitsCPU:    resource.MustParse(testQuota.cpuLimit),
 			v1.ResourceLimitsMemory: resource.MustParse(testQuota.memLimit),
 		}
-		usedResourceList := v1.ResourceList{
-			v1.ResourceLimitsCPU:    resource.MustParse(testQuota.cpuUsed),
-			v1.ResourceLimitsMemory: resource.MustParse(testQuota.memUsed),
-		}
 
 		quota := &v1.ResourceQuota{
 			ObjectMeta: metav1.ObjectMeta{
@@ -96,7 +90,6 @@ func TestKubeNamespace(t *testing.T) {
 			},
 			Status: v1.ResourceQuotaStatus{
 				Hard: hardResourceList,
-				Used: usedResourceList,
 			},
 		}
 		var quotaList []*v1.ResourceQuota
@@ -110,20 +103,11 @@ func TestKubeNamespace(t *testing.T) {
 		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
 		assert.Equal(t, resource.Capacity, cpuCore)
 
-		quantity = usedResourceList[v1.ResourceLimitsCPU]
-		cpuMilliCore = quantity.MilliValue()
-		cpuCore = util.MetricMilliToUnit(float64(cpuMilliCore))
-		assert.Equal(t, resource.Used, cpuCore)
-
 		resource, _ = kubeNamespace.GetAllocationResource(metrics.MemoryLimitQuota)
 		quantity = hardResourceList[v1.ResourceLimitsMemory]
 		memoryBytes := quantity.Value()
 		memoryKiloBytes := util.Base2BytesToKilobytes(float64(memoryBytes))
 		assert.Equal(t, resource.Capacity, memoryKiloBytes) // the least of the 3 quotas
-		quantity = usedResourceList[v1.ResourceLimitsMemory]
-		memoryBytes = quantity.Value()
-		memoryKiloBytes = util.Base2BytesToKilobytes(float64(memoryBytes))
-		assert.Equal(t, resource.Used, memoryKiloBytes)
 	}
 }
 
@@ -135,9 +119,6 @@ func TestKubeNamespaceWithMissingAllocations(t *testing.T) {
 		hardResourceList := v1.ResourceList{
 			v1.ResourceLimitsCPU: resource.MustParse(testQuota.cpuLimit),
 		}
-		usedResourceList := v1.ResourceList{
-			v1.ResourceLimitsCPU: resource.MustParse(testQuota.cpuUsed),
-		}
 
 		quota := &v1.ResourceQuota{
 			ObjectMeta: metav1.ObjectMeta{
@@ -147,7 +128,6 @@ func TestKubeNamespaceWithMissingAllocations(t *testing.T) {
 			},
 			Status: v1.ResourceQuotaStatus{
 				Hard: hardResourceList,
-				Used: usedResourceList,
 			},
 		}
 		var quotaList []*v1.ResourceQuota
@@ -162,11 +142,6 @@ func TestKubeNamespaceWithMissingAllocations(t *testing.T) {
 		cpuMilliCore := quantity.MilliValue()
 		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
 		assert.Equal(t, resource.Capacity, cpuCore)
-
-		quantity = usedResourceList[v1.ResourceLimitsCPU]
-		cpuMilliCore = quantity.MilliValue()
-		cpuCore = util.MetricMilliToUnit(float64(cpuMilliCore))
-		assert.Equal(t, resource.Used, cpuCore)
 
 		resource, _ = kubeNamespace.GetAllocationResource(metrics.MemoryLimitQuota)
 		assert.Equal(t, resource.Capacity, DEFAULT_METRIC_CAPACITY_VALUE)
@@ -202,10 +177,6 @@ func TestKubeNamespaceQuotaReconcile(t *testing.T) {
 			v1.ResourceLimitsCPU:    resource.MustParse(testQuota.cpuLimit),
 			v1.ResourceLimitsMemory: resource.MustParse(testQuota.memLimit),
 		}
-		usedResourceList := v1.ResourceList{
-			v1.ResourceLimitsCPU:    resource.MustParse(testQuota.cpuUsed),
-			v1.ResourceLimitsMemory: resource.MustParse(testQuota.memUsed),
-		}
 
 		quota := &v1.ResourceQuota{
 			ObjectMeta: metav1.ObjectMeta{
@@ -215,7 +186,6 @@ func TestKubeNamespaceQuotaReconcile(t *testing.T) {
 			},
 			Status: v1.ResourceQuotaStatus{
 				Hard: hardResourceList,
-				Used: usedResourceList,
 			},
 		}
 		quotaList = append(quotaList, quota)
