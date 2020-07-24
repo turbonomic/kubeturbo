@@ -2,41 +2,53 @@ package worker
 
 import (
 	"errors"
+	"fmt"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"sync"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
-
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-
-	"github.com/golang/glog"
 	api "k8s.io/api/core/v1"
 )
 
 const (
-	defaultMonitoringWorkerTimeout time.Duration = time.Minute * 3
-	defaultMaxTimeout              time.Duration = time.Minute * 20
+	minTimeoutSec = 10   // 10 seconds
+	maxTimeoutSec = 1200 // 20 minutes
 )
 
 type k8sDiscoveryWorkerConfig struct {
 	// a collection of all configs for building different monitoring clients.
 	// key: monitor type; value: monitor worker config.
 	monitoringSourceConfigs map[types.MonitorType][]monitoring.MonitorWorkerConfig
-
-	stitchingPropertyType stitching.StitchingPropertyType
+	stitchingPropertyType   stitching.StitchingPropertyType
+	monitoringWorkerTimeout time.Duration
 }
 
-func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType) *k8sDiscoveryWorkerConfig {
+func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutSec int) *k8sDiscoveryWorkerConfig {
+	var monitoringWorkerTimeout time.Duration
+	if timeoutSec < minTimeoutSec {
+		glog.Warningf("Invalid discovery timeout %v, set it to %v", timeoutSec, minTimeoutSec)
+		monitoringWorkerTimeout = time.Second * minTimeoutSec
+	} else if timeoutSec > maxTimeoutSec {
+		glog.Warningf("Discovery timeout %v is larger than %v, set it to %v",
+			timeoutSec, maxTimeoutSec, maxTimeoutSec)
+		monitoringWorkerTimeout = time.Second * maxTimeoutSec
+	} else {
+		monitoringWorkerTimeout = time.Second * time.Duration(timeoutSec)
+		glog.Infof("Discovery timeout is %v", monitoringWorkerTimeout)
+	}
 	return &k8sDiscoveryWorkerConfig{
 		stitchingPropertyType:   sType,
 		monitoringSourceConfigs: make(map[types.MonitorType][]monitoring.MonitorWorkerConfig),
+		monitoringWorkerTimeout: monitoringWorkerTimeout,
 	}
 }
 
@@ -117,11 +129,10 @@ func (worker *k8sDiscoveryWorker) RegisterAndRun(dispatcher *Dispatcher, collect
 		// wait for a Task to be submitted
 		select {
 		case currTask := <-worker.taskChan:
-			glog.V(2).Infof("Worker %s has received a discovery task.", worker.id)
+			glog.V(2).Infof("Worker %s has received a task %v.", worker.id, currTask)
 			result := worker.executeTask(currTask)
 			collector.ResultPool() <- result
-			glog.V(2).Infof("Worker %s has finished the discovery task.", worker.id)
-
+			glog.V(2).Infof("Worker %s has finished the task %v.", worker.id, currTask)
 			dispatcher.RegisterWorker(worker)
 		}
 	}
@@ -130,7 +141,7 @@ func (worker *k8sDiscoveryWorker) RegisterAndRun(dispatcher *Dispatcher, collect
 // Worker start to working on task.
 func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskResult {
 	if currTask == nil {
-		err := errors.New("No task has been assigned to the current worker.")
+		err := errors.New("no task has been assigned to current worker")
 		glog.Errorf("%s", err)
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
@@ -142,8 +153,8 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	}
 	// wait group to make sure metrics scraping finishes.
 	var wg sync.WaitGroup
-	timeout := calcTimeOut(len(currTask.NodeList()))
-
+	timeoutSecond := worker.config.monitoringWorkerTimeout
+	var timeout bool
 	// Resource monitoring
 	resourceMonitorTask := currTask
 	// Reset the main sink
@@ -160,9 +171,10 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 				defer wg.Done()
 
 				w.ReceiveTask(resourceMonitorTask)
-				t := time.NewTimer(timeout)
+				t := time.NewTimer(timeoutSecond)
 				go func() {
-					glog.V(2).Infof("A %s monitoring worker is invoked.", w.GetMonitoringSource())
+					glog.V(3).Infof("A %s monitoring worker from discovery worker %v is invoked for task %s.",
+						w.GetMonitoringSource(), worker.id, resourceMonitorTask)
 					// Assign task to monitoring worker.
 					monitoringSink := w.Do()
 					select {
@@ -185,8 +197,9 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 					// glog.Infof("Worker %s finished as expected.", w.GetMonitoringSource())
 					return
 				case <-t.C:
-					glog.Errorf("%s monitoring worker exceeds the max time limit for "+
-						"completing the task.", w.GetMonitoringSource())
+					glog.Errorf("%s monitoring worker from discovery worker %v exceeds the max time limit for "+
+						"completing the task %s: %v", w.GetMonitoringSource(), worker.id, resourceMonitorTask, timeoutSecond)
+					timeout = true
 					stopCh <- struct{}{}
 					// glog.Infof("%s stop", w.GetMonitoringSource())
 					w.Stop()
@@ -196,6 +209,10 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		}
 	}
 	wg.Wait()
+
+	if timeout {
+		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(fmt.Errorf("discovery timeout"))
+	}
 
 	// Collect usages for pods in different namespaces and create used and capacity
 	// metrics for the allocation resources of the namespaces and pods
@@ -403,17 +420,6 @@ func (worker *k8sDiscoveryWorker) buildAppDTOs(currTask *task.Task, podsWithDtos
 
 	glog.V(3).Infof("Worker %s built %d application DTOs.", worker.id, len(result))
 	return result, podEntities, nil
-}
-
-func calcTimeOut(nodeNum int) time.Duration {
-	result := defaultMonitoringWorkerTimeout
-
-	result = result + time.Second*time.Duration(nodeNum)
-	if result > defaultMaxTimeout {
-		result = defaultMaxTimeout
-	}
-
-	return result
 }
 
 // excludeFailedPods filters the pod list and excludes those pods not in the dto list

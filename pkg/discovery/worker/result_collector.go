@@ -1,20 +1,28 @@
 package worker
 
 import (
-	"strings"
 	"sync"
-
-	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
-
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 type ResultCollector struct {
 	// If the number of workers larger than maxWorkerNumber, then the discovery result of extra workers will be block.
 	resultPool chan *task.TaskResult
+}
+
+type DiscoveryResult struct {
+	EntityDTOs       []*proto.EntityDTO
+	NamespaceMetrics []*repository.NamespaceMetrics
+	EntityGroups     []*repository.EntityGroup
+	KubeControllers  []*repository.KubeController
+	ContainerSpecs   []*repository.ContainerSpec
+	PodEntitiesMap   map[string]*repository.KubePod
+	SuccessCount     int
+	ErrorCount       int
 }
 
 func NewResultCollector(maxWorkerNumber int) *ResultCollector {
@@ -27,16 +35,9 @@ func (rc *ResultCollector) ResultPool() chan *task.TaskResult {
 	return rc.resultPool
 }
 
-func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*repository.KubePod,
-	[]*repository.NamespaceMetrics, []*repository.EntityGroup, []*repository.KubeController, []*repository.ContainerSpec) {
-	discoveryResult := []*proto.EntityDTO{}
-	namespaceMetrics := []*repository.NamespaceMetrics{}
-	entityGroupList := []*repository.EntityGroup{}
-	discoveryErrorString := []string{}
-	podEntitiesMap := make(map[string]*repository.KubePod)
-	var kubeControllerList []*repository.KubeController
-	var containerSpecs []*repository.ContainerSpec
-	glog.V(2).Infof("Waiting for results from %d workers.", count)
+func (rc *ResultCollector) Collect(count int) *DiscoveryResult {
+	result := &DiscoveryResult{PodEntitiesMap: make(map[string]*repository.KubePod)}
+	glog.V(2).Infof("Waiting for results from %d tasks.", count)
 
 	stopChan := make(chan struct{})
 	var wg sync.WaitGroup
@@ -46,25 +47,27 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*r
 			select {
 			case <-stopChan:
 				return
-			case result := <-rc.resultPool:
-				glog.V(2).Infof("Processing results from worker %s", result.WorkerId())
-				if err := result.Err(); err != nil {
-					discoveryErrorString = append(discoveryErrorString, err.Error())
+			case taskResult := <-rc.resultPool:
+				if err := taskResult.Err(); err != nil {
+					glog.Errorf("Discovery worker %s failed with error: %v", taskResult.WorkerId(), err)
+					result.ErrorCount++
 				} else {
+					result.SuccessCount++
+					glog.V(2).Infof("Processing results from worker %s", taskResult.WorkerId())
 					// Entity DTOs for pods, nodes, containers from different workers
-					discoveryResult = append(discoveryResult, result.Content()...)
+					result.EntityDTOs = append(result.EntityDTOs, taskResult.Content()...)
 					// Namespace metrics from different workers
-					namespaceMetrics = append(namespaceMetrics, result.NamespaceMetrics()...)
+					result.NamespaceMetrics = append(result.NamespaceMetrics, taskResult.NamespaceMetrics()...)
 					// Group data from different workers
-					entityGroupList = append(entityGroupList, result.EntityGroups()...)
+					result.EntityGroups = append(result.EntityGroups, taskResult.EntityGroups()...)
 					// Pod data with apps from different workers
-					for _, kubePod := range result.PodEntities() {
-						podEntitiesMap[kubePod.PodClusterId] = kubePod
+					for _, kubePod := range taskResult.PodEntities() {
+						result.PodEntitiesMap[kubePod.PodClusterId] = kubePod
 					}
 					// K8s controller data from different workers
-					kubeControllerList = append(kubeControllerList, result.KubeControllers()...)
+					result.KubeControllers = append(result.KubeControllers, taskResult.KubeControllers()...)
 					// ContainerSpecs with individual container replica commodities data from different discovery workers
-					containerSpecs = append(containerSpecs, result.ContainerSpecs()...)
+					result.ContainerSpecs = append(result.ContainerSpecs, taskResult.ContainerSpecs()...)
 				}
 				wg.Done()
 			}
@@ -73,11 +76,7 @@ func (rc *ResultCollector) Collect(count int) ([]*proto.EntityDTO, map[string]*r
 	wg.Wait()
 	// stop the result waiting goroutine.
 	close(stopChan)
-	glog.V(2).Infof("Got all the results from %d workers.", count)
-
-	if len(discoveryErrorString) > 0 {
-		glog.Errorf("One or more discovery worker failed: %s", strings.Join(discoveryErrorString, "\t\t"))
-	}
-
-	return discoveryResult, podEntitiesMap, namespaceMetrics, entityGroupList, kubeControllerList, containerSpecs
+	glog.V(2).Infof("Got all the results from %d tasks with %d tasks failed and %d tasks succeeded.",
+		count, result.ErrorCount, result.SuccessCount)
+	return result
 }

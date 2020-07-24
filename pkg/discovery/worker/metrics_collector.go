@@ -99,7 +99,6 @@ func (podCollectionMap PodMetricsByNodeAndNamespace) addPodMetric(podName, nodeN
 // The discovery worker will add the PodMetrics to the metrics sink.
 func (collector *MetricsCollector) CollectPodMetrics() (PodMetricsByNodeAndNamespace, error) {
 	if collector.Cluster == nil {
-		glog.Errorf("Cluster summary object is null for discovery worker %s", collector.workerId)
 		return nil, fmt.Errorf("cluster summary object is null for discovery worker %s", collector.workerId)
 	}
 	podCollectionMap := make(PodMetricsByNodeAndNamespace)
