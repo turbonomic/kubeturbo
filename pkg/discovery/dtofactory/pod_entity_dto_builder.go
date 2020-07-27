@@ -385,6 +385,9 @@ func (builder *podEntityDTOBuilder) buyCommoditiesFromVolumes(pod *api.Pod, moun
 
 		provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_VOLUME, providerVolUID)
 		dtoBuilder = dtoBuilder.Provider(provider)
+		dtoBuilder.IsMovable(proto.EntityDTO_VIRTUAL_VOLUME, false).
+			IsStartable(proto.EntityDTO_VIRTUAL_VOLUME, false).
+			IsScalable(proto.EntityDTO_VIRTUAL_VOLUME, false)
 
 		// Each pod mounts any given volume only once
 		dtoBuilder.BuysCommodities([]*proto.CommodityDTO{commBought})
