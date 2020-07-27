@@ -423,9 +423,8 @@ func (f *SupplyChainFactory) buildVolumeSupplyBuilder() (*proto.TemplateDTO, err
 
 // Stitching metadata required for stitching with XL
 func (f *SupplyChainFactory) buildVolumeMergedEntityMetadata() (*proto.MergedEntityMetadata, error) {
-	fieldsUsedCapacity := map[string][]string{
-		builder.PropertyUsed:     {},
-		builder.PropertyCapacity: {},
+	fieldsUsed := map[string][]string{
+		builder.PropertyUsed: {},
 	}
 
 	mergedEntityMetadataBuilder := builder.NewMergedEntityMetadataBuilder()
@@ -436,6 +435,6 @@ func (f *SupplyChainFactory) buildVolumeMergedEntityMetadata() (*proto.MergedEnt
 		ExternalMatchingField(VOLUMEUUID, []string{})
 
 	return mergedEntityMetadataBuilder.
-		PatchSoldMetadata(proto.CommodityDTO_STORAGE_AMOUNT, fieldsUsedCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_STORAGE_AMOUNT, fieldsUsed).
 		Build()
 }

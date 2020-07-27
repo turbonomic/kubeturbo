@@ -364,11 +364,8 @@ func (builder *podEntityDTOBuilder) buyCommoditiesFromVolumes(pod *api.Pod, moun
 	for _, mount := range mounts {
 		mountName := mount.MountName
 		volEntityID := util.PodVolumeMetricId(podKey, mountName)
-		// We use <ns>/<pod-name>/<mounted-vol-name> as the commodity key
-		// to keep the relationship between pod and volume unique.
-		commKey := fmt.Sprintf("%s/%s", podKey, mountName)
 		commBought, err := builder.getResourceCommodityBoughtWithKey(metrics.PodType, volEntityID,
-			metrics.StorageAmount, commKey, nil, nil)
+			metrics.StorageAmount, "", nil, nil)
 		if err != nil {
 			glog.Errorf("Failed to build %s bought by pod %s mounted %s from volume %s: %v",
 				metrics.StorageAmount, podKey, mountName, mount.UsedVolume.Name, err)
