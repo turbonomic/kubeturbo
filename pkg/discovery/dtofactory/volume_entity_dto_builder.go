@@ -1,8 +1,6 @@
 package dtofactory
 
 import (
-	"fmt"
-
 	api "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
@@ -89,8 +87,6 @@ func (builder *volumeEntityDTOBuilder) getVolumeCommoditiesSold(vol *api.Persist
 
 	volumeCapacity := float64(0)
 	for _, podVol := range podVols {
-		podKey := podVol.QualifiedPodName
-		mountName := podVol.MountName
 		// Volume capacity metrics is available as part of volume spec.
 		// However we dont use that if the actual queried volume size
 		// is available and discovered by the kubelet as part of
@@ -102,10 +98,8 @@ func (builder *volumeEntityDTOBuilder) getVolumeCommoditiesSold(vol *api.Persist
 		}
 		volumeCapacity = capacity
 
-		commKey := fmt.Sprintf("%s/%s", podKey, mountName)
-		commBuilder := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_STORAGE_AMOUNT).Key(commKey)
+		commBuilder := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_STORAGE_AMOUNT)
 		commBuilder.Used(used)
-		commBuilder.Peak(used)
 		commBuilder.Capacity(capacity)
 		commodityPerPod, err := commBuilder.Create()
 		if err != nil {
