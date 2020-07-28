@@ -44,11 +44,15 @@ type Config struct {
 	containerUtilizationDataAggStrategy string
 	// Strategy to aggregate Container usage data on ContainerSpec entity
 	containerUsageDataAggStrategy string
+
+	// Flag to enable action merge feature, default is true
+	mergeActions bool
 }
 
 func NewVMTConfig2() *Config {
 	cfg := &Config{
 		StopEverything: make(chan struct{}),
+		mergeActions:   true,
 	}
 
 	return cfg
@@ -146,5 +150,10 @@ func (c *Config) WithContainerUtilizationDataAggStrategy(containerUtilizationDat
 
 func (c *Config) WithContainerUsageDataAggStrategy(containerUsageDataAggStrategy string) *Config {
 	c.containerUsageDataAggStrategy = containerUsageDataAggStrategy
+	return c
+}
+
+func (c *Config) MergeActions(mergeActions bool) *Config {
+	c.mergeActions = mergeActions
 	return c
 }

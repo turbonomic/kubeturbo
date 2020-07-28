@@ -48,6 +48,7 @@ const (
 	defaultValidationTimeout    = 60
 	defaultDiscoveryWorkers     = 4
 	defaultDiscoveryTimeoutSec  = 180
+	defaultMergeActions         = true
 )
 
 var (
@@ -116,6 +117,9 @@ type VMTServer struct {
 	containerUtilizationDataAggStrategy string
 	// Strategy to aggregate Container usage data on ContainerSpec entity
 	containerUsageDataAggStrategy string
+
+	// Flag to enable action merge feature, default is true
+	MergeActions bool
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -154,6 +158,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.BusyboxImage, "busybox-image", "busybox", "The complete image uri used for fallback node cpu frequency getter job.")
 	fs.StringVar(&s.containerUtilizationDataAggStrategy, "cnt-utilization-data-agg-strategy", agg.DefaultContainerUtilizationDataAggStrategy, "Container utilization data aggregation strategy")
 	fs.StringVar(&s.containerUsageDataAggStrategy, "cnt-usage-data-agg-strategy", agg.DefaultContainerUsageDataAggStrategy, "Container usage data aggregation strategy")
+	fs.BoolVar(&s.MergeActions, "mergeactions", defaultMergeActions, "Enable or disable action merge")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -307,7 +312,9 @@ func (s *VMTServer) Run() {
 		WithSccSupport(s.sccSupport).
 		WithCAPINamespace(s.ClusterAPINamespace).
 		WithContainerUtilizationDataAggStrategy(s.containerUtilizationDataAggStrategy).
-		WithContainerUsageDataAggStrategy(s.containerUsageDataAggStrategy)
+		WithContainerUsageDataAggStrategy(s.containerUsageDataAggStrategy).
+		MergeActions(s.MergeActions) // Enable action merge feature, default is true
+
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service

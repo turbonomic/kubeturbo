@@ -22,13 +22,15 @@ type RegistrationConfig struct {
 	stitchingPropertyType stitching.StitchingPropertyType
 	vmPriority            int32
 	vmIsBase              bool
+	mergeActions          bool
 }
 
-func NewRegistrationClientConfig(pType stitching.StitchingPropertyType, p int32, isbase bool) *RegistrationConfig {
+func NewRegistrationClientConfig(pType stitching.StitchingPropertyType, p int32, isbase bool, mergeActions bool) *RegistrationConfig {
 	return &RegistrationConfig{
 		stitchingPropertyType: pType,
 		vmPriority:            p,
 		vmIsBase:              isbase,
+		mergeActions:          mergeActions,
 	}
 }
 
@@ -170,6 +172,11 @@ func (rClient *K8sRegistrationClient) addActionPolicy(ab *builder.ActionPolicyBu
 }
 
 func (rClient *K8sRegistrationClient) GetActionMergePolicy() []*proto.ActionMergePolicyDTO {
+	if !rClient.config.mergeActions {
+		glog.V(2).Infof("Action Merge feature is disabled")
+		return []*proto.ActionMergePolicyDTO{}
+	}
+
 	glog.V(2).Infof("Begin to build Action Merge Policies")
 
 	actionMergeTarget := builder.NewActionDeDuplicateAndAggregationTargetBuilder().
