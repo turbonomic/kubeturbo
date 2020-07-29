@@ -105,6 +105,8 @@ spec:
           # change to https=false and port=10255 if unsecure kubelet read only is configured
           - --kubelet-https=true
           - --kubelet-port=10250
+          # Arg to enable or diable the action merge feature
+          - --mergeactions=false
           # Uncomment to stitch using IP, or if using Openstack, Hyper-V/VMM
           #- --stitch-uuid=false
         volumeMounts:
