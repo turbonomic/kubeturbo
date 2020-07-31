@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"github.com/golang/glog"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -153,6 +154,7 @@ type Metric interface {
 	GetMetricProp() MetricProp
 	GetUID() string
 	GetValue() interface{}
+	UpdateValue(existing interface{})
 }
 
 type MetricFilterFunc func(m Metric) bool
@@ -160,10 +162,16 @@ type MetricFilterFunc func(m Metric) bool
 type ResourceMetric struct {
 	resourceType ResourceType
 	metricProp   MetricProp
-	value        float64
+	value        interface{}
 }
 
-func NewResourceMetric(rType ResourceType, mProp MetricProp, v float64) ResourceMetric {
+type Points struct {
+	Values []float64
+	// Time at which the last metric value was appended
+	Timestamp int64
+}
+
+func NewResourceMetric(rType ResourceType, mProp MetricProp, v interface{}) ResourceMetric {
 	return ResourceMetric{
 		resourceType: rType,
 		metricProp:   mProp,
@@ -171,21 +179,26 @@ func NewResourceMetric(rType ResourceType, mProp MetricProp, v float64) Resource
 	}
 }
 
-type EntityResourceMetric struct {
+type EntityDetails struct {
 	metricUID string
 
 	entityType DiscoveredEntityType
 	entityID   string
+}
 
+type EntityResourceMetric struct {
+	EntityDetails
 	ResourceMetric
 }
 
 func NewEntityResourceMetric(eType DiscoveredEntityType, id string, rType ResourceType, mProp MetricProp,
-	v float64) EntityResourceMetric {
+	v interface{}) EntityResourceMetric {
 	return EntityResourceMetric{
-		metricUID:      GenerateEntityResourceMetricUID(eType, id, rType, mProp),
-		entityType:     eType,
-		entityID:       id,
+		EntityDetails: EntityDetails{
+			metricUID:  GenerateEntityResourceMetricUID(eType, id, rType, mProp),
+			entityType: eType,
+			entityID:   id,
+		},
 		ResourceMetric: NewResourceMetric(rType, mProp, v),
 	}
 }
@@ -206,16 +219,35 @@ func (m EntityResourceMetric) GetValue() interface{} {
 	return m.value
 }
 
+func (m EntityResourceMetric) UpdateValue(existing interface{}) {
+	typedExisting, isRightType := existing.(EntityResourceMetric)
+	if !isRightType {
+		glog.Warning("Skipping metrics value update as metrics type mismatches from cache.")
+		return
+	}
+
+	newPoints, isMultiPoint := m.value.(Points)
+	if !isMultiPoint {
+		m.value = typedExisting.value
+		return
+	}
+
+	// The caller should ensure that right type is created and matching
+	// type updated for multi point metrics, else this will CRASH.
+	points := typedExisting.value.(Points)
+	points.Values = append(points.Values, newPoints.Values...)
+	points.Timestamp = newPoints.Timestamp
+	m.value = points
+	return
+}
+
 // Generate the UID for each metric entry based on entityType, entityID, resourceType and metricType.
 func GenerateEntityResourceMetricUID(eType DiscoveredEntityType, id string, rType ResourceType, mType MetricProp) string {
 	return string(eType) + "-" + id + "-" + string(rType) + "-" + string(mType)
 }
 
 type EntityStateMetric struct {
-	metricUID string
-
-	entityType DiscoveredEntityType
-	entityID   string
+	EntityDetails
 
 	resourceType ResourceType
 	value        interface{}
@@ -230,9 +262,11 @@ type StateMetric struct {
 
 func NewEntityStateMetric(eType DiscoveredEntityType, id string, rType ResourceType, v interface{}) EntityStateMetric {
 	return EntityStateMetric{
-		metricUID:    GenerateEntityStateMetricUID(eType, id, rType),
-		entityType:   eType,
-		entityID:     id,
+		EntityDetails: EntityDetails{
+			metricUID:  GenerateEntityStateMetricUID(eType, id, rType),
+			entityType: eType,
+			entityID:   id,
+		},
 		resourceType: rType,
 		value:        v,
 	}
@@ -252,6 +286,10 @@ func (m EntityStateMetric) GetUID() string {
 
 func (m EntityStateMetric) GetValue() interface{} {
 	return m.value
+}
+
+func (m EntityStateMetric) UpdateValue(existing interface{}) {
+	// NOP
 }
 
 // Generate the UID for each metric entry based on entityType, entityID and resourceType.
