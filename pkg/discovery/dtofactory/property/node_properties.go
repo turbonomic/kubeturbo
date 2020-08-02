@@ -7,15 +7,32 @@ import (
 )
 
 // Build entity properties for a node. The name is the name of the node shown inside Kubernetes cluster.
-func BuildNodeProperties(node *api.Node) *proto.EntityDTO_EntityProperty {
+func BuildNodeProperties(node *api.Node) []*proto.EntityDTO_EntityProperty {
+	var properties []*proto.EntityDTO_EntityProperty
 	propertyNamespace := k8sPropertyNamespace
 	propertyName := k8sNodeName
 	propertyValue := node.Name
-	return &proto.EntityDTO_EntityProperty{
+	nameProperty := &proto.EntityDTO_EntityProperty{
 		Namespace: &propertyNamespace,
 		Name:      &propertyName,
 		Value:     &propertyValue,
 	}
+	properties = append(properties, nameProperty)
+
+	tagsPropertyNamespace := VCTagsPropertyNamespace
+	labels := node.GetLabels()
+	for label, lval := range labels {
+		tagNamePropertyName := label
+		tagNamePropertyValue := lval
+		tagProperty := &proto.EntityDTO_EntityProperty{
+			Namespace: &tagsPropertyNamespace,
+			Name:      &tagNamePropertyName,
+			Value:     &tagNamePropertyValue,
+		}
+		properties = append(properties, tagProperty)
+	}
+
+	return properties
 }
 
 // Get node name from entity property.

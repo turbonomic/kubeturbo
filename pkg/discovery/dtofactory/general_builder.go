@@ -1,9 +1,10 @@
 package dtofactory
 
 import (
+	"math"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
-	"math"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 

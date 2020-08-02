@@ -265,10 +265,8 @@ func (builder *nodeEntityDTOBuilder) getNodeProperties(node *api.Node) ([]*proto
 		*stitchingProperty.Value)
 	properties = append(properties, stitchingProperty)
 
-	// additional node cluster info property.
-	nodeProperty := property.BuildNodeProperties(node)
-	properties = append(properties, nodeProperty)
-
+	// additional node info properties.
+	properties = append(properties, property.BuildNodeProperties(node)...)
 	return properties, nil
 }
 

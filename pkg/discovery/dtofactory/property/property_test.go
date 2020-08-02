@@ -1,7 +1,6 @@
 package property
 
 import (
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -26,9 +25,7 @@ func TestNodeProperty(t *testing.T) {
 		},
 	}
 
-	property := BuildNodeProperties(node)
-	ps := []*proto.EntityDTO_EntityProperty{property}
-
+	ps := BuildNodeProperties(node)
 	nodeName := GetNodeNameFromProperty(ps)
 
 	if nodeName != node.Name {
