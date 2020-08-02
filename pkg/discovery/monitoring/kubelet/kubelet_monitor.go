@@ -253,7 +253,7 @@ func (m *KubeletMonitor) genRequestUsedMetrics(etype metrics.DiscoveredEntityTyp
 
 func (m *KubeletMonitor) genNumConsumersUsedMetrics(etype metrics.DiscoveredEntityType, key string) {
 	// Each pod consumes one from numConsumers / Total available is node allocatable pod number
-	numConsumersMetric := metrics.NewEntityResourceMetric(etype, key, metrics.NumPods, metrics.Used, 1)
+	numConsumersMetric := metrics.NewEntityResourceMetric(etype, key, metrics.NumPods, metrics.Used, float64(1))
 	m.metricSink.AddNewMetricEntries(numConsumersMetric)
 }
 
