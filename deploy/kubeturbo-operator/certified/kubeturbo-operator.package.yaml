@@ -1,7 +1,7 @@
 packageName: kubeturbo-marketplace-certified
 channels:
   - name: stable
-    currentCSV: kubeturbo-marketplace-operator.v7.22.4
+    currentCSV: kubeturbo-marketplace-operator.v7.22.5
   - name: alpha
-    currentCSV: kubeturbo-marketplace-operator.v7.22.3
+    currentCSV: kubeturbo-marketplace-operator.v7.22.4
 defaultChannel: stable
