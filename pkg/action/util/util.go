@@ -105,8 +105,12 @@ func BuildIdentifier(namespace, name string) string {
 // check whether parentKind is supported for MovePod/ResizeContainer actions
 // currently, these actions can only works on barePod, ReplicaSet, and ReplicationController
 //   Note: pod's parent cannot be Deployment. Deployment will create/control ReplicaSet, and ReplicaSet will create/control Pods.
-func SupportedParent(parentKind string) bool {
+func SupportedParent(parentKind string, isResize bool) bool {
 	if parentKind == "" {
+		return true
+	}
+
+	if isResize && strings.EqualFold(parentKind, util.KindDaemonSet) {
 		return true
 	}
 

@@ -216,7 +216,7 @@ func resizeSingleContainer(client *kclient.Clientset, originalPod *k8sapi.Pod, s
 		glog.Errorf("Resize action failed: failed to get pod[%s] parent info: %v.", fullName, err)
 		return nil, err
 	}
-	if !util.SupportedParent(parentKind) {
+	if !util.SupportedParent(parentKind, true) {
 		err = fmt.Errorf("parent kind %v is not supported", parentKind)
 		glog.Errorf("Resize action aborted: %v.", err)
 		return nil, err
