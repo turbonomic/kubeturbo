@@ -38,16 +38,18 @@ import (
 
 const (
 	// The default port for vmt service server
-	KubeturboPort               = 10265
-	DefaultKubeletPort          = 10255
-	DefaultKubeletHttps         = false
-	defaultVMPriority           = -1
-	defaultVMIsBase             = true
-	defaultDiscoveryIntervalSec = 600
-	defaultValidationWorkers    = 10
-	defaultValidationTimeout    = 60
-	defaultDiscoveryWorkers     = 4
-	defaultDiscoveryTimeoutSec  = 180
+	KubeturboPort                     = 10265
+	DefaultKubeletPort                = 10255
+	DefaultKubeletHttps               = false
+	defaultVMPriority                 = -1
+	defaultVMIsBase                   = true
+	defaultDiscoveryIntervalSec       = 600
+	defaultValidationWorkers          = 10
+	defaultValidationTimeout          = 60
+	defaultDiscoveryWorkers           = 4
+	defaultDiscoveryTimeoutSec        = 180
+	defaultDiscoverySamples           = 10
+	defaultDiscoverySampleIntervalSec = 60
 )
 
 var (
@@ -99,6 +101,10 @@ type VMTServer struct {
 	DiscoveryWorkers    int
 	DiscoveryTimeoutSec int
 
+	// Data sampling discovery related config
+	DiscoverySamples           int
+	DiscoverySampleIntervalSec int
+
 	// The Openshift SCC list allowed for action execution
 	sccSupport []string
 
@@ -149,6 +155,8 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.ValidationTimeout, "validation-timeout-sec", defaultValidationTimeout, "The validation timeout in seconds")
 	fs.IntVar(&s.DiscoveryWorkers, "discovery-workers", defaultDiscoveryWorkers, "The number of discovery workers")
 	fs.IntVar(&s.DiscoveryTimeoutSec, "discovery-timeout-sec", defaultDiscoveryTimeoutSec, "The discovery timeout in seconds for each discovery worker")
+	fs.IntVar(&s.DiscoverySamples, "discovery-samples", defaultDiscoverySamples, "The number of resource usage data samples to be collected from kubelet in each main discovery cycle")
+	fs.IntVar(&s.DiscoverySampleIntervalSec, "discovery-sample-interval", defaultDiscoverySampleIntervalSec, "The discovery interval in seconds to collect additional resource usage data samples from kubelet")
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all")
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")
 	fs.StringVar(&s.BusyboxImage, "busybox-image", "busybox", "The complete image uri used for fallback node cpu frequency getter job.")
@@ -304,6 +312,8 @@ func (s *VMTServer) Run() {
 		WithValidationWorkers(s.ValidationWorkers).
 		WithDiscoveryWorkers(s.DiscoveryWorkers).
 		WithDiscoveryTimeout(s.DiscoveryTimeoutSec).
+		WithDiscoverySamples(s.DiscoverySamples).
+		WithDiscoverySampleIntervalSec(s.DiscoverySampleIntervalSec).
 		WithSccSupport(s.sccSupport).
 		WithCAPINamespace(s.ClusterAPINamespace).
 		WithContainerUtilizationDataAggStrategy(s.containerUtilizationDataAggStrategy).

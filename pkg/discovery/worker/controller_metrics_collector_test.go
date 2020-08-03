@@ -93,9 +93,9 @@ func TestCollectControllerMetrics(t *testing.T) {
 	pods := []*api.Pod{testPod1, testPod2, testPod3}
 	currTask := task.NewTask().WithPods(pods).WithCluster(clusterSummary)
 
-	workerConfig := NewK8sDiscoveryWorkerConfig("sType", 10).
+	workerConfig := NewK8sDiscoveryWorkerConfig("sType", 10, 10).
 		WithMonitoringWorkerConfig(kubelet.NewKubeletMonitorConfig(nil, nil))
-	discoveryWorker, _ := NewK8sDiscoveryWorker(workerConfig, "wid")
+	discoveryWorker, _ := NewK8sDiscoveryWorker(workerConfig, "wid", metrics.NewEntityMetricSink(), true)
 
 	// Add owner metrics to the metric sink
 	var ownerMetricsList []metrics.EntityStateMetric
