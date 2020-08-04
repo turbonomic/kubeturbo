@@ -2,6 +2,7 @@ package worker
 
 import (
 	"fmt"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
@@ -73,6 +74,8 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSumm
 	go func() {
 		for _, node := range nodes {
 			currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNode(node)
+			// Save the node to pods map in the cluster summary
+			cluster.SetRunningPodsOnNode(node, currPods)
 			currTask := task.NewTask().WithNode(node).WithPods(currPods).WithCluster(cluster)
 			glog.V(2).Infof("Dispatching task %v", currTask)
 			d.assignTask(currTask)
