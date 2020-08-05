@@ -155,7 +155,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.ValidationTimeout, "validation-timeout-sec", defaultValidationTimeout, "The validation timeout in seconds")
 	fs.IntVar(&s.DiscoveryWorkers, "discovery-workers", defaultDiscoveryWorkers, "The number of discovery workers")
 	fs.IntVar(&s.DiscoveryTimeoutSec, "discovery-timeout-sec", defaultDiscoveryTimeoutSec, "The discovery timeout in seconds for each discovery worker")
-	fs.IntVar(&s.DiscoverySamples, "discovery-samples", defaultDiscoverySamples, "The number of resource usage data samples to be collected from kubelet in each main discovery cycle")
+	fs.IntVar(&s.DiscoverySamples, "discovery-samples", defaultDiscoverySamples, "The number of resource usage data samples to be collected from kubelet in each full discovery cycle")
 	fs.IntVar(&s.DiscoverySampleIntervalSec, "discovery-sample-interval", defaultDiscoverySampleIntervalSec, "The discovery interval in seconds to collect additional resource usage data samples from kubelet")
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all")
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")

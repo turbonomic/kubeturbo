@@ -53,11 +53,11 @@ func NewDispatcher(config *DispatcherConfig, globalMetricSink *metrics.EntityMet
 
 type SamplingDispatcher struct {
 	Dispatcher
-	// Timestamp when starting to schedule sampling discovery tasks in each main discovery cycle
+	// Timestamp when starting to schedule sampling discovery tasks in each full discovery cycle
 	timestamp time.Time
 	// Whether previous sampling discoveries are done
 	samplingDone chan bool
-	// Collected data samples since last main discovery
+	// Collected data samples since last full discovery
 	collectedSamples int
 }
 
@@ -95,7 +95,7 @@ func (d *Dispatcher) Init(c *ResultCollector) {
 
 func (d *Dispatcher) InitSamplingDiscoveryWorkers() {
 	// Create sampling discovery workers
-	// Sampling discovery only scrape kubelet which is very lightweight, so use 2 times of main discovery worker count
+	// Sampling discovery only scrape kubelet which is very lightweight, so use 2 times of the full discovery worker count
 	for i := 0; i < 2*d.config.workerCount; i++ {
 		// Timeout of each sampling discovery worker is the given samplingIntervalSec to avoid goroutine pile up
 		workerConfig := NewK8sDiscoveryWorkerConfig("", d.config.samplingIntervalSec, d.config.samples)
@@ -160,7 +160,7 @@ func (d *SamplingDispatcher) ScheduleDispatch(nodes []*api.Node) {
 			case <-d.samplingDone:
 				elapsedTime := time.Now().Sub(d.timestamp).Seconds()
 				samples := int(math.Min(float64(d.config.samples), float64(d.collectedSamples)))
-				glog.V(2).Infof("Collected %v usage data samples from kubelet in %v seconds since last main discovery.", samples, elapsedTime)
+				glog.V(2).Infof("Collected %v usage data samples from kubelet in %v seconds since last full discovery.", samples, elapsedTime)
 				d.collectedSamples = 0
 				return
 			case <-ticker.C:

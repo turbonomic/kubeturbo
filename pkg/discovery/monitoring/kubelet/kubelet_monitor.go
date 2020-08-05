@@ -33,17 +33,17 @@ type KubeletMonitor struct {
 
 	wg sync.WaitGroup
 
-	// Whether this kubelet monitor runs during main discovery
-	isMainDiscovery bool
+	// Whether this kubelet monitor runs during full discovery
+	isFullDiscovery bool
 }
 
-func NewKubeletMonitor(config *KubeletMonitorConfig, isMainDiscovery bool) (*KubeletMonitor, error) {
+func NewKubeletMonitor(config *KubeletMonitorConfig, isFullDiscovery bool) (*KubeletMonitor, error) {
 	return &KubeletMonitor{
 		kubeletClient:   config.kubeletClient,
 		kubeClient:      config.kubeClient,
 		metricSink:      metrics.NewEntityMetricSink(),
 		stopCh:          make(chan struct{}, 1),
-		isMainDiscovery: isMainDiscovery,
+		isFullDiscovery: isFullDiscovery,
 	}, nil
 }
 
@@ -93,11 +93,7 @@ func (m *KubeletMonitor) RetrieveResourceStat() error {
 			case <-m.stopCh:
 				return
 			default:
-				if m.isMainDiscovery {
-					m.scrapeKubelet(n)
-				} else {
-					m.scrapeKubeletForSampling(n)
-				}
+				m.scrapeKubelet(n)
 			}
 		}(node)
 	}
@@ -111,12 +107,15 @@ func (m *KubeletMonitor) RetrieveResourceStat() error {
 func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 	kc := m.kubeletClient
 
-	nodefreq, err := kc.GetNodeCpuFrequency(node)
-	if err != nil {
-		glog.Errorf("Failed to get resource metrics (cpufreq) from %s: %s", node.Name, err)
-		return
+	// Collect node cpu frequency metric only in full discovery not in sampling discovery
+	if m.isFullDiscovery {
+		nodefreq, err := kc.GetNodeCpuFrequency(node)
+		if err != nil {
+			glog.Errorf("Failed to get resource metrics (cpufreq) from %s: %s", node.Name, err)
+			return
+		}
+		m.parseNodeCpuFreq(node, nodefreq)
 	}
-	m.parseNodeCpuFreq(node, nodefreq)
 
 	ip, err := util.GetNodeIPForMonitor(node, types.KubeletSource)
 	if err != nil {
@@ -131,8 +130,15 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 	}
 	// Indicate that we have used the cache last time we've asked for some of the info.
 	if kc.HasCacheBeenUsed(ip) {
-		cacheUsedMetric := metrics.NewEntityStateMetric(metrics.NodeType, util.NodeKeyFunc(node), "NodeCacheUsed", 1)
-		m.metricSink.AddNewMetricEntries(cacheUsedMetric)
+		if m.isFullDiscovery {
+			cacheUsedMetric := metrics.NewEntityStateMetric(metrics.NodeType, util.NodeKeyFunc(node), "NodeCacheUsed", 1)
+			m.metricSink.AddNewMetricEntries(cacheUsedMetric)
+		} else {
+			// It's a valid case if a node is available from the full discovery but not available during sampling discoveries.
+			// Need to wait for a full discovery to fetch the available nodes.
+			glog.Warningf("Failed to get resource metrics summary sample from %s. Waiting for the next full discovery: %s", node.Name, err)
+			return
+		}
 	}
 
 	currentMilliSec := time.Now().UnixNano() / int64(time.Millisecond)
@@ -140,27 +146,6 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 	m.parsePodStats(summary.Pods, currentMilliSec)
 
 	glog.V(4).Infof("Finished scrape node %s.", node.Name)
-}
-
-// scrapeKubeletForSampling collects resource usage data samples for node, and containers and pods in the node.
-func (m *KubeletMonitor) scrapeKubeletForSampling(node *api.Node) {
-	kc := m.kubeletClient
-	ip, err := util.GetNodeIPForMonitor(node, types.KubeletSource)
-	if err != nil {
-		glog.Errorf("Failed to get resource metrics summary from %s: %s", node.Name, err)
-		return
-	}
-	// get summary information about the given node and the pods running on it.
-	summary, err := kc.GetSummary(ip)
-	if err != nil {
-		glog.Errorf("Failed to get resource metrics summary from %s: %s", node.Name, err)
-		return
-	}
-
-	currentMilliSec := time.Now().UnixNano() / int64(time.Millisecond)
-	m.parseNodeStats(summary.Node, currentMilliSec)
-	m.parsePodStats(summary.Pods, currentMilliSec)
-	glog.V(4).Infof("Finished scrape node %s for sampling.", node.Name)
 }
 
 func (m *KubeletMonitor) parseNodeCpuFreq(node *api.Node, cpuFrequencyMHz float64) {
@@ -194,7 +179,10 @@ func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats, timestamp int
 	glog.V(4).Infof("Root File System size for node %s is %.3f Megabytes", nodeName, rootfsCapacity)
 	glog.V(4).Infof("Root File System used for node %s is %.3f Megabytes", nodeName, rootfsUsed)
 	m.genUsedMetrics(metrics.NodeType, key, cpuUsageCore, memoryWorkingSetKiloBytes, timestamp)
-	m.genFSMetrics(metrics.NodeType, key, rootfsCapacity, rootfsUsed)
+	// Collect node fsMetrics only in full discovery not in sampling discovery
+	if m.isFullDiscovery {
+		m.genFSMetrics(metrics.NodeType, key, rootfsCapacity, rootfsUsed)
+	}
 }
 
 // Parse pod stats for every pod and put them into sink.
@@ -223,8 +211,11 @@ func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats, timestamp int6
 		glog.V(4).Infof("Ephemeral fs used for pod %s is %.3f Megabytes", key, ephemeralFsUsed)
 
 		m.genUsedMetrics(metrics.PodType, key, cpuUsed, memUsed, timestamp)
-		m.genNumConsumersUsedMetrics(metrics.PodType, key)
-		m.genFSMetrics(metrics.PodType, key, ephemeralFsCapacity, ephemeralFsUsed)
+		// Collect pod numConsumersUsedMetrics and fsMetrics only in full discovery not in sampling discovery
+		if m.isFullDiscovery {
+			m.genNumConsumersUsedMetrics(metrics.PodType, key)
+			m.genFSMetrics(metrics.PodType, key, ephemeralFsCapacity, ephemeralFsUsed)
+		}
 	}
 }
 
@@ -272,8 +263,8 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats, timestamp int6
 func (m *KubeletMonitor) genUsedMetrics(etype metrics.DiscoveredEntityType, key string, cpu, memory float64, timestamp int64) {
 	var cpuMetric metrics.EntityResourceMetric
 	var memMetric metrics.EntityResourceMetric
-	// TODO Yue simplify if/else conditions when implementing merging global metrics sink to each individual main discovery worker
-	if m.isMainDiscovery {
+	// TODO Yue simplify if/else conditions when implementing merging global metrics sink to each individual full discovery worker
+	if m.isFullDiscovery {
 		cpuMetric = metrics.NewEntityResourceMetric(etype, key, metrics.CPU, metrics.Used, cpu)
 		memMetric = metrics.NewEntityResourceMetric(etype, key, metrics.Memory, metrics.Used, memory)
 	} else {
@@ -294,8 +285,8 @@ func (m *KubeletMonitor) genUsedMetrics(etype metrics.DiscoveredEntityType, key 
 func (m *KubeletMonitor) genRequestUsedMetrics(etype metrics.DiscoveredEntityType, key string, cpu, memory float64, timestamp int64) {
 	var cpuRequestMetric metrics.EntityResourceMetric
 	var memRequestMetric metrics.EntityResourceMetric
-	// TODO Yue simplify if/else conditions when implementing merging global metrics sink to each individual main discovery worker
-	if m.isMainDiscovery {
+	// TODO Yue simplify if/else conditions when implementing merging global metrics sink to each individual full discovery worker
+	if m.isFullDiscovery {
 		cpuRequestMetric = metrics.NewEntityResourceMetric(etype, key, metrics.CPURequest, metrics.Used, cpu)
 		memRequestMetric = metrics.NewEntityResourceMetric(etype, key, metrics.MemoryRequest, metrics.Used, memory)
 	} else {

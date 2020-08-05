@@ -284,7 +284,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	taskCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
 	result := dc.resultCollector.Collect(taskCount)
 
-	// Clear globalEntityMetricSink cache after collecting main discovery results
+	// Clear globalEntityMetricSink cache after collecting full discovery results
 	dc.globalEntityMetricSink.ClearCache()
 	// Reschedule dispatch sampling discovery tasks for newly discovered nodes
 	dc.samplingDispatcher.ScheduleDispatch(nodes)

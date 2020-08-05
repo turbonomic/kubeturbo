@@ -74,8 +74,8 @@ func (c *k8sDiscoveryWorkerConfig) WithMonitoringWorkerConfig(config monitoring.
 type k8sDiscoveryWorker struct {
 	// A UID of a discovery worker.
 	id string
-	// Whether this is main discovery worker, where EntityMetricSink needs to be reset in each discovery
-	isMainDiscoveryWorker bool
+	// Whether this is full discovery worker, where EntityMetricSink needs to be reset in each discovery
+	isFullDiscoveryWorker bool
 
 	// config
 	config *k8sDiscoveryWorkerConfig
@@ -93,7 +93,7 @@ type k8sDiscoveryWorker struct {
 // Create new instance of k8sDiscoveryWorker.
 // Also creates instances of MonitoringWorkers for each MonitorType.
 func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string, entityMetricSink *metrics.EntityMetricSink,
-	isMainDiscoveryWorker bool) (*k8sDiscoveryWorker, error) {
+	isFullDiscoveryWorker bool) (*k8sDiscoveryWorker, error) {
 	// id := uuid.NewUUID().String()
 	if len(config.monitoringSourceConfigs) == 0 {
 		return nil, errors.New("no monitoring source config found in config")
@@ -107,7 +107,7 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string, entityM
 			monitorList = []monitoring.MonitoringWorker{}
 		}
 		for _, config := range configList {
-			monitoringWorker, err := monitoring.BuildMonitorWorker(config.GetMonitoringSource(), config, isMainDiscoveryWorker)
+			monitoringWorker, err := monitoring.BuildMonitorWorker(config.GetMonitoringSource(), config, isFullDiscoveryWorker)
 			if err != nil {
 				// TODO return?
 				glog.Errorf("Failed to build monitoring worker configuration: %v", err)
@@ -120,7 +120,7 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string, entityM
 
 	return &k8sDiscoveryWorker{
 		id:                    wid,
-		isMainDiscoveryWorker: isMainDiscoveryWorker,
+		isFullDiscoveryWorker: isFullDiscoveryWorker,
 		config:                config,
 		monitoringWorker:      monitoringWorkerMap,
 		sink:                  entityMetricSink,
@@ -137,7 +137,7 @@ func (worker *k8sDiscoveryWorker) RegisterAndRun(dispatcher *Dispatcher, collect
 		select {
 		case currTask := <-worker.taskChan:
 			logLevel := glog.Level(2)
-			if !worker.isMainDiscoveryWorker {
+			if !worker.isFullDiscoveryWorker {
 				logLevel = glog.Level(3)
 			}
 
@@ -171,7 +171,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	var timeout bool
 	// Resource monitoring
 	resourceMonitorTask := currTask
-	if worker.isMainDiscoveryWorker {
+	if worker.isFullDiscoveryWorker {
 		// Reset the main sink
 		worker.sink = metrics.NewEntityMetricSink().WithMaxMetricPointsSize(worker.config.metricSamples)
 	}
@@ -203,8 +203,8 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 					t.Stop()
 					// Don't do any filtering
 					worker.sink.MergeSink(monitoringSink, nil)
-					if worker.isMainDiscoveryWorker {
-						// TODO Yue merge global metrics sink into the metrics sink of each main discovery worker
+					if worker.isFullDiscoveryWorker {
+						// TODO Yue merge global metrics sink into the metrics sink of each full discovery worker
 					}
 					// glog.Infof("send to finish channel %p", finishCh)
 					finishCh <- struct{}{}
@@ -233,7 +233,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(fmt.Errorf("discovery timeout"))
 	}
 
-	if !worker.isMainDiscoveryWorker {
+	if !worker.isFullDiscoveryWorker {
 		// Sampling discovery doesn't need to collect additional metrics
 		return task.NewTaskResult(worker.id, task.TaskSucceeded)
 	}
