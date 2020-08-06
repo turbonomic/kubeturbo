@@ -85,7 +85,7 @@ func (d *Dispatcher) Init(c *ResultCollector) {
 			workerConfig.WithMonitoringWorkerConfig(mc)
 		}
 		wid := fmt.Sprintf("w%d", i)
-		discoveryWorker, err := NewK8sDiscoveryWorker(workerConfig, wid, metrics.NewEntityMetricSink().WithMaxMetricPointsSize(d.config.samples), true)
+		discoveryWorker, err := NewK8sDiscoveryWorker(workerConfig, wid, d.globalMetricSink, true)
 		if err != nil {
 			glog.Fatalf("failed to build discovery worker %s", err)
 		}

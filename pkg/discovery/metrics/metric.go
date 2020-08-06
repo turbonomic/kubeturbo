@@ -157,6 +157,13 @@ type Metric interface {
 	UpdateValue(existing interface{}, maxMetricPointsSize int) Metric
 }
 
+type MetricValue struct {
+	// Average of all data points
+	Avg float64
+	// Peak of all data points
+	Peak float64
+}
+
 type MetricFilterFunc func(m Metric) bool
 
 type ResourceMetric struct {
