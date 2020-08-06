@@ -168,7 +168,7 @@ func checkApplicationMetrics(sink *metrics.EntityMetricSink, appMId string, cont
 func TestParseStats(t *testing.T) {
 	conf := &KubeletMonitorConfig{}
 
-	klet, err := NewKubeletMonitor(conf)
+	klet, err := NewKubeletMonitor(conf, true)
 	if err != nil {
 		t.Errorf("Failed to create kubeletMonitor: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestParseStats(t *testing.T) {
 	podstat1 := createPodStat("pod1")
 	podstat2 := createPodStat("pod2")
 	pods := []stats.PodStats{*podstat1, *podstat2}
-	klet.parsePodStats(pods)
+	klet.parsePodStats(pods, 0)
 
 	for _, podstat := range pods {
 		//1. check pod metrics

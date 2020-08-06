@@ -154,7 +154,7 @@ type Metric interface {
 	GetMetricProp() MetricProp
 	GetUID() string
 	GetValue() interface{}
-	UpdateValue(existing interface{})
+	UpdateValue(existing interface{}, maxMetricPointsSize int) Metric
 }
 
 type MetricFilterFunc func(m Metric) bool
@@ -219,26 +219,30 @@ func (m EntityResourceMetric) GetValue() interface{} {
 	return m.value
 }
 
-func (m EntityResourceMetric) UpdateValue(existing interface{}) {
+func (m EntityResourceMetric) UpdateValue(existing interface{}, maxMetricPointsSize int) Metric {
 	typedExisting, isRightType := existing.(EntityResourceMetric)
 	if !isRightType {
 		glog.Warning("Skipping metrics value update as metrics type mismatches from cache.")
-		return
+		return m
 	}
 
 	newPoints, isMultiPoint := m.value.(Points)
 	if !isMultiPoint {
 		m.value = typedExisting.value
-		return
+		return m
 	}
 
 	// The caller should ensure that right type is created and matching
 	// type updated for multi point metrics, else this will CRASH.
 	points := typedExisting.value.(Points)
 	points.Values = append(points.Values, newPoints.Values...)
+	// If points length is larger than maxMetricPointsSize, use latest maxMetricPointsSize of points
+	if len(points.Values) > maxMetricPointsSize {
+		points.Values = points.Values[len(points.Values)-maxMetricPointsSize:]
+	}
 	points.Timestamp = newPoints.Timestamp
 	m.value = points
-	return
+	return m
 }
 
 // Generate the UID for each metric entry based on entityType, entityID, resourceType and metricType.
@@ -288,8 +292,9 @@ func (m EntityStateMetric) GetValue() interface{} {
 	return m.value
 }
 
-func (m EntityStateMetric) UpdateValue(existing interface{}) {
+func (m EntityStateMetric) UpdateValue(existing interface{}, maxMetricPointsSize int) Metric {
 	// NOP
+	return nil
 }
 
 // Generate the UID for each metric entry based on entityType, entityID and resourceType.
