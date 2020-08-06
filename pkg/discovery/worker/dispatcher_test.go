@@ -3,6 +3,7 @@ package worker
 import (
 	"flag"
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"math"
 	"testing"
@@ -80,8 +81,8 @@ func getDispatcherAndCollector(workerCount, taskRunTimeSec int) (*Dispatcher, *R
 			TaskRunTime: taskRunTimeSec,
 		}},
 	}
-	dispatcherConfig := NewDispatcherConfig(clusterScraper, probeConfig, workerCount, 10)
-	dispatcher := NewDispatcher(dispatcherConfig)
+	dispatcherConfig := NewDispatcherConfig(clusterScraper, probeConfig, workerCount, 10, 1, 1)
+	dispatcher := NewDispatcher(dispatcherConfig, metrics.NewEntityMetricSink())
 	resultCollector := NewResultCollector(workerCount * 2)
 	dispatcher.Init(resultCollector)
 	return dispatcher, resultCollector

@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"reflect"
 	"testing"
 
@@ -13,9 +14,9 @@ import (
 )
 
 func TestBuildDTOsWithMissingMetrics(t *testing.T) {
-	workerConfig := NewK8sDiscoveryWorkerConfig("UUID", 1).
+	workerConfig := NewK8sDiscoveryWorkerConfig("UUID", 1, 1).
 		WithMonitoringWorkerConfig(kubelet.NewKubeletMonitorConfig(nil, nil))
-	worker, err := NewK8sDiscoveryWorker(workerConfig, "wid-1")
+	worker, err := NewK8sDiscoveryWorker(workerConfig, "wid-1", metrics.NewEntityMetricSink(), true)
 	if err != nil {
 		t.Errorf("Error while creating discovery worker: %v", err)
 	}
