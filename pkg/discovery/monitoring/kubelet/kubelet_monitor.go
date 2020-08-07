@@ -261,46 +261,34 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats, timestamp int6
 }
 
 func (m *KubeletMonitor) genUsedMetrics(etype metrics.DiscoveredEntityType, key string, cpu, memory float64, timestamp int64) {
-	var cpuMetric metrics.EntityResourceMetric
-	var memMetric metrics.EntityResourceMetric
-	// TODO Yue simplify if/else conditions when implementing merging global metrics sink to each individual full discovery worker
-	if m.isFullDiscovery {
-		cpuMetric = metrics.NewEntityResourceMetric(etype, key, metrics.CPU, metrics.Used, cpu)
-		memMetric = metrics.NewEntityResourceMetric(etype, key, metrics.Memory, metrics.Used, memory)
-	} else {
-		cpuMetric = metrics.NewEntityResourceMetric(etype, key, metrics.CPU, metrics.Used,
-			metrics.Points{
-				Values:    []float64{cpu},
-				Timestamp: timestamp,
-			})
-		memMetric = metrics.NewEntityResourceMetric(etype, key, metrics.Memory, metrics.Used, metrics.Points{
-			Values:    []float64{memory},
+	// Pass timestamp as parameter instead of generating a new timestamp here to make sure timestamp is same for all
+	// corresponding metrics which are scraped from kubelet at the same time
+	cpuMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPU, metrics.Used,
+		metrics.Points{
+			Values:    []float64{cpu},
 			Timestamp: timestamp,
 		})
-	}
+	memMetric := metrics.NewEntityResourceMetric(etype, key, metrics.Memory, metrics.Used, metrics.Points{
+		Values:    []float64{memory},
+		Timestamp: timestamp,
+	})
 	m.metricSink.AddNewMetricEntries(cpuMetric, memMetric)
 }
 
 // genRequestUsedMetrics generates used metrics for VCPURequest and VMemRequest commodity
 func (m *KubeletMonitor) genRequestUsedMetrics(etype metrics.DiscoveredEntityType, key string, cpu, memory float64, timestamp int64) {
-	var cpuRequestMetric metrics.EntityResourceMetric
-	var memRequestMetric metrics.EntityResourceMetric
-	// TODO Yue simplify if/else conditions when implementing merging global metrics sink to each individual full discovery worker
-	if m.isFullDiscovery {
-		cpuRequestMetric = metrics.NewEntityResourceMetric(etype, key, metrics.CPURequest, metrics.Used, cpu)
-		memRequestMetric = metrics.NewEntityResourceMetric(etype, key, metrics.MemoryRequest, metrics.Used, memory)
-	} else {
-		cpuRequestMetric = metrics.NewEntityResourceMetric(etype, key, metrics.CPURequest, metrics.Used,
-			metrics.Points{
-				Values:    []float64{cpu},
-				Timestamp: timestamp,
-			})
-		memRequestMetric = metrics.NewEntityResourceMetric(etype, key, metrics.MemoryRequest, metrics.Used,
-			metrics.Points{
-				Values:    []float64{memory},
-				Timestamp: timestamp,
-			})
-	}
+	// Pass timestamp as parameter instead of generating a new timestamp here to make sure timestamp is same for all
+	// corresponding metrics which are scraped from kubelet at the same time
+	cpuRequestMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPURequest, metrics.Used,
+		metrics.Points{
+			Values:    []float64{cpu},
+			Timestamp: timestamp,
+		})
+	memRequestMetric := metrics.NewEntityResourceMetric(etype, key, metrics.MemoryRequest, metrics.Used,
+		metrics.Points{
+			Values:    []float64{memory},
+			Timestamp: timestamp,
+		})
 	m.metricSink.AddNewMetricEntries(cpuRequestMetric, memRequestMetric)
 }
 

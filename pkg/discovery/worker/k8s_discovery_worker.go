@@ -86,13 +86,15 @@ type k8sDiscoveryWorker struct {
 
 	// sink is a central place to store all the monitored data.
 	sink *metrics.EntityMetricSink
+	// Global entity metric sink to store all resource usage data samples scraped from kubelet
+	globalMetricSink *metrics.EntityMetricSink
 
 	taskChan chan *task.Task
 }
 
 // Create new instance of k8sDiscoveryWorker.
 // Also creates instances of MonitoringWorkers for each MonitorType.
-func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string, entityMetricSink *metrics.EntityMetricSink,
+func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string, globalMetricSink *metrics.EntityMetricSink,
 	isFullDiscoveryWorker bool) (*k8sDiscoveryWorker, error) {
 	// id := uuid.NewUUID().String()
 	if len(config.monitoringSourceConfigs) == 0 {
@@ -117,13 +119,18 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string, entityM
 		}
 		monitoringWorkerMap[monitorType] = monitorList
 	}
+	metricSink := globalMetricSink
+	if isFullDiscoveryWorker {
+		metricSink = metrics.NewEntityMetricSink().WithMaxMetricPointsSize(config.metricSamples)
+	}
 
 	return &k8sDiscoveryWorker{
 		id:                    wid,
 		isFullDiscoveryWorker: isFullDiscoveryWorker,
 		config:                config,
 		monitoringWorker:      monitoringWorkerMap,
-		sink:                  entityMetricSink,
+		sink:                  metricSink,
+		globalMetricSink:      globalMetricSink,
 
 		taskChan: make(chan *task.Task),
 	}, nil
@@ -204,7 +211,8 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 					// Don't do any filtering
 					worker.sink.MergeSink(monitoringSink, nil)
 					if worker.isFullDiscoveryWorker {
-						// TODO Yue merge global metrics sink into the metrics sink of each full discovery worker
+						// Merge metrics from global metrics sink into the metrics sink of each full discovery worker
+						worker.sink.MergeSink(worker.globalMetricSink, nil)
 					}
 					// glog.Infof("send to finish channel %p", finishCh)
 					finishCh <- struct{}{}
