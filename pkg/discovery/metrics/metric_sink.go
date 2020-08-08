@@ -10,7 +10,8 @@ import (
 )
 
 type EntityMetricSink struct {
-	data *turbostore.Cache
+	data                *turbostore.Cache
+	maxMetricPointsSize int
 }
 
 func NewEntityMetricSink() *EntityMetricSink {
@@ -19,10 +20,15 @@ func NewEntityMetricSink() *EntityMetricSink {
 	}
 }
 
+func (s *EntityMetricSink) WithMaxMetricPointsSize(maxMetricPointsSize int) *EntityMetricSink {
+	s.maxMetricPointsSize = maxMetricPointsSize
+	return s
+}
+
 // Add one or more metric entries to sink.
-func (s *EntityMetricSink) AddNewMetricEntries(metric ...Metric) {
+func (s *EntityMetricSink) AddNewMetricEntries(metrics ...Metric) {
 	entries := make(map[string]interface{})
-	for _, m := range metric {
+	for _, m := range metrics {
 		key := m.GetUID()
 		entries[key] = m
 	}
@@ -30,6 +36,10 @@ func (s *EntityMetricSink) AddNewMetricEntries(metric ...Metric) {
 }
 
 func (s *EntityMetricSink) UpdateMetricEntry(metric Metric) {
+	m, exists := s.data.Get(metric.GetUID())
+	if exists {
+		metric = metric.UpdateValue(m, s.maxMetricPointsSize)
+	}
 	s.AddNewMetricEntries(metric)
 }
 
@@ -65,4 +75,9 @@ func (s *EntityMetricSink) MergeSink(anotherSink *EntityMetricSink, filterFunc M
 		}
 		s.UpdateMetricEntry(metric)
 	}
+}
+
+// ClearCache clears all metrics data
+func (s *EntityMetricSink) ClearCache() {
+	s.data = turbostore.NewCache()
 }

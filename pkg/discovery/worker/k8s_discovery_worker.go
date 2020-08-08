@@ -30,9 +30,11 @@ type k8sDiscoveryWorkerConfig struct {
 	monitoringSourceConfigs map[types.MonitorType][]monitoring.MonitorWorkerConfig
 	stitchingPropertyType   stitching.StitchingPropertyType
 	monitoringWorkerTimeout time.Duration
+	// Max metric samples to be collected by this discovery worker
+	metricSamples int
 }
 
-func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutSec int) *k8sDiscoveryWorkerConfig {
+func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutSec, metricSamples int) *k8sDiscoveryWorkerConfig {
 	var monitoringWorkerTimeout time.Duration
 	if timeoutSec < minTimeoutSec {
 		glog.Warningf("Invalid discovery timeout %v, set it to %v", timeoutSec, minTimeoutSec)
@@ -49,6 +51,7 @@ func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutS
 		stitchingPropertyType:   sType,
 		monitoringSourceConfigs: make(map[types.MonitorType][]monitoring.MonitorWorkerConfig),
 		monitoringWorkerTimeout: monitoringWorkerTimeout,
+		metricSamples:           metricSamples,
 	}
 }
 
@@ -71,6 +74,8 @@ func (c *k8sDiscoveryWorkerConfig) WithMonitoringWorkerConfig(config monitoring.
 type k8sDiscoveryWorker struct {
 	// A UID of a discovery worker.
 	id string
+	// Whether this is full discovery worker, where EntityMetricSink needs to be reset in each discovery
+	isFullDiscoveryWorker bool
 
 	// config
 	config *k8sDiscoveryWorkerConfig
@@ -81,16 +86,19 @@ type k8sDiscoveryWorker struct {
 
 	// sink is a central place to store all the monitored data.
 	sink *metrics.EntityMetricSink
+	// Global entity metric sink to store all resource usage data samples scraped from kubelet
+	globalMetricSink *metrics.EntityMetricSink
 
 	taskChan chan *task.Task
 }
 
 // Create new instance of k8sDiscoveryWorker.
 // Also creates instances of MonitoringWorkers for each MonitorType.
-func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string) (*k8sDiscoveryWorker, error) {
+func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string, globalMetricSink *metrics.EntityMetricSink,
+	isFullDiscoveryWorker bool) (*k8sDiscoveryWorker, error) {
 	// id := uuid.NewUUID().String()
 	if len(config.monitoringSourceConfigs) == 0 {
-		return nil, errors.New("No monitoring source config found in config.")
+		return nil, errors.New("no monitoring source config found in config")
 	}
 
 	// Build all the monitoring worker based on configs.
@@ -101,7 +109,7 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string) (*k8sDi
 			monitorList = []monitoring.MonitoringWorker{}
 		}
 		for _, config := range configList {
-			monitoringWorker, err := monitoring.BuildMonitorWorker(config.GetMonitoringSource(), config)
+			monitoringWorker, err := monitoring.BuildMonitorWorker(config.GetMonitoringSource(), config, isFullDiscoveryWorker)
 			if err != nil {
 				// TODO return?
 				glog.Errorf("Failed to build monitoring worker configuration: %v", err)
@@ -111,12 +119,18 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string) (*k8sDi
 		}
 		monitoringWorkerMap[monitorType] = monitorList
 	}
+	metricSink := globalMetricSink
+	if isFullDiscoveryWorker {
+		metricSink = metrics.NewEntityMetricSink().WithMaxMetricPointsSize(config.metricSamples)
+	}
 
 	return &k8sDiscoveryWorker{
-		id:               wid,
-		config:           config,
-		monitoringWorker: monitoringWorkerMap,
-		sink:             metrics.NewEntityMetricSink(),
+		id:                    wid,
+		isFullDiscoveryWorker: isFullDiscoveryWorker,
+		config:                config,
+		monitoringWorker:      monitoringWorkerMap,
+		sink:                  metricSink,
+		globalMetricSink:      globalMetricSink,
 
 		taskChan: make(chan *task.Task),
 	}, nil
@@ -129,10 +143,17 @@ func (worker *k8sDiscoveryWorker) RegisterAndRun(dispatcher *Dispatcher, collect
 		// wait for a Task to be submitted
 		select {
 		case currTask := <-worker.taskChan:
-			glog.V(2).Infof("Worker %s has received a task %v.", worker.id, currTask)
+			logLevel := glog.Level(2)
+			if !worker.isFullDiscoveryWorker {
+				logLevel = glog.Level(3)
+			}
+
+			glog.V(logLevel).Infof("Worker %s has received a task %v.", worker.id, currTask)
 			result := worker.executeTask(currTask)
-			collector.ResultPool() <- result
-			glog.V(2).Infof("Worker %s has finished the task %v.", worker.id, currTask)
+			if collector != nil {
+				collector.ResultPool() <- result
+			}
+			glog.V(logLevel).Infof("Worker %s has finished the task %v.", worker.id, currTask)
 			dispatcher.RegisterWorker(worker)
 		}
 	}
@@ -157,8 +178,10 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	var timeout bool
 	// Resource monitoring
 	resourceMonitorTask := currTask
-	// Reset the main sink
-	worker.sink = metrics.NewEntityMetricSink()
+	if worker.isFullDiscoveryWorker {
+		// Reset the main sink
+		worker.sink = metrics.NewEntityMetricSink().WithMaxMetricPointsSize(worker.config.metricSamples)
+	}
 	// if resourceMonitoringWorkers, exist := worker.monitoringWorker[types.ResourceMonitor]; exist {
 	for _, resourceMonitoringWorkers := range worker.monitoringWorker {
 		for _, rmWorker := range resourceMonitoringWorkers {
@@ -187,6 +210,10 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 					t.Stop()
 					// Don't do any filtering
 					worker.sink.MergeSink(monitoringSink, nil)
+					if worker.isFullDiscoveryWorker {
+						// Merge metrics from global metrics sink into the metrics sink of each full discovery worker
+						worker.sink.MergeSink(worker.globalMetricSink, nil)
+					}
 					// glog.Infof("send to finish channel %p", finishCh)
 					finishCh <- struct{}{}
 				}()
@@ -212,6 +239,11 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 
 	if timeout {
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(fmt.Errorf("discovery timeout"))
+	}
+
+	if !worker.isFullDiscoveryWorker {
+		// Sampling discovery doesn't need to collect additional metrics
+		return task.NewTaskResult(worker.id, task.TaskSucceeded)
 	}
 
 	// Collect usages for pods in different namespaces and create used and capacity

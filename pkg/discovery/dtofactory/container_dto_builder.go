@@ -394,13 +394,13 @@ func (builder *containerDTOBuilder) createRequestCommodityBought(entityType metr
 	}
 	commBoughtBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
 	// Used value of request commodity bought by the container is the configured resource requests capacity
-	usedValue, err := builder.metricValue(entityType, containerMId, resourceType, metrics.Capacity, converter)
+	metricValue, err := builder.metricValue(entityType, containerMId, resourceType, metrics.Capacity, converter)
 	if err != nil {
 		glog.Errorf("%s::%s cannot build bought commodity %s : %v", entityType, containerMId, resourceType, err)
 		return nil, err
 	}
-	commBoughtBuilder.Used(usedValue)
-	commBoughtBuilder.Peak(usedValue)
+	commBoughtBuilder.Used(metricValue.Avg)
+	commBoughtBuilder.Peak(metricValue.Peak)
 	commBoughtBuilder.Resizable(true)
 	commBought, err := commBoughtBuilder.Create()
 	if err != nil {

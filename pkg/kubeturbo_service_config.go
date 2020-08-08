@@ -37,6 +37,9 @@ type Config struct {
 	ValidationWorkers    int
 	ValidationTimeoutSec int
 
+	DiscoverySamples           int
+	DiscoverySampleIntervalSec int
+
 	SccSupport    []string
 	CAPINamespace string
 
@@ -126,6 +129,16 @@ func (c *Config) WithDiscoveryWorkers(workers int) *Config {
 
 func (c *Config) WithDiscoveryTimeout(timeout int) *Config {
 	c.DiscoveryTimeoutSec = timeout
+	return c
+}
+
+func (c *Config) WithDiscoverySamples(discoverySamples int) *Config {
+	c.DiscoverySamples = discoverySamples
+	return c
+}
+
+func (c *Config) WithDiscoverySampleIntervalSec(sampleIntervalSec int) *Config {
+	c.DiscoverySampleIntervalSec = sampleIntervalSec
 	return c
 }
 

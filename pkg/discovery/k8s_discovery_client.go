@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"strings"
 	"time"
 
@@ -24,12 +25,14 @@ const (
 )
 
 type DiscoveryClientConfig struct {
-	probeConfig          *configs.ProbeConfig
-	targetConfig         *configs.K8sTargetConfig
-	ValidationWorkers    int
-	ValidationTimeoutSec int
-	DiscoveryWorkers     int
-	DiscoveryTimeoutSec  int
+	probeConfig                *configs.ProbeConfig
+	targetConfig               *configs.K8sTargetConfig
+	ValidationWorkers          int
+	ValidationTimeoutSec       int
+	DiscoveryWorkers           int
+	DiscoveryTimeoutSec        int
+	DiscoverySamples           int
+	DiscoverySampleIntervalSec int
 	// Strategy to aggregate Container utilization data on ContainerSpec entity
 	containerUtilizationDataAggStrategy string
 	// Strategy to aggregate Container usage data on ContainerSpec entity
@@ -43,7 +46,7 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 	targetConfig *configs.K8sTargetConfig, ValidationWorkers int,
 	ValidationTimeoutSec int, containerUtilizationDataAggStrategy,
 	containerUsageDataAggStrategy string, ormClient *resourcemapping.ORMClient,
-	discoveryWorkers int, discoveryTimeoutMin int) *DiscoveryClientConfig {
+	discoveryWorkers, discoveryTimeoutMin, discoverySamples, discoverySampleIntervalSec int) *DiscoveryClientConfig {
 	if discoveryWorkers < minDiscoveryWorker {
 		glog.Warningf("Invalid number of discovery workers %v, set it to %v.",
 			discoveryWorkers, minDiscoveryWorker)
@@ -65,16 +68,20 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 		ormClient:                           ormClient,
 		DiscoveryWorkers:                    discoveryWorkers,
 		DiscoveryTimeoutSec:                 discoveryTimeoutMin,
+		DiscoverySamples:                    discoverySamples,
+		DiscoverySampleIntervalSec:          discoverySampleIntervalSec,
 	}
 }
 
 // Implements the go sdk discovery client interface
 type K8sDiscoveryClient struct {
-	config            *DiscoveryClientConfig
-	k8sClusterScraper *cluster.ClusterScraper
-	clusterProcessor  *processor.ClusterProcessor
-	dispatcher        *worker.Dispatcher
-	resultCollector   *worker.ResultCollector
+	config                 *DiscoveryClientConfig
+	k8sClusterScraper      *cluster.ClusterScraper
+	clusterProcessor       *processor.ClusterProcessor
+	dispatcher             *worker.Dispatcher
+	samplingDispatcher     *worker.SamplingDispatcher
+	resultCollector        *worker.ResultCollector
+	globalEntityMetricSink *metrics.EntityMetricSink
 }
 
 func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
@@ -83,20 +90,31 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	// for discovery tasks
 	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient,
 		config.ValidationWorkers, config.ValidationTimeoutSec)
+
+	globalEntityMetricSink := metrics.NewEntityMetricSink().WithMaxMetricPointsSize(config.DiscoverySamples)
+
 	// make maxWorkerCount of result collector twice the worker count.
 	resultCollector := worker.NewResultCollector(config.DiscoveryWorkers * 2)
 
 	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
-		config.DiscoveryWorkers, config.DiscoveryTimeoutSec)
-	dispatcher := worker.NewDispatcher(dispatcherConfig)
+		config.DiscoveryWorkers, config.DiscoveryTimeoutSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec)
+	dispatcher := worker.NewDispatcher(dispatcherConfig, globalEntityMetricSink)
 	dispatcher.Init(resultCollector)
 
+	// Create new SamplingDispatcher to assign tasks to collect additional resource usage data samples from kubelet
+	samplingDispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
+		config.DiscoveryWorkers, config.DiscoverySampleIntervalSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec)
+	dataSamplingDispatcher := worker.NewSamplingDispatcher(samplingDispatcherConfig, globalEntityMetricSink)
+	dataSamplingDispatcher.InitSamplingDiscoveryWorkers()
+
 	dc := &K8sDiscoveryClient{
-		config:            config,
-		k8sClusterScraper: k8sClusterScraper,
-		clusterProcessor:  clusterProcessor,
-		dispatcher:        dispatcher,
-		resultCollector:   resultCollector,
+		config:                 config,
+		k8sClusterScraper:      k8sClusterScraper,
+		clusterProcessor:       clusterProcessor,
+		dispatcher:             dispatcher,
+		samplingDispatcher:     dataSamplingDispatcher,
+		resultCollector:        resultCollector,
+		globalEntityMetricSink: globalEntityMetricSink,
 	}
 	return dc
 }
@@ -257,11 +275,19 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	nodes := clusterSummary.NodeList
 	// Call cache cleanup
 	dc.config.probeConfig.NodeClient.CleanupCache(nodes)
+	// Stops scheduling dispatcher to assign sampling discovery tasks.
+	dc.samplingDispatcher.FinishSampling()
 
 	// Discover pods and create DTOs for nodes, namespaces, controllers, pods, containers, application.
-	// Collect the kubePod, kubeNamespace metrics, groups and kubeControllers from all the discovery workers
+	// Merge collected usage data samples from globalEntityMetricSink into the metric sink of each individual discovery worker.
+	// Collect the kubePod, kubeNamespace metrics, groups and kubeControllers from all the discovery workers.
 	taskCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
 	result := dc.resultCollector.Collect(taskCount)
+
+	// Clear globalEntityMetricSink cache after collecting full discovery results
+	dc.globalEntityMetricSink.ClearCache()
+	// Reschedule dispatch sampling discovery tasks for newly discovered nodes
+	dc.samplingDispatcher.ScheduleDispatch(nodes)
 
 	// Namespace discovery worker to create namespace DTOs
 	stitchType := dc.config.probeConfig.StitchingPropertyType

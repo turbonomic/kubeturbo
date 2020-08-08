@@ -81,7 +81,7 @@ func checkPodMetrics(sink *metrics.EntityMetricSink, podMId string, pod *stats.P
 			return fmt.Errorf("Failed to get resource[%v] used value: %v", res, err)
 		}
 
-		value := tmp.GetValue().(float64)
+		value := tmp.GetValue().(metrics.Points)
 		expected := float64(0.0)
 		if res == metrics.CPU {
 			for _, c := range pod.Containers {
@@ -95,7 +95,7 @@ func checkPodMetrics(sink *metrics.EntityMetricSink, podMId string, pod *stats.P
 			expected = util.Base2BytesToKilobytes(expected)
 		}
 
-		if math.Abs(value-expected) > myzero {
+		if math.Abs(value.Values[0]-expected) > myzero {
 			return fmt.Errorf("pod %v used value check failed: %v Vs. %v", res, expected, value)
 		}
 
@@ -116,7 +116,7 @@ func checkContainerMetrics(sink *metrics.EntityMetricSink, containerMId string, 
 			return fmt.Errorf("Failed to get resource[%v] used value: %v", res, err)
 		}
 
-		value := tmp.GetValue().(float64)
+		value := tmp.GetValue().(metrics.Points)
 		expected := float64(0.0)
 		if res == metrics.CPU {
 			expected += float64(*container.CPU.UsageNanoCores)
@@ -126,7 +126,7 @@ func checkContainerMetrics(sink *metrics.EntityMetricSink, containerMId string, 
 			expected = util.Base2BytesToKilobytes(expected)
 		}
 
-		if math.Abs(value-expected) > myzero {
+		if math.Abs(value.Values[0]-expected) > myzero {
 			return fmt.Errorf("container %v used value check failed: %v Vs. %v", res, expected, value)
 		}
 		//fmt.Printf("%v, v=%.4f Vs. %.4f\n", mid, value, expected)
@@ -146,7 +146,7 @@ func checkApplicationMetrics(sink *metrics.EntityMetricSink, appMId string, cont
 			return fmt.Errorf("Failed to get resource[%v] used value: %v", res, err)
 		}
 
-		value := tmp.GetValue().(float64)
+		value := tmp.GetValue().(metrics.Points)
 		expected := float64(0.0)
 		if res == metrics.CPU {
 			expected += float64(*container.CPU.UsageNanoCores)
@@ -156,7 +156,7 @@ func checkApplicationMetrics(sink *metrics.EntityMetricSink, appMId string, cont
 			expected = util.Base2BytesToKilobytes(expected)
 		}
 
-		if math.Abs(value-expected) > myzero {
+		if math.Abs(value.Values[0]-expected) > myzero {
 			return fmt.Errorf("Application %v used value check failed: %v Vs. %v", res, expected, value)
 		}
 		//fmt.Printf("%v, v=%.4f Vs. %.4f\n", mid, value, expected)
@@ -168,7 +168,7 @@ func checkApplicationMetrics(sink *metrics.EntityMetricSink, appMId string, cont
 func TestParseStats(t *testing.T) {
 	conf := &KubeletMonitorConfig{}
 
-	klet, err := NewKubeletMonitor(conf)
+	klet, err := NewKubeletMonitor(conf, true)
 	if err != nil {
 		t.Errorf("Failed to create kubeletMonitor: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestParseStats(t *testing.T) {
 	podstat1 := createPodStat("pod1")
 	podstat2 := createPodStat("pod2")
 	pods := []stats.PodStats{*podstat1, *podstat2}
-	klet.parsePodStats(pods)
+	klet.parsePodStats(pods, 0)
 
 	for _, podstat := range pods {
 		//1. check pod metrics
