@@ -6,12 +6,12 @@ ENV GIT_COMMIT ${GIT_COMMIT}
 ### Atomic/OpenShift Labels - https://github.com/projectatomic/ContainerApplicationGenericLabels
 LABEL name="Hybrid Cloud Container" \
       vendor="Turbonomic" \
-      version="6.4" \
+      version="v7.22.0" \
       release="1" \
       summary="Performance assurance for the applications in Openshift" \
       description="Hybrid Cloud Container leverages Turbonomic control platform, to assure the performance of micro-services running in OpenShift, as well as the efficiency of underlying infrastructure." \
 ### Required labels above - recommended below
-      url="http://www.turbonomic.com" \
+      url="https://www.turbonomic.com" \
       run='docker run -tdi --name ${NAME} vmturbo/kubeturbo:latest' \
       io.k8s.description="Hybrid Cloud Container will monitor and control the entire stack, from OpenShift down to your underlying infrastructure. " \
       io.k8s.display-name="Hybrid Cloud Container" \
