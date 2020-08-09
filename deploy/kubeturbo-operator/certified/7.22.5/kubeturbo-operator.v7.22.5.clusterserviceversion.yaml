@@ -6,7 +6,7 @@ metadata:
     capabilities: Basic Install
     categories: Monitoring
     certified: "false"
-    containerImage: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:59bd48018333ddd2c91c5ec3a6d7cb113904fe344684c7a62b98e26a915cb765
+    containerImage: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:a1374c060ca64c2b054d18cf9072b6381daec2c76da52d7b95fa4e0010f458bb
     createdAt: 2019-05-01T00:00:00.000Z
     description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
     repository: https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo-operator
@@ -181,8 +181,8 @@ spec:
                       - name: OPERATOR_NAME
                         value: kubeturbo-operator
                       - name: RELATED_IMAGE_KUBETURBO
-                        value: registry.connect.redhat.com/turbonomic/kubeturbo@sha256:b07d34c5f47eb162e7bffe87013eec253d966477e27a98e08558660833a68fd5
-                    image: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:2e7673acbb284ea6179e7a3075da3c3a88fc9bcbfa5c645a2e7d0fca58cf0962
+                        value: registry.connect.redhat.com/turbonomic/kubeturbo@sha256:1b0731998cdea2b263cefe3e4c05e41af139d39f3a02a36ac1d1f33739ae0759
+                    image: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:a1374c060ca64c2b054d18cf9072b6381daec2c76da52d7b95fa4e0010f458bb
                     imagePullPolicy: Always
                     name: kubeturbo-operator
                     resources: {}
@@ -208,5 +208,5 @@ spec:
   maturity: alpha
   provider:
     name: Turbonomic, Inc.
-  replaces: kubeturbo-marketplace-operator.v7.22.4
+  replaces: kubeturbo-marketplace-operator.v7.22.3
   version: 7.22.5
