@@ -22,7 +22,8 @@ require (
 	github.com/mitchellh/hashstructure v0.0.0-20170609045927-2bca23e0e452
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
-	github.com/onsi/gomega v0.0.0-20190113212917-5533ce8a0da3 // indirect
+	github.com/onsi/ginkgo v1.6.0
+	github.com/onsi/gomega v0.0.0-20190113212917-5533ce8a0da3
 	github.com/opencontainers/go-digest v1.0.0-rc1
 	github.com/openshift/api v0.0.0-20190508214137-81d064c11ff2
 	github.com/openshift/cluster-api v0.0.0-20190822130419-53b696be18ad

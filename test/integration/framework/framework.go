@@ -68,7 +68,7 @@ func (f *TestFramework) GetKubeConfig() *restclient.Config {
 	return f.Config
 }
 
-func (f *TestFramework) GetKubeClient(userAgent string) kubeclientset.Interface {
+func (f *TestFramework) GetKubeClient(userAgent string) *kubeclientset.Clientset {
 	config := restclient.CopyConfig(f.Config)
 	restclient.AddUserAgent(config, userAgent)
 	return kubeclientset.NewForConfigOrDie(config)
