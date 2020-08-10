@@ -2,9 +2,9 @@ package worker
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"reflect"
 	"testing"
 )
@@ -24,82 +24,94 @@ func Test_k8sContainerSpecDiscoveryWorker_getContainerDataAggregator_defaultStra
 	assert.Equal(t, agg.ContainerUsageDataAggregators[agg.DefaultContainerUsageDataAggStrategy], usageDataAggregator)
 }
 
-func Test_k8sContainerSpecDiscoveryWorker_createContainerSpecMap(t *testing.T) {
+func Test_k8sContainerSpecDiscoveryWorker_createContainerSpecMetricsMap(t *testing.T) {
 	namespace := "namespace"
 	controllerUID := "controllerUID"
 	containerSpecName := "containerSpecName"
 	containerSpecId := "containerSpecId"
-	cpuCommType := proto.CommodityDTO_VCPU
-	memCommType := proto.CommodityDTO_VMEM
-	cpuComm1 := createCommodityDTO(cpuCommType, 1.0, 1.0, 2.0)
-	memComm1 := createCommodityDTO(memCommType, 1.0, 1.0, 2.0)
-	cpuComm2 := createCommodityDTO(cpuCommType, 2.0, 2.0, 3.0)
-	memComm2 := createCommodityDTO(memCommType, 2.0, 2.0, 3.0)
+	cpuResourceType := metrics.CPU
+	memResourceType := metrics.Memory
 
-	// containerSpec1 and containerSpec2 collect of the same ContainerSpec entity from 2 container replicas
-	containerSpec1 := &repository.ContainerSpec{
+	// containerSpecMetrics1 and containerSpecMetrics2 collect metrics of the same ContainerSpec entity from 2 container replicas
+	containerSpecMetrics1 := &repository.ContainerSpecMetrics{
 		Namespace:         namespace,
 		ControllerUID:     controllerUID,
 		ContainerSpecName: containerSpecName,
 		ContainerSpecId:   containerSpecId,
 		ContainerReplicas: 1,
-		ContainerCommodities: map[proto.CommodityDTO_CommodityType][]*proto.CommodityDTO{
-			cpuCommType: {
-				cpuComm1,
+		ContainerMetrics: map[metrics.ResourceType]*repository.ContainerMetrics{
+			cpuResourceType: {
+				Capacity: 2.0,
+				Used: []metrics.Point{
+					createContainerMetricPoint(1.0, 1),
+				},
 			},
-			memCommType: {
-				memComm1,
+			memResourceType: {
+				Capacity: 2.0,
+				Used: []metrics.Point{
+					createContainerMetricPoint(1.0, 1),
+				},
 			},
 		},
 	}
-	containerSpec2 := &repository.ContainerSpec{
+	containerSpecMetrics2 := &repository.ContainerSpecMetrics{
 		Namespace:         namespace,
 		ControllerUID:     controllerUID,
 		ContainerSpecName: containerSpecName,
 		ContainerSpecId:   containerSpecId,
 		ContainerReplicas: 1,
-		ContainerCommodities: map[proto.CommodityDTO_CommodityType][]*proto.CommodityDTO{
-			cpuCommType: {
-				cpuComm2,
+		ContainerMetrics: map[metrics.ResourceType]*repository.ContainerMetrics{
+			cpuResourceType: {
+				Capacity: 2.0,
+				Used: []metrics.Point{
+					createContainerMetricPoint(2.0, 2),
+				},
 			},
-			memCommType: {
-				memComm2,
+			memResourceType: {
+				Capacity: 2.0,
+				Used: []metrics.Point{
+					createContainerMetricPoint(2.0, 2),
+				},
 			},
 		},
 	}
 
-	expectedContainerSpec := repository.ContainerSpec{
+	expectedContainerSpec := &repository.ContainerSpecMetrics{
 		Namespace:         namespace,
 		ControllerUID:     controllerUID,
 		ContainerSpecName: containerSpecName,
 		ContainerSpecId:   containerSpecId,
 		ContainerReplicas: 2,
-		ContainerCommodities: map[proto.CommodityDTO_CommodityType][]*proto.CommodityDTO{
-			cpuCommType: {
-				cpuComm1,
-				cpuComm2,
+		ContainerMetrics: map[metrics.ResourceType]*repository.ContainerMetrics{
+			cpuResourceType: {
+				Capacity: 2.0,
+				Used: []metrics.Point{
+					createContainerMetricPoint(1.0, 1),
+					createContainerMetricPoint(2.0, 2),
+				},
 			},
-			memCommType: {
-				memComm1,
-				memComm2,
+			memResourceType: {
+				Capacity: 2.0,
+				Used: []metrics.Point{
+					createContainerMetricPoint(1.0, 1),
+					createContainerMetricPoint(2.0, 2),
+				},
 			},
 		},
 	}
 
 	worker := &k8sContainerSpecDiscoveryWorker{}
-	containerSpecMap := worker.createContainerSpecMap([]*repository.ContainerSpec{containerSpec1, containerSpec2})
-	containerSpec := *containerSpecMap[containerSpecId]
-	if !reflect.DeepEqual(expectedContainerSpec, containerSpec) {
+	containerSpecMetricsMap := worker.createContainerSpecMetricsMap([]*repository.ContainerSpecMetrics{containerSpecMetrics1, containerSpecMetrics2})
+	containerSpecMetrics := containerSpecMetricsMap[containerSpecId]
+	if !reflect.DeepEqual(expectedContainerSpec, containerSpecMetrics) {
 		t.Errorf("Test case failed: createContainerSpecMap:\nexpected:\n%++v\nactual:\n%++v",
-			expectedContainerSpec, containerSpec)
+			expectedContainerSpec, containerSpecMetrics)
 	}
 }
 
-func createCommodityDTO(commodityType proto.CommodityDTO_CommodityType, used, peak, capacity float64) *proto.CommodityDTO {
-	return &proto.CommodityDTO{
-		CommodityType: &commodityType,
-		Used:          &used,
-		Peak:          &peak,
-		Capacity:      &capacity,
+func createContainerMetricPoint(value float64, timestamp int64) metrics.Point {
+	return metrics.Point{
+		Value:     value,
+		Timestamp: timestamp,
 	}
 }

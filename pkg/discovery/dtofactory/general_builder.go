@@ -194,14 +194,14 @@ func (builder generalBuilder) metricValue(entityType metrics.DiscoveredEntityTyp
 
 	value := metric.GetValue()
 	switch value.(type) {
-	case metrics.Points:
+	case []metrics.Point:
 		var sum float64
 		var peak float64
-		for _, val := range value.(metrics.Points).Values {
-			sum += val
-			peak = math.Max(peak, val)
+		for _, point := range value.([]metrics.Point) {
+			sum += point.Value
+			peak = math.Max(peak, point.Value)
 		}
-		metricValue.Avg = sum / float64(len(value.(metrics.Points).Values))
+		metricValue.Avg = sum / float64(len(value.([]metrics.Point)))
 		metricValue.Peak = peak
 	case float64:
 		metricValue.Avg = value.(float64)

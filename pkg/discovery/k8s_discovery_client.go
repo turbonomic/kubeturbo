@@ -314,7 +314,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	// replicas. ContainerSpec is an entity type which represents a certain type of container replicas deployed by a
 	// K8s controller.
 	containerSpecDiscoveryWorker := worker.NewK8sContainerSpecDiscoveryWorker()
-	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(result.ContainerSpecs, dc.config.containerUtilizationDataAggStrategy,
+	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(result.ContainerSpecMetrics, dc.config.containerUtilizationDataAggStrategy,
 		dc.config.containerUsageDataAggStrategy)
 	if err != nil {
 		glog.Errorf("Failed to discover ContainerSpecs from current Kubernetes cluster with the new discovery framework: %s", err)

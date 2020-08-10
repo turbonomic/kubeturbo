@@ -172,9 +172,11 @@ type ResourceMetric struct {
 	value        interface{}
 }
 
-type Points struct {
-	Values []float64
-	// Time at which the last metric value was appended
+// Data point of a resource metric sample collected from kubelet
+type Point struct {
+	// Resource metric value
+	Value float64
+	// Time at which the metric value is collected
 	Timestamp int64
 }
 
@@ -233,7 +235,7 @@ func (m EntityResourceMetric) UpdateValue(existing interface{}, maxMetricPointsS
 		return m
 	}
 
-	newPoints, isMultiPoint := m.value.(Points)
+	newPoints, isMultiPoint := m.value.([]Point)
 	if !isMultiPoint {
 		m.value = typedExisting.value
 		return m
@@ -241,13 +243,12 @@ func (m EntityResourceMetric) UpdateValue(existing interface{}, maxMetricPointsS
 
 	// The caller should ensure that right type is created and matching
 	// type updated for multi point metrics, else this will CRASH.
-	points := typedExisting.value.(Points)
-	points.Values = append(points.Values, newPoints.Values...)
+	points := typedExisting.value.([]Point)
+	points = append(points, newPoints...)
 	// If points length is larger than maxMetricPointsSize, use latest maxMetricPointsSize of points
-	if len(points.Values) > maxMetricPointsSize {
-		points.Values = points.Values[len(points.Values)-maxMetricPointsSize:]
+	if len(points) > maxMetricPointsSize {
+		points = points[len(points)-maxMetricPointsSize:]
 	}
-	points.Timestamp = newPoints.Timestamp
 	m.value = points
 	return m
 }

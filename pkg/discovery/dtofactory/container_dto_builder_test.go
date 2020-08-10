@@ -2,17 +2,12 @@ package dtofactory
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 
-	"github.com/golang/glog"
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -27,16 +22,9 @@ var (
 	containerNameBar = "bar"
 	cpuUsed          = 1.0
 	cpuCap           = 2.0
-	cpuRequestCap    = 1.5
 	memUsed          = 2.0
 	memCap           = 3.0
-	memRequestCap    = 1.0
 	nodeCpuFrequency = 2048.0
-
-	cpuCommType        = proto.CommodityDTO_VCPU
-	memCommType        = proto.CommodityDTO_VMEM
-	cpuRequestCommType = proto.CommodityDTO_VCPU_REQUEST
-	memRequestCommType = proto.CommodityDTO_VMEM_REQUEST
 
 	testPod = &api.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -57,10 +45,6 @@ var (
 		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameFoo), metrics.Memory, metrics.Used, memUsed)
 	containerFooMemCap = metrics.NewEntityResourceMetric(metrics.ContainerType,
 		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameFoo), metrics.Memory, metrics.Capacity, memCap)
-	containerFooMemRequestUsed = metrics.NewEntityResourceMetric(metrics.ContainerType,
-		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameFoo), metrics.MemoryRequest, metrics.Used, memUsed)
-	containerFooMemRequestCap = metrics.NewEntityResourceMetric(metrics.ContainerType,
-		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameFoo), metrics.MemoryRequest, metrics.Capacity, memRequestCap)
 	containerBarCPUUsed = metrics.NewEntityResourceMetric(metrics.ContainerType,
 		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameBar), metrics.CPU, metrics.Used, cpuUsed)
 	containerBarCPUCap = metrics.NewEntityResourceMetric(metrics.ContainerType,
@@ -69,10 +53,6 @@ var (
 		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameBar), metrics.Memory, metrics.Used, memUsed)
 	containerBarMemCap = metrics.NewEntityResourceMetric(metrics.ContainerType,
 		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameBar), metrics.Memory, metrics.Capacity, memCap)
-	containerBarCPURequestUsed = metrics.NewEntityResourceMetric(metrics.ContainerType,
-		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameBar), metrics.CPURequest, metrics.Used, cpuUsed)
-	containerBarCPURequestCap = metrics.NewEntityResourceMetric(metrics.ContainerType,
-		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameBar), metrics.CPURequest, metrics.Capacity, cpuRequestCap)
 	testCPUFrequency = metrics.NewEntityStateMetric(metrics.NodeType, nodeName, metrics.CpuFrequency, nodeCpuFrequency)
 	ownerUIDMetric   = metrics.NewEntityStateMetric(metrics.PodType, util.PodKeyFunc(testPod), metrics.OwnerUID, controllerUID)
 )
@@ -142,7 +122,7 @@ func Test_containerDTOBuilder_BuildDTOs_layeredOver(t *testing.T) {
 	}
 
 	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink())
-	containerDTOs, _, err := containerDTOBuilder.BuildDTOs([]*api.Pod{testPod})
+	containerDTOs, err := containerDTOBuilder.BuildDTOs([]*api.Pod{testPod})
 
 	assert.Nil(t, err)
 	assert.Equal(t, 2, len(containerDTOs))
@@ -153,77 +133,6 @@ func Test_containerDTOBuilder_BuildDTOs_layeredOver(t *testing.T) {
 			assert.ElementsMatch(t, []string{util.ContainerSpecIdFunc(controllerUID, containerNameBar)}, containerDTO.LayeredOver)
 		}
 	}
-}
-
-func Test_containerDTOBuilder_BuildDTOs_withContainerSpec(t *testing.T) {
-	// Test Pod with OwnerReference (deployed by K8s controller)
-	testPod.OwnerReferences = []metav1.OwnerReference{mockOwnerReference()}
-	testPod.Spec.Containers = []api.Container{
-		mockContainerWithRequests(containerNameFoo, 0, int(memRequestCap)),
-	}
-
-	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink())
-	_, containerSpecs, err := containerDTOBuilder.BuildDTOs([]*api.Pod{testPod})
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(containerSpecs))
-
-	cpuUsedFreq := cpuUsed * nodeCpuFrequency
-	cpuPeakFreq := cpuUsed * nodeCpuFrequency
-	cpuCapFreq := cpuCap * nodeCpuFrequency
-	commNotResizable := false
-	commIsResizable := true
-	expectedContainerSpec := &repository.ContainerSpec{
-		Namespace:         namespace,
-		ControllerUID:     controllerUID,
-		ContainerSpecName: containerNameFoo,
-		ContainerSpecId:   "controller-UID/foo",
-		ContainerIDs:      []string{"pod-UID-0"},
-		ContainerReplicas: 1,
-		ContainerCommodities: map[proto.CommodityDTO_CommodityType][]*proto.CommodityDTO{
-			cpuCommType: {{
-				CommodityType: &cpuCommType,
-				Used:          &cpuUsedFreq,
-				Peak:          &cpuPeakFreq,
-				Capacity:      &cpuCapFreq,
-				Resizable:     &commNotResizable,
-			},
-			},
-			memCommType: {{
-				CommodityType: &memCommType,
-				Used:          &memUsed,
-				Peak:          &memUsed,
-				Capacity:      &memCap,
-				Resizable:     &commNotResizable,
-			},
-			},
-			memRequestCommType: {{
-				CommodityType: &memRequestCommType,
-				Used:          &memUsed,
-				Peak:          &memUsed,
-				Capacity:      &memRequestCap,
-				Resizable:     &commIsResizable,
-			},
-			},
-		},
-	}
-	if !reflect.DeepEqual(expectedContainerSpec, containerSpecs[0]) {
-		t.Errorf("Test case failed: BuildDTOs_withContainerSpec:\nexpected:\n%++v\nactual:\n%++v",
-			expectedContainerSpec, containerSpecs[0])
-	}
-}
-
-func Test_containerDTOBuilder_BuildDTOs_withoutContainerSpec(t *testing.T) {
-	// Test Pod with nil OwnerReference (bare pod deployed without K8s controller)
-	testPod.OwnerReferences = nil
-	testPod.Spec.Containers = []api.Container{
-		mockContainer(containerNameFoo),
-	}
-
-	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink())
-
-	_, containerSpecs, err := containerDTOBuilder.BuildDTOs([]*api.Pod{testPod})
-	assert.Nil(t, err)
-	assert.Equal(t, 0, len(containerSpecs))
 }
 
 func mockOwnerReference() (r metav1.OwnerReference) {
@@ -243,44 +152,9 @@ func mockContainer(name string) api.Container {
 	return container
 }
 
-func mockContainerWithRequests(name string, cpuRequest, memRequest int) api.Container {
-	request, _ := generateResourceList(cpuRequest, memRequest)
-
-	container := api.Container{
-		Name: name,
-		Resources: api.ResourceRequirements{
-			Requests: request,
-		},
-	}
-	return container
-}
-
-func generateResourceList(cpuMillisecond, memMB int) (api.ResourceList, error) {
-	alist := make(api.ResourceList)
-
-	cpuQ, err := resource.ParseQuantity(fmt.Sprintf("%dm", cpuMillisecond))
-	if err != nil {
-		glog.Errorf("failed to parse cpu Quantity: %v", err)
-		return alist, err
-	}
-	memQ, err := resource.ParseQuantity(fmt.Sprintf("%dMi", memMB))
-	if err != nil {
-		glog.Errorf("failed to parse memory Quantity: %v", err)
-		return alist, err
-	}
-
-	alist[api.ResourceCPU] = cpuQ
-	alist[api.ResourceMemory] = memQ
-
-	return alist, nil
-}
-
 func mockMetricsSink() *metrics.EntityMetricSink {
 	metricsSink = metrics.NewEntityMetricSink()
 	metricsSink.AddNewMetricEntries(containerFooCPUUsed, containerFooMemUsed, containerFooCPUCap, containerFooMemCap,
-		containerFooMemRequestUsed, containerFooMemRequestCap,
-		containerBarCPUUsed, containerBarCPUCap, containerBarMemUsed, containerBarMemCap,
-		containerBarCPURequestUsed, containerBarCPURequestCap,
-		testCPUFrequency, ownerUIDMetric)
+		containerBarCPUUsed, containerBarCPUCap, containerBarMemUsed, containerBarMemCap, testCPUFrequency, ownerUIDMetric)
 	return metricsSink
 }

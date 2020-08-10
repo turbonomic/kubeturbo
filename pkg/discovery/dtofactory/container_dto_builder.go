@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 
 	"github.com/golang/glog"
@@ -93,9 +92,8 @@ func (builder *containerDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, 
 	return cpuFrequency, nil
 }
 
-func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityDTO, []*repository.ContainerSpec, error) {
+func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
-	var containerSpecList []*repository.ContainerSpec
 
 	for _, pod := range pods {
 		nodeCPUFrequency, err := builder.getNodeCPUFrequency(pod)
@@ -123,21 +121,11 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 			name := util.ContainerNameFunc(pod, container)
 			ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER, containerId).DisplayName(name)
 
-			// Create ContainerSpec object to collect VCPU and VMem commodities sold data of each individual container
-			// replica for a ContainerSpec entity. ContainerSpec entity which represents a certain type of container
-			// replicas deployed by a K8s controller.
-			var containerSpec *repository.ContainerSpec
 			if controllerUID != "" {
-				// Create ContainerSpec only when controller is available from Pod
-				containerSpecId := util.ContainerSpecIdFunc(controllerUID, container.Name)
-				containerSpec = repository.NewContainerSpec(pod.Namespace, controllerUID, container.Name,
-					containerSpecId)
-				containerSpec.AddContainerUID(containerId)
-				containerSpecList = append(containerSpecList, containerSpec)
-
 				// To connect Container to ContainerSpec entity, Container is LayeredOver by the associated ContainerSpec.
 				// The platform will translate this into the following relation:
 				// ContainerSpec aggregates Containers
+				containerSpecId := util.ContainerSpecIdFunc(controllerUID, container.Name)
 				ebuilder.LayeredOver([]string{containerSpecId})
 			}
 
@@ -159,7 +147,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 				glog.V(4).Infof("Container[%s] has no request set for Memory", name)
 			}
 			commoditiesSold, err := builder.getCommoditiesSold(name, containerId, containerMId, nodeCPUFrequency,
-				isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet, containerSpec)
+				isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet)
 			if err != nil {
 				glog.Errorf("failed to create commoditiesSold for container[%s]: %v", name, err)
 				continue
@@ -200,13 +188,12 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 		}
 	}
 
-	return result, containerSpecList, nil
+	return result, nil
 }
 
 // vCPU, vMem, vCPURequest, vMemRequest and Application are sold by Container.
-// Store vCPU and vMem commodity DTOs of each container to ContainerSpec.
 func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerId, containerMId string, cpuFrequency float64,
-	isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet bool, containerSpec *repository.ContainerSpec) ([]*proto.CommodityDTO, error) {
+	isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet bool) ([]*proto.CommodityDTO, error) {
 
 	var result []*proto.CommodityDTO
 	containerEntityType := metrics.ContainerType
@@ -246,7 +233,6 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 			return nil, err
 		}
 		result = append(result, cpuRequestCommodities...)
-		commodities = append(commodities, cpuRequestCommodities...)
 	}
 
 	//1d. vMemRequest
@@ -257,21 +243,6 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 			return nil, err
 		}
 		result = append(result, memRequestCommodities...)
-		commodities = append(commodities, memRequestCommodities...)
-	}
-
-	if containerSpec != nil {
-		// Store container VCPU, VMem, VCPURequest (if present), and VMemRequest (if present),
-		// commodity DTOs to ContainerSpec if ContainerSpec is not nil
-		for _, commodityDTO := range commodities {
-			containerCommodities, exists := containerSpec.ContainerCommodities[*commodityDTO.CommodityType]
-			if !exists {
-				containerCommodities = []*proto.CommodityDTO{}
-			}
-			// Store VCPU and VMem commodity DTOs to ContainerSpec
-			containerCommodities = append(containerCommodities, commodityDTO)
-			containerSpec.ContainerCommodities[*commodityDTO.CommodityType] = containerCommodities
-		}
 	}
 
 	//2. Application
