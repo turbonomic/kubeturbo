@@ -13,16 +13,16 @@ func Test_allUtilizationDataAggregator_Aggregate(t *testing.T) {
 		containerMetrics    *repository.ContainerMetrics
 		points              []float64
 		lastPointTimestamp  int64
-		samplingDuration    int32
+		dataInterval        int32
 		wantErr             bool
 	}{
 		{
 			name:                "test aggregate all utilization data",
 			aggregationStrategy: "all utilization data strategy",
 			containerMetrics:    testContainerMetrics,
-			points:              []float64{25.0, 75.0},
-			lastPointTimestamp:  2,
-			samplingDuration:    1,
+			points:              []float64{25.0, 75.0, 50.0},
+			lastPointTimestamp:  3,
+			dataInterval:        1,
 			wantErr:             false,
 		},
 		{
@@ -31,7 +31,7 @@ func Test_allUtilizationDataAggregator_Aggregate(t *testing.T) {
 			containerMetrics:    emptyContainerMetrics,
 			points:              []float64{},
 			lastPointTimestamp:  0,
-			samplingDuration:    0,
+			dataInterval:        0,
 			wantErr:             true,
 		},
 	}
@@ -40,7 +40,7 @@ func Test_allUtilizationDataAggregator_Aggregate(t *testing.T) {
 			allDataAggregator := &allUtilizationDataAggregator{
 				aggregationStrategy: tt.aggregationStrategy,
 			}
-			points, lastPointTimestamp, samplingDuration, err := allDataAggregator.Aggregate(tt.containerMetrics)
+			points, lastPointTimestamp, dataInterval, err := allDataAggregator.Aggregate(tt.containerMetrics)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Aggregate() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -51,8 +51,8 @@ func Test_allUtilizationDataAggregator_Aggregate(t *testing.T) {
 			if lastPointTimestamp != tt.lastPointTimestamp {
 				t.Errorf("Aggregate() lastPointTimestamp = %v, want %v", lastPointTimestamp, tt.lastPointTimestamp)
 			}
-			if samplingDuration != tt.samplingDuration {
-				t.Errorf("Aggregate() samplingDuration = %v, want %v", samplingDuration, tt.samplingDuration)
+			if dataInterval != tt.dataInterval {
+				t.Errorf("Aggregate() dataInterval = %v, want %v", dataInterval, tt.dataInterval)
 			}
 		})
 	}
@@ -65,7 +65,7 @@ func Test_maxUtilizationDataAggregator_Aggregate(t *testing.T) {
 		containerMetrics    *repository.ContainerMetrics
 		points              []float64
 		lastPointTimestamp  int64
-		samplingDuration    int32
+		dataInterval        int32
 		wantErr             bool
 	}{
 		{
@@ -73,8 +73,8 @@ func Test_maxUtilizationDataAggregator_Aggregate(t *testing.T) {
 			aggregationStrategy: "max utilization data strategy",
 			containerMetrics:    testContainerMetrics,
 			points:              []float64{75.0},
-			lastPointTimestamp:  2,
-			samplingDuration:    0,
+			lastPointTimestamp:  3,
+			dataInterval:        0,
 			wantErr:             false,
 		},
 		{
@@ -83,7 +83,7 @@ func Test_maxUtilizationDataAggregator_Aggregate(t *testing.T) {
 			containerMetrics:    emptyContainerMetrics,
 			points:              []float64{},
 			lastPointTimestamp:  0,
-			samplingDuration:    0,
+			dataInterval:        0,
 			wantErr:             true,
 		},
 	}
@@ -92,7 +92,7 @@ func Test_maxUtilizationDataAggregator_Aggregate(t *testing.T) {
 			maxDataAggregator := &maxUtilizationDataAggregator{
 				aggregationStrategy: tt.aggregationStrategy,
 			}
-			points, lastPointTimestamp, samplingDuration, err := maxDataAggregator.Aggregate(tt.containerMetrics)
+			points, lastPointTimestamp, dataInterval, err := maxDataAggregator.Aggregate(tt.containerMetrics)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Aggregate() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -103,8 +103,8 @@ func Test_maxUtilizationDataAggregator_Aggregate(t *testing.T) {
 			if lastPointTimestamp != tt.lastPointTimestamp {
 				t.Errorf("Aggregate() lastPointTimestamp = %v, want %v", lastPointTimestamp, tt.lastPointTimestamp)
 			}
-			if samplingDuration != tt.samplingDuration {
-				t.Errorf("Aggregate() samplingDuration = %v, want %v", samplingDuration, tt.samplingDuration)
+			if dataInterval != tt.dataInterval {
+				t.Errorf("Aggregate() dataInterval = %v, want %v", dataInterval, tt.dataInterval)
 			}
 		})
 	}

@@ -59,8 +59,12 @@ func (allDataAggregator *allUtilizationDataAggregator) Aggregate(resourceMetrics
 		}
 		lastTimestamp = int64(math.Max(float64(lastTimestamp), float64(usedPoint.Timestamp)))
 	}
-	samplingDuration := int32(lastTimestamp - firstTimestamp)
-	return utilizationDataPoints, lastTimestamp, samplingDuration, nil
+	// Calculate interval between data points
+	var dataInterval int32
+	if len(utilizationDataPoints) > 1 {
+		dataInterval = int32(lastTimestamp-firstTimestamp) / int32(len(utilizationDataPoints)-1)
+	}
+	return utilizationDataPoints, lastTimestamp, dataInterval, nil
 }
 
 // ---------------- Max utilization data aggregation strategy ----------------

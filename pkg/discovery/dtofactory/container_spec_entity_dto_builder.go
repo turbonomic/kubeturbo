@@ -78,22 +78,18 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 		}
 		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(commodityType)
 
-		// Aggregate container replicas utilization data
-		utilizationDataPoints, lastPointTimestamp, samplingDuration, err := builder.containerUtilizationDataAggregator.Aggregate(resourceMetrics)
+		// Aggregate container replicas utilization data.
+		// Note that the returned dataInterval is not the real sampling interval because there could be multiple data
+		// points from container replicas discovered at the same time in one set of data samples. This is just a calculated
+		// equivalent interval to be fed into percentile based algorithm in Turbo server side.
+		utilizationDataPoints, lastPointTimestamp, dataInterval, err := builder.containerUtilizationDataAggregator.Aggregate(resourceMetrics)
 		if err != nil {
 			glog.Errorf("Error aggregating %s utilization data for ContainerSpec %s, %v",
 				resourceType, containerSpecMetrics.ContainerSpecId, err)
 			continue
 		}
-		// Calculate interval between data points. Note that this is not the real sampling interval because there could
-		// be multiple data points from container replicas discovered at the same time in one set of data samples. This
-		// is to just calculate an equivalent interval to be fed into percentile based algorithm in Turbo server side.
-		var interval int32
-		if len(utilizationDataPoints) > 1 {
-			interval = samplingDuration / int32(len(utilizationDataPoints)-1)
-		}
 		// Construct UtilizationData with multiple data points, last point timestamp in milliseconds and interval in milliseconds
-		commSoldBuilder.UtilizationData(utilizationDataPoints, lastPointTimestamp, interval)
+		commSoldBuilder.UtilizationData(utilizationDataPoints, lastPointTimestamp, dataInterval)
 
 		// Aggregate container replicas usage data (capacity, used and peak)
 		aggregatedCap, aggregatedUsed, aggregatedPeak, err :=

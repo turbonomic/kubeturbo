@@ -141,6 +141,7 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 		}
 	}
 
+	// TODO Use time stamp attached to the discovered CPUStats/MemoryStats of node and pod from kubelet to be more precise
 	currentMilliSec := time.Now().UnixNano() / int64(time.Millisecond)
 	m.parseNodeStats(summary.Node, currentMilliSec)
 	m.parsePodStats(summary.Pods, currentMilliSec)
