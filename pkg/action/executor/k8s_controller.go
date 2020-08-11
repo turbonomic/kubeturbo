@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 
 	apicorev1 "k8s.io/api/core/v1"
@@ -26,8 +27,9 @@ type k8sController interface {
 // - podSpec: The pod template of a controller to update for consistent resize
 // Note: Use pointer for in-place update
 type k8sControllerSpec struct {
-	replicas *int32
-	podSpec  *apicorev1.PodSpec
+	replicas       *int32
+	podSpec        *apicorev1.PodSpec
+	controllerName string
 }
 
 type parentController struct {
@@ -63,8 +65,9 @@ func (c *parentController) get(name string) (*k8sControllerSpec, error) {
 	c.obj = obj
 	int32Replicas := int32(replicas)
 	return &k8sControllerSpec{
-		replicas: &int32Replicas,
-		podSpec:  &podSpec,
+		replicas:       &int32Replicas,
+		podSpec:        &podSpec,
+		controllerName: fmt.Sprintf("%s-%s", kind, objName),
 	}, nil
 }
 
