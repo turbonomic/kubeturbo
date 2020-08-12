@@ -24,8 +24,8 @@ var (
 type ContainerUtilizationDataAggregator interface {
 	String() string
 	// Aggregate aggregates commodities utilization data based on the given aggregation strategy and ContainerMetrics with
-	// capacity value and multiple usage data points, and returns aggregated utilization data points, last point timestamp
-	// and duration of collecting given metrics points (difference between last timestamp and first timestamp).
+	// capacity value and multiple usage data points. This returns aggregated utilization data points, last point timestamp
+	// in milliseconds and calculated interval between 2 data points in milliseconds.
 	Aggregate(resourceMetrics *repository.ContainerMetrics) ([]float64, int64, int32, error)
 }
 
@@ -57,14 +57,16 @@ func (allDataAggregator *allUtilizationDataAggregator) Aggregate(resourceMetrics
 		if firstTimestamp == 0 || usedPoint.Timestamp < firstTimestamp {
 			firstTimestamp = usedPoint.Timestamp
 		}
-		lastTimestamp = int64(math.Max(float64(lastTimestamp), float64(usedPoint.Timestamp)))
+		if usedPoint.Timestamp > lastTimestamp {
+			lastTimestamp = usedPoint.Timestamp
+		}
 	}
 	// Calculate interval between data points
-	var dataInterval int32
+	var dataIntervalMs int32
 	if len(utilizationDataPoints) > 1 {
-		dataInterval = int32(lastTimestamp-firstTimestamp) / int32(len(utilizationDataPoints)-1)
+		dataIntervalMs = int32(lastTimestamp-firstTimestamp) / int32(len(utilizationDataPoints)-1)
 	}
-	return utilizationDataPoints, lastTimestamp, dataInterval, nil
+	return utilizationDataPoints, lastTimestamp, dataIntervalMs, nil
 }
 
 // ---------------- Max utilization data aggregation strategy ----------------
@@ -91,7 +93,9 @@ func (maxDataAggregator *maxUtilizationDataAggregator) Aggregate(resourceMetrics
 	for _, usedPoint := range resourceMetrics.Used {
 		utilization := usedPoint.Value / capacity * 100
 		maxUtilization = math.Max(utilization, maxUtilization)
-		lastTimestamp = int64(math.Max(float64(lastTimestamp), float64(usedPoint.Timestamp)))
+		if usedPoint.Timestamp > lastTimestamp {
+			lastTimestamp = usedPoint.Timestamp
+		}
 	}
 	return []float64{maxUtilization}, lastTimestamp, 0, nil
 }

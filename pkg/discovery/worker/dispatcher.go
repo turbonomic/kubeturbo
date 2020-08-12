@@ -11,7 +11,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	api "k8s.io/api/core/v1"
-	"math"
 	"time"
 )
 
@@ -162,7 +161,12 @@ func (d *SamplingDispatcher) ScheduleDispatch(nodes []*api.Node) {
 			select {
 			case <-d.samplingDone:
 				elapsedTime := time.Now().Sub(d.timestamp).Seconds()
-				samples := int(math.Min(float64(d.config.samples), float64(d.collectedSamples)))
+				var samples int
+				if d.config.samples < d.collectedSamples {
+					samples = d.config.samples
+				} else {
+					samples = d.collectedSamples
+				}
 				glog.V(2).Infof("Collected %v usage data samples from kubelet in %v seconds since last full discovery.", samples, elapsedTime)
 				d.collectedSamples = 0
 				return

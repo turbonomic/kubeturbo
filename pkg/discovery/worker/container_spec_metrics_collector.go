@@ -125,13 +125,22 @@ func (collector *ContainerSpecMetricsCollector) getResourceMetricValue(container
 	switch resourceMetric.GetValue().(type) {
 	case []metrics.Point:
 		metricPoints, _ := resourceMetric.GetValue().([]metrics.Point)
-		if metrics.IsCPUType(rType) {
-			// If resource is CPU type, convert values expressed in number of cores to MHz
-			for i := range metricPoints {
-				metricPoints[i].Value *= nodeCPUFrequency
+		// Create new metricPoints instead of modifying existing metricPoints values if it's CPU type.
+		// This will guarantee the data stored in metrics sink have original values when building container dtos.
+		newMetricPoints := make([]metrics.Point, len(metricPoints))
+		isCPUType := metrics.IsCPUType(rType)
+		for i := range metricPoints {
+			value := metricPoints[i].Value
+			if isCPUType {
+				// If resource is CPU type, convert values expressed in number of cores to MHz
+				value *= nodeCPUFrequency
+			}
+			newMetricPoints[i] = metrics.Point{
+				Value:     value,
+				Timestamp: metricPoints[i].Timestamp,
 			}
 		}
-		return metricPoints, nil
+		return newMetricPoints, nil
 	case float64:
 		metricValue := resourceMetric.GetValue().(float64)
 		if metrics.IsCPUType(rType) {

@@ -67,10 +67,8 @@ func (maxUsageDataAggregator *maxUsageDataAggregator) Aggregate(resourceMetrics 
 		return 0.0, 0.0, 0.0, err
 	}
 	maxUsed := 0.0
-	peak := 0.0
 	for _, usedPoint := range resourceMetrics.Used {
 		maxUsed = math.Max(maxUsed, usedPoint.Value)
-		peak = math.Max(peak, usedPoint.Value)
 	}
-	return resourceMetrics.Capacity, maxUsed, peak, nil
+	return resourceMetrics.Capacity, maxUsed, maxUsed, nil
 }
