@@ -2,7 +2,7 @@ package aggregation
 
 import (
 	"fmt"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"math"
 )
 
@@ -23,9 +23,10 @@ var (
 // ContainerUtilizationDataAggregator interface represents a type of container utilization data aggregator
 type ContainerUtilizationDataAggregator interface {
 	String() string
-	// Aggregate aggregates commodities utilization data based on the given list of commodity DTOs of a commodity type
-	// and aggregation strategy, and returns aggregated utilization data points.
-	Aggregate(commodities []*proto.CommodityDTO) ([]float64, error)
+	// Aggregate aggregates commodities utilization data based on the given aggregation strategy and ContainerMetrics with
+	// capacity value and multiple usage data points. This returns aggregated utilization data points, last point timestamp
+	// in milliseconds and calculated interval between 2 data points in milliseconds.
+	Aggregate(resourceMetrics *repository.ContainerMetrics) ([]float64, int64, int32, error)
 }
 
 // ---------------- All utilization data aggregation strategy ----------------
@@ -37,24 +38,35 @@ func (allDataAggregator *allUtilizationDataAggregator) String() string {
 	return allDataAggregator.aggregationStrategy
 }
 
-func (allDataAggregator *allUtilizationDataAggregator) Aggregate(commodities []*proto.CommodityDTO) ([]float64, error) {
-	if len(commodities) == 0 {
-		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty", allDataAggregator)
-		return []float64{}, err
+func (allDataAggregator *allUtilizationDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) ([]float64, int64, int32, error) {
+	if len(resourceMetrics.Used) == 0 {
+		err := fmt.Errorf("error aggregating container utilization data using %s: used data points list is empty", allDataAggregator)
+		return []float64{}, 0, 0, err
+	}
+	capacity := resourceMetrics.Capacity
+	if capacity == 0.0 {
+		err := fmt.Errorf("error aggregating container utilization data using %s: capacity is 0", allDataAggregator)
+		return []float64{}, 0, 0, err
 	}
 	var utilizationDataPoints []float64
-	for _, commodity := range commodities {
-		used := *commodity.Used
-		capacity := *commodity.Capacity
-		if capacity == 0.0 {
-			err := fmt.Errorf("error to aggregate %s commodities using %s : capacity is 0", commodity.CommodityType,
-				allDataAggregator)
-			return []float64{}, err
-		}
-		utilization := used / capacity * 100
+	var firstTimestamp int64
+	var lastTimestamp int64
+	for _, usedPoint := range resourceMetrics.Used {
+		utilization := usedPoint.Value / capacity * 100
 		utilizationDataPoints = append(utilizationDataPoints, utilization)
+		if firstTimestamp == 0 || usedPoint.Timestamp < firstTimestamp {
+			firstTimestamp = usedPoint.Timestamp
+		}
+		if usedPoint.Timestamp > lastTimestamp {
+			lastTimestamp = usedPoint.Timestamp
+		}
 	}
-	return utilizationDataPoints, nil
+	// Calculate interval between data points
+	var dataIntervalMs int32
+	if len(utilizationDataPoints) > 1 {
+		dataIntervalMs = int32(lastTimestamp-firstTimestamp) / int32(len(utilizationDataPoints)-1)
+	}
+	return utilizationDataPoints, lastTimestamp, dataIntervalMs, nil
 }
 
 // ---------------- Max utilization data aggregation strategy ----------------
@@ -66,22 +78,24 @@ func (maxDataAggregator *maxUtilizationDataAggregator) String() string {
 	return maxDataAggregator.aggregationStrategy
 }
 
-func (maxDataAggregator *maxUtilizationDataAggregator) Aggregate(commodities []*proto.CommodityDTO) ([]float64, error) {
-	if len(commodities) == 0 {
-		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty", maxDataAggregator)
-		return []float64{}, err
+func (maxDataAggregator *maxUtilizationDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) ([]float64, int64, int32, error) {
+	if len(resourceMetrics.Used) == 0 {
+		err := fmt.Errorf("error aggregating container utilization data using %s: used data points list is empty", maxDataAggregator)
+		return []float64{}, 0, 0, err
 	}
-	maxUtilization := 0.0
-	for _, commodity := range commodities {
-		used := *commodity.Used
-		capacity := *commodity.Capacity
-		if capacity == 0.0 {
-			err := fmt.Errorf("error to aggregate %s commodities using %s : capacity is 0", commodity.CommodityType,
-				maxDataAggregator)
-			return []float64{}, err
-		}
-		utilization := used / capacity * 100
+	var maxUtilization float64
+	var lastTimestamp int64
+	capacity := resourceMetrics.Capacity
+	if capacity == 0.0 {
+		err := fmt.Errorf("error aggregating container utilization data using %s: capacity is 0", maxDataAggregator)
+		return []float64{}, 0, 0, err
+	}
+	for _, usedPoint := range resourceMetrics.Used {
+		utilization := usedPoint.Value / capacity * 100
 		maxUtilization = math.Max(utilization, maxUtilization)
+		if usedPoint.Timestamp > lastTimestamp {
+			lastTimestamp = usedPoint.Timestamp
+		}
 	}
-	return []float64{maxUtilization}, nil
+	return []float64{maxUtilization}, lastTimestamp, 0, nil
 }

@@ -136,11 +136,12 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 		} else {
 			// It's a valid case if a node is available from the full discovery but not available during sampling discoveries.
 			// Need to wait for a full discovery to fetch the available nodes.
-			glog.Warningf("Failed to get resource metrics summary sample from %s. Waiting for the next full discovery: %s", node.Name, err)
+			glog.Warningf("Failed to get resource metrics summary sample from %s. Waiting for the next full discovery.", node.Name)
 			return
 		}
 	}
 
+	// TODO Use time stamp attached to the discovered CPUStats/MemoryStats of node and pod from kubelet to be more precise
 	currentMilliSec := time.Now().UnixNano() / int64(time.Millisecond)
 	m.parseNodeStats(summary.Node, currentMilliSec)
 	m.parsePodStats(summary.Pods, currentMilliSec)
@@ -264,14 +265,15 @@ func (m *KubeletMonitor) genUsedMetrics(etype metrics.DiscoveredEntityType, key 
 	// Pass timestamp as parameter instead of generating a new timestamp here to make sure timestamp is same for all
 	// corresponding metrics which are scraped from kubelet at the same time
 	cpuMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPU, metrics.Used,
-		metrics.Points{
-			Values:    []float64{cpu},
+		[]metrics.Point{{
+			Value:     cpu,
 			Timestamp: timestamp,
-		})
-	memMetric := metrics.NewEntityResourceMetric(etype, key, metrics.Memory, metrics.Used, metrics.Points{
-		Values:    []float64{memory},
-		Timestamp: timestamp,
-	})
+		}})
+	memMetric := metrics.NewEntityResourceMetric(etype, key, metrics.Memory, metrics.Used,
+		[]metrics.Point{{
+			Value:     memory,
+			Timestamp: timestamp,
+		}})
 	m.metricSink.AddNewMetricEntries(cpuMetric, memMetric)
 }
 
@@ -280,15 +282,15 @@ func (m *KubeletMonitor) genRequestUsedMetrics(etype metrics.DiscoveredEntityTyp
 	// Pass timestamp as parameter instead of generating a new timestamp here to make sure timestamp is same for all
 	// corresponding metrics which are scraped from kubelet at the same time
 	cpuRequestMetric := metrics.NewEntityResourceMetric(etype, key, metrics.CPURequest, metrics.Used,
-		metrics.Points{
-			Values:    []float64{cpu},
+		[]metrics.Point{{
+			Value:     cpu,
 			Timestamp: timestamp,
-		})
+		}})
 	memRequestMetric := metrics.NewEntityResourceMetric(etype, key, metrics.MemoryRequest, metrics.Used,
-		metrics.Points{
-			Values:    []float64{memory},
+		[]metrics.Point{{
+			Value:     memory,
 			Timestamp: timestamp,
-		})
+		}})
 	m.metricSink.AddNewMetricEntries(cpuRequestMetric, memRequestMetric)
 }
 

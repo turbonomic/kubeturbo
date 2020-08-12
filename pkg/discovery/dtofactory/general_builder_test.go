@@ -197,20 +197,20 @@ func TestMetricValueWithMultiplePoints(t *testing.T) {
 	metricsSink = metrics.NewEntityMetricSink().WithMaxMetricPointsSize(3)
 	containerId := "container"
 	cpuUsedMetric1 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.CPU, metrics.Used,
-		metrics.Points{
-			Values:    []float64{2},
-			Timestamp: 0,
-		})
-	cpuUsedMetric2 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.CPU, metrics.Used,
-		metrics.Points{
-			Values:    []float64{4},
+		[]metrics.Point{{
+			Value:     2,
 			Timestamp: 1,
-		})
-	cpuUsedMetric3 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.CPU, metrics.Used,
-		metrics.Points{
-			Values:    []float64{3},
+		}})
+	cpuUsedMetric2 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.CPU, metrics.Used,
+		[]metrics.Point{{
+			Value:     4,
 			Timestamp: 2,
-		})
+		}})
+	cpuUsedMetric3 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.CPU, metrics.Used,
+		[]metrics.Point{{
+			Value:     3,
+			Timestamp: 3,
+		}})
 	metricsSink.AddNewMetricEntries(cpuUsedMetric1)
 	metricsSink.UpdateMetricEntry(cpuUsedMetric2)
 	metricsSink.UpdateMetricEntry(cpuUsedMetric3)

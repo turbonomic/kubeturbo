@@ -138,7 +138,7 @@ func (collector *ControllerMetricsCollector) updateQuotaResourcesUsed(kubeContro
 		if metrics.IsCPUType(resourceType) {
 			// For CPU resources, convert the usage values expressed in cores to MHz based on the CPU frequency of the
 			// corresponding node where the given pod is located
-			cpuFrequency, err := collector.getNodeCPUFrequency(pod)
+			cpuFrequency, err := util.GetNodeCPUFrequency(util.NodeKeyFromPodFunc(pod), collector.metricsSink)
 			if err != nil {
 				glog.Errorf("Error getting node cpuFrequency from pod %s: %v", podKey, err)
 				continue
@@ -160,17 +160,4 @@ func (collector *ControllerMetricsCollector) updateQuotaResourcesUsed(kubeContro
 		}
 		existingResource.Used += resourceUsed
 	}
-}
-
-// Get hosting node CPU frequency.
-func (collector *ControllerMetricsCollector) getNodeCPUFrequency(pod *api.Pod) (float64, error) {
-	key := util.NodeKeyFromPodFunc(pod)
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
-	cpuFrequencyMetric, err := collector.metricsSink.GetMetric(cpuFrequencyUID)
-	if err != nil {
-		err := fmt.Errorf("failed to get cpu frequency from sink for node %s: %v", key, err)
-		return 0.0, err
-	}
-	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
-	return cpuFrequency, nil
 }

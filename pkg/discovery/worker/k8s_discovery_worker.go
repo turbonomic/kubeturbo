@@ -267,12 +267,20 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
 
+	// Collect container replicas metrics with resource capacity value and multiple resource usage data points in
+	// ContainerSpecMetrics list
+	containerSpecMetricsCollector := NewContainerSpecMetricsCollector(worker.sink, currTask.PodList())
+	containerSpecMetricsList, err := containerSpecMetricsCollector.CollectContainerSpecMetrics()
+	if err != nil {
+		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
+	}
+
 	// Build Entity groups
 	groupsCollector := NewGroupMetricsCollector(worker, currTask)
 	entityGroups, _ := groupsCollector.CollectGroupMetrics()
 
 	// Build DTOs after getting the metrics
-	entityDTOs, podsWithDtos, containerSpecs, err := worker.buildDTOs(currTask)
+	entityDTOs, podsWithDtos, err := worker.buildDTOs(currTask)
 	if err != nil {
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
@@ -303,9 +311,9 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	if len(kubeControllers) > 0 {
 		result.WithKubeControllers(kubeControllers)
 	}
-	// Return ContainerSpec with each individual container replica commodities data created by this worker
-	if len(containerSpecs) > 0 {
-		result.WithContainerSpecs(containerSpecs)
+	// Return ContainerSpecMetricsList with each individual container replica resource metrics data created by this worker
+	if len(containerSpecMetricsList) > 0 {
+		result.WithContainerSpecMetrics(containerSpecMetricsList)
 	}
 	return result
 }
@@ -342,9 +350,7 @@ func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection P
 
 // ================================================================================================
 // Build DTOs for nodes, pods, containers
-// And return a slice of ContainerSpec objects sent by this discovery worker to be used to build ContainerSpec entityDTOs
-// in the new discovery framework in k8s_discovery_client
-func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*api.Pod, []*repository.ContainerSpec, error) {
+func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*api.Pod, error) {
 	var result []*proto.EntityDTO
 
 	// 0. setUp nodeName to nodeId mapping
@@ -398,7 +404,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 
 	// 3. build entityDTOs for containers
 	containerDTOBuilder := dtofactory.NewContainerDTOBuilder(worker.sink)
-	containerDTOs, containerSpecs, err := containerDTOBuilder.BuildDTOs(pods)
+	containerDTOs, err := containerDTOBuilder.BuildDTOs(pods)
 	// util.DumpTopology(containerDTOs, "test-topology.dat")
 	if err != nil {
 		glog.Errorf("Error while creating container entityDTOs: %v", err)
@@ -408,9 +414,8 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 
 	glog.V(2).Infof("Worker %s built total %d entityDTOs.", worker.id, len(result))
 
-	// Return the DTOs created, also return the list of pods with valid DTOs and list of containerSpecs with VCPU and VMem
-	// commodity DTOs sold by container replicas
-	return result, pods, containerSpecs, nil
+	// Return the DTOs created, also return the list of pods with valid DTOs
+	return result, pods, nil
 }
 
 // Build App DTOs using the list of pods with valid DTOs

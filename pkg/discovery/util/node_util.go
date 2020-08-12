@@ -3,6 +3,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"strings"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
@@ -117,4 +118,16 @@ func DetectHARole(node *api.Node) bool {
 		glog.V(2).Infof("%s is a HA node and will be marked Non Suspendable.", node.Name)
 	}
 	return isHANode
+}
+
+// GetNodeCPUFrequency gets hosting node CPU frequency from EntityMetricSink.
+func GetNodeCPUFrequency(nodeName string, metricsSink *metrics.EntityMetricSink) (float64, error) {
+	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, nodeName, metrics.CpuFrequency)
+	cpuFrequencyMetric, err := metricsSink.GetMetric(cpuFrequencyUID)
+	if err != nil {
+		err := fmt.Errorf("failed to get cpu frequency from sink for node %s: %v", nodeName, err)
+		return 0.0, err
+	}
+	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
+	return cpuFrequency, nil
 }

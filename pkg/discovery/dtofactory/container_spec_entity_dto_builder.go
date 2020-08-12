@@ -2,37 +2,36 @@ package dtofactory
 
 import (
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	"time"
 )
 
 var (
-	ContainerSpecCommoditiesSold = []proto.CommodityDTO_CommodityType{
-		proto.CommodityDTO_VCPU,
-		proto.CommodityDTO_VMEM,
-		proto.CommodityDTO_VCPU_REQUEST,
-		proto.CommodityDTO_VMEM_REQUEST,
+	ContainerSpecResourceTypes = []metrics.ResourceType{
+		metrics.CPU,
+		metrics.Memory,
+		metrics.CPURequest,
+		metrics.MemoryRequest,
 	}
 )
 
 type containerSpecDTOBuilder struct {
-	// Map from ContainerSpec ID to ContainerSpec entity which contains list of individual container replica commodities
-	// data to be aggregated
-	containerSpecMap map[string]*repository.ContainerSpec
+	// Map from ContainerSpec ID to ContainerSpecMetrics which contains list of container replicas usage metrics data to be aggregated
+	containerSpecMetricsMap map[string]*repository.ContainerSpecMetrics
 	// Aggregator to aggregate container replicas commodity utilization data
 	containerUtilizationDataAggregator aggregation.ContainerUtilizationDataAggregator
 	// Aggregator to aggregate container replicas commodity usage data (used, peak and capacity)
 	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator
 }
 
-func NewContainerSpecDTOBuilder(containerSpecMap map[string]*repository.ContainerSpec,
+func NewContainerSpecDTOBuilder(containerSpecMetricsMap map[string]*repository.ContainerSpecMetrics,
 	containerUtilizationDataAggregator aggregation.ContainerUtilizationDataAggregator,
 	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator) *containerSpecDTOBuilder {
 	return &containerSpecDTOBuilder{
-		containerSpecMap:                   containerSpecMap,
+		containerSpecMetricsMap:            containerSpecMetricsMap,
 		containerUtilizationDataAggregator: containerUtilizationDataAggregator,
 		containerUsageDataAggregator:       containerUsageDataAggregator,
 	}
@@ -40,7 +39,7 @@ func NewContainerSpecDTOBuilder(containerSpecMap map[string]*repository.Containe
 
 func (builder *containerSpecDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
-	for containerSpecId, containerSpec := range builder.containerSpecMap {
+	for containerSpecId, containerSpec := range builder.containerSpecMetricsMap {
 		entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_SPEC, containerSpecId)
 		entityDTOBuilder.DisplayName(containerSpec.ContainerSpecName)
 		commoditiesSold, err := builder.getCommoditiesSold(containerSpec)
@@ -62,37 +61,42 @@ func (builder *containerSpecDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 }
 
 // getCommoditiesSold gets commodity DTOs with aggregated container utilization and usage data.
-func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpec *repository.ContainerSpec) ([]*proto.CommodityDTO, error) {
+func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics *repository.ContainerSpecMetrics) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
-	for _, commodityType := range ContainerSpecCommoditiesSold {
-		// commodities is a list of commodity DTOs of commodityType sold by container replicas represented by this
-		// ContainerSpec entity
-		commodities, exists := containerSpec.ContainerCommodities[commodityType]
+	for _, resourceType := range ContainerSpecResourceTypes {
+		commodityType, exist := rTypeMapping[resourceType]
+		if !exist {
+			glog.Errorf("Unsupported resource type %s when building commoditiesSold for ContainerSpec %s",
+				resourceType, containerSpecMetrics.ContainerSpecId)
+			continue
+		}
+		resourceMetrics, exists := containerSpecMetrics.ContainerMetrics[resourceType]
 		if !exists {
-			glog.V(4).Infof("ContainerSpec %s has no %s commodity from the collected ContainerSpec",
-				containerSpec.ContainerSpecId, commodityType)
+			glog.V(4).Infof("ContainerMetrics collected from ContainerSpec %s has no %s resource type",
+				containerSpecMetrics.ContainerSpecId, resourceType)
 			continue
 		}
 		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(commodityType)
 
-		// Aggregate container replicas utilization data
-		utilizationDataPoints, err := builder.containerUtilizationDataAggregator.Aggregate(commodities)
+		// Aggregate container replicas utilization data.
+		// Note that the returned dataIntervalMs is not the real sampling interval because there could be multiple data
+		// points from container replicas discovered at the same time in one set of data samples. This is just a calculated
+		// equivalent interval between 2 data points to be fed into percentile based algorithm in Turbo server side.
+		utilizationDataPoints, lastPointTimestamp, dataIntervalMs, err := builder.containerUtilizationDataAggregator.Aggregate(resourceMetrics)
 		if err != nil {
-			glog.Errorf("Error aggregating commodity utilization data for ContainerSpec %s, %v",
-				containerSpec.ContainerSpecId, err)
+			glog.Errorf("Error aggregating %s utilization data for ContainerSpec %s, %v",
+				resourceType, containerSpecMetrics.ContainerSpecId, err)
 			continue
 		}
-		currentMs := time.Now().UnixNano() / int64(time.Millisecond)
-		// Currently we only collect one set of metrics data points from Kubernetes within a discovery cycle so the
-		// lastPointTimestampMs of utilizationData is current timestamp in milliseconds and intervalMs is 0.
-		commSoldBuilder.UtilizationData(utilizationDataPoints, currentMs, 0)
+		// Construct UtilizationData with multiple data points, last point timestamp in milliseconds and interval in milliseconds
+		commSoldBuilder.UtilizationData(utilizationDataPoints, lastPointTimestamp, dataIntervalMs)
 
 		// Aggregate container replicas usage data (capacity, used and peak)
 		aggregatedCap, aggregatedUsed, aggregatedPeak, err :=
-			builder.containerUsageDataAggregator.Aggregate(commodities)
+			builder.containerUsageDataAggregator.Aggregate(resourceMetrics)
 		if err != nil {
 			glog.Errorf("Error aggregating commodity usage data for ContainerSpec %s, %v",
-				containerSpec.ContainerSpecId, err)
+				containerSpecMetrics.ContainerSpecId, err)
 			continue
 		}
 		commSoldBuilder.Capacity(aggregatedCap)

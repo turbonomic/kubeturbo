@@ -63,3 +63,42 @@ func (namespaceMetrics *NamespaceMetrics) UpdateQuotaSoldUsed(quotaSoldUsed map[
 		namespaceMetrics.QuotaSoldUsed[resourceType] = totalUsed
 	}
 }
+
+// ContainerMetrics collects resource capacity and multiple usage data samples for container replicas which belong to the
+// same ContainerSpec.
+type ContainerMetrics struct {
+	Capacity float64
+	Used     []metrics.Point
+}
+
+func NewContainerMetrics(capacity float64, used []metrics.Point) *ContainerMetrics {
+	return &ContainerMetrics{
+		Capacity: capacity,
+		Used:     used,
+	}
+}
+
+// ContainerSpecMetrics collects the shared portion of individual container replicas defined by the controller that manages
+// the pods where these containers run, including container replicas and resource metrics with multiple samples of usage data.
+type ContainerSpecMetrics struct {
+	Namespace         string
+	ControllerUID     string
+	ContainerSpecName string
+	ContainerSpecId   string
+	// Container replicas number
+	ContainerReplicas int32
+	// Map from resource type to ContainerMetrics with multiple samples of resource usage data discovered from all
+	// container replicas which belong to the same ContainerSpec.
+	ContainerMetrics map[metrics.ResourceType]*ContainerMetrics
+}
+
+func NewContainerSpecMetrics(namespace, controllerUID, containerName, containerSpecId string) *ContainerSpecMetrics {
+	return &ContainerSpecMetrics{
+		Namespace:         namespace,
+		ControllerUID:     controllerUID,
+		ContainerSpecName: containerName,
+		ContainerSpecId:   containerSpecId,
+		ContainerReplicas: 1,
+		ContainerMetrics:  make(map[metrics.ResourceType]*ContainerMetrics),
+	}
+}

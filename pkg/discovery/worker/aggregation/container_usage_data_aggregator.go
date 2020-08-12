@@ -2,7 +2,7 @@ package aggregation
 
 import (
 	"fmt"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"math"
 )
 
@@ -23,9 +23,9 @@ var (
 // ContainerUsageDataAggregator interface represents a type of container usage data aggregator
 type ContainerUsageDataAggregator interface {
 	String() string
-	// Aggregate aggregates commodities usage data based on the given list of commodity DTOs of a commodity type and
-	// aggregation strategy, and returns aggregated capacity, used and peak values.
-	Aggregate(containerCommodities []*proto.CommodityDTO) (float64, float64, float64, error)
+	// Aggregate aggregates commodities usage data based on the given aggregation strategy and ContainerMetrics with
+	// capacity value and multiple usage data points, and returns aggregated capacity, used and peak values.
+	Aggregate(resourceMetrics *repository.ContainerMetrics) (float64, float64, float64, error)
 }
 
 // ---------------- Average usage data aggregation strategy ----------------
@@ -37,23 +37,19 @@ func (avgUsageDataAggregator *avgUsageDataAggregator) String() string {
 	return avgUsageDataAggregator.aggregationStrategy
 }
 
-func (avgUsageDataAggregator *avgUsageDataAggregator) Aggregate(commodities []*proto.CommodityDTO) (float64, float64, float64, error) {
-	if len(commodities) == 0 {
-		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty", avgUsageDataAggregator)
+func (avgUsageDataAggregator *avgUsageDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) (float64, float64, float64, error) {
+	if len(resourceMetrics.Used) == 0 {
+		err := fmt.Errorf("error to aggregate container usage data using %s: used data points list is empty", avgUsageDataAggregator)
 		return 0.0, 0.0, 0.0, err
 	}
-	capacitySum := 0.0
 	usedSum := 0.0
-	peakSum := 0.0
-	for _, commodity := range commodities {
-		capacitySum += *commodity.Capacity
-		usedSum += *commodity.Used
-		peakSum += *commodity.Peak
+	peak := 0.0
+	for _, usedPoint := range resourceMetrics.Used {
+		usedSum += usedPoint.Value
+		peak = math.Max(peak, usedPoint.Value)
 	}
-	avgCapacity := capacitySum / float64(len(commodities))
-	avgUsed := usedSum / float64(len(commodities))
-	avgPeak := peakSum / float64(len(commodities))
-	return avgCapacity, avgUsed, avgPeak, nil
+	avgUsed := usedSum / float64(len(resourceMetrics.Used))
+	return resourceMetrics.Capacity, avgUsed, peak, nil
 }
 
 // ---------------- Max usage data aggregation strategy ----------------
@@ -65,18 +61,14 @@ func (maxUsageDataAggregator *maxUsageDataAggregator) String() string {
 	return maxUsageDataAggregator.aggregationStrategy
 }
 
-func (maxUsageDataAggregator *maxUsageDataAggregator) Aggregate(commodities []*proto.CommodityDTO) (float64, float64, float64, error) {
-	if len(commodities) == 0 {
-		err := fmt.Errorf("error to aggregate commodities using %s : commodities list is empty", maxUsageDataAggregator)
+func (maxUsageDataAggregator *maxUsageDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) (float64, float64, float64, error) {
+	if len(resourceMetrics.Used) == 0 {
+		err := fmt.Errorf("error to aggregate container usage data using %s: used data points list is empty", maxUsageDataAggregator)
 		return 0.0, 0.0, 0.0, err
 	}
-	maxCapacity := 0.0
 	maxUsed := 0.0
-	maxPeak := 0.0
-	for _, commodity := range commodities {
-		maxCapacity = math.Max(maxCapacity, *commodity.Capacity)
-		maxUsed = math.Max(maxUsed, *commodity.Used)
-		maxPeak = math.Max(maxPeak, *commodity.Peak)
+	for _, usedPoint := range resourceMetrics.Used {
+		maxUsed = math.Max(maxUsed, usedPoint.Value)
 	}
-	return maxCapacity, maxUsed, maxPeak, nil
+	return resourceMetrics.Capacity, maxUsed, maxUsed, nil
 }

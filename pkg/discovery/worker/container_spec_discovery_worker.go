@@ -10,25 +10,27 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
-// Converts K8s ContainerSpec objects to entity DTOs
+// Converts ContainerSpecMetrics objects to ContainerSpec entity DTOs
 type k8sContainerSpecDiscoveryWorker struct{}
 
 func NewK8sContainerSpecDiscoveryWorker() *k8sContainerSpecDiscoveryWorker {
 	return &k8sContainerSpecDiscoveryWorker{}
 }
 
-// ContainerSpec discovery worker collects ContainerSpecs discovered by different discovery workers.
-// It merges the commodities data of container replicas belonging to the same ContainerSpec but discovered by different
-// discovery workers, and aggregates container utilization and usage data based on the specified aggregation strategies.
+// ContainerSpec discovery worker collects ContainerSpecMetrics discovered by different discovery workers.
+// It merges multiple resource used data of container replicas belonging to the same ContainerSpec but discovered by
+// different discovery workers, and aggregates container utilization and usage data based on the specified aggregation
+// strategies.
 // Then it creates entity DTOs for the ContainerSpecs with the aggregated commodities data of container replicas to be
 // sent to the Turbonomic server.
-func (worker *k8sContainerSpecDiscoveryWorker) Do(containerSpecs []*repository.ContainerSpec,
+func (worker *k8sContainerSpecDiscoveryWorker) Do(containerSpecMetrics []*repository.ContainerSpecMetrics,
 	utilizationDataAggStrategy, usageDataAggStrategy string) ([]*proto.EntityDTO, error) {
 	// Get data aggregators based on the given data aggregation strategies
 	utilizationDataAggregator, usageDataAggregator := worker.getContainerDataAggregators(utilizationDataAggStrategy, usageDataAggStrategy)
-	// Create containerSpecs map from ContainerSpec ID to ContainerSpec with merge commodities data of container replicas
-	containerSpecMap := worker.createContainerSpecMap(containerSpecs)
-	containerSpecEntityDTOBuilder := dtofactory.NewContainerSpecDTOBuilder(containerSpecMap, utilizationDataAggregator,
+	// Create containerSpecMetrics map from ContainerSpec ID to ContainerSpecMetrics with merged resource usage data samples
+	// of container replicas
+	containerSpecMetricsMap := worker.createContainerSpecMetricsMap(containerSpecMetrics)
+	containerSpecEntityDTOBuilder := dtofactory.NewContainerSpecDTOBuilder(containerSpecMetricsMap, utilizationDataAggregator,
 		usageDataAggregator)
 	containerSpecEntityDTOs, err := containerSpecEntityDTOBuilder.BuildDTOs()
 	if err != nil {
@@ -59,34 +61,33 @@ func (worker *k8sContainerSpecDiscoveryWorker) getContainerDataAggregators(utili
 	return utilizationDataAggregator, usageDataAggregator
 }
 
-// createContainerSpecMap creates map from ContainerSpec ID to ContainerSpec entity with merged VCPU and VMem commodity
-// DTOs of container replicas.
-func (worker *k8sContainerSpecDiscoveryWorker) createContainerSpecMap(containerSpecList []*repository.ContainerSpec) map[string]*repository.ContainerSpec {
-	// Map from ContainerSpec ID to ContainerSpec object
-	containerSpecMap := make(map[string]*repository.ContainerSpec)
-	//containers := make(map[string][]string)
-	for _, containerSpec := range containerSpecList {
-		containerSpecId := containerSpec.ContainerSpecId
-		existingContainerSpec, exists := containerSpecMap[containerSpecId]
+// createContainerSpecMetricsMap creates map from ContainerSpec ID to ContainerSpecMetrics object with merged resource usage
+// data samples of container replicas.
+func (worker *k8sContainerSpecDiscoveryWorker) createContainerSpecMetricsMap(containerSpecMetricsList []*repository.ContainerSpecMetrics) map[string]*repository.ContainerSpecMetrics {
+	// Map from ContainerSpec ID to combined ContainerSpecMetrics
+	containerSpecMetricsMap := make(map[string]*repository.ContainerSpecMetrics)
+	for _, containerSpecMetrics := range containerSpecMetricsList {
+		containerSpecId := containerSpecMetrics.ContainerSpecId
+		existingContainerSpec, exists := containerSpecMetricsMap[containerSpecId]
 		if !exists {
-			containerSpecMap[containerSpecId] = containerSpec
+			containerSpecMetricsMap[containerSpecId] = containerSpecMetrics
 		} else {
-			// Append commodity DTOs of the same commodity type of container replicas
-			for commodityType, existingCommodities := range existingContainerSpec.ContainerCommodities {
-				commodities, exists := containerSpec.ContainerCommodities[commodityType]
+			// Resource capacity should always be same for container replicas so no need to update.
+			// Append containerMetrics used data points of the same resource type of container replicas.
+			for resourceType, existingResourceMetrics := range existingContainerSpec.ContainerMetrics {
+				containerMetrics, exists := containerSpecMetrics.ContainerMetrics[resourceType]
 				if !exists {
-					glog.Errorf("%s commodities do not exist for ContainerSpec %s", commodityType, containerSpec.ContainerSpecId)
+					glog.Errorf("%s resource do not exist for ContainerSpec %s", resourceType, containerSpecMetrics.ContainerSpecId)
 					continue
 				}
-				existingCommodities = append(existingCommodities, commodities...)
-				existingContainerSpec.ContainerCommodities[commodityType] = existingCommodities
+				existingResourceMetrics.Used = append(existingResourceMetrics.Used, containerMetrics.Used...)
 			}
 			// Increment number of container replicas
 			existingContainerSpec.ContainerReplicas++
 		}
 	}
-	for containerSpecId, containerSpec := range containerSpecMap {
+	for containerSpecId, containerSpec := range containerSpecMetricsMap {
 		glog.V(4).Infof("Discovered ContainerSpec entity %s has %d container replicas", containerSpecId, containerSpec.ContainerReplicas)
 	}
-	return containerSpecMap
+	return containerSpecMetricsMap
 }
