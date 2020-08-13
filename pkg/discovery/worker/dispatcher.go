@@ -195,8 +195,7 @@ func (d *SamplingDispatcher) dispatchSamplingDiscoveries(nodes []*api.Node, samp
 				return
 			default:
 			}
-			currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNode(node)
-			currTask := task.NewTask().WithNode(node).WithPods(currPods)
+			currTask := task.NewTask().WithNode(node)
 			glog.V(3).Infof("Dispatching sampling discovery task %v", currTask)
 			d.assignTask(currTask)
 		}
