@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	appIdPrefix = "App"
+	appIdPrefix             = "App"
+	controllerInfoKeyPrefix = "controllerInfo"
 )
 
 func PodMetricId(pod *stats.PodReference) string {
@@ -123,4 +124,8 @@ func PodVolumeMetricId(podKey, volName string) string {
 
 func VolumeKeyFunc(vol *api.PersistentVolume) string {
 	return vol.Name
+}
+
+func PodControllerInfoKey(pod *api.Pod) string {
+	return fmt.Sprintf("%s-%s", controllerInfoKeyPrefix, string(pod.UID))
 }

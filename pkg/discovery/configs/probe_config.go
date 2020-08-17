@@ -1,11 +1,10 @@
 package configs
 
 import (
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 )
 
 type ProbeConfig struct {
@@ -15,10 +14,8 @@ type ProbeConfig struct {
 	// Config for one or more monitoring clients
 	MonitoringConfigs []monitoring.MonitorWorkerConfig
 
-	// Rest Client for the kubernetes server API
-	ClusterClient *kubernetes.Clientset
-	// Dynamic client for the kubernetes server API
-	DynamicClient dynamic.Interface
+	// ClusterScraper contains rest client (ClientSet) and dynamic client (DynamicClient) for the kubernetes server API
+	ClusterScraper *cluster.ClusterScraper
 	// Rest Client for the kubelet module in each node
 	NodeClient *kubeclient.KubeletClient
 }

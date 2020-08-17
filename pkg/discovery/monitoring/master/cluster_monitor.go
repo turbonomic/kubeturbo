@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"k8s.io/client-go/dynamic"
-
 	api "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -216,7 +214,7 @@ func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapa
 	for _, pod := range podList {
 		key := util.PodKeyFunc(pod)
 		// Pod owners
-		podOwner, err := m.getPodOwner(pod, m.clusterClient.DynamicClient)
+		podOwner, err := m.getPodOwner(pod)
 		if err == nil {
 			m.podOwners[key] = podOwner
 		}
@@ -232,17 +230,17 @@ func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapa
 	return
 }
 
-func (m *ClusterMonitor) getPodOwner(pod *api.Pod, dynClient dynamic.Interface) (*PodOwner, error) {
+func (m *ClusterMonitor) getPodOwner(pod *api.Pod) (*PodOwner, error) {
 	key := util.PodKeyFunc(pod)
 	glog.V(4).Infof("begin to generate pod[%s]'s Owner metric.", key)
 
-	kind, parentName, uid, err := util.GetPodGrandInfo(dynClient, pod)
+	kind, parentName, uid, err := m.clusterClient.GetPodGrandparentInfo(pod)
 	if err != nil {
-		return nil, fmt.Errorf("Error getting pod owner: %v", err)
+		return nil, fmt.Errorf("error getting pod owner: %v", err)
 	}
 
 	if parentName == "" || kind == "" || uid == "" {
-		return nil, fmt.Errorf("Invalid pod owner %s::%s::%s", kind, parentName, uid)
+		return nil, fmt.Errorf("invalid pod owner %s::%s::%s", kind, parentName, uid)
 	}
 	return &PodOwner{kind: kind, name: parentName, uid: uid}, nil
 }

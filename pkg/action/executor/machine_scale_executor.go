@@ -48,7 +48,7 @@ func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*Turbo
 	}
 	// Get on with it.
 	controller, key, err := newController(s.cAPINamespace, nodeName, diff, actionType,
-		s.executor.cApiClient, s.executor.kubeClient)
+		s.executor.cApiClient, s.executor.clusterScraper.Clientset)
 	if err != nil {
 		return nil, err
 	} else if key == nil {

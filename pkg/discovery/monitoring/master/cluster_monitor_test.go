@@ -2,6 +2,7 @@ package master
 
 import (
 	"fmt"
+	client "k8s.io/client-go/kubernetes"
 	"testing"
 
 	"github.com/golang/glog"
@@ -146,7 +147,7 @@ func TestGenNodeResourceMetrics(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to create clusterMonitor: %v", err)
 	}
-	clusterMonitor.clusterClient = &cluster.ClusterScraper{}
+	clusterMonitor.clusterClient = cluster.NewClusterScraper(&client.Clientset{}, nil)
 	clusterMonitor.sink = metrics.NewEntityMetricSink()
 	clusterMonitor.nodeList = []*api.Node{node}
 	clusterMonitor.nodePodMap = make(map[string][]*api.Pod)
