@@ -234,7 +234,7 @@ func (m *ClusterMonitor) getPodOwner(pod *api.Pod) (*PodOwner, error) {
 	key := util.PodKeyFunc(pod)
 	glog.V(4).Infof("begin to generate pod[%s]'s Owner metric.", key)
 
-	kind, parentName, uid, err := m.clusterClient.GetPodGrandparentInfo(pod)
+	kind, parentName, uid, _, _, err := m.clusterClient.GetPodGrandparentInfo(pod, false)
 	if err != nil {
 		return nil, fmt.Errorf("error getting pod owner: %v", err)
 	}

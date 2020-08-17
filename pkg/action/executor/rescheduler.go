@@ -149,9 +149,17 @@ func (r *ReScheduler) preActionCheck(pod *api.Pod, node *api.Node) error {
 }
 
 func (r *ReScheduler) reSchedule(pod *api.Pod, node *api.Node) (*api.Pod, error) {
+	reScheduled := false
+	var finalErr error
+	defer func() {
+		if !reScheduled {
+			glog.V(2).Infof("Move action aborted: %v.", finalErr)
+		}
+	}()
+
 	//1. do some check
 	if err := r.preActionCheck(pod, node); err != nil {
-		glog.Errorf("Move action aborted: %v.", err)
+		finalErr = err
 		return nil, err
 	}
 
@@ -159,26 +167,23 @@ func (r *ReScheduler) reSchedule(pod *api.Pod, node *api.Node) (*api.Pod, error)
 	fullName := util.BuildIdentifier(pod.Namespace, pod.Name)
 	// if the pod is already on the target node, then simply return success.
 	if pod.Spec.NodeName == nodeName {
-		err := fmt.Errorf("Pod [%v] is already on host [%v]", fullName, nodeName)
-		glog.V(2).Infof("Move action aborted: %v.", err)
-		return nil, err
+		finalErr := fmt.Errorf("Pod [%v] is already on host [%v]", fullName, nodeName)
+		return nil, finalErr
 	}
 
 	parentKind, parentName, _, err := podutil.GetPodParentInfo(pod)
 	if err != nil {
-		err = fmt.Errorf("Cannot get parent info of pod [%v]: %v", fullName, err)
-		glog.Errorf("Move action aborted: %v.", err)
-		return nil, err
+		finalErr = fmt.Errorf("Cannot get parent info of pod [%v]: %v", fullName, err)
+		return nil, finalErr
 	}
 
 	if !util.SupportedParent(parentKind, false) {
-		err = fmt.Errorf("The object kind [%v] of [%s] is not supported", parentKind, parentName)
-		glog.Errorf("Move action aborted: %v.", err)
-		return nil, err
+		finalErr = fmt.Errorf("The object kind [%v] of [%s] is not supported", parentKind, parentName)
+		return nil, finalErr
 	}
 
 	//2. move
-	return movePod(r.clusterScraper.Clientset, pod, nodeName, defaultRetryMore)
+	return movePod(r.clusterScraper, pod, nodeName, parentKind, parentName, defaultRetryMore)
 }
 
 func getVMIps(entity *proto.EntityDTO) []string {

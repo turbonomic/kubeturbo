@@ -257,7 +257,6 @@ func ParseOwnerReferences(owners []metav1.OwnerReference) (string, string, strin
 // GetPodParentInfo gets parent information of a pod: kind, name, uid
 func GetPodParentInfo(pod *api.Pod) (string, string, string, error) {
 	//1. check ownerReferences:
-
 	if pod.OwnerReferences != nil && len(pod.OwnerReferences) > 0 {
 		kind, name, uid := ParseOwnerReferences(pod.OwnerReferences)
 		if len(kind) > 0 && len(name) > 0 {
