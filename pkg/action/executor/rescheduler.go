@@ -171,7 +171,7 @@ func (r *ReScheduler) reSchedule(pod *api.Pod, node *api.Node) (*api.Pod, error)
 		return nil, err
 	}
 
-	if !util.SupportedParent(parentKind) {
+	if !util.SupportedParent(parentKind, false) {
 		err = fmt.Errorf("The object kind [%v] of [%s] is not supported", parentKind, parentName)
 		glog.Errorf("Move action aborted: %v.", err)
 		return nil, err
