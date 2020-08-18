@@ -5,6 +5,7 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -111,7 +112,7 @@ func newActionHandlerConfig() *ActionHandlerConfig {
 	config := &ActionHandlerConfig{}
 
 	config.StopEverything = make(chan struct{})
-	config.kubeClient = &client.Clientset{}
+	config.clusterScraper = cluster.NewClusterScraper(&client.Clientset{}, nil)
 	config.kubeletClient = &kubeclient.KubeletClient{}
 
 	return config

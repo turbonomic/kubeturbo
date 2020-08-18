@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/action"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
@@ -125,7 +126,8 @@ func createProbeConfigOrDie(c *Config) *configs.ProbeConfig {
 	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(c.KubeletClient, c.KubeClient)
 
 	// Create cluster monitoring
-	masterMonitoringConfig := master.NewClusterMonitorConfig(c.KubeClient, c.DynamicClient)
+	clusterScraper := cluster.NewClusterScraper(c.KubeClient, c.DynamicClient)
+	masterMonitoringConfig := master.NewClusterMonitorConfig(clusterScraper)
 
 	// TODO for now kubelet is the only monitoring source. As we have more sources, we should choose what to be added into the slice here.
 	monitoringConfigs := []monitoring.MonitorWorkerConfig{
@@ -136,8 +138,7 @@ func createProbeConfigOrDie(c *Config) *configs.ProbeConfig {
 	probeConfig := &configs.ProbeConfig{
 		StitchingPropertyType: c.StitchingPropType,
 		MonitoringConfigs:     monitoringConfigs,
-		ClusterClient:         c.KubeClient,
-		DynamicClient:         c.DynamicClient,
+		ClusterScraper:        clusterScraper,
 		NodeClient:            c.KubeletClient,
 	}
 
@@ -162,8 +163,8 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		config.containerUsageDataAggStrategy, config.ORMClient, config.DiscoveryWorkers, config.DiscoveryTimeoutSec,
 		config.DiscoverySamples, config.DiscoverySampleIntervalSec)
 
-	actionHandlerConfig := action.NewActionHandlerConfig(config.CAPINamespace, config.CAClient, config.KubeClient,
-		config.KubeletClient, config.DynamicClient, config.SccSupport, config.ORMClient)
+	actionHandlerConfig := action.NewActionHandlerConfig(config.CAPINamespace, config.CAClient, config.KubeletClient,
+		probeConfig.ClusterScraper, config.SccSupport, config.ORMClient)
 
 	// Kubernetes Probe Registration Client
 	registrationClient := registration.NewK8sRegistrationClient(registrationClientConfig, config.tapSpec.K8sTargetConfig)

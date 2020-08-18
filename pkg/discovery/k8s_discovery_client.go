@@ -101,7 +101,7 @@ type K8sDiscoveryClient struct {
 }
 
 func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
-	k8sClusterScraper := cluster.NewClusterScraper(config.probeConfig.ClusterClient, config.probeConfig.DynamicClient)
+	k8sClusterScraper := config.probeConfig.ClusterScraper
 
 	// for discovery tasks
 	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient,

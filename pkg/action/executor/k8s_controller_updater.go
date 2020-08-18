@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	kclient "k8s.io/client-go/kubernetes"
 )
 
@@ -35,29 +34,29 @@ type controllerSpec struct {
 }
 
 // newK8sControllerUpdaterViaPod returns a k8sControllerUpdater based on the parent kind of a pod
-func newK8sControllerUpdaterViaPod(client *kclient.Clientset, dynamicClient dynamic.Interface, pod *api.Pod, ormClient *resourcemapping.ORMClient) (*k8sControllerUpdater, error) {
+func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, ormClient *resourcemapping.ORMClient) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
-	kind, name, _, err := podutil.GetPodGrandInfo(dynamicClient, pod)
+	kind, name, _, err := clusterScraper.GetPodGrandparentInfo(pod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get parent info of pod %s/%s: %v", pod.Namespace, pod.Name, err)
 	}
 
-	return newK8sControllerUpdater(client, dynamicClient, ormClient, kind, name, pod.Name, pod.Namespace)
+	return newK8sControllerUpdater(clusterScraper, ormClient, kind, name, pod.Name, pod.Namespace)
 }
 
 // newK8sControllerUpdater returns a k8sControllerUpdater based on the controller kind
-func newK8sControllerUpdater(client *kclient.Clientset, dynamicClient dynamic.Interface, ormClient *resourcemapping.ORMClient, kind, controllerName, podName, namespace string) (*k8sControllerUpdater, error) {
+func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient, kind, controllerName, podName, namespace string) (*k8sControllerUpdater, error) {
 	res, err := GetSupportedResUsingKind(kind, namespace, controllerName)
 	if err != nil {
 		return nil, err
 	}
 	return &k8sControllerUpdater{
 		controller: &parentController{
-			dynNamespacedClient: dynamicClient.Resource(res).Namespace(namespace),
+			dynNamespacedClient: clusterScraper.DynamicClient.Resource(res).Namespace(namespace),
 			name:                kind,
 			ormClient:           ormClient,
 		},
-		client:    client,
+		client:    clusterScraper.Clientset,
 		name:      controllerName,
 		namespace: namespace,
 		podName:   podName,

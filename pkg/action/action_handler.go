@@ -2,7 +2,6 @@ package action
 
 import (
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"strings"
 	"time"
 
@@ -11,9 +10,9 @@ import (
 	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	api "k8s.io/api/core/v1"
-	"k8s.io/client-go/dynamic"
-	kubeclient "k8s.io/client-go/kubernetes"
 
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -43,8 +42,7 @@ var (
 )
 
 type ActionHandlerConfig struct {
-	kubeClient     *kubeclient.Clientset
-	dynamicClient  dynamic.Interface
+	clusterScraper *cluster.ClusterScraper
 	cApiClient     *clientset.Clientset
 	kubeletClient  *kubeletclient.KubeletClient
 	StopEverything chan struct{}
@@ -54,8 +52,8 @@ type ActionHandlerConfig struct {
 	ormClient *resourcemapping.ORMClient
 }
 
-func NewActionHandlerConfig(cApiNamespace string, cApiClient *clientset.Clientset, kubeClient *kubeclient.Clientset,
-	kubeletClient *kubeletclient.KubeletClient, dynamicClient dynamic.Interface, sccSupport []string, ormClient *resourcemapping.ORMClient) *ActionHandlerConfig {
+func NewActionHandlerConfig(cApiNamespace string, cApiClient *clientset.Clientset, kubeletClient *kubeletclient.KubeletClient,
+	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
 		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}
@@ -63,8 +61,7 @@ func NewActionHandlerConfig(cApiNamespace string, cApiClient *clientset.Clientse
 	glog.V(4).Infof("SCC's allowed: %s", sccAllowedSet)
 
 	config := &ActionHandlerConfig{
-		kubeClient:     kubeClient,
-		dynamicClient:  dynamicClient,
+		clusterScraper: clusterScraper,
 		kubeletClient:  kubeletClient,
 		StopEverything: make(chan struct{}),
 		sccAllowedSet:  sccAllowedSet,
@@ -90,7 +87,7 @@ type ActionHandler struct {
 // Build new ActionHandler and start it.
 func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 	lmap := util.NewExpirationMap(defaultActionCacheTTL)
-	podsGetter := config.kubeClient.CoreV1()
+	podsGetter := config.clusterScraper.Clientset.CoreV1()
 	podCachedManager := util.NewPodCachedManager(turbostore.NewTurboCache(defaultPodNameCacheTTL).Cache, podsGetter)
 
 	handler := &ActionHandler{
@@ -109,7 +106,7 @@ func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 // As action executor is stateless, they can be safely reused.
 func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
-	ae := executor.NewTurboK8sActionExecutor(c.kubeClient, c.dynamicClient, c.cApiClient, h.podManager, h.config.ormClient)
+	ae := executor.NewTurboK8sActionExecutor(c.clusterScraper, c.cApiClient, h.podManager, h.config.ormClient)
 
 	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet)
 	h.actionExecutors[turboActionPodMove] = reScheduler
@@ -125,7 +122,7 @@ func (h *ActionHandler) registerActionExecutors() {
 	h.actionExecutors[turboActionControllerResize] = controllerResizer
 
 	// Only register the actions when API client is non-nil.
-	if ok, err := executor.IsClusterAPIEnabled(c.cAPINamespace, c.cApiClient, c.kubeClient); ok && err == nil {
+	if ok, err := executor.IsClusterAPIEnabled(c.cAPINamespace, c.cApiClient, c.clusterScraper.Clientset); ok && err == nil {
 		machineScaler := executor.NewMachineActionExecutor(c.cAPINamespace, ae)
 		h.actionExecutors[turboActionMachineProvision] = machineScaler
 		h.actionExecutors[turboActionMachineSuspend] = machineScaler

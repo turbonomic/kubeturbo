@@ -2,7 +2,6 @@ package executor
 
 import (
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 
 	"github.com/golang/glog"
 	k8sapi "k8s.io/api/core/v1"
@@ -10,11 +9,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/dynamic"
-	kclient "k8s.io/client-go/kubernetes"
 
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
@@ -64,8 +63,7 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 
 	// execute the Action
 	err = resizeWorkloadController(
-		r.kubeClient,
-		r.dynamicClient,
+		r.clusterScraper,
 		r.ormClient,
 		kind,
 		controllerName,
@@ -131,7 +129,7 @@ func (r *WorkloadControllerResizer) getChildPod(parentKind, namespace, name stri
 		return nil, err
 	}
 
-	parent, err := r.dynamicClient.Resource(res).Namespace(namespace).Get(name, metav1.GetOptions{})
+	parent, err := r.clusterScraper.DynamicClient.Resource(res).Namespace(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +149,7 @@ func (r *WorkloadControllerResizer) getChildPod(parentKind, namespace, name stri
 	// for cpu frequency conversion.
 	// To do this right, consider usage of podlister.
 	// https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/client-go/listers/core/v1/pod.go#L30:1
-	podsList, err := r.kubeClient.CoreV1().Pods(namespace).List(metav1.ListOptions{LabelSelector: labels.Set(parentSelector.MatchLabels).String()})
+	podsList, err := r.clusterScraper.Clientset.CoreV1().Pods(namespace).List(metav1.ListOptions{LabelSelector: labels.Set(parentSelector.MatchLabels).String()})
 	if err != nil {
 		return nil, err
 	}
@@ -168,11 +166,10 @@ func (r *WorkloadControllerResizer) getChildPod(parentKind, namespace, name stri
 
 }
 
-func resizeWorkloadController(client *kclient.Clientset, dynClient dynamic.Interface, ormClient *resourcemapping.ORMClient,
+func resizeWorkloadController(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient,
 	kind, controllerName, podName, namespace string, specs []*containerResizeSpec) error {
 	// prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdater(client, dynClient, ormClient, kind,
-		controllerName, podName, namespace)
+	controllerUpdater, err := newK8sControllerUpdater(clusterScraper, ormClient, kind, controllerName, podName, namespace)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return err

@@ -69,21 +69,21 @@ func (r *ReScheduler) getNode(action *proto.ActionItemDTO) (*api.Node, error) {
 	}
 
 	//3. get node from properties
-	node, err := util.GetNodeFromProperties(r.kubeClient, hostSE.GetEntityProperties())
+	node, err := util.GetNodeFromProperties(r.clusterScraper.Clientset, hostSE.GetEntityProperties())
 	if err == nil {
 		glog.V(2).Infof("Get node(%v) from properties.", node.Name)
 		return node, nil
 	}
 
 	//4. get node by displayName
-	node, err = util.GetNodebyName(r.kubeClient, hostSE.GetDisplayName())
+	node, err = util.GetNodebyName(r.clusterScraper.Clientset, hostSE.GetDisplayName())
 	if err == nil {
 		glog.V(2).Infof("Get node(%v) by displayName.", node.Name)
 		return node, nil
 	}
 
 	//5. get node by UUID
-	node, err = util.GetNodebyUUID(r.kubeClient, hostSE.GetId())
+	node, err = util.GetNodebyUUID(r.clusterScraper.Clientset, hostSE.GetId())
 	if err == nil {
 		glog.V(2).Infof("Get node(%v) by UUID(%v).", node.Name, hostSE.GetId())
 		return node, nil
@@ -92,15 +92,15 @@ func (r *ReScheduler) getNode(action *proto.ActionItemDTO) (*api.Node, error) {
 	//6. get node by IP
 	vmIPs := getVMIps(hostSE)
 	if len(vmIPs) > 0 {
-		node, err = util.GetNodebyIP(r.kubeClient, vmIPs)
+		node, err = util.GetNodebyIP(r.clusterScraper.Clientset, vmIPs)
 		if err == nil {
 			glog.V(2).Infof("Get node(%v) by IP.", hostSE.GetDisplayName())
 			return node, nil
 		}
-		err = fmt.Errorf("Failed to get node %s by IP %+v: %v",
+		err = fmt.Errorf("failed to get node %s by IP %+v: %v",
 			hostSE.GetDisplayName(), vmIPs, err)
 	} else {
-		err = fmt.Errorf("Failed to get node %s: IPs are empty",
+		err = fmt.Errorf("failed to get node %s: IPs are empty",
 			hostSE.GetDisplayName())
 	}
 	glog.Errorf("%v.", err)
@@ -178,7 +178,7 @@ func (r *ReScheduler) reSchedule(pod *api.Pod, node *api.Node) (*api.Pod, error)
 	}
 
 	//2. move
-	return movePod(r.kubeClient, pod, nodeName, defaultRetryMore)
+	return movePod(r.clusterScraper.Clientset, pod, nodeName, defaultRetryMore)
 }
 
 func getVMIps(entity *proto.EntityDTO) []string {

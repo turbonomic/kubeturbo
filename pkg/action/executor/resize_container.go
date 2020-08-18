@@ -71,7 +71,7 @@ func NewContainerResizer(ae TurboK8sActionExecutor, kubeletClient *kubeclient.Ku
 // get node cpu frequency, in MHz;
 func (r *ContainerResizer) getNodeCPUFrequency(host string) (float64, error) {
 	// always access kubelet via node IP
-	node, err := util.GetNodebyName(r.kubeClient, host)
+	node, err := util.GetNodebyName(r.clusterScraper.Clientset, host)
 	if err != nil {
 		return 1, fmt.Errorf("failed to get node by name: %v", err)
 	}
@@ -246,8 +246,7 @@ func (r *ContainerResizer) Execute(input *TurboActionExecutorInput) (*TurboActio
 
 	// execute the Action
 	npod, err := resizeContainer(
-		r.kubeClient,
-		r.dynamicClient,
+		r.clusterScraper,
 		pod,
 		spec,
 		actionItem.GetConsistentScalingCompliance(),

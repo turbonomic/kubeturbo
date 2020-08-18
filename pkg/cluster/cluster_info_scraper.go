@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"fmt"
+	"time"
 
 	"k8s.io/client-go/dynamic"
 
@@ -9,15 +10,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	client "k8s.io/client-go/kubernetes"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/turbostore"
+	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
 )
 
 const (
 	k8sDefaultNamespace   = "default"
 	kubernetesServiceName = "kubernetes"
+	defaultCacheTTL       = 24 * time.Hour
 )
 
 var (
@@ -40,12 +45,16 @@ type ClusterScraperInterface interface {
 type ClusterScraper struct {
 	*client.Clientset
 	DynamicClient dynamic.Interface
+	cache         turbostore.ITurboCache
 }
 
 func NewClusterScraper(kclient *client.Clientset, dynamicClient dynamic.Interface) *ClusterScraper {
 	return &ClusterScraper{
 		Clientset:     kclient,
 		DynamicClient: dynamicClient,
+		// Create cache with expiration duration as defaultCacheTTL, which means the cached data will be cleaned up after
+		// defaultCacheTTL.
+		cache: turbostore.NewTurboCache(defaultCacheTTL).Cache,
 	}
 }
 
@@ -275,4 +284,78 @@ func (s *ClusterScraper) GetPVCs(namespace string, opts metav1.ListOptions) ([]*
 		pvcs[i] = &pvcList.Items[i]
 	}
 	return pvcs, nil
+}
+
+// GetPodGrandparentInfo gets grandParent (parent's parent) information of a pod: kind, name and uid
+// If pod's parent does not have parent, then return pod's parent info.
+// Note: if parent kind is "ReplicaSet", then its parent's parent can be a "Deployment"
+//       or if its a "ReplicationController" its parent could be "DeploymentConfig" (as in openshift).
+func (s *ClusterScraper) GetPodGrandparentInfo(pod *api.Pod) (string, string, string, error) {
+	// Get pod controller info from cache if exists
+	podControllerInfoKey := util.PodControllerInfoKey(pod)
+	controllerInfoCache, exists := s.cache.Get(podControllerInfoKey)
+	if exists {
+		controllerInfo, ok := controllerInfoCache.(kubeControllerInfo)
+		if !ok {
+			return "", "", "", fmt.Errorf("error getting controller info cache data: controllerInfoCache is '%t' not 'kubeControllerInfo'",
+				controllerInfoCache)
+		}
+		return controllerInfo.kind, controllerInfo.name, controllerInfo.uid, nil
+	}
+	//1. get Parent info: kind, name and uid;
+	kind, name, uid, err := util.GetPodParentInfo(pod)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	//2. if parent is "ReplicaSet" or "ReplicationController", check parent's parent
+	var res schema.GroupVersionResource
+	switch kind {
+	case commonutil.KindReplicationController:
+		res = schema.GroupVersionResource{
+			Group:    commonutil.K8sAPIReplicationControllerGV.Group,
+			Version:  commonutil.K8sAPIReplicationControllerGV.Version,
+			Resource: commonutil.ReplicationControllerResName}
+	case commonutil.KindReplicaSet:
+		res = schema.GroupVersionResource{
+			Group:    commonutil.K8sAPIReplicasetGV.Group,
+			Version:  commonutil.K8sAPIReplicasetGV.Version,
+			Resource: commonutil.ReplicaSetResName}
+	default:
+		s.cacheControllerInfo(podControllerInfoKey, kind, name, uid)
+		return kind, name, uid, nil
+	}
+
+	obj, err := s.DynamicClient.Resource(res).Namespace(pod.Namespace).Get(name, metav1.GetOptions{})
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to get %s[%v/%v]: %v", kind, pod.Namespace, name, err)
+	}
+	//2.2 get parent's parent info by parsing ownerReferences:
+	rsOwnerReferences := obj.GetOwnerReferences()
+	if rsOwnerReferences != nil && len(rsOwnerReferences) > 0 {
+		gkind, gname, guid := util.ParseOwnerReferences(rsOwnerReferences)
+		if len(gkind) > 0 && len(gname) > 0 && len(guid) > 0 {
+			s.cacheControllerInfo(podControllerInfoKey, gkind, gname, guid)
+			return gkind, gname, guid, nil
+		}
+	}
+
+	s.cacheControllerInfo(podControllerInfoKey, kind, name, uid)
+	return kind, name, uid, nil
+}
+
+func (s *ClusterScraper) cacheControllerInfo(podControllerInfoKey, kind, name, uid string) {
+	controllerInfo := kubeControllerInfo{
+		kind: kind,
+		name: name,
+		uid:  uid,
+	}
+	s.cache.Set(podControllerInfoKey, controllerInfo, 0)
+}
+
+// kubeControllerInfo stores controller info including kind, name and uid.
+type kubeControllerInfo struct {
+	kind string
+	name string
+	uid  string
 }

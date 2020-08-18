@@ -4,14 +4,12 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
-
-	"k8s.io/client-go/dynamic"
-
 	"github.com/golang/glog"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	k8sapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -162,12 +160,12 @@ func genMemoryQuantity(newValue float64) (resource.Quantity, error) {
 	return resource.ParseQuantity(fmt.Sprintf("%dKi", tmp))
 }
 
-func resizeContainer(client *kclient.Clientset, dynClient dynamic.Interface, pod *k8sapi.Pod, spec *containerResizeSpec,
-	consistentResize bool, ormSpec *resourcemapping.ORMClient) (*k8sapi.Pod, error) {
+func resizeContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, spec *containerResizeSpec, consistentResize bool,
+	ormSpec *resourcemapping.ORMClient) (*k8sapi.Pod, error) {
 	if consistentResize {
-		return nil, resizeControllerContainer(client, dynClient, pod, spec, ormSpec)
+		return nil, resizeControllerContainer(clusterScraper, pod, spec, ormSpec)
 	}
-	return resizeSingleContainer(client, pod, spec)
+	return resizeSingleContainer(clusterScraper.Clientset, pod, spec)
 }
 
 // resizeControllerContainer updates the pod template of the controller that this container pod
@@ -180,10 +178,9 @@ func resizeContainer(client *kclient.Clientset, dynClient dynamic.Interface, pod
 //   resource, all existing pods that belong to the original ReplicaSet and ReplicationController
 //   are not affected. Only newly created pods (through scaling action) will use the updated
 //   resource
-func resizeControllerContainer(client *kclient.Clientset, dynClient dynamic.Interface, pod *k8sapi.Pod,
-	spec *containerResizeSpec, ormClient *resourcemapping.ORMClient) error {
+func resizeControllerContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, spec *containerResizeSpec, ormClient *resourcemapping.ORMClient) error {
 	// prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdaterViaPod(client, dynClient, pod, ormClient)
+	controllerUpdater, err := newK8sControllerUpdaterViaPod(clusterScraper, pod, ormClient)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return err

@@ -12,8 +12,6 @@ import (
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	client "k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
@@ -289,52 +287,6 @@ func GetPodParentInfo(pod *api.Pod) (string, string, string, error) {
 	glog.V(4).Infof("no parent-info for pod-%v/%v in Annotations.", pod.Namespace, pod.Name)
 
 	return "", "", "", nil
-}
-
-// GetPodGrandInfo gets grandParent (parent's parent) information of a pod: kind, name, uid
-// If parent does not have parent, then return parent info.
-// Note: if parent kind is "ReplicaSet", then its parent's parent can be a "Deployment"
-//       or if its a "ReplicationController" its parent could be "DeploymentConfig" (as in openshift).
-func GetPodGrandInfo(dynClient dynamic.Interface, pod *api.Pod) (string, string, string, error) {
-	//1. get Parent info: kind and name;
-	kind, name, uid, err := GetPodParentInfo(pod)
-	if err != nil {
-		return "", "", "", err
-	}
-
-	//2. if parent is "ReplicaSet" or "ReplicationController", check parent's parent
-	var res schema.GroupVersionResource
-	switch kind {
-	case commonutil.KindReplicationController:
-		res = schema.GroupVersionResource{
-			Group:    commonutil.K8sAPIReplicationControllerGV.Group,
-			Version:  commonutil.K8sAPIReplicationControllerGV.Version,
-			Resource: commonutil.ReplicationControllerResName}
-	case commonutil.KindReplicaSet:
-		res = schema.GroupVersionResource{
-			Group:    commonutil.K8sAPIDeploymentGV.Group,
-			Version:  commonutil.K8sAPIDeploymentGV.Version,
-			Resource: commonutil.ReplicaSetResName}
-	default:
-		return kind, name, uid, nil
-	}
-
-	obj, err := dynClient.Resource(res).Namespace(pod.Namespace).Get(name, metav1.GetOptions{})
-	if err != nil {
-		err = fmt.Errorf("Failed to get %s[%v/%v]: %v", kind, pod.Namespace, name, err)
-		glog.Error(err.Error())
-		return "", "", "", err
-	}
-	//2.2 get parent's parent info by parsing ownerReferences:
-	rsOwnerReferences := obj.GetOwnerReferences()
-	if rsOwnerReferences != nil && len(rsOwnerReferences) > 0 {
-		gkind, gname, guid := ParseOwnerReferences(rsOwnerReferences)
-		if len(gkind) > 0 && len(gname) > 0 {
-			return gkind, gname, guid, nil
-		}
-	}
-
-	return kind, name, uid, nil
 }
 
 // Get controller UID from the given pod and metrics sink.
