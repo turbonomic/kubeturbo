@@ -111,3 +111,16 @@ func NodeKeyFromPodFunc(pod *api.Pod) string {
 func ContainerSpecIdFunc(controllerUID string, containerName string) string {
 	return controllerUID + "/" + containerName
 }
+
+func PodVolumeMetricId(podKey, volName string) string {
+	volKey := podKey
+	if volName != "" {
+		volKey = volKey + "-" + volName
+	}
+
+	return volKey
+}
+
+func VolumeKeyFunc(vol *api.PersistentVolume) string {
+	return vol.Name
+}

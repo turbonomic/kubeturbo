@@ -29,6 +29,7 @@ var (
 		metrics.MemoryRequestQuota: proto.CommodityDTO_VMEM_REQUEST_QUOTA,
 		metrics.NumPods:            proto.CommodityDTO_NUMBER_CONSUMERS,
 		metrics.VStorage:           proto.CommodityDTO_VSTORAGE,
+		metrics.StorageAmount:      proto.CommodityDTO_STORAGE_AMOUNT,
 	}
 )
 

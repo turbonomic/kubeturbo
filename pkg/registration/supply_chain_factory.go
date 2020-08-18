@@ -26,6 +26,7 @@ var (
 	appCommType            = proto.CommodityDTO_APPLICATION
 	numPodNumConsumersType = proto.CommodityDTO_NUMBER_CONSUMERS
 	vStorageType           = proto.CommodityDTO_VSTORAGE
+	storageAmountType      = proto.CommodityDTO_STORAGE_AMOUNT
 
 	fakeKey = "fake"
 
@@ -64,6 +65,7 @@ var (
 	vMemRequestQuotaTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vMemRequestQuotaType}
 	vmpmAccessTemplateComm              = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
 	applicationTemplateCommWithKey      = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
+	storageAmountTemplateCommWithKey    = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &storageAmountType}
 
 	// Resold TemplateCommodity with key
 	vCpuLimitQuotaTemplateCommWithKeyResold   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuLimitQuotaType, IsResold: &commIsResold}
@@ -72,13 +74,15 @@ var (
 	vMemRequestQuotaTemplateCommWithKeyResold = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vMemRequestQuotaType, IsResold: &commIsResold}
 
 	// Internal matching property
-	proxyVMIP   = "Proxy_VM_IP"
-	proxyVMUUID = "Proxy_VM_UUID"
+	proxyVMIP       = "Proxy_VM_IP"
+	proxyVMUUID     = "Proxy_VM_UUID"
+	proxyVolumeUUID = "Proxy_Volume_UUID"
 
 	// External matching property
 	VMIPFieldName          = supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS
 	VMIPFieldPaths         = []string{supplychain.SUPPLY_CHAIN_CONSTANT_VIRTUAL_MACHINE_DATA}
 	VMUUID                 = supplychain.SUPPLY_CHAIN_CONSTANT_ID
+	VOLUMEUUID             = supplychain.SUPPLY_CHAIN_CONSTANT_ID
 	ActionEligibilityField = "actionEligibility"
 )
 
@@ -162,6 +166,17 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	}
 	glog.V(4).Infof("Supply chain node: %+v", serviceSupplyChainNode)
 
+	// Virtual volume supply chain template
+	volumeSupplyChainNode, err := f.buildVolumeSupplyBuilder()
+	if err != nil {
+		return nil, err
+	}
+	volumeSupplyChainNode.MergedEntityMetaData, err = f.buildVolumeMergedEntityMetadata()
+	if err != nil {
+		return nil, err
+	}
+	glog.V(4).Infof("Supply chain node: %+v", volumeSupplyChainNode)
+
 	supplyChainBuilder := supplychain.NewSupplyChainBuilder()
 	supplyChainBuilder.Top(serviceSupplyChainNode)
 	supplyChainBuilder.Entity(appSupplyChainNode)
@@ -171,6 +186,7 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	supplyChainBuilder.Entity(workloadControllerSupplyChainNode)
 	supplyChainBuilder.Entity(namespaceSupplyChainNode)
 	supplyChainBuilder.Entity(nodeSupplyChainNode)
+	supplyChainBuilder.Entity(volumeSupplyChainNode)
 
 	return supplyChainBuilder.Create()
 }
@@ -300,7 +316,9 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Buys(vCpuLimitQuotaTemplateCommWithKey).
 		Buys(vMemLimitQuotaTemplateCommWithKey).
 		Buys(vCpuRequestQuotaTemplateCommWithKey).
-		Buys(vMemRequestQuotaTemplateCommWithKey)
+		Buys(vMemRequestQuotaTemplateCommWithKey).
+		Provider(proto.EntityDTO_VIRTUAL_VOLUME, proto.Provider_LAYERED_OVER).
+		Buys(storageAmountTemplateCommWithKey)
 
 	// Link from Pod to VM
 	vmPodExtLinkBuilder := supplychain.NewExternalEntityLinkBuilder()
@@ -390,4 +408,33 @@ func (f *SupplyChainFactory) buildServiceSupplyBuilder() (*proto.TemplateDTO, er
 		Provider(proto.EntityDTO_APPLICATION_COMPONENT, proto.Provider_LAYERED_OVER).
 		Buys(applicationTemplateCommWithKey)
 	return serviceSupplyChainNodeBuilder.Create()
+}
+
+func (f *SupplyChainFactory) buildVolumeSupplyBuilder() (*proto.TemplateDTO, error) {
+	volumeSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_VIRTUAL_VOLUME)
+	//	volumeSupplyChainNodeBuilder.SetPriority(f.vmPriority)
+	//	volumeSupplyChainNodeBuilder.SetTemplateType(f.vmTemplateType)
+
+	volumeSupplyChainNodeBuilder = volumeSupplyChainNodeBuilder.
+		Sells(storageAmountTemplateCommWithKey) // sells to Pods
+
+	return volumeSupplyChainNodeBuilder.Create()
+}
+
+// Stitching metadata required for stitching with XL
+func (f *SupplyChainFactory) buildVolumeMergedEntityMetadata() (*proto.MergedEntityMetadata, error) {
+	fieldsUsed := map[string][]string{
+		builder.PropertyUsed: {},
+	}
+
+	mergedEntityMetadataBuilder := builder.NewMergedEntityMetadataBuilder()
+
+	mergedEntityMetadataBuilder.PatchField(ActionEligibilityField, []string{})
+	mergedEntityMetadataBuilder.
+		InternalMatchingProperty(proxyVolumeUUID).
+		ExternalMatchingField(VOLUMEUUID, []string{})
+
+	return mergedEntityMetadataBuilder.
+		PatchSoldMetadata(proto.CommodityDTO_STORAGE_AMOUNT, fieldsUsed).
+		Build()
 }

@@ -3,12 +3,14 @@ package worker
 import (
 	"errors"
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"sync"
 	"time"
 
 	"github.com/golang/glog"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
@@ -256,6 +258,8 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	}
 	namespaceMetricsCollection := metricsCollector.CollectNamespaceMetrics(podMetricsCollection)
 
+	podVolumeMetricsCollection := metricsCollector.CollectPodVolumeMetrics()
+
 	// Add the allocation metrics in the sink for the pods and the nodes
 	worker.addPodAllocationMetrics(podMetricsCollection)
 
@@ -315,6 +319,11 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	if len(containerSpecMetricsList) > 0 {
 		result.WithContainerSpecMetrics(containerSpecMetricsList)
 	}
+
+	if len(podVolumeMetricsCollection) > 0 {
+		result.WithPodVolumeMetrics(podVolumeMetricsCollection)
+	}
+
 	return result
 }
 
@@ -359,6 +368,10 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	// Node providers
 	nodes := currTask.NodeList()
 	cluster := currTask.Cluster()
+	var podToVolsMap map[string][]repository.MountedVolume
+	if cluster != nil {
+		podToVolsMap = cluster.PodToVolumesMap
+	}
 
 	for _, node := range nodes {
 		if node != nil {
@@ -391,7 +404,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 
 	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager,
 		nodeNameUIDMap, namespaceUIDMap)
-	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods)
+	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods, podToVolsMap)
 	if err != nil {
 		glog.Errorf("Error while creating pod entityDTOs: %v", err)
 	}
@@ -410,6 +423,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 		glog.Errorf("Error while creating container entityDTOs: %v", err)
 	}
 	result = append(result, containerDTOs...)
+
 	glog.V(3).Infof("Worker %s built %d container DTOs.", worker.id, len(containerDTOs))
 
 	glog.V(2).Infof("Worker %s built total %d entityDTOs.", worker.id, len(result))

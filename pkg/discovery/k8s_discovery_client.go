@@ -2,13 +2,15 @@ package discovery
 
 import (
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"strings"
 	"time"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
@@ -346,6 +348,17 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	} else {
 		glog.V(2).Infof("There are %d service entityDTOs.", len(serviceDtos))
 		result.EntityDTOs = append(result.EntityDTOs, serviceDtos...)
+	}
+
+	glog.V(2).Infof("Begin to generate persistent volume EntityDTOs.")
+	// Persistent Volume DTOs
+	volumeEntityDTOBuilder := dtofactory.NewVolumeEntityDTOBuilder(result.PodVolumeMetrics)
+	volumeEntityDTOs, err := volumeEntityDTOBuilder.BuildEntityDTOs(clusterSummary.VolumeToPodsMap)
+	if err != nil {
+		glog.Errorf("Error while creating volume entityDTOs: %v", err)
+	} else {
+		glog.V(2).Infof("There are %d Storage Volume entityDTOs.", len(volumeEntityDTOs))
+		result.EntityDTOs = append(result.EntityDTOs, volumeEntityDTOs...)
 	}
 
 	glog.V(2).Infof("There are totally %d entityDTOs.", len(result.EntityDTOs))
