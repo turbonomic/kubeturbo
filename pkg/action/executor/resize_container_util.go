@@ -2,8 +2,9 @@ package executor
 
 import (
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"math"
+
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 
 	"k8s.io/client-go/dynamic"
 
@@ -98,15 +99,15 @@ func checkLimitsRequests(container *k8sapi.Container) error {
 	return nil
 }
 
-func updateResourceAmount(podSpec *k8sapi.PodSpec, specs []*containerResizeSpec) (bool, error) {
+func updateResourceAmount(podSpec *k8sapi.PodSpec, specs []*containerResizeSpec, objectID string) (bool, error) {
 	changed := false
 	for _, spec := range specs {
 		thisSpecChanged := false
 		//1. get container
 		index := spec.Index
 		if index >= len(podSpec.Containers) {
-			// TODO: we can as well try updating spec for other containers ignoring this one.
-			return false, fmt.Errorf("failed to find container[%d] in pod", index)
+			glog.Warningf("Skipping container index %d while updating %s.", index, objectID)
+			continue
 		}
 		container := &(podSpec.Containers[index])
 
@@ -122,8 +123,8 @@ func updateResourceAmount(podSpec *k8sapi.PodSpec, specs []*containerResizeSpec)
 
 		//4. check the new Limits vs. Requests, make sure Limits >= Requests
 		if err := checkLimitsRequests(container); err != nil {
-			// TODO: we can as well try updating spec for other containers ignoring this one.
-			return false, err
+			glog.Warningf("Skipping container index %d while updating %s. Requests are bigger than limits.", index, objectID)
+			continue
 		}
 
 		if thisSpecChanged {
@@ -297,7 +298,9 @@ func resizeSingleContainer(client *kclient.Clientset, originalPod *k8sapi.Pod, s
 // clonePodWithNewSize creates a pod with new resource limit/requests
 // return false if there is no need to update resource amount
 func clonePodWithNewSize(client *kclient.Clientset, pod *k8sapi.Pod, spec *containerResizeSpec) (*k8sapi.Pod, bool, error) {
-	id := fmt.Sprintf("%s/%s-%d", pod.Namespace, pod.Name, spec.Index)
+	podName := pod.Name
+	podNamespace := pod.Namespace
+	id := fmt.Sprintf("%s/%s-%d", podNamespace, podName, spec.Index)
 
 	//1. copy pod
 	npod := &k8sapi.Pod{}
@@ -311,7 +314,7 @@ func clonePodWithNewSize(client *kclient.Clientset, pod *k8sapi.Pod, spec *conta
 	glog.V(4).Infof("Update container %v resources in the pod specification.", id)
 	var specs []*containerResizeSpec
 	specs = append(specs, spec)
-	changed, err := updateResourceAmount(&npod.Spec, specs)
+	changed, err := updateResourceAmount(&npod.Spec, specs, fmt.Sprintf("%s-%s/%s", "Pod", podNamespace, podName))
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to update capacity for container %s: %v", id, err)
 	}
@@ -320,7 +323,7 @@ func clonePodWithNewSize(client *kclient.Clientset, pod *k8sapi.Pod, spec *conta
 	}
 
 	//3. create pod
-	podClient := client.CoreV1().Pods(pod.Namespace)
+	podClient := client.CoreV1().Pods(podNamespace)
 	rpod, err := podClient.Create(npod)
 	if err != nil {
 		return nil, true, err
