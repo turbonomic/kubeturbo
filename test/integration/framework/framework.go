@@ -35,6 +35,8 @@ func NewTestFramework(baseName string) *TestFramework {
 	f := &TestFramework{
 		BaseName: baseName,
 	}
+	//AfterEach(f.AfterEach)
+	//BeforeEach(f.BeforeEach)
 	return f
 }
 
@@ -74,6 +76,31 @@ func (f *TestFramework) GetKubeClient(userAgent string) *kubeclientset.Clientset
 	return kubeclientset.NewForConfigOrDie(config)
 }
 
+func (f *TestFramework) GetClusterNodes() []string {
+	client := f.GetKubeClient(fmt.Sprintf("%s-cluster", f.BaseName))
+	nodeNames := []string{}
+	nodes, err := client.CoreV1().Nodes().List(metav1.ListOptions{})
+	ExpectNoError(err, fmt.Sprintf("Error retrieving list of cluster nodes: %+v", err))
+
+	for _, node := range nodes.Items {
+		// skip master nodes.
+		if isMasterNode(node) {
+			continue
+		}
+		nodeNames = append(nodeNames, node.Name)
+	}
+	return nodeNames
+}
+
+func isMasterNode(node corev1.Node) bool {
+	for key := range node.Labels {
+		if key == "node-role.kubernetes.io/master" {
+			return true
+		}
+	}
+	return false
+}
+
 func loadConfig(configPath, context string) (*restclient.Config, *clientcmdapi.Config, error) {
 	Logf(">>> kubeConfig: %s", configPath)
 	c, err := clientcmd.LoadFromFile(configPath)
@@ -102,8 +129,9 @@ func DeleteNamespace(client kubeclientset.Interface, namespaceName string) {
 	}
 
 	// As of now we don't wait for the test ns deletion
+	// This helps in letting the tests finish faster.
 	// We will fill this section up when we add more tests
-	// beyond the only test currently updated.
+	// and the cluster needs to be retained/reused for more tests.
 }
 
 func CreateTestNamespace(client kubeclientset.Interface, baseName string) string {
