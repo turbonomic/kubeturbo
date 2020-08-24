@@ -12,6 +12,9 @@ debug-product: clean
 build: clean
 	go build ./cmd/kubeturbo
 
+integration: clean
+	go test -c -o ${OUTPUT_DIR}/integration.test ./test/integration
+
 docker: product
 	cd build; docker build -t turbonomic/kubeturbo --build-arg GIT_COMMIT=$(shell git rev-parse --short HEAD) .
 
