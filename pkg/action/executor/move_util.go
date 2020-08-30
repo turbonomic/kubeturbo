@@ -92,8 +92,15 @@ func genNewPodName(oldPod *api.Pod) string {
 //  stepB8: if the parent has parent, unpause the rollout
 // TODO: add support for operator controlled parent or parent's parent.
 func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
-	parentKind, parentName string, retryNum int) (*api.Pod, error) {
+	parentKind, parentName string, retryNum int, failVolumePodMoves bool) (*api.Pod, error) {
 	podClient := clusterScraper.Clientset.CoreV1().Pods(pod.Namespace)
+	podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+	podUsingVolume := isPodUsingVolume(pod)
+	if podUsingVolume && failVolumePodMoves {
+		return nil, fmt.Errorf("move pod failed: Pod %s uses a persistent volume. "+
+			"Set kubeturbo flag fail-volume-pod-moves to false to enable such moves.", podQualifiedName)
+	}
+
 	//NOTE: do deep-copy if the original pod may be modified outside this function
 	labels := pod.Labels
 
@@ -114,13 +121,12 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 		}
 	}()
 
-	podUsingVolume := isPodUsingVolume(pod)
 	// Special handling for pods with volumes
 	if podUsingVolume {
 		// We still support replicaset and replication controllers as parents,
 		// however both of them could further have a parent (deploy or deploy config).
 		parent, grandParent, pClient, gPClient, gPKind, err :=
-			getParentAndGrandParentInfo(clusterScraper, pod, parentKind)
+			getPodOwnersInfo(clusterScraper, pod, parentKind)
 		if err != nil {
 			return nil, err
 		}
@@ -130,12 +136,12 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 			unpause := false
 			// step B8: (via defer)
 			defer func() {
-				glog.V(3).Infof("Unpausing pods controller: %s for pod: %s", gPKind, pod.Name)
+				glog.V(3).Infof("Unpausing pods controller: %s for pod: %s", gPKind, podQualifiedName)
 				resourceRollout(gPClient, grandParent, unpause)
 			}()
 
 			// step B2:
-			glog.V(3).Infof("Pausing pods controller: %s for pod: %s", gPKind, pod.Name)
+			glog.V(3).Infof("Pausing pods controller: %s for pod: %s", gPKind, podQualifiedName)
 			err := resourceRollout(gPClient, grandParent, pause)
 			if err != nil {
 				return nil, err
@@ -146,13 +152,16 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 		invalid := false
 		// step B7: (via defer)
 		defer func() {
-			glog.V(3).Infof("Updating scheduler of %s for pod %s back to default.", parentKind, pod.Name)
+			glog.V(3).Infof("Updating scheduler of %s for pod %s back to default.", parentKind, podQualifiedName)
 			changeScheduler(pClient, parent, valid)
 
 		}()
 		// step B3:
 		glog.V(3).Infof("Updating scheduler of %s for pod %s to unknown (turbo-scheduler).", parentKind, pod.Name)
-		changeScheduler(pClient, parent, invalid)
+		err = changeScheduler(pClient, parent, invalid)
+		if err != nil {
+			return nil, err
+		}
 
 		// step A3/B4:
 		// We optimistically delete the original pod (PodA), so that the new pod can
@@ -225,12 +234,18 @@ func isPodUsingVolume(pod *api.Pod) bool {
 	return false
 }
 
-func getParentAndGrandParentInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
+// getPodOwnersInfo gets the pods owner objects (deployment, replicaset, et al)
+// and the client interfaces to make updates to the objects.
+// TODO: this piece of code can be cleaned up and can be made generic to return
+// any level of owners in a slice. So if there are three owner levels, for example
+// a replicaset, which is controlled by a deployment which is controlled by an operator
+// a single iterative function will collect all of them and return all in a slice.
+func getPodOwnersInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
 	parentKind string) (*unstructured.Unstructured, *unstructured.Unstructured,
 	dynamic.ResourceInterface, dynamic.ResourceInterface, string, error) {
-	gPkind, name, _, parent, nsParentClient, err := clusterScraper.GetPodGrandparentInfo(pod, false)
+	gPkind, name, _, parent, nsParentClient, err := clusterScraper.GetPodGrandparentInfo(pod, true)
 	if err != nil {
-		return nil, nil, nil, nil, gPkind, fmt.Errorf("Error getting pods final owner: %v", err)
+		return nil, nil, nil, nil, gPkind, fmt.Errorf("error getting pods final owner: %v", err)
 	}
 
 	if gPkind != parentKind {
@@ -247,25 +262,31 @@ func getParentAndGrandParentInfo(clusterScraper *cluster.ClusterScraper, pod *ap
 				Version:  commonutil.OpenShiftAPIDeploymentConfigGV.Version,
 				Resource: commonutil.DeploymentConfigResName}
 		default:
-			err = fmt.Errorf("Unsupported pods controller kind: %s while moving pod", gPkind)
-			glog.Error(err.Error())
+			err = fmt.Errorf("unsupported pods controller kind: %s while moving pod", gPkind)
 			return nil, nil, nil, nil, gPkind, err
 		}
 
 		nsGpClient := clusterScraper.DynamicClient.Resource(res).Namespace(pod.Namespace)
 		gParent, err := nsGpClient.Get(name, metav1.GetOptions{})
-		if err != nil {
-			glog.Errorf("Failed to get pods controller: %s[%v/%v]: %v", gPkind, pod.Namespace, name, err)
-			return nil, nil, nil, nil, gPkind, err
+		if err != nil || gParent == nil {
+			return nil, nil, nil, nil, gPkind, fmt.Errorf("failed to get pods controller: %s[%v/%v]: %v",
+				gPkind, pod.Namespace, name, err)
 		}
-		// TODO: add support for operator owned controllers.
-		// As of now we fail if we observe that grandparent has an owner (assuming its an operator)
-		// Actually a parent, eg. a replicaset although unlikely can also be controlled by an operator.
-		if len(gParent.GetOwnerReferences()) > 0 {
-			glog.Errorf("The parent's parent is probably controlled by an operator."+
-				"\nFailing podmove for %s[%v/%v]: %v", gPkind, pod.Namespace, name, err)
-			return nil, nil, nil, nil, gPkind, fmt.Errorf("failing pod move")
-		}
+
+		// As of now we only have XL as the example for operator controlled resources (deployment) which
+		// has pods using volumes. Seemingly this operator ignores the "paused" field of the deployments
+		// while reconcoling the resources therefor enabling us to actually be able to move the pods
+		// without the need to update it via the operators custom resource.
+		// We therefor do not fail here and let the move happen as it would be when the resource
+		// is not operator controlled.
+
+		// Actually a parent, eg. a replicaset, although unlikely can also be controlled by an operator
+		// but we ignore that case for now as we do not have an example of that in any env yet.
+		// TODO: add support for such (viz replicaset) operator managed resources.
+		/*if len(gParent.GetOwnerReferences()) > 0 {
+			return nil, nil, nil, nil, gPkind, fmt.Errorf("the parent's parent is probably controlled by an operator. "+
+				"Failing podmove for %s[%v/%v]: %v", gPkind, pod.Namespace, name, err)
+		}*/
 		return parent, gParent, nsParentClient, nsGpClient, gPkind, nil
 	}
 

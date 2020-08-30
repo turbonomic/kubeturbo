@@ -324,8 +324,8 @@ func (s *ClusterScraper) GetPodGrandparentInfo(pod *api.Pod, ignoreCache bool) (
 			Resource: commonutil.ReplicationControllerResName}
 	case commonutil.KindReplicaSet:
 		res = schema.GroupVersionResource{
-			Group:    commonutil.K8sAPIDeploymentGV.Group,
-			Version:  commonutil.K8sAPIDeploymentGV.Version,
+			Group:    commonutil.K8sAPIReplicasetGV.Group,
+			Version:  commonutil.K8sAPIReplicasetGV.Version,
 			Resource: commonutil.ReplicaSetResName}
 	default:
 		s.cacheControllerInfo(podControllerInfoKey, kind, name, uid)
@@ -343,7 +343,7 @@ func (s *ClusterScraper) GetPodGrandparentInfo(pod *api.Pod, ignoreCache bool) (
 	rsOwnerReferences := obj.GetOwnerReferences()
 	if rsOwnerReferences != nil && len(rsOwnerReferences) > 0 {
 		gkind, gname, guid := util.ParseOwnerReferences(rsOwnerReferences)
-		if len(gkind) > 0 && len(gname) > 0 {
+		if len(gkind) > 0 && len(gname) > 0 && len(guid) > 0 {
 			s.cacheControllerInfo(podControllerInfoKey, kind, name, uid)
 			return gkind, gname, guid, obj, namespacedClient, nil
 		}
