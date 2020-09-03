@@ -80,6 +80,7 @@ func (p *VolumeProcessor) ProcessVolumes() {
 							pVol := repository.PodVolume{
 								QualifiedPodName: util.PodKeyFunc(pod),
 								MountName:        vol.Name,
+								NodeName:         pod.Spec.NodeName,
 							}
 							volumeToPodsMap[pv] = append(volumeToPodsMap[pv], pVol)
 						}
@@ -99,16 +100,23 @@ func (p *VolumeProcessor) ProcessVolumes() {
 	}
 
 	p.KubeCluster.VolumeToPodsMap = volumeToPodsMap
-	p.KubeCluster.PodToVolumesMap = inverseVolToPodsMap(volumeToPodsMap)
+	p.KubeCluster.PodToVolumesMap, p.KubeCluster.NodeToVolumesMap = inverseVolToPodsMap(volumeToPodsMap)
 }
 
-func inverseVolToPodsMap(volToPodsMap map[*v1.PersistentVolume][]repository.PodVolume) map[string][]repository.MountedVolume {
+func inverseVolToPodsMap(volToPodsMap map[*v1.PersistentVolume][]repository.PodVolume) (map[string][]repository.MountedVolume,
+	map[string][]repository.NodeVolume) {
 	podToVolsMap := make(map[string][]repository.MountedVolume)
+	nodeToVolsMap := make(map[string][]repository.NodeVolume)
 	for vol, podVols := range volToPodsMap {
 		for _, podVol := range podVols {
-			podToVolsMap[podVol.QualifiedPodName] = append(podToVolsMap[podVol.QualifiedPodName],
-				repository.MountedVolume{UsedVolume: vol, MountName: podVol.MountName})
+			pvl := repository.MountedVolume{UsedVolume: vol, MountName: podVol.MountName}
+			podToVolsMap[podVol.QualifiedPodName] = append(podToVolsMap[podVol.QualifiedPodName], pvl)
+			// There is a possibility of duplicate volumes here, if multiple pods use
+			// the same volume. We will have a check while adding commodities to avoid
+			// duplicate commodities.
+			nodeToVolsMap[podVol.NodeName] = append(nodeToVolsMap[podVol.NodeName],
+				repository.NodeVolume{MountedVolume: pvl, QualifiedPodName: podVol.QualifiedPodName})
 		}
 	}
-	return podToVolsMap
+	return podToVolsMap, nodeToVolsMap
 }

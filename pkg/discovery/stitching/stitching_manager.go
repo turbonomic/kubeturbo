@@ -216,6 +216,7 @@ func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_Re
 		return nil, fmt.Errorf("stitching property type %s is not supported", s.stitchType)
 	}
 	usedAndCapacityPropertyNames := []string{builder.PropertyCapacity, builder.PropertyUsed}
+	usedAndPeakPropertyNames := []string{builder.PropertyUsed, builder.PropertyPeak}
 	vcpuUsedAndCapacityPropertyNames := []string{builder.PropertyCapacity, builder.PropertyUsed, builder.PropertyPeak}
 	capacityOnlyPropertyNames := []string{builder.PropertyCapacity}
 	replacementEntityMetaDataBuilder.PatchSellingWithProperty(proto.CommodityDTO_CLUSTER, capacityOnlyPropertyNames).
@@ -229,7 +230,8 @@ func (s *StitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_Re
 		PatchSellingWithProperty(proto.CommodityDTO_VCPU_REQUEST_QUOTA, usedAndCapacityPropertyNames).
 		PatchSellingWithProperty(proto.CommodityDTO_VMEM_REQUEST_QUOTA, usedAndCapacityPropertyNames).
 		PatchSellingWithProperty(proto.CommodityDTO_NUMBER_CONSUMERS, usedAndCapacityPropertyNames).
-		PatchSellingWithProperty(proto.CommodityDTO_VSTORAGE, usedAndCapacityPropertyNames)
+		PatchSellingWithProperty(proto.CommodityDTO_VSTORAGE, usedAndCapacityPropertyNames).
+		PatchBuyingWithProperty(proto.CommodityDTO_STORAGE_AMOUNT, usedAndPeakPropertyNames)
 	meta := replacementEntityMetaDataBuilder.Build()
 	return meta, nil
 }

@@ -236,6 +236,9 @@ func (m *KubeletMonitor) parseVolumeStats(volStats []stats.VolumeStats, podKey s
 		// TODO: Generate used on etype pod and capacity on etype volume once
 		// etype volume is in place
 		m.genPVMetrics(metrics.PodType, volKey, capacity, used)
+		// We store the same metric against a virtual volume type to be used
+		// to build the buy sell relationship between nodes and volumes
+		m.genPVMetrics(metrics.VolumeType, volKey, capacity, used)
 
 		glog.V(4).Infof("Volume Usage of %s mounted by pod %s is %.3f Megabytes", volStat.Name, podKey, used)
 		glog.V(4).Infof("Volume Capacity of %s mounted by pod %s is %.3f Megabytes", volStat.Name, podKey, capacity)

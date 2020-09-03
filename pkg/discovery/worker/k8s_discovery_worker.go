@@ -369,8 +369,10 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 	nodes := currTask.NodeList()
 	cluster := currTask.Cluster()
 	var podToVolsMap map[string][]repository.MountedVolume
+	var nodeToVolsMap map[string][]repository.NodeVolume
 	if cluster != nil {
 		podToVolsMap = cluster.PodToVolumesMap
+		nodeToVolsMap = cluster.NodeToVolumesMap
 	}
 
 	for _, node := range nodes {
@@ -384,7 +386,7 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 
 	// 1. build entityDTOs for nodes
 	nodeEntityDTOBuilder := dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager)
-	nodeEntityDTOs, err := nodeEntityDTOBuilder.BuildEntityDTOs(nodes)
+	nodeEntityDTOs, err := nodeEntityDTOBuilder.BuildEntityDTOs(nodes, nodeToVolsMap)
 	if err != nil {
 		glog.Errorf("Error while creating node entityDTOs: %v", err)
 		// TODO Node discovery fails, directly return?

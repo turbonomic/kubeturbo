@@ -28,6 +28,8 @@ type KubeCluster struct {
 	// Map of namespace qualified pod name wrt to the volumes they mount.
 	// This map will not feature volumes which are not mounted by any pods.
 	PodToVolumesMap map[string][]MountedVolume
+	// Map of node names to the attached volumes.
+	NodeToVolumesMap map[string][]NodeVolume
 }
 
 type PodVolume struct {
@@ -35,11 +37,25 @@ type PodVolume struct {
 	QualifiedPodName string
 	// Name used by the pod to mount the volume.
 	MountName string
+	// Name of the node this volume attaches to.
+	// This information is to avoid evaluating the pods node when needed
+	// or instead storing the whole pod spec/status here.
+	NodeName string
 }
 
+// Volumes info when mapping to a pod
 type MountedVolume struct {
 	UsedVolume *v1.PersistentVolume
 	MountName  string
+}
+
+// Volumes info when mapping to a node
+type NodeVolume struct {
+	MountedVolume
+	// Namespace qualified pod name this volume is used by.
+	// This facilitates retrieving volume usage metrics when needed for
+	// the node commodity data which actually come from the pod stats.
+	QualifiedPodName string
 }
 
 // Volume metrics reported for a given pod

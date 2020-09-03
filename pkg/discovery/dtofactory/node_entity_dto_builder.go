@@ -7,6 +7,7 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
@@ -60,7 +61,8 @@ func NewNodeEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *s
 }
 
 // Build entityDTOs based on the given node list.
-func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*proto.EntityDTO, error) {
+func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node,
+	podsToVolsMap map[string][]repository.NodeVolume) ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
 	for _, node := range nodes {
 		// id.
@@ -78,17 +80,22 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		// compute and constraint commodities sold.
 		commoditiesSold, err := builder.getNodeCommoditiesSold(node)
 		if err != nil {
-			glog.Errorf("Error when create commoditiesSold for %s: %s", node.Name, err)
+			glog.Errorf("Error when create commoditiesSold for node %s: %s", node.Name, err)
 			nodeActive = false
 		}
 		// allocation commodities sold
 		allocationCommoditiesSold, err := builder.getAllocationCommoditiesSold(node)
 		if err != nil {
-			glog.Errorf("Error when creating allocation commoditiesSold for %s: %s", node.Name, err)
+			glog.Errorf("Error when creating allocation commoditiesSold for node %s: %s", node.Name, err)
 			nodeActive = false
 		}
 		commoditiesSold = append(commoditiesSold, allocationCommoditiesSold...)
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
+
+		err = builder.buyCommoditiesFromVolumes(displayName, podsToVolsMap[displayName], entityDTOBuilder)
+		if err != nil {
+			glog.Errorf("Error when create commoditiesBought for node %s: %s", displayName, err)
+		}
 
 		// entities' properties.
 		properties, err := builder.getNodeProperties(node)
@@ -150,6 +157,43 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 	}
 
 	return result, nil
+}
+
+// Build the CommodityDTOs bought by the node from the Volumes.
+func (builder *nodeEntityDTOBuilder) buyCommoditiesFromVolumes(nodeName string, volumes []repository.NodeVolume, dtoBuilder *sdkbuilder.EntityDTOBuilder) error {
+	// TODO: Add a check to see if same volume is being used by multiple
+	// pods here to ensure no duplicate commodities bought are added.
+	for _, v := range volumes {
+		mountName := v.MountName
+		podKey := v.QualifiedPodName
+		volEntityID := util.PodVolumeMetricId(podKey, mountName)
+		commBought, err := builder.getResourceCommodityBoughtWithKey(metrics.VolumeType, volEntityID,
+			metrics.StorageAmount, "", nil, nil)
+		if err != nil {
+			glog.Errorf("Failed to build %s bought by node %s and mounted as %s from volume %s: %v",
+				metrics.StorageAmount, nodeName, mountName, v.UsedVolume.Name, err)
+			return err
+		}
+
+		if v.UsedVolume == nil {
+			glog.Errorf("Error when create commoditiesBought for node %s mounting %s: Cannot find uuid for provider "+
+				"Vol: ", podKey, mountName)
+			continue
+		}
+
+		providerVolUID := string(v.UsedVolume.UID)
+
+		provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_VOLUME, providerVolUID)
+		dtoBuilder = dtoBuilder.Provider(provider)
+		// TODO: Clear this out with the cloud storage team.
+		// We do not expect any vm actions related to volumes as provider.
+		dtoBuilder.IsMovable(proto.EntityDTO_VIRTUAL_VOLUME, false).
+			IsStartable(proto.EntityDTO_VIRTUAL_VOLUME, false).
+			IsScalable(proto.EntityDTO_VIRTUAL_VOLUME, false)
+		dtoBuilder.BuysCommodities([]*proto.CommodityDTO{commBought})
+	}
+
+	return nil
 }
 
 // Build the sold commodityDTO by each node. They include:
