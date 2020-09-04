@@ -12,8 +12,11 @@ import (
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/util/retry"
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -94,6 +97,7 @@ func genNewPodName(oldPod *api.Pod) string {
 func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 	parentKind, parentName string, retryNum int, failVolumePodMoves bool) (*api.Pod, error) {
 	podClient := clusterScraper.Clientset.CoreV1().Pods(pod.Namespace)
+	var podParent *unstructured.Unstructured
 	podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	podUsingVolume := isPodUsingVolume(pod)
 	if podUsingVolume && failVolumePodMoves {
@@ -111,6 +115,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 		return nil, err
 	}
 
+	var podList *api.PodList
 	//delete the clone pod if any of the below action fails
 	flag := false
 	defer func() {
@@ -118,6 +123,16 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 			glog.Errorf("Move pod failed, begin to delete cloned pod: %v/%v", npod.Namespace, npod.Name)
 			delOpt := &metav1.DeleteOptions{}
 			podClient.Delete(npod.Name, delOpt)
+		}
+		if podUsingVolume {
+			// A failure can leave a pod (or pods) in pending state, delete them.
+			// This can happen in case the newly created pod did fail to reach ready
+			// state for whatever reason. After timeout we will end up deleting the
+			// newly created pod. The invalid pod (or pods) would have been be created
+			// for when the parent's scheduler was set to invalid scheduler (turbo-scheduler)
+			// and at exactly the same time the total replica count dropped below
+			// desired count (for  whatever reason).
+			deleteInvalidPendingPods(podParent, podClient, podList)
 		}
 	}()
 
@@ -130,6 +145,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 		if err != nil {
 			return nil, err
 		}
+		podParent = parent
 
 		if grandParent != nil {
 			pause := true
@@ -137,7 +153,15 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 			// step B8: (via defer)
 			defer func() {
 				glog.V(3).Infof("Unpausing pods controller: %s for pod: %s", gPKind, podQualifiedName)
-				resourceRollout(gPClient, grandParent, unpause)
+				// We conservatively try additional 3 times in case of any failure as we don't
+				// want the parent to be left in a bad state.
+				err := commonutil.RetryDuring(defaultRetryLess, defaultRetryShortTimeout,
+					defaultRetrySleepInterval, func() error {
+						return resourceRollout(gPClient, grandParent, unpause)
+					})
+				if err != nil {
+					glog.Errorf("Move pod warning: %v", err)
+				}
 			}()
 
 			// step B2:
@@ -148,12 +172,25 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 			}
 		}
 
+		podList, err = parentsPods(parent, podClient)
+		if err != nil {
+			return nil, err
+		}
+
 		valid := true
 		invalid := false
 		// step B7: (via defer)
 		defer func() {
 			glog.V(3).Infof("Updating scheduler of %s for pod %s back to default.", parentKind, podQualifiedName)
-			changeScheduler(pClient, parent, valid)
+			// We conservatively try additional 3 times in case of any failure as we don't
+			// want the parent to be left in a bad state.
+			err := commonutil.RetryDuring(defaultRetryLess, defaultRetryShortTimeout,
+				defaultRetrySleepInterval, func() error {
+					return changeScheduler(pClient, parent, valid)
+				})
+			if err != nil {
+				glog.Errorf("Move pod warning: %v", err)
+			}
 
 		}()
 		// step B3:
@@ -211,6 +248,77 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 
 	flag = true
 	return xpod, nil
+}
+
+func deleteInvalidPendingPods(parent *unstructured.Unstructured, podClient v1.PodInterface,
+	podList *api.PodList) {
+	if parent == nil {
+		return
+	}
+	// Fetch the parents pods again
+	newPodList, err := parentsPods(parent, podClient)
+	if err != nil {
+		if err != nil {
+			glog.Errorf("Error getting pod list for %s: %s.", parent.GetKind(), parent.GetName())
+		}
+	}
+
+	// Find the pods which weren't there and if attributed to invalid
+	// turbo-scheduler, delete them.
+	for _, pod := range newPendingInvalidPods(newPodList, podList) {
+		err := commonutil.RetryDuring(defaultRetryLess, defaultRetryShortTimeout,
+			defaultRetrySleepInterval, func() error {
+				return podClient.Delete(pod.Name, &metav1.DeleteOptions{})
+			})
+		if err != nil {
+			glog.Errorf("Failed to delete pending pod: %s.", pod.Name)
+		}
+	}
+
+}
+
+func newPendingInvalidPods(list1, list2 *api.PodList) []*api.Pod {
+	var diffList []*api.Pod
+	for _, pod1 := range list1.Items {
+		found := false
+		for _, pod2 := range list2.Items {
+			if pod1.Name == pod2.Name {
+				found = true
+				break
+			}
+		}
+		if found == true {
+			continue
+		} else {
+			if pod1.Status.Phase == api.PodPending &&
+				pod1.Spec.SchedulerName == "turbo-scheduler" {
+				diffList = append(diffList, &pod1)
+			}
+		}
+	}
+
+	return diffList
+}
+
+func parentsPods(parent *unstructured.Unstructured, podClient v1.PodInterface) (*api.PodList, error) {
+	kind, objName := parent.GetKind(), parent.GetName()
+	selectorUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "spec", "selector")
+	if err != nil || !found {
+		return nil, fmt.Errorf("error retrieving selectors from %s %s: %v", kind, objName, err)
+	}
+
+	selectors := metav1.LabelSelector{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(selectorUnstructured.(map[string]interface{}), &selectors); err != nil {
+		return nil, fmt.Errorf("error converting unstructured selectors to typed selectors for %s %s: %v", kind, objName, err)
+	}
+	sString := metav1.FormatLabelSelector(&selectors)
+	listOpts := metav1.ListOptions{LabelSelector: sString}
+	podList, err := podClient.List(listOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	return podList, nil
 }
 
 func isPodUsingVolume(pod *api.Pod) bool {
@@ -297,42 +405,60 @@ func getPodOwnersInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
 
 // resourceRollout pauses/unpauses the rollout of a deployment or a deploymentconfig
 func resourceRollout(client dynamic.ResourceInterface, obj *unstructured.Unstructured, pause bool) error {
-	// Avoid mutating the passed object
-	objCopy := obj.DeepCopy()
 	kind := obj.GetKind()
 	name := obj.GetName()
-	if err := unstructured.SetNestedField(objCopy.Object, pause, "spec", "paused"); err != nil {
-		return fmt.Errorf("error pausing %s %s: %v", kind, name, err)
-	}
+	// This takes care of conflicting updates for example by operator
+	// Ref: https://github.com/kubernetes/client-go/blob/master/examples/dynamic-create-update-delete-deployment/main.go
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		objCopy, err := client.Get(name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedField(objCopy.Object, pause, "spec", "paused"); err != nil {
+			return err
+		}
+		_, err = client.Update(objCopy, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 
-	_, err := client.Update(objCopy, metav1.UpdateOptions{})
-	if err != nil {
-		return fmt.Errorf("error pausing %s %s: %v", kind, name, err)
+	if retryErr != nil {
+		return fmt.Errorf("error setting 'spec.paused' to %t for %s %s: %v", pause, kind, name, retryErr)
 	}
 	return nil
 }
 
 // changeScheduler sets the scheduler value to default or unsets it to an invalid one
 func changeScheduler(client dynamic.ResourceInterface, obj *unstructured.Unstructured, valid bool) error {
-	objCopy := obj.DeepCopy()
 	kind := obj.GetKind()
 	name := obj.GetName()
-
-	if valid {
-		if err := unstructured.SetNestedField(objCopy.Object, "default-scheduler",
-			"spec", "template", "spec", "schedulerName"); err != nil {
-			return fmt.Errorf("error setting scheduler to default-scheduler for %s %s: %v", kind, name, err)
+	// This takes care of conflicting updates for example by operator
+	// Ref: https://github.com/kubernetes/client-go/blob/master/examples/dynamic-create-update-delete-deployment/main.go
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		objCopy, err := client.Get(name, metav1.GetOptions{})
+		if valid {
+			if err := unstructured.SetNestedField(objCopy.Object, "default-scheduler",
+				"spec", "template", "spec", "schedulerName"); err != nil {
+				return err
+			}
+		} else {
+			if err := unstructured.SetNestedField(objCopy.Object, "turbo-scheduler",
+				"spec", "template", "spec", "schedulerName"); err != nil {
+				return err
+			}
 		}
-	} else {
-		if err := unstructured.SetNestedField(objCopy.Object, "turbo-scheduler",
-			"spec", "template", "spec", "schedulerName"); err != nil {
-			return fmt.Errorf("error setting scheduler to unknown (turbo-scheduler) for %s %s: %v", kind, name, err)
-		}
-	}
 
-	_, err := client.Update(objCopy, metav1.UpdateOptions{})
-	if err != nil {
-		return fmt.Errorf("error updating scheduler name for %s %s: %v", kind, name, err)
+		_, err = client.Update(objCopy, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if retryErr != nil {
+		return fmt.Errorf("error updating scheduler [valid=%t] for %s %s: %v", valid, kind, name, retryErr)
 	}
 	return nil
 }
