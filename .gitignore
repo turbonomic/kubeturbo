@@ -13,5 +13,7 @@ kubeturbo.iml
 kubeturbo
 kubeturbo.linux
 kubeturbo.debug
+integration.test
 dlv
+bin
 
