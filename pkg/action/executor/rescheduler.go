@@ -14,13 +14,15 @@ import (
 
 type ReScheduler struct {
 	TurboK8sActionExecutor
-	sccAllowedSet map[string]struct{}
+	sccAllowedSet      map[string]struct{}
+	failVolumePodMoves bool
 }
 
-func NewReScheduler(ae TurboK8sActionExecutor, sccAllowedSet map[string]struct{}) *ReScheduler {
+func NewReScheduler(ae TurboK8sActionExecutor, sccAllowedSet map[string]struct{}, failVolumePodMoves bool) *ReScheduler {
 	return &ReScheduler{
 		TurboK8sActionExecutor: ae,
 		sccAllowedSet:          sccAllowedSet,
+		failVolumePodMoves:     failVolumePodMoves,
 	}
 }
 
@@ -151,7 +153,6 @@ func (r *ReScheduler) preActionCheck(pod *api.Pod, node *api.Node) error {
 func (r *ReScheduler) reSchedule(pod *api.Pod, node *api.Node) (*api.Pod, error) {
 	//1. do some check
 	if err := r.preActionCheck(pod, node); err != nil {
-		glog.Errorf("Move action aborted: %v.", err)
 		return nil, err
 	}
 
@@ -159,26 +160,21 @@ func (r *ReScheduler) reSchedule(pod *api.Pod, node *api.Node) (*api.Pod, error)
 	fullName := util.BuildIdentifier(pod.Namespace, pod.Name)
 	// if the pod is already on the target node, then simply return success.
 	if pod.Spec.NodeName == nodeName {
-		err := fmt.Errorf("Pod [%v] is already on host [%v]", fullName, nodeName)
-		glog.V(2).Infof("Move action aborted: %v.", err)
-		return nil, err
+		return nil, fmt.Errorf("Pod [%v] is already on host [%v]", fullName, nodeName)
 	}
 
 	parentKind, parentName, _, err := podutil.GetPodParentInfo(pod)
 	if err != nil {
-		err = fmt.Errorf("Cannot get parent info of pod [%v]: %v", fullName, err)
-		glog.Errorf("Move action aborted: %v.", err)
-		return nil, err
+		return nil, fmt.Errorf("Cannot get parent info of pod [%v]: %v", fullName, err)
 	}
 
 	if !util.SupportedParent(parentKind, false) {
-		err = fmt.Errorf("The object kind [%v] of [%s] is not supported", parentKind, parentName)
-		glog.Errorf("Move action aborted: %v.", err)
-		return nil, err
+		return nil, fmt.Errorf("The object kind [%v] of [%s] is not supported", parentKind, parentName)
 	}
 
 	//2. move
-	return movePod(r.clusterScraper.Clientset, pod, nodeName, defaultRetryMore)
+	return movePod(r.clusterScraper, pod, nodeName, parentKind,
+		parentName, defaultRetryMore, r.failVolumePodMoves)
 }
 
 func getVMIps(entity *proto.EntityDTO) []string {

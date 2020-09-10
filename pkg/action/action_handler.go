@@ -49,11 +49,12 @@ type ActionHandlerConfig struct {
 	sccAllowedSet  map[string]struct{}
 	cAPINamespace  string
 	// ormClient provides the capability to update the corresponding CR for an Operator managed resource.
-	ormClient *resourcemapping.ORMClient
+	ormClient          *resourcemapping.ORMClient
+	failVolumePodMoves bool
 }
 
 func NewActionHandlerConfig(cApiNamespace string, cApiClient *clientset.Clientset, kubeletClient *kubeletclient.KubeletClient,
-	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient) *ActionHandlerConfig {
+	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient, failVolumePodMoves bool) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
 		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}
@@ -61,13 +62,14 @@ func NewActionHandlerConfig(cApiNamespace string, cApiClient *clientset.Clientse
 	glog.V(4).Infof("SCC's allowed: %s", sccAllowedSet)
 
 	config := &ActionHandlerConfig{
-		clusterScraper: clusterScraper,
-		kubeletClient:  kubeletClient,
-		StopEverything: make(chan struct{}),
-		sccAllowedSet:  sccAllowedSet,
-		cAPINamespace:  cApiNamespace,
-		cApiClient:     cApiClient,
-		ormClient:      ormClient,
+		clusterScraper:     clusterScraper,
+		kubeletClient:      kubeletClient,
+		StopEverything:     make(chan struct{}),
+		sccAllowedSet:      sccAllowedSet,
+		cAPINamespace:      cApiNamespace,
+		cApiClient:         cApiClient,
+		ormClient:          ormClient,
+		failVolumePodMoves: failVolumePodMoves,
 	}
 
 	return config
@@ -108,7 +110,8 @@ func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
 	ae := executor.NewTurboK8sActionExecutor(c.clusterScraper, c.cApiClient, h.podManager, h.config.ormClient)
 
-	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet)
+	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet, c.failVolumePodMoves)
+
 	h.actionExecutors[turboActionPodMove] = reScheduler
 
 	horizontalScaler := executor.NewHorizontalScaler(ae)

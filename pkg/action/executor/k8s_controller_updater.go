@@ -36,7 +36,7 @@ type controllerSpec struct {
 // newK8sControllerUpdaterViaPod returns a k8sControllerUpdater based on the parent kind of a pod
 func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, ormClient *resourcemapping.ORMClient) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
-	kind, name, _, err := clusterScraper.GetPodGrandparentInfo(pod)
+	kind, name, _, _, _, err := clusterScraper.GetPodGrandparentInfo(pod, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get parent info of pod %s/%s: %v", pod.Namespace, pod.Name, err)
 	}

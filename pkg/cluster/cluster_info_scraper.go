@@ -8,6 +8,7 @@ import (
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -286,26 +287,31 @@ func (s *ClusterScraper) GetPVCs(namespace string, opts metav1.ListOptions) ([]*
 	return pvcs, nil
 }
 
-// GetPodGrandparentInfo gets grandParent (parent's parent) information of a pod: kind, name and uid
-// If pod's parent does not have parent, then return pod's parent info.
+// GetPodGrandparentInfo gets grandParent (parent's parent) information of a pod: kind, name, uid
+// If parent does not have parent, then return parent info.
 // Note: if parent kind is "ReplicaSet", then its parent's parent can be a "Deployment"
 //       or if its a "ReplicationController" its parent could be "DeploymentConfig" (as in openshift).
-func (s *ClusterScraper) GetPodGrandparentInfo(pod *api.Pod) (string, string, string, error) {
-	// Get pod controller info from cache if exists
+// The function also returns the retrieved parent and parents crud interface for use by the callers.
+func (s *ClusterScraper) GetPodGrandparentInfo(pod *api.Pod, ignoreCache bool) (string, string,
+	string, *unstructured.Unstructured, dynamic.ResourceInterface, error) {
 	podControllerInfoKey := util.PodControllerInfoKey(pod)
-	controllerInfoCache, exists := s.cache.Get(podControllerInfoKey)
-	if exists {
-		controllerInfo, ok := controllerInfoCache.(kubeControllerInfo)
-		if !ok {
-			return "", "", "", fmt.Errorf("error getting controller info cache data: controllerInfoCache is '%t' not 'kubeControllerInfo'",
-				controllerInfoCache)
+	if !ignoreCache {
+		// Get pod controller info from cache if exists
+		controllerInfoCache, exists := s.cache.Get(podControllerInfoKey)
+		if exists {
+			controllerInfo, ok := controllerInfoCache.(kubeControllerInfo)
+			if !ok {
+				return "", "", "", nil, nil, fmt.Errorf("error getting controller info cache data: controllerInfoCache is '%t' not 'kubeControllerInfo'",
+					controllerInfoCache)
+			}
+			return controllerInfo.kind, controllerInfo.name, controllerInfo.uid, nil, nil, nil
 		}
-		return controllerInfo.kind, controllerInfo.name, controllerInfo.uid, nil
 	}
-	//1. get Parent info: kind, name and uid;
+
+	//1. get Parent info: kind and name;
 	kind, name, uid, err := util.GetPodParentInfo(pod)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", nil, nil, err
 	}
 
 	//2. if parent is "ReplicaSet" or "ReplicationController", check parent's parent
@@ -323,25 +329,28 @@ func (s *ClusterScraper) GetPodGrandparentInfo(pod *api.Pod) (string, string, st
 			Resource: commonutil.ReplicaSetResName}
 	default:
 		s.cacheControllerInfo(podControllerInfoKey, kind, name, uid)
-		return kind, name, uid, nil
+		return kind, name, uid, nil, nil, nil
 	}
 
-	obj, err := s.DynamicClient.Resource(res).Namespace(pod.Namespace).Get(name, metav1.GetOptions{})
+	namespacedClient := s.DynamicClient.Resource(res).Namespace(pod.Namespace)
+	obj, err := namespacedClient.Get(name, metav1.GetOptions{})
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to get %s[%v/%v]: %v", kind, pod.Namespace, name, err)
+		err = fmt.Errorf("Failed to get %s[%v/%v]: %v", kind, pod.Namespace, name, err)
+		glog.Error(err.Error())
+		return "", "", "", nil, nil, err
 	}
 	//2.2 get parent's parent info by parsing ownerReferences:
 	rsOwnerReferences := obj.GetOwnerReferences()
 	if rsOwnerReferences != nil && len(rsOwnerReferences) > 0 {
 		gkind, gname, guid := util.ParseOwnerReferences(rsOwnerReferences)
 		if len(gkind) > 0 && len(gname) > 0 && len(guid) > 0 {
-			s.cacheControllerInfo(podControllerInfoKey, gkind, gname, guid)
-			return gkind, gname, guid, nil
+			s.cacheControllerInfo(podControllerInfoKey, kind, name, uid)
+			return gkind, gname, guid, obj, namespacedClient, nil
 		}
 	}
 
 	s.cacheControllerInfo(podControllerInfoKey, kind, name, uid)
-	return kind, name, uid, nil
+	return kind, name, uid, obj, namespacedClient, nil
 }
 
 func (s *ClusterScraper) cacheControllerInfo(podControllerInfoKey, kind, name, uid string) {

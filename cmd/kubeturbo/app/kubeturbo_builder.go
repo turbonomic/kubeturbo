@@ -2,8 +2,6 @@ package app
 
 import (
 	"fmt"
-	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
-	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -11,6 +9,9 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+
+	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 
 	clusterclient "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 	apiv1 "k8s.io/api/core/v1"
@@ -112,6 +113,10 @@ type VMTServer struct {
 	// The default is true.
 	ForceSelfSignedCerts bool
 
+	// Don't try to move pods which have volumes attached
+	// If set to false kubeturbo can still try to move such pods.
+	FailVolumePodMoves bool
+
 	// The Cluster API namespace
 	ClusterAPINamespace string
 
@@ -148,6 +153,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.KubeletPort, "kubelet-port", DefaultKubeletPort, "The port of the kubelet runs on")
 	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
 	fs.BoolVar(&s.ForceSelfSignedCerts, "kubelet-force-selfsigned-cert", true, "Indicate if we must use self-signed cert")
+	fs.BoolVar(&s.FailVolumePodMoves, "fail-volume-pod-moves", true, "Indicate if kubeturbo should fail to move pods which have volumes attached. Default is set to true.")
 	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&noneSchedulerName, "noneSchedulerName", noneSchedulerName, "[deprecated] a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
 	fs.IntVar(&s.DiscoveryIntervalSec, "discovery-interval-sec", defaultDiscoveryIntervalSec, "The discovery interval in seconds")
@@ -317,7 +323,8 @@ func (s *VMTServer) Run() {
 		WithSccSupport(s.sccSupport).
 		WithCAPINamespace(s.ClusterAPINamespace).
 		WithContainerUtilizationDataAggStrategy(s.containerUtilizationDataAggStrategy).
-		WithContainerUsageDataAggStrategy(s.containerUsageDataAggStrategy)
+		WithContainerUsageDataAggStrategy(s.containerUsageDataAggStrategy).
+		WithVolumePodMoveConfig(s.FailVolumePodMoves)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service

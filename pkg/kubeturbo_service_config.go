@@ -47,6 +47,8 @@ type Config struct {
 	containerUtilizationDataAggStrategy string
 	// Strategy to aggregate Container usage data on ContainerSpec entity
 	containerUsageDataAggStrategy string
+
+	failVolumePodMoves bool
 }
 
 func NewVMTConfig2() *Config {
@@ -159,5 +161,10 @@ func (c *Config) WithContainerUtilizationDataAggStrategy(containerUtilizationDat
 
 func (c *Config) WithContainerUsageDataAggStrategy(containerUsageDataAggStrategy string) *Config {
 	c.containerUsageDataAggStrategy = containerUsageDataAggStrategy
+	return c
+}
+
+func (c *Config) WithVolumePodMoveConfig(failVolumePodMoves bool) *Config {
+	c.failVolumePodMoves = failVolumePodMoves
 	return c
 }

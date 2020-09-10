@@ -1,13 +1,22 @@
 package executor
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/util/retry"
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -71,23 +80,43 @@ func genNewPodName(oldPod *api.Pod) string {
 }
 
 // Move pod to node nodeName in four steps:
-//  step1: create a clone pod of the original pod (without labels)
-//  step2: wait until the cloned pod is ready
-//  step3: delete the original pod
-//  step4: add the labels to the cloned pod
-func movePod(client *kclient.Clientset, pod *api.Pod, nodeName string, retryNum int) (*api.Pod, error) {
-	podClient := client.CoreV1().Pods(pod.Namespace)
+//  stepA1: create a clone pod of the original pod (without labels)
+//  stepA2: wait until the cloned pod is ready
+//  stepA3: delete the original pod
+//  stepA4: add the labels to the cloned pod
+// If a pod has a persistent volume attached the steps are different:
+//  stepB1: create a clone pod of the original pod (without labels)
+//  stepB2: if the parent has parent (rs has deployment) pause the rollout
+//  stepB3: change the scheduler of parent to non-default (turbo-scheduler)
+//  stepB4: delete the original pod
+//  stepB5: wait until the cloned pod is ready
+//  stepB6: add the labels to the cloned pod
+//  stepB7: change the scheduler of parent back to to default-scheduler
+//  stepB8: if the parent has parent, unpause the rollout
+// TODO: add support for operator controlled parent or parent's parent.
+func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
+	parentKind, parentName string, retryNum int, failVolumePodMoves bool) (*api.Pod, error) {
+	podClient := clusterScraper.Clientset.CoreV1().Pods(pod.Namespace)
+	var podParent *unstructured.Unstructured
+	podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+	podUsingVolume := isPodUsingVolume(pod)
+	if podUsingVolume && failVolumePodMoves {
+		return nil, fmt.Errorf("move pod failed: Pod %s uses a persistent volume. "+
+			"Set kubeturbo flag fail-volume-pod-moves to false to enable such moves.", podQualifiedName)
+	}
+
 	//NOTE: do deep-copy if the original pod may be modified outside this function
 	labels := pod.Labels
 
-	//1. create a clone pod--podC of the original pod--podA
-	npod, err := createClonePod(client, pod, nodeName)
+	//step A1/B1. create a clone pod--podC of the original pod--podA
+	npod, err := createClonePod(clusterScraper.Clientset, pod, nodeName)
 	if err != nil {
 		glog.Errorf("Move pod failed: failed to create a clone pod: %v", err)
 		return nil, err
 	}
 
-	//delete the clone pod if this action fails
+	var podList *api.PodList
+	//delete the clone pod if any of the below action fails
 	flag := false
 	defer func() {
 		if !flag {
@@ -95,24 +124,113 @@ func movePod(client *kclient.Clientset, pod *api.Pod, nodeName string, retryNum 
 			delOpt := &metav1.DeleteOptions{}
 			podClient.Delete(npod.Name, delOpt)
 		}
+		if podUsingVolume {
+			// A failure can leave a pod (or pods) in pending state, delete them.
+			// This can happen in case the newly created pod did fail to reach ready
+			// state for whatever reason. After timeout we will end up deleting the
+			// newly created pod. The invalid pod (or pods) would have been be created
+			// for when the parent's scheduler was set to invalid scheduler (turbo-scheduler)
+			// and at exactly the same time the total replica count dropped below
+			// desired count (for  whatever reason).
+			deleteInvalidPendingPods(podParent, podClient, podList)
+		}
 	}()
 
-	//2 wait until podC gets ready
-	err = podutil.WaitForPodReady(client, npod.Namespace, npod.Name, nodeName,
+	// Special handling for pods with volumes
+	if podUsingVolume {
+		// We still support replicaset and replication controllers as parents,
+		// however both of them could further have a parent (deploy or deploy config).
+		parent, grandParent, pClient, gPClient, gPKind, err :=
+			getPodOwnersInfo(clusterScraper, pod, parentKind)
+		if err != nil {
+			return nil, err
+		}
+		podParent = parent
+
+		if grandParent != nil {
+			pause := true
+			unpause := false
+			// step B8: (via defer)
+			defer func() {
+				glog.V(3).Infof("Unpausing pods controller: %s for pod: %s", gPKind, podQualifiedName)
+				// We conservatively try additional 3 times in case of any failure as we don't
+				// want the parent to be left in a bad state.
+				err := commonutil.RetryDuring(defaultRetryLess, defaultRetryShortTimeout,
+					defaultRetrySleepInterval, func() error {
+						return resourceRollout(gPClient, grandParent, unpause)
+					})
+				if err != nil {
+					glog.Errorf("Move pod warning: %v", err)
+				}
+			}()
+
+			// step B2:
+			glog.V(3).Infof("Pausing pods controller: %s for pod: %s", gPKind, podQualifiedName)
+			err := resourceRollout(gPClient, grandParent, pause)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		podList, err = parentsPods(parent, podClient)
+		if err != nil {
+			return nil, err
+		}
+
+		valid := true
+		invalid := false
+		// step B7: (via defer)
+		defer func() {
+			glog.V(3).Infof("Updating scheduler of %s for pod %s back to default.", parentKind, podQualifiedName)
+			// We conservatively try additional 3 times in case of any failure as we don't
+			// want the parent to be left in a bad state.
+			err := commonutil.RetryDuring(defaultRetryLess, defaultRetryShortTimeout,
+				defaultRetrySleepInterval, func() error {
+					return changeScheduler(pClient, parent, valid)
+				})
+			if err != nil {
+				glog.Errorf("Move pod warning: %v", err)
+			}
+
+		}()
+		// step B3:
+		glog.V(3).Infof("Updating scheduler of %s for pod %s to unknown (turbo-scheduler).", parentKind, pod.Name)
+		err = changeScheduler(pClient, parent, invalid)
+		if err != nil {
+			return nil, err
+		}
+
+		// step A3/B4:
+		// We optimistically delete the original pod (PodA), so that the new pod can
+		// bind to the volume.
+		// TODO: This is not an ideal way of doing things, and users should be
+		// encouraged to rather disable move actions on pods which use volumes
+		// via a config either in kubeturbo or driven from server UI.
+		delOpt := &metav1.DeleteOptions{}
+		if err := podClient.Delete(pod.Name, delOpt); err != nil {
+			glog.Errorf("Move pod warning: failed to delete original pod: %v", err)
+			return nil, err
+		}
+	}
+
+	//step A2/B5: wait until podC gets ready
+	err = podutil.WaitForPodReady(clusterScraper.Clientset, npod.Namespace, npod.Name, nodeName,
 		retryNum, defaultPodCreateSleep)
 	if err != nil {
 		glog.Errorf("Wait for cloned Pod ready timeout: %v", err)
 		return nil, err
 	}
 
-	//3. delete the original pod--podA
-	delOpt := &metav1.DeleteOptions{}
-	if err := podClient.Delete(pod.Name, delOpt); err != nil {
-		glog.Errorf("Move pod warning: failed to delete original pod: %v", err)
-		return nil, err
+	if !podUsingVolume {
+		// step A3: delete the original pod--podA
+		delOpt := &metav1.DeleteOptions{}
+		if err := podClient.Delete(pod.Name, delOpt); err != nil {
+			glog.Errorf("Move pod warning: failed to delete original pod: %v", err)
+			return nil, err
+		}
 	}
 
-	//4. add labels to podC
+	// step A4/B6: add labels to podC
 	xpod, err := podClient.Get(npod.Name, metav1.GetOptions{})
 	if err != nil {
 		glog.Errorf("Move pod failed: failed to get the cloned pod: %v", err)
@@ -130,6 +248,219 @@ func movePod(client *kclient.Clientset, pod *api.Pod, nodeName string, retryNum 
 
 	flag = true
 	return xpod, nil
+}
+
+func deleteInvalidPendingPods(parent *unstructured.Unstructured, podClient v1.PodInterface,
+	podList *api.PodList) {
+	if parent == nil {
+		return
+	}
+	// Fetch the parents pods again
+	newPodList, err := parentsPods(parent, podClient)
+	if err != nil {
+		if err != nil {
+			glog.Errorf("Error getting pod list for %s: %s.", parent.GetKind(), parent.GetName())
+		}
+	}
+
+	// Find the pods which weren't there and if attributed to invalid
+	// turbo-scheduler, delete them.
+	for _, pod := range newPendingInvalidPods(newPodList, podList) {
+		err := commonutil.RetryDuring(defaultRetryLess, defaultRetryShortTimeout,
+			defaultRetrySleepInterval, func() error {
+				return podClient.Delete(pod.Name, &metav1.DeleteOptions{})
+			})
+		if err != nil {
+			glog.Errorf("Failed to delete pending pod: %s.", pod.Name)
+		}
+	}
+
+}
+
+func newPendingInvalidPods(list1, list2 *api.PodList) []*api.Pod {
+	var diffList []*api.Pod
+	for _, pod1 := range list1.Items {
+		found := false
+		for _, pod2 := range list2.Items {
+			if pod1.Name == pod2.Name {
+				found = true
+				break
+			}
+		}
+		if found == true {
+			continue
+		} else {
+			if pod1.Status.Phase == api.PodPending &&
+				pod1.Spec.SchedulerName == "turbo-scheduler" {
+				diffList = append(diffList, &pod1)
+			}
+		}
+	}
+
+	return diffList
+}
+
+func parentsPods(parent *unstructured.Unstructured, podClient v1.PodInterface) (*api.PodList, error) {
+	kind, objName := parent.GetKind(), parent.GetName()
+	selectorUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "spec", "selector")
+	if err != nil || !found {
+		return nil, fmt.Errorf("error retrieving selectors from %s %s: %v", kind, objName, err)
+	}
+
+	selectors := metav1.LabelSelector{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(selectorUnstructured.(map[string]interface{}), &selectors); err != nil {
+		return nil, fmt.Errorf("error converting unstructured selectors to typed selectors for %s %s: %v", kind, objName, err)
+	}
+	sString := metav1.FormatLabelSelector(&selectors)
+	listOpts := metav1.ListOptions{LabelSelector: sString}
+	podList, err := podClient.List(listOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	return podList, nil
+}
+
+func isPodUsingVolume(pod *api.Pod) bool {
+	for _, vol := range pod.Spec.Volumes {
+		// Exactly one of these would be non nil at a given point in time.
+		if vol.PersistentVolumeClaim != nil ||
+			// We do not currently have a mechanism to test below.
+			// Also the preferred way by any provider is now anyways
+			// via a persistent volume claim.
+			vol.GCEPersistentDisk != nil ||
+			vol.AWSElasticBlockStore != nil ||
+			vol.AzureDisk != nil ||
+			vol.CephFS != nil ||
+			vol.Cinder != nil ||
+			vol.PortworxVolume != nil ||
+			vol.StorageOS != nil ||
+			vol.VsphereVolume != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// getPodOwnersInfo gets the pods owner objects (deployment, replicaset, et al)
+// and the client interfaces to make updates to the objects.
+// TODO: this piece of code can be cleaned up and can be made generic to return
+// any level of owners in a slice. So if there are three owner levels, for example
+// a replicaset, which is controlled by a deployment which is controlled by an operator
+// a single iterative function will collect all of them and return all in a slice.
+func getPodOwnersInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
+	parentKind string) (*unstructured.Unstructured, *unstructured.Unstructured,
+	dynamic.ResourceInterface, dynamic.ResourceInterface, string, error) {
+	gPkind, name, _, parent, nsParentClient, err := clusterScraper.GetPodGrandparentInfo(pod, true)
+	if err != nil {
+		return nil, nil, nil, nil, gPkind, fmt.Errorf("error getting pods final owner: %v", err)
+	}
+
+	if gPkind != parentKind {
+		var res schema.GroupVersionResource
+		switch gPkind {
+		case commonutil.KindDeployment:
+			res = schema.GroupVersionResource{
+				Group:    commonutil.K8sAPIDeploymentGV.Group,
+				Version:  commonutil.K8sAPIDeploymentGV.Version,
+				Resource: commonutil.DeploymentResName}
+		case commonutil.KindDeploymentConfig:
+			res = schema.GroupVersionResource{
+				Group:    commonutil.OpenShiftAPIDeploymentConfigGV.Group,
+				Version:  commonutil.OpenShiftAPIDeploymentConfigGV.Version,
+				Resource: commonutil.DeploymentConfigResName}
+		default:
+			err = fmt.Errorf("unsupported pods controller kind: %s while moving pod", gPkind)
+			return nil, nil, nil, nil, gPkind, err
+		}
+
+		nsGpClient := clusterScraper.DynamicClient.Resource(res).Namespace(pod.Namespace)
+		gParent, err := nsGpClient.Get(name, metav1.GetOptions{})
+		if err != nil || gParent == nil {
+			return nil, nil, nil, nil, gPkind, fmt.Errorf("failed to get pods controller: %s[%v/%v]: %v",
+				gPkind, pod.Namespace, name, err)
+		}
+
+		// As of now we only have XL as the example for operator controlled resources (deployment) which
+		// has pods using volumes. Seemingly this operator ignores the "paused" field of the deployments
+		// while reconcoling the resources therefor enabling us to actually be able to move the pods
+		// without the need to update it via the operators custom resource.
+		// We therefor do not fail here and let the move happen as it would be when the resource
+		// is not operator controlled.
+
+		// Actually a parent, eg. a replicaset, although unlikely can also be controlled by an operator
+		// but we ignore that case for now as we do not have an example of that in any env yet.
+		// TODO: add support for such (viz replicaset) operator managed resources.
+		/*if len(gParent.GetOwnerReferences()) > 0 {
+			return nil, nil, nil, nil, gPkind, fmt.Errorf("the parent's parent is probably controlled by an operator. "+
+				"Failing podmove for %s[%v/%v]: %v", gPkind, pod.Namespace, name, err)
+		}*/
+		return parent, gParent, nsParentClient, nsGpClient, gPkind, nil
+	}
+
+	// This means that the parent itself is the final owner and there is
+	// no controller controlling the parent, i.e. no grand parent.
+	return nil, nil, nil, nil, "", nil
+}
+
+// resourceRollout pauses/unpauses the rollout of a deployment or a deploymentconfig
+func resourceRollout(client dynamic.ResourceInterface, obj *unstructured.Unstructured, pause bool) error {
+	kind := obj.GetKind()
+	name := obj.GetName()
+	// This takes care of conflicting updates for example by operator
+	// Ref: https://github.com/kubernetes/client-go/blob/master/examples/dynamic-create-update-delete-deployment/main.go
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		objCopy, err := client.Get(name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedField(objCopy.Object, pause, "spec", "paused"); err != nil {
+			return err
+		}
+		_, err = client.Update(objCopy, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if retryErr != nil {
+		return fmt.Errorf("error setting 'spec.paused' to %t for %s %s: %v", pause, kind, name, retryErr)
+	}
+	return nil
+}
+
+// changeScheduler sets the scheduler value to default or unsets it to an invalid one
+func changeScheduler(client dynamic.ResourceInterface, obj *unstructured.Unstructured, valid bool) error {
+	kind := obj.GetKind()
+	name := obj.GetName()
+	// This takes care of conflicting updates for example by operator
+	// Ref: https://github.com/kubernetes/client-go/blob/master/examples/dynamic-create-update-delete-deployment/main.go
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		objCopy, err := client.Get(name, metav1.GetOptions{})
+		if valid {
+			if err := unstructured.SetNestedField(objCopy.Object, "default-scheduler",
+				"spec", "template", "spec", "schedulerName"); err != nil {
+				return err
+			}
+		} else {
+			if err := unstructured.SetNestedField(objCopy.Object, "turbo-scheduler",
+				"spec", "template", "spec", "schedulerName"); err != nil {
+				return err
+			}
+		}
+
+		_, err = client.Update(objCopy, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if retryErr != nil {
+		return fmt.Errorf("error updating scheduler [valid=%t] for %s %s: %v", valid, kind, name, retryErr)
+	}
+	return nil
 }
 
 func createClonePod(client *kclient.Clientset, pod *api.Pod, nodeName string) (*api.Pod, error) {
