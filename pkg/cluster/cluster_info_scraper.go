@@ -344,7 +344,7 @@ func (s *ClusterScraper) GetPodGrandparentInfo(pod *api.Pod, ignoreCache bool) (
 	if rsOwnerReferences != nil && len(rsOwnerReferences) > 0 {
 		gkind, gname, guid := util.ParseOwnerReferences(rsOwnerReferences)
 		if len(gkind) > 0 && len(gname) > 0 && len(guid) > 0 {
-			s.cacheControllerInfo(podControllerInfoKey, kind, name, uid)
+			s.cacheControllerInfo(podControllerInfoKey, gkind, gname, guid)
 			return gkind, gname, guid, obj, namespacedClient, nil
 		}
 	}
