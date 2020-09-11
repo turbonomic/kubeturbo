@@ -33,11 +33,14 @@ func (builder *volumeEntityDTOBuilder) BuildEntityDTOs(volToPodsMap map[*api.Per
 		entityDTOBuilder.DisplayName(displayName)
 
 		commoditiesSold, cap, err := builder.getVolumeCommoditiesSold(vol, podVolumes)
+		// A pod can have multiple volumes and we might process one even when
+		// we see an error on another
 		if err != nil {
 			glog.Errorf("Error creating commoditiesSold for volume %s: %s", displayName, err)
 		}
-
-		entityDTOBuilder.SellsCommodities(commoditiesSold)
+		if len(commoditiesSold) > 1 {
+			entityDTOBuilder.SellsCommodities(commoditiesSold)
+		}
 
 		var vols []*api.PersistentVolume
 		vols = append(vols, vol)
@@ -103,12 +106,11 @@ func (builder *volumeEntityDTOBuilder) getVolumeCommoditiesSold(vol *api.Persist
 		commBuilder.Capacity(capacity)
 		commodityPerPod, err := commBuilder.Create()
 		if err != nil {
-			return nil, volumeCapacity, err
+			glog.Errorf("Error creating commoditySold by volume %s: %v ", podVol.MountName, err)
+		} else {
+			// TODO(irfanurrehman): Set resizable depending on node properties
+			commoditiesSold = append(commoditiesSold, commodityPerPod)
 		}
-
-		// TODO(irfanurrehman): Set resisable depending on node properties
-
-		commoditiesSold = append(commoditiesSold, commodityPerPod)
 	}
 
 	return commoditiesSold, volumeCapacity, nil
