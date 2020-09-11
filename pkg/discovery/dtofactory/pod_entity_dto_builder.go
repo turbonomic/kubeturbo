@@ -161,7 +161,8 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(pods []*api.Pod, podToVolsMa
 		// Commodities bought from volumes
 		err = builder.buyCommoditiesFromVolumes(pod, podToVolsMap[displayName], entityDTOBuilder)
 		if err != nil {
-			return nil, err
+			glog.Errorf("Error when creating commoditiesBought for pod %s: %v", displayName, err)
+			continue
 		}
 
 		// entities' properties.
@@ -367,9 +368,9 @@ func (builder *podEntityDTOBuilder) buyCommoditiesFromVolumes(pod *api.Pod, moun
 		commBought, err := builder.getResourceCommodityBoughtWithKey(metrics.PodType, volEntityID,
 			metrics.StorageAmount, "", nil, nil)
 		if err != nil {
-			glog.Errorf("Failed to build %s bought by pod %s mounted %s from volume %s: %v",
+			glog.Errorf("Failed to build commodity %s bought by pod %s mounted %s from volume %s: %v",
 				metrics.StorageAmount, podKey, mountName, mount.UsedVolume.Name, err)
-			return err
+			continue
 		}
 
 		if mount.UsedVolume == nil {
