@@ -14,7 +14,7 @@ const (
 	// MyFeature featuregate.Feature = "MyFeature"
 
 	// owner: @irfanurrehman
-	// alpha:
+	// beta:
 	//
 	// Persistent volumes support.
 	PersistentVolumes utilfeature.Feature = "PersistentVolumes"

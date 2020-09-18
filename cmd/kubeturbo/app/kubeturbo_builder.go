@@ -11,7 +11,6 @@ import (
 	"syscall"
 
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
-	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 
 	clusterclient "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
@@ -293,13 +292,18 @@ func (s *VMTServer) Run() {
 		glog.Fatalf("Failed to generate correct TAP config: %v", err.Error())
 	}
 
-	var featureGates = make(map[string]bool)
+	featureFlags := ""
 	if k8sTAPSpec.FeatureGates != nil {
-		for _, f := range k8sTAPSpec.FeatureGates.Features {
-			featureGates[f.Name] = f.Configuration == features.ConfigurationEnabled
+		for _, f := range k8sTAPSpec.FeatureGates.DisabledFeatures {
+			featureFlag := fmt.Sprintf("%s=%s", f, "false")
+			if featureFlags == "" {
+				featureFlags = featureFlag
+			} else {
+				featureFlags = fmt.Sprintf("%s,%s", featureFlags, featureFlag)
+			}
 		}
 	}
-	err = utilfeature.DefaultFeatureGate.SetFromMap(featureGates)
+	err = utilfeature.DefaultFeatureGate.Set(featureFlags)
 	if err != nil {
 		glog.Fatalf("Invalid Feature Gates: %v", err)
 	}
