@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 
 	clusterclient "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
@@ -19,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	versionhelper "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/server/healthz"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -288,8 +290,18 @@ func (s *VMTServer) Run() {
 
 	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec, kubeConfig.Host)
 	if err != nil {
-		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
-		os.Exit(1)
+		glog.Fatalf("Failed to generate correct TAP config: %v", err.Error())
+	}
+
+	var featureGates = make(map[string]bool)
+	if k8sTAPSpec.FeatureGates != nil {
+		for _, f := range k8sTAPSpec.FeatureGates.Features {
+			featureGates[f.Name] = f.Configuration == features.ConfigurationEnabled
+		}
+	}
+	err = utilfeature.DefaultFeatureGate.SetFromMap(featureGates)
+	if err != nil {
+		glog.Fatalf("Invalid Feature Gates: %v", err)
 	}
 
 	// Collect target and probe info such as master host, server version, probe container image, etc
