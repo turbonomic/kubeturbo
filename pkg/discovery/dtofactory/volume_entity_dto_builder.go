@@ -33,6 +33,9 @@ func (builder *volumeEntityDTOBuilder) BuildEntityDTOs(volToPodsMap map[*api.Per
 		entityDTOBuilder.DisplayName(displayName)
 
 		commoditiesSold, cap, err := builder.getVolumeCommoditiesSold(vol, podVolumes)
+		if cap == 0 {
+			continue
+		}
 		// A pod can have multiple volumes and we might process one even when
 		// we see an error on another
 		if err != nil {
@@ -82,7 +85,6 @@ func (builder *volumeEntityDTOBuilder) BuildEntityDTOs(volToPodsMap map[*api.Per
 	}
 
 	return result, nil
-
 }
 
 func (builder *volumeEntityDTOBuilder) getVolumeCommoditiesSold(vol *api.PersistentVolume, podVols []repository.PodVolume) ([]*proto.CommodityDTO, float64, error) {
