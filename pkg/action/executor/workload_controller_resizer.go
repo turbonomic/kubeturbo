@@ -153,16 +153,23 @@ func (r *WorkloadControllerResizer) getChildPod(parentKind, namespace, name stri
 	if err != nil {
 		return nil, err
 	}
+
+	noPodFoundError := fmt.Errorf("could not find any matching pod for %s %s/%s", parentKind, namespace, name)
 	if podsList == nil {
-		return nil, fmt.Errorf("could not find any matching pod for %s %s/%s", parentKind, namespace, name)
+		return nil, noPodFoundError
 	}
 	if len(podsList.Items) < 1 {
-		return nil, fmt.Errorf("could not find any matching pod for %s %s/%s", parentKind, namespace, name)
+		return nil, noPodFoundError
 	}
 
-	pod := podsList.Items[0]
-	//return the first matching pod
-	return &pod, err
+	for _, pod := range podsList.Items {
+		if pod.Spec.NodeName != "" {
+			// Return the first matching pod with a valid nodeName
+			return &pod, err
+		}
+	}
+
+	return nil, noPodFoundError
 
 }
 
