@@ -39,11 +39,11 @@ func (allDataAggregator *allUtilizationDataAggregator) String() string {
 }
 
 func (allDataAggregator *allUtilizationDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) ([]float64, int64, int32, error) {
-	if len(resourceMetrics.Used) == 0 {
-		err := fmt.Errorf("error aggregating container utilization data using %s: used data points list is empty", allDataAggregator)
+	isValid, err := isResourceMetricsValid(resourceMetrics, allDataAggregator)
+	if !isValid || err != nil {
 		return []float64{}, 0, 0, err
 	}
-	capacity := resourceMetrics.Capacity
+	capacity := getResourceCapacity(resourceMetrics)
 	if capacity == 0.0 {
 		err := fmt.Errorf("error aggregating container utilization data using %s: capacity is 0", allDataAggregator)
 		return []float64{}, 0, 0, err
@@ -79,17 +79,17 @@ func (maxDataAggregator *maxUtilizationDataAggregator) String() string {
 }
 
 func (maxDataAggregator *maxUtilizationDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) ([]float64, int64, int32, error) {
-	if len(resourceMetrics.Used) == 0 {
-		err := fmt.Errorf("error aggregating container utilization data using %s: used data points list is empty", maxDataAggregator)
+	isValid, err := isResourceMetricsValid(resourceMetrics, maxDataAggregator)
+	if !isValid || err != nil {
 		return []float64{}, 0, 0, err
 	}
-	var maxUtilization float64
-	var lastTimestamp int64
-	capacity := resourceMetrics.Capacity
+	capacity := getResourceCapacity(resourceMetrics)
 	if capacity == 0.0 {
 		err := fmt.Errorf("error aggregating container utilization data using %s: capacity is 0", maxDataAggregator)
 		return []float64{}, 0, 0, err
 	}
+	var maxUtilization float64
+	var lastTimestamp int64
 	for _, usedPoint := range resourceMetrics.Used {
 		utilization := usedPoint.Value / capacity * 100
 		maxUtilization = math.Max(utilization, maxUtilization)

@@ -41,15 +41,17 @@ func Test_k8sContainerSpecDiscoveryWorker_createContainerSpecMetricsMap(t *testi
 		ContainerReplicas: 1,
 		ContainerMetrics: map[metrics.ResourceType]*repository.ContainerMetrics{
 			cpuResourceType: {
-				Capacity: 2.0,
+				Capacity: []float64{2.0},
 				Used: []metrics.Point{
 					createContainerMetricPoint(1.0, 1),
+					createContainerMetricPoint(1.0, 2),
 				},
 			},
 			memResourceType: {
-				Capacity: 2.0,
+				Capacity: []float64{2.0},
 				Used: []metrics.Point{
 					createContainerMetricPoint(1.0, 1),
+					createContainerMetricPoint(1.0, 2),
 				},
 			},
 		},
@@ -62,14 +64,16 @@ func Test_k8sContainerSpecDiscoveryWorker_createContainerSpecMetricsMap(t *testi
 		ContainerReplicas: 1,
 		ContainerMetrics: map[metrics.ResourceType]*repository.ContainerMetrics{
 			cpuResourceType: {
-				Capacity: 2.0,
+				Capacity: []float64{3.0},
 				Used: []metrics.Point{
+					createContainerMetricPoint(2.0, 1),
 					createContainerMetricPoint(2.0, 2),
 				},
 			},
 			memResourceType: {
-				Capacity: 2.0,
+				Capacity: []float64{3.0},
 				Used: []metrics.Point{
+					createContainerMetricPoint(2.0, 1),
 					createContainerMetricPoint(2.0, 2),
 				},
 			},
@@ -84,16 +88,20 @@ func Test_k8sContainerSpecDiscoveryWorker_createContainerSpecMetricsMap(t *testi
 		ContainerReplicas: 2,
 		ContainerMetrics: map[metrics.ResourceType]*repository.ContainerMetrics{
 			cpuResourceType: {
-				Capacity: 2.0,
+				Capacity: []float64{2.0, 3.0},
 				Used: []metrics.Point{
 					createContainerMetricPoint(1.0, 1),
+					createContainerMetricPoint(1.0, 2),
+					createContainerMetricPoint(2.0, 1),
 					createContainerMetricPoint(2.0, 2),
 				},
 			},
 			memResourceType: {
-				Capacity: 2.0,
+				Capacity: []float64{2.0, 3.0},
 				Used: []metrics.Point{
 					createContainerMetricPoint(1.0, 1),
+					createContainerMetricPoint(1.0, 2),
+					createContainerMetricPoint(2.0, 1),
 					createContainerMetricPoint(2.0, 2),
 				},
 			},

@@ -103,15 +103,8 @@ func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containe
 				metrics.Capacity, containerMId, resourceType, capacityMetricValue)
 			continue
 		}
-		containerResourceMetrics := repository.NewContainerMetrics(capVal, usedValPoints)
-		containerMetrics, exists := containerSpecMetric.ContainerMetrics[resourceType]
-		if !exists {
-			containerSpecMetric.ContainerMetrics[resourceType] = containerResourceMetrics
-		} else {
-			// Resource capacity of the same resource type is always the same for container replicas so no need to update.
-			// Append resource used data points to containerMetrics.
-			containerMetrics.Used = append(containerMetrics.Used, containerResourceMetrics.Used...)
-		}
+		containerResourceMetrics := repository.NewContainerMetrics([]float64{capVal}, usedValPoints)
+		containerSpecMetric.ContainerMetrics[resourceType] = containerResourceMetrics
 	}
 }
 
