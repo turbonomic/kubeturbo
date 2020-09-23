@@ -39,11 +39,17 @@ func (allDataAggregator *allUtilizationDataAggregator) String() string {
 }
 
 func (allDataAggregator *allUtilizationDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) ([]float64, int64, int32, error) {
-	if len(resourceMetrics.Used) == 0 {
-		err := fmt.Errorf("error aggregating container utilization data using %s: used data points list is empty", allDataAggregator)
+	if len(resourceMetrics.Used) == 0 || len(resourceMetrics.Capacity) == 0 {
+		err := fmt.Errorf("error aggregating container utilization data using %s: used or capacity data points list is empty", allDataAggregator)
 		return []float64{}, 0, 0, err
 	}
-	capacity := resourceMetrics.Capacity
+	// Use the max of resource capacity values from all container replicas.
+	// CPU capacity has been converted from milli-cores to MHz. This will make the aggregated CPU capacity on container
+	// spec more consistent if container replicas are on different nodes with different CPU frequency.
+	capacity := 0.0
+	for _, capVal := range resourceMetrics.Capacity {
+		capacity = math.Max(capacity, capVal)
+	}
 	if capacity == 0.0 {
 		err := fmt.Errorf("error aggregating container utilization data using %s: capacity is 0", allDataAggregator)
 		return []float64{}, 0, 0, err
@@ -79,17 +85,23 @@ func (maxDataAggregator *maxUtilizationDataAggregator) String() string {
 }
 
 func (maxDataAggregator *maxUtilizationDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) ([]float64, int64, int32, error) {
-	if len(resourceMetrics.Used) == 0 {
-		err := fmt.Errorf("error aggregating container utilization data using %s: used data points list is empty", maxDataAggregator)
+	if len(resourceMetrics.Used) == 0 || len(resourceMetrics.Capacity) == 0 {
+		err := fmt.Errorf("error aggregating container utilization data using %s: used or capacity data points list is empty", maxDataAggregator)
 		return []float64{}, 0, 0, err
 	}
-	var maxUtilization float64
-	var lastTimestamp int64
-	capacity := resourceMetrics.Capacity
+	// Use the max of resource capacity values from all container replicas.
+	// CPU capacity has been converted from milli-cores to MHz. This will make the aggregated CPU capacity on container
+	// spec more consistent if container replicas are on different nodes with different CPU frequency.
+	capacity := 0.0
+	for _, capVal := range resourceMetrics.Capacity {
+		capacity = math.Max(capacity, capVal)
+	}
 	if capacity == 0.0 {
 		err := fmt.Errorf("error aggregating container utilization data using %s: capacity is 0", maxDataAggregator)
 		return []float64{}, 0, 0, err
 	}
+	var maxUtilization float64
+	var lastTimestamp int64
 	for _, usedPoint := range resourceMetrics.Used {
 		utilization := usedPoint.Value / capacity * 100
 		maxUtilization = math.Max(utilization, maxUtilization)

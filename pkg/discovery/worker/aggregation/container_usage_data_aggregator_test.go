@@ -8,7 +8,7 @@ import (
 
 var (
 	testContainerMetrics = &repository.ContainerMetrics{
-		Capacity: 4,
+		Capacity: []float64{3, 4},
 		Used: []metrics.Point{
 			createContainerMetricPoint(1.0, 1),
 			createContainerMetricPoint(3.0, 2),

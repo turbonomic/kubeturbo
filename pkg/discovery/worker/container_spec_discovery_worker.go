@@ -72,14 +72,19 @@ func (worker *k8sContainerSpecDiscoveryWorker) createContainerSpecMetricsMap(con
 		if !exists {
 			containerSpecMetricsMap[containerSpecId] = containerSpecMetrics
 		} else {
-			// Resource capacity should always be same for container replicas so no need to update.
-			// Append containerMetrics used data points of the same resource type of container replicas.
 			for resourceType, existingResourceMetrics := range existingContainerSpec.ContainerMetrics {
 				containerMetrics, exists := containerSpecMetrics.ContainerMetrics[resourceType]
 				if !exists {
-					glog.Errorf("%s resource do not exist for ContainerSpec %s", resourceType, containerSpecMetrics.ContainerSpecId)
+					glog.Errorf("%s resource does not exist for ContainerSpec %s", resourceType, containerSpecMetrics.ContainerSpecId)
 					continue
 				}
+				// Append resource capacity values of same resource type of container replicas from different nodes.
+				// We have already converted CPU capacity from milli-cores into MHz based on node CPU frequency. Different
+				// node CPU frequency leads to different container CPU capacity in MHz although CPU in milli-cores is the same.
+				// To make sure CPU capacity of container spec is consistent, we collect capacity values from all container
+				// replicas here and will use max value when building container spec entity dto.
+				existingResourceMetrics.Capacity = append(existingResourceMetrics.Capacity, containerMetrics.Capacity...)
+				// Append containerMetrics used data points of same resource type of container replicas from different nodes.
 				existingResourceMetrics.Used = append(existingResourceMetrics.Used, containerMetrics.Used...)
 			}
 			// Increment number of container replicas

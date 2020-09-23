@@ -67,11 +67,11 @@ func (namespaceMetrics *NamespaceMetrics) UpdateQuotaSoldUsed(quotaSoldUsed map[
 // ContainerMetrics collects resource capacity and multiple usage data samples for container replicas which belong to the
 // same ContainerSpec.
 type ContainerMetrics struct {
-	Capacity float64
+	Capacity []float64
 	Used     []metrics.Point
 }
 
-func NewContainerMetrics(capacity float64, used []metrics.Point) *ContainerMetrics {
+func NewContainerMetrics(capacity []float64, used []metrics.Point) *ContainerMetrics {
 	return &ContainerMetrics{
 		Capacity: capacity,
 		Used:     used,

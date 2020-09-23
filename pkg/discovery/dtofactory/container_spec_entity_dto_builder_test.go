@@ -21,21 +21,21 @@ func Test_containerSpecDTOBuilder_getCommoditiesSold(t *testing.T) {
 		ContainerReplicas: 2,
 		ContainerMetrics: map[metrics.ResourceType]*repository.ContainerMetrics{
 			metrics.CPU: {
-				Capacity: 4.0,
+				Capacity: []float64{3.0, 4.0},
 				Used: []metrics.Point{
 					createContainerMetricPoint(1.0, 1),
 					createContainerMetricPoint(3.0, 2),
 				},
 			},
 			metrics.Memory: {
-				Capacity: 4.0,
+				Capacity: []float64{3.0, 4.0},
 				Used: []metrics.Point{
 					createContainerMetricPoint(1.0, 1),
 					createContainerMetricPoint(3.0, 2),
 				},
 			},
 			metrics.MemoryRequest: {
-				Capacity: 4.0,
+				Capacity: []float64{3.0, 4.0},
 				Used: []metrics.Point{
 					createContainerMetricPoint(1.0, 1),
 					createContainerMetricPoint(3.0, 2),
