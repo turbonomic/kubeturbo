@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
@@ -134,14 +135,9 @@ func (r *WorkloadControllerResizer) getChildPod(parentKind, namespace, name stri
 		return nil, err
 	}
 
-	parentSelectorUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "spec", "selector")
-	if err != nil || !found {
-		return nil, fmt.Errorf("error retrieving selector from %s %s/%s: %v", parentKind, namespace, name, err)
-	}
-
-	parentSelector := metav1.LabelSelector{}
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(parentSelectorUnstructured.(map[string]interface{}), &parentSelector); err != nil {
-		return nil, fmt.Errorf("error converting unstructured selectors to typed selectors for %s %s/%s: %v", parentKind, namespace, name, err)
+	parentSelector, err := getSelectors(parent)
+	if err != nil {
+		return nil, err
 	}
 
 	// TODO(irfanurrehman): This code does not consider parentSelector.Requirements. Needs revisit.
@@ -164,13 +160,89 @@ func (r *WorkloadControllerResizer) getChildPod(parentKind, namespace, name stri
 
 	for _, pod := range podsList.Items {
 		if pod.Spec.NodeName != "" {
-			// Return the first matching pod with a valid nodeName
-			return &pod, err
+			err, match := r.matchOwnerReferences(pod.OwnerReferences, parent)
+			if err != nil {
+				glog.Errorf("Error matching ownerreferences for pod %s with %s %s/%s: %v", pod.Name, parent.GetKind(), namespace, name, err)
+				// We still try rest of the pods
+				continue
+			}
+			if match {
+				return &pod, nil
+			}
 		}
 	}
 
 	return nil, noPodFoundError
 
+}
+
+// matchOwnerReference is needed to ensure that we select a pod which
+// surely is a child of the parent controller. The selector in get pod
+// list will also match pods whose labels are same as or are superset
+// of our pods labels.
+// Example: rs1 has selector foo=bar and rs2 has selector foo=bar,foo=baz
+// Getting pods using selector foo=bar will get children of both rs1 and rs2
+// Disambiguation has to be done via ownerref/controllerref.
+func (r *WorkloadControllerResizer) matchOwnerReferences(podOwners []metav1.OwnerReference, topMostParent *unstructured.Unstructured) (error, bool) {
+	topMostParentKind := topMostParent.GetKind()
+	namespace := topMostParent.GetNamespace()
+	name := topMostParent.GetName()
+
+	// deployment and deployment configs are not a parent but a grandparent.
+	// We will need to get all the grandparents children and see if one of
+	// them is a parent to our pod
+	var res schema.GroupVersionResource
+	switch topMostParentKind {
+	case util.KindDeployment:
+		// We know that using the kind here won't return error
+		res, _ = GetSupportedResUsingKind(util.KindReplicaSet, namespace, name)
+	case util.KindDeploymentConfig:
+		res, _ = GetSupportedResUsingKind(util.KindReplicationController, namespace, name)
+	default:
+		return nil, ownerMatches(podOwners, topMostParent)
+	}
+
+	selector, err := getSelectors(topMostParent)
+	if err != nil {
+		return err, false
+	}
+	possibleParents, err := r.clusterScraper.DynamicClient.Resource(res).Namespace(namespace).List(metav1.ListOptions{LabelSelector: labels.Set(selector.MatchLabels).String()})
+	if err != nil {
+		return err, false
+	}
+
+	for _, parent := range possibleParents.Items {
+		if ownerMatches(podOwners, &parent) {
+			return nil, true
+		}
+	}
+	return nil, false
+}
+
+func ownerMatches(podOwners []metav1.OwnerReference, parent *unstructured.Unstructured) bool {
+	for _, ref := range podOwners {
+		if ref.Name == parent.GetName() {
+			return true
+		}
+	}
+	return false
+}
+
+func getSelectors(obj *unstructured.Unstructured) (*metav1.LabelSelector, error) {
+	objKind := obj.GetKind()
+	namespace := obj.GetNamespace()
+	name := obj.GetName()
+	selectorUnstructured, found, err := unstructured.NestedFieldCopy(obj.Object, "spec", "selector")
+	if err != nil || !found {
+		return nil, fmt.Errorf("error retrieving selector from %s %s/%s: %v", objKind, namespace, name, err)
+	}
+
+	selector := metav1.LabelSelector{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(selectorUnstructured.(map[string]interface{}), &selector); err != nil {
+		return nil, fmt.Errorf("error converting unstructured selectors to typed selectors for %s %s/%s: %v", objKind, namespace, name, err)
+	}
+
+	return &selector, nil
 }
 
 func resizeWorkloadController(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient,
