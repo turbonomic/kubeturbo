@@ -1,7 +1,6 @@
 package aggregation
 
 import (
-	"fmt"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"math"
 )
@@ -38,17 +37,11 @@ func (avgUsageDataAggregator *avgUsageDataAggregator) String() string {
 }
 
 func (avgUsageDataAggregator *avgUsageDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) (float64, float64, float64, error) {
-	if len(resourceMetrics.Used) == 0 || len(resourceMetrics.Capacity) == 0 {
-		err := fmt.Errorf("error to aggregate container usage data using %s: used or capacity data points list is empty", avgUsageDataAggregator)
+	isValid, err := isResourceMetricsValid(resourceMetrics, avgUsageDataAggregator)
+	if !isValid || err != nil {
 		return 0.0, 0.0, 0.0, err
 	}
-	// Use the max of resource capacity values from all container replicas.
-	// CPU capacity has been converted from milli-cores to MHz. This will make the aggregated CPU capacity on container
-	// spec more consistent if container replicas are on different nodes with different CPU frequency.
-	capacity := 0.0
-	for _, capVal := range resourceMetrics.Capacity {
-		capacity = math.Max(capacity, capVal)
-	}
+	capacity := getResourceCapacity(resourceMetrics)
 	usedSum := 0.0
 	peak := 0.0
 	for _, usedPoint := range resourceMetrics.Used {
@@ -69,14 +62,11 @@ func (maxUsageDataAggregator *maxUsageDataAggregator) String() string {
 }
 
 func (maxUsageDataAggregator *maxUsageDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) (float64, float64, float64, error) {
-	if len(resourceMetrics.Used) == 0 || len(resourceMetrics.Capacity) == 0 {
-		err := fmt.Errorf("error to aggregate container usage data using %s: used or capacity data points list is empty", maxUsageDataAggregator)
+	isValid, err := isResourceMetricsValid(resourceMetrics, maxUsageDataAggregator)
+	if !isValid || err != nil {
 		return 0.0, 0.0, 0.0, err
 	}
-	// Use the max of resource capacity values from all container replicas.
-	// CPU capacity has been converted from milli-cores to MHz. This will make the aggregated CPU capacity on container
-	// spec more consistent if container replicas are on different nodes with different CPU frequency.
-	capacity := 0.0
+	capacity := getResourceCapacity(resourceMetrics)
 	for _, capVal := range resourceMetrics.Capacity {
 		capacity = math.Max(capacity, capVal)
 	}
