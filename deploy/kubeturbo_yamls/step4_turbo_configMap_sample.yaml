@@ -34,9 +34,9 @@ data:
             }
         },
         "targetConfig": {
-            "targetName":"whateverYouWant"
+            "targetName": "whateverYouWant"
         },
         "HANodeConfig": {
-            "nodeRoles": [ "master", "worker"]
+            "nodeRoles": [ "master" ]
         }
     }
