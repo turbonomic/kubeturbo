@@ -26,7 +26,7 @@ import (
 //TODO: if pod is from controller, then copy pod in the way as
 // kubernetes/pkg/controller/controller_utils.go#GetPodFromTemplate
 // https://github.com/kubernetes/kubernetes/blob/0c7e7ae1d9cccd0cca7313ee5a8ae3c313b72139/pkg/controller/controller_utils.go#L553
-func copyPodInfo(oldPod, newPod *api.Pod) {
+func copyPodInfo(oldPod, newPod *api.Pod, copySpec bool) {
 	//1. typeMeta
 	newPod.TypeMeta = oldPod.TypeMeta
 
@@ -38,19 +38,21 @@ func copyPodInfo(oldPod, newPod *api.Pod) {
 	newPod.CreationTimestamp = metav1.Time{}
 	newPod.DeletionTimestamp = nil
 	newPod.DeletionGracePeriodSeconds = nil
+	if copySpec {
+		//3. podSpec
+		spec := oldPod.Spec
+		spec.Hostname = ""
+		spec.Subdomain = ""
+		spec.NodeName = ""
 
-	//3. podSpec
-	spec := oldPod.Spec
-	spec.Hostname = ""
-	spec.Subdomain = ""
-	spec.NodeName = ""
+		newPod.Spec = spec
+	}
 
-	newPod.Spec = spec
 	return
 }
 
-func copyPodWithoutLabel(oldPod, newPod *api.Pod) {
-	copyPodInfo(oldPod, newPod)
+func copyPodWithoutLabel(oldPod, newPod *api.Pod, copySpec bool) {
+	copyPodInfo(oldPod, newPod, copySpec)
 
 	// set Labels and OwnerReference to be empty
 	newPod.Labels = make(map[string]string)
@@ -97,7 +99,6 @@ func genNewPodName(oldPod *api.Pod) string {
 func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 	parentKind, parentName string, retryNum int, failVolumePodMoves bool) (*api.Pod, error) {
 	podClient := clusterScraper.Clientset.CoreV1().Pods(pod.Namespace)
-	var podParent *unstructured.Unstructured
 	podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	podUsingVolume := isPodUsingVolume(pod)
 	if podUsingVolume && failVolumePodMoves {
@@ -105,11 +106,23 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 			"Set kubeturbo flag fail-volume-pod-moves to false to enable such moves.", podQualifiedName)
 	}
 
+	// We still support replicaset and replication controllers as parents,
+	// however both of them could further have a parent (deploy or deploy config).
+	parent, grandParent, pClient, gPClient, gPKind, err :=
+		getPodOwnersInfo(clusterScraper, pod, parentKind)
+	if err != nil {
+		return nil, err
+	}
+
 	//NOTE: do deep-copy if the original pod may be modified outside this function
 	labels := pod.Labels
 
+	parentForPodSpec := grandParent
+	if parentForPodSpec == nil {
+		parentForPodSpec = parent
+	}
 	//step A1/B1. create a clone pod--podC of the original pod--podA
-	npod, err := createClonePod(clusterScraper.Clientset, pod, nodeName)
+	npod, err := createClonePod(clusterScraper.Clientset, pod, parentForPodSpec, nodeName)
 	if err != nil {
 		glog.Errorf("Move pod failed: failed to create a clone pod: %v", err)
 		return nil, err
@@ -128,25 +141,16 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 			// A failure can leave a pod (or pods) in pending state, delete them.
 			// This can happen in case the newly created pod did fail to reach ready
 			// state for whatever reason. After timeout we will end up deleting the
-			// newly created pod. The invalid pod (or pods) would have been be created
+			// newly created pod. The invalid pod (or pods) would have been created
 			// for when the parent's scheduler was set to invalid scheduler (turbo-scheduler)
 			// and at exactly the same time the total replica count dropped below
 			// desired count (for  whatever reason).
-			deleteInvalidPendingPods(podParent, podClient, podList)
+			deleteInvalidPendingPods(parent, podClient, podList)
 		}
 	}()
 
 	// Special handling for pods with volumes
 	if podUsingVolume {
-		// We still support replicaset and replication controllers as parents,
-		// however both of them could further have a parent (deploy or deploy config).
-		parent, grandParent, pClient, gPClient, gPKind, err :=
-			getPodOwnersInfo(clusterScraper, pod, parentKind)
-		if err != nil {
-			return nil, err
-		}
-		podParent = parent
-
 		if grandParent != nil {
 			pause := true
 			unpause := false
@@ -463,9 +467,24 @@ func changeScheduler(client dynamic.ResourceInterface, obj *unstructured.Unstruc
 	return nil
 }
 
-func createClonePod(client *kclient.Clientset, pod *api.Pod, nodeName string) (*api.Pod, error) {
+func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructured.Unstructured, nodeName string) (*api.Pod, error) {
 	npod := &api.Pod{}
-	copyPodWithoutLabel(pod, npod)
+	copyPodWithoutLabel(pod, npod, false)
+
+	kind := parent.GetKind()
+	parentName := parent.GetName()
+	podSpecUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "spec", "template", "spec")
+	if err != nil || !found {
+		return nil, fmt.Errorf("movePod: error retrieving podSpec from %s %s: %v", kind, parentName, err)
+	}
+	podSpec := api.PodSpec{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(podSpecUnstructured.(map[string]interface{}), &podSpec); err != nil {
+		return nil, fmt.Errorf("movePod: error converting unstructured pod spec to typed pod spec for %s %s: %v", kind, parentName, err)
+	}
+
+	// Set podSpec retrieved from parent. This saves from landing into
+	// problems of sidecar containers and injection systems.
+	npod.Spec = podSpec
 	npod.Spec.NodeName = nodeName
 	npod.Name = genNewPodName(pod)
 	// this annotation can be used for future garbage collection if action is interrupted
