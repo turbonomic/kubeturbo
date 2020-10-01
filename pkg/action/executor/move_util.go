@@ -404,7 +404,7 @@ func getPodOwnersInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
 
 	// This means that the parent itself is the final owner and there is
 	// no controller controlling the parent, i.e. no grand parent.
-	return nil, nil, nil, nil, "", nil
+	return parent, nil, nsParentClient, nil, "", nil
 }
 
 // resourceRollout pauses/unpauses the rollout of a deployment or a deploymentconfig
