@@ -18,11 +18,11 @@ spec:
         app.kubernetes.io/name: kubeturbo
     spec:
       # Update serviceAccount if needed
-      serviceAccount: turbo-user
+      serviceAccountName: turbo-user
       containers:
       - name: kubeturbo
         # Replace the image with desired version:6.4.4 or latest
-        image: turbonomic/kubeturbo:7.22.4
+        image: turbonomic/kubeturbo:7.22.9
         args:
           - --turboconfig=/etc/kubeturbo/turbo.config
           - --v=2

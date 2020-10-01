@@ -2,16 +2,16 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1alpha1","kind":"Kubeturbo","metadata":{"name":"kubeturbo-release"},"spec":{"serverMeta":{"turboServer":"https://Turbo_server_URL"}}}]'
+    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1alpha1","kind":"Kubeturbo","metadata":{"name":"kubeturbo-release"},"spec":{"serverMeta":{"turboServer":"https://Turbo_server_URL"},"targetConfig":{"targetName":"Cluster_Name"}}}]'
     capabilities: Basic Install
     categories: Monitoring
     certified: "false"
-    containerImage: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:59bd48018333ddd2c91c5ec3a6d7cb113904fe344684c7a62b98e26a915cb765
+    containerImage: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:af0e0d0727b679c5dd950afb52bfe132b727c93360ed20762f633ab30066ad0c
     createdAt: 2019-05-01T00:00:00.000Z
     description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
     repository: https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo-operator
     support: Turbonomic, Inc.
-  name: kubeturbo-operator.v7.22.2
+  name: kubeturbo-marketplace-operator.v7.22.9
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -181,8 +181,8 @@ spec:
                       - name: OPERATOR_NAME
                         value: kubeturbo-operator
                       - name: RELATED_IMAGE_KUBETURBO
-                        value: registry.connect.redhat.com/turbonomic/kubeturbo@sha256:4038fcc51eabc3f8cbe7ee35031a12c1e837ea0b26e89d697a7139a9d34eb1a9
-                    image: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:59bd48018333ddd2c91c5ec3a6d7cb113904fe344684c7a62b98e26a915cb765
+                        value: registry.connect.redhat.com/turbonomic/kubeturbo@sha256:f012fab022c20d4d9a466e59ba52f11699490fcefc095e3deb2b660c8c1b5ee8
+                    image: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:af0e0d0727b679c5dd950afb52bfe132b727c93360ed20762f633ab30066ad0c
                     imagePullPolicy: Always
                     name: kubeturbo-operator
                     resources: {}
@@ -208,5 +208,5 @@ spec:
   maturity: alpha
   provider:
     name: Turbonomic, Inc.
-  replaces: kubeturbo-operator.v7.22.0
-  version: 7.22.2
+  replaces: kubeturbo-marketplace-operator.v7.22.6
+  version: 7.22.9
