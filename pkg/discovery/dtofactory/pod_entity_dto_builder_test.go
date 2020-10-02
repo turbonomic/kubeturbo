@@ -73,8 +73,9 @@ func Test_podEntityDTOBuilder_createContainerPodData(t *testing.T) {
 	}
 }
 
-func testGetCommoditiesWithError(t *testing.T, f func(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error)) {
-	if _, err := f(&api.Pod{}, 100.0); err == nil {
+func testGetCommoditiesWithError(t *testing.T,
+	f func(pod *api.Pod, cpuFrequency float64, resType []metrics.ResourceType) ([]*proto.CommodityDTO, error)) {
+	if _, err := f(&api.Pod{}, 100.0, runningPodResCommTypeSold); err == nil {
 		t.Errorf("Error thrown expected")
 	}
 }

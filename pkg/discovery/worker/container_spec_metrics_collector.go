@@ -36,7 +36,7 @@ func NewContainerSpecMetricsCollector(metricsSink *metrics.EntityMetricSink, pod
 
 // CollectContainerSpecMetrics collects list of ContainerSpecMetrics including resource capacity value and multiple
 // usage data points from sampling discoveries for container replicas which belong to the same ContainerSpec.
-func (collector *ContainerSpecMetricsCollector) CollectContainerSpecMetrics() ([]*repository.ContainerSpecMetrics, error) {
+func (collector *ContainerSpecMetricsCollector) CollectContainerSpecMetrics() []*repository.ContainerSpecMetrics {
 	var containerSpecMetricsList []*repository.ContainerSpecMetrics
 	for _, pod := range collector.podList {
 		// Create ContainerSpecMetrics only if Pod is deployed by a K8s controller
@@ -69,7 +69,7 @@ func (collector *ContainerSpecMetricsCollector) CollectContainerSpecMetrics() ([
 			}
 		}
 	}
-	return containerSpecMetricsList, nil
+	return containerSpecMetricsList
 }
 
 // collectContainerMetrics collects container metrics from metricsSink and stores them in the given ContainerSpecMetrics

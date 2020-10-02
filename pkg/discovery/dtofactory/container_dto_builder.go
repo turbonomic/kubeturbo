@@ -92,7 +92,7 @@ func (builder *containerDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, 
 	return cpuFrequency, nil
 }
 
-func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityDTO, error) {
+func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) []*proto.EntityDTO {
 	var result []*proto.EntityDTO
 
 	for _, pod := range pods {
@@ -188,7 +188,7 @@ func (builder *containerDTOBuilder) BuildDTOs(pods []*api.Pod) ([]*proto.EntityD
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 // vCPU, vMem, vCPURequest, vMemRequest and Application are sold by Container.

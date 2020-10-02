@@ -252,8 +252,7 @@ func TestPodMetricsCollectionNullCluster(t *testing.T) {
 		PodList:     nodeToPodsMap[node1],
 	}
 
-	podCollection, err := collector.CollectPodMetrics()
-	assert.NotNil(t, err)
+	podCollection := collector.CollectPodMetrics()
 	assert.Nil(t, podCollection)
 }
 
@@ -277,7 +276,7 @@ func TestPodMetricsCollectionUnknownNamespace(t *testing.T) {
 		NodeList:    []*v1.Node{n1},
 	}
 
-	podCollection, _ := collector.CollectPodMetrics()
+	podCollection := collector.CollectPodMetrics()
 	assert.Equal(t, 0, len(podCollection))
 }
 
@@ -320,8 +319,7 @@ func TestPodMetricsCollectionSingleNode(t *testing.T) {
 		NodeList:    []*v1.Node{n1},
 	}
 
-	podCollection, err := collector.CollectPodMetrics()
-	assert.Nil(t, err)
+	podCollection := collector.CollectPodMetrics()
 	assert.NotNil(t, podCollection)
 	_, exists := podCollection[node1]
 	assert.True(t, exists)

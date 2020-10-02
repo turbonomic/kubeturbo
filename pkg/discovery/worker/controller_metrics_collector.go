@@ -30,11 +30,7 @@ func NewControllerMetricsCollector(discoveryWorker *k8sDiscoveryWorker, currTask
 
 // Collect allocation resource metrics for K8s controllers where usage values are aggregated from pods and capacity values
 // are from namespace quota capacity.
-func (collector *ControllerMetricsCollector) CollectControllerMetrics() ([]*repository.KubeController, error) {
-	if collector.cluster == nil {
-		return nil, fmt.Errorf("error collecting K8s controller metrics, because cluster summary object is null for discovery worker %s",
-			collector.workerId)
-	}
+func (collector *ControllerMetricsCollector) CollectControllerMetrics() []*repository.KubeController {
 	kubeNamespaceMap := collector.cluster.NamespaceMap
 	// Map from controller UID to the corresponding kubeController
 	kubeControllersMap := make(map[string]*repository.KubeController)
@@ -85,7 +81,7 @@ func (collector *ControllerMetricsCollector) CollectControllerMetrics() ([]*repo
 		// Update quota resources usage for the controller aggregated from pods quota usage
 		collector.updateQuotaResourcesUsed(kubeController, pod)
 	}
-	return kubeControllerList, nil
+	return kubeControllerList
 }
 
 // Get KubeController info from the given pod from metrics sink, including controller type, name and UID.

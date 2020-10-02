@@ -195,27 +195,23 @@ func (s *ClusterScraper) GetKubernetesServiceID() (svcID string, err error) {
 	return
 }
 
-func (s *ClusterScraper) GetRunningAndReadyPodsOnNode(node *api.Node) []*api.Pod {
-	nodeRunningPodsList, err := s.findRunningPodsOnNode(node.Name)
+func (s *ClusterScraper) GetRunningPodsOnNode(node *api.Node) []*api.Pod {
+	nodeRunningPodsList, err := s.findPodsOnNode(node.Name, api.PodRunning)
 	if err != nil {
 		glog.Errorf("Failed to find running pods in %s", node.Name)
 		return []*api.Pod{}
 	}
-
-	return util.GetReadyPods(nodeRunningPodsList)
+	return nodeRunningPodsList
 }
 
-func (s *ClusterScraper) GetRunningAndReadyPodsOnNodes(nodeList []*api.Node) []*api.Pod {
-	pods := []*api.Pod{}
-	for _, node := range nodeList {
-		nodeRunningPodsList, err := s.findRunningPodsOnNode(node.Name)
-		if err != nil {
-			glog.Errorf("Failed to find running pods in %s", node.Name)
-			continue
-		}
-		pods = append(pods, nodeRunningPodsList...)
+func (s *ClusterScraper) GetPendingPodsOnNode(node *api.Node) []*api.Pod {
+	nodePendingPodsList, err := s.findPodsOnNode(node.Name, api.PodPending)
+	if err != nil {
+		glog.Errorf("Failed to find pending pods in %s", node.Name)
+		return []*api.Pod{}
 	}
-	return util.GetReadyPods(pods)
+	// Pending pods on node must have been scheduled already
+	return nodePendingPodsList
 }
 
 func (s *ClusterScraper) GetAllRunningAndReadyPods() ([]*api.Pod, error) {
@@ -235,10 +231,9 @@ func (s *ClusterScraper) GetAllRunningAndReadyPods() ([]*api.Pod, error) {
 	return util.GetReadyPods(pods), nil
 }
 
-// TODO, create a local pod, node cache to avoid too many API request.
-func (s *ClusterScraper) findRunningPodsOnNode(nodeName string) ([]*api.Pod, error) {
+func (s *ClusterScraper) findPodsOnNode(nodeName string, phase api.PodPhase) ([]*api.Pod, error) {
 	fieldSelector, err := fields.ParseSelector("spec.nodeName=" + nodeName + ",status.phase=" +
-		string(api.PodRunning))
+		string(phase))
 	if err != nil {
 		return nil, err
 	}

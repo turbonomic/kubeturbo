@@ -122,9 +122,8 @@ func Test_containerDTOBuilder_BuildDTOs_layeredOver(t *testing.T) {
 	}
 
 	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink())
-	containerDTOs, err := containerDTOBuilder.BuildDTOs([]*api.Pod{testPod})
+	containerDTOs := containerDTOBuilder.BuildEntityDTOs([]*api.Pod{testPod})
 
-	assert.Nil(t, err)
 	assert.Equal(t, 2, len(containerDTOs))
 	for _, containerDTO := range containerDTOs {
 		if *containerDTO.DisplayName == util.ContainerNameFunc(testPod, &containerFoo) {
