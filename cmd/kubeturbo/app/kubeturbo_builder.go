@@ -45,12 +45,12 @@ const (
 	defaultVMPriority                 = -1
 	defaultVMIsBase                   = true
 	defaultDiscoveryIntervalSec       = 600
-	defaultValidationWorkers          = 10
-	defaultValidationTimeout          = 60
-	defaultDiscoveryWorkers           = 4
-	defaultDiscoveryTimeoutSec        = 180
-	defaultDiscoverySamples           = 10
-	defaultDiscoverySampleIntervalSec = 60
+	DefaultValidationWorkers          = 10
+	DefaultValidationTimeout          = 60
+	DefaultDiscoveryWorkers           = 4
+	DefaultDiscoveryTimeoutSec        = 180
+	DefaultDiscoverySamples           = 10
+	DefaultDiscoverySampleIntervalSec = 60
 )
 
 var (
@@ -159,12 +159,12 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&noneSchedulerName, "noneSchedulerName", noneSchedulerName, "[deprecated] a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
 	fs.IntVar(&s.DiscoveryIntervalSec, "discovery-interval-sec", defaultDiscoveryIntervalSec, "The discovery interval in seconds.")
-	fs.IntVar(&s.ValidationWorkers, "validation-workers", defaultValidationWorkers, "The validation workers")
-	fs.IntVar(&s.ValidationTimeout, "validation-timeout-sec", defaultValidationTimeout, "The validation timeout in seconds.")
-	fs.IntVar(&s.DiscoveryWorkers, "discovery-workers", defaultDiscoveryWorkers, "The number of discovery workers.")
-	fs.IntVar(&s.DiscoveryTimeoutSec, "discovery-timeout-sec", defaultDiscoveryTimeoutSec, "The discovery timeout in seconds for each discovery worker.")
-	fs.IntVar(&s.DiscoverySamples, "discovery-samples", defaultDiscoverySamples, "The number of resource usage data samples to be collected from kubelet in each full discovery cycle. This should be no larger than 60.")
-	fs.IntVar(&s.DiscoverySampleIntervalSec, "discovery-sample-interval", defaultDiscoverySampleIntervalSec, "The discovery interval in seconds to collect additional resource usage data samples from kubelet. This should be no smaller than 10 seconds.")
+	fs.IntVar(&s.ValidationWorkers, "validation-workers", DefaultValidationWorkers, "The validation workers")
+	fs.IntVar(&s.ValidationTimeout, "validation-timeout-sec", DefaultValidationTimeout, "The validation timeout in seconds.")
+	fs.IntVar(&s.DiscoveryWorkers, "discovery-workers", DefaultDiscoveryWorkers, "The number of discovery workers.")
+	fs.IntVar(&s.DiscoveryTimeoutSec, "discovery-timeout-sec", DefaultDiscoveryTimeoutSec, "The discovery timeout in seconds for each discovery worker.")
+	fs.IntVar(&s.DiscoverySamples, "discovery-samples", DefaultDiscoverySamples, "The number of resource usage data samples to be collected from kubelet in each full discovery cycle. This should be no larger than 60.")
+	fs.IntVar(&s.DiscoverySampleIntervalSec, "discovery-sample-interval", DefaultDiscoverySampleIntervalSec, "The discovery interval in seconds to collect additional resource usage data samples from kubelet. This should be no smaller than 10 seconds.")
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all.")
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")
 	fs.StringVar(&s.BusyboxImage, "busybox-image", "busybox", "The complete image uri used for fallback node cpu frequency getter job.")
@@ -207,7 +207,7 @@ func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubern
 	return kubeClient
 }
 
-func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, fallbackClient *kubernetes.Clientset, busyboxImage string, useProxyEndpoint bool) *kubeclient.KubeletClient {
+func (s *VMTServer) CreateKubeletClientOrDie(kubeConfig *restclient.Config, fallbackClient *kubernetes.Clientset, busyboxImage string, useProxyEndpoint bool) *kubeclient.KubeletClient {
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
@@ -295,7 +295,7 @@ func (s *VMTServer) Run() {
 	// Collect target and probe info such as master host, server version, probe container image, etc
 	k8sTAPSpec.CollectK8sTargetAndProbeInfo(kubeConfig, kubeClient)
 
-	kubeletClient := s.createKubeletClientOrDie(kubeConfig, kubeClient, s.BusyboxImage, s.UseNodeProxyEndpoint)
+	kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, s.BusyboxImage, s.UseNodeProxyEndpoint)
 	caClient, err := clusterclient.NewForConfig(kubeConfig)
 	if err != nil {
 		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
