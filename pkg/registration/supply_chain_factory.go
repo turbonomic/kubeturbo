@@ -317,7 +317,7 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Buys(vMemLimitQuotaTemplateCommWithKey).
 		Buys(vCpuRequestQuotaTemplateCommWithKey).
 		Buys(vMemRequestQuotaTemplateCommWithKey).
-		Provider(proto.EntityDTO_VIRTUAL_VOLUME, proto.Provider_LAYERED_OVER).
+		ProviderOpt(proto.EntityDTO_VIRTUAL_VOLUME, proto.Provider_LAYERED_OVER, &isProviderOptional).
 		Buys(storageAmountTemplateCommWithKey)
 
 	// Link from Pod to VM
