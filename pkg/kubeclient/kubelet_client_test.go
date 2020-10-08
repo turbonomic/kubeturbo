@@ -68,13 +68,13 @@ func TestKubeletClientCacheNil(t *testing.T) {
 	kubeConf := &rest.Config{}
 	conf := NewKubeletConfig(kubeConf)
 
-	kc, _ := conf.Create(nil, "busybox")
+	kc, _ := conf.Create(nil, "busybox", false)
 	entry := &CacheEntry{}
 	kc.cache["host_1"] = entry
 	assert.False(t, kc.HasCacheBeenUsed("host_1"))
-	_, err := kc.GetSummary("host_1")
+	_, err := kc.GetSummary("host_1", "")
 	assert.NotNil(t, err)
 
-	_, err2 := kc.GetMachineInfo("host_1")
+	_, err2 := kc.GetMachineInfo("host_1", "")
 	assert.NotNil(t, err2)
 }
