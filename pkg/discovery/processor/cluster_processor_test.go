@@ -217,7 +217,7 @@ func TestConnectCluster(t *testing.T) {
 	}
 
 	ns := &MockNodeScrapper{
-		mockGetSummary: func(host string) (*stats.Summary, error) {
+		mockGetSummary: func(ip, nodeName string) (*stats.Summary, error) {
 			summary := stats.Summary{}
 			return &summary, nil
 		},
@@ -244,8 +244,8 @@ func TestConnectClusterUnreachableNodes(t *testing.T) {
 	}
 
 	ns := &MockNodeScrapper{
-		mockGetSummary: func(host string) (*stats.Summary, error) {
-			return nil, fmt.Errorf("%s node is unreachable", host)
+		mockGetSummary: func(ip, nodeName string) (*stats.Summary, error) {
+			return nil, fmt.Errorf("%s node is unreachable", ip)
 		},
 	}
 
@@ -270,7 +270,7 @@ func TestConnectClusterReachableAndUnreachableNodes(t *testing.T) {
 	}
 
 	ns := &MockNodeScrapper{
-		mockGetSummary: func(host string) (*stats.Summary, error) {
+		mockGetSummary: func(ip, nodeName string) (*stats.Summary, error) {
 			summary := stats.Summary{}
 			return &summary, nil
 		},
@@ -370,29 +370,29 @@ func (s *MockClusterScrapper) GetAllPVCs() ([]*v1.PersistentVolumeClaim, error) 
 // Implements the KubeHttpClientInterface
 // Method implementation will check to see if the test has provided the mockXXX method function
 type MockNodeScrapper struct {
-	mockExecuteRequestAndGetValue func(host string, endpoint string, value interface{}) error
-	mockGetSummary                func(host string) (*stats.Summary, error)
-	mockGetMachineInfo            func(host string) (*cadvisorapi.MachineInfo, error)
+	mockExecuteRequestAndGetValue func(ip, nodeName, path string, value interface{}) error
+	mockGetSummary                func(ip, nodeName string) (*stats.Summary, error)
+	mockGetMachineInfo            func(ip, nodeName string) (*cadvisorapi.MachineInfo, error)
 	mockGetNodeCpuFrequency       func(node *v1.Node) (float64, error)
 }
 
-func (s *MockNodeScrapper) ExecuteRequestAndGetValue(host string, endpoint string, value interface{}) error {
+func (s *MockNodeScrapper) ExecuteRequestAndGetValue(ip, nodeName, path string, value interface{}) error {
 	if s.mockExecuteRequestAndGetValue != nil {
-		return s.mockExecuteRequestAndGetValue(host, endpoint, value)
+		return s.mockExecuteRequestAndGetValue(ip, "", path, value)
 	}
 	return fmt.Errorf("ExecuteRequestAndGetValue Not implemented")
 }
 
-func (s *MockNodeScrapper) GetSummary(host string) (*stats.Summary, error) {
+func (s *MockNodeScrapper) GetSummary(ip, nodeName string) (*stats.Summary, error) {
 	if s.mockGetSummary != nil {
-		return s.mockGetSummary(host)
+		return s.mockGetSummary(ip, nodeName)
 	}
 	return nil, fmt.Errorf("GetSummary Not implemented")
 }
 
-func (s *MockNodeScrapper) GetMachineInfo(host string) (*cadvisorapi.MachineInfo, error) {
+func (s *MockNodeScrapper) GetMachineInfo(ip, nodeName string) (*cadvisorapi.MachineInfo, error) {
 	if s.mockGetMachineInfo != nil {
-		return s.mockGetMachineInfo(host)
+		return s.mockGetMachineInfo(ip, nodeName)
 	}
 	return nil, fmt.Errorf("GetMachineInfo Not implemented")
 }

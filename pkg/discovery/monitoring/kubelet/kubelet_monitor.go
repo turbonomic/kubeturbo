@@ -123,7 +123,7 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 		return
 	}
 	// get summary information about the given node and the pods running on it.
-	summary, err := kc.GetSummary(ip)
+	summary, err := kc.GetSummary(ip, node.Name)
 	if err != nil {
 		glog.Errorf("Failed to get resource metrics summary from %s: %s", node.Name, err)
 		return
