@@ -91,8 +91,9 @@ type VMTServer struct {
 	VMIsBase bool
 
 	// Kubelet related config
-	KubeletPort        int
-	EnableKubeletHttps bool
+	KubeletPort          int
+	EnableKubeletHttps   bool
+	UseNodeProxyEndpoint bool
 
 	// The cluster processor related config
 	ValidationWorkers int
@@ -142,32 +143,33 @@ func NewVMTServer() *VMTServer {
 
 // AddFlags adds flags for a specific VMTServer to the specified FlagSet
 func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
-	fs.IntVar(&s.Port, "port", s.Port, "The port that kubeturbo's http service runs on")
-	fs.StringVar(&s.Address, "ip", s.Address, "the ip address that kubeturbo's http service runs on")
-	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
+	fs.IntVar(&s.Port, "port", s.Port, "The port that kubeturbo's http service runs on.")
+	fs.StringVar(&s.Address, "ip", s.Address, "the ip address that kubeturbo's http service runs on.")
+	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig).")
 	fs.StringVar(&s.K8sTAPSpec, "turboconfig", s.K8sTAPSpec, "Path to the config file.")
 	fs.StringVar(&s.TestingFlagPath, "testingflag", s.TestingFlagPath, "Path to the testing flag.")
 	fs.StringVar(&s.KubeConfig, "kubeconfig", s.KubeConfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.BoolVar(&s.EnableProfiling, "profiling", false, "Enable profiling via web interface host:port/debug/pprof/.")
 	fs.BoolVar(&s.UseUUID, "stitch-uuid", true, "Use VirtualMachine's UUID to do stitching, otherwise IP is used.")
-	fs.IntVar(&s.KubeletPort, "kubelet-port", DefaultKubeletPort, "The port of the kubelet runs on")
-	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", DefaultKubeletHttps, "Indicate if Kubelet is running on https server")
-	fs.BoolVar(&s.ForceSelfSignedCerts, "kubelet-force-selfsigned-cert", true, "Indicate if we must use self-signed cert")
+	fs.IntVar(&s.KubeletPort, "kubelet-port", DefaultKubeletPort, "The port of the kubelet runs on.")
+	fs.BoolVar(&s.EnableKubeletHttps, "kubelet-https", DefaultKubeletHttps, "Indicate if Kubelet is running on https server.")
+	fs.BoolVar(&s.UseNodeProxyEndpoint, "use-node-proxy-endpoint", false, "Indicate if Kubelet queries should be routed through APIServer node proxy endpoint.")
+	fs.BoolVar(&s.ForceSelfSignedCerts, "kubelet-force-selfsigned-cert", true, "Indicate if we must use self-signed cert.")
 	fs.BoolVar(&s.FailVolumePodMoves, "fail-volume-pod-moves", true, "Indicate if kubeturbo should fail to move pods which have volumes attached. Default is set to true.")
 	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&noneSchedulerName, "noneSchedulerName", noneSchedulerName, "[deprecated] a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
-	fs.IntVar(&s.DiscoveryIntervalSec, "discovery-interval-sec", defaultDiscoveryIntervalSec, "The discovery interval in seconds")
+	fs.IntVar(&s.DiscoveryIntervalSec, "discovery-interval-sec", defaultDiscoveryIntervalSec, "The discovery interval in seconds.")
 	fs.IntVar(&s.ValidationWorkers, "validation-workers", defaultValidationWorkers, "The validation workers")
-	fs.IntVar(&s.ValidationTimeout, "validation-timeout-sec", defaultValidationTimeout, "The validation timeout in seconds")
-	fs.IntVar(&s.DiscoveryWorkers, "discovery-workers", defaultDiscoveryWorkers, "The number of discovery workers")
-	fs.IntVar(&s.DiscoveryTimeoutSec, "discovery-timeout-sec", defaultDiscoveryTimeoutSec, "The discovery timeout in seconds for each discovery worker")
+	fs.IntVar(&s.ValidationTimeout, "validation-timeout-sec", defaultValidationTimeout, "The validation timeout in seconds.")
+	fs.IntVar(&s.DiscoveryWorkers, "discovery-workers", defaultDiscoveryWorkers, "The number of discovery workers.")
+	fs.IntVar(&s.DiscoveryTimeoutSec, "discovery-timeout-sec", defaultDiscoveryTimeoutSec, "The discovery timeout in seconds for each discovery worker.")
 	fs.IntVar(&s.DiscoverySamples, "discovery-samples", defaultDiscoverySamples, "The number of resource usage data samples to be collected from kubelet in each full discovery cycle. This should be no larger than 60.")
 	fs.IntVar(&s.DiscoverySampleIntervalSec, "discovery-sample-interval", defaultDiscoverySampleIntervalSec, "The discovery interval in seconds to collect additional resource usage data samples from kubelet. This should be no smaller than 10 seconds.")
-	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all")
+	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all.")
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")
 	fs.StringVar(&s.BusyboxImage, "busybox-image", "busybox", "The complete image uri used for fallback node cpu frequency getter job.")
-	fs.StringVar(&s.containerUtilizationDataAggStrategy, "cnt-utilization-data-agg-strategy", agg.DefaultContainerUtilizationDataAggStrategy, "Container utilization data aggregation strategy")
-	fs.StringVar(&s.containerUsageDataAggStrategy, "cnt-usage-data-agg-strategy", agg.DefaultContainerUsageDataAggStrategy, "Container usage data aggregation strategy")
+	fs.StringVar(&s.containerUtilizationDataAggStrategy, "cnt-utilization-data-agg-strategy", agg.DefaultContainerUtilizationDataAggStrategy, "Container utilization data aggregation strategy.")
+	fs.StringVar(&s.containerUsageDataAggStrategy, "cnt-usage-data-agg-strategy", agg.DefaultContainerUsageDataAggStrategy, "Container usage data aggregation strategy.")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -205,13 +207,13 @@ func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubern
 	return kubeClient
 }
 
-func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, fallbackClient *kubernetes.Clientset, busyboxImage string) *kubeclient.KubeletClient {
+func (s *VMTServer) createKubeletClientOrDie(kubeConfig *restclient.Config, fallbackClient *kubernetes.Clientset, busyboxImage string, useProxyEndpoint bool) *kubeclient.KubeletClient {
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
 		ForceSelfSignedCerts(s.ForceSelfSignedCerts).
 		// Timeout(to).
-		Create(fallbackClient, busyboxImage)
+		Create(fallbackClient, busyboxImage, useProxyEndpoint)
 	if err != nil {
 		glog.Errorf("Fatal error: failed to create kubeletClient: %v", err)
 		os.Exit(1)
@@ -293,7 +295,7 @@ func (s *VMTServer) Run() {
 	// Collect target and probe info such as master host, server version, probe container image, etc
 	k8sTAPSpec.CollectK8sTargetAndProbeInfo(kubeConfig, kubeClient)
 
-	kubeletClient := s.createKubeletClientOrDie(kubeConfig, kubeClient, s.BusyboxImage)
+	kubeletClient := s.createKubeletClientOrDie(kubeConfig, kubeClient, s.BusyboxImage, s.UseNodeProxyEndpoint)
 	caClient, err := clusterclient.NewForConfig(kubeConfig)
 	if err != nil {
 		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())

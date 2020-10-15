@@ -34,9 +34,9 @@ const (
 )
 
 type KubeHttpClientInterface interface {
-	ExecuteRequestAndGetValue(host string, endpoint string, value interface{}) error
-	GetSummary(host string) (*stats.Summary, error)
-	GetMachineInfo(host string) (*cadvisorapi.MachineInfo, error)
+	ExecuteRequestAndGetValue(ip, nodeName, path string, value interface{}) error
+	GetSummary(ip, nodeName string) (*stats.Summary, error)
+	GetMachineInfo(ip, nodeName string) (*cadvisorapi.MachineInfo, error)
 	GetNodeCpuFrequency(node *v1.Node) (float64, error)
 }
 
@@ -87,38 +87,40 @@ type KubeletClient struct {
 	cacheLock           sync.Mutex
 	fallbkCpuFreqGetter *NodeCpuFrequencyGetter
 	defaultCpuFreq      float64
+	// Fallback kubernetes API client to fetch data from node's proxy subresource
+	kubeClient         *kubernetes.Clientset
+	forceProxyEndpoint bool
 }
 
-func (client *KubeletClient) ExecuteRequestAndGetValue(host string, endpoint string, value interface{}) error {
-	requestURL := url.URL{
-		Scheme: client.scheme,
-		Host:   fmt.Sprintf("%s:%d", host, client.port),
-		Path:   endpoint,
-	}
-
-	req, err := http.NewRequest("GET", requestURL.String(), nil)
-	if err != nil {
-		return err
-	}
-
-	return client.postRequestAndGetValue(req, value)
+type statusNotFoundError struct {
+	path string
 }
 
-func (client *KubeletClient) postRequestAndGetValue(req *http.Request, value interface{}) error {
-	httpClient := client.client
-	response, err := httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to execute the request: %s", err)
-	}
-	defer response.Body.Close()
-	body, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response body - %v", err)
-	}
-	if response.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("%q was not found", req.URL.String())
-	} else if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("request failed - %q, response: %q", response.Status, string(body))
+func (s statusNotFoundError) Error() string {
+	return fmt.Sprintf("%q was not found", s.path)
+}
+
+func (client *KubeletClient) ExecuteRequestAndGetValue(ip, nodeName, path string, value interface{}) error {
+	var body []byte
+	var err error
+	if client.forceProxyEndpoint {
+		body, err = client.callAPIServerProxyEndpoint(nodeName, path)
+		if err != nil {
+			return err
+		}
+	} else {
+		body, err = client.callKubeletEndpoint(ip, path)
+		if _, isStatusNotFoundError := err.(statusNotFoundError); isStatusNotFoundError {
+			return err
+		}
+		if err != nil && client.kubeClient != nil {
+			glog.V(2).Infof("The kubelet endpoint query for path %s to node: %s/%s did not work."+
+				"Trying proxy endpoint.", path, nodeName, ip)
+			body, err = client.callAPIServerProxyEndpoint(nodeName, path)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	err = json.Unmarshal(body, value)
@@ -128,29 +130,78 @@ func (client *KubeletClient) postRequestAndGetValue(req *http.Request, value int
 	return nil
 }
 
-func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
+func (client *KubeletClient) callKubeletEndpoint(ip, path string) ([]byte, error) {
+	requestURL := url.URL{
+		Scheme: client.scheme,
+		Host:   fmt.Sprintf("%s:%d", ip, client.port),
+		Path:   path,
+	}
+
+	req, err := http.NewRequest("GET", requestURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	httpClient := client.client
+	response, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute the request: %s", err)
+	}
+
+	defer response.Body.Close()
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body - %v", err)
+	}
+	if response.StatusCode == http.StatusNotFound {
+		return nil, statusNotFoundError{path: req.URL.String()}
+	} else if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("request failed - %q, response: %q", response.Status, string(body))
+	}
+
+	return body, nil
+}
+
+func (client *KubeletClient) callAPIServerProxyEndpoint(nodeName, path string) ([]byte, error) {
+	var statusCode int
+	fullPath := fmt.Sprintf("%s%s%s%s", "/api/v1/nodes/", nodeName, "/proxy", path)
+	body, err := client.kubeClient.CoreV1().RESTClient().Get().AbsPath(fullPath).Do().StatusCode(&statusCode).Raw()
+	if err != nil {
+		return nil, err
+	}
+
+	if statusCode == http.StatusNotFound {
+		return nil, statusNotFoundError{path: fullPath}
+	} else if statusCode != http.StatusOK {
+		return nil, fmt.Errorf("request failed - %q, response: %q", statusCode, string(body))
+	}
+
+	return body, nil
+}
+
+func (client *KubeletClient) GetSummary(ip, nodeName string) (*stats.Summary, error) {
 	// Get the data
 	summary := &stats.Summary{}
-	err := client.ExecuteRequestAndGetValue(host, summaryPath, summary)
+	err := client.ExecuteRequestAndGetValue(ip, nodeName, summaryPath, summary)
 	// Lock and check cache
 	client.cacheLock.Lock()
 	defer client.cacheLock.Unlock()
-	entry, entryPresent := client.cache[host]
+	entry, entryPresent := client.cache[ip]
 	if err != nil {
 		if entryPresent {
 			entry.used = true
 			if entry.statsSummary == nil {
-				glog.V(2).Infof("unable to retrieve machine[%s] summary: %v. The cached value unavailable", host, err)
+				glog.V(2).Infof("unable to retrieve machine[%s/%s] summary: %v. The cached value unavailable", nodeName, ip, err)
 				return nil, err
 			}
-			glog.V(2).Infof("unable to retrieve machine[%s] summary: %v. Using cached value", host, err)
+			glog.V(2).Infof("unable to retrieve machine[%s/%s] summary: %v. Using cached value", nodeName, ip, err)
 			// TODO(irfanurrehman): Improve the node check [fn checknode()].
 			// This looks flawed. The same is also used as checknode;
 			// if ExecuteRequestAndGetValue() returns error, checknode should get error
 			// rather then a value from cache.
 			return entry.statsSummary, nil
 		} else {
-			glog.Errorf("failed to get machine[%s] summary: %v. No cache available", host, err)
+			glog.Errorf("failed to get machine[%s/%s] summary: %v. No cache available", nodeName, ip, err)
 			return summary, err
 		}
 	}
@@ -163,7 +214,7 @@ func (client *KubeletClient) GetSummary(host string) (*stats.Summary, error) {
 			statsSummary: summary,
 			used:         false,
 		}
-		client.cache[host] = entry
+		client.cache[ip] = entry
 	}
 	return summary, err
 }
@@ -190,7 +241,7 @@ func (client *KubeletClient) GetNodeCpuFrequency(node *v1.Node) (float64, error)
 
 	// We could not get a valid cpu frequency from cache, discover it.
 	var nodeFreq float64
-	minfo, err := client.GetMachineInfo(ip)
+	minfo, err := client.GetMachineInfo(ip, node.Name)
 	freqDiscovered := true
 	if err != nil {
 		glog.Errorf("Failed to get machine[%s] cpu.frequency from kubelet: %v. Will try pod based getter.", node.Name, err)
@@ -236,9 +287,9 @@ func (client *KubeletClient) GetNodeCpuFrequency(node *v1.Node) (float64, error)
 	return nodeFreq, nil
 }
 
-func (client *KubeletClient) GetMachineInfo(ip string) (*cadvisorapi.MachineInfo, error) {
+func (client *KubeletClient) GetMachineInfo(ip, nodeName string) (*cadvisorapi.MachineInfo, error) {
 	var minfo cadvisorapi.MachineInfo
-	err := client.ExecuteRequestAndGetValue(ip, specPath, &minfo)
+	err := client.ExecuteRequestAndGetValue(ip, nodeName, specPath, &minfo)
 	if err != nil {
 		return nil, err
 	}
@@ -246,10 +297,10 @@ func (client *KubeletClient) GetMachineInfo(ip string) (*cadvisorapi.MachineInfo
 	return &minfo, nil
 }
 
-func (client *KubeletClient) HasCacheBeenUsed(host string) bool {
+func (client *KubeletClient) HasCacheBeenUsed(ip string) bool {
 	client.cacheLock.Lock()
 	defer client.cacheLock.Unlock()
-	entry, entryPresent := client.cache[host]
+	entry, entryPresent := client.cache[ip]
 	if entryPresent {
 		return entry.used
 	}
@@ -297,7 +348,7 @@ func (kc *KubeletConfig) Timeout(timeout int) *KubeletConfig {
 	return kc
 }
 
-func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, busyboxImage string) (*KubeletClient, error) {
+func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, busyboxImage string, useProxyEndpoint bool) (*KubeletClient, error) {
 	// 1. http transport
 	transport, err := makeTransport(kc.kubeConfig, kc.enableHttps, kc.tlsTimeOut, kc.forceSelfSignedCerts)
 	if err != nil {
@@ -322,6 +373,8 @@ func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, busyboxIma
 		cache:               make(map[string]*CacheEntry),
 		fallbkCpuFreqGetter: NewNodeCpuFrequencyGetter(fallbackClient, busyboxImage),
 		defaultCpuFreq:      DefaultCpuFreq,
+		kubeClient:          fallbackClient,
+		forceProxyEndpoint:  useProxyEndpoint,
 	}, nil
 }
 

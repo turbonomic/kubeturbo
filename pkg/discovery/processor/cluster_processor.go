@@ -143,7 +143,7 @@ func (p *ClusterProcessor) connectToNodes() (bool, error) {
 // Checks the node connectivity be querying the kubelet summary endpoint
 func checkNode(node *v1.Node, kc kubeclient.KubeHttpClientInterface) error {
 	ip := repository.ParseNodeIP(node, v1.NodeInternalIP)
-	_, err := kc.GetSummary(ip)
+	_, err := kc.GetSummary(ip, node.Name)
 	if err != nil {
 		return err
 	}
