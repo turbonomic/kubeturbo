@@ -221,6 +221,7 @@ func (rClient *K8sRegistrationClient) GetEntityMetadata() (result []*proto.Entit
 		proto.EntityDTO_APPLICATION_COMPONENT,
 		proto.EntityDTO_SERVICE,
 		proto.EntityDTO_VIRTUAL_VOLUME,
+		proto.EntityDTO_K8S_CLUSTER,
 	}
 
 	for _, etype := range entities {

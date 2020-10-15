@@ -63,6 +63,7 @@ func (worker *k8sNamespaceDiscoveryWorker) Do(namespaceMetricsList []*repository
 	}
 	averageNodeFrequency := totalNodeFrequency / float64(activeNodeCount)
 	glog.V(2).Infof("Average cluster node cpu frequency in MHz: %f", averageNodeFrequency)
+	worker.Cluster.AverageNodeCpuFrequency = averageNodeFrequency
 
 	// Create the quota resources for all kubeNamespace entities using the metrics object
 	for namespace, kubeNamespaceEntity := range worker.Cluster.NamespaceMap {

@@ -409,5 +409,14 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 
 	groupDTOs = append(groupDTOs, nodeAntiAffinityGroupDTOs...)
 
+	// Create the cluster DTO
+	clusterEntityDTO, err := dtofactory.NewClusterDTOBuilder(clusterSummary, targetID).BuildEntity()
+	if err != nil {
+		glog.Errorf("Failed to create the cluster DTO: %s", err)
+	} else {
+		glog.V(2).Infof("The cluster DTO has been created successfully: %+v")
+		result.EntityDTOs = append(result.EntityDTOs, clusterEntityDTO)
+	}
+
 	return result.EntityDTOs, groupDTOs, nil
 }

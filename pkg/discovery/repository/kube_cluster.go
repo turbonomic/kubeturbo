@@ -80,10 +80,11 @@ func (kc *KubeCluster) logClusterNodes() {
 	}
 }
 
-// Sum the compute resource capacities from all the nodes to create the cluster resource capacities
+// Sum the compute resource capacities/used from all the nodes to create the cluster resource capacities/used
 func (kc *KubeCluster) computeClusterResources() {
-	// sum the capacities of the node resources
-	computeResources := make(map[metrics.ResourceType]float64)
+	// sum the capacities/used of the node resources
+	computeResourcesCap := make(map[metrics.ResourceType]float64)
+	computeResourcesUsed := make(map[metrics.ResourceType]float64)
 	for _, node := range kc.Nodes {
 		nodeActive := util.NodeIsReady(node.Node) && util.NodeIsSchedulable(node.Node)
 		if nodeActive {
@@ -97,13 +98,21 @@ func (kc *KubeCluster) computeClusterResources() {
 						continue
 					}
 					// add the capacity to the cluster compute resource map
-					computeCap, exists := computeResources[rt]
+					computeCap, exists := computeResourcesCap[rt]
 					if !exists {
 						computeCap = nodeResource.Capacity
 					} else {
 						computeCap = computeCap + nodeResource.Capacity
 					}
-					computeResources[rt] = computeCap
+					computeResourcesCap[rt] = computeCap
+					// add the used to the cluster compute resource map
+					computeUsed, exists := computeResourcesUsed[rt]
+					if !exists {
+						computeUsed = nodeResource.Used
+					} else {
+						computeUsed = computeUsed + nodeResource.Used
+					}
+					computeResourcesUsed[rt] = computeUsed
 				}
 			}
 		}
@@ -111,10 +120,12 @@ func (kc *KubeCluster) computeClusterResources() {
 	// create KubeDiscoveredResource object for each compute resource type
 	for _, rtList := range metrics.KubeComputeResourceTypes {
 		for _, rt := range rtList {
-			capacity := computeResources[rt]
+			capacity := computeResourcesCap[rt]
+			used := computeResourcesUsed[rt]
 			r := &KubeDiscoveredResource{
 				Type:     rt,
 				Capacity: capacity,
+				Used:     used,
 			}
 			kc.ClusterResources[rt] = r
 		}
@@ -141,6 +152,7 @@ type ClusterSummary struct {
 	NamespaceUIDMap          map[string]string
 	PodClusterIDToServiceMap map[string]*v1.Service
 	NodeNameToPodMap         map[string][]*v1.Pod
+	AverageNodeCpuFrequency  float64
 }
 
 func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
