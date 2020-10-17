@@ -84,7 +84,6 @@ func (kc *KubeCluster) logClusterNodes() {
 func (kc *KubeCluster) computeClusterResources() {
 	// sum the capacities/used of the node resources
 	computeResourcesCap := make(map[metrics.ResourceType]float64)
-	computeResourcesUsed := make(map[metrics.ResourceType]float64)
 	for _, node := range kc.Nodes {
 		nodeActive := util.NodeIsReady(node.Node) && util.NodeIsSchedulable(node.Node)
 		if nodeActive {
@@ -104,15 +103,6 @@ func (kc *KubeCluster) computeClusterResources() {
 					} else {
 						computeCap = computeCap + nodeResource.Capacity
 					}
-					computeResourcesCap[rt] = computeCap
-					// add the used to the cluster compute resource map
-					computeUsed, exists := computeResourcesUsed[rt]
-					if !exists {
-						computeUsed = nodeResource.Used
-					} else {
-						computeUsed = computeUsed + nodeResource.Used
-					}
-					computeResourcesUsed[rt] = computeUsed
 				}
 			}
 		}
@@ -121,11 +111,9 @@ func (kc *KubeCluster) computeClusterResources() {
 	for _, rtList := range metrics.KubeComputeResourceTypes {
 		for _, rt := range rtList {
 			capacity := computeResourcesCap[rt]
-			used := computeResourcesUsed[rt]
 			r := &KubeDiscoveredResource{
 				Type:     rt,
 				Capacity: capacity,
-				Used:     used,
 			}
 			kc.ClusterResources[rt] = r
 		}

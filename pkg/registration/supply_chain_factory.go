@@ -284,9 +284,13 @@ func (f *SupplyChainFactory) buildNamespaceSupplyBuilder() (*proto.TemplateDTO, 
 
 func (f *SupplyChainFactory) buildClusterSupplyBuilder() (*proto.TemplateDTO, error) {
 	clusterSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_K8S_CLUSTER)
-	clusterSupplyChainNodeBuilder = clusterSupplyChainNodeBuilder.Sells(vCpuTemplateComm).Sells(vMemTemplateComm).
-		Sells(vCpuRequestQuotaTemplateCommWithKey).Sells(vMemRequestQuotaTemplateCommWithKey).
-		Sells(vCpuLimitQuotaTemplateCommWithKey).Sells(vMemLimitQuotaTemplateCommWithKey)
+	clusterSupplyChainNodeBuilder = clusterSupplyChainNodeBuilder.
+		Sells(vCpuTemplateComm).
+		Sells(vMemTemplateComm).
+		Sells(vCpuRequestTemplateComm).
+		Sells(vMemRequestTemplateComm).
+		Sells(numPodNumConsumersTemplateComm).
+		Sells(vStorageTemplateComm)
 
 	return clusterSupplyChainNodeBuilder.Create()
 }

@@ -57,7 +57,7 @@ func (builder *clusterDTOBuilder) BuildGroup() []*proto.GroupDTO {
 	return clusterGroupDTOs
 }
 
-func (builder *clusterDTOBuilder) BuildEntity() (*proto.EntityDTO, error) {
+func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO) (*proto.EntityDTO, error) {
 	// id.
 	uid := builder.cluster.Name
 	entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_K8S_CLUSTER, uid)
@@ -67,7 +67,7 @@ func (builder *clusterDTOBuilder) BuildEntity() (*proto.EntityDTO, error) {
 	entityDTOBuilder.DisplayName(displayName)
 
 	// Resource commodities sold.
-	commoditiesSold, err := builder.getCommoditiesSold()
+	commoditiesSold, err := builder.getCommoditiesSold(entityDTOs)
 	if err != nil {
 		glog.Errorf("Error creating commoditiesSold for %s: %s", builder.cluster.Name, err)
 		return nil, err
@@ -96,28 +96,25 @@ func (builder *clusterDTOBuilder) BuildEntity() (*proto.EntityDTO, error) {
 	return entityDto, nil
 }
 
-func (builder *clusterDTOBuilder) getCommoditiesSold() ([]*proto.CommodityDTO, error) {
-	var resourceCommoditiesSold []*proto.CommodityDTO
-	for resourceType, resource := range builder.cluster.ClusterResources {
-		cType, exist := rTypeMapping[resourceType]
-		if !exist {
-			continue
-		}
-		capacityValue := resource.Capacity
-		usedValue := resource.Used
-		// For CPU resources, convert the capacity and usage values expressed in
-		// number of cores to MHz
-		if metrics.IsCPUType(resourceType) && builder.cluster.AverageNodeCpuFrequency > 0.0 {
-			if capacityValue != repository.DEFAULT_METRIC_CAPACITY_VALUE {
-				// Modify the capacity value from cores to MHz if capacity is not default infinity
-				newVal := capacityValue * builder.cluster.AverageNodeCpuFrequency
-				glog.V(4).Infof("Changing capacity of %s::%s from %f cores to %f MHz",
-					builder.targetId, resourceType, capacityValue, newVal)
-				capacityValue = newVal
+func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityDTO) ([]*proto.CommodityDTO, error) {
+	// Accumulate used and capacity values from the nodes on the cluster
+	used := make(map[proto.CommodityDTO_CommodityType]float64)
+	cap := make(map[proto.CommodityDTO_CommodityType]float64)
+	for _, entityDTO := range entityDTOs {
+		if *entityDTO.EntityType == proto.EntityDTO_VIRTUAL_MACHINE {
+			for _, commodity := range entityDTO.GetCommoditiesSold() {
+				if commodity.Used != nil && commodity.Capacity != nil {
+					used[*commodity.CommodityType] = used[*commodity.CommodityType] + *commodity.Used
+					cap[*commodity.CommodityType] = cap[*commodity.CommodityType] + *commodity.Capacity
+				}
 			}
 		}
+	}
 
-		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
+	var resourceCommoditiesSold []*proto.CommodityDTO
+	for commodityType, capacityValue := range cap {
+		usedValue := used[commodityType]
+		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(commodityType)
 		commSoldBuilder.Used(usedValue)
 		commSoldBuilder.Peak(usedValue)
 		commSoldBuilder.Capacity(capacityValue)
