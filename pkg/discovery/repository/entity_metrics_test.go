@@ -28,7 +28,7 @@ func TestPodMetrics(t *testing.T) {
 func TestUpdateQuotaSoldUsed(t *testing.T) {
 	namespaceMetrics := NamespaceMetrics{
 		Namespace: "namespace",
-		QuotaSoldUsed: map[metrics.ResourceType]float64{
+		QuotaUsed: map[metrics.ResourceType]float64{
 			metrics.CPULimitQuota:    2.0,
 			metrics.MemoryLimitQuota: 2.0,
 			metrics.CPURequest:       1.0,
@@ -47,10 +47,10 @@ func TestUpdateQuotaSoldUsed(t *testing.T) {
 		metrics.CPURequest:       2.0,
 		metrics.MemoryRequest:    2.0,
 	}
-	namespaceMetrics.UpdateQuotaSoldUsed(newQuotaSoldUsed)
-	assert.Equal(t, expectedUpdatedQuotaSoldUsed, namespaceMetrics.QuotaSoldUsed)
-	if !reflect.DeepEqual(expectedUpdatedQuotaSoldUsed, namespaceMetrics.QuotaSoldUsed) {
+	namespaceMetrics.AggregateQuotaUsed(newQuotaSoldUsed)
+	assert.Equal(t, expectedUpdatedQuotaSoldUsed, namespaceMetrics.QuotaUsed)
+	if !reflect.DeepEqual(expectedUpdatedQuotaSoldUsed, namespaceMetrics.QuotaUsed) {
 		t.Errorf("Test case failed: updatedQuotaSoldUsed:\nexpected:\n%++v\nactual:\n%++v",
-			expectedUpdatedQuotaSoldUsed, namespaceMetrics.QuotaSoldUsed)
+			expectedUpdatedQuotaSoldUsed, namespaceMetrics.QuotaUsed)
 	}
 }

@@ -80,6 +80,9 @@ var (
 		MemoryRequestQuota: {},
 	}
 
+	// List of resources that we collect mulitple metric points per discovery cycle
+	PointsResources = []ResourceType{CPU, Memory}
+
 	// List of Compute resources
 	ComputeResources []ResourceType
 
@@ -310,4 +313,29 @@ func (m EntityStateMetric) UpdateValue(existing interface{}, maxMetricPointsSize
 // Generate the UID for each metric entry based on entityType, entityID and resourceType.
 func GenerateEntityStateMetricUID(eType DiscoveredEntityType, id string, rType ResourceType) string {
 	return string(eType) + "-" + id + "-" + string(rType)
+}
+
+// AccumulateMultiPoints adds the metric points from the "newPortion" to the currently "accumulated".
+// Since the length of the metric point slice may be different due to pod startup and shutdown in the collection period,
+// this is not a trivial addition.  For now we will just discard any slice of metric points not covering the full
+// collection period.
+func AccumulateMultiPoints(accumulated map[ResourceType][]Point, newPortion map[ResourceType][]Point) {
+	for resourceType, podUsed := range newPortion {
+		existingPoints := accumulated[resourceType]
+		if len(existingPoints) < len(podUsed) {
+			// Throw away existing points with a shorter length, which mostly indicates that it is from pods with
+			// readings for a partial collection period (just started or shut down).  We should do a better job to
+			// aggregate this kind of partial readings based on timestamps, perhaps with the knowledge of the sampling
+			// periods.  But for the time being I'm just discarding them. TODO
+			existingPoints = make([]Point, len(podUsed))
+			copy(existingPoints, podUsed)
+			accumulated[resourceType] = existingPoints
+		} else if len(podUsed) < len(existingPoints) {
+			// Similarly discard for now as these are readings from a partial collection period
+		} else {
+			for idx, point := range podUsed {
+				existingPoints[idx].Value += point.Value
+			}
+		}
+	}
 }

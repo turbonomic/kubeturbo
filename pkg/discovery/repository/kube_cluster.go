@@ -371,6 +371,9 @@ func CreateDefaultKubeNamespace(clusterName, namespace, uuid string) *KubeNamesp
 	for _, rt := range metrics.QuotaResources {
 		kubeNamespace.AddAllocationResource(rt, DEFAULT_METRIC_CAPACITY_VALUE, DEFAULT_METRIC_VALUE)
 	}
+	for _, rt := range metrics.ComputeResources {
+		kubeNamespace.AddComputeResource(rt, DEFAULT_METRIC_CAPACITY_VALUE, DEFAULT_METRIC_VALUE)
+	}
 	return kubeNamespace
 }
 

@@ -99,20 +99,20 @@ func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO) (*p
 func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityDTO) ([]*proto.CommodityDTO, error) {
 	// Accumulate used and capacity values from the nodes on the cluster
 	used := make(map[proto.CommodityDTO_CommodityType]float64)
-	cap := make(map[proto.CommodityDTO_CommodityType]float64)
+	capacity := make(map[proto.CommodityDTO_CommodityType]float64)
 	for _, entityDTO := range entityDTOs {
 		if *entityDTO.EntityType == proto.EntityDTO_VIRTUAL_MACHINE {
 			for _, commodity := range entityDTO.GetCommoditiesSold() {
 				if commodity.Used != nil && commodity.Capacity != nil {
 					used[*commodity.CommodityType] = used[*commodity.CommodityType] + *commodity.Used
-					cap[*commodity.CommodityType] = cap[*commodity.CommodityType] + *commodity.Capacity
+					capacity[*commodity.CommodityType] = capacity[*commodity.CommodityType] + *commodity.Capacity
 				}
 			}
 		}
 	}
 
 	var resourceCommoditiesSold []*proto.CommodityDTO
-	for commodityType, capacityValue := range cap {
+	for commodityType, capacityValue := range capacity {
 		usedValue := used[commodityType]
 		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(commodityType)
 		commSoldBuilder.Used(usedValue)

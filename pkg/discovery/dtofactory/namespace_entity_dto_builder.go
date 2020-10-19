@@ -1,11 +1,13 @@
 package dtofactory
 
 import (
+	"fmt"
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"math"
 )
 
 type namespaceEntityDTOBuilder struct {
@@ -109,21 +111,45 @@ func (builder *namespaceEntityDTOBuilder) getQuotaCommoditiesSold(kubeNamespace 
 func (builder *namespaceEntityDTOBuilder) getCommoditiesBought(kubeNamespace *repository.KubeNamespace) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 	for resourceType, resource := range kubeNamespace.AllocationResources {
-		commodityType, exist := rTypeMapping[resourceType]
-		if !exist {
-			glog.Errorf("ResourceType %s is not supported", resourceType)
+		commBought, err := builder.getCommodityBought(resourceType, resource, kubeNamespace.ClusterName)
+		if err != nil {
+			glog.Errorf("%s: Failed to build commodity bought with resource type %s: %s", kubeNamespace.Name,
+				resourceType, err)
 			continue
 		}
-		commBoughtBuilder := sdkbuilder.NewCommodityDTOBuilder(commodityType)
-		commBoughtBuilder.Used(resource.Used)
-		commBoughtBuilder.Peak(resource.Used)
-		commBoughtBuilder.Key(kubeNamespace.ClusterName)
-		commBought, err := commBoughtBuilder.Create()
+		commoditiesBought = append(commoditiesBought, commBought)
+	}
+	for resourceType, resource := range kubeNamespace.ComputeResources {
+		commBought, err := builder.getCommodityBought(resourceType, resource, kubeNamespace.ClusterName)
 		if err != nil {
-			glog.Errorf("%s: Failed to build commodity bought %s: %s", kubeNamespace.Name, commodityType, err)
+			glog.Errorf("%s: Failed to build commodity bought with resource type %s: %s", kubeNamespace.Name,
+				resourceType, err)
 			continue
 		}
 		commoditiesBought = append(commoditiesBought, commBought)
 	}
 	return commoditiesBought, nil
+}
+
+func (builder *namespaceEntityDTOBuilder) getCommodityBought(resourceType metrics.ResourceType,
+	resource *repository.KubeDiscoveredResource, key string) (*proto.CommodityDTO, error) {
+	commodityType, exist := rTypeMapping[resourceType]
+	if !exist {
+		return nil, fmt.Errorf("resourceType %s is not supported", resourceType)
+	}
+	commBoughtBuilder := sdkbuilder.NewCommodityDTOBuilder(commodityType)
+	used := resource.Used
+	peak := resource.Used
+	if resource.Points != nil && len(resource.Points) > 0 {
+		usedSum := 0.0
+		for _, point := range resource.Points {
+			peak = math.Max(peak, point.Value)
+			usedSum += point.Value
+		}
+		used = usedSum / float64(len(resource.Points))
+	}
+	commBoughtBuilder.Used(used)
+	commBoughtBuilder.Peak(peak)
+	commBoughtBuilder.Key(key)
+	return commBoughtBuilder.Create()
 }

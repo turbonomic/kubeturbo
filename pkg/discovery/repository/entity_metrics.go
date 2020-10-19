@@ -13,6 +13,8 @@ type PodMetrics struct {
 	// Quota resources used and capacity
 	QuotaUsed     map[metrics.ResourceType]float64
 	QuotaCapacity map[metrics.ResourceType]float64
+	// Actual used
+	Used          map[metrics.ResourceType][]metrics.Point
 }
 
 func NewPodMetrics(podName, namespace, nodeName string) *PodMetrics {
@@ -22,6 +24,7 @@ func NewPodMetrics(podName, namespace, nodeName string) *PodMetrics {
 		NodeName:      nodeName,
 		QuotaUsed:     make(map[metrics.ResourceType]float64),
 		QuotaCapacity: make(map[metrics.ResourceType]float64),
+		Used:          make(map[metrics.ResourceType][]metrics.Point),
 	}
 }
 
@@ -29,39 +32,50 @@ func NewPodMetrics(podName, namespace, nodeName string) *PodMetrics {
 type NamespaceMetrics struct {
 	Namespace string
 	// Amount of quota resources used by the pods running in the namespace
-	QuotaSoldUsed map[metrics.ResourceType]float64
+	QuotaUsed map[metrics.ResourceType]float64
+	// Amount of actual resources used by the pods running in the namespace
+	Used map[metrics.ResourceType][]metrics.Point
 }
 
 func NewNamespaceMetrics(namespace string) *NamespaceMetrics {
 	return &NamespaceMetrics{
-		Namespace:     namespace,
-		QuotaSoldUsed: make(map[metrics.ResourceType]float64),
+		Namespace: namespace,
+		QuotaUsed: make(map[metrics.ResourceType]float64),
+		Used:      make(map[metrics.ResourceType][]metrics.Point),
 	}
 }
 
 func CreateDefaultNamespaceMetrics(namespace string) *NamespaceMetrics {
 	namespaceMetrics := NewNamespaceMetrics(namespace)
-	// quotas sold
+	// quotas used
 	for _, allocationResource := range metrics.QuotaResources {
-		namespaceMetrics.QuotaSoldUsed[allocationResource] = 0.0
+		namespaceMetrics.QuotaUsed[allocationResource] = 0.0
+	}
+	// actual used
+	for _, resource := range metrics.ComputeResources {
+		namespaceMetrics.Used[resource] = []metrics.Point{}
 	}
 	return namespaceMetrics
 }
 
-func (namespaceMetrics *NamespaceMetrics) UpdateQuotaSoldUsed(quotaSoldUsed map[metrics.ResourceType]float64) {
-	if namespaceMetrics.QuotaSoldUsed == nil {
-		namespaceMetrics.QuotaSoldUsed = make(map[metrics.ResourceType]float64)
+// AggregateQuotaUsed accumulates quota used for the namespace given a new used from a subset of pods in the namespace.
+// Quota used is a single float64
+func (namespaceMetrics *NamespaceMetrics) AggregateQuotaUsed(partialQuotaUsed map[metrics.ResourceType]float64) {
+	if namespaceMetrics.QuotaUsed == nil {
+		namespaceMetrics.QuotaUsed = make(map[metrics.ResourceType]float64)
 	}
-	for resourceType, used := range quotaSoldUsed {
-		var totalUsed float64
-		currentUsed, exists := namespaceMetrics.QuotaSoldUsed[resourceType]
-		if !exists {
-			totalUsed = used
-		} else {
-			totalUsed = currentUsed + used
-		}
-		namespaceMetrics.QuotaSoldUsed[resourceType] = totalUsed
+	for resourceType, podUsed := range partialQuotaUsed {
+		namespaceMetrics.QuotaUsed[resourceType] += podUsed
 	}
+}
+
+// AggregateUsed accumulates actual used for the namespace given a new used from a subset of pods in the namespace.
+// Actual used is a slice of metrics.Point.
+func (namespaceMetrics *NamespaceMetrics) AggregateUsed(partialUsed map[metrics.ResourceType][]metrics.Point) {
+	if namespaceMetrics.Used == nil {
+		namespaceMetrics.Used = make(map[metrics.ResourceType][]metrics.Point)
+	}
+	metrics.AccumulateMultiPoints(namespaceMetrics.Used, partialUsed)
 }
 
 // ContainerMetrics collects resource capacity and multiple usage data samples for container replicas which belong to the
