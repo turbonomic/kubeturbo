@@ -366,6 +366,10 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 		}
 	}
 
+	businessAppEntityDTOBuilder := dtofactory.NewBusinessAppEntityDTOBuilder(clusterSummary.K8sAppToComponentMap)
+	businessAppEntityDTOBuilderEntityDTOs := businessAppEntityDTOBuilder.BuildEntityDTOs()
+	result.EntityDTOs = append(result.EntityDTOs, businessAppEntityDTOBuilderEntityDTOs...)
+
 	glog.V(2).Infof("There are totally %d entityDTOs.", len(result.EntityDTOs))
 
 	// affinity process

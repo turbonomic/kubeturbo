@@ -184,8 +184,15 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	}
 	glog.V(4).Infof("Supply chain node: %+v", volumeSupplyChainNode)
 
+	businessAppSupplyChainNode, err := f.buildBusinessApplicationSupplyBuilder()
+	if err != nil {
+		return nil, err
+	}
+	glog.V(4).Infof("Supply chain node: %+v", businessAppSupplyChainNode)
+
 	supplyChainBuilder := supplychain.NewSupplyChainBuilder()
 	supplyChainBuilder.Top(serviceSupplyChainNode)
+	supplyChainBuilder.Entity(businessAppSupplyChainNode)
 	supplyChainBuilder.Entity(appSupplyChainNode)
 	supplyChainBuilder.Entity(containerSupplyChainNode)
 	supplyChainBuilder.Entity(containerSpecSupplyChainNode)
@@ -426,6 +433,14 @@ func (f *SupplyChainFactory) buildApplicationSupplyBuilder() (*proto.TemplateDTO
 		Buys(vCpuTemplateComm).
 		Buys(vMemTemplateComm).
 		Buys(applicationTemplateCommWithKey) // The key used to buy from the container
+
+	return appSupplyChainNodeBuilder.Create()
+}
+
+func (f *SupplyChainFactory) buildBusinessApplicationSupplyBuilder() (*proto.TemplateDTO, error) {
+	appSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_BUSINESS_APPLICATION)
+	appSupplyChainNodeBuilder = appSupplyChainNodeBuilder.
+		Buys(vmpmAccessTemplateComm)
 
 	return appSupplyChainNodeBuilder.Create()
 }

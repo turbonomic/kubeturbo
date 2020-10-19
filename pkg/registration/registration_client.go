@@ -167,6 +167,16 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 
 	rClient.addActionPolicy(ab, volume, volumePolicy)
 
+	// 8. business apps
+	businessApp := proto.EntityDTO_BUSINESS_APPLICATION
+	businessAppPolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
+	businessAppPolicy[proto.ActionItemDTO_PROVISION] = notSupported
+	businessAppPolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
+	businessAppPolicy[proto.ActionItemDTO_SCALE] = notSupported
+	businessAppPolicy[proto.ActionItemDTO_SUSPEND] = notSupported
+
+	rClient.addActionPolicy(ab, businessApp, businessAppPolicy)
+
 	return ab.Create()
 }
 
@@ -222,6 +232,7 @@ func (rClient *K8sRegistrationClient) GetEntityMetadata() (result []*proto.Entit
 		proto.EntityDTO_SERVICE,
 		proto.EntityDTO_VIRTUAL_VOLUME,
 		proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER,
+		proto.EntityDTO_BUSINESS_APPLICATION,
 	}
 
 	for _, etype := range entities {

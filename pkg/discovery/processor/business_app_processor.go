@@ -13,22 +13,23 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	util "github.com/turbonomic/kubeturbo/pkg/util"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
-type ApplicationProcessor struct {
+type BusinessAppProcessor struct {
 	ClusterScraper cluster.ClusterScraperInterface
 	KubeCluster    *repository.KubeCluster
 }
 
-func NewApplicationProcessor(clusterScraper cluster.ClusterScraperInterface,
-	kubeCluster *repository.KubeCluster) *ApplicationProcessor {
-	return &ApplicationProcessor{
+func NewBusinessAppProcessor(clusterScraper cluster.ClusterScraperInterface,
+	kubeCluster *repository.KubeCluster) *BusinessAppProcessor {
+	return &BusinessAppProcessor{
 		ClusterScraper: clusterScraper,
 		KubeCluster:    kubeCluster,
 	}
 }
 
-func (p *ApplicationProcessor) ProcessApplications() {
+func (p *BusinessAppProcessor) ProcessBusinessApps() {
 	res := schema.GroupVersionResource{
 		Group:    util.K8sApplicationGV.Group,
 		Version:  util.K8sApplicationGV.Version,
@@ -41,7 +42,7 @@ func (p *ApplicationProcessor) ProcessApplications() {
 		glog.Warningf("Error while processing application entities: %v", err)
 	}
 
-	appToEntityMap := make(map[string][]repository.AppEntity)
+	appToComponentMap := make(map[repository.K8sApp][]repository.K8sAppComponent)
 	for _, item := range apps.Items {
 		app := appv1beta1.Application{}
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.Object, &app); err != nil {
@@ -50,7 +51,7 @@ func (p *ApplicationProcessor) ProcessApplications() {
 		}
 
 		selectors := app.Spec.Selector
-		allEntities := []repository.AppEntity{}
+		allEntities := []repository.K8sAppComponent{}
 		qualifiedAppName := fmt.Sprintf("%s/%s", app.Namespace, app.Name)
 		for _, gk := range app.Spec.ComponentGroupKinds {
 			entities, err := p.getEntities(selectors, gk, app.Namespace)
@@ -61,74 +62,81 @@ func (p *ApplicationProcessor) ProcessApplications() {
 			allEntities = append(allEntities, entities...)
 		}
 
+		application := repository.K8sApp{
+			Uid:       string(app.UID),
+			Namespace: app.Namespace,
+			Name:      app.Name,
+		}
 		if len(allEntities) > 0 {
-			appToEntityMap[qualifiedAppName] = allEntities
+			appToComponentMap[application] = allEntities
 			glog.V(4).Infof("Discovered %d entities for app:%s, entities: %v", len(allEntities), qualifiedAppName, allEntities)
 		} else {
 			// nil indicates no entities discovered for this applicaiton
-			appToEntityMap[qualifiedAppName] = nil
+			appToComponentMap[application] = nil
 		}
 	}
 
-	p.KubeCluster.AppToEntityMap = appToEntityMap
+	p.KubeCluster.K8sAppToComponentMap = appToComponentMap
 }
 
-func (p *ApplicationProcessor) getEntities(selector *metav1.LabelSelector, gk metav1.GroupKind, namespace string) ([]repository.AppEntity, error) {
+func (p *BusinessAppProcessor) getEntities(selector *metav1.LabelSelector, gk metav1.GroupKind, namespace string) ([]repository.K8sAppComponent, error) {
 	res := schema.GroupVersionResource{}
 	var err error
-	turboType := ""
+	var turboType proto.EntityDTO_EntityType
 	switch gk.String() {
-	// TODO: standardise this, find a better way
-	// Move to using controller-runtime and the need for explicitly
+	// TODO: standardise this, find a better way,
+	// for example move to using controller-runtime and the need for explicitly
 	// mapping each type might not be there.
+	// In case we continue to keep these values for gvr make them constants.
 	case "StatefulSet.apps":
 		res = schema.GroupVersionResource{
 			Group:    "apps",
 			Version:  "v1",
 			Resource: "statefulsets"}
-		turboType = "workloadcontroller"
+		turboType = proto.EntityDTO_WORKLOAD_CONTROLLER
 	case "Deployment.apps":
 		res = schema.GroupVersionResource{
 			Group:    util.K8sAPIDeploymentGV.Group,
 			Version:  util.K8sAPIDeploymentGV.Version,
 			Resource: util.DeploymentResName}
-		turboType = "workloadcontroller"
+		turboType = proto.EntityDTO_WORKLOAD_CONTROLLER
 	case "ReplicaSet.apps":
 		res = schema.GroupVersionResource{
 			Group:    util.K8sAPIReplicasetGV.Group,
 			Version:  util.K8sAPIReplicasetGV.Version,
 			Resource: util.ReplicaSetResName}
-		turboType = "workloadcontroller"
+		turboType = proto.EntityDTO_WORKLOAD_CONTROLLER
 	case "DaemonSet.apps":
 		res = schema.GroupVersionResource{
 			Group:    "apps",
 			Version:  "v1",
 			Resource: "daemonsets"}
-		turboType = "workloadcontroller"
-	case "Service":
-		res = schema.GroupVersionResource{
-			Group:    "",
-			Version:  "v1",
-			Resource: "services"}
-		turboType = "service"
-	case "Pod":
-		res = schema.GroupVersionResource{
-			Group:    "",
-			Version:  "v1",
-			Resource: "pods"}
-		turboType = "pod"
+		turboType = proto.EntityDTO_WORKLOAD_CONTROLLER
 	case "ReplicationController":
 		res = schema.GroupVersionResource{
 			Group:    util.K8sAPIReplicationControllerGV.Group,
 			Version:  util.K8sAPIReplicationControllerGV.Version,
 			Resource: util.ReplicationControllerResName}
-		turboType = "workloadcontroller"
+		turboType = proto.EntityDTO_WORKLOAD_CONTROLLER
 	case "Job.batch":
 		res = schema.GroupVersionResource{
 			Group:    "batch",
 			Version:  "v1",
 			Resource: "jobs"}
-		turboType = "workloadcontroller"
+		turboType = proto.EntityDTO_WORKLOAD_CONTROLLER
+	// TODO: not sure why service gk returns "Service.v1"
+	case "Service.v1":
+		res = schema.GroupVersionResource{
+			Group:    "",
+			Version:  "v1",
+			Resource: "services"}
+		turboType = proto.EntityDTO_SERVICE
+	case "Pod.v1":
+		res = schema.GroupVersionResource{
+			Group:    "",
+			Version:  "v1",
+			Resource: "pods"}
+		turboType = proto.EntityDTO_CONTAINER_POD
 	default:
 		return nil, fmt.Errorf("unsupport group kind type %s", gk.String())
 	}
@@ -139,11 +147,10 @@ func (p *ApplicationProcessor) getEntities(selector *metav1.LabelSelector, gk me
 		return nil, err
 	}
 
-	entities := []repository.AppEntity{}
+	entities := []repository.K8sAppComponent{}
 	for _, r := range resourceList.Items {
-		entity := repository.AppEntity{
+		entity := repository.K8sAppComponent{
 			TurboType: turboType,
-			Gvr:       res,
 			Namespace: r.GetNamespace(),
 			Name:      r.GetName(),
 		}
