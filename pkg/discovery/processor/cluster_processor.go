@@ -178,5 +178,7 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.KubeCluster, error) {
 	// Discover volumes
 	NewVolumeProcessor(p.clusterInfoScraper, kubeCluster).ProcessVolumes()
 
+	NewApplicationProcessor(p.clusterInfoScraper, kubeCluster).ProcessApplications()
+
 	return kubeCluster, nil
 }

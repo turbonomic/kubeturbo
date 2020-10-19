@@ -142,7 +142,7 @@ func (r *WorkloadControllerResizer) getChildPod(parentKind, namespace, name stri
 		return nil, err
 	}
 
-	parentSelector, err := getSelectors(parent)
+	parentSelector, err := GetSelectors(parent)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +221,7 @@ func (r *WorkloadControllerResizer) matchOwnerReferences(podOwners []metav1.Owne
 		return nil, ownerMatches(podOwners, topMostParent)
 	}
 
-	selector, err := getSelectors(topMostParent)
+	selector, err := GetSelectors(topMostParent)
 	if err != nil {
 		return err, false
 	}
@@ -247,7 +247,7 @@ func ownerMatches(podOwners []metav1.OwnerReference, parent *unstructured.Unstru
 	return false
 }
 
-func getSelectors(obj *unstructured.Unstructured) (*metav1.LabelSelector, error) {
+func GetSelectors(obj *unstructured.Unstructured) (*metav1.LabelSelector, error) {
 	objKind := obj.GetKind()
 	namespace := obj.GetNamespace()
 	name := obj.GetName()

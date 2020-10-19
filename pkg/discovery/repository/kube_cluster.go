@@ -9,6 +9,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // Kube Cluster represents the Kubernetes cluster. This object is immutable between discoveries.
@@ -28,6 +29,15 @@ type KubeCluster struct {
 	// Map of namespace qualified pod name wrt to the volumes they mount.
 	// This map will not feature volumes which are not mounted by any pods.
 	PodToVolumesMap map[string][]MountedVolume
+
+	AppToEntityMap map[string][]AppEntity
+}
+
+type AppEntity struct {
+	TurboType string
+	Gvr       schema.GroupVersionResource
+	Namespace string
+	Name      string
 }
 
 type PodVolume struct {
