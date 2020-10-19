@@ -20,13 +20,13 @@ import (
 	goflag "flag"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
 	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/klog"
 )
 
@@ -70,7 +70,7 @@ func initLogs(s *app.VMTServer) *time.Duration {
 	s.AddFlags(pflag.CommandLine)
 
 	// We have all the defined flags, now parse it
-	pflag.CommandLine.SetNormalizeFunc(flag.WordSepNormalizeFunc)
+	pflag.CommandLine.SetNormalizeFunc(wordSepNormalizeFunc)
 	pflag.Parse()
 
 	// Sync the glog and klog flags
@@ -88,6 +88,14 @@ func initLogs(s *app.VMTServer) *time.Duration {
 	})
 
 	return logFlushFreq
+}
+
+// WordSepNormalizeFunc changes all flags that contain "_" separators
+func wordSepNormalizeFunc(f *pflag.FlagSet, name string) pflag.NormalizedName {
+	if strings.Contains(name, "_") {
+		return pflag.NormalizedName(strings.Replace(name, "_", "-", -1))
+	}
+	return pflag.NormalizedName(name)
 }
 
 func main() {
