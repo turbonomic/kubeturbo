@@ -1,4 +1,4 @@
-apiVersion: charts.helm.k8s.io/v1alpha1
+apiVersion: charts.helm.k8s.io/v1
 kind: Kubeturbo
 metadata:
   name: kubeturbo-release
@@ -11,7 +11,7 @@ spec:
 
   # Turbo server version and address
   serverMeta:
-    version: 7.22
+    version: 8.0
     turboServer: https://Turbo_server_URL
 
   # Turbo server api user and password stored in a secret or optionally specified as username and password
@@ -20,3 +20,26 @@ spec:
     #turbonomicCredentialsSecretName: "turbonomic-credentials"
     #opsManagerUserName: Turbo_username
     #opsManagerPassword: Turbo_password
+
+  # Uncomment out lines to configure HA Node to ESX policies by node role. Default is master
+  # Add more roles using format "\"foo\"\,\"bar\""
+  #HANodeConfig:
+  #  nodeRoles: "\"master\""
+
+  # Uncomment next lines to specify a repository and image tag
+  #image:
+  #  repository: registry.connect.redhat.com
+  #  tag: 8.0.0
+
+  # Uncomment out to allow execution in OCP environments
+  #args:
+  #  sccsupport: *
+
+  # Uncomment out to specify kubeturbo container specifications when needed (quotas set on ns)
+  #resources:
+  #  limits:
+  #    memory: 4Gi
+  #    cpu: 2
+  #  requests:
+  #    memory: 512Mi
+  #    cpu: 1
