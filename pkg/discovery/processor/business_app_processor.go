@@ -35,7 +35,12 @@ func (p *BusinessAppProcessor) ProcessBusinessApps() {
 		Version:  util.K8sApplicationGV.Version,
 		Resource: util.ApplicationResName}
 
-	dynClient := p.ClusterScraper.(*cluster.ClusterScraper).DynamicClient
+	typedClusterScraper, isClusterScraper := p.ClusterScraper.(*cluster.ClusterScraper)
+	if !isClusterScraper {
+		// This is probably a test run
+		return
+	}
+	dynClient := typedClusterScraper.DynamicClient
 
 	apps, err := dynClient.Resource(res).Namespace("").List(metav1.ListOptions{})
 	if err != nil {
@@ -56,7 +61,7 @@ func (p *BusinessAppProcessor) ProcessBusinessApps() {
 		for _, gk := range app.Spec.ComponentGroupKinds {
 			entities, err := p.getEntities(selectors, gk, app.Namespace)
 			if err != nil {
-				glog.Warningf("Error processing entities for application %s, %v", qualifiedAppName, app.Name, err)
+				glog.Warningf("Error processing entities for application %s, %v", qualifiedAppName, err)
 				continue
 			}
 			allEntities = append(allEntities, entities...)

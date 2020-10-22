@@ -48,6 +48,7 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	service := proto.EntityDTO_SERVICE
 	wCtrl := proto.EntityDTO_WORKLOAD_CONTROLLER
 	vol := proto.EntityDTO_VIRTUAL_VOLUME
+	bApp := proto.EntityDTO_BUSINESS_APPLICATION
 
 	move := proto.ActionItemDTO_MOVE
 	resize := proto.ActionItemDTO_RIGHT_SIZE
@@ -88,11 +89,18 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	expected_wCtrl := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	expected_wCtrl[resize] = supported
 	expected_wCtrl[scale] = supported
+
 	expected_vol := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
 	expected_vol[resize] = notSupported
 	expected_vol[provision] = recommend
 	expected_vol[suspend] = notSupported
 	expected_vol[scale] = recommend
+
+	expected_bApp := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
+	expected_bApp[resize] = notSupported
+	expected_bApp[provision] = notSupported
+	expected_bApp[suspend] = notSupported
+	expected_bApp[scale] = notSupported
 
 	policies := reg.GetActionPolicy()
 
@@ -114,6 +122,8 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 			expected = expected_wCtrl
 		} else if entity == vol {
 			expected = expected_vol
+		} else if entity == bApp {
+			expected = expected_bApp
 		} else {
 			t.Errorf("Unknown entity type: %v", entity)
 			continue
@@ -142,6 +152,7 @@ func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
 		proto.EntityDTO_SERVICE,
 		proto.EntityDTO_VIRTUAL_VOLUME,
 		proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER,
+		proto.EntityDTO_BUSINESS_APPLICATION,
 	}
 	entitySet := make(map[proto.EntityDTO_EntityType]struct{})
 
