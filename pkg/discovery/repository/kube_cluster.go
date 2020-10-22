@@ -32,6 +32,7 @@ type KubeCluster struct {
 	PodToVolumesMap map[string][]MountedVolume
 
 	K8sAppToComponentMap map[K8sApp][]K8sAppComponent
+	ComponentToAppMap    map[K8sAppComponent][]K8sApp
 }
 
 type K8sApp struct {
@@ -41,9 +42,10 @@ type K8sApp struct {
 }
 
 type K8sAppComponent struct {
-	TurboType proto.EntityDTO_EntityType
-	Namespace string
-	Name      string
+	EntityType proto.EntityDTO_EntityType
+	Uid        string
+	Namespace  string
+	Name       string
 }
 
 type PodVolume struct {

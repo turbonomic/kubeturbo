@@ -30,17 +30,28 @@ func (builder *businessAppEntityDTOBuilder) BuildEntityDTOs() []*proto.EntityDTO
 		displayName := fmt.Sprintf("%s/%s", app.Namespace, app.Name)
 		entityDTOBuilder.DisplayName(displayName)
 
-		commoditiesSold := builder.getAppCommoditiesBought(app, entities)
-		if len(commoditiesSold) > 1 {
-			entityDTOBuilder.SellsCommodities(commoditiesSold)
+		for _, entity := range entities {
+			key := fmt.Sprintf("%s-%s/%s-%s/%s", "App", app.Namespace, app.Name,
+				entity.EntityType.String(), entity.Name)
+			commodityBought, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
+				Key(key).
+				Capacity(accessCommodityDefaultCapacity).
+				Create()
+			if err != nil {
+				glog.Errorf("Error creating commodityBought by Business App %s/%s: %v ", app.Namespace, app.Name, err)
+				continue
+			}
+
+			provider := sdkbuilder.CreateProvider(entity.EntityType, entity.Uid)
+			entityDTOBuilder = entityDTOBuilder.Provider(provider)
+			entityDTOBuilder.BuysCommodities([]*proto.CommodityDTO{commodityBought})
 		}
 
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
-
 		// build entityDTO.
 		entityDto, err := entityDTOBuilder.Create()
 		if err != nil {
-			glog.Errorf("Failed to build Application: %s entityDTO: %s", displayName, err)
+			glog.Errorf("Failed to build Business App: %s entityDTO: %s", displayName, err)
 			continue
 		}
 
@@ -48,24 +59,4 @@ func (builder *businessAppEntityDTOBuilder) BuildEntityDTOs() []*proto.EntityDTO
 	}
 
 	return result
-}
-
-func (builder *businessAppEntityDTOBuilder) getAppCommoditiesBought(app repository.K8sApp, entities []repository.K8sAppComponent) []*proto.CommodityDTO {
-	var commoditiesBought []*proto.CommodityDTO
-
-	for _, entity := range entities {
-		key := fmt.Sprintf("%s-%s/%s-%s/%s", "App", app.Namespace, app.Name, entity.TurboType.String(), entity.Name)
-		commodityBought, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
-			Key(key).
-			Capacity(accessCommodityDefaultCapacity).
-			Create()
-		if err != nil {
-			glog.Errorf("Error creating commodityBought by Business App %s/%s: %v ", app.Namespace, app.Name, err)
-		} else {
-			// TODO(irfanurrehman): Is there a need to set properties eg movable, resizable, etc.
-			commoditiesBought = append(commoditiesBought, commodityBought)
-		}
-	}
-
-	return commoditiesBought
 }

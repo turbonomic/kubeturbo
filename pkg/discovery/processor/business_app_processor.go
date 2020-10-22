@@ -77,12 +77,13 @@ func (p *BusinessAppProcessor) ProcessBusinessApps() {
 	}
 
 	p.KubeCluster.K8sAppToComponentMap = appToComponentMap
+	p.KubeCluster.ComponentToAppMap = inverseAppToComponentMap(appToComponentMap)
 }
 
 func (p *BusinessAppProcessor) getEntities(selector *metav1.LabelSelector, gk metav1.GroupKind, namespace string) ([]repository.K8sAppComponent, error) {
 	res := schema.GroupVersionResource{}
 	var err error
-	var turboType proto.EntityDTO_EntityType
+	var entityType proto.EntityDTO_EntityType
 	switch gk.String() {
 	// TODO: standardise this, find a better way,
 	// for example move to using controller-runtime and the need for explicitly
@@ -93,50 +94,50 @@ func (p *BusinessAppProcessor) getEntities(selector *metav1.LabelSelector, gk me
 			Group:    "apps",
 			Version:  "v1",
 			Resource: "statefulsets"}
-		turboType = proto.EntityDTO_WORKLOAD_CONTROLLER
+		entityType = proto.EntityDTO_WORKLOAD_CONTROLLER
 	case "Deployment.apps":
 		res = schema.GroupVersionResource{
 			Group:    util.K8sAPIDeploymentGV.Group,
 			Version:  util.K8sAPIDeploymentGV.Version,
 			Resource: util.DeploymentResName}
-		turboType = proto.EntityDTO_WORKLOAD_CONTROLLER
+		entityType = proto.EntityDTO_WORKLOAD_CONTROLLER
 	case "ReplicaSet.apps":
 		res = schema.GroupVersionResource{
 			Group:    util.K8sAPIReplicasetGV.Group,
 			Version:  util.K8sAPIReplicasetGV.Version,
 			Resource: util.ReplicaSetResName}
-		turboType = proto.EntityDTO_WORKLOAD_CONTROLLER
+		entityType = proto.EntityDTO_WORKLOAD_CONTROLLER
 	case "DaemonSet.apps":
 		res = schema.GroupVersionResource{
 			Group:    "apps",
 			Version:  "v1",
 			Resource: "daemonsets"}
-		turboType = proto.EntityDTO_WORKLOAD_CONTROLLER
+		entityType = proto.EntityDTO_WORKLOAD_CONTROLLER
 	case "ReplicationController":
 		res = schema.GroupVersionResource{
 			Group:    util.K8sAPIReplicationControllerGV.Group,
 			Version:  util.K8sAPIReplicationControllerGV.Version,
 			Resource: util.ReplicationControllerResName}
-		turboType = proto.EntityDTO_WORKLOAD_CONTROLLER
+		entityType = proto.EntityDTO_WORKLOAD_CONTROLLER
 	case "Job.batch":
 		res = schema.GroupVersionResource{
 			Group:    "batch",
 			Version:  "v1",
 			Resource: "jobs"}
-		turboType = proto.EntityDTO_WORKLOAD_CONTROLLER
+		entityType = proto.EntityDTO_WORKLOAD_CONTROLLER
 	// TODO: not sure why service gk returns "Service.v1"
 	case "Service.v1":
 		res = schema.GroupVersionResource{
 			Group:    "",
 			Version:  "v1",
 			Resource: "services"}
-		turboType = proto.EntityDTO_SERVICE
+		entityType = proto.EntityDTO_SERVICE
 	case "Pod.v1":
 		res = schema.GroupVersionResource{
 			Group:    "",
 			Version:  "v1",
 			Resource: "pods"}
-		turboType = proto.EntityDTO_CONTAINER_POD
+		entityType = proto.EntityDTO_CONTAINER_POD
 	default:
 		return nil, fmt.Errorf("unsupport group kind type %s", gk.String())
 	}
@@ -150,14 +151,24 @@ func (p *BusinessAppProcessor) getEntities(selector *metav1.LabelSelector, gk me
 	entities := []repository.K8sAppComponent{}
 	for _, r := range resourceList.Items {
 		entity := repository.K8sAppComponent{
-			TurboType: turboType,
-			Namespace: r.GetNamespace(),
-			Name:      r.GetName(),
+			EntityType: entityType,
+			Uid:        string(r.GetUID()),
+			Namespace:  r.GetNamespace(),
+			Name:       r.GetName(),
 		}
 
 		entities = append(entities, entity)
 	}
 
 	return entities, nil
+}
 
+func inverseAppToComponentMap(appToComponents map[repository.K8sApp][]repository.K8sAppComponent) map[repository.K8sAppComponent][]repository.K8sApp {
+	entityToAppWithComponents := make(map[repository.K8sAppComponent][]repository.K8sApp)
+	for app, components := range appToComponents {
+		for _, component := range components {
+			entityToAppWithComponents[component] = append(entityToAppWithComponents[component], app)
+		}
+	}
+	return entityToAppWithComponents
 }
