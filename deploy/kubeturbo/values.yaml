@@ -2,11 +2,16 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+replicaCount: 1
+
 # Replace the image with desired version
 image:
   repository: turbonomic/kubeturbo
-  tag: 7.22.9
+  tag: 8.0.0
   pullPolicy: IfNotPresent
+
+annotations:
+  kubeturbo.io/controllable: "false"
 
 #nameOverride: ""
 #fullnameOverride: ""
@@ -16,7 +21,7 @@ roleName: "cluster-admin"
 
 # Turbo server version and address
 serverMeta:
-  version: 7.22
+  version: 8.0
   turboServer: https://Turbo_server_URL
 #  proxy: http://username:password@proxyserver:proxyport
 
@@ -62,3 +67,5 @@ args:
   stitchuuid: true
   # if Kubernetes version is older than 1.6, then add another arg for move/resize action
   pre16k8sVersion: false
+
+resources: {}

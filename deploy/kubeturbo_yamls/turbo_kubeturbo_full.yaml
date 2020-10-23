@@ -57,7 +57,7 @@ data:
     {
         "communicationConfig": {
             "serverMeta": {
-                "version": "7.22",
+                "version": "8.0",
                 "turboServer": "https://<Turbo_server_URL>"
             },
             "restAPIConfig": {
@@ -97,7 +97,7 @@ spec:
       containers:
       - name: kubeturbo
         # Replace the image with desired version:6.4.4 or latest
-        image: turbonomic/kubeturbo:7.22.9
+        image: turbonomic/kubeturbo:8.0.0
         args:
           - --turboconfig=/etc/kubeturbo/turbo.config
           - --v=2
