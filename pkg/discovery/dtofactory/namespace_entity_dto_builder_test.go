@@ -22,24 +22,26 @@ type TestNode struct {
 	cluster string
 }
 
+const clusterName string = "cluster1"
+
 var TestNodes = []TestNode{
 	{
 		"node1",
 		4.0,
 		819200,
-		"cluster1",
+		clusterName,
 	},
 	{
 		"node2",
 		5.0,
 		614400,
-		"cluster1",
+		clusterName,
 	},
 	{
 		"node3",
 		6.0,
 		409600,
-		"cluster1",
+		clusterName,
 	},
 }
 
@@ -268,15 +270,8 @@ func TestBuildNamespaceDto(t *testing.T) {
 		}
 
 		commBoughtList := dto.GetCommoditiesBought()
-		providerMap := make(map[string]TestNode)
-		for _, node := range TestNodes {
-			providerMap[node.name] = node
-		}
 		for _, commBoughtPerProvider := range commBoughtList {
 			boughtList := commBoughtPerProvider.GetBought()
-			provider := *commBoughtPerProvider.ProviderId
-			_, exists := providerMap[provider]
-			assert.True(t, exists, fmt.Sprintf("%s provider does not exist", provider))
 			commMap = make(map[proto.CommodityDTO_CommodityType]*proto.CommodityDTO)
 			for _, commBought := range boughtList {
 				commMap[commBought.GetCommodityType()] = commBought

@@ -414,7 +414,7 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	if err != nil {
 		glog.Errorf("Failed to create the cluster DTO: %s", err)
 	} else {
-		glog.V(2).Infof("The cluster DTO has been created successfully: %+v")
+		glog.V(2).Infof("The cluster DTO has been created successfully: %+v", clusterEntityDTO)
 		result.EntityDTOs = append(result.EntityDTOs, clusterEntityDTO)
 	}
 

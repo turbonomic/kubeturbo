@@ -80,10 +80,10 @@ func (kc *KubeCluster) logClusterNodes() {
 	}
 }
 
-// Sum the compute resource capacities/used from all the nodes to create the cluster resource capacities/used
+// Sum the compute resource capacities from all the nodes to create the cluster resource capacities
 func (kc *KubeCluster) computeClusterResources() {
 	// sum the capacities/used of the node resources
-	computeResourcesCap := make(map[metrics.ResourceType]float64)
+	computeResources := make(map[metrics.ResourceType]float64)
 	for _, node := range kc.Nodes {
 		nodeActive := util.NodeIsReady(node.Node) && util.NodeIsSchedulable(node.Node)
 		if nodeActive {
@@ -97,20 +97,20 @@ func (kc *KubeCluster) computeClusterResources() {
 						continue
 					}
 					// add the capacity to the cluster compute resource map
-					computeCap, exists := computeResourcesCap[rt]
+					computeCap, exists := computeResources[rt]
 					if !exists {
 						computeCap = nodeResource.Capacity
 					} else {
 						computeCap = computeCap + nodeResource.Capacity
 					}
-				}
+					computeResources[rt] = computeCap				}
 			}
 		}
 	}
 	// create KubeDiscoveredResource object for each compute resource type
 	for _, rtList := range metrics.KubeComputeResourceTypes {
 		for _, rt := range rtList {
-			capacity := computeResourcesCap[rt]
+			capacity := computeResources[rt]
 			r := &KubeDiscoveredResource{
 				Type:     rt,
 				Capacity: capacity,

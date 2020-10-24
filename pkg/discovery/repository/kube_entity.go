@@ -23,8 +23,8 @@ type KubeEntity struct {
 type KubeDiscoveredResource struct {
 	Type     metrics.ResourceType
 	Capacity float64
-	Used     float64			// single-point used value
-	Points   []metrics.Point	// multi-point metrics
+	Used     float64         // single-point used value
+	Points   []metrics.Point // multi-point metrics
 }
 
 // Abstraction for the resource provider for a kubernetes entity

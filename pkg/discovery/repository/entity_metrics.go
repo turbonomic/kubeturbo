@@ -14,7 +14,7 @@ type PodMetrics struct {
 	QuotaUsed     map[metrics.ResourceType]float64
 	QuotaCapacity map[metrics.ResourceType]float64
 	// Actual used
-	Used          map[metrics.ResourceType][]metrics.Point
+	Used map[metrics.ResourceType][]metrics.Point
 }
 
 func NewPodMetrics(podName, namespace, nodeName string) *PodMetrics {

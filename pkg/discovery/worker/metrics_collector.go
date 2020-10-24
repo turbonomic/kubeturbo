@@ -45,31 +45,31 @@ func (podList PodMetricsList) getPodNames() string {
 	return podNames
 }
 
-// SumQuotaUsage returns the sum of quota usage for all the pods in the collection
+// SumQuotaUsage returns the sum of quota resources usage for all the pods in the collection
 func (podMetricsList PodMetricsList) SumQuotaUsage() map[metrics.ResourceType]float64 {
-	resourcesUsedSum := make(map[metrics.ResourceType]float64)
-	// Sum quota usage from pods for each quota type
-	for _, resourceType := range metrics.QuotaResources {
-		var totalUsed float64
+	quotaResourcesSum := make(map[metrics.ResourceType]float64)
+	// Sum quota resources usage from pods for each quota type
+	for _, quotaType := range metrics.QuotaResources {
+		var totalQuotaUsed float64
 		for _, podMetrics := range podMetricsList {
 			if podMetrics.QuotaUsed == nil {
 				continue
 			}
-			used, exists := podMetrics.QuotaUsed[resourceType]
+			quotaUsed, exists := podMetrics.QuotaUsed[quotaType]
 			if !exists {
-				glog.Errorf("Cannot find corresponding resource type for %s", resourceType)
+				glog.Errorf("Cannot find corresponding quota type for %s", quotaType)
 				continue
 			}
-			totalUsed += used
+			totalQuotaUsed += quotaUsed
 		}
-		resourcesUsedSum[resourceType] = totalUsed
+		quotaResourcesSum[quotaType] = totalQuotaUsed
 	}
-	glog.V(4).Infof("Collected resource used for pod collection %s",
+	glog.V(4).Infof("Collected quota resources for pod collection %s",
 		podMetricsList.getPodNames())
-	for rt, used := range resourcesUsedSum {
+	for rt, used := range quotaResourcesSum {
 		glog.V(4).Infof("\t type=%s used=%f", rt, used)
 	}
-	return resourcesUsedSum
+	return quotaResourcesSum
 }
 
 // SumUsage returns the sum of usage for all the pods in the collection

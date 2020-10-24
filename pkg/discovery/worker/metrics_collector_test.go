@@ -3,6 +3,7 @@ package worker
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -174,23 +175,24 @@ var (
 	metricsSink = metrics.NewEntityMetricSink()
 	etype       = metrics.PodType
 	// Pod in ns1 on n1
-	metric_cpuUsed_pod_n1_ns1        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPU, metrics.Used, cpuUsed_pod_n1_ns1)
+	nowUtcSec = time.Now().Unix()
+	metric_cpuUsed_pod_n1_ns1        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPU, metrics.Used, []metrics.Point{{cpuUsed_pod_n1_ns1, nowUtcSec}})
 	metric_cpuCap_pod_n1_ns1         = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
 	metric_cpuRequestUsed_pod_n1_ns1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod_n1_ns1)
 	metric_cpuRequestCap_pod_n1_ns1  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPURequest, metrics.Capacity, nodeCpuCap)
 	// Pod in ns1 on n2
-	metric_cpuUsed_pod_n2_ns1        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n2), metrics.CPU, metrics.Used, cpuUsed_pod_n2_ns1)
+	metric_cpuUsed_pod_n2_ns1        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n2), metrics.CPU, metrics.Used, []metrics.Point{{cpuUsed_pod_n2_ns1, nowUtcSec}})
 	metric_cpuRequestUsed_pod_n2_ns1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n2), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod_n2_ns1)
 	// Pod in ns2 on n1
-	metric_cpuUsed_pod_n1_ns2        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPU, metrics.Used, cpuUsed_pod_n1_ns2)
+	metric_cpuUsed_pod_n1_ns2        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPU, metrics.Used, []metrics.Point{{cpuUsed_pod_n1_ns2, nowUtcSec}})
 	metric_cpuCap_pod_n1_ns2         = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
 	metric_cpuRequestUsed_pod_n1_ns2 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod_n1_ns2)
 	metric_cpuRequestCap_pod_n1_ns2  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPURequest, metrics.Capacity, nodeCpuCap)
 
 	// Pod1 and Pod2 in ns3 on n1
-	metric_cpuUsed_pod1_n1_ns3        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPU, metrics.Used, cpuUsed_pod1_n1_ns3)
+	metric_cpuUsed_pod1_n1_ns3        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPU, metrics.Used, []metrics.Point{{cpuUsed_pod1_n1_ns3, nowUtcSec}})
 	metric_cpuCap_pod1_n1_ns3         = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
-	metric_cpuUsed_pod2_n1_ns3        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod2_ns3_n1), metrics.CPU, metrics.Used, cpuUsed_pod2_n1_ns3)
+	metric_cpuUsed_pod2_n1_ns3        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod2_ns3_n1), metrics.CPU, metrics.Used, []metrics.Point{{cpuUsed_pod2_n1_ns3, nowUtcSec}})
 	metric_cpuCap_pod2_n1_ns3         = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod2_ns3_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
 	metric_cpuRequestUsed_pod1_n1_ns3 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod1_n1_ns3)
 	metric_cpuRequestCap_pod1_n1_ns3  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPURequest, metrics.Capacity, nodeCpuCap)
