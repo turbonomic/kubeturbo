@@ -41,7 +41,7 @@ func (builder *volumeEntityDTOBuilder) BuildEntityDTOs(volToPodsMap map[*api.Per
 		if err != nil {
 			glog.Errorf("Error creating commoditiesSold for volume %s: %s", displayName, err)
 		}
-		if len(commoditiesSold) > 1 {
+		if len(commoditiesSold) > 0 {
 			entityDTOBuilder.SellsCommodities(commoditiesSold)
 		}
 

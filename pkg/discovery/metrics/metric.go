@@ -53,7 +53,13 @@ var (
 	}
 
 	// Mapping of Kubernetes API Server resource names to the allocation resource types
+	// A resource quota definition, although undocumented, honours both "cpu" and "requests.cpu"
+	// as keys for cpu request quota and likewise for memory.
+	// This has more to do with legacy support, where when the resourcequota proposal was introduced
+	// had support only for "cpu" and "memory" corresponding to limiting only requests.
 	KubeQuotaResourceTypes = map[v1.ResourceName]ResourceType{
+		v1.ResourceCPU:            CPURequestQuota,
+		v1.ResourceMemory:         MemoryRequestQuota,
 		v1.ResourceLimitsCPU:      CPULimitQuota,
 		v1.ResourceLimitsMemory:   MemoryLimitQuota,
 		v1.ResourceRequestsCPU:    CPURequestQuota,
@@ -107,9 +113,9 @@ func init() {
 	}
 	// Compute QuotaResources from the KubeQuotaResourceTypes map
 	for name, resource := range KubeQuotaResourceTypes {
-		QuotaResources = append(QuotaResources, resource)
-		if name == v1.ResourceLimitsCPU || name == v1.ResourceRequestsCPU {
-			cpuResources = append(cpuResources, resource)
+		QuotaResources = appendUnique(QuotaResources, resource)
+		if name == v1.ResourceCPU || name == v1.ResourceLimitsCPU || name == v1.ResourceRequestsCPU {
+			cpuResources = appendUnique(cpuResources, resource)
 		}
 	}
 	// Compute CPUResources
@@ -122,6 +128,17 @@ func init() {
 	for k, v := range QuotaToComputeMap {
 		ComputeToQuotaMap[v] = k
 	}
+}
+
+func appendUnique(resourceTypes []ResourceType, resourceType ResourceType) []ResourceType {
+	for _, rt := range resourceTypes {
+		if rt == resourceType {
+			// This type is already in the slice, don't add
+			return resourceTypes
+		}
+	}
+
+	return append(resourceTypes, resourceType)
 }
 
 // Returns true if the given resource type argument belongs to the list of allocation resources

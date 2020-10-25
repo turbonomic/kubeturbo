@@ -391,6 +391,8 @@ func (kubeNamespace *KubeNamespace) ReconcileQuotas(quotas []*v1.ResourceQuota) 
 		resourceHardList := resourceStatus.Hard
 
 		for resource, _ := range resourceHardList {
+			// This will return resourceType as "limits.cpu" for resource as both "cpu" and "limits.cpu"
+			// Likewise for memory.
 			resourceType, isAllocationType := metrics.KubeQuotaResourceTypes[resource]
 			if !isAllocationType { // skip if it is not a allocation type resource
 				continue
