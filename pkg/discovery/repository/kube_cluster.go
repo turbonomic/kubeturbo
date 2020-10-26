@@ -103,7 +103,8 @@ func (kc *KubeCluster) computeClusterResources() {
 					} else {
 						computeCap = computeCap + nodeResource.Capacity
 					}
-					computeResources[rt] = computeCap				}
+					computeResources[rt] = computeCap
+				}
 			}
 		}
 	}

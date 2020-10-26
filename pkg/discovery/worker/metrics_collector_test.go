@@ -175,7 +175,7 @@ var (
 	metricsSink = metrics.NewEntityMetricSink()
 	etype       = metrics.PodType
 	// Pod in ns1 on n1
-	nowUtcSec = time.Now().Unix()
+	nowUtcSec                        = time.Now().Unix()
 	metric_cpuUsed_pod_n1_ns1        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPU, metrics.Used, []metrics.Point{{cpuUsed_pod_n1_ns1, nowUtcSec}})
 	metric_cpuCap_pod_n1_ns1         = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
 	metric_cpuRequestUsed_pod_n1_ns1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod_n1_ns1)
