@@ -83,7 +83,7 @@ func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containe
 		}
 		usedMetricValue, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Used, nodeCPUFrequency)
 		if err != nil {
-			glog.Errorf("Error getting resource %s value for container %s %s: %v", metrics.Used, containerMId, resourceType, err)
+			glog.Warningf("Cannot get resource %s value for container %s %s: %v", metrics.Used, containerMId, resourceType, err)
 			continue
 		}
 		usedValPoints, ok := usedMetricValue.([]metrics.Point)
@@ -94,7 +94,7 @@ func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containe
 		}
 		capacityMetricValue, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Capacity, nodeCPUFrequency)
 		if err != nil {
-			glog.Errorf("Error getting resource %s value for container %s %s", metrics.Capacity, containerMId, resourceType)
+			glog.Warningf("Cannot get resource %s value for container %s %s", metrics.Capacity, containerMId, resourceType)
 			continue
 		}
 		capVal, ok := capacityMetricValue.(float64)

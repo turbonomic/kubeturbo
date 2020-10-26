@@ -138,13 +138,13 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 		// consumption resource commodities sold
 		commoditiesSold, err := builder.getPodCommoditiesSold(pod, cpuFrequency, resCommTypeSold)
 		if err != nil {
-			glog.Errorf("Error when create commoditiesSold for pod %s: %s", displayName, err)
+			glog.Warningf("Skip building DTO for pod %s: %s", displayName, err)
 			continue
 		}
 		// allocation resource commodities sold
 		quotaCommoditiesSold, err := builder.getPodQuotaCommoditiesSold(pod, cpuFrequency)
 		if err != nil {
-			glog.Errorf("Error when create quotaCommoditiesSold for pod %s: %s", displayName, err)
+			glog.Warningf("Skip building DTO for pod %s: %s", displayName, err)
 			continue
 		}
 		commoditiesSold = append(commoditiesSold, quotaCommoditiesSold...)
@@ -153,7 +153,7 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 		// commodities bought - from node provider
 		commoditiesBought, err := builder.getPodCommoditiesBought(pod, cpuFrequency, resCommTypeBoughtFromNode)
 		if err != nil {
-			glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
+			glog.Warningf("Skip building DTO for pod %s: %s", displayName, err)
 			continue
 		}
 		providerNodeUID, exist := builder.nodeNameUIDMap[pod.Spec.NodeName]
@@ -178,7 +178,7 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 			if exists {
 				commoditiesBoughtQuota, err := builder.getQuotaCommoditiesBought(namespaceUID, pod, cpuFrequency)
 				if err != nil {
-					glog.Errorf("Error when create commoditiesBought for pod %s: %s", displayName, err)
+					glog.Warningf("Skip building DTO for pod %s: %s", displayName, err)
 					continue
 				}
 				provider := sdkbuilder.CreateProvider(proto.EntityDTO_NAMESPACE, namespaceUID)
@@ -198,7 +198,7 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 			}
 			commoditiesBoughtQuota, err := builder.getQuotaCommoditiesBought(controllerUID, pod, cpuFrequency)
 			if err != nil {
-				glog.Errorf("Error when creating commoditiesBought for pod %s: %v", displayName, err)
+				glog.Warningf("Skip building DTO for pod %s: %s", displayName, err)
 				continue
 			}
 			provider := sdkbuilder.CreateProvider(proto.EntityDTO_WORKLOAD_CONTROLLER, controllerUID)
@@ -221,6 +221,12 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 		}
 		if util.PodIsPending(pod) {
 			mounts = nil
+			controllable = false
+			suspendable = false
+			provisionable = false
+			monitored = false
+			powerState = proto.EntityDTO_POWERSTATE_UNKNOWN
+		} else if !util.PodIsReady(pod) {
 			controllable = false
 			suspendable = false
 			provisionable = false
@@ -286,14 +292,14 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(
 
 	// Resource Commodities
 	podMId := util.PodMetricIdAPI(pod)
-	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.PodType, podMId, resCommTypeSold, converter, attributeSetter)
-	if err != nil {
-		return nil, err
-	}
+	resourceCommoditiesSold := builder.getResourceCommoditiesSold(metrics.PodType, podMId, resCommTypeSold, converter, attributeSetter)
 	if len(resourceCommoditiesSold) != len(resCommTypeSold) {
-		err = fmt.Errorf("mismatch num of sold commodities (%d Vs. %d) for pod %s", len(resourceCommoditiesSold), len(resCommTypeSold), pod.Name)
-		glog.Error(err)
-		return nil, err
+		// Only return error when pod is ready. Unready pods may not have resource consumption, but we still want to
+		// create the pod DTOs
+		if util.PodIsReady(pod) {
+			return nil, fmt.Errorf("mismatch num of sold commodities (%d Vs. %d) for pod %s",
+				len(resourceCommoditiesSold), len(resCommTypeSold), pod.Name)
+		}
 	}
 	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
 
@@ -327,14 +333,10 @@ func (builder *podEntityDTOBuilder) getPodQuotaCommoditiesSold(pod *api.Pod, cpu
 
 	// Resource Commodities
 	podMId := util.PodMetricIdAPI(pod)
-	quotaCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.PodType, podMId, podQuotaCommType, converter, attributeSetter)
-	if err != nil {
-		return nil, err
-	}
+	quotaCommoditiesSold := builder.getResourceCommoditiesSold(metrics.PodType, podMId, podQuotaCommType, converter, attributeSetter)
 	if len(quotaCommoditiesSold) != len(podQuotaCommType) {
-		err = fmt.Errorf("mismatch num of sold commidities (%d Vs. %d) for pod %s", len(quotaCommoditiesSold), len(podQuotaCommType), pod.Name)
-		glog.Error(err)
-		return nil, err
+		return nil, fmt.Errorf("mismatch num of sold commidities (%d Vs. %d) for pod %s",
+			len(quotaCommoditiesSold), len(podQuotaCommType), pod.Name)
 	}
 	return quotaCommoditiesSold, nil
 }
@@ -350,14 +352,14 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
 
 	// Resource Commodities.
 	podMId := util.PodMetricIdAPI(pod)
-	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.PodType, podMId, resCommTypeBoughtFromNode, converter, nil)
-	if err != nil {
-		return nil, err
-	}
+	resourceCommoditiesBought := builder.getResourceCommoditiesBought(metrics.PodType, podMId, resCommTypeBoughtFromNode, converter, nil)
 	if len(resourceCommoditiesBought) != len(resCommTypeBoughtFromNode) {
-		err = fmt.Errorf("mismatch num of bought commidities from node (%d Vs. %d) for pod %s", len(resourceCommoditiesBought), len(resCommTypeBoughtFromNode), pod.Name)
-		glog.Error(err)
-		return nil, err
+		// Only return error when pod is ready. Unready pods may not have resource consumption, but we still want to
+		// create the pod DTOs
+		if util.PodIsReady(pod) {
+			return nil, fmt.Errorf("mismatch num of bought commidities from node (%d Vs. %d) for pod %s",
+				len(resourceCommoditiesBought), len(resCommTypeBoughtFromNode), pod.Name)
+		}
 	}
 	commoditiesBought = append(commoditiesBought, resourceCommoditiesBought...)
 
@@ -410,7 +412,7 @@ func (builder *podEntityDTOBuilder) getQuotaCommoditiesBought(providerUID string
 		commBought, err := builder.getResourceCommodityBoughtWithKey(metrics.PodType, key,
 			resourceType, providerUID, converter, nil)
 		if err != nil {
-			glog.Errorf("Failed to build %s bought by pod %s from quota provider %s: %v",
+			glog.Warningf("Cannot build %s bought by pod %s from quota provider %s: %v",
 				resourceType, key, providerUID, err)
 			return nil, err
 		}
@@ -429,7 +431,7 @@ func (builder *podEntityDTOBuilder) buyCommoditiesFromVolumes(pod *api.Pod, moun
 		commBought, err := builder.getResourceCommodityBoughtWithKey(metrics.PodType, volEntityID,
 			metrics.StorageAmount, "", nil, nil)
 		if err != nil {
-			glog.Errorf("Failed to build commodity %s bought by pod %s mounted %s from volume %s: %v",
+			glog.Warningf("Cannot build commodity %s bought by pod %s mounted %s from volume %s: %v",
 				metrics.StorageAmount, podKey, mountName, mount.UsedVolume.Name, err)
 			continue
 		}

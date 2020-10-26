@@ -171,10 +171,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 		metrics.CPU, metrics.CPURequest)
 
 	// Resource Commodities
-	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.NodeType, key, nodeResourceCommoditiesSold, converter, nil)
-	if err != nil {
-		return nil, err
-	}
+	resourceCommoditiesSold := builder.getResourceCommoditiesSold(metrics.NodeType, key, nodeResourceCommoditiesSold, converter, nil)
 
 	// Disable vertical resize of the resource commodities for all nodes
 	for _, commSold := range resourceCommoditiesSold {

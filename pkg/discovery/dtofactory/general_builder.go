@@ -111,24 +111,22 @@ func newGeneralBuilder(sink *metrics.EntityMetricSink) generalBuilder {
 // Create commodity DTOs for the given list of resources
 // Note: cpuFrequency is the speed of CPU for a node. It is passed in as a parameter to convert
 // the cpu resource metric values from Kubernetes that is specified in number of cores to MHz.
+// Note: This function does not return error.
 func (builder generalBuilder) getResourceCommoditiesSold(entityType metrics.DiscoveredEntityType, entityID string,
 	resourceTypesList []metrics.ResourceType,
-	converter *converter, commodityAttrSetter *attributeSetter) ([]*proto.CommodityDTO, error) {
-
-	var resourceCommoditiesSold []*proto.CommodityDTO
+	converter *converter, commodityAttrSetter *attributeSetter) (resourceCommoditiesSold []*proto.CommodityDTO) {
 	for _, rType := range resourceTypesList {
-
 		commSold, err := builder.getSoldResourceCommodityWithKey(entityType, entityID,
 			rType, "", converter, commodityAttrSetter)
 		if err != nil {
 			// skip this commodity
-			glog.Errorf("%s::%s: cannot build sold commodity %s : %s",
-				entityType, entityID, rType, err)
+			glog.Warningf("Cannot build sold commodity %s for %s::%s: %v",
+				rType, entityType, entityID, err)
 			continue
 		}
 		resourceCommoditiesSold = append(resourceCommoditiesSold, commSold)
 	}
-	return resourceCommoditiesSold, nil
+	return resourceCommoditiesSold
 }
 
 func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics.DiscoveredEntityType, entityID string,
@@ -151,7 +149,7 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 	metricValue, err := builder.metricValue(entityType, entityID,
 		resourceType, metrics.Used, converter)
 	if err != nil {
-		return nil, fmt.Errorf("%s", err)
+		return nil, err
 	}
 
 	// Set used value as the average of multiple used metric points
@@ -163,7 +161,7 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 	capacityMetricValue, err := builder.metricValue(entityType, entityID,
 		resourceType, metrics.Capacity, converter)
 	if err != nil {
-		return nil, fmt.Errorf("%s", err)
+		return nil, err
 	}
 	// Capacity metric is always a single data point. Use Avg to refer to the single point value
 	commSoldBuilder.Capacity(capacityMetricValue.Avg)
@@ -225,9 +223,10 @@ func (builder generalBuilder) metricValue(entityType metrics.DiscoveredEntityTyp
 	return metricValue, nil
 }
 
+// Note: This function does not return error.
 func (builder generalBuilder) getResourceCommoditiesBought(entityType metrics.DiscoveredEntityType, entityID string,
 	resourceTypesList []metrics.ResourceType,
-	converter *converter, commodityAttrSetter *attributeSetter) ([]*proto.CommodityDTO, error) {
+	converter *converter, commodityAttrSetter *attributeSetter) []*proto.CommodityDTO {
 	var resourceCommoditiesBought []*proto.CommodityDTO
 	for _, rType := range resourceTypesList {
 		cType, exist := rTypeMapping[rType]
@@ -242,8 +241,8 @@ func (builder generalBuilder) getResourceCommoditiesBought(entityType metrics.Di
 		metricValue, err := builder.metricValue(entityType, entityID, rType, metrics.Used, converter)
 		if err != nil {
 			// skip this commodity
-			glog.Errorf("%s::%s cannot build bought commodity %s : missing metrics %s",
-				entityType, entityID, rType, metrics.Used)
+			glog.Warningf("Cannot build bought commodity %s for %s::%s: %v",
+				rType, entityType, entityID, err)
 			continue
 		}
 		commBoughtBuilder.Used(metricValue.Avg)
@@ -259,13 +258,13 @@ func (builder generalBuilder) getResourceCommoditiesBought(entityType metrics.Di
 		commBought, err := commBoughtBuilder.Create()
 		if err != nil {
 			// skip this commodity
-			glog.Errorf("%s::%s: cannot build bought commodity %s : %s",
+			glog.Errorf("%s::%s: cannot build bought commodity %s: %s",
 				entityType, entityID, rType, err)
 			continue
 		}
 		resourceCommoditiesBought = append(resourceCommoditiesBought, commBought)
 	}
-	return resourceCommoditiesBought, nil
+	return resourceCommoditiesBought
 }
 
 func (builder generalBuilder) getResourceCommodityBoughtWithKey(entityType metrics.DiscoveredEntityType, entityID string,
@@ -286,7 +285,7 @@ func (builder generalBuilder) getResourceCommodityBoughtWithKey(entityType metri
 	metricValue, err := builder.metricValue(entityType, entityID,
 		resourceType, metrics.Used, converter)
 	if err != nil {
-		return nil, fmt.Errorf("%s", err)
+		return nil, err
 	}
 
 	// Set used value as the average of multiple usage metric points
@@ -302,12 +301,7 @@ func (builder generalBuilder) getResourceCommodityBoughtWithKey(entityType metri
 	if commKey != "" {
 		commBoughtBuilder.Key(commKey)
 	}
-	commBought, err := commBoughtBuilder.Create()
-	if err != nil {
-		return nil, err
-	}
-
-	return commBought, nil
+	return commBoughtBuilder.Create()
 }
 
 // get cpu frequency
@@ -315,8 +309,7 @@ func (builder generalBuilder) getNodeCPUFrequency(nodeKey string) (float64, erro
 	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, nodeKey, metrics.CpuFrequency)
 	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
 	if err != nil {
-		err := fmt.Errorf("failed to get cpu frequency from sink for node %s: %v", nodeKey, err)
-		return 0.0, err
+		return 0.0, fmt.Errorf("failed to get cpu frequency from sink for node %s: %v", nodeKey, err)
 	}
 	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
 	glog.V(4).Infof("CPU frequency for node %s: %f", nodeKey, cpuFrequency)
