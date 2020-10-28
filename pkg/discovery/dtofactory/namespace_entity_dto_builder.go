@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
@@ -47,7 +48,9 @@ func (builder *namespaceEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
 		// build entityDTO.
-		entityDto, err := entityDTOBuilder.Create()
+		entityDto, err := entityDTOBuilder.WithProperties(property.
+			BuildNamespaceProperties(namespace.TagProperties)).
+			Create()
 		if err != nil {
 			glog.Errorf("Failed to build Namespace entityDTO: %s", err)
 			continue
