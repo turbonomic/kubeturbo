@@ -167,9 +167,10 @@ func retrieveNodeAndPodDTOs(entityDTOs []*proto.EntityDTO) ([]*proto.EntityDTO, 
 	pods := []*proto.EntityDTO{}
 
 	for _, dto := range entityDTOs {
-		if *dto.EntityType == proto.EntityDTO_VIRTUAL_MACHINE {
+		if dto.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE {
 			nodes = append(nodes, dto)
-		} else if *dto.EntityType == proto.EntityDTO_CONTAINER_POD {
+		} else if dto.GetEntityType() == proto.EntityDTO_CONTAINER_POD &&
+			dto.GetPowerState() == proto.EntityDTO_POWERED_ON {
 			pods = append(pods, dto)
 		}
 	}

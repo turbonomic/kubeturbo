@@ -165,6 +165,19 @@ func PodIsReady(pod *api.Pod) bool {
 	return false
 }
 
+// PodIsPending checks if a scheduled pod is in Pending status
+func PodIsPending(pod *api.Pod) bool {
+	if pod.Status.Phase != api.PodPending {
+		return false
+	}
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == api.PodScheduled {
+			return condition.Status == api.ConditionTrue
+		}
+	}
+	return false
+}
+
 // GetPodInPhase finds the pod with the specific name in the specific phase (e.g., Running).
 // If pod not found, nil pod pointer will be returned without error.
 func GetPodInPhase(podClient v1.PodInterface, name string, phase api.PodPhase) (*api.Pod, error) {

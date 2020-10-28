@@ -91,6 +91,8 @@ type k8sDiscoveryWorker struct {
 	// Global entity metric sink to store all resource usage data samples scraped from kubelet
 	globalMetricSink *metrics.EntityMetricSink
 
+	stitchingManager *stitching.StitchingManager
+
 	taskChan chan *task.Task
 }
 
@@ -126,6 +128,11 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string, globalM
 		metricSink = metrics.NewEntityMetricSink().WithMaxMetricPointsSize(config.metricSamples)
 	}
 
+	var stitchingManager *stitching.StitchingManager
+	if isFullDiscoveryWorker && config.stitchingPropertyType != "" {
+		stitchingManager = stitching.NewStitchingManager(config.stitchingPropertyType)
+	}
+
 	return &k8sDiscoveryWorker{
 		id:                    wid,
 		isFullDiscoveryWorker: isFullDiscoveryWorker,
@@ -133,8 +140,8 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string, globalM
 		monitoringWorker:      monitoringWorkerMap,
 		sink:                  metricSink,
 		globalMetricSink:      globalMetricSink,
-
-		taskChan: make(chan *task.Task),
+		stitchingManager:      stitchingManager,
+		taskChan:              make(chan *task.Task),
 	}, nil
 }
 
@@ -165,13 +172,13 @@ func (worker *k8sDiscoveryWorker) RegisterAndRun(dispatcher *Dispatcher, collect
 func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskResult {
 	if currTask == nil {
 		err := errors.New("no task has been assigned to current worker")
-		glog.Errorf("%s", err)
+		glog.Errorf("Failed to execute task: %s", err)
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
 
 	if glog.V(4) {
 		for _, node := range currTask.NodeList() {
-			glog.Infof("%s : Node %s with %d pods\n", worker.id, node.Name, len(currTask.PodList()))
+			glog.Infof("Worker %s: Node %s with %d pods", worker.id, node.Name, len(currTask.PodList()))
 		}
 	}
 	// wait group to make sure metrics scraping finishes.
@@ -248,87 +255,64 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		return task.NewTaskResult(worker.id, task.TaskSucceeded)
 	}
 
-	// Collect usages for pods in different namespaces and create used and capacity
-	// metrics for the allocation resources of the namespaces and pods
-	metricsCollector := NewMetricsCollector(worker, currTask)
-
-	podMetricsCollection, err := metricsCollector.CollectPodMetrics()
-	if err != nil {
+	if currTask.Cluster() == nil {
+		err := errors.New("no cluster summary is set")
+		glog.Errorf("Failed to execute task: %s", err)
 		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
 	}
-	namespaceMetricsCollection := metricsCollector.CollectNamespaceMetrics(podMetricsCollection)
 
+	// Note: We have confirmed that the cluster summary is properly set.
+	// All the following calls should NOT return errors.
+
+	// Collect usages for pods in different namespaces and create used and capacity
+	// metrics for the quota resources of the namespaces and pods.
+	metricsCollector := NewMetricsCollector(worker, currTask)
+	podMetricsCollection := metricsCollector.CollectPodMetrics()
+	namespaceMetricsCollection := metricsCollector.CollectNamespaceMetrics(podMetricsCollection)
 	podVolumeMetricsCollection := metricsCollector.CollectPodVolumeMetrics()
 
-	// Add the allocation metrics in the sink for the pods and the nodes
-	worker.addPodAllocationMetrics(podMetricsCollection)
+	// Add the quota metrics in the sink for the pods and the nodes
+	worker.addPodQuotaMetrics(podMetricsCollection)
 
-	// Collect allocation metrics for K8s controllers where usage values are aggregated from pods and capacity values
+	// Collect quota metrics for K8s controllers where usage values are aggregated from pods and capacity values
 	// are from namespaces quota capacity
-	controllerMetricsCollector := NewControllerMetricsCollector(worker, currTask)
-	kubeControllers, err := controllerMetricsCollector.CollectControllerMetrics()
-	if err != nil {
-		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
-	}
+	kubeControllers := NewControllerMetricsCollector(worker, currTask).CollectControllerMetrics()
 
 	// Collect container replicas metrics with resource capacity value and multiple resource usage data points in
 	// ContainerSpecMetrics list
-	containerSpecMetricsCollector := NewContainerSpecMetricsCollector(worker.sink, currTask.PodList())
-	containerSpecMetricsList, err := containerSpecMetricsCollector.CollectContainerSpecMetrics()
-	if err != nil {
-		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
-	}
+	// Only collect container spec metrics from running pods
+	containerSpecMetricsList :=
+		NewContainerSpecMetricsCollector(worker.sink, currTask.RunningPodList()).CollectContainerSpecMetrics()
 
 	// Build Entity groups
-	groupsCollector := NewGroupMetricsCollector(worker, currTask)
-	entityGroups, _ := groupsCollector.CollectGroupMetrics()
+	entityGroups := NewGroupMetricsCollector(worker, currTask).CollectGroupMetrics()
 
 	// Build DTOs after getting the metrics
-	entityDTOs, podsWithDtos, err := worker.buildDTOs(currTask)
-	if err != nil {
-		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
-	}
-	// 4. build entityDTOs for applications
-	appEntityDTOs, podEntities, err := worker.buildAppDTOs(currTask, podsWithDtos)
-	if err != nil {
-		return task.NewTaskResult(worker.id, task.TaskFailed).WithErr(err)
-	}
-	entityDTOs = append(entityDTOs, appEntityDTOs...)
+	entityDTOs, podEntities := worker.buildEntityDTOs(currTask)
 
 	// Uncomment this to dump the topology to a file for later use by the unit tests
 	// util.DumpTopology(currTask, "test-topology.dat")
 
 	// Task result with node, pod, container and application DTOs
 	// pod entities with the associated app DTOs for creating service DTOs
-	result := task.NewTaskResult(worker.id, task.TaskSucceeded).WithContent(entityDTOs)
-	// In addition, return pod entities with the associated app DTOs for creating service DTOs
-	result.WithPodEntities(podEntities)
-	// return the namespace metrics created by this worker
-	if len(namespaceMetricsCollection) > 0 {
-		result.WithNamespaceMetrics(namespaceMetricsCollection)
-	}
-	// return container and pod groups created by this worker
-	if len(entityGroups) > 0 {
-		result.WithEntityGroups(entityGroups)
-	}
-	// Return k8s controllers created by this worker
-	if len(kubeControllers) > 0 {
-		result.WithKubeControllers(kubeControllers)
-	}
-	// Return ContainerSpecMetricsList with each individual container replica resource metrics data created by this worker
-	if len(containerSpecMetricsList) > 0 {
-		result.WithContainerSpecMetrics(containerSpecMetricsList)
-	}
-
-	if len(podVolumeMetricsCollection) > 0 {
-		result.WithPodVolumeMetrics(podVolumeMetricsCollection)
-	}
-
-	return result
+	return task.NewTaskResult(worker.id, task.TaskSucceeded).
+		// Node, Pod, Container and App DTOs
+		WithContent(entityDTOs).
+		// Pod entities with the associated app DTOs for creating service DTOs
+		WithPodEntities(podEntities).
+		// Namespace metrics
+		WithNamespaceMetrics(namespaceMetricsCollection).
+		// Pod and Container groups
+		WithEntityGroups(entityGroups).
+		// Workload Controllers
+		WithKubeControllers(kubeControllers).
+		// ContainerSpecMetricsList with each individual container replica resource metrics data
+		WithContainerSpecMetrics(containerSpecMetricsList).
+		// Volume metrics
+		WithPodVolumeMetrics(podVolumeMetricsCollection)
 }
 
-// =================================================================================================
-func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection PodMetricsByNodeAndNamespace) {
+func (worker *k8sDiscoveryWorker) addPodQuotaMetrics(podMetricsCollection PodMetricsByNodeAndNamespace) {
 	etype := metrics.PodType
 	for _, podsByQuotaMap := range podMetricsCollection {
 		for _, podMetricsList := range podsByQuotaMap {
@@ -336,43 +320,62 @@ func (worker *k8sDiscoveryWorker) addPodAllocationMetrics(podMetricsCollection P
 				podKey := podMetrics.PodKey
 				for resourceType, usedValue := range podMetrics.QuotaUsed {
 					// Generate the metrics in the sink
-					allocationUsedMetric := metrics.NewEntityResourceMetric(etype,
+					quotaUsedMetric := metrics.NewEntityResourceMetric(etype,
 						podKey, resourceType,
 						metrics.Used, usedValue)
-					worker.sink.AddNewMetricEntries(allocationUsedMetric)
+					worker.sink.AddNewMetricEntries(quotaUsedMetric)
 					glog.V(4).Infof("Created %s used for pod %s:  %f.",
-						allocationUsedMetric.GetUID(), podMetrics.PodName, usedValue)
+						quotaUsedMetric.GetUID(), podMetrics.PodName, usedValue)
 				}
 
 				for resourceType, capValue := range podMetrics.QuotaCapacity {
-					allocationCapMetric := metrics.NewEntityResourceMetric(etype,
+					quotaCapMetric := metrics.NewEntityResourceMetric(etype,
 						podKey, resourceType,
 						metrics.Capacity, capValue)
-					worker.sink.AddNewMetricEntries(allocationCapMetric)
+					worker.sink.AddNewMetricEntries(quotaCapMetric)
 					glog.V(4).Infof("Created %s capacity for pod %s: %f.",
-						allocationCapMetric.GetUID(), podMetrics.PodName, capValue)
+						quotaCapMetric.GetUID(), podMetrics.PodName, capValue)
 				}
 			}
 		}
 	}
 }
 
-// ================================================================================================
-// Build DTOs for nodes, pods, containers
-func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*api.Pod, error) {
-	var result []*proto.EntityDTO
-
-	// 0. setUp nodeName to nodeId mapping
-	stitchingManager := stitching.NewStitchingManager(worker.config.stitchingPropertyType)
-
-	// Node providers
-	nodes := currTask.NodeList()
-	cluster := currTask.Cluster()
-	var podToVolsMap map[string][]repository.MountedVolume
-	if cluster != nil {
-		podToVolsMap = cluster.PodToVolumesMap
+func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*repository.KubePod) {
+	var entityDTOs []*proto.EntityDTO
+	// Build entity DTOs for nodes
+	nodeDTOs := worker.buildNodeDTOs(currTask.NodeList())
+	glog.V(3).Infof("Worker %s built %d node DTOs.", worker.id, len(nodeDTOs))
+	if len(nodeDTOs) == 0 {
+		return nil, nil
 	}
+	entityDTOs = append(entityDTOs, nodeDTOs...)
+	// Build entity DTOs for pods
+	podDTOs, runningPods := worker.buildPodDTOs(currTask)
+	glog.V(3).Infof("Worker %s built %d pod DTOs.", worker.id, len(podDTOs))
+	if len(podDTOs) == 0 {
+		return entityDTOs, nil
+	}
+	entityDTOs = append(entityDTOs, podDTOs...)
+	// Build entity DTOs for containers from running pods
+	containerDTOs := worker.buildContainerDTOs(runningPods)
+	glog.V(3).Infof("Worker %s built %d container DTOs.", worker.id, len(containerDTOs))
+	if len(containerDTOs) > 0 {
+		entityDTOs = append(entityDTOs, containerDTOs...)
+	}
+	// Build entity DTOs for applications from running pods
+	appEntityDTOs, podEntities := worker.buildAppDTOs(runningPods, currTask.Cluster())
+	glog.V(3).Infof("Worker %s built %d application DTOs.", worker.id, len(appEntityDTOs))
+	if len(appEntityDTOs) > 0 {
+		entityDTOs = append(entityDTOs, appEntityDTOs...)
+	}
+	glog.V(2).Infof("Worker %s built %d entity DTOs in total.", worker.id, len(entityDTOs))
+	return entityDTOs, podEntities
+}
 
+func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node) []*proto.EntityDTO {
+	// SetUp nodeName to nodeId mapping
+	stitchingManager := worker.stitchingManager
 	for _, node := range nodes {
 		if node != nil {
 			glog.V(4).Infof("Setting up stitching properties for node : %v", node.Name)
@@ -381,80 +384,67 @@ func (worker *k8sDiscoveryWorker) buildDTOs(currTask *task.Task) ([]*proto.Entit
 			stitchingManager.StoreStitchingValue(node)
 		}
 	}
+	// Build entity DTOs for nodes
+	return dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager).BuildEntityDTOs(nodes)
+}
 
-	// 1. build entityDTOs for nodes
-	nodeEntityDTOBuilder := dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager)
-	nodeEntityDTOs, err := nodeEntityDTOBuilder.BuildEntityDTOs(nodes)
-	if err != nil {
-		glog.Errorf("Error while creating node entityDTOs: %v", err)
-		// TODO Node discovery fails, directly return?
+// Build DTOs for running pods
+func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) (podDTOs []*proto.EntityDTO, runningPods []*api.Pod) {
+	glog.V(3).Infof("Worker %s received %d pods.", worker.id, len(currTask.PodList()))
+	cluster := currTask.Cluster()
+	if cluster == nil {
+		// This should not happen, guard anyway
+		glog.Errorf("Failed to build pod DTOs: cluster summary object is null for worker %s", worker.id)
+		return
 	}
-	glog.V(3).Infof("Worker %s built %d node DTOs.", worker.id, len(nodeEntityDTOs))
-	result = append(result, nodeEntityDTOs...)
-
-	// 2. build entityDTOs for pods
-	namespaceUIDMap := make(map[string]string)
-	nodeNameUIDMap := make(map[string]string)
-	if cluster != nil {
-		namespaceUIDMap = cluster.NamespaceUIDMap // quota providers
-		nodeNameUIDMap = cluster.NodeNameUIDMap   // node providers
+	runningPodDTOs, pendingPodDTOs := dtofactory.
+		NewPodEntityDTOBuilder(worker.sink, worker.stitchingManager).
+		// Node providers
+		WithNodeNameUIDMap(cluster.NodeNameUIDMap).
+		// Quota providers
+		WithNameSpaceUIDMap(cluster.NamespaceUIDMap).
+		// Pod to volume map
+		WithPodToVolumesMap(cluster.PodToVolumesMap).
+		// Running pods
+		WithRunningPods(currTask.RunningPodList()).
+		// Pending pods
+		WithPendingPods(currTask.PendingPodList()).
+		BuildEntityDTOs()
+	if len(runningPodDTOs) > 0 {
+		podDTOs = append(podDTOs, runningPodDTOs...)
+		// Filter out pods that build DTO failed so
+		// building container and app DTOs will not include them
+		runningPods = excludeFailedPods(currTask.RunningPodList(), runningPodDTOs)
 	}
-	pods := currTask.PodList()
-	glog.V(3).Infof("Worker %s received %d pods.", worker.id, len(pods))
-
-	podEntityDTOBuilder := dtofactory.NewPodEntityDTOBuilder(worker.sink, stitchingManager,
-		nodeNameUIDMap, namespaceUIDMap)
-	podEntityDTOs, err := podEntityDTOBuilder.BuildEntityDTOs(pods, podToVolsMap)
-	if err != nil {
-		glog.Errorf("Error while creating pod entityDTOs: %v", err)
+	if len(pendingPodDTOs) > 0 {
+		podDTOs = append(podDTOs, pendingPodDTOs...)
 	}
-	result = append(result, podEntityDTOs...)
-	glog.V(3).Infof("Worker %s built %d pod DTOs.", worker.id, len(podEntityDTOs))
+	return
+}
 
-	// Filter out pods that build DTO failed so
-	// building container and app DTOs will not include them
-	pods = excludeFailedPods(pods, podEntityDTOs)
-
-	// 3. build entityDTOs for containers
-	containerDTOBuilder := dtofactory.NewContainerDTOBuilder(worker.sink)
-	containerDTOs, err := containerDTOBuilder.BuildDTOs(pods)
-	// util.DumpTopology(containerDTOs, "test-topology.dat")
-	if err != nil {
-		glog.Errorf("Error while creating container entityDTOs: %v", err)
-	}
-	result = append(result, containerDTOs...)
-
-	glog.V(3).Infof("Worker %s built %d container DTOs.", worker.id, len(containerDTOs))
-
-	glog.V(2).Infof("Worker %s built total %d entityDTOs.", worker.id, len(result))
-
-	// Return the DTOs created, also return the list of pods with valid DTOs
-	return result, pods, nil
+// Build DTOs for containers
+func (worker *k8sDiscoveryWorker) buildContainerDTOs(runningPods []*api.Pod) []*proto.EntityDTO {
+	return dtofactory.
+		NewContainerDTOBuilder(worker.sink).
+		BuildEntityDTOs(runningPods)
 }
 
 // Build App DTOs using the list of pods with valid DTOs
-func (worker *k8sDiscoveryWorker) buildAppDTOs(currTask *task.Task, podsWithDtos []*api.Pod) ([]*proto.EntityDTO, []*repository.KubePod, error) {
+func (worker *k8sDiscoveryWorker) buildAppDTOs(
+	runningPods []*api.Pod, cluster *repository.ClusterSummary) ([]*proto.EntityDTO, []*repository.KubePod) {
 	var result []*proto.EntityDTO
-
-	cluster := currTask.Cluster()
-
-	glog.V(4).Infof("%s: all pods %d, pods with dtos %d", worker.id, len(currTask.PodList()), len(podsWithDtos))
-	// 4. build entityDTOs for application running on each container
+	var podEntities []*repository.KubePod
 	applicationEntityDTOBuilder := dtofactory.NewApplicationEntityDTOBuilder(worker.sink,
 		cluster.PodClusterIDToServiceMap)
-
-	var podEntities []*repository.KubePod
-	for _, pod := range podsWithDtos {
+	for _, pod := range runningPods {
 		kubeNode := cluster.Nodes[pod.Spec.NodeName]
 		kubePod := repository.NewKubePod(pod, kubeNode, cluster.Name)
-
 		// Pod service Id
 		service := cluster.PodClusterIDToServiceMap[kubePod.PodClusterId]
 		if service != nil {
 			kubePod.ServiceId = util.GetServiceClusterID(service)
-			glog.V(4).Infof("Pod %s --> service %s", kubePod.PodClusterId, kubePod.ServiceId)
+			glog.V(4).Infof("Pod %s belong to service %s", kubePod.PodClusterId, kubePod.ServiceId)
 		}
-
 		// Pod apps
 		appEntityDTOs, err := applicationEntityDTOBuilder.BuildEntityDTO(pod)
 		if err != nil {
@@ -468,13 +458,14 @@ func (worker *k8sDiscoveryWorker) buildAppDTOs(currTask *task.Task, podsWithDtos
 
 		podEntities = append(podEntities, kubePod)
 	}
-
-	glog.V(3).Infof("Worker %s built %d application DTOs.", worker.id, len(result))
-	return result, podEntities, nil
+	return result, podEntities
 }
 
 // excludeFailedPods filters the pod list and excludes those pods not in the dto list
 func excludeFailedPods(pods []*api.Pod, dtos []*proto.EntityDTO) []*api.Pod {
+	if pods == nil {
+		return nil
+	}
 	m := map[string]*api.Pod{}
 	for _, pod := range pods {
 		m[string(pod.UID)] = pod

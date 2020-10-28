@@ -17,13 +17,15 @@ const (
 )
 
 type Task struct {
-	uid      string
-	name     string
-	nodeList []*api.Node
-	podList  []*api.Pod
-	pvList   []*api.PersistentVolume
-	pvcList  []*api.PersistentVolumeClaim
-	cluster  *repository.ClusterSummary
+	uid         string
+	name        string
+	nodes       []*api.Node
+	pendingPods []*api.Pod
+	runningPods []*api.Pod
+	pods        []*api.Pod
+	pvs         []*api.PersistentVolume
+	pvcs        []*api.PersistentVolumeClaim
+	cluster     *repository.ClusterSummary
 }
 
 // Worker task is consisted of a list of nodes the worker must discover.
@@ -37,31 +39,43 @@ func NewTask() *Task {
 }
 
 // Assign nodes to the task.
-func (t *Task) WithNodes(nodeList []*api.Node) *Task {
-	t.nodeList = nodeList
+func (t *Task) WithNodes(nodes []*api.Node) *Task {
+	t.nodes = nodes
 	return t
 }
 
 func (t *Task) WithNode(node *api.Node) *Task {
-	t.nodeList = append(t.nodeList, node)
+	t.nodes = append(t.nodes, node)
 	return t
 }
 
 // Assign pods to the task.
-func (t *Task) WithPods(podList []*api.Pod) *Task {
-	t.podList = podList
+func (t *Task) WithPods(pods []*api.Pod) *Task {
+	t.pods = pods
+	return t
+}
+
+func (t *Task) WithRunningPods(runningPods []*api.Pod) *Task {
+	t.runningPods = runningPods
+	t.pods = append(t.pods, runningPods...)
+	return t
+}
+
+func (t *Task) WithPendingPods(pendingPods []*api.Pod) *Task {
+	t.pendingPods = pendingPods
+	t.pods = append(t.pods, pendingPods...)
 	return t
 }
 
 // Assign pvs to the task.
-func (t *Task) WithPVs(pvList []*api.PersistentVolume) *Task {
-	t.pvList = pvList
+func (t *Task) WithPVs(pvs []*api.PersistentVolume) *Task {
+	t.pvs = pvs
 	return t
 }
 
 // Assign pvcs to the task.
-func (t *Task) WithPVCs(pvcList []*api.PersistentVolumeClaim) *Task {
-	t.pvcList = pvcList
+func (t *Task) WithPVCs(pvcs []*api.PersistentVolumeClaim) *Task {
+	t.pvcs = pvcs
 	return t
 }
 
@@ -73,22 +87,30 @@ func (t *Task) WithCluster(cluster *repository.ClusterSummary) *Task {
 
 // Get node list from the task.
 func (t *Task) NodeList() []*api.Node {
-	return t.nodeList
+	return t.nodes
 }
 
 // Get pod list from the task.
 func (t *Task) PodList() []*api.Pod {
-	return t.podList
+	return t.pods
+}
+
+func (t *Task) RunningPodList() []*api.Pod {
+	return t.runningPods
+}
+
+func (t *Task) PendingPodList() []*api.Pod {
+	return t.pendingPods
 }
 
 // Get PV list from the task.
 func (t *Task) PVList() []*api.PersistentVolume {
-	return t.pvList
+	return t.pvs
 }
 
 // Get PVC list from the task.
 func (t *Task) PVCList() []*api.PersistentVolumeClaim {
-	return t.pvcList
+	return t.pvcs
 }
 
 func (t *Task) Cluster() *repository.ClusterSummary {
@@ -97,7 +119,7 @@ func (t *Task) Cluster() *repository.ClusterSummary {
 
 func (t *Task) String() string {
 	var nodes []string
-	for _, node := range t.nodeList {
+	for _, node := range t.nodes {
 		nodes = append(nodes, node.GetName())
 	}
 	return "[id: " + t.name + ", node: " + strings.Join(nodes, ",") + "]"
