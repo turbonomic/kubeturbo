@@ -151,7 +151,7 @@ func TestBuildCommSold(t *testing.T) {
 
 	eType := metrics.PodType
 	resourceTypesList := []metrics.ResourceType{metrics.CPU, metrics.Memory}
-	commSoldList, err := dtoBuilder.getResourceCommoditiesSold(eType, pod1, resourceTypesList, cpuConverter, nil)
+	commSoldList := dtoBuilder.getResourceCommoditiesSold(eType, pod1, resourceTypesList, cpuConverter, nil)
 	commMap := make(map[proto.CommodityDTO_CommodityType]*proto.CommodityDTO)
 
 	for _, commSold := range commSoldList {
@@ -163,7 +163,6 @@ func TestBuildCommSold(t *testing.T) {
 		commSold, _ := commMap[cType]
 		assert.NotNil(t, commSold)
 		fmt.Printf("%++v\n", commSold)
-		fmt.Printf("%++v\n", err)
 	}
 }
 
@@ -177,7 +176,7 @@ func TestBuildCommBought(t *testing.T) {
 
 	eType := metrics.PodType
 	resourceTypesList := []metrics.ResourceType{metrics.CPU, metrics.Memory}
-	commBoughtList, err := dtoBuilder.getResourceCommoditiesBought(eType, pod1, resourceTypesList, cpuConverter, nil)
+	commBoughtList := dtoBuilder.getResourceCommoditiesBought(eType, pod1, resourceTypesList, cpuConverter, nil)
 	commMap := make(map[proto.CommodityDTO_CommodityType]*proto.CommodityDTO)
 
 	for _, commBought := range commBoughtList {
@@ -189,7 +188,6 @@ func TestBuildCommBought(t *testing.T) {
 		commBought, _ := commMap[cType]
 		assert.NotNil(t, commBought)
 		fmt.Printf("%++v\n", commBought)
-		fmt.Printf("%++v\n", err)
 	}
 }
 

@@ -117,7 +117,7 @@ func TestCollectControllerMetrics(t *testing.T) {
 
 	// Test CollectControllerMetrics
 	controllerMetricsCollector := NewControllerMetricsCollector(discoveryWorker, currTask)
-	kubeControllers, _ := controllerMetricsCollector.CollectControllerMetrics()
+	kubeControllers := controllerMetricsCollector.CollectControllerMetrics()
 
 	// 2 KubeControllers are created
 	assert.Equal(t, 2, len(kubeControllers))

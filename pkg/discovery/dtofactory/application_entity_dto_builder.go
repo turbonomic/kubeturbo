@@ -79,7 +79,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 		//2. sold commodities: transaction and responseTime
 		commoditiesSold, err := builder.getCommoditiesSold(pod, i)
 		if err != nil {
-			glog.Errorf("Failed to create Application(%s) entityDTO: %v", displayName, err)
+			glog.Warningf("Skip creating Application(%s) entityDTO: %v", displayName, err)
 			continue
 		}
 		ebuilder.SellsCommodities(commoditiesSold)
@@ -87,7 +87,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 		//3. bought commodities: vcpu/vmem/application
 		commoditiesBought, err := builder.getApplicationCommoditiesBought(appMId, podFullName, containerId, nodeCPUFrequency)
 		if err != nil {
-			glog.Errorf("Failed to create Application(%s) entityDTO: %v", displayName, err)
+			glog.Warningf("Skip creating Application(%s) entityDTO: %v", displayName, err)
 			continue
 		}
 		provider := sdkbuilder.CreateProvider(proto.EntityDTO_CONTAINER, containerId)
@@ -97,23 +97,30 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 		properties := builder.getApplicationProperties(pod, i)
 		ebuilder.WithProperties(properties)
 
-		truep := true
 		controllable := util.Controllable(pod)
-		ebuilder.ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
-			ProviderMustClone: &truep,
-			Controllable:      &controllable,
-		})
-
-		appType := util.GetAppType(pod)
-		ebuilder.ApplicationData(&proto.EntityDTO_ApplicationData{
-			Type:      &appType,
-			IpAddress: &(pod.Status.PodIP),
-		})
-
-		ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
+		monitored := true
+		powerState := proto.EntityDTO_POWERED_ON
+		if !util.PodIsReady(pod) {
+			controllable = false
+			monitored = false
+			powerState = proto.EntityDTO_POWERSTATE_UNKNOWN
+		}
 
 		//5. build the entityDTO
-		entityDTO, err := ebuilder.Create()
+		truep := true
+		appType := util.GetAppType(pod)
+		entityDTO, err := ebuilder.
+			ApplicationData(&proto.EntityDTO_ApplicationData{
+				Type:      &appType,
+				IpAddress: &(pod.Status.PodIP),
+			}).
+			ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
+				ProviderMustClone: &truep,
+				Controllable:      &controllable,
+			}).
+			Monitored(monitored).
+			WithPowerState(powerState).
+			Create()
 		if err != nil {
 			glog.Errorf("Failed to build Application entityDTO based on application %s: %s", displayName, err)
 			continue
@@ -171,14 +178,10 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appM
 	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU)
 
 	// Resource commodities.
-	resourceCommoditiesBought, err := builder.getResourceCommoditiesBought(metrics.ApplicationType, appMId, applicationResourceCommodityBought, converter, nil)
-	if err != nil {
-		return nil, err
-	}
+	resourceCommoditiesBought := builder.getResourceCommoditiesBought(metrics.ApplicationType, appMId, applicationResourceCommodityBought, converter, nil)
 	if len(resourceCommoditiesBought) != len(applicationResourceCommodityBought) {
-		err = fmt.Errorf("mismatch num of commidities (%d Vs. %d) for application:%s, %s", len(resourceCommoditiesBought), len(applicationResourceCommodityBought), podName, appMId)
-		glog.Error(err)
-		return nil, err
+		return nil, fmt.Errorf("mismatch num of commidities (%d Vs. %d) for application:%s, %s",
+			len(resourceCommoditiesBought), len(applicationResourceCommodityBought), podName, appMId)
 	}
 	commoditiesBought = append(commoditiesBought, resourceCommoditiesBought...)
 

@@ -36,7 +36,7 @@ func NewContainerSpecMetricsCollector(metricsSink *metrics.EntityMetricSink, pod
 
 // CollectContainerSpecMetrics collects list of ContainerSpecMetrics including resource capacity value and multiple
 // usage data points from sampling discoveries for container replicas which belong to the same ContainerSpec.
-func (collector *ContainerSpecMetricsCollector) CollectContainerSpecMetrics() ([]*repository.ContainerSpecMetrics, error) {
+func (collector *ContainerSpecMetricsCollector) CollectContainerSpecMetrics() []*repository.ContainerSpecMetrics {
 	var containerSpecMetricsList []*repository.ContainerSpecMetrics
 	for _, pod := range collector.podList {
 		// Create ContainerSpecMetrics only if Pod is deployed by a K8s controller
@@ -69,7 +69,7 @@ func (collector *ContainerSpecMetricsCollector) CollectContainerSpecMetrics() ([
 			}
 		}
 	}
-	return containerSpecMetricsList, nil
+	return containerSpecMetricsList
 }
 
 // collectContainerMetrics collects container metrics from metricsSink and stores them in the given ContainerSpecMetrics
@@ -83,7 +83,7 @@ func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containe
 		}
 		usedMetricValue, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Used, nodeCPUFrequency)
 		if err != nil {
-			glog.Errorf("Error getting resource %s value for container %s %s: %v", metrics.Used, containerMId, resourceType, err)
+			glog.Warningf("Cannot get resource %s value for container %s %s: %v", metrics.Used, containerMId, resourceType, err)
 			continue
 		}
 		usedValPoints, ok := usedMetricValue.([]metrics.Point)
@@ -94,7 +94,7 @@ func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containe
 		}
 		capacityMetricValue, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Capacity, nodeCPUFrequency)
 		if err != nil {
-			glog.Errorf("Error getting resource %s value for container %s %s", metrics.Capacity, containerMId, resourceType)
+			glog.Warningf("Cannot get resource %s value for container %s %s", metrics.Capacity, containerMId, resourceType)
 			continue
 		}
 		capVal, ok := capacityMetricValue.(float64)

@@ -127,10 +127,15 @@ func (d *Dispatcher) RegisterWorker(worker *k8sDiscoveryWorker) {
 func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSummary) int {
 	go func() {
 		for _, node := range nodes {
-			currPods := d.config.clusterInfoScraper.GetRunningAndReadyPodsOnNode(node)
+			runningPods := d.config.clusterInfoScraper.GetRunningPodsOnNode(node)
 			// Save the node to pods map in the cluster summary
-			cluster.SetRunningPodsOnNode(node, currPods)
-			currTask := task.NewTask().WithNode(node).WithPods(currPods).WithCluster(cluster)
+			cluster.SetRunningPodsOnNode(node, runningPods)
+			pendingPods := d.config.clusterInfoScraper.GetPendingPodsOnNode(node)
+			currTask := task.NewTask().
+				WithNode(node).
+				WithRunningPods(runningPods).
+				WithPendingPods(pendingPods).
+				WithCluster(cluster)
 			glog.V(2).Infof("Dispatching task %v", currTask)
 			d.assignTask(currTask)
 		}

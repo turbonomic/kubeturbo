@@ -60,7 +60,7 @@ func NewNodeEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *s
 }
 
 // Build entityDTOs based on the given node list.
-func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*proto.EntityDTO, error) {
+func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto.EntityDTO {
 	var result []*proto.EntityDTO
 	for _, node := range nodes {
 		// id.
@@ -146,10 +146,10 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 
 		result = append(result, entityDto)
 
-		glog.V(3).Infof("node dto : %++v\n", entityDto)
+		glog.V(4).Infof("Node DTO : %+v", entityDto)
 	}
 
-	return result, nil
+	return result
 }
 
 // Build the sold commodityDTO by each node. They include:
@@ -171,10 +171,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 		metrics.CPU, metrics.CPURequest)
 
 	// Resource Commodities
-	resourceCommoditiesSold, err := builder.getResourceCommoditiesSold(metrics.NodeType, key, nodeResourceCommoditiesSold, converter, nil)
-	if err != nil {
-		return nil, err
-	}
+	resourceCommoditiesSold := builder.getResourceCommoditiesSold(metrics.NodeType, key, nodeResourceCommoditiesSold, converter, nil)
 
 	// Disable vertical resize of the resource commodities for all nodes
 	for _, commSold := range resourceCommoditiesSold {
