@@ -105,8 +105,9 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 			nodeActive = false
 		}
 		entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
+		nodeKey := util.NodeKeyFunc(node)
 		// Check whether we have used cache
-		cacheUsedMetric := metrics.GenerateEntityStateMetricUID(metrics.NodeType, util.NodeKeyFunc(node), "NodeCacheUsed")
+		cacheUsedMetric := metrics.GenerateEntityStateMetricUID(metrics.NodeType, nodeKey, "NodeCacheUsed")
 		present, _ := builder.metricsSink.GetMetric(cacheUsedMetric)
 		if present != nil {
 			glog.Errorf("We have used the cached data, so the node %s appeared to be flaky", displayName)
@@ -132,8 +133,16 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 			entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERSTATE_UNKNOWN)
 		}
 
+		cpuMetricValue, err := builder.metricValue(metrics.NodeType, nodeKey, metrics.CPU, metrics.Capacity, nil)
+		if err != nil {
+			glog.Errorf("Failed to get number of CPU in cores for VM %s: %v", nodeKey, err)
+			continue
+		}
+		cpuCores := int32(cpuMetricValue.Avg)
 		vmdata := &proto.EntityDTO_VirtualMachineData{
 			IpAddress: getNodeIPs(node),
+			// Set numCPUs in cores.
+			NumCpus: &cpuCores,
 		}
 		entityDTOBuilder = entityDTOBuilder.VirtualMachineData(vmdata)
 
