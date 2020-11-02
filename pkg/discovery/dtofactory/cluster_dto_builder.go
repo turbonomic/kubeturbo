@@ -82,7 +82,7 @@ func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO) (*p
 
 	// Link member nodes as connected entities
 	for _, node := range builder.cluster.NodeList {
-		entityDTOBuilder.Owns(string(node.UID))
+		entityDTOBuilder.ConnectedTo(string(node.UID))
 	}
 
 	// build entityDTO.
