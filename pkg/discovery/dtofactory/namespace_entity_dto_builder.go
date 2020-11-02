@@ -47,9 +47,9 @@ func (builder *namespaceEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 			glog.Errorf("Error creating commoditiesBought for %s: %v", namespace.Name, err)
 			continue
 		}
-		entityDTOBuilder.Provider(sdkbuilder.CreateProvider(proto.EntityDTO_K8S_CLUSTER, namespace.ClusterName)).BuysCommodities(commoditiesBought)
+		entityDTOBuilder.Provider(sdkbuilder.CreateProvider(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, namespace.ClusterName)).BuysCommodities(commoditiesBought)
 		// Set movable false to avoid moving Namespace across Clusters
-		entityDTOBuilder.IsMovable(proto.EntityDTO_K8S_CLUSTER, false)
+		entityDTOBuilder.IsMovable(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, false)
 
 		// Namespace entity cannot be provisioned or suspended by Turbonomic analysis
 		entityDTOBuilder.IsProvisionable(false)

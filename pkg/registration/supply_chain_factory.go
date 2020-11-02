@@ -272,7 +272,7 @@ func (f *SupplyChainFactory) buildNamespaceSupplyBuilder() (*proto.TemplateDTO, 
 		Sells(vMemLimitQuotaTemplateCommWithKey).
 		Sells(vCpuRequestQuotaTemplateCommWithKey).
 		Sells(vMemRequestQuotaTemplateCommWithKey).
-		Provider(proto.EntityDTO_K8S_CLUSTER, proto.Provider_HOSTING).
+		Provider(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, proto.Provider_HOSTING).
 		Buys(vCpuTemplateComm).
 		Buys(vMemTemplateComm).
 		Buys(vCpuRequestQuotaTemplateCommWithKey).
@@ -283,7 +283,7 @@ func (f *SupplyChainFactory) buildNamespaceSupplyBuilder() (*proto.TemplateDTO, 
 }
 
 func (f *SupplyChainFactory) buildClusterSupplyBuilder() (*proto.TemplateDTO, error) {
-	clusterSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_K8S_CLUSTER)
+	clusterSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER)
 	clusterSupplyChainNodeBuilder = clusterSupplyChainNodeBuilder.
 		Sells(vCpuTemplateComm).
 		Sells(vMemTemplateComm).

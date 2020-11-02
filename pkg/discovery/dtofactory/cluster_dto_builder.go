@@ -60,7 +60,7 @@ func (builder *clusterDTOBuilder) BuildGroup() []*proto.GroupDTO {
 func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO) (*proto.EntityDTO, error) {
 	// id.
 	uid := builder.cluster.Name
-	entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_K8S_CLUSTER, uid)
+	entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, uid)
 
 	// display name.
 	displayName := builder.targetId
