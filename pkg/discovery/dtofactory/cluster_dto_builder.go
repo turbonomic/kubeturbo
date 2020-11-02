@@ -101,12 +101,11 @@ func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityD
 	used := make(map[proto.CommodityDTO_CommodityType]float64)
 	capacity := make(map[proto.CommodityDTO_CommodityType]float64)
 	for _, entityDTO := range entityDTOs {
-		if *entityDTO.EntityType == proto.EntityDTO_VIRTUAL_MACHINE {
+		if entityDTO.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE {
 			for _, commodity := range entityDTO.GetCommoditiesSold() {
-				if commodity.Used != nil && commodity.Capacity != nil {
-					used[*commodity.CommodityType] = used[*commodity.CommodityType] + *commodity.Used
-					capacity[*commodity.CommodityType] = capacity[*commodity.CommodityType] + *commodity.Capacity
-				}
+				commodityType := commodity.GetCommodityType()
+				used[commodityType] += commodity.GetUsed()
+				capacity[commodityType] += commodity.GetCapacity()
 			}
 		}
 	}
