@@ -328,6 +328,9 @@ type KubeNamespace struct {
 	QuotaList               []*v1.ResourceQuota
 	AverageNodeCpuFrequency float64
 	QuotaDefined            map[metrics.ResourceType]bool
+
+	// Stores the labels and annotations on the given namespace
+	TagProperties []map[string]string
 }
 
 func (kubeNamespace *KubeNamespace) String() string {

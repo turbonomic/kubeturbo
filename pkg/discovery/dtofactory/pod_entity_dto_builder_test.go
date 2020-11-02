@@ -73,8 +73,9 @@ func Test_podEntityDTOBuilder_createContainerPodData(t *testing.T) {
 	}
 }
 
-func testGetCommoditiesWithError(t *testing.T, f func(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error)) {
-	if _, err := f(&api.Pod{}, 100.0); err == nil {
+func testGetCommoditiesWithError(t *testing.T,
+	f func(pod *api.Pod, cpuFrequency float64, resType []metrics.ResourceType) ([]*proto.CommodityDTO, error)) {
+	if _, err := f(createPodWithReadyCondition(), 100.0, runningPodResCommTypeSold); err == nil {
 		t.Errorf("Error thrown expected")
 	}
 }
@@ -88,5 +89,16 @@ func createPodWithIPs(podIP, hostIP string) *api.Pod {
 	return &api.Pod{
 		Status:     status,
 		ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "bar"},
+	}
+}
+
+func createPodWithReadyCondition() *api.Pod {
+	return &api.Pod{
+		Status: api.PodStatus{
+			Conditions: []api.PodCondition{{
+				Type:   api.PodReady,
+				Status: api.ConditionTrue,
+			}},
+		},
 	}
 }

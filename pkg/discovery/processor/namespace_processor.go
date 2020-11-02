@@ -43,6 +43,7 @@ func (p *NamespaceProcessor) ProcessNamespaces() {
 		// Create default namespace object
 		kubeNamespaceUID := string(item.UID)
 		kubeNamespace := repository.CreateDefaultKubeNamespace(clusterName, item.Name, kubeNamespaceUID)
+		kubeNamespace.TagProperties = append(kubeNamespace.TagProperties, item.GetLabels(), item.GetAnnotations())
 
 		// update the default quota limits using the defined resource quota objects
 		quotaList, hasQuota := quotaMap[item.Name]
@@ -50,6 +51,7 @@ func (p *NamespaceProcessor) ProcessNamespaces() {
 			kubeNamespace.QuotaList = quotaList
 			kubeNamespace.ReconcileQuotas(quotaList)
 		}
+
 		namespaces[item.Name] = kubeNamespace
 		glog.V(4).Infof("Created namespace entity: %s.", kubeNamespace.String())
 

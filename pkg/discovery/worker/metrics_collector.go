@@ -1,8 +1,6 @@
 package worker
 
 import (
-	"fmt"
-
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -107,9 +105,10 @@ func (podCollectionMap PodMetricsByNodeAndNamespace) addPodMetric(podName, nodeN
 // Create Pod metrics by selecting the pod compute resource usages from the metrics sink.
 // The PodMetrics are organized in a map by node and namespace.
 // The discovery worker will add the PodMetrics to the metrics sink.
-func (collector *MetricsCollector) CollectPodMetrics() (PodMetricsByNodeAndNamespace, error) {
+func (collector *MetricsCollector) CollectPodMetrics() PodMetricsByNodeAndNamespace {
 	if collector.Cluster == nil {
-		return nil, fmt.Errorf("cluster summary object is null for discovery worker %s", collector.workerId)
+		glog.Errorf("Cluster summary object is null for discovery worker %s", collector.workerId)
+		return nil
 	}
 	podCollectionMap := make(PodMetricsByNodeAndNamespace)
 	// Iterate over all pods
@@ -136,7 +135,7 @@ func (collector *MetricsCollector) CollectPodMetrics() (PodMetricsByNodeAndNames
 		}
 		podCollectionMap.addPodMetric(pod.Name, nodeName, kubeNamespace.Name, podMetrics)
 	}
-	return podCollectionMap, nil
+	return podCollectionMap
 }
 
 // Return the capacity for the resource quota in a namespace

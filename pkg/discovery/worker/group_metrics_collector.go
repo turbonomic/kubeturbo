@@ -26,7 +26,7 @@ func NewGroupMetricsCollector(discoveryWorker *k8sDiscoveryWorker, currTask *tas
 	return metricsCollector
 }
 
-func (collector *GroupMetricsCollector) CollectGroupMetrics() ([]*repository.EntityGroup, error) {
+func (collector *GroupMetricsCollector) CollectGroupMetrics() []*repository.EntityGroup {
 	var entityGroupList []*repository.EntityGroup
 
 	entityGroups := make(map[string]*repository.EntityGroup)
@@ -84,7 +84,7 @@ func (collector *GroupMetricsCollector) CollectGroupMetrics() ([]*repository.Ent
 		}
 	}
 
-	return entityGroupList, nil
+	return entityGroupList
 }
 
 func (collector *GroupMetricsCollector) getGroupName(etype metrics.DiscoveredEntityType, entityKey string) (string, string, error) {

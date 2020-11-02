@@ -187,7 +187,7 @@ func TestContainerSpecMetricsCollector_CollectContainerSpecMetrics_WithoutReques
 	metricsSink.UpdateMetricEntry(containerFooMemUsedMetric2)
 
 	containerSpecMetricsCollector := NewContainerSpecMetricsCollector(metricsSink, pods)
-	containerSpecMetricsList, _ := containerSpecMetricsCollector.CollectContainerSpecMetrics()
+	containerSpecMetricsList := containerSpecMetricsCollector.CollectContainerSpecMetrics()
 
 	expectedContainerSpecMetricsFoo := &repository.ContainerSpecMetrics{
 		Namespace:         namespace,
@@ -235,7 +235,7 @@ func TestContainerSpecMetricsCollector_CollectContainerSpecMetrics_WithRequestMe
 	metricsSink.UpdateMetricEntry(containerBarMemRequestUsedMetric4)
 
 	containerSpecMetricsCollector := NewContainerSpecMetricsCollector(metricsSink, pods)
-	containerSpecMetricsList, _ := containerSpecMetricsCollector.CollectContainerSpecMetrics()
+	containerSpecMetricsList := containerSpecMetricsCollector.CollectContainerSpecMetrics()
 
 	expectedContainerSpecMetricsBar := &repository.ContainerSpecMetrics{
 		Namespace:         namespace,
