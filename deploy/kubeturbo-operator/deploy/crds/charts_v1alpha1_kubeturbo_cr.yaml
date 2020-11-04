@@ -11,7 +11,7 @@ spec:
 
   # Turbo server version and address
   serverMeta:
-    version: 8.0
+    version: "8.0"
     turboServer: https://Turbo_server_URL
 
   # Turbo server api user and password stored in a secret or optionally specified as username and password
@@ -33,13 +33,13 @@ spec:
 
   # Uncomment out to allow execution in OCP environments
   #args:
-  #  sccsupport: *
+  #  sccsupport: "*"
 
   # Uncomment out to specify kubeturbo container specifications when needed (quotas set on ns)
   #resources:
   #  limits:
   #    memory: 4Gi
-  #    cpu: 2
+  #    cpu: "2"
   #  requests:
   #    memory: 512Mi
-  #    cpu: 1
+  #    cpu: "1"
