@@ -236,15 +236,18 @@ func TestPodMetricsListAllocationUsage(t *testing.T) {
 	podMetricsList = append(podMetricsList, pm1)
 	podMetricsList = append(podMetricsList, pm2)
 
-	resourceMap := podMetricsList.SumQuotaUsage()
+	quotaUsedSumMap := podMetricsList.SumQuotaUsage()
 	cpuLimitQuotaUsed := cpuLimits_container1 + cpuLimits_container2
 	cpuRequestQuotaUsed := cpuRequests_container1 + cpuRequests_container2
 	memLimitQuotaUsed := 0.0
 	memRequestQuotaUsed := 0.0
-	assert.Equal(t, cpuLimitQuotaUsed, resourceMap[metrics.CPULimitQuota])
-	assert.Equal(t, memLimitQuotaUsed, resourceMap[metrics.MemoryLimitQuota])
-	assert.Equal(t, cpuRequestQuotaUsed, resourceMap[metrics.CPURequestQuota])
-	assert.Equal(t, memRequestQuotaUsed, resourceMap[metrics.MemoryRequestQuota])
+	assert.Equal(t, cpuLimitQuotaUsed, quotaUsedSumMap[metrics.CPULimitQuota])
+	assert.Equal(t, memLimitQuotaUsed, quotaUsedSumMap[metrics.MemoryLimitQuota])
+	assert.Equal(t, cpuRequestQuotaUsed, quotaUsedSumMap[metrics.CPURequestQuota])
+	assert.Equal(t, memRequestQuotaUsed, quotaUsedSumMap[metrics.MemoryRequestQuota])
+
+	//usedSumMap := podMetricsList.SumUsage()
+	//assert.True(t, metrics.MetricPointsMapAlmostEqual(usedSumMap))
 }
 
 func TestPodMetricsCollectionNullCluster(t *testing.T) {
