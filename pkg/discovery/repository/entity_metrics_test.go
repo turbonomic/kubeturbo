@@ -62,7 +62,7 @@ func TestAggregateUsedNormal(t *testing.T) {
 	namespaceMetrics := NamespaceMetrics{
 		Namespace: "namespace",
 		Used: map[metrics.ResourceType][]metrics.Point{
-			metrics.CPU:    {
+			metrics.CPU: {
 				{Value: 12.8, Timestamp: nowUtc.Unix()},
 				{Value: 12.1, Timestamp: nowUtc.Add(time.Minute).Unix()},
 				{Value: 12.3, Timestamp: nowUtc.Add(time.Minute * 2).Unix()},

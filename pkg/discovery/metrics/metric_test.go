@@ -106,7 +106,7 @@ func TestAccumulateMultiPoints_NewPortionMissingAResource(t *testing.T) {
 		}
 	AccumulateMultiPoints(accumulated, newPortion)
 	if !MetricPointsMapAlmostEqual(expected, accumulated) {
-		t.Errorf("Test case failed: TestAccumulateMultiPoints_NewPortionMissingAResource:\n" +
+		t.Errorf("Test case failed: TestAccumulateMultiPoints_NewPortionMissingAResource:\n"+
 			"expected:\n%++v\nactual:\n%++v", expected, accumulated)
 	}
 }
@@ -155,7 +155,7 @@ func TestAccumulateMultiPoints_AccumulatedMissingAResource(t *testing.T) {
 		}
 	AccumulateMultiPoints(accumulated, newPortion)
 	if !MetricPointsMapAlmostEqual(expected, accumulated) {
-		t.Errorf("Test case failed: TestAccumulateMultiPoints_AccumulatedMissingAResource:\n" +
+		t.Errorf("Test case failed: TestAccumulateMultiPoints_AccumulatedMissingAResource:\n"+
 			"expected:\n%++v\nactual:\n%++v", expected, accumulated)
 	}
 }
@@ -210,7 +210,7 @@ func TestAccumulateMultiPoints_NewPortionMissingMetricPoints(t *testing.T) {
 		}
 	AccumulateMultiPoints(accumulated, newPortion)
 	if !MetricPointsMapAlmostEqual(expected, accumulated) {
-		t.Errorf("Test case failed: TestAccumulateMultiPoints_NewPortionMissingMetricPoints:\n" +
+		t.Errorf("Test case failed: TestAccumulateMultiPoints_NewPortionMissingMetricPoints:\n"+
 			"expected:\n%++v\nactual:\n%++v", expected, accumulated)
 	}
 }
@@ -265,7 +265,7 @@ func TestAccumulateMultiPoints_AccumulatedMissingMetricPoints(t *testing.T) {
 		}
 	AccumulateMultiPoints(accumulated, newPortion)
 	if !MetricPointsMapAlmostEqual(expected, accumulated) {
-		t.Errorf("Test case failed: TestAccumulateMultiPoints_AccumulatedMissingMetricPoints:\n" +
+		t.Errorf("Test case failed: TestAccumulateMultiPoints_AccumulatedMissingMetricPoints:\n"+
 			"expected:\n%++v\nactual:\n%++v", expected, accumulated)
 	}
 }

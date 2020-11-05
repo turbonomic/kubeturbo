@@ -223,7 +223,7 @@ var (
 	}
 )
 
-func TestPodMetricsListAllocationUsage(t *testing.T) {
+func TestAccumulatingOverPodMetricsList(t *testing.T) {
 	metricsSink.AddNewMetricEntries(
 		metric_cpuUsed_pod_n1_ns1,
 		metric_cpuUsed_pod_n2_ns1,
@@ -246,8 +246,16 @@ func TestPodMetricsListAllocationUsage(t *testing.T) {
 	assert.Equal(t, cpuRequestQuotaUsed, quotaUsedSumMap[metrics.CPURequestQuota])
 	assert.Equal(t, memRequestQuotaUsed, quotaUsedSumMap[metrics.MemoryRequestQuota])
 
-	//usedSumMap := podMetricsList.SumUsage()
-	//assert.True(t, metrics.MetricPointsMapAlmostEqual(usedSumMap))
+	// expected used
+	usedSumMapExpected := map[metrics.ResourceType][]metrics.Point{
+		metrics.CPU: {
+			{Value: cpuUsed_pod_n1_ns1 + cpuUsed_pod_n2_ns1, Timestamp: nowUtcSec},
+		},
+	}
+	usedSumMapActual := podMetricsList.SumUsage()
+	assert.True(t, metrics.MetricPointsMapAlmostEqual(usedSumMapActual, usedSumMapExpected),
+		"Test case failed: TestAccumulatingOverPodMetricsList:\nexpected:\n%++v\nactual:\n%++v",
+		usedSumMapExpected, usedSumMapActual)
 }
 
 func TestPodMetricsCollectionNullCluster(t *testing.T) {
