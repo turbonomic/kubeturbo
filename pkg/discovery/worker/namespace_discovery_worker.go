@@ -31,21 +31,22 @@ func Newk8sNamespaceDiscoveryWorker(cluster *repository.ClusterSummary, pType st
 
 func (worker *k8sNamespaceDiscoveryWorker) Do(namespaceMetricsList []*repository.NamespaceMetrics,
 ) ([]*proto.EntityDTO, error) {
-	// Combine quota discovery results from different nodes
+	// Combine discovery results from different nodes
 	namespaceMetricsMap := make(map[string]*repository.NamespaceMetrics)
 
 	// combine namespace metrics results from different discovery workers
 	// each worker will provide the allocation bought for a set of nodes and
-	// the allocation used for the pods running on those nodes
+	// the used for the pods running on those nodes
 	for _, namespaceMetrics := range namespaceMetricsList {
 		existingMetric, exists := namespaceMetricsMap[namespaceMetrics.Namespace]
 		if !exists {
-			// first time that this quota is seen
+			// first time that this Namespace is seen
 			namespaceMetricsMap[namespaceMetrics.Namespace] = namespaceMetrics
 			continue
 		}
 		// merge the pod usage from this namespace metrics into the existing namespace metrics
-		existingMetric.UpdateQuotaSoldUsed(namespaceMetrics.QuotaSoldUsed)
+		existingMetric.AggregateQuotaUsed(namespaceMetrics.QuotaUsed)
+		existingMetric.AggregateUsed(namespaceMetrics.Used)
 	}
 
 	kubeNodes := worker.Cluster.Nodes
@@ -63,6 +64,7 @@ func (worker *k8sNamespaceDiscoveryWorker) Do(namespaceMetricsList []*repository
 	}
 	averageNodeFrequency := totalNodeFrequency / float64(activeNodeCount)
 	glog.V(2).Infof("Average cluster node cpu frequency in MHz: %f", averageNodeFrequency)
+	worker.Cluster.AverageNodeCpuFrequency = averageNodeFrequency
 
 	// Create the quota resources for all kubeNamespace entities using the metrics object
 	for namespace, kubeNamespaceEntity := range worker.Cluster.NamespaceMap {
@@ -75,13 +77,23 @@ func (worker *k8sNamespaceDiscoveryWorker) Do(namespaceMetricsList []*repository
 		kubeNamespaceEntity.AverageNodeCpuFrequency = averageNodeFrequency
 
 		// Create sold allocation commodity for the types that are not defined in the kubeNamespace objects
-		for resourceType, used := range namespaceMetrics.QuotaSoldUsed {
+		for resourceType, used := range namespaceMetrics.QuotaUsed {
 			existingResource, _ := kubeNamespaceEntity.GetResource(resourceType)
 			// Set used value collected from namespaceMetrics to kubeNamespaceEntity, which is the sum of limits/request
 			// from all running containers on this namespace.
 			// If resource is CPU type, used value has already been converted from cores to MHz when collecting namespace
 			// metrics in metrics_collector.
 			existingResource.Used = used
+		}
+
+		// Create bought commodity for the types that are not defined in the kubeNamespace objects
+		for resourceType, points := range namespaceMetrics.Used {
+			existingResource, err := kubeNamespaceEntity.GetResource(resourceType)
+			if err != nil {
+				glog.Errorf("No resource found for type %s in namespace %s", resourceType, kubeNamespaceEntity.Namespace)
+				continue
+			}
+			existingResource.Points = points
 		}
 	}
 

@@ -84,9 +84,9 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 	groupDTOs = groupDtoBuilder.BuildGroupDTOs()
 
 	// Create DTO for cluster
-	clusterDTOs := dtofactory.NewClusterDTOBuilder(worker.cluster, worker.targetId).Build()
-	for _, clusterDTO := range clusterDTOs {
-		groupDTOs = append(groupDTOs, clusterDTO)
+	clusterGroupDTOs := dtofactory.NewClusterDTOBuilder(worker.cluster, worker.targetId).BuildGroup()
+	for _, clusterGroupDTO := range clusterGroupDTOs {
+		groupDTOs = append(groupDTOs, clusterGroupDTO)
 	}
 
 	// Create static groups for HA Nodes

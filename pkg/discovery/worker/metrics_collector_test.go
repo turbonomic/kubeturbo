@@ -3,6 +3,7 @@ package worker
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -174,23 +175,24 @@ var (
 	metricsSink = metrics.NewEntityMetricSink()
 	etype       = metrics.PodType
 	// Pod in ns1 on n1
-	metric_cpuUsed_pod_n1_ns1        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPU, metrics.Used, cpuUsed_pod_n1_ns1)
+	nowUtcSec                        = time.Now().Unix()
+	metric_cpuUsed_pod_n1_ns1        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPU, metrics.Used, []metrics.Point{{Value: cpuUsed_pod_n1_ns1, Timestamp: nowUtcSec}})
 	metric_cpuCap_pod_n1_ns1         = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
 	metric_cpuRequestUsed_pod_n1_ns1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod_n1_ns1)
 	metric_cpuRequestCap_pod_n1_ns1  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n1), metrics.CPURequest, metrics.Capacity, nodeCpuCap)
 	// Pod in ns1 on n2
-	metric_cpuUsed_pod_n2_ns1        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n2), metrics.CPU, metrics.Used, cpuUsed_pod_n2_ns1)
+	metric_cpuUsed_pod_n2_ns1        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n2), metrics.CPU, metrics.Used, []metrics.Point{{Value: cpuUsed_pod_n2_ns1, Timestamp: nowUtcSec}})
 	metric_cpuRequestUsed_pod_n2_ns1 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns1_n2), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod_n2_ns1)
 	// Pod in ns2 on n1
-	metric_cpuUsed_pod_n1_ns2        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPU, metrics.Used, cpuUsed_pod_n1_ns2)
+	metric_cpuUsed_pod_n1_ns2        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPU, metrics.Used, []metrics.Point{{Value: cpuUsed_pod_n1_ns2, Timestamp: nowUtcSec}})
 	metric_cpuCap_pod_n1_ns2         = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
 	metric_cpuRequestUsed_pod_n1_ns2 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod_n1_ns2)
 	metric_cpuRequestCap_pod_n1_ns2  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod_ns2_n1), metrics.CPURequest, metrics.Capacity, nodeCpuCap)
 
 	// Pod1 and Pod2 in ns3 on n1
-	metric_cpuUsed_pod1_n1_ns3        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPU, metrics.Used, cpuUsed_pod1_n1_ns3)
+	metric_cpuUsed_pod1_n1_ns3        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPU, metrics.Used, []metrics.Point{{Value: cpuUsed_pod1_n1_ns3, Timestamp: nowUtcSec}})
 	metric_cpuCap_pod1_n1_ns3         = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
-	metric_cpuUsed_pod2_n1_ns3        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod2_ns3_n1), metrics.CPU, metrics.Used, cpuUsed_pod2_n1_ns3)
+	metric_cpuUsed_pod2_n1_ns3        = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod2_ns3_n1), metrics.CPU, metrics.Used, []metrics.Point{{Value: cpuUsed_pod2_n1_ns3, Timestamp: nowUtcSec}})
 	metric_cpuCap_pod2_n1_ns3         = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod2_ns3_n1), metrics.CPU, metrics.Capacity, nodeCpuCap)
 	metric_cpuRequestUsed_pod1_n1_ns3 = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPURequest, metrics.Used, cpuRequestUsed_pod1_n1_ns3)
 	metric_cpuRequestCap_pod1_n1_ns3  = metrics.NewEntityResourceMetric(etype, util.PodKeyFunc(pod1_ns3_n1), metrics.CPURequest, metrics.Capacity, nodeCpuCap)
@@ -221,7 +223,7 @@ var (
 	}
 )
 
-func TestPodMetricsListAllocationUsage(t *testing.T) {
+func TestAccumulatingOverPodMetricsList(t *testing.T) {
 	metricsSink.AddNewMetricEntries(
 		metric_cpuUsed_pod_n1_ns1,
 		metric_cpuUsed_pod_n2_ns1,
@@ -234,15 +236,26 @@ func TestPodMetricsListAllocationUsage(t *testing.T) {
 	podMetricsList = append(podMetricsList, pm1)
 	podMetricsList = append(podMetricsList, pm2)
 
-	resourceMap := podMetricsList.SumQuotaUsage()
+	quotaUsedSumMap := podMetricsList.SumQuotaUsage()
 	cpuLimitQuotaUsed := cpuLimits_container1 + cpuLimits_container2
 	cpuRequestQuotaUsed := cpuRequests_container1 + cpuRequests_container2
 	memLimitQuotaUsed := 0.0
 	memRequestQuotaUsed := 0.0
-	assert.Equal(t, cpuLimitQuotaUsed, resourceMap[metrics.CPULimitQuota])
-	assert.Equal(t, memLimitQuotaUsed, resourceMap[metrics.MemoryLimitQuota])
-	assert.Equal(t, cpuRequestQuotaUsed, resourceMap[metrics.CPURequestQuota])
-	assert.Equal(t, memRequestQuotaUsed, resourceMap[metrics.MemoryRequestQuota])
+	assert.Equal(t, cpuLimitQuotaUsed, quotaUsedSumMap[metrics.CPULimitQuota])
+	assert.Equal(t, memLimitQuotaUsed, quotaUsedSumMap[metrics.MemoryLimitQuota])
+	assert.Equal(t, cpuRequestQuotaUsed, quotaUsedSumMap[metrics.CPURequestQuota])
+	assert.Equal(t, memRequestQuotaUsed, quotaUsedSumMap[metrics.MemoryRequestQuota])
+
+	// expected used
+	usedSumMapExpected := map[metrics.ResourceType][]metrics.Point{
+		metrics.CPU: {
+			{Value: cpuUsed_pod_n1_ns1 + cpuUsed_pod_n2_ns1, Timestamp: nowUtcSec},
+		},
+	}
+	usedSumMapActual := podMetricsList.SumUsage()
+	assert.True(t, metrics.MetricPointsMapAlmostEqual(usedSumMapActual, usedSumMapExpected),
+		"Test case failed: TestAccumulatingOverPodMetricsList:\nexpected:\n%++v\nactual:\n%++v",
+		usedSumMapExpected, usedSumMapActual)
 }
 
 func TestPodMetricsCollectionNullCluster(t *testing.T) {

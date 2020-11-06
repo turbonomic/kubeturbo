@@ -43,7 +43,7 @@ func (podList PodMetricsList) getPodNames() string {
 	return podNames
 }
 
-// Returns the sum of quota resources usage for all the pods in the collection
+// SumQuotaUsage returns the sum of quota resources usage for all the pods in the collection
 func (podMetricsList PodMetricsList) SumQuotaUsage() map[metrics.ResourceType]float64 {
 	quotaResourcesSum := make(map[metrics.ResourceType]float64)
 	// Sum quota resources usage from pods for each quota type
@@ -68,6 +68,15 @@ func (podMetricsList PodMetricsList) SumQuotaUsage() map[metrics.ResourceType]fl
 		glog.V(4).Infof("\t type=%s used=%f", rt, used)
 	}
 	return quotaResourcesSum
+}
+
+// SumUsage returns the sum of usage for all the pods in the collection
+func (podMetricsList PodMetricsList) SumUsage() map[metrics.ResourceType][]metrics.Point {
+	resourcesUsedSum := make(map[metrics.ResourceType][]metrics.Point)
+	for _, podMetrics := range podMetricsList {
+		metrics.AccumulateMultiPoints(resourcesUsedSum, podMetrics.Used)
+	}
+	return resourcesUsedSum
 }
 
 func (podCollectionMap PodMetricsByNodeAndNamespace) addPodMetric(podName, nodeName, namespace string,
@@ -165,6 +174,17 @@ func createPodMetrics(pod *v1.Pod, namespace string, metricsSink *metrics.Entity
 		case metrics.MemoryRequestQuota:
 			podMetrics.QuotaUsed[resourceType] = totalMemRequests
 		}
+	}
+	for _, resourceType := range metrics.PointsResources {
+		podKey := util.PodKeyFunc(pod)
+		metricId := metrics.GenerateEntityResourceMetricUID(metrics.PodType, podKey, resourceType, metrics.Used)
+		metric, err := metricsSink.GetMetric(metricId)
+		if err != nil {
+			glog.Errorf("Error getting %s used value from metrics sink for pod %s: %v", resourceType, podKey, err)
+			continue
+		}
+		resourceUsed := metric.GetValue().([]metrics.Point)
+		podMetrics.Used[resourceType] = resourceUsed
 	}
 	return podMetrics
 }
@@ -268,8 +288,9 @@ func (collector *MetricsCollector) CollectNamespaceMetrics(podCollection PodMetr
 				"Namespace: %s on Node: %s with Pods: %s",
 				namespace, node.Name, podMetricsList.getPodNames())
 
-			// sum the quota usages for all the pods in this namespace and node
+			// sum the usages for all the pods in this namespace and node
 			podQuotaUsed := podMetricsList.SumQuotaUsage()
+			podUsed := podMetricsList.SumUsage()
 
 			// conversion for cpu resource usages from cores to MHz for this list of pods
 			// the sum of cpu usages for all the pods on this node is in cores,
@@ -280,10 +301,18 @@ func (collector *MetricsCollector) CollectNamespaceMetrics(podCollection PodMetr
 					podQuotaUsed[rt] = newVal
 				}
 			}
+			for rt, points := range podUsed {
+				if metrics.IsCPUType(rt) && kubeNode.NodeCpuFrequency > 0.0 {
+					for idx, point := range points {
+						points[idx].Value = point.Value * kubeNode.NodeCpuFrequency
+					}
+				}
+			}
 
 			// usages for the quota sold from this node
 			// is added to the usages from other nodes
-			namespaceMetrics.UpdateQuotaSoldUsed(podQuotaUsed)
+			namespaceMetrics.AggregateQuotaUsed(podQuotaUsed)
+			namespaceMetrics.AggregateUsed(podUsed)
 		}
 		namespaceMetricsList = append(namespaceMetricsList, namespaceMetrics)
 	}

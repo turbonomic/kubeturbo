@@ -82,7 +82,7 @@ func (kc *KubeCluster) logClusterNodes() {
 
 // Sum the compute resource capacities from all the nodes to create the cluster resource capacities
 func (kc *KubeCluster) computeClusterResources() {
-	// sum the capacities of the node resources
+	// sum the capacities/used of the node resources
 	computeResources := make(map[metrics.ResourceType]float64)
 	for _, node := range kc.Nodes {
 		nodeActive := util.NodeIsReady(node.Node) && util.NodeIsSchedulable(node.Node)
@@ -141,6 +141,7 @@ type ClusterSummary struct {
 	NamespaceUIDMap          map[string]string
 	PodClusterIDToServiceMap map[string]*v1.Service
 	NodeNameToPodMap         map[string][]*v1.Pod
+	AverageNodeCpuFrequency  float64
 }
 
 func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
@@ -373,6 +374,9 @@ func CreateDefaultKubeNamespace(clusterName, namespace, uuid string) *KubeNamesp
 	// create quota allocation resources
 	for _, rt := range metrics.QuotaResources {
 		kubeNamespace.AddAllocationResource(rt, DEFAULT_METRIC_CAPACITY_VALUE, DEFAULT_METRIC_VALUE)
+	}
+	for _, rt := range metrics.ComputeResources {
+		kubeNamespace.AddComputeResource(rt, DEFAULT_METRIC_CAPACITY_VALUE, DEFAULT_METRIC_VALUE)
 	}
 	return kubeNamespace
 }
