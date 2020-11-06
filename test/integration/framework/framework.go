@@ -128,10 +128,7 @@ func DeleteNamespace(client kubeclientset.Interface, namespaceName string) {
 		}
 	}
 
-	// As of now we don't wait for the test ns deletion
-	// This helps in letting the tests finish faster.
-	// We will fill this section up when we add more tests
-	// and the cluster needs to be retained/reused for more tests.
+	waitForNamespaceDeletion(client, namespaceName)
 }
 
 func CreateTestNamespace(client kubeclientset.Interface, baseName string) string {
@@ -162,4 +159,20 @@ func CreateNamespace(client kubeclientset.Interface, generateName string) (strin
 		return "", err
 	}
 	return namespaceName, nil
+}
+
+func waitForNamespaceDeletion(client kubeclientset.Interface, namespace string) error {
+	err := wait.PollImmediate(PollInterval, TestContext.SingleCallTimeout, func() (bool, error) {
+		if _, err := client.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{}); err != nil {
+			if apierrors.IsNotFound(err) {
+				return true, nil
+			}
+			Errorf("Error while waiting for namespace to be removed: %v", err)
+		}
+		return false, nil
+	})
+	if err != nil {
+		return errors.Errorf("Namespace %q was not deleted after %v", namespace, TestContext.SingleCallTimeout)
+	}
+	return nil
 }
