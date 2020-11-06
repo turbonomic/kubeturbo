@@ -133,6 +133,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 			entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERSTATE_UNKNOWN)
 		}
 
+		// Get CPU capacity in cores.
 		cpuMetricValue, err := builder.metricValue(metrics.NodeType, nodeKey, metrics.CPU, metrics.Capacity, nil)
 		if err != nil {
 			glog.Errorf("Failed to get number of CPU in cores for VM %s: %v", nodeKey, err)
