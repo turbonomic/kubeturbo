@@ -253,7 +253,7 @@ func (dc *K8sDiscoveryClient) Discover(
 	}
 
 	currentTime := time.Now()
-	newDiscoveryResultDTOs, groupDTOs, err := dc.discoverWithNewFramework(targetID)
+	newDiscoveryResultDTOs, groupDTOs, err := dc.DiscoverWithNewFramework(targetID)
 	if err != nil {
 		glog.Errorf("Failed to discover kubernetes cluster: %v", err)
 		return
@@ -273,7 +273,7 @@ func (dc *K8sDiscoveryClient) Discover(
 /*
 	The actual discovery work is done here.
 */
-func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*proto.EntityDTO, []*proto.GroupDTO, error) {
+func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*proto.EntityDTO, []*proto.GroupDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES, QUOTAS, SERVICES HERE
 	kubeCluster, err := dc.clusterProcessor.DiscoverCluster()
 	if err != nil {
@@ -408,6 +408,15 @@ func (dc *K8sDiscoveryClient) discoverWithNewFramework(targetID string) ([]*prot
 	}
 
 	groupDTOs = append(groupDTOs, nodeAntiAffinityGroupDTOs...)
+
+	// Create the cluster DTO
+	clusterEntityDTO, err := dtofactory.NewClusterDTOBuilder(clusterSummary, targetID).BuildEntity(result.EntityDTOs)
+	if err != nil {
+		glog.Errorf("Failed to create the cluster DTO: %s", err)
+	} else {
+		glog.V(2).Infof("The cluster DTO has been created successfully: %+v", clusterEntityDTO)
+		result.EntityDTOs = append(result.EntityDTOs, clusterEntityDTO)
+	}
 
 	return result.EntityDTOs, groupDTOs, nil
 }

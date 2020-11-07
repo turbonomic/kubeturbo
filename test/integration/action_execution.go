@@ -52,7 +52,7 @@ var _ = Describe("Action Executor", func() {
 
 	Describe("executing action move pod", func() {
 		It("should result in new pod on target node", func() {
-			dep, err := creatActionResources(kubeClient, namespace)
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, 1))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
@@ -86,12 +86,21 @@ var _ = Describe("Action Executor", func() {
 	})
 })
 
+func createDeployResource(client *kubeclientset.Clientset, dep *appsv1.Deployment) (*appsv1.Deployment, error) {
+	newDep, err := createDeployment(client, dep)
+	if err != nil {
+		return nil, err
+	}
+	return waitForDeployment(client, newDep.Name, newDep.Namespace)
+}
+
 // This can also be bootstrapped from a test resource directory
 // which holds yaml files.
-func creatActionResources(client *kubeclientset.Clientset, namespace string) (*appsv1.Deployment, error) {
-	dep := &appsv1.Deployment{
+func depSingleContainerWithResources(namespace string, replicas int32) *appsv1.Deployment {
+	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "test-",
+			Namespace:    namespace,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
@@ -99,6 +108,7 @@ func creatActionResources(client *kubeclientset.Clientset, namespace string) (*a
 					"app": "test-app",
 				},
 			},
+			Replicas: &replicas,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -128,19 +138,13 @@ func creatActionResources(client *kubeclientset.Clientset, namespace string) (*a
 			},
 		},
 	}
-
-	dep, err := createDeployment(client, dep, namespace)
-	if err != nil {
-		return nil, err
-	}
-	return waitForDeployment(client, dep.Name, namespace)
 }
 
-func createDeployment(client kubeclientset.Interface, dep *appsv1.Deployment, namespace string) (*appsv1.Deployment, error) {
+func createDeployment(client kubeclientset.Interface, dep *appsv1.Deployment) (*appsv1.Deployment, error) {
 	var newDep *appsv1.Deployment
 	var err error
 	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
-		newDep, err = client.AppsV1().Deployments(namespace).Create(dep)
+		newDep, err = client.AppsV1().Deployments(dep.Namespace).Create(dep)
 		if err != nil {
 			glog.Errorf("Unexpected error while creating deployment: %v", err)
 			return false, nil

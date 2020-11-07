@@ -10,7 +10,9 @@ import (
 	k8sres "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"math"
 	"testing"
+	"time"
 )
 
 const CPUFrequency float64 = 2663.778000
@@ -22,24 +24,26 @@ type TestNode struct {
 	cluster string
 }
 
+const clusterName string = "cluster1"
+
 var TestNodes = []TestNode{
 	{
 		"node1",
 		4.0,
 		819200,
-		"cluster1",
+		clusterName,
 	},
 	{
 		"node2",
 		5.0,
 		614400,
-		"cluster1",
+		clusterName,
 	},
 	{
 		"node3",
 		6.0,
 		409600,
-		"cluster1",
+		clusterName,
 	},
 }
 
@@ -74,13 +78,15 @@ func makeKubeNodes() []*repository.KubeNode {
 type TestNamespace struct {
 	name            string
 	cpuLimitQuota   string
-	cpuUsed         string
+	cpuLimitUsed    string
 	memLimitQuota   string
-	memUsed         string
+	memLimitUsed    string
 	cpuRequestQuota string
 	cpuRequestUsed  string
 	memRequestQuota string
 	memRequestUsed  string
+	cpuActualUsed   []float64
+	memActualUsed   []float64
 }
 
 var TestNamespaces = []TestNamespace{
@@ -94,39 +100,47 @@ var TestNamespaces = []TestNamespace{
 		"2",
 		"6Gi",
 		"2Gi",
+		[]float64{2.8, 2.1, 2.2, 1.5},
+		[]float64{4, 4.8, 4.2, 4.1},
 	},
 	{
 		"namespace2",
 		"0.5",
 		"0.3",
 		"7Mi",
-		"5Gi",
+		"7Mi",
 		"0.4",
 		"0.22",
 		"6Mi",
 		"2Gi",
+		[]float64{0.22},
+		[]float64{5},
 	},
 	{
 		"namespace3",
 		"6000m",
-		"300m",
+		"3000m",
 		"6Ki",
-		"5Ki",
+		"5.4Ki",
 		"4000m",
 		"250m",
 		"6Ki",
 		"2Ki",
+		[]float64{300, 350},
+		[]float64{5, 5.4},
 	},
 	{
 		"namespace4",
 		"0",
 		"0",
 		"6Ki",
-		"5Ki",
+		"5.5Ki",
 		"0",
 		"0",
 		"6Ki",
 		"1Ki",
+		[]float64{0},
+		[]float64{5},
 	},
 }
 
@@ -135,18 +149,18 @@ func makeKubeNamespaces() []*repository.KubeNamespace {
 	cluster := "cluster1"
 
 	var kubeQuotas []*repository.KubeNamespace
-	resourceMap := make(map[metrics.ResourceType]float64)
+	clusterCapacityByResource := make(map[metrics.ResourceType]float64)
 	for _, node := range TestNodes {
-		resourceMap[metrics.CPU] = resourceMap[metrics.CPU] + node.cpuCap
-		resourceMap[metrics.Memory] = resourceMap[metrics.Memory] + node.memCap
-		resourceMap[metrics.CPURequest] = resourceMap[metrics.CPURequest] + node.cpuCap
-		resourceMap[metrics.MemoryRequest] = resourceMap[metrics.MemoryRequest] + node.memCap
+		clusterCapacityByResource[metrics.CPU] = clusterCapacityByResource[metrics.CPU] + node.cpuCap
+		clusterCapacityByResource[metrics.Memory] = clusterCapacityByResource[metrics.Memory] + node.memCap
+		clusterCapacityByResource[metrics.CPURequest] = clusterCapacityByResource[metrics.CPURequest] + node.cpuCap
+		clusterCapacityByResource[metrics.MemoryRequest] = clusterCapacityByResource[metrics.MemoryRequest] + node.memCap
 	}
 	clusterResources := make(map[metrics.ResourceType]*repository.KubeDiscoveredResource)
-	for rt, resource := range resourceMap {
+	for rt, cap := range clusterCapacityByResource {
 		r := &repository.KubeDiscoveredResource{
 			Type:     rt,
-			Capacity: resource,
+			Capacity: cap,
 		}
 		clusterResources[rt] = r
 	}
@@ -158,13 +172,13 @@ func makeKubeNamespaces() []*repository.KubeNamespace {
 		usedResourceList := v1.ResourceList{}
 		if testQuota.cpuLimitQuota != "0" {
 			hardResourceList[v1.ResourceLimitsCPU] = k8sres.MustParse(testQuota.cpuLimitQuota)
-			usedResourceList[v1.ResourceLimitsCPU] = k8sres.MustParse(testQuota.cpuUsed)
+			usedResourceList[v1.ResourceLimitsCPU] = k8sres.MustParse(testQuota.cpuLimitUsed)
 			hardResourceList[v1.ResourceRequestsCPU] = k8sres.MustParse(testQuota.cpuRequestQuota)
 			usedResourceList[v1.ResourceRequestsCPU] = k8sres.MustParse(testQuota.cpuRequestUsed)
 		}
 		if testQuota.memLimitQuota != "0" {
 			hardResourceList[v1.ResourceLimitsMemory] = k8sres.MustParse(testQuota.memLimitQuota)
-			usedResourceList[v1.ResourceLimitsMemory] = k8sres.MustParse(testQuota.memUsed)
+			usedResourceList[v1.ResourceLimitsMemory] = k8sres.MustParse(testQuota.memLimitUsed)
 			hardResourceList[v1.ResourceRequestsMemory] = k8sres.MustParse(testQuota.memRequestQuota)
 			usedResourceList[v1.ResourceRequestsMemory] = k8sres.MustParse(testQuota.memRequestUsed)
 		}
@@ -201,6 +215,22 @@ func makeKubeNamespaces() []*repository.KubeNamespace {
 			allocationResourceMap[metrics.MemoryLimitQuota] = node.memCap * 0.033
 			allocationResourceMap[metrics.MemoryRequestQuota] = node.memCap * 0.033
 		}
+
+		nowUtcSec := time.Now().Unix()
+		cpuUsedPoints := make([]metrics.Point, len(testQuota.cpuActualUsed))
+		for i, cpuUsed := range testQuota.cpuActualUsed {
+			point := metrics.Point{Value: cpuUsed, Timestamp: nowUtcSec}
+			cpuUsedPoints[i] = point
+		}
+		kubeNamespace.ComputeResources[metrics.CPU].Points = cpuUsedPoints
+
+		memUsedPoints := make([]metrics.Point, len(testQuota.memActualUsed))
+		for i, memUsed := range testQuota.memActualUsed {
+			point := metrics.Point{Value: memUsed, Timestamp: nowUtcSec}
+			memUsedPoints[i] = point
+		}
+		kubeNamespace.ComputeResources[metrics.Memory].Points = memUsedPoints
+
 		kubeNamespace.AverageNodeCpuFrequency = CPUFrequency
 		kubeQuotas = append(kubeQuotas, kubeNamespace)
 	}
@@ -240,6 +270,10 @@ func TestBuildNamespaceDto(t *testing.T) {
 			commMap[commSold.GetCommodityType()] = commSold
 		}
 
+		// source of the commodities
+		kubeNamespace, exists := namespaceMap[dto.GetId()]
+		assert.True(t, exists)
+
 		for _, allocationResource := range metrics.QuotaResources {
 			commType, ok := rTypeMapping[allocationResource]
 			if !ok {
@@ -248,8 +282,6 @@ func TestBuildNamespaceDto(t *testing.T) {
 			comm, exists := commMap[commType]
 			assert.True(t, exists, fmt.Sprintf("%s does not exist", commType))
 			assert.EqualValues(t, dto.GetId(), comm.GetKey())
-			kubeNamespace, exists := namespaceMap[dto.GetId()]
-			assert.True(t, exists)
 
 			resource, exists := kubeNamespace.AllocationResources[allocationResource]
 			assert.True(t, exists, fmt.Sprintf("%v does not exist", resource))
@@ -268,15 +300,8 @@ func TestBuildNamespaceDto(t *testing.T) {
 		}
 
 		commBoughtList := dto.GetCommoditiesBought()
-		providerMap := make(map[string]TestNode)
-		for _, node := range TestNodes {
-			providerMap[node.name] = node
-		}
 		for _, commBoughtPerProvider := range commBoughtList {
 			boughtList := commBoughtPerProvider.GetBought()
-			provider := *commBoughtPerProvider.ProviderId
-			_, exists := providerMap[provider]
-			assert.True(t, exists, fmt.Sprintf("%s provider does not exist", provider))
 			commMap = make(map[proto.CommodityDTO_CommodityType]*proto.CommodityDTO)
 			for _, commBought := range boughtList {
 				commMap[commBought.GetCommodityType()] = commBought
@@ -290,6 +315,30 @@ func TestBuildNamespaceDto(t *testing.T) {
 				comm, exists := commMap[commType]
 				assert.True(t, exists)
 				assert.EqualValues(t, *commBoughtPerProvider.ProviderId, comm.GetKey())
+			}
+
+			for _, computeResource := range metrics.ComputeResources {
+				commType, ok := rTypeMapping[computeResource]
+				if !ok {
+					continue
+				}
+				comm, exists := commMap[commType]
+				assert.True(t, exists)
+
+				// check and compare with expected values
+				expectedResource, exists := kubeNamespace.ComputeResources[computeResource]
+				assert.EqualValues(t, *commBoughtPerProvider.ProviderId, comm.GetKey())
+				if len(expectedResource.Points) > 0 {
+					sum := 0.0
+					peak := 0.0
+					for _, point := range expectedResource.Points {
+						sum += point.Value
+						peak = math.Max(peak, point.Value)
+					}
+					avg := sum / float64(len(expectedResource.Points))
+					assert.EqualValues(t, avg, comm.GetUsed())
+					assert.EqualValues(t, peak, comm.GetPeak())
+				}
 			}
 		}
 	}

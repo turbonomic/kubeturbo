@@ -117,6 +117,13 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	}
 	glog.V(4).Infof("Supply chain node: %+v", nodeSupplyChainNode)
 
+	// Cluster supply chain template
+	clusterSupplyChainNode, err := f.buildClusterSupplyBuilder()
+	if err != nil {
+		return nil, err
+	}
+	glog.V(4).Infof("Supply chain node: %+v", clusterSupplyChainNode)
+
 	// Resource Quota supply chain template
 	namespaceSupplyChainNode, err := f.buildNamespaceSupplyBuilder()
 	if err != nil {
@@ -185,6 +192,7 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 	supplyChainBuilder.Entity(podSupplyChainNode)
 	supplyChainBuilder.Entity(workloadControllerSupplyChainNode)
 	supplyChainBuilder.Entity(namespaceSupplyChainNode)
+	supplyChainBuilder.Entity(clusterSupplyChainNode)
 	supplyChainBuilder.Entity(nodeSupplyChainNode)
 	supplyChainBuilder.Entity(volumeSupplyChainNode)
 
@@ -263,8 +271,28 @@ func (f *SupplyChainFactory) buildNamespaceSupplyBuilder() (*proto.TemplateDTO, 
 		Sells(vCpuLimitQuotaTemplateCommWithKey).
 		Sells(vMemLimitQuotaTemplateCommWithKey).
 		Sells(vCpuRequestQuotaTemplateCommWithKey).
-		Sells(vMemRequestQuotaTemplateCommWithKey)
+		Sells(vMemRequestQuotaTemplateCommWithKey).
+		Provider(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, proto.Provider_HOSTING).
+		Buys(vCpuTemplateComm).
+		Buys(vMemTemplateComm).
+		Buys(vCpuRequestQuotaTemplateCommWithKey).
+		Buys(vMemRequestQuotaTemplateCommWithKey).
+		Buys(vCpuLimitQuotaTemplateCommWithKey).
+		Buys(vMemLimitQuotaTemplateCommWithKey)
 	return namespaceSupplyChainNodeBuilder.Create()
+}
+
+func (f *SupplyChainFactory) buildClusterSupplyBuilder() (*proto.TemplateDTO, error) {
+	clusterSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER)
+	clusterSupplyChainNodeBuilder = clusterSupplyChainNodeBuilder.
+		Sells(vCpuTemplateComm).
+		Sells(vMemTemplateComm).
+		Sells(vCpuRequestTemplateComm).
+		Sells(vMemRequestTemplateComm).
+		Sells(numPodNumConsumersTemplateComm).
+		Sells(vStorageTemplateComm)
+
+	return clusterSupplyChainNodeBuilder.Create()
 }
 
 func (f *SupplyChainFactory) buildWorkloadControllerSupplyBuilder() (*proto.TemplateDTO, error) {
