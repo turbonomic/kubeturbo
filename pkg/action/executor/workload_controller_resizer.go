@@ -19,6 +19,8 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
+const openShiftDeployerLabel = "openshift.io/deployer-pod-for.name"
+
 type WorkloadControllerResizer struct {
 	TurboK8sActionExecutor
 	kubeletClient *kubeclient.KubeletClient
@@ -106,6 +108,11 @@ func (r *WorkloadControllerResizer) getWorkloadControllerPod(actionItem *proto.A
 		kind = util.KindReplicationController
 	case *proto.EntityDTO_WorkloadControllerData_StatefulSetData:
 		kind = util.KindStatefulSet
+	case *proto.EntityDTO_WorkloadControllerData_CustomControllerData:
+		kind = workloadCntrldata.GetCustomControllerData().GetCustomControllerType()
+		if kind != util.KindDeploymentConfig {
+			return "", "", nil, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData, custom controller type is: %s", cntrlType, kind)
+		}
 	default:
 		return "", "", nil, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData", cntrlType)
 	}
@@ -166,7 +173,10 @@ func (r *WorkloadControllerResizer) getChildPod(parentKind, namespace, name stri
 				// We still try rest of the pods
 				continue
 			}
-			if match {
+
+			// isOpenShiftDeployerPod is needed to exclude pods which openshift uses to manage
+			// deployment configs. We should not select the deployer pods.
+			if match && !r.isOpenShiftDeployerPod(pod.Labels) {
 				return &pod, nil
 			}
 		}
@@ -174,6 +184,15 @@ func (r *WorkloadControllerResizer) getChildPod(parentKind, namespace, name stri
 
 	return nil, noPodFoundError
 
+}
+
+func (r *WorkloadControllerResizer) isOpenShiftDeployerPod(labels map[string]string) bool {
+	for k := range labels {
+		if k == openShiftDeployerLabel {
+			return true
+		}
+	}
+	return false
 }
 
 // matchOwnerReference is needed to ensure that we select a pod which
