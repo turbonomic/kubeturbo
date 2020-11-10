@@ -32,7 +32,7 @@ func (h *helper) gotCalled() bool {
 
 func Test_handleExit(t *testing.T) {
 	helper := helper{false}
-	mockDisconnectFunc := disconnectFromTurboFunc(func() {
+	mockDisconnectFunc := cleanUp(func() {
 		fmt.Printf("Mock disconnecting process is running...")
 		helper.call()
 	})
