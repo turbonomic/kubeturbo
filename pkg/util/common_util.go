@@ -2,14 +2,30 @@ package util
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	authv1 "k8s.io/api/authorization/v1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/util/jsonpath"
 
 	"github.com/golang/glog"
+)
+
+const (
+	kubeturboNSEnvVar = "KUBETURBO_NAMESPACE"
+	defaultNamespace  = "default"
+	// We want these names to be unique and at the same time, we should
+	// be able to identify these across restarts. We can also think of
+	// making these user configurable, if need be.
+	kubeturboSCCPrefix = "kubeturbo-scc-"
+	SCCRoleName        = kubeturboSCCPrefix + "pod-restart-role"
+	SCCRoleBindingName = kubeturboSCCPrefix + "pod-restart-rolebinding"
 )
 
 type ErrorSkipRetry struct {
@@ -209,4 +225,157 @@ func SetNestedField(obj interface{}, value interface{}, fields ...string) error 
 // JSONPath construct JSON-Path from given slice of fields.
 func JSONPath(fields []string) string {
 	return "." + strings.Join(fields, ".")
+}
+
+func GetKubeturboNamespace() string {
+	namespace := os.Getenv(kubeturboNSEnvVar)
+	if namespace == "" {
+		namespace = defaultNamespace
+	}
+	return namespace
+}
+
+func GetRoleForSCC() *rbacv1.Role {
+	return &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: SCCRoleName,
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs: []string{
+					rbacv1.VerbAll,
+				},
+				APIGroups: []string{
+					"",
+				},
+				Resources: []string{
+					PodResName,
+				},
+			},
+		},
+	}
+}
+
+func GetRoleBindingForSCC(saNames []string, saNamespace, roleName string) *rbacv1.RoleBinding {
+	subjects := []rbacv1.Subject{}
+	for _, saName := range saNames {
+		subjects = append(subjects, rbacv1.Subject{
+			Kind:      rbacv1.ServiceAccountKind,
+			Name:      saName,
+			Namespace: saNamespace,
+		})
+	}
+
+	return &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: SCCRoleBindingName,
+		},
+		Subjects: subjects,
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: AuthorizationGroupName,
+			Kind:     KindRole,
+			Name:     roleName,
+		},
+	}
+}
+
+func GetServiceAccountForSCC(sccName string) *corev1.ServiceAccount {
+	return &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("%s%s", kubeturboSCCPrefix, sccName),
+		},
+	}
+}
+
+func GetSelfSubjectAccessReviews(namespace string) []authv1.SelfSubjectAccessReview {
+	reviews := []authv1.SelfSubjectAccessReview{}
+
+	// We need following permissions:
+	// 1. edit sccs, to add the service account under the user section
+	// 2. create service accounts, to create actual users to impersonate
+	// 3. create role, to create a role allowing the above service account to be able to create pods
+	// 4. create rolebinding, to attach the above role to the service accounts
+	// 5. update rolebinding, with updated sa names in case the the above resources were leaked by
+	// the last run of kubeturbo (for some possible unknown reason).
+	// 6. impersonate, to be able to impersonate a service account
+
+	// 1.
+	r1 := authv1.ResourceAttributes{
+		Group:     OpenShiftSecurityGroupName,
+		Resource:  OpenShiftSCCResName,
+		Verb:      VerbUpdate,
+		Namespace: "",
+	}
+	reviews = append(reviews, authv1.SelfSubjectAccessReview{
+		Spec: authv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &r1,
+		},
+	})
+
+	// 2.
+	r2 := authv1.ResourceAttributes{
+		Group:     "",
+		Resource:  ServiceAccountResName,
+		Verb:      VerbCreate,
+		Namespace: namespace,
+	}
+	reviews = append(reviews, authv1.SelfSubjectAccessReview{
+		Spec: authv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &r2,
+		},
+	})
+
+	// 3.
+	r3 := authv1.ResourceAttributes{
+		Group:     AuthorizationGroupName,
+		Resource:  RoleResName,
+		Verb:      VerbCreate,
+		Namespace: namespace,
+	}
+	reviews = append(reviews, authv1.SelfSubjectAccessReview{
+		Spec: authv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &r3,
+		},
+	})
+
+	// 4.
+	r4 := authv1.ResourceAttributes{
+		Group:     AuthorizationGroupName,
+		Resource:  RoleBindingResName,
+		Verb:      VerbCreate,
+		Namespace: namespace,
+	}
+	reviews = append(reviews, authv1.SelfSubjectAccessReview{
+		Spec: authv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &r4,
+		},
+	})
+
+	// 5.
+	r5 := authv1.ResourceAttributes{
+		Group:     AuthorizationGroupName,
+		Resource:  RoleBindingResName,
+		Verb:      VerbUpdate,
+		Namespace: namespace,
+	}
+	reviews = append(reviews, authv1.SelfSubjectAccessReview{
+		Spec: authv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &r5,
+		},
+	})
+
+	// 6.
+	r6 := authv1.ResourceAttributes{
+		Group:     AuthorizationGroupName,
+		Resource:  ServiceAccountResName,
+		Verb:      VerbImpersonate,
+		Namespace: "",
+	}
+	reviews = append(reviews, authv1.SelfSubjectAccessReview{
+		Spec: authv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &r6,
+		},
+	})
+
+	return reviews
 }

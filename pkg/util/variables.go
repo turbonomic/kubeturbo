@@ -1,6 +1,10 @@
 package util
 
-import "k8s.io/apimachinery/pkg/runtime/schema"
+import (
+	"time"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
 
 const (
 	// Kubernetes workload controller types
@@ -12,12 +16,12 @@ const (
 	KindDeploymentConfig      = "DeploymentConfig"
 	KindReplicationController = "ReplicationController"
 	KindStatefulSet           = "StatefulSet"
+	KindRole                  = "Role"
 
 	K8sExtensionsGroupName     = "extensions"
 	K8sAppsGroupName           = "apps"
 	K8sApplicationGroupName    = "app.k8s.io"
 	ArgoCDApplicationGroupName = "argoproj.io"
-	OpenShiftAppsGroupName     = "apps.openshift.io"
 	K8sBatchGroupName          = "batch"
 
 	ReplicationControllerResName = "replicationcontrollers"
@@ -29,6 +33,24 @@ const (
 	StatefulSetResName           = "statefulsets"
 	DaemonSetResName             = "daemonsets"
 	ApplicationResName           = "applications"
+
+	OpenShiftAppsGroupName     = "apps.openshift.io"
+	OpenShiftSecurityGroupName = "security.openshift.io"
+	AuthorizationGroupName     = "rbac.authorization.k8s.io"
+	OpenShiftSCCResName        = "securitycontextconstraints"
+
+	RoleResName           = "roles"
+	RoleBindingResName    = "rolebindings"
+	ServiceAccountResName = "serviceaccounts"
+	PodResName            = "pods"
+
+	VerbCreate      = "create"
+	VerbUpdate      = "update"
+	VerbImpersonate = "impersonate"
+	VerbDelete      = "delete"
+
+	TransientRetryTimes = 5
+	QuickRetryInterval  = time.Second * 2
 )
 
 var (
@@ -55,4 +77,10 @@ var (
 	K8sAPIJobGV = schema.GroupVersion{Group: K8sBatchGroupName, Version: "v1"}
 	// The API group under which CronJob are exposed by the k8s cluster
 	K8sAPICronJobGV = schema.GroupVersion{Group: K8sBatchGroupName, Version: "v1beta1"}
+	// The API group under which openshifts scc resource is exposed by the server
+	OpenShiftAPISCCGV = schema.GroupVersion{Group: OpenShiftSecurityGroupName, Version: "v1"}
+
+	// This map stores the kubeturbo created service account name for each given scc
+	// The service account name will be in the format "system:serviceaccount:<ns>:<name>"
+	SCCMapping map[string]string = make(map[string]string)
 )

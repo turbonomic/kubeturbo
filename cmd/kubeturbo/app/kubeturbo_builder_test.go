@@ -37,7 +37,8 @@ func Test_handleExit(t *testing.T) {
 		helper.call()
 	})
 
-	handleExit(mockDisconnectFunc)
+	wg := &sync.WaitGroup{}
+	handleExit(wg, mockDisconnectFunc)
 
 	// Sending out the SIGTERM signal to trigger the disconnecting process
 	syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
