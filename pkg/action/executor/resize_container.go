@@ -68,41 +68,15 @@ func NewContainerResizer(ae TurboK8sActionExecutor, kubeletClient *kubeclient.Ku
 	}
 }
 
-// get node cpu frequency, in MHz;
-func (r *ContainerResizer) getNodeCPUFrequency(host string) (float64, error) {
-	// always access kubelet via node IP
-	node, err := util.GetNodebyName(r.clusterScraper.Clientset, host)
-	if err != nil {
-		return 1, fmt.Errorf("failed to get node by name: %v", err)
-	}
-
-	return r.kubeletClient.GetNodeCpuFrequency(node)
-}
-
-func (r *ContainerResizer) setCPUQuantity(cpuMhz float64, host string, rlist k8sapi.ResourceList) error {
-	nodeCpuFrequency, err := r.getNodeCPUFrequency(host)
-	if err != nil {
-		return fmt.Errorf("failed to get node[%s] cpu frequency: %v", host, err)
-	}
-
-	cpuQuantity, err := genCPUQuantity(cpuMhz, nodeCpuFrequency)
-	if err != nil {
-		return fmt.Errorf("failed to generate CPU quantity: %v", err)
-	}
-
-	rlist[k8sapi.ResourceCPU] = cpuQuantity
-	return nil
-}
-
-func (r *ContainerResizer) buildResourceList(pod *k8sapi.Pod, cType proto.CommodityDTO_CommodityType,
+func (r *ContainerResizer) buildResourceList(cType proto.CommodityDTO_CommodityType,
 	amount float64, result k8sapi.ResourceList) error {
 	switch cType {
 	case proto.CommodityDTO_VCPU, proto.CommodityDTO_VCPU_REQUEST:
-		host := pod.Spec.NodeName
-		err := r.setCPUQuantity(amount, host, result)
+		cpu, err := genCPUQuantity(amount)
 		if err != nil {
 			return fmt.Errorf("failed to build cpu.Capacity: %v", err)
 		}
+		result[k8sapi.ResourceCPU] = cpu
 	case proto.CommodityDTO_VMEM, proto.CommodityDTO_VMEM_REQUEST:
 		memory, err := genMemoryQuantity(amount)
 		if err != nil {
@@ -152,7 +126,7 @@ func (r *ContainerResizer) buildResourceLists(pod *k8sapi.Pod, actionItem *proto
 			return fmt.Errorf("failed to build resource list when resize %s capacity to %v: %s commodity type is not supported",
 				cType, amount, cType)
 		}
-		if err := r.buildResourceList(pod, cType, amount, resourceList); err != nil {
+		if err := r.buildResourceList(cType, amount, resourceList); err != nil {
 			return fmt.Errorf("failed to build resource list when resize %s capacity to %v: %v",
 				cType, amount, err)
 		}

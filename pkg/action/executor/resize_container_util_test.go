@@ -10,12 +10,11 @@ import (
 )
 
 func TestGenCPUQuantity(t *testing.T) {
-	nodeCPUfreq := float64(2600) //MHz
-	reqArray := []int{2600, 1300, 0, 5200}
-	expectArray := []int{1000, 500, 1, 2000}
+	reqArray := []int{2600, 1300}
+	expectArray := []int{2600, 1300}
 
 	for i, req := range reqArray {
-		q, err := genCPUQuantity(float64(req), nodeCPUfreq)
+		q, err := genCPUQuantity(float64(req))
 		if err != nil {
 			t.Error(err)
 		}
