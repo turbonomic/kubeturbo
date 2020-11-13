@@ -70,7 +70,7 @@ func TestSetZeroRequestCPU(t *testing.T) {
 
 	rtype := k8sapi.ResourceCPU
 	spec := NewContainerResizeSpec(idx)
-	amount, err := genCPUQuantity(1200.0, 2400.0)
+	amount, err := genCPUQuantity(1200.0)
 	if err != nil {
 		t.Errorf("Failed to generate memory Quantity: %v", err)
 		return
@@ -132,7 +132,7 @@ func TestSetZeroRequestCPU2(t *testing.T) {
 
 	//1. specify memory request
 	req := pod.Spec.Containers[idx].Resources.Requests
-	amount1, err := genCPUQuantity(100.0, 2200.0)
+	amount1, err := genCPUQuantity(100.0)
 	if err != nil {
 		t.Errorf("Failed to generate CPU quantity: %v", err)
 		return
@@ -141,7 +141,7 @@ func TestSetZeroRequestCPU2(t *testing.T) {
 
 	//2. set the new Memory capacity
 	spec := NewContainerResizeSpec(idx)
-	amount, err := genCPUQuantity(1200.0, 2200.0)
+	amount, err := genCPUQuantity(1200.0)
 	if err != nil {
 		t.Errorf("Failed to generate memory Quantity: %v", err)
 		return
@@ -169,7 +169,7 @@ func TestSetZeroRequestCPUMemory(t *testing.T) {
 
 	//1. specify memory request
 	req := pod.Spec.Containers[idx].Resources.Requests
-	amount1, err := genCPUQuantity(100.0, 2200.0)
+	amount1, err := genCPUQuantity(100.0)
 	if err != nil {
 		t.Errorf("Failed to generate memory Quantity: %v", err)
 		return
@@ -220,7 +220,7 @@ func TestSetZeroRequestCPUMemory2(t *testing.T) {
 	spec.NewCapacity[rtypeMem] = amount
 
 	//2. set the new CPU capacity
-	amount2, err := genCPUQuantity(1000.0, 2200.0)
+	amount2, err := genCPUQuantity(1000.0)
 	if err != nil {
 		t.Errorf("Failed to generate cpu Quantity: %v", err)
 		return
