@@ -2,8 +2,6 @@ package executor
 
 import (
 	"fmt"
-	"math"
-
 	"github.com/golang/glog"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
@@ -138,13 +136,9 @@ func updateResourceAmount(podSpec *k8sapi.PodSpec, specs []*containerResizeSpec,
 }
 
 // Generate a resource.Quantity for CPU.
-// it will convert CPU unit from MHz to CPU.core time in milliSeconds
-// @newValue is from OpsMgr, in MHz
-// @nodeCpuFrequency is from kubeletClient, in MHz
-func genCPUQuantity(newValue float64, nodeCpuFrequency float64) (resource.Quantity, error) {
-	tmp := newValue * 1000 // to milliSeconds
-	tmp = tmp / nodeCpuFrequency
-	cpuTime := int(math.Ceil(tmp))
+// @newValue is from Turbo platform, in millicores
+func genCPUQuantity(newValue float64) (resource.Quantity, error) {
+	cpuTime := int(newValue)
 	if cpuTime < 1 {
 		cpuTime = 1
 	}
