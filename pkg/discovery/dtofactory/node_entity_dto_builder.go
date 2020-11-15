@@ -62,6 +62,12 @@ func NewNodeEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *s
 // Build entityDTOs based on the given node list.
 func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto.EntityDTO {
 	var result []*proto.EntityDTO
+
+	clusterId, err := builder.getClusterId()
+	if err != nil {
+		return result
+	}
+
 	for _, node := range nodes {
 		// id.
 		nodeID := string(node.UID)
@@ -76,7 +82,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 		}
 
 		// compute and constraint commodities sold.
-		commoditiesSold, err := builder.getNodeCommoditiesSold(node)
+		commoditiesSold, err := builder.getNodeCommoditiesSold(node, clusterId)
 		if err != nil {
 			glog.Errorf("Error when create commoditiesSold for %s: %s", node.Name, err)
 			nodeActive = false
@@ -147,6 +153,9 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 		}
 		entityDTOBuilder = entityDTOBuilder.VirtualMachineData(vmdata)
 
+		// also set up the aggregatedBy relationship with the cluster
+		entityDTOBuilder.AggregatedBy(clusterId)
+
 		// build entityDTO.
 		entityDto, err := entityDTOBuilder.Create()
 		if err != nil {
@@ -165,7 +174,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 // Build the sold commodityDTO by each node. They include:
 // VCPU, VMem, CPURequest, MemRequest;
 // VMPMAccessCommodity, ApplicationCommodity, ClusterCommodity.
-func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*proto.CommodityDTO, error) {
+func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clusterId string) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
 	// get cpu frequency
 	key := util.NodeKeyFunc(node)
@@ -207,26 +216,31 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node) ([]*
 	}
 
 	// Cluster commodity.
+	clusterComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
+		Key(clusterId).
+		Capacity(clusterCommodityDefaultCapacity).
+		Create()
+	if err != nil {
+		return nil, err
+	}
+	commoditiesSold = append(commoditiesSold, clusterComm)
+
+	return commoditiesSold, nil
+}
+
+func (builder *nodeEntityDTOBuilder) getClusterId() (string, error) {
 	clusterMetricUID := metrics.GenerateEntityStateMetricUID(metrics.ClusterType, "", metrics.Cluster)
 	clusterInfo, err := builder.metricsSink.GetMetric(clusterMetricUID)
 	if err != nil {
 		glog.Errorf("Failed to get %s used for current Kubernetes Cluster %s", metrics.Cluster, clusterInfo)
-	} else {
-		clusterCommodityKey, ok := clusterInfo.GetValue().(string)
-		if !ok {
-			glog.Error("Failed to get cluster ID")
-		}
-		clusterComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
-			Key(clusterCommodityKey).
-			Capacity(clusterCommodityDefaultCapacity).
-			Create()
-		if err != nil {
-			return nil, err
-		}
-		commoditiesSold = append(commoditiesSold, clusterComm)
+		return "", err
 	}
-
-	return commoditiesSold, nil
+	clusterId, ok := clusterInfo.GetValue().(string)
+	if !ok {
+		glog.Error("Failed to get cluster ID")
+		return "", err
+	}
+	return clusterId, nil
 }
 
 func (builder *nodeEntityDTOBuilder) getAllocationCommoditiesSold(node *api.Node) ([]*proto.CommodityDTO, error) {

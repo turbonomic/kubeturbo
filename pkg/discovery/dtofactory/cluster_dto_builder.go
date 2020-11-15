@@ -80,11 +80,6 @@ func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO) (*p
 
 	entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
-	// Link member nodes as connected entities
-	for _, node := range builder.cluster.NodeList {
-		entityDTOBuilder.ConnectedTo(string(node.UID))
-	}
-
 	// build entityDTO.
 	entityDto, err := entityDTOBuilder.Create()
 	if err != nil {
