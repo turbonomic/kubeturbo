@@ -3,6 +3,7 @@ package worker
 import (
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -76,16 +77,6 @@ func (worker *k8sNamespaceDiscoveryWorker) Do(namespaceMetricsList []*repository
 		}
 		kubeNamespaceEntity.AverageNodeCpuFrequency = averageNodeFrequency
 
-		// Create sold allocation commodity for the types that are not defined in the kubeNamespace objects
-		for resourceType, used := range namespaceMetrics.QuotaUsed {
-			existingResource, _ := kubeNamespaceEntity.GetResource(resourceType)
-			// Set used value collected from namespaceMetrics to kubeNamespaceEntity, which is the sum of limits/request
-			// from all running containers on this namespace.
-			// If resource is CPU type, used value has already been converted from cores to MHz when collecting namespace
-			// metrics in metrics_collector.
-			existingResource.Used = used
-		}
-
 		// Create bought commodity for the types that are not defined in the kubeNamespace objects
 		for resourceType, points := range namespaceMetrics.Used {
 			existingResource, err := kubeNamespaceEntity.GetResource(resourceType)
@@ -94,6 +85,31 @@ func (worker *k8sNamespaceDiscoveryWorker) Do(namespaceMetricsList []*repository
 				continue
 			}
 			existingResource.Points = points
+		}
+
+		// Create sold allocation commodity for the types that are not defined in the kubeNamespace objects
+		// Additionally update the used values from requestQuota metrics into the compute request commodities
+		for resourceType, used := range namespaceMetrics.QuotaUsed {
+			existingResource, _ := kubeNamespaceEntity.GetResource(resourceType)
+			// Set used value collected from namespaceMetrics to kubeNamespaceEntity, which is the sum of limits/request
+			// from all running containers on this namespace.
+			// If resource is CPU type, used value has already been converted from cores to MHz when collecting namespace
+			// metrics in metrics_collector.
+			existingResource.Used = used
+
+			// We know that the quota values are already aggregated for the namespace. We can directly use the
+			// request quota used values as the request used values.
+			// Also note that this is updated after block updating bought commodities above, effectively overwriting
+			// any value that might have been filled there. Those values are ideally zero because we do not separately
+			// aggregate the request values.
+			if resourceType == metrics.CPURequestQuota {
+				res, _ := kubeNamespaceEntity.GetResource(metrics.CPURequest)
+				res.Used = used
+			}
+			if resourceType == metrics.MemoryRequestQuota {
+				res, _ := kubeNamespaceEntity.GetResource(metrics.MemoryRequest)
+				res.Used = used
+			}
 		}
 	}
 

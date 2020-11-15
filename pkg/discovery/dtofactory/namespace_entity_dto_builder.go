@@ -2,13 +2,14 @@ package dtofactory
 
 import (
 	"fmt"
+	"math"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	"math"
 )
 
 type namespaceEntityDTOBuilder struct {
