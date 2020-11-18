@@ -53,8 +53,6 @@ func (builder *workloadControllerDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, er
 			entityDTOBuilder.Provider(sdkbuilder.CreateProvider(proto.EntityDTO_NAMESPACE, namespaceUID)).BuysCommodities(commoditiesBought)
 			// Set movable false to avoid moving WorkloadController across namespaces
 			entityDTOBuilder.IsMovable(proto.EntityDTO_NAMESPACE, false)
-			// also set up the aggregatedBy relationship with the namespace
-			entityDTOBuilder.AggregatedBy(namespaceUID)
 		} else {
 			glog.Errorf("Failed to get namespaceUID from namespace %s for controller %s", kubeController.Namespace,
 				kubeController.GetFullName())

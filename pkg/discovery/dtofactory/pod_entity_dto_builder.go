@@ -206,8 +206,6 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 			entityDTOBuilder.BuysCommodities(commoditiesBoughtQuota)
 			// pods are not movable across WorkloadController
 			entityDTOBuilder.IsMovable(proto.EntityDTO_WORKLOAD_CONTROLLER, false)
-			// also set up the aggregatedBy relationship with the controller
-			entityDTOBuilder.AggregatedBy(controllerUID)
 		}
 
 		mounts := builder.podToVolumesMap[displayName]
