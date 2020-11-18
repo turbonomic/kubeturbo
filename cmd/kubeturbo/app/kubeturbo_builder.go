@@ -552,6 +552,7 @@ func handleExit(wg *sync.WaitGroup, cleanUpFns ...cleanUp) { // k8sTAPService *k
 		syscall.SIGQUIT,
 		syscall.SIGHUP)
 
+	wg.Add(1)
 	go func() {
 		select {
 		case sig := <-sigChan:
@@ -566,6 +567,7 @@ func handleExit(wg *sync.WaitGroup, cleanUpFns ...cleanUp) { // k8sTAPService *k
 				}(f)
 			}
 		}
+		wg.Done()
 	}()
 }
 
