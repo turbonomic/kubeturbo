@@ -175,6 +175,9 @@ func TestGetNodeNumCPUs(t *testing.T) {
 	metricsSink = metrics.NewEntityMetricSink()
 	cpuCapMetric := metrics.NewEntityResourceMetric(metrics.NodeType, nodeKey, metrics.CPU, metrics.Capacity, float64(10))
 	metricsSink.AddNewMetricEntries(cpuCapMetric)
+	kubernetesSvcID := "abcdef"
+	clusterInfo := metrics.NewEntityStateMetric(metrics.ClusterType, "", metrics.Cluster, kubernetesSvcID)
+	metricsSink.AddNewMetricEntries(clusterInfo)
 	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitching.NewStitchingManager(stitching.UUID))
 	nodeEntityDTOs := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node})
 	vmData := nodeEntityDTOs[0].GetVirtualMachineData()
