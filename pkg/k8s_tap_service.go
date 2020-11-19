@@ -17,6 +17,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/master"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
 	"github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/service"
@@ -35,6 +36,7 @@ type K8sTAPServiceSpec struct {
 	*detectors.MasterNodeDetectors    `json:"masterNodeDetectors,omitempty"`
 	*detectors.DaemonPodDetectors     `json:"daemonPodDetectors,omitempty"`
 	*detectors.HANodeConfig           `json:"HANodeConfig,omitempty"`
+	*features.FeatureGates            `json:"featureGates,omitempty"`
 }
 
 func ParseK8sTAPServiceSpec(configFile string, defaultTargetName string) (*K8sTAPServiceSpec, error) {

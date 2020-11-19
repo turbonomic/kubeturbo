@@ -15,10 +15,13 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 const (
@@ -350,15 +353,17 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 		result.EntityDTOs = append(result.EntityDTOs, serviceDtos...)
 	}
 
-	glog.V(2).Infof("Begin to generate persistent volume EntityDTOs.")
-	// Persistent Volume DTOs
-	volumeEntityDTOBuilder := dtofactory.NewVolumeEntityDTOBuilder(result.PodVolumeMetrics)
-	volumeEntityDTOs, err := volumeEntityDTOBuilder.BuildEntityDTOs(clusterSummary.VolumeToPodsMap)
-	if err != nil {
-		glog.Errorf("Error while creating volume entityDTOs: %v", err)
-	} else {
-		glog.V(2).Infof("There are %d Storage Volume entityDTOs.", len(volumeEntityDTOs))
-		result.EntityDTOs = append(result.EntityDTOs, volumeEntityDTOs...)
+	if utilfeature.DefaultFeatureGate.Enabled(features.PersistentVolumes) {
+		glog.V(2).Infof("Begin to generate persistent volume EntityDTOs.")
+		// Persistent Volume DTOs
+		volumeEntityDTOBuilder := dtofactory.NewVolumeEntityDTOBuilder(result.PodVolumeMetrics)
+		volumeEntityDTOs, err := volumeEntityDTOBuilder.BuildEntityDTOs(clusterSummary.VolumeToPodsMap)
+		if err != nil {
+			glog.Errorf("Error while creating volume entityDTOs: %v", err)
+		} else {
+			glog.V(2).Infof("There are %d Storage Volume entityDTOs.", len(volumeEntityDTOs))
+			result.EntityDTOs = append(result.EntityDTOs, volumeEntityDTOs...)
+		}
 	}
 
 	glog.V(2).Infof("There are totally %d entityDTOs.", len(result.EntityDTOs))

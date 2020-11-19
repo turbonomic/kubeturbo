@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"fmt"
+
 	api "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
@@ -9,10 +10,13 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	v1 "k8s.io/api/core/v1"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/golang/glog"
 )
@@ -237,8 +241,10 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 			"Pod %v: controllable: %v, suspendable: %v, provisionable: %v, monitored: %v, power state %v",
 			displayName, controllable, suspendable, provisionable, monitored, powerState)
 
-		// Commodities bought from volume mounts
-		builder.buyCommoditiesFromVolumes(pod, mounts, entityDTOBuilder)
+		if utilfeature.DefaultFeatureGate.Enabled(features.PersistentVolumes) {
+			// Commodities bought from volume mounts
+			builder.buyCommoditiesFromVolumes(pod, mounts, entityDTOBuilder)
+		}
 		// entities' properties.
 		properties, err := builder.getPodProperties(pod, mounts)
 		if err != nil {
