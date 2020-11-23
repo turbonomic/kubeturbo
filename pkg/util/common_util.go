@@ -23,9 +23,10 @@ const (
 	// We want these names to be unique and at the same time, we should
 	// be able to identify these across restarts. We can also think of
 	// making these user configurable, if need be.
-	kubeturboSCCPrefix = "kubeturbo-scc-"
-	SCCRoleName        = kubeturboSCCPrefix + "pod-restart-role"
-	SCCRoleBindingName = kubeturboSCCPrefix + "pod-restart-rolebinding"
+	kubeturboSCCPrefix        = "kubeturbo-scc-"
+	SCCClusterRoleName        = kubeturboSCCPrefix + "pod-restart-clusterrole"
+	SCCClusterRoleBindingName = kubeturboSCCPrefix + "pod-restart-clusterrolebinding"
+	SCCAnnotationKey          = "openshift.io/scc"
 )
 
 type ErrorSkipRetry struct {
@@ -235,10 +236,10 @@ func GetKubeturboNamespace() string {
 	return namespace
 }
 
-func GetRoleForSCC() *rbacv1.Role {
-	return &rbacv1.Role{
+func GetClusterRoleForSCC() *rbacv1.ClusterRole {
+	return &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: SCCRoleName,
+			Name: SCCClusterRoleName,
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
@@ -256,7 +257,7 @@ func GetRoleForSCC() *rbacv1.Role {
 	}
 }
 
-func GetRoleBindingForSCC(saNames []string, saNamespace, roleName string) *rbacv1.RoleBinding {
+func GetClusterRoleBindingForSCC(saNames []string, saNamespace, clusterRoleName string) *rbacv1.ClusterRoleBinding {
 	subjects := []rbacv1.Subject{}
 	for _, saName := range saNames {
 		subjects = append(subjects, rbacv1.Subject{
@@ -266,15 +267,15 @@ func GetRoleBindingForSCC(saNames []string, saNamespace, roleName string) *rbacv
 		})
 	}
 
-	return &rbacv1.RoleBinding{
+	return &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: SCCRoleBindingName,
+			Name: SCCClusterRoleBindingName,
 		},
 		Subjects: subjects,
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: AuthorizationGroupName,
-			Kind:     KindRole,
-			Name:     roleName,
+			Kind:     KindClusterRole,
+			Name:     clusterRoleName,
 		},
 	}
 }
@@ -328,7 +329,7 @@ func GetSelfSubjectAccessReviews(namespace string) []authv1.SelfSubjectAccessRev
 	// 3.
 	r3 := authv1.ResourceAttributes{
 		Group:     AuthorizationGroupName,
-		Resource:  RoleResName,
+		Resource:  ClusterRoleResName,
 		Verb:      VerbCreate,
 		Namespace: namespace,
 	}
@@ -341,7 +342,7 @@ func GetSelfSubjectAccessReviews(namespace string) []authv1.SelfSubjectAccessRev
 	// 4.
 	r4 := authv1.ResourceAttributes{
 		Group:     AuthorizationGroupName,
-		Resource:  RoleBindingResName,
+		Resource:  ClusterRoleBindingResName,
 		Verb:      VerbCreate,
 		Namespace: namespace,
 	}
@@ -354,7 +355,7 @@ func GetSelfSubjectAccessReviews(namespace string) []authv1.SelfSubjectAccessRev
 	// 5.
 	r5 := authv1.ResourceAttributes{
 		Group:     AuthorizationGroupName,
-		Resource:  RoleBindingResName,
+		Resource:  ClusterRoleBindingResName,
 		Verb:      VerbUpdate,
 		Namespace: namespace,
 	}
@@ -378,4 +379,8 @@ func GetSelfSubjectAccessReviews(namespace string) []authv1.SelfSubjectAccessRev
 	})
 
 	return reviews
+}
+
+func SCCUserFullName(ns, saName string) string {
+	return fmt.Sprintf("system:serviceaccount:%s:%s", ns, saName)
 }

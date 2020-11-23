@@ -16,7 +16,7 @@ const (
 	KindDeploymentConfig      = "DeploymentConfig"
 	KindReplicationController = "ReplicationController"
 	KindStatefulSet           = "StatefulSet"
-	KindRole                  = "Role"
+	KindClusterRole           = "ClusterRole"
 
 	K8sExtensionsGroupName     = "extensions"
 	K8sAppsGroupName           = "apps"
@@ -33,16 +33,16 @@ const (
 	StatefulSetResName           = "statefulsets"
 	DaemonSetResName             = "daemonsets"
 	ApplicationResName           = "applications"
+	PodResName                   = "pods"
 
 	OpenShiftAppsGroupName     = "apps.openshift.io"
 	OpenShiftSecurityGroupName = "security.openshift.io"
 	AuthorizationGroupName     = "rbac.authorization.k8s.io"
 	OpenShiftSCCResName        = "securitycontextconstraints"
 
-	RoleResName           = "roles"
-	RoleBindingResName    = "rolebindings"
-	ServiceAccountResName = "serviceaccounts"
-	PodResName            = "pods"
+	ClusterRoleResName        = "clusterroles"
+	ClusterRoleBindingResName = "clusterrolebindings"
+	ServiceAccountResName     = "serviceaccounts"
 
 	VerbCreate      = "create"
 	VerbUpdate      = "update"
