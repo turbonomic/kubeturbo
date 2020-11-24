@@ -45,6 +45,7 @@ func (p *BusinessAppProcessor) ProcessBusinessApps() {
 	apps, err := dynClient.Resource(res).Namespace("").List(metav1.ListOptions{})
 	if err != nil {
 		glog.Warningf("Error while processing application entities: %v", err)
+		return
 	}
 
 	appToComponentMap := make(map[repository.K8sApp][]repository.K8sAppComponent)
