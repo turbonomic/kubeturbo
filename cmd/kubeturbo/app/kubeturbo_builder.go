@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	versionhelper "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/server/healthz"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -288,8 +289,23 @@ func (s *VMTServer) Run() {
 
 	k8sTAPSpec, err := kubeturbo.ParseK8sTAPServiceSpec(s.K8sTAPSpec, kubeConfig.Host)
 	if err != nil {
-		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
-		os.Exit(1)
+		glog.Fatalf("Failed to generate correct TAP config: %v", err.Error())
+	}
+
+	featureFlags := ""
+	if k8sTAPSpec.FeatureGates != nil {
+		for _, f := range k8sTAPSpec.FeatureGates.DisabledFeatures {
+			featureFlag := fmt.Sprintf("%s=%s", f, "false")
+			if featureFlags == "" {
+				featureFlags = featureFlag
+			} else {
+				featureFlags = fmt.Sprintf("%s,%s", featureFlags, featureFlag)
+			}
+		}
+	}
+	err = utilfeature.DefaultFeatureGate.Set(featureFlags)
+	if err != nil {
+		glog.Fatalf("Invalid Feature Gates: %v", err)
 	}
 
 	// Collect target and probe info such as master host, server version, probe container image, etc

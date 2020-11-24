@@ -12,10 +12,13 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
+
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 // KubeletMonitor is a resource monitoring worker.
@@ -216,7 +219,9 @@ func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats, timestamp int6
 		if m.isFullDiscovery {
 			m.genNumConsumersUsedMetrics(metrics.PodType, key)
 			m.genFSMetrics(metrics.PodType, key, ephemeralFsCapacity, ephemeralFsUsed)
-			m.parseVolumeStats(pod.VolumeStats, key)
+			if utilfeature.DefaultFeatureGate.Enabled(features.PersistentVolumes) {
+				m.parseVolumeStats(pod.VolumeStats, key)
+			}
 		}
 	}
 }
