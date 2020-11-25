@@ -1,6 +1,7 @@
 package dtofactory
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -101,6 +102,21 @@ func TestBuildDTOs(t *testing.T) {
 			workloadControllerData2 := entityDTO.GetWorkloadControllerData()
 			assert.EqualValues(t, expectedWorkloadControllerData2, workloadControllerData2)
 		}
+
+		// Test AggregatedBy relationship
+		assert.True(t, len(entityDTO.ConnectedEntities) > 0,
+			fmt.Sprintf("WorkloadController %v should have at least one connected entity - the namespace",
+				entityDTO.DisplayName))
+		hasAggregatedBy := false
+		for _, connectedEntity := range entityDTO.ConnectedEntities {
+			if connectedEntity.GetConnectionType() == proto.ConnectedEntity_AGGREGATED_BY_CONNECTION {
+				hasAggregatedBy = true
+				assert.Equal(t, testNamespaceUID, connectedEntity.GetConnectedEntityId(),
+					fmt.Sprintf("WorkloadController %v must be aggregated by namespace %v but is aggregated by %v instead",
+						entityDTO.DisplayName, testNamespaceUID, connectedEntity.GetConnectedEntityId()))
+			}
+		}
+		assert.True(t, hasAggregatedBy, fmt.Sprintf("Namespace %v does not have an AggregatedBy connection", entityDTO.DisplayName))
 	}
 }
 
