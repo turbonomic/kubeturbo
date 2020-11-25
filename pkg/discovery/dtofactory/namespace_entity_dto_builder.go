@@ -52,6 +52,8 @@ func (builder *namespaceEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 		entityDTOBuilder.Provider(sdkbuilder.CreateProvider(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, namespace.ClusterName)).BuysCommodities(commoditiesBought)
 		// Set movable false to avoid moving Namespace across Clusters
 		entityDTOBuilder.IsMovable(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, false)
+		// also set up the aggregatedBy relationship with the cluster
+		entityDTOBuilder.AggregatedBy(namespace.ClusterName)
 
 		// Namespace entity cannot be provisioned or suspended by Turbonomic analysis
 		entityDTOBuilder.IsProvisionable(false)
