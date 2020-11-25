@@ -146,7 +146,7 @@ var TestNamespaces = []TestNamespace{
 
 func makeKubeNamespaces() []*repository.KubeNamespace {
 	namespace := "ns1"
-	cluster := "cluster1"
+	cluster := clusterName
 
 	var kubeQuotas []*repository.KubeNamespace
 	clusterCapacityByResource := make(map[metrics.ResourceType]float64)
@@ -257,6 +257,20 @@ func TestBuildNamespaceDto(t *testing.T) {
 	assert.Nil(t, err)
 
 	for _, dto := range dtos {
+		// test AggregatedBy relationship
+		assert.True(t, len(dto.ConnectedEntities) > 0,
+			fmt.Sprintf("Namespace %v should have at least one connected entity - the cluster", dto.DisplayName))
+		hasAggregatedBy := false
+		for _, connectedEntity := range dto.ConnectedEntities {
+			if connectedEntity.GetConnectionType() == proto.ConnectedEntity_AGGREGATED_BY_CONNECTION {
+				hasAggregatedBy = true
+				assert.Equal(t, clusterName, connectedEntity.GetConnectedEntityId(),
+					fmt.Sprintf("Namespace %v must be aggregated by cluster %v but is aggregated by %v instead",
+						dto.DisplayName, clusterName, connectedEntity.GetConnectedEntityId()))
+			}
+		}
+		assert.True(t, hasAggregatedBy, fmt.Sprintf("Namespace %v does not have an AggregatedBy connection", dto.DisplayName))
+
 		commSoldList := dto.GetCommoditiesSold()
 		for _, commSold := range commSoldList {
 			if proto.CommodityDTO_VMPM_ACCESS.String() == commSold.CommodityType.String() {
