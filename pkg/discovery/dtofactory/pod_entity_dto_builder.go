@@ -190,6 +190,8 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 				entityDTOBuilder.BuysCommodities(commoditiesBoughtQuota)
 				// pods are not movable across namespaces
 				entityDTOBuilder.IsMovable(proto.EntityDTO_NAMESPACE, false)
+				// also set up the aggregatedBy relationship with the namespace
+				entityDTOBuilder.AggregatedBy(namespaceUID)
 			} else {
 				glog.Errorf("Failed to get namespaceUID from namespace %s for pod %s", pod.Namespace, pod.Name)
 			}
