@@ -1,6 +1,8 @@
 package dtofactory
 
 import (
+	"math"
+
 	api "k8s.io/api/core/v1"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
@@ -32,23 +34,16 @@ func (builder *volumeEntityDTOBuilder) BuildEntityDTOs(volToPodsMap map[*api.Per
 		displayName := vol.Name
 		entityDTOBuilder.DisplayName(displayName)
 
-		commoditiesSold, cap, err := builder.getVolumeCommoditiesSold(vol, podVolumes)
-		if cap == 0 {
+		commoditiesSold, cap := builder.getVolumeCommoditiesSold(vol, podVolumes)
+		if cap == 0 || len(commoditiesSold) < 1 {
+			// We don't add a dangling volume
 			continue
-		}
-		// A pod can have multiple volumes and we might process one even when
-		// we see an error on another
-		if err != nil {
-			glog.Errorf("Error creating commoditiesSold for volume %s: %s", displayName, err)
-		}
-		if len(commoditiesSold) > 0 {
-			entityDTOBuilder.SellsCommodities(commoditiesSold)
 		}
 
 		var vols []*api.PersistentVolume
 		vols = append(vols, vol)
 		volStitchingMgr := stitching.NewVolumeStitchingManager()
-		err = volStitchingMgr.ProcessVolumes(vols)
+		err := volStitchingMgr.ProcessVolumes(vols)
 		if err != nil {
 			glog.Errorf("Error generating stitching metadata for volume %s: %s", displayName, err)
 		} else {
@@ -87,35 +82,51 @@ func (builder *volumeEntityDTOBuilder) BuildEntityDTOs(volToPodsMap map[*api.Per
 	return result, nil
 }
 
-func (builder *volumeEntityDTOBuilder) getVolumeCommoditiesSold(vol *api.PersistentVolume, podVols []repository.PodVolume) ([]*proto.CommodityDTO, float64, error) {
+func (builder *volumeEntityDTOBuilder) getVolumeCommoditiesSold(vol *api.PersistentVolume, podVols []repository.PodVolume) ([]*proto.CommodityDTO, float64) {
 	var commoditiesSold []*proto.CommodityDTO
 
 	volumeCapacity := float64(0)
+	volumeUsed := float64(0)
 	for _, podVol := range podVols {
 		// Volume capacity metrics is available as part of volume spec.
-		// However we dont use that if the actual queried volume size
+		// However we don't use that if the actual queried volume size
 		// is available and discovered by the kubelet as part of
-		// pod metrics for that volume. If a volume is not mounted, then
-		// we use the capacity listed in volume spec.
+		// pod metrics for that volume.
 		capacity, used, found := builder.getVolumeMetrics(vol, podVol.QualifiedPodName, podVol.MountName)
 		if !found {
+			// Not adding the capacity value from the volume spec (vol.spec.capacity) here
+			// currently ensures that there are no dangling volumes shown in supply chain
+			// if the volume is not used by a pod, or if there are no volume metrics discovered
+			// in some environment.
+			// (TODO): We can revisit this in future. A volume can also be discovered with just
+			// the capacity value and not connected to any other entity.
 			continue
 		}
-		volumeCapacity = capacity
 
+		// Both capacity and used should ideally result in same values when
+		// the metrics is collected from different pods, but we still pick the
+		// max for used as the metrics might be coming from multiple pods at a
+		// different point in time.
+		// We do this rather then adding multiple sold commodities as the server
+		// does not allow having multiple sold commodities with the same key (empty here).
+		volumeCapacity = capacity
+		volumeUsed = math.Max(volumeUsed, used)
+	}
+
+	if volumeCapacity != float64(0) {
 		commBuilder := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_STORAGE_AMOUNT)
-		commBuilder.Used(used)
-		commBuilder.Capacity(capacity)
-		commodityPerPod, err := commBuilder.Create()
+		commBuilder.Used(volumeUsed)
+		commBuilder.Capacity(volumeCapacity)
+		commodity, err := commBuilder.Create()
 		if err != nil {
-			glog.Errorf("Error creating commoditySold by volume %s: %v ", podVol.MountName, err)
+			glog.Errorf("Error creating commoditySold by volume %s: %v ", vol.Name, err)
 		} else {
 			// TODO(irfanurrehman): Set resizable depending on node properties
-			commoditiesSold = append(commoditiesSold, commodityPerPod)
+			commoditiesSold = append(commoditiesSold, commodity)
 		}
 	}
 
-	return commoditiesSold, volumeCapacity, nil
+	return commoditiesSold, volumeCapacity
 }
 
 func (builder *volumeEntityDTOBuilder) getVolumeMetrics(vol *api.PersistentVolume, podKey, mountName string) (float64, float64, bool) {
