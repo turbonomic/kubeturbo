@@ -39,6 +39,7 @@ func (builder *volumeEntityDTOBuilder) BuildEntityDTOs(volToPodsMap map[*api.Per
 			// We don't add a dangling volume
 			continue
 		}
+		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 		var vols []*api.PersistentVolume
 		vols = append(vols, vol)
