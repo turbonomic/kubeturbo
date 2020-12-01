@@ -1,9 +1,10 @@
 package stitching
 
 import (
-	api "k8s.io/api/core/v1"
 	"strings"
 	"testing"
+
+	api "k8s.io/api/core/v1"
 )
 
 func mockNode(uuid string) *api.Node {
@@ -27,11 +28,22 @@ func mockAzureNode(uuid string) *api.Node {
 	return node
 }
 
+func mockVsphereNode(uuid, systemUUID string) *api.Node {
+	node := &api.Node{}
+
+	if uuid != "" {
+		node.Spec.ProviderID = vspherePrefix + uuid
+	}
+	if systemUUID != "" {
+		node.Status.NodeInfo.SystemUUID = systemUUID
+	}
+	return node
+}
+
 func TestDefaultNodeUUIDGetter_GetUUID(t *testing.T) {
 	tests := [][]string{
-		{"4200979A-4EF9-E49B-6BD6-FDBAD2BE7252", "4200979a-4ef9-e49b-6bd6-fdbad2be7252"},
-		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABC7E", "d4dd3fe4-7a31-c74f-bba7-3ae729eabc7e"},
-		{"DE7D3FE4-7A31-C74F-BBA7-3AE729EABC7E", "de7d3fe4-7a31-c74f-bba7-3ae729eabc7e"},
+		{"4200979A-4EF9-E49B-6BD6-FDBAD2BE7252", "4200979a-4ef9-e49b-6bd6-fdbad2be7252,9a970042-f94e-9be4-6bd6-fdbad2be7252"},
+		{"DE7D3FE4-7A31-C74F-BBA7-3AE729EABC7E", "de7d3fe4-7a31-c74f-bba7-3ae729eabc7e,e43f7dde-317a-4fc7-bba7-3ae729eabc7e"},
 	}
 
 	vm := &defaultNodeUUIDGetter{}
@@ -54,7 +66,6 @@ func TestDefaultNodeUUIDGetter_GetUUID(t *testing.T) {
 func TestAWSNodeUUIDGetter_GetUUID(t *testing.T) {
 	tests := [][]string{
 		{"aws:///us-west-2a/i-0be85bb9db1707470", "aws::us-west-2::VM::i-0be85bb9db1707470"},
-		{"aws:///ca-west-2a/i-0be85bb9db1707470", "aws::ca-west-2::VM::i-0be85bb9db1707470"},
 		{"aws:///ca-central-1a/i-0be85bb9db1707470", "aws::ca-central-1::VM::i-0be85bb9db1707470"},
 	}
 
@@ -77,9 +88,8 @@ func TestAWSNodeUUIDGetter_GetUUID(t *testing.T) {
 
 func TestAzureNodeUUIDGetter_GetUUID(t *testing.T) {
 	tests := [][]string{
-		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABA6E", "azure::VM::e43fddd4-317a-4fc7-bba7-3ae729eaba6e"},
-		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABC7E", "azure::VM::e43fddd4-317a-4fc7-bba7-3ae729eabc7e"},
-		{"DE7D3FE4-7A31-C74F-BBA7-3AE729EABC7E", "azure::VM::e43f7dde-317a-4fc7-bba7-3ae729eabc7e"},
+		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABA6E", "azure::VM::d4dd3fe4-7a31-c74f-bba7-3ae729eaba6e,azure::VM::e43fddd4-317a-4fc7-bba7-3ae729eaba6e"},
+		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABC7E", "azure::VM::d4dd3fe4-7a31-c74f-bba7-3ae729eabc7e,azure::VM::e43fddd4-317a-4fc7-bba7-3ae729eabc7e"},
 	}
 
 	azure := &azureNodeUUIDGetter{}
@@ -95,6 +105,40 @@ func TestAzureNodeUUIDGetter_GetUUID(t *testing.T) {
 
 		if strings.Compare(result, pair[1]) != 0 {
 			t.Errorf("Wrong node UUID %v Vs. %v", result, pair[1])
+		}
+	}
+}
+
+func TestVsphereNodeUUIDGetter_GetUUID(t *testing.T) {
+	tests := [][]string{
+		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABA6E", "d4dd3fe4-7a31-c74f-bba7-3ae729eaba6e,e43fddd4-317a-4fc7-bba7-3ae729eaba6e"},
+		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABA6E", "D4DD3FE4-7A31-C74F-BBA7-3AE729EABA6E",
+			"d4dd3fe4-7a31-c74f-bba7-3ae729eaba6e,e43fddd4-317a-4fc7-bba7-3ae729eaba6e"},
+		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABA6E", "D4DD3FE4-7A31-C74F-BBA7-3AE729EABC7E",
+			"d4dd3fe4-7a31-c74f-bba7-3ae729eaba6e,e43fddd4-317a-4fc7-bba7-3ae729eaba6e,d4dd3fe4-7a31-c74f-bba7-3ae729eabc7e,e43fddd4-317a-4fc7-bba7-3ae729eabc7e"},
+	}
+
+	vsphere := &vsphereNodeUUIDGetter{}
+
+	for _, strs := range tests {
+		providerID, systemUUID, allIDs := "", "", ""
+		providerID = strs[0]
+		if len(strs) == 3 {
+			systemUUID = strs[1]
+			allIDs = strs[2]
+		} else {
+			allIDs = strs[1]
+		}
+
+		node := mockVsphereNode(providerID, systemUUID)
+		result, err := vsphere.GetUUID(node)
+
+		if err != nil {
+			t.Errorf("Failed to get Vsphere node UUID: %v", err)
+			continue
+		}
+		if strings.Compare(result, allIDs) != 0 {
+			t.Errorf("Wrong node UUID %v Vs. %v", result, allIDs)
 		}
 	}
 }

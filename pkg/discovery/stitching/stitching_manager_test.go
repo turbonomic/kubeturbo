@@ -22,6 +22,7 @@ func TestStitchingManager_SetNodeUuidGetterByProvider(t *testing.T) {
 	items := [][]string{
 		{awsPrefix + "hello", "AWS"},
 		{azurePrefix + "hello", "Azure"},
+		{vspherePrefix + "hello", "Vsphere"},
 		{"random1", "Default"},
 	}
 
@@ -69,9 +70,8 @@ func TestStitchingManager_StoreStitchingValue_AWS(t *testing.T) {
 
 func TestStitchingManager_StoreStitchingValue_Azure(t *testing.T) {
 	tests := [][]string{
-		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABA6E", "azure::VM::e43fddd4-317a-4fc7-bba7-3ae729eaba6e", "node1"},
-		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABC7E", "azure::VM::e43fddd4-317a-4fc7-bba7-3ae729eabc7e", "node2"},
-		{"DE7D3FE4-7A31-C74F-BBA7-3AE729EABC7E", "azure::VM::e43f7dde-317a-4fc7-bba7-3ae729eabc7e", "node3"},
+		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABA6E", "azure::VM::d4dd3fe4-7a31-c74f-bba7-3ae729eaba6e,azure::VM::e43fddd4-317a-4fc7-bba7-3ae729eaba6e", "node1"},
+		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABC7E", "azure::VM::d4dd3fe4-7a31-c74f-bba7-3ae729eabc7e,azure::VM::e43fddd4-317a-4fc7-bba7-3ae729eabc7e", "node2"},
 	}
 
 	m := NewStitchingManager(UUID)
@@ -98,11 +98,10 @@ func TestStitchingManager_StoreStitchingValue_Azure(t *testing.T) {
 	}
 }
 
-func TestStitchingManager_StoreStitchingValue_vCenter(t *testing.T) {
+func TestStitchingManager_StoreStitchingValue_Default(t *testing.T) {
 	tests := [][]string{
-		{"4200979A-4EF9-E49B-6BD6-FDBAD2BE7252", "4200979a-4ef9-e49b-6bd6-fdbad2be7252", "node1"},
-		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABC7E", "d4dd3fe4-7a31-c74f-bba7-3ae729eabc7e", "node2"},
-		{"DE7D3FE4-7A31-C74F-BBA7-3AE729EABC7E", "de7d3fe4-7a31-c74f-bba7-3ae729eabc7e", "node3"},
+		{"4200979A-4EF9-E49B-6BD6-FDBAD2BE7252", "4200979a-4ef9-e49b-6bd6-fdbad2be7252,9a970042-f94e-9be4-6bd6-fdbad2be7252", "node1"},
+		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABC7E", "d4dd3fe4-7a31-c74f-bba7-3ae729eabc7e,e43fddd4-317a-4fc7-bba7-3ae729eabc7e", "node2"},
 	}
 
 	m := NewStitchingManager(UUID)
@@ -133,7 +132,6 @@ func TestStitchingManager_BuildDTOLayerOverProperty(t *testing.T) {
 	tests := [][]string{
 		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABA6E", "azure::VM::e43fddd4-317a-4fc7-bba7-3ae729eaba6e", "node1"},
 		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABC7E", "azure::VM::e43fddd4-317a-4fc7-bba7-3ae729eabc7e", "node2"},
-		{"DE7D3FE4-7A31-C74F-BBA7-3AE729EABC7E", "azure::VM::e43f7dde-317a-4fc7-bba7-3ae729eabc7e", "node3"},
 	}
 
 	m := NewStitchingManager(UUID)
@@ -156,11 +154,10 @@ func TestStitchingManager_BuildDTOLayerOverProperty(t *testing.T) {
 	}
 }
 
-func TestStitchingManager_BuildDTOLayerOverProperty_vCenter(t *testing.T) {
+func TestStitchingManager_BuildDTOLayerOverProperty_Default(t *testing.T) {
 	tests := [][]string{
 		{"4200979A-4EF9-E49B-6BD6-FDBAD2BE7252", "4200979a-4ef9-e49b-6bd6-fdbad2be7252", "node1"},
 		{"D4DD3FE4-7A31-C74F-BBA7-3AE729EABC7E", "d4dd3fe4-7a31-c74f-bba7-3ae729eabc7e", "node2"},
-		{"DE7D3FE4-7A31-C74F-BBA7-3AE729EABC7E", "de7d3fe4-7a31-c74f-bba7-3ae729eabc7e", "node3"},
 	}
 
 	m := NewStitchingManager(UUID)
