@@ -19,6 +19,12 @@ annotations:
 # Specify custom turbo-cluster-reader or turbo-cluster-admin role instead of the default cluster-admin role
 roleName: "cluster-admin"
 
+# Specify the name of clusterrolebinding
+roleBinding: "turbo-all-binding"
+
+# Specify the name of the serviceaccount
+serviceAccountName: "turbo-user"
+
 # Turbo server version and address
 serverMeta:
   version: 8.0
