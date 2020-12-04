@@ -41,13 +41,13 @@ spec:
         metadata:
           type: object
         spec:
-          type: Object
+          type: object
           properties:
             replicaCount:
               description: Kubeturbo replicaCount
               type: integer
             image:
-              type: Object
+              type: object
               description: Kubeturbo image details for deployments outside of RH Operator Hub
               properties:
                 repository:
@@ -63,7 +63,7 @@ spec:
                   description: Define the secret used to authenticate to the container image registry
                   type: string
             serverMeta:
-              type: Object
+              type: object
               description: Configuration for Turbo Server
               properties:
                 version:
@@ -73,7 +73,7 @@ spec:
                   description: URL for Turbo Server endpoint
                   type: string
             restAPIConfig:
-              type: Object
+              type: object
               description: Credentials to register probe with Turbo Server
               properties:
                 turbonomicCredentialsSecretName:
@@ -86,21 +86,21 @@ spec:
                   description: Turbo admin user password
                   type: string
             HANodeConfig:
-              type: Object
+              type: object
               description: Create HA placement policy for Node to Hypervisor by node role. Master is default
               properties:
                 nodeRoles:
                   description: Node role names
                   type: string, quote
             targetConfig:
-              type: Object
+              type: object
               description: Optional target configuration
               properties:
                 targetName:
                   description: Optional target name for registration
                   type: string
             args:
-              type: Object
+              type: object
               description: Kubeturbo command line arguments
               properties:
                 logginglevel:
@@ -119,11 +119,11 @@ spec:
                   description: Allow kubeturbo to execute actions in OCP
                   type: string
             resources:
-              type: Object
+              type: object
               description: Kubeturbo resource configuration
               properties:
                 limits:
-                  type: Object
+                  type: object
                   description: Define limits
                   properties:
                     memory:
@@ -133,7 +133,7 @@ spec:
                       description: Define cpu limits in cores or millicores, include units
                       type: string
                 requests:
-                  type: Object
+                  type: object
                   description: Define requests
                   properties:
                     memory:
