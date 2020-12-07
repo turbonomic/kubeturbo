@@ -41,6 +41,8 @@ func (s *VolumeStitchingManager) ProcessVolumes(vols []*api.PersistentVolume) er
 			uuidGetter = &awsVolumeUUIDGetter{}
 		case vol.Spec.AzureDisk != nil || vol.Spec.AzureFile != nil:
 			uuidGetter = &azureVolumeUUIDGetter{}
+		case vol.Spec.VsphereVolume != nil:
+			uuidGetter = &vsphereVolumeUUIDGetter{}
 		default:
 			uuidGetter = &defaultVolumeUUIDGetter{}
 		}
@@ -179,6 +181,30 @@ func (azure *azureVolumeUUIDGetter) GetVolumeUUID(vol *api.PersistentVolume) (st
 	//  mc_adveng_aks-virtual_westus::providers::Microsoft.Compute::disks::
 	//  kubernetes-dynamic-pvc-0a2016c8-095c-481e-800d-684e277234e4
 	stitchingUUID := strings.ToLower(strings.ReplaceAll(diskURI, "/", "::"))
+
+	return stitchingUUID, nil
+}
+
+type vsphereVolumeUUIDGetter struct {
+}
+
+func (azure *vsphereVolumeUUIDGetter) Name() string {
+	return "VSPHERE"
+}
+
+// Please check https://rbcommons.com/s/VMTurbo/r/42617/ for details
+func (azure *vsphereVolumeUUIDGetter) GetVolumeUUID(vol *api.PersistentVolume) (string, error) {
+	if vol.Spec.VsphereVolume == nil {
+		return "", fmt.Errorf("not a valid Vsphere provisioned volume: %v", vol.Name)
+	}
+
+	path := vol.Spec.VsphereVolume.VolumePath
+	//1. Get the stitching id by transforming:
+	// [PUREM10:DS01] kubevols/kubernetes-dynamic-pvc-b9a45f70-0817-460c-a60f-9dac3c4b3d3f.vmdk
+	// to:
+	// PUREM10:DS01-kubevols-kubernetes-dynamic-pvc-b9a45f70-0817-48A1ADF83BA7B4A609DA
+	stitchingUUID := strings.TrimSuffix(strings.ReplaceAll(strings.ReplaceAll(strings.
+		ReplaceAll(strings.ReplaceAll(path, "/", "-"), "[", ""), "]", ""), " ", "-"), ".vmdk")
 
 	return stitchingUUID, nil
 }
