@@ -7,6 +7,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"k8s.io/client-go/dynamic"
 	kubeclient "k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 )
 
 // Configuration created using the parameters passed to the kubeturbo service container.
@@ -21,6 +22,7 @@ type Config struct {
 	VMIsBase bool
 
 	KubeClient    *kubeclient.Clientset
+	RestConfig    *restclient.Config
 	DynamicClient dynamic.Interface
 	KubeletClient *kubeletclient.KubeletClient
 	CAClient      *clientset.Clientset
@@ -61,6 +63,11 @@ func NewVMTConfig2() *Config {
 
 func (c *Config) WithKubeClient(client *kubeclient.Clientset) *Config {
 	c.KubeClient = client
+	return c
+}
+
+func (c *Config) WithKubeConfig(config *restclient.Config) *Config {
+	c.RestConfig = config
 	return c
 }
 

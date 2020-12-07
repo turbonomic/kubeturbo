@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	client "k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -45,13 +46,15 @@ type ClusterScraperInterface interface {
 
 type ClusterScraper struct {
 	*client.Clientset
+	RestConfig    *restclient.Config
 	DynamicClient dynamic.Interface
 	cache         turbostore.ITurboCache
 }
 
-func NewClusterScraper(kclient *client.Clientset, dynamicClient dynamic.Interface) *ClusterScraper {
+func NewClusterScraper(restConfig *restclient.Config, kclient *client.Clientset, dynamicClient dynamic.Interface) *ClusterScraper {
 	return &ClusterScraper{
 		Clientset:     kclient,
+		RestConfig:    restConfig,
 		DynamicClient: dynamicClient,
 		// Create cache with expiration duration as defaultCacheTTL, which means the cached data will be cleaned up after
 		// defaultCacheTTL.

@@ -21,6 +21,7 @@ import (
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 )
 
 //TODO: if pod is from controller, then copy pod in the way as
@@ -121,8 +122,14 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 	if parentForPodSpec == nil {
 		parentForPodSpec = parent
 	}
+
+	// Use an impersonation client in case SCC users are updated
+	client, ok := getImpersonationClientset(clusterScraper.RestConfig, pod)
+	if !ok {
+		client = clusterScraper.Clientset
+	}
 	//step A1/B1. create a clone pod--podC of the original pod--podA
-	npod, err := createClonePod(clusterScraper.Clientset, pod, parentForPodSpec, nodeName)
+	npod, err := createClonePod(client, pod, parentForPodSpec, nodeName)
 	if err != nil {
 		glog.Errorf("Move pod failed: failed to create a clone pod: %v", err)
 		return nil, err
@@ -252,6 +259,46 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 
 	flag = true
 	return xpod, nil
+}
+
+func getImpersonationClientset(restConfig *restclient.Config, pod *api.Pod) (*kclient.Clientset, bool) {
+	if len(commonutil.SCCMapping) < 1 {
+		return nil, false
+	}
+
+	sccLevel := ""
+	for key, val := range pod.GetAnnotations() {
+		if key == commonutil.SCCAnnotationKey {
+			sccLevel = val
+		}
+	}
+	if sccLevel == "" {
+		return nil, false
+	}
+
+	ns := commonutil.GetKubeturboNamespace()
+	userName := ""
+	for sccName, saName := range commonutil.SCCMapping {
+		if sccName == sccLevel {
+			userName = commonutil.SCCUserFullName(ns, saName)
+			break
+		}
+	}
+
+	if userName == "" {
+		return nil, false
+	}
+
+	config := restclient.CopyConfig(restConfig)
+	config.Impersonate.UserName = userName
+	client, err := kclient.NewForConfig(config)
+	if err != nil {
+		glog.Errorf("Failed to create Impersonating client while moving pod %s/%s: %v", ns, pod.Name, err)
+		return nil, false
+	}
+
+	glog.V(2).Infof("Using Impersonation client with username: %s while moving pod %s/%s", userName, ns, pod.Name)
+	return client, true
 }
 
 func deleteInvalidPendingPods(parent *unstructured.Unstructured, podClient v1.PodInterface,
@@ -489,7 +536,6 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructure
 	npod.Name = genNewPodName(pod)
 	// this annotation can be used for future garbage collection if action is interrupted
 	util.AddAnnotation(npod, TurboActionAnnotationKey, TurboMoveAnnotationValue)
-
 	podClient := client.CoreV1().Pods(pod.Namespace)
 	rpod, err := podClient.Create(npod)
 	if err != nil {

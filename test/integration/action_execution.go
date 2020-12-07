@@ -41,9 +41,9 @@ var _ = Describe("Action Executor", func() {
 				framework.Failf("Failed to generate dynamic client for kubernetes test cluster: %v", err)
 			}
 
-			cluster.NewClusterScraper(kubeClient, dynamicClient)
+			cluster.NewClusterScraper(nil, kubeClient, dynamicClient)
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeClient, dynamicClient), nil, nil, true)
+				cluster.NewClusterScraper(nil, kubeClient, dynamicClient), nil, nil, true)
 
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 		}

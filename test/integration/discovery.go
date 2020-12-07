@@ -142,7 +142,7 @@ func validateDTOs(entityDTOs []*proto.EntityDTO, groupDTOs []*proto.GroupDTO, to
 
 func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *kubeletclient.KubeletClient, dynamicClient dynamic.Interface) *configs.ProbeConfig {
 	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(kubeletClient, kubeClient)
-	clusterScraper := cluster.NewClusterScraper(kubeClient, dynamicClient)
+	clusterScraper := cluster.NewClusterScraper(nil, kubeClient, dynamicClient)
 	masterMonitoringConfig := master.NewClusterMonitorConfig(clusterScraper)
 	monitoringConfigs := []monitoring.MonitorWorkerConfig{
 		kubeletMonitoringConfig,
