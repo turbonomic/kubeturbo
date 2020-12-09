@@ -31,15 +31,9 @@ require (
 )
 
 require (
-	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
-	github.com/google/uuid v1.1.1 // indirect
-	go.uber.org/atomic v1.4.0 // indirect
-	golang.org/x/crypto v0.0.0-20190911031432-227b76d455e7 // indirect
-	golang.org/x/sys v0.0.0-20191105231009-c1f44814a5cd // indirect
-	gopkg.in/yaml.v2 v2.2.5 // indirect
 	k8s.io/component-base v0.0.0
 	k8s.io/kubernetes v1.15.0
-	sigs.k8s.io/controller-runtime v0.4.0 // indirect
+	sigs.k8s.io/application v0.8.3
 )
 
 replace (
