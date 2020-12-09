@@ -15,6 +15,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/k8sappcomponents"
 	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
@@ -365,6 +366,12 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 			result.EntityDTOs = append(result.EntityDTOs, volumeEntityDTOs...)
 		}
 	}
+
+	k8sappcomponents.NewK8sAppComponentsProcessor(clusterSummary.ComponentToAppMap).
+		ProcessAppComponentDTOs(result.EntityDTOs)
+	businessAppEntityDTOBuilder := dtofactory.NewBusinessAppEntityDTOBuilder(clusterSummary.K8sAppToComponentMap)
+	businessAppEntityDTOBuilderEntityDTOs := businessAppEntityDTOBuilder.BuildEntityDTOs()
+	result.EntityDTOs = append(result.EntityDTOs, businessAppEntityDTOBuilderEntityDTOs...)
 
 	glog.V(2).Infof("There are totally %d entityDTOs.", len(result.EntityDTOs))
 

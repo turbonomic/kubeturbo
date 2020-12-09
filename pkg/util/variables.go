@@ -13,9 +13,10 @@ const (
 	KindReplicationController = "ReplicationController"
 	KindStatefulSet           = "StatefulSet"
 
-	K8sExtensionsGroupName = "extensions"
-	K8sAppsGroupName       = "apps"
-	OpenShiftAppsGroupName = "apps.openshift.io"
+	K8sExtensionsGroupName  = "extensions"
+	K8sAppsGroupName        = "apps"
+	K8sApplicationGroupName = "app.k8s.io"
+	OpenShiftAppsGroupName  = "apps.openshift.io"
 
 	ReplicationControllerResName = "replicationcontrollers"
 	ReplicaSetResName            = "replicasets"
@@ -24,6 +25,7 @@ const (
 	JobResName                   = "jobs"
 	StatefulSetResName           = "statefulsets"
 	DaemonSetResName             = "daemonsets"
+	ApplicationResName           = "applications"
 )
 
 // The API group version under which deployments and replicasets are exposed by the k8s cluster as of today
@@ -41,3 +43,6 @@ var K8sAPIReplicationControllerGV = schema.GroupVersion{Group: "", Version: "v1"
 
 // The API group under which openshifts deploymentconfig resource is exposed by the server
 var OpenShiftAPIDeploymentConfigGV = schema.GroupVersion{Group: OpenShiftAppsGroupName, Version: "v1"}
+
+// The API group under which application crd resource is installed on the server
+var K8sApplicationGV = schema.GroupVersion{Group: K8sApplicationGroupName, Version: "v1beta1"}

@@ -9,6 +9,8 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 // Kube Cluster represents the Kubernetes cluster. This object is immutable between discoveries.
@@ -28,6 +30,22 @@ type KubeCluster struct {
 	// Map of namespace qualified pod name wrt to the volumes they mount.
 	// This map will not feature volumes which are not mounted by any pods.
 	PodToVolumesMap map[string][]MountedVolume
+
+	K8sAppToComponentMap map[K8sApp][]K8sAppComponent
+	ComponentToAppMap    map[K8sAppComponent][]K8sApp
+}
+
+type K8sApp struct {
+	Uid       string
+	Namespace string
+	Name      string
+}
+
+type K8sAppComponent struct {
+	EntityType proto.EntityDTO_EntityType
+	Uid        string
+	Namespace  string
+	Name       string
 }
 
 type PodVolume struct {

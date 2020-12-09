@@ -303,7 +303,7 @@ func (s *VMTServer) Run() {
 			}
 		}
 	}
-	err = utilfeature.DefaultFeatureGate.Set(featureFlags)
+	err = utilfeature.DefaultMutableFeatureGate.Set(featureFlags)
 	if err != nil {
 		glog.Fatalf("Invalid Feature Gates: %v", err)
 	}
