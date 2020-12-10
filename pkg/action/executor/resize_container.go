@@ -102,7 +102,7 @@ func getNewAmount(current, new float64) (bool, float64) {
 }
 
 // get commodity type and new capacity, and convert it into a k8s.Quantity.
-func (r *ContainerResizer) buildResourceLists(pod *k8sapi.Pod, actionItem *proto.ActionItemDTO,
+func (r *ContainerResizer) buildResourceLists(resizerName string, actionItem *proto.ActionItemDTO,
 	spec *containerResizeSpec) error {
 	comm1 := actionItem.GetCurrentComm()
 	comm2 := actionItem.GetNewComm()
@@ -130,23 +130,23 @@ func (r *ContainerResizer) buildResourceLists(pod *k8sapi.Pod, actionItem *proto
 			return fmt.Errorf("failed to build resource list when resize %s capacity to %v: %v",
 				cType, amount, err)
 		}
-		glog.V(3).Infof("Resize pod-%s %s Capacity to %v", pod.Name, cType, amount)
+		glog.V(3).Infof("Resize %s %s Capacity to %v", resizerName, cType, amount)
 	}
 	return nil
 }
 
 // fix-OM-30019: when resizing Capacity, if request is not specified, then the request will be equal to the new capacity.
 // Solution: if request is not specified, then set it to zero.
-func (r *ContainerResizer) setZeroRequest(pod *k8sapi.Pod, containerIdx int, spec *containerResizeSpec) {
+func (r *ContainerResizer) setZeroRequest(resizerName string, podSpec *k8sapi.PodSpec, containerIdx int, spec *containerResizeSpec) {
 	// check whether Capacity resizing is involved.
 	if len(spec.NewCapacity) < 1 {
 		glog.V(3).Infof("No need to set request, as there is no capacity resizing for %v-%v.",
-			pod.Name, containerIdx)
+			resizerName, containerIdx)
 		return
 	}
 
 	// for each type of resource Capacity resizing, check whether the request is specified
-	container := &(pod.Spec.Containers[containerIdx])
+	container := &(podSpec.Containers[containerIdx])
 	origRequest := container.Resources.Requests
 	if origRequest == nil {
 		origRequest = make(k8sapi.ResourceList)
@@ -162,24 +162,24 @@ func (r *ContainerResizer) setZeroRequest(pod *k8sapi.Pod, containerIdx int, spe
 		if _, exist := origRequest[k]; !exist {
 			spec.NewRequest[k] = *zero
 			glog.V(3).Infof("Set unspecified %v request to zero for %v-%v.",
-				k, pod.Name, containerIdx)
+				k, resizerName, containerIdx)
 		}
 	}
 }
 
-func (r *ContainerResizer) buildResizeSpec(actionItem *proto.ActionItemDTO, pod *k8sapi.Pod, containerIndex int) (*containerResizeSpec, error) {
-	if containerIndex < 0 || containerIndex > len(pod.Spec.Containers) {
+func (r *ContainerResizer) buildResizeSpec(actionItem *proto.ActionItemDTO, resizerName string, podSpec *k8sapi.PodSpec, containerIndex int) (*containerResizeSpec, error) {
+	if containerIndex < 0 || containerIndex > len(podSpec.Containers) {
 		return nil, fmt.Errorf("invalid containerIndex %d", containerIndex)
 	}
 
 	// build the new resource requirements
 	resizeSpec := NewContainerResizeSpec(containerIndex)
-	if err := r.buildResourceLists(pod, actionItem, resizeSpec); err != nil {
+	if err := r.buildResourceLists(resizerName, actionItem, resizeSpec); err != nil {
 		return nil, fmt.Errorf("failed to build resizeSpec: %v", err)
 	}
 
 	// set request to 0 if not specified
-	r.setZeroRequest(pod, containerIndex, resizeSpec)
+	r.setZeroRequest(resizerName, podSpec, containerIndex, resizeSpec)
 
 	// check if the resize spec is empty
 	if len(resizeSpec.NewCapacity) < 1 && len(resizeSpec.NewRequest) < 1 {
@@ -212,7 +212,7 @@ func (r *ContainerResizer) Execute(input *TurboActionExecutorInput) (*TurboActio
 	}
 
 	// build resize specification
-	spec, err := r.buildResizeSpec(actionItem, pod, containerIndex)
+	spec, err := r.buildResizeSpec(actionItem, pod.Name, &pod.Spec, containerIndex)
 	if err != nil {
 		glog.Errorf("Failed to execute resize action: %v", err)
 		return &TurboActionExecutorOutput{}, err

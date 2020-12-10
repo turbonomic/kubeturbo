@@ -7,9 +7,7 @@ import (
 	k8sapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
@@ -44,18 +42,17 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 	// subsequently is needed to get the cpufrequency.
 	// TODO(irfanurrehman): This can be slightly erratic as the value conversions will
 	// use the node frequency of the queried pod.
-	controllerName, kind, pod, err := r.getWorkloadControllerPod(actionItems[0])
+	controllerName, kind, namespace, podSpec, err := r.getWorkloadControllerDetails(actionItems[0])
 	if err != nil {
 		return nil, err
 	}
-	input.Pod = pod
 
 	var resizeSpecs []*containerResizeSpec
 	for _, item := range actionItems {
 		// We use the container resizer for its already implemented utility functions
 		cr := NewContainerResizer(r.TurboK8sActionExecutor, r.kubeletClient, r.sccAllowedSet)
 		// build resize specification
-		spec, err := cr.buildResizeSpec(item, pod, getContainerIndex(pod, item.GetCurrentSE().GetDisplayName()))
+		spec, err := cr.buildResizeSpec(item, controllerName, podSpec, getContainerIndex(podSpec, item.GetCurrentSE().GetDisplayName()))
 		if err != nil {
 			glog.Errorf("Failed to execute resize action: %v", err)
 			return &TurboActionExecutorOutput{}, err
@@ -70,8 +67,7 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 		r.ormClient,
 		kind,
 		controllerName,
-		pod.Name,
-		pod.Namespace,
+		namespace,
 		resizeSpecs,
 	)
 	if err != nil {
@@ -83,14 +79,14 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 	}, nil
 }
 
-func (r *WorkloadControllerResizer) getWorkloadControllerPod(actionItem *proto.ActionItemDTO) (string, string, *k8sapi.Pod, error) {
+func (r *WorkloadControllerResizer) getWorkloadControllerDetails(actionItem *proto.ActionItemDTO) (string, string, string, *k8sapi.PodSpec, error) {
 	targetSE := actionItem.GetTargetSE()
 	if targetSE == nil {
-		return "", "", nil, fmt.Errorf("workload controller action item does not have a valid target entity, %v", actionItem.Uuid)
+		return "", "", "", nil, fmt.Errorf("workload controller action item does not have a valid target entity, %v", actionItem.Uuid)
 	}
 	workloadCntrldata := targetSE.GetWorkloadControllerData()
 	if workloadCntrldata == nil {
-		return "", "", nil, fmt.Errorf("workload controller action item missing controller data, %v", actionItem.Uuid)
+		return "", "", "", nil, fmt.Errorf("workload controller action item missing controller data, %v", actionItem.Uuid)
 	}
 
 	kind := ""
@@ -111,163 +107,55 @@ func (r *WorkloadControllerResizer) getWorkloadControllerPod(actionItem *proto.A
 	case *proto.EntityDTO_WorkloadControllerData_CustomControllerData:
 		kind = workloadCntrldata.GetCustomControllerData().GetCustomControllerType()
 		if kind != util.KindDeploymentConfig {
-			return "", "", nil, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData, custom controller type is: %s", cntrlType, kind)
+			return "", "", "", nil, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData, custom controller type is: %s", cntrlType, kind)
 		}
 	default:
-		return "", "", nil, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData", cntrlType)
+		return "", "", "", nil, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData", cntrlType)
 	}
 
 	namespace, error := property.GetWorkloadNamespaceFromProperty(targetSE.GetEntityProperties())
 	if error != nil {
-		return "", "", nil, error
+		return "", "", "", nil, error
 	}
 
-	parentName := targetSE.GetDisplayName()
-	pod, err := r.getChildPod(kind, namespace, parentName)
+	controllerName := targetSE.GetDisplayName()
+	podSpec, err := r.getWorkloadControllerSpec(kind, namespace, controllerName)
 	if err != nil {
-		return "", "", nil, err
+		return "", "", "", nil, err
 	}
 
-	return parentName, kind, pod, nil
+	return controllerName, kind, namespace, podSpec, nil
 }
 
-func (r *WorkloadControllerResizer) getChildPod(parentKind, namespace, name string) (*k8sapi.Pod, error) {
+func (r *WorkloadControllerResizer) getWorkloadControllerSpec(parentKind, namespace, name string) (*k8sapi.PodSpec, error) {
 	res, err := GetSupportedResUsingKind(parentKind, namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
-	parent, err := r.clusterScraper.DynamicClient.Resource(res).Namespace(namespace).Get(name, metav1.GetOptions{})
+	obj, err := r.clusterScraper.DynamicClient.Resource(res).Namespace(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	parentSelector, err := GetSelectors(parent)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO(irfanurrehman): This code does not consider parentSelector.Requirements. Needs revisit.
-	// We are in this situation of trying to find a child pod because we need the pods node
-	// for cpu frequency conversion.
-	// To do this right, consider usage of podlister.
-	// https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/client-go/listers/core/v1/pod.go#L30:1
-	podsList, err := r.clusterScraper.Clientset.CoreV1().Pods(namespace).List(metav1.ListOptions{LabelSelector: labels.Set(parentSelector.MatchLabels).String()})
-	if err != nil {
-		return nil, err
-	}
-
-	noPodFoundError := fmt.Errorf("could not find any matching pod for %s %s/%s", parentKind, namespace, name)
-	if podsList == nil {
-		return nil, noPodFoundError
-	}
-	if len(podsList.Items) < 1 {
-		return nil, noPodFoundError
-	}
-
-	for _, pod := range podsList.Items {
-		if pod.Spec.NodeName != "" {
-			err, match := r.matchOwnerReferences(pod.OwnerReferences, parent)
-			if err != nil {
-				glog.Errorf("Error matching ownerreferences for pod %s with %s %s/%s: %v", pod.Name, parent.GetKind(), namespace, name, err)
-				// We still try rest of the pods
-				continue
-			}
-
-			// isOpenShiftDeployerPod is needed to exclude pods which openshift uses to manage
-			// deployment configs. We should not select the deployer pods.
-			if match && !r.isOpenShiftDeployerPod(pod.Labels) {
-				return &pod, nil
-			}
-		}
-	}
-
-	return nil, noPodFoundError
-
-}
-
-func (r *WorkloadControllerResizer) isOpenShiftDeployerPod(labels map[string]string) bool {
-	for k := range labels {
-		if k == openShiftDeployerLabel {
-			return true
-		}
-	}
-	return false
-}
-
-// matchOwnerReference is needed to ensure that we select a pod which
-// surely is a child of the parent controller. The selector in get pod
-// list will also match pods whose labels are same as or are superset
-// of our pods labels.
-// Example: rs1 has selector foo=bar and rs2 has selector foo=bar,foo=baz
-// Getting pods using selector foo=bar will get children of both rs1 and rs2
-// Disambiguation has to be done via ownerref/controllerref.
-func (r *WorkloadControllerResizer) matchOwnerReferences(podOwners []metav1.OwnerReference, topMostParent *unstructured.Unstructured) (error, bool) {
-	topMostParentKind := topMostParent.GetKind()
-	namespace := topMostParent.GetNamespace()
-	name := topMostParent.GetName()
-
-	// deployment and deployment configs are not a parent but a grandparent.
-	// We will need to get all the grandparents children and see if one of
-	// them is a parent to our pod
-	var res schema.GroupVersionResource
-	switch topMostParentKind {
-	case util.KindDeployment:
-		// We know that using the kind here won't return error
-		res, _ = GetSupportedResUsingKind(util.KindReplicaSet, namespace, name)
-	case util.KindDeploymentConfig:
-		res, _ = GetSupportedResUsingKind(util.KindReplicationController, namespace, name)
-	default:
-		return nil, ownerMatches(podOwners, topMostParent)
-	}
-
-	selector, err := GetSelectors(topMostParent)
-	if err != nil {
-		return err, false
-	}
-	possibleParents, err := r.clusterScraper.DynamicClient.Resource(res).Namespace(namespace).List(metav1.ListOptions{LabelSelector: labels.Set(selector.MatchLabels).String()})
-	if err != nil {
-		return err, false
-	}
-
-	for _, parent := range possibleParents.Items {
-		if ownerMatches(podOwners, &parent) {
-			return nil, true
-		}
-	}
-	return nil, false
-}
-
-func ownerMatches(podOwners []metav1.OwnerReference, parent *unstructured.Unstructured) bool {
-	for _, ref := range podOwners {
-		if ref.Name == parent.GetName() {
-			return true
-		}
-	}
-	return false
-}
-
-func GetSelectors(obj *unstructured.Unstructured) (*metav1.LabelSelector, error) {
 	objKind := obj.GetKind()
-	namespace := obj.GetNamespace()
-	name := obj.GetName()
-	selectorUnstructured, found, err := unstructured.NestedFieldCopy(obj.Object, "spec", "selector")
+	podSpecUnstructured, found, err := unstructured.NestedFieldCopy(obj.Object, "spec", "template", "spec")
 	if err != nil || !found {
-		return nil, fmt.Errorf("error retrieving selector from %s %s/%s: %v", objKind, namespace, name, err)
+		return nil, fmt.Errorf("error retrieving pod template spec from %s %s/%s: %v", objKind, namespace, name, err)
 	}
 
-	selector := metav1.LabelSelector{}
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(selectorUnstructured.(map[string]interface{}), &selector); err != nil {
-		return nil, fmt.Errorf("error converting unstructured selectors to typed selectors for %s %s/%s: %v", objKind, namespace, name, err)
+	podSpec := k8sapi.PodSpec{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(podSpecUnstructured.(map[string]interface{}), &podSpec); err != nil {
+		return nil, fmt.Errorf("error converting unstructured pod spec to typed pod spec for %s %s/%s: %v", objKind, namespace, name, err)
 	}
 
-	return &selector, nil
+	return &podSpec, nil
 }
 
 func resizeWorkloadController(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient,
-	kind, controllerName, podName, namespace string, specs []*containerResizeSpec) error {
+	kind, controllerName, namespace string, specs []*containerResizeSpec) error {
 	// prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdater(clusterScraper, ormClient, kind, controllerName, podName, namespace)
+	controllerUpdater, err := newK8sControllerUpdater(clusterScraper, ormClient, kind, controllerName, "", namespace)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return err
@@ -282,13 +170,14 @@ func resizeWorkloadController(clusterScraper *cluster.ClusterScraper, ormClient 
 	return nil
 }
 
-func getContainerIndex(pod *k8sapi.Pod, containerName string) int {
+func getContainerIndex(podSpec *k8sapi.PodSpec, containerName string) int {
 	// We assume that the pod spec is valid.
-	for i, cont := range pod.Spec.Containers {
+	for i, cont := range podSpec.Containers {
 		if cont.Name == containerName {
 			return i
 		}
 	}
 
+	glog.V(4).Infof("Match for container %s not found in pod template spec : %v", containerName, podSpec)
 	return -1
 }
