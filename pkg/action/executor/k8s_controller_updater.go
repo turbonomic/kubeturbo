@@ -110,8 +110,8 @@ func (c *k8sControllerUpdater) updateWithRetry(ctlrSpec *controllerSpec) error {
 //   update the current specification in place if the changes are valid
 // - Update the controller object with the server after a successful reconciliation
 func (c *k8sControllerUpdater) update(desired *controllerSpec) error {
-	glog.V(4).Infof("Begin to update %v of pod %s/%s",
-		c.controller, c.namespace, c.podName)
+	glog.V(4).Infof("Begin to update %v %s/%s",
+		c.controller, c.namespace, c.name)
 	current, err := c.controller.get(c.name)
 	if err != nil {
 		return err
@@ -121,15 +121,15 @@ func (c *k8sControllerUpdater) update(desired *controllerSpec) error {
 		return err
 	}
 	if !updated {
-		glog.V(2).Infof("%v of pod %s/%s has already been updated to the desired specification",
-			c.controller, c.namespace, c.podName)
+		glog.V(2).Infof("%v %s/%s has already been updated to the desired specification",
+			c.controller, c.namespace, c.name)
 		return nil
 	}
 	if err := c.controller.update(current); err != nil {
 		return err
 	}
-	glog.V(2).Infof("Successfully updated %v of pod %s/%s",
-		c.controller, c.namespace, c.podName)
+	glog.V(2).Infof("Successfully updated %v %s/%s",
+		c.controller, c.namespace, c.name)
 	return nil
 }
 
@@ -145,8 +145,8 @@ func (c *k8sControllerUpdater) reconcile(current *k8sControllerSpec, desired *co
 			return false, err
 		}
 		// Update the replicas of the controller
-		glog.V(2).Infof("Try to update replicas of %v from %d to %d",
-			c.controller, *current.replicas, num)
+		glog.V(2).Infof("Try to update replicas of %v %s/%s from %d to %d",
+			c.controller, c.namespace, c.name, *current.replicas, num)
 		*current.replicas = num
 		return true, nil
 	}
@@ -160,8 +160,8 @@ func (c *k8sControllerUpdater) reconcile(current *k8sControllerSpec, desired *co
 			indexes = indexes + strconv.Itoa(spec.Index) + ","
 		}
 	}
-	glog.V(4).Infof("Try to update resources for container indexes: %s in pod %v/%v's spec.",
-		indexes, c.namespace, c.podName)
+	glog.V(4).Infof("Try to update resources for container indexes: %s in pod template spec of %v %s/%s .",
+		indexes, c.controller, c.namespace, c.name)
 	updated, err := updateResourceAmount(current.podSpec, desired.resizeSpecs, current.controllerName)
 	if err != nil {
 		return false, err

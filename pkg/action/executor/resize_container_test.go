@@ -2,11 +2,12 @@ package executor
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	k8sapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 func createPod() *k8sapi.Pod {
@@ -54,7 +55,7 @@ func TestSetZeroRequestMemory(t *testing.T) {
 	spec.NewCapacity[rtype] = amount
 
 	resizer := &ContainerResizer{}
-	resizer.setZeroRequest(pod, idx, spec)
+	resizer.setZeroRequest(pod.Name, &pod.Spec, idx, spec)
 
 	if v, exist := spec.NewRequest[rtype]; !exist {
 		t.Error("Failed to set zero request")
@@ -79,7 +80,7 @@ func TestSetZeroRequestCPU(t *testing.T) {
 	fmt.Printf("amount = %++v", amount)
 
 	resizer := &ContainerResizer{}
-	resizer.setZeroRequest(pod, idx, spec)
+	resizer.setZeroRequest(pod.Name, &pod.Spec, idx, spec)
 
 	if v, exist := spec.NewRequest[rtype]; !exist {
 		t.Error("Failed to set zero request")
@@ -115,7 +116,7 @@ func TestSetZeroRequestMemory2(t *testing.T) {
 	spec.NewCapacity[rtype] = amount
 
 	resizer := &ContainerResizer{}
-	resizer.setZeroRequest(pod, idx, spec)
+	resizer.setZeroRequest(pod.Name, &pod.Spec, idx, spec)
 
 	if _, exist := spec.NewRequest[rtype]; exist {
 		t.Errorf("Should not set %v to zero", rtype)
@@ -150,7 +151,7 @@ func TestSetZeroRequestCPU2(t *testing.T) {
 
 	//3. update it
 	resizer := &ContainerResizer{}
-	resizer.setZeroRequest(pod, idx, spec)
+	resizer.setZeroRequest(pod.Name, &pod.Spec, idx, spec)
 
 	//4. check result
 	if _, exist := spec.NewRequest[rtype]; exist {
@@ -187,7 +188,7 @@ func TestSetZeroRequestCPUMemory(t *testing.T) {
 
 	//3. update it
 	resizer := &ContainerResizer{}
-	resizer.setZeroRequest(pod, idx, spec)
+	resizer.setZeroRequest(pod.Name, &pod.Spec, idx, spec)
 
 	//4. check it
 	if v, exist := spec.NewRequest[rtypeMem]; !exist {
@@ -229,7 +230,7 @@ func TestSetZeroRequestCPUMemory2(t *testing.T) {
 
 	//3. update it
 	resizer := &ContainerResizer{}
-	resizer.setZeroRequest(pod, idx, spec)
+	resizer.setZeroRequest(pod.Name, &pod.Spec, idx, spec)
 
 	//4. check it
 	if len(spec.NewRequest) != 2 {
@@ -256,7 +257,7 @@ func TestBuildResourceListsWithLimits(t *testing.T) {
 	}
 	spec := NewContainerResizeSpec(0)
 	resizer := &ContainerResizer{}
-	resizer.buildResourceLists(createPod(), actionItem, spec)
+	resizer.buildResourceLists(createPod().Name, actionItem, spec)
 
 	assert.Equal(t, 0, len(spec.NewRequest))
 	newMemoryCapacity := spec.NewCapacity[k8sapi.ResourceMemory]
@@ -270,7 +271,7 @@ func TestBuildResourceListsWithRequests(t *testing.T) {
 	}
 	spec := NewContainerResizeSpec(0)
 	resizer := &ContainerResizer{}
-	resizer.buildResourceLists(createPod(), actionItem, spec)
+	resizer.buildResourceLists(createPod().Name, actionItem, spec)
 
 	assert.Equal(t, 0, len(spec.NewCapacity))
 	newMemoryRequests := spec.NewRequest[k8sapi.ResourceMemory]
