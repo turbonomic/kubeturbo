@@ -493,12 +493,7 @@ func (builder *podEntityDTOBuilder) getPodProperties(pod *api.Pod, vols []reposi
 		m := stitching.NewVolumeStitchingManager()
 		err := m.ProcessVolumes(apiVols)
 		if err == nil {
-			p, err := m.BuildDTOProperty(false)
-			if err == nil {
-				properties = append(properties, p)
-			} else {
-				glog.Errorf("failed to build Volume stitching properties for Pod %s: %s", podClusterID, err)
-			}
+			properties = append(properties, m.BuildDTOProperties(false)...)
 		}
 	}
 

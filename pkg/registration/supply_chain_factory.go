@@ -79,10 +79,12 @@ var (
 	proxyVolumeUUID = "Proxy_Volume_UUID"
 
 	// External matching property
-	VMIPFieldName          = supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS
-	VMIPFieldPaths         = []string{supplychain.SUPPLY_CHAIN_CONSTANT_VIRTUAL_MACHINE_DATA}
-	VMUUID                 = supplychain.SUPPLY_CHAIN_CONSTANT_ID
-	VOLUMEUUID             = supplychain.SUPPLY_CHAIN_CONSTANT_ID
+	VMIPFieldName  = supplychain.SUPPLY_CHAIN_CONSTANT_IP_ADDRESS
+	VMIPFieldPaths = []string{supplychain.SUPPLY_CHAIN_CONSTANT_VIRTUAL_MACHINE_DATA}
+	VMUUID         = supplychain.SUPPLY_CHAIN_CONSTANT_ID
+
+	// Common property
+	path                   = "path"
 	ActionEligibilityField = "actionEligibility"
 )
 
@@ -475,10 +477,12 @@ func (f *SupplyChainFactory) buildVolumeMergedEntityMetadata() (*proto.MergedEnt
 
 	mergedEntityMetadataBuilder := builder.NewMergedEntityMetadataBuilder()
 
-	mergedEntityMetadataBuilder.PatchField(ActionEligibilityField, []string{})
-	mergedEntityMetadataBuilder.
+	mergedEntityMetadataBuilder.PatchField(ActionEligibilityField, []string{}).
+		PatchField("powerState", []string{}).
 		InternalMatchingProperty(proxyVolumeUUID).
-		ExternalMatchingField(VOLUMEUUID, []string{})
+		ExternalMatchingField(supplychain.SUPPLY_CHAIN_CONSTANT_ID, []string{}).
+		InternalMatchingProperty(path).
+		ExternalMatchingProperty(path)
 
 	return mergedEntityMetadataBuilder.
 		PatchSoldMetadata(proto.CommodityDTO_STORAGE_AMOUNT, fieldsUsed).
