@@ -14,16 +14,18 @@ import (
 )
 
 const (
-	proxyVolumeUUID = "Proxy_Volume_UUID"
-
 	awsVolPrefix   = "aws://"
 	azureVolPrefix = "azure://"
 	awsVolFormat   = "aws::%v::VL::%v"
 	azureVolFormat = "azure::VL::%v"
+
+	path            = "path"
+	proxyVolumeUUID = "Proxy_Volume_UUID"
 )
 
 type VolumeStitchingManager struct {
 	stitchingUuids string
+	stitchingPaths string
 }
 
 func NewVolumeStitchingManager() *VolumeStitchingManager {
@@ -31,7 +33,7 @@ func NewVolumeStitchingManager() *VolumeStitchingManager {
 }
 
 func (s *VolumeStitchingManager) ProcessVolumes(vols []*api.PersistentVolume) error {
-	uuids := []string{}
+	uuids, paths := []string{}, []string{}
 	errorStrings := ""
 	atLeastOneProcessed := false
 	for _, vol := range vols {
@@ -42,7 +44,13 @@ func (s *VolumeStitchingManager) ProcessVolumes(vols []*api.PersistentVolume) er
 		case vol.Spec.AzureDisk != nil || vol.Spec.AzureFile != nil:
 			uuidGetter = &azureVolumeUUIDGetter{}
 		case vol.Spec.VsphereVolume != nil:
+			// We keep uuid getter for vsphere although not used for stitching
+			// in current environments. This will be useful for environments like tanzu.
+			// We will need to update the appropriate id when we have a working tanzu cluster.
+			// Please check https://rbcommons.com/s/VMTurbo/r/42617/ for path based stitching details.
 			uuidGetter = &vsphereVolumeUUIDGetter{}
+			paths = append(paths, vol.Spec.VsphereVolume.VolumePath)
+			atLeastOneProcessed = true
 		default:
 			uuidGetter = &defaultVolumeUUIDGetter{}
 		}
@@ -61,41 +69,71 @@ func (s *VolumeStitchingManager) ProcessVolumes(vols []*api.PersistentVolume) er
 		return fmt.Errorf(errorStrings)
 	}
 	s.stitchingUuids = strings.Join(uuids, ",")
+	s.stitchingPaths = strings.Join(paths, ",")
 	return nil
 }
 
-// Get the property name based on whether it is a stitching or reconciliation.
-func (s *VolumeStitchingManager) getPropertyName(isForReconcile bool) string {
+// Get the property names based on whether it is a stitching or reconciliation.
+func (s *VolumeStitchingManager) getPropertyNames(isForReconcile bool) []string {
+	properties := []string{}
 	if isForReconcile {
-		return proxyVolumeUUID
+		properties = append(properties, proxyVolumeUUID)
+	} else {
+		properties = append(properties, supplychain.SUPPLY_CHAIN_CONSTANT_UUID)
 	}
-	return supplychain.SUPPLY_CHAIN_CONSTANT_UUID
+	if s.stitchingPaths != "" {
+		properties = append(properties, path)
+	}
+	return properties
 }
 
-func (s *VolumeStitchingManager) BuildDTOProperty(isForReconcile bool) (*proto.EntityDTO_EntityProperty, error) {
+func (s *VolumeStitchingManager) BuildDTOProperties(isForReconcile bool) []*proto.EntityDTO_EntityProperty {
 	propertyNamespace := DefaultPropertyNamespace
-	propertyName := s.getPropertyName(isForReconcile)
+	propertyNames := s.getPropertyNames(isForReconcile)
 
-	return &proto.EntityDTO_EntityProperty{
-		Namespace: &propertyNamespace,
-		Name:      &propertyName,
-		Value:     &s.stitchingUuids,
-	}, nil
+	entityProperties := []*proto.EntityDTO_EntityProperty{}
+	for _, val := range propertyNames {
+		// We report 2 properties in case of vsphere
+		propertyName := val
+		if propertyName == path {
+			entityProperties = append(entityProperties,
+				&proto.EntityDTO_EntityProperty{
+					Namespace: &propertyNamespace,
+					Name:      &propertyName,
+					Value:     &s.stitchingPaths,
+				})
+		} else {
+			entityProperties = append(entityProperties,
+				&proto.EntityDTO_EntityProperty{
+					Namespace: &propertyNamespace,
+					Name:      &propertyName,
+					Value:     &s.stitchingUuids,
+				})
+		}
+	}
+	return entityProperties
 }
 
 // Create the meta data that will be used during the reconciliation process.
 func (s *VolumeStitchingManager) GenerateReconciliationMetaData() (*proto.EntityDTO_ReplacementEntityMetaData, error) {
 	replacementEntityMetaDataBuilder := builder.NewReplacementEntityMetaDataBuilder()
-
 	entity := proto.EntityDTO_VIRTUAL_VOLUME
-	// TODO use a constant, also find why is this different from supplychain.SUPPLY_CHAIN_CONSTANT_UUID
-	attribute := "Uuid"
 
-	propertyDef := &proto.ServerEntityPropDef{
+	attr1 := supplychain.SUPPLY_CHAIN_CONSTANT_UUID
+	extPropertyDef1 := &proto.ServerEntityPropDef{
 		Entity:    &entity,
-		Attribute: &attribute,
+		Attribute: &attr1,
 	}
-	replacementEntityMetaDataBuilder.Matching(proxyVolumeUUID).MatchingExternal(propertyDef)
+	replacementEntityMetaDataBuilder.Matching(proxyVolumeUUID).MatchingExternal(extPropertyDef1)
+
+	if s.stitchingPaths != "" {
+		attr2 := path
+		extPropertyDef2 := &proto.ServerEntityPropDef{
+			Entity:    &entity,
+			Attribute: &attr2,
+		}
+		replacementEntityMetaDataBuilder.Matching(path).MatchingExternal(extPropertyDef2)
+	}
 
 	usedAndCapacityAndPeakPropertyNames := []string{builder.PropertyCapacity, builder.PropertyUsed, builder.PropertyPeak}
 	replacementEntityMetaDataBuilder.PatchSellingWithProperty(proto.CommodityDTO_STORAGE_AMOUNT, usedAndCapacityAndPeakPropertyNames)
@@ -192,19 +230,10 @@ func (azure *vsphereVolumeUUIDGetter) Name() string {
 	return "VSPHERE"
 }
 
-// Please check https://rbcommons.com/s/VMTurbo/r/42617/ for details
 func (azure *vsphereVolumeUUIDGetter) GetVolumeUUID(vol *api.PersistentVolume) (string, error) {
 	if vol.Spec.VsphereVolume == nil {
 		return "", fmt.Errorf("not a valid Vsphere provisioned volume: %v", vol.Name)
 	}
 
-	path := vol.Spec.VsphereVolume.VolumePath
-	//1. Get the stitching id by transforming:
-	// [PUREM10:DS01] kubevols/kubernetes-dynamic-pvc-b9a45f70-0817-460c-a60f-9dac3c4b3d3f.vmdk
-	// to:
-	// PUREM10:DS01-kubevols-kubernetes-dynamic-pvc-b9a45f70-0817-48A1ADF83BA7B4A609DA
-	stitchingUUID := strings.TrimSuffix(strings.ReplaceAll(strings.ReplaceAll(strings.
-		ReplaceAll(strings.ReplaceAll(path, "/", "-"), "[", ""), "]", ""), " ", "-"), ".vmdk")
-
-	return stitchingUUID, nil
+	return string(vol.UID), nil
 }

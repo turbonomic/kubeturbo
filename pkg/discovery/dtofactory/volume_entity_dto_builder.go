@@ -151,14 +151,11 @@ func (builder *volumeEntityDTOBuilder) getVolumeProperties(vol *api.PersistentVo
 
 	// stitching property.
 	isForReconcile := true
-	stitchingProperty, err := stitchingMgr.BuildDTOProperty(isForReconcile)
-	if err != nil {
-		glog.Errorf("failed to build stitching properties for volume %s: %s", vol.Name, err)
-	} else {
+	stitchingProperties := stitchingMgr.BuildDTOProperties(isForReconcile)
+	for _, stitchingProperty := range stitchingProperties {
 		glog.V(4).Infof("Volume %s will be reconciled with %s: %s", vol.Name, *stitchingProperty.Name,
 			*stitchingProperty.Value)
 	}
-	properties = append(properties, stitchingProperty)
-
+	properties = append(properties, stitchingProperties...)
 	return properties
 }
