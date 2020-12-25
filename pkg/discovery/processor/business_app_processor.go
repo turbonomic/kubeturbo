@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"context"
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,7 +43,7 @@ func (p *BusinessAppProcessor) ProcessBusinessApps() {
 	}
 	dynClient := typedClusterScraper.DynamicClient
 
-	apps, err := dynClient.Resource(res).Namespace("").List(metav1.ListOptions{})
+	apps, err := dynClient.Resource(res).Namespace("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		glog.Warningf("Error while processing application entities: %v", err)
 		return
@@ -149,7 +150,7 @@ func (p *BusinessAppProcessor) getEntities(selector *metav1.LabelSelector, gk me
 	}
 
 	dynClient := p.ClusterScraper.(*cluster.ClusterScraper).DynamicClient
-	resourceList, err := dynClient.Resource(res).Namespace(namespace).List(metav1.ListOptions{LabelSelector: labels.Set(selector.MatchLabels).String()})
+	resourceList, err := dynClient.Resource(res).Namespace(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labels.Set(selector.MatchLabels).String()})
 	if err != nil {
 		return nil, err
 	}

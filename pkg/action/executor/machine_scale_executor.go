@@ -8,6 +8,13 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
+type MachineScalerType string
+
+const (
+	MachineScalerTypeCAPI MachineScalerType = "TypeCAPI" // Cluster API based scaler
+	MachineScalerTypeCP   MachineScalerType = "TypeCP"   // Cloud provider based scaler
+)
+
 type MachineActionExecutor struct {
 	executor      TurboK8sActionExecutor
 	cache         *turbostore.Cache

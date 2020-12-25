@@ -1,6 +1,7 @@
 package configs
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
@@ -81,7 +82,7 @@ func (config *K8sTargetConfig) CollectK8sTargetAndProbeInfo(kubeConfig *rest.Con
 
 	// Check Openshift version, if exists
 	restClient := kubeClient.DiscoveryClient.RESTClient()
-	if bytes, err := restClient.Get().AbsPath(versionPathOpenshiftV3).DoRaw(); err == nil {
+	if bytes, err := restClient.Get().AbsPath(versionPathOpenshiftV3).DoRaw(context.TODO()); err == nil {
 		// Openshift 3
 		var versionInfo version.Info
 		if err := json.Unmarshal(bytes, &versionInfo); err == nil {
@@ -89,7 +90,7 @@ func (config *K8sTargetConfig) CollectK8sTargetAndProbeInfo(kubeConfig *rest.Con
 			OCPVersion := "OCP " + versionInfo.String()
 			config.ServerVersions = append(config.ServerVersions, OCPVersion)
 		}
-	} else if bytes, err := restClient.Get().AbsPath(versionPathOpenshiftV4).DoRaw(); err == nil {
+	} else if bytes, err := restClient.Get().AbsPath(versionPathOpenshiftV4).DoRaw(context.TODO()); err == nil {
 		// Openshift 4
 		var clusterVersion openshift.ClusterVersion
 		if err := json.Unmarshal(bytes, &clusterVersion); err == nil {
@@ -119,7 +120,7 @@ func (config *K8sTargetConfig) CollectK8sTargetAndProbeInfo(kubeConfig *rest.Con
 	}
 	podList, err := kubeClient.CoreV1().
 		Pods(api.NamespaceAll).
-		List(metav1.ListOptions{
+		List(context.TODO(), metav1.ListOptions{
 			FieldSelector: fieldSelector.String(),
 		})
 	if err != nil {

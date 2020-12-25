@@ -2,7 +2,13 @@ package resourcemapping
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"reflect"
+	"strings"
+	"sync"
+	"text/template"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
@@ -10,10 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
-	"reflect"
-	"strings"
-	"sync"
-	"text/template"
 )
 
 const (
@@ -133,7 +135,7 @@ func (ormClient *ORMClient) getORMCRList() ([]unstructured.Unstructured, error) 
 		Version:  ormVersion,
 		Resource: ormResource,
 	}
-	ormCRs, err := ormClient.dynClient.Resource(groupVersionRes).List(metav1.ListOptions{})
+	ormCRs, err := ormClient.dynClient.Resource(groupVersionRes).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get OperatorResourceMapping CRs: %v", err)
 	}
@@ -142,7 +144,7 @@ func (ormClient *ORMClient) getORMCRList() ([]unstructured.Unstructured, error) 
 
 func (ormClient *ORMClient) getOperatorCRsFromCRD(crdName, namespace string) ([]unstructured.Unstructured, schema.GroupVersionResource, error) {
 	crds := ormClient.apiExtClient.CustomResourceDefinitions()
-	crd, err := crds.Get(crdName, metav1.GetOptions{})
+	crd, err := crds.Get(context.TODO(), crdName, metav1.GetOptions{})
 	if err != nil {
 		return nil, schema.GroupVersionResource{}, err
 	}
@@ -151,7 +153,7 @@ func (ormClient *ORMClient) getOperatorCRsFromCRD(crdName, namespace string) ([]
 		Version:  crd.Spec.Versions[0].Name,
 		Resource: crd.Spec.Names.Plural,
 	}
-	crs, err := ormClient.dynClient.Resource(groupVersionRes).Namespace(namespace).List(metav1.ListOptions{})
+	crs, err := ormClient.dynClient.Resource(groupVersionRes).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, groupVersionRes, err
 	}
@@ -236,7 +238,7 @@ func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unst
 
 	resourceNamespace := updatedControllerObj.GetNamespace()
 	dynResourceClient := ormClient.dynClient.Resource(operatorResourceSpec.operatorGVResource).Namespace(resourceNamespace)
-	operatorCR, err := dynResourceClient.Get(operatorResName, metav1.GetOptions{})
+	operatorCR, err := dynResourceClient.Get(context.TODO(), operatorResName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get CR %s for %s in namespace %s: %v", operatorRes, componentKey, resourceNamespace, err)
 	}
@@ -276,7 +278,7 @@ func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unst
 		if err != nil {
 			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
 		}
-		_, err = dynResourceClient.Update(operatorCR, metav1.UpdateOptions{})
+		_, err = dynResourceClient.Update(context.TODO(), operatorCR, metav1.UpdateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
 		}

@@ -2,6 +2,7 @@ package kubeclient
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -71,7 +72,7 @@ func (n *NodeCpuFrequencyGetter) GetFrequency(nodeName string) (float64, error) 
 
 func (n *NodeCpuFrequencyGetter) getCpufreqFromPodLog(pod *corev1.Pod) (float64, error) {
 	req := n.kubeClient.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{})
-	logs, err := req.Stream()
+	logs, err := req.Stream(context.TODO())
 	if err != nil {
 		return 0, fmt.Errorf("error in opening stream")
 	}
@@ -100,7 +101,7 @@ func (n *NodeCpuFrequencyGetter) getCpufreqFromPodLog(pod *corev1.Pod) (float64,
 
 func (n *NodeCpuFrequencyGetter) waitForJob(jobName, namespace string) error {
 	err := wait.Poll(1*time.Second, 20*time.Second, func() (bool, error) {
-		j, err := n.kubeClient.BatchV1().Jobs(namespace).Get(jobName, metav1.GetOptions{})
+		j, err := n.kubeClient.BatchV1().Jobs(namespace).Get(context.TODO(), jobName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -143,8 +144,8 @@ func (n *NodeCpuFrequencyGetter) LogPodErrorEvents(jobName string, pod *corev1.P
 func (n *NodeCpuFrequencyGetter) waitForJobCleanup(jobName, namespace string) error {
 	return wait.PollImmediate(1*time.Second, 20*time.Second, func() (bool, error) {
 		deletePropagation := metav1.DeletePropagationBackground
-		deleteOptions := &metav1.DeleteOptions{PropagationPolicy: &deletePropagation}
-		err := n.kubeClient.BatchV1().Jobs(namespace).Delete(jobName, deleteOptions)
+		deleteOptions := metav1.DeleteOptions{PropagationPolicy: &deletePropagation}
+		err := n.kubeClient.BatchV1().Jobs(namespace).Delete(context.TODO(), jobName, deleteOptions)
 		if apierrors.IsNotFound(err) {
 			return true, nil
 		}
@@ -159,7 +160,7 @@ func (n *NodeCpuFrequencyGetter) waitForJobCleanup(jobName, namespace string) er
 
 func (n *NodeCpuFrequencyGetter) getJobsPod(podNamePrefix, namespace string) (*corev1.Pod, error) {
 	var pod *corev1.Pod
-	pods, err := n.kubeClient.CoreV1().Pods(namespace).List(metav1.ListOptions{})
+	pods, err := n.kubeClient.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +180,7 @@ func (n *NodeCpuFrequencyGetter) getJobsPod(podNamePrefix, namespace string) (*c
 }
 
 func (n *NodeCpuFrequencyGetter) createJob(nodeName, namespace string) (*batchv1.Job, error) {
-	job, err := n.kubeClient.BatchV1().Jobs(namespace).Create(getCpuFreqJobDefinition(nodeName, n.busyboxImage))
+	job, err := n.kubeClient.BatchV1().Jobs(namespace).Create(context.TODO(), getCpuFreqJobDefinition(nodeName, n.busyboxImage), metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error creating cpufreq job for node: %s : %v", nodeName, err)
 	}

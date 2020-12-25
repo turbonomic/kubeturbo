@@ -1,7 +1,7 @@
 package kubeturbo
 
 import (
-	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
+	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	kubeletclient "github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
@@ -23,7 +23,7 @@ type Config struct {
 	KubeClient    *kubeclient.Clientset
 	DynamicClient dynamic.Interface
 	KubeletClient *kubeletclient.KubeletClient
-	CAClient      *clientset.Clientset
+	CAClient      *versioned.Clientset
 	// ORMClient builds operator resource mapping templates fetched from OperatorResourceMapping CR in discovery client
 	// and provides the capability to update the corresponding CR for an Operator managed resource in action execution client.
 	ORMClient *resourcemapping.ORMClient
@@ -69,7 +69,7 @@ func (c *Config) WithDynamicClient(client dynamic.Interface) *Config {
 	return c
 }
 
-func (c *Config) WithClusterAPIClient(client *clientset.Clientset) *Config {
+func (c *Config) WithClusterAPIClient(client *versioned.Clientset) *Config {
 	c.CAClient = client
 	return c
 }

@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/golang/glog"
@@ -133,7 +134,7 @@ func (r *WorkloadControllerResizer) getWorkloadControllerSpec(parentKind, namesp
 		return nil, err
 	}
 
-	obj, err := r.clusterScraper.DynamicClient.Resource(res).Namespace(namespace).Get(name, metav1.GetOptions{})
+	obj, err := r.clusterScraper.DynamicClient.Resource(res).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}

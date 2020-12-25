@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -181,7 +182,7 @@ func PodIsPending(pod *api.Pod) bool {
 // GetPodInPhase finds the pod with the specific name in the specific phase (e.g., Running).
 // If pod not found, nil pod pointer will be returned without error.
 func GetPodInPhase(podClient v1.PodInterface, name string, phase api.PodPhase) (*api.Pod, error) {
-	pod, err := podClient.Get(name, metav1.GetOptions{})
+	pod, err := podClient.Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		glog.Errorf("Error while getting pod %s in phase %v: %v", name, phase, err.Error())
 		return nil, err
@@ -203,7 +204,7 @@ func GetPodInPhase(podClient v1.PodInterface, name string, phase api.PodPhase) (
 // GetPodInPhaseByUid finds the pod with the specific uid in the specific phase (e.g., Running).
 // If pod not found, nil pod pointer will be returned without error.
 func GetPodInPhaseByUid(podClient v1.PodInterface, uid string, phase api.PodPhase) (*api.Pod, error) {
-	podList, err := podClient.List(metav1.ListOptions{
+	podList, err := podClient.List(context.TODO(), metav1.ListOptions{
 		FieldSelector: "status.phase=" + string(phase) + ",metadata.uid=" + uid,
 	})
 
@@ -346,7 +347,7 @@ func WaitForPodReady(client *client.Clientset, namespace, podName, nodeName stri
 // checkPodNode checks the readiness of a given pod
 // The boolean return value indicates if this function needs to be retried
 func checkPodNode(kubeClient *client.Clientset, namespace, podName, nodeName string) (bool, error) {
-	pod, err := kubeClient.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+	pod, err := kubeClient.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 	if err != nil {
 		return true, err
 	}
@@ -416,12 +417,12 @@ func getPodWarnings(pod *api.Pod, podName string) (warnings []string) {
 func GetPodEvents(kubeClient *client.Clientset, namespace, name string) (podEvents []PodEvent) {
 	podEvents = []PodEvent{}
 	// Get the pod
-	pod, err := kubeClient.CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
+	pod, err := kubeClient.CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return
 	}
 	// Get events that belong to the given pod
-	events, err := kubeClient.CoreV1().Events(namespace).List(metav1.ListOptions{
+	events, err := kubeClient.CoreV1().Events(namespace).List(context.TODO(), metav1.ListOptions{
 		FieldSelector: "involvedObject.uid=" + string(pod.UID),
 	})
 	if err != nil {

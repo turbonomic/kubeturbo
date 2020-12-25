@@ -1,16 +1,18 @@
 package executor
 
 import (
+	"context"
 	"fmt"
-	machinev1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
-	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/typed/machine/v1beta1"
+	"time"
+
+	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
+	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/machine/v1beta1"
 	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
-	"time"
 )
 
 // ActionType describes the current phase of processing the Action request.
@@ -30,16 +32,15 @@ const (
 // ca prefix stands for Cluster API everywhere.
 type k8sClusterApi struct {
 	// clients
-	caClient  *clientset.Clientset
+	caClient  *versioned.Clientset
 	k8sClient *kubernetes.Clientset
 
 	// Core API Resource client interfaces
 	discovery discovery.DiscoveryInterface
 
 	// Cluster API Resource client interfaces
-	machine           v1beta1.MachineInterface
-	machineSet        v1beta1.MachineSetInterface
-	machineDeployment v1beta1.MachineDeploymentInterface
+	machine    v1beta1.MachineInterface
+	machineSet v1beta1.MachineSetInterface
 
 	caGroupVersion string // clusterAPI group and version
 }
@@ -59,11 +60,11 @@ func (client *k8sClusterApi) verifyClusterAPIEnabled() error {
 // An error is returned if the Machine is not found or the node does not exist.
 func (client *k8sClusterApi) identifyManagingMachine(nodeName string) (*machinev1beta1.Machine, error) {
 	// Check if a node with the passed name exists.
-	_, err := client.k8sClient.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
+	_, err := client.k8sClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		machineName := nodeName
 		// We get the machine name as is in the stitched env.
-		machine, err := client.machine.Get(machineName, metav1.GetOptions{})
+		machine, err := client.machine.Get(context.TODO(), machineName, metav1.GetOptions{})
 		if err == nil {
 			return machine, nil
 		}
@@ -75,7 +76,7 @@ func (client *k8sClusterApi) identifyManagingMachine(nodeName string) (*machinev
 	}
 
 	// List all machines and match the node.
-	machineList, err := client.machine.List(metav1.ListOptions{})
+	machineList, err := client.machine.List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +92,7 @@ func (client *k8sClusterApi) identifyManagingMachine(nodeName string) (*machinev
 func (client *k8sClusterApi) listMachinesInMachineSet(ms *machinev1beta1.MachineSet) (*machinev1beta1.MachineList, error) {
 	sString := metav1.FormatLabelSelector(&ms.Spec.Selector)
 	listOpts := metav1.ListOptions{LabelSelector: sString}
-	return client.machine.List(listOpts)
+	return client.machine.List(context.TODO(), listOpts)
 }
 
 //
@@ -151,7 +152,7 @@ func (controller *machineSetController) executeAction() error {
 	if diff < 0 {
 		// We need to mark the machine for deletion to ensure this is the
 		// one removed by machine controller while scaling down.
-		// https://github.com/openshift/cluster-api/blob/openshift-4.2-cluster-api-0.1.0/pkg/controller/machineset/delete_policy.go#L32
+		// https://github.com/openshift/machine-api-operator/blob/master/pkg/controller/machineset/delete_policy.go#L34
 		machine, err := client.identifyManagingMachine(controller.request.machineName)
 		if err != nil {
 			return err
@@ -162,13 +163,13 @@ func (controller *machineSetController) executeAction() error {
 		}
 		// MachineSet controller does not care what is the value of the string.
 		machine.ObjectMeta.Annotations[DeleteNodeAnnotation] = "delete"
-		_, err = client.machine.Update(machine)
+		_, err = client.machine.Update(context.TODO(), machine, metav1.UpdateOptions{})
 		if err != nil {
 			return err
 		}
 	}
 
-	machineSet, err := client.machineSet.Update(controller.machineSet)
+	machineSet, err := client.machineSet.Update(context.TODO(), controller.machineSet, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
@@ -259,7 +260,7 @@ func (controller *machineSetController) checkSuccess() error {
 // checkMachineSuccess checks whether machine has been created successfully.
 func (controller *machineSetController) checkMachineSuccess(args ...interface{}) (bool, error) {
 	machineName := args[0].(string)
-	machine, err := controller.request.client.machine.Get(machineName, metav1.GetOptions{})
+	machine, err := controller.request.client.machine.Get(context.TODO(), machineName, metav1.GetOptions{})
 	if err != nil {
 		return false, err
 	}
@@ -272,7 +273,7 @@ func (controller *machineSetController) checkMachineSuccess(args ...interface{})
 // isMachineReady checks whether the machine is ready.
 func (controller *machineSetController) isMachineReady(args ...interface{}) (bool, error) {
 	machineName := args[0].(string)
-	machine, err := controller.request.client.machine.Get(machineName, metav1.GetOptions{})
+	machine, err := controller.request.client.machine.Get(context.TODO(), machineName, metav1.GetOptions{})
 	if err != nil {
 		return false, err
 	}
@@ -289,7 +290,7 @@ func (controller *machineSetController) waitForMachineProvisioning(newMachine *m
 	if err != nil {
 		return err
 	}
-	machine, err := controller.request.client.machine.Get(newMachine.Name, metav1.GetOptions{})
+	machine, err := controller.request.client.machine.Get(context.TODO(), newMachine.Name, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -307,7 +308,7 @@ func (controller *machineSetController) waitForMachineProvisioning(newMachine *m
 // isMachineDeletedOrNotReady checks whether the machine is deleted or not ready.
 func (controller *machineSetController) isMachineDeleted(args ...interface{}) (bool, error) {
 	machineName := args[0].(string)
-	_, err := controller.request.client.machine.Get(machineName, metav1.GetOptions{})
+	_, err := controller.request.client.machine.Get(context.TODO(), machineName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		return true, nil
 	}
@@ -346,19 +347,18 @@ func (controller *machineSetController) waitForState(stateDesc string, f stateCh
 }
 
 // IsClusterAPIEnabled checks whether cluster API is in fact enabled.
-func IsClusterAPIEnabled(namespace string, cApiClient *clientset.Clientset, kubeClient *kubernetes.Clientset) (bool, error) {
+func IsClusterAPIEnabled(namespace string, cApiClient *versioned.Clientset, kubeClient *kubernetes.Clientset) (bool, error) {
 	if cApiClient == nil {
 		return false, nil
 	}
 	// Construct the API clients.
 	client := &k8sClusterApi{
-		caClient:          cApiClient,
-		k8sClient:         kubeClient,
-		discovery:         kubeClient.Discovery(),
-		machine:           cApiClient.MachineV1beta1().Machines(namespace),
-		machineSet:        cApiClient.MachineV1beta1().MachineSets(namespace),
-		machineDeployment: cApiClient.MachineV1beta1().MachineDeployments(namespace),
-		caGroupVersion:    clusterAPIGroupVersion,
+		caClient:       cApiClient,
+		k8sClient:      kubeClient,
+		discovery:      kubeClient.Discovery(),
+		machine:        cApiClient.MachineV1beta1().Machines(namespace),
+		machineSet:     cApiClient.MachineV1beta1().MachineSets(namespace),
+		caGroupVersion: clusterAPIGroupVersion,
 	}
 	// Check whether Cluster API is enabled.
 	if err := client.verifyClusterAPIEnabled(); err != nil {
@@ -369,19 +369,18 @@ func IsClusterAPIEnabled(namespace string, cApiClient *clientset.Clientset, kube
 
 // Construct the controller
 func newController(namespace string, nodeName string, diff int32, actionType ActionType,
-	cApiClient *clientset.Clientset, kubeClient *kubernetes.Clientset) (Controller, *string, error) {
+	cApiClient *versioned.Clientset, kubeClient *kubernetes.Clientset) (Controller, *string, error) {
 	if cApiClient == nil {
 		return nil, nil, fmt.Errorf("no Cluster API available")
 	}
 	// Construct the API clients.
 	client := &k8sClusterApi{
-		caClient:          cApiClient,
-		k8sClient:         kubeClient,
-		discovery:         kubeClient.Discovery(),
-		machine:           cApiClient.MachineV1beta1().Machines(namespace),
-		machineSet:        cApiClient.MachineV1beta1().MachineSets(namespace),
-		machineDeployment: cApiClient.MachineV1beta1().MachineDeployments(namespace),
-		caGroupVersion:    clusterAPIGroupVersion,
+		caClient:       cApiClient,
+		k8sClient:      kubeClient,
+		discovery:      kubeClient.Discovery(),
+		machine:        cApiClient.MachineV1beta1().Machines(namespace),
+		machineSet:     cApiClient.MachineV1beta1().MachineSets(namespace),
+		caGroupVersion: clusterAPIGroupVersion,
 	}
 	// Check whether Cluster API is enabled.
 	if err := client.verifyClusterAPIEnabled(); err != nil {
@@ -409,7 +408,7 @@ func newController(namespace string, nodeName string, diff int32, actionType Act
 	if ownerKind != "MachineSet" {
 		return nil, nil, fmt.Errorf("Invalid owner kind [%s] for machine %s which manages %s.", ownerKind, machine.Name, nodeName)
 	}
-	machineSet, err := client.machineSet.Get(ownerName, metav1.GetOptions{})
+	machineSet, err := client.machineSet.Get(context.TODO(), ownerName, metav1.GetOptions{})
 	if err != nil {
 		return nil, nil, err
 	}

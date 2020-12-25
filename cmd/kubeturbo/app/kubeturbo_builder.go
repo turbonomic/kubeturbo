@@ -13,7 +13,7 @@ import (
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 
-	clusterclient "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
+	clusterclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	apiv1 "k8s.io/api/core/v1"
 	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -33,7 +33,7 @@ import (
 	"github.com/turbonomic/kubeturbo/test/flag"
 
 	"github.com/golang/glog"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 )
@@ -146,10 +146,15 @@ func NewVMTServer() *VMTServer {
 func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.Port, "port", s.Port, "The port that kubeturbo's http service runs on.")
 	fs.StringVar(&s.Address, "ip", s.Address, "the ip address that kubeturbo's http service runs on.")
-	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig).")
+	// TODO: The flagset that is included by vendoring k8s uses the same names i.e. "master" and "kubeconfig".
+	// This for some reason conflicts with the names introduced by kubeturbo after upgrading the k8s vendored code
+	// to version 1.19.1. Right now we have changed the names of kubeturbo flags as a quick fix. These flags are
+	// not user facing and are useful only when running kubeturbo outside the cluster. Find a better solution
+	// when need be.
+	fs.StringVar(&s.Master, "k8s-master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig).")
 	fs.StringVar(&s.K8sTAPSpec, "turboconfig", s.K8sTAPSpec, "Path to the config file.")
 	fs.StringVar(&s.TestingFlagPath, "testingflag", s.TestingFlagPath, "Path to the testing flag.")
-	fs.StringVar(&s.KubeConfig, "kubeconfig", s.KubeConfig, "Path to kubeconfig file with authorization and master location information.")
+	fs.StringVar(&s.KubeConfig, "k8s-kubeconfig", s.KubeConfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.BoolVar(&s.EnableProfiling, "profiling", false, "Enable profiling via web interface host:port/debug/pprof/.")
 	fs.BoolVar(&s.UseUUID, "stitch-uuid", true, "Use VirtualMachine's UUID to do stitching, otherwise IP is used.")
 	fs.IntVar(&s.KubeletPort, "kubelet-port", DefaultKubeletPort, "The port of the kubelet runs on.")
@@ -377,7 +382,7 @@ func (s *VMTServer) startHttp() {
 		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
 		// prometheus.metrics
-		mux.Handle("/metrics", prometheus.Handler())
+		mux.Handle("/metrics", promhttp.Handler())
 	}
 
 	server := &http.Server{

@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
@@ -40,7 +41,7 @@ type parentController struct {
 }
 
 func (c *parentController) get(name string) (*k8sControllerSpec, error) {
-	obj, err := c.dynNamespacedClient.Get(name, metav1.GetOptions{})
+	obj, err := c.dynNamespacedClient.Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +97,7 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		}
 		err = c.ormClient.Update(origControllerObj, c.obj, controllerOwnerReferences[0])
 	} else {
-		_, err = c.dynNamespacedClient.Update(c.obj, metav1.UpdateOptions{})
+		_, err = c.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
 	}
 	return err
 }

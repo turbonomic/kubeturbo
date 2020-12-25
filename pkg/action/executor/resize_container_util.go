@@ -1,7 +1,9 @@
 package executor
 
 import (
+	"context"
 	"fmt"
+
 	"github.com/golang/glog"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
@@ -247,7 +249,7 @@ func resizeSingleContainer(client *kclient.Clientset, originalPod *k8sapi.Pod, s
 		if !success {
 			glog.Errorf("Failed to resize container %v, begin to delete cloned pod: %v/%v.",
 				id, clonePod.Namespace, clonePod.Name)
-			if err := podClient.Delete(clonePod.Name, &metav1.DeleteOptions{}); err != nil {
+			if err := podClient.Delete(context.TODO(), clonePod.Name, metav1.DeleteOptions{}); err != nil {
 				glog.Warningf("Failed to delete cloned pod %v/%v after resize container %v has failed.",
 					clonePod.Namespace, clonePod.Name, id)
 			}
@@ -262,13 +264,12 @@ func resizeSingleContainer(client *kclient.Clientset, originalPod *k8sapi.Pod, s
 	}
 
 	// delete the original pod after the clone pod is ready
-	delOpt := &metav1.DeleteOptions{}
-	if err := podClient.Delete(originalPod.Name, delOpt); err != nil {
+	if err := podClient.Delete(context.TODO(), originalPod.Name, metav1.DeleteOptions{}); err != nil {
 		glog.Warningf("Resize podContainer warning: failed to delete original pod: %v", err)
 	}
 
 	// add labels to the clone pod so it can be attached to the controller if any
-	xpod, err := podClient.Get(clonePod.Name, metav1.GetOptions{})
+	xpod, err := podClient.Get(context.TODO(), clonePod.Name, metav1.GetOptions{})
 	if err != nil {
 		glog.Errorf("Resize podContainer failed: failed to get the cloned pod: %v", err)
 		return nil, err
@@ -276,7 +277,7 @@ func resizeSingleContainer(client *kclient.Clientset, originalPod *k8sapi.Pod, s
 	//TODO: compare resourceVersion of xpod and npod before updating
 	if len(originalPod.Labels) > 0 {
 		xpod.Labels = originalPod.Labels
-		if _, err := podClient.Update(xpod); err != nil {
+		if _, err := podClient.Update(context.TODO(), xpod, metav1.UpdateOptions{}); err != nil {
 			glog.Errorf("Resize podContainer failed: failed to update labels for cloned pod: %v", err)
 			return nil, err
 		}
@@ -315,7 +316,7 @@ func clonePodWithNewSize(client *kclient.Clientset, pod *k8sapi.Pod, spec *conta
 
 	//3. create pod
 	podClient := client.CoreV1().Pods(podNamespace)
-	rpod, err := podClient.Create(npod)
+	rpod, err := podClient.Create(context.TODO(), npod, metav1.CreateOptions{})
 	if err != nil {
 		return nil, true, err
 	}

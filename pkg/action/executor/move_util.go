@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -134,8 +135,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 	defer func() {
 		if !flag {
 			glog.Errorf("Move pod failed, begin to delete cloned pod: %v/%v", npod.Namespace, npod.Name)
-			delOpt := &metav1.DeleteOptions{}
-			podClient.Delete(npod.Name, delOpt)
+			podClient.Delete(context.TODO(), npod.Name, metav1.DeleteOptions{})
 		}
 		if podUsingVolume {
 			// A failure can leave a pod (or pods) in pending state, delete them.
@@ -210,8 +210,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 		// TODO: This is not an ideal way of doing things, and users should be
 		// encouraged to rather disable move actions on pods which use volumes
 		// via a config either in kubeturbo or driven from server UI.
-		delOpt := &metav1.DeleteOptions{}
-		if err := podClient.Delete(pod.Name, delOpt); err != nil {
+		if err := podClient.Delete(context.TODO(), pod.Name, metav1.DeleteOptions{}); err != nil {
 			glog.Errorf("Move pod warning: failed to delete original pod: %v", err)
 			return nil, err
 		}
@@ -227,15 +226,14 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 
 	if !podUsingVolume {
 		// step A3: delete the original pod--podA
-		delOpt := &metav1.DeleteOptions{}
-		if err := podClient.Delete(pod.Name, delOpt); err != nil {
+		if err := podClient.Delete(context.TODO(), pod.Name, metav1.DeleteOptions{}); err != nil {
 			glog.Errorf("Move pod warning: failed to delete original pod: %v", err)
 			return nil, err
 		}
 	}
 
 	// step A4/B6: add labels to podC
-	xpod, err := podClient.Get(npod.Name, metav1.GetOptions{})
+	xpod, err := podClient.Get(context.TODO(), npod.Name, metav1.GetOptions{})
 	if err != nil {
 		glog.Errorf("Move pod failed: failed to get the cloned pod: %v", err)
 		return nil, err
@@ -244,7 +242,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 	//TODO: compare resourceVersion of xpod and npod before updating
 	if (labels != nil) && len(labels) > 0 {
 		xpod.Labels = labels
-		if _, err := podClient.Update(xpod); err != nil {
+		if _, err := podClient.Update(context.TODO(), xpod, metav1.UpdateOptions{}); err != nil {
 			glog.Errorf("Move pod failed: failed to update labels for cloned pod: %v", err)
 			return nil, err
 		}
@@ -272,7 +270,7 @@ func deleteInvalidPendingPods(parent *unstructured.Unstructured, podClient v1.Po
 	for _, pod := range newPendingInvalidPods(newPodList, podList) {
 		err := commonutil.RetryDuring(defaultRetryLess, defaultRetryShortTimeout,
 			defaultRetrySleepInterval, func() error {
-				return podClient.Delete(pod.Name, &metav1.DeleteOptions{})
+				return podClient.Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 			})
 		if err != nil {
 			glog.Errorf("Failed to delete pending pod: %s.", pod.Name)
@@ -317,7 +315,7 @@ func parentsPods(parent *unstructured.Unstructured, podClient v1.PodInterface) (
 	}
 	sString := metav1.FormatLabelSelector(&selectors)
 	listOpts := metav1.ListOptions{LabelSelector: sString}
-	podList, err := podClient.List(listOpts)
+	podList, err := podClient.List(context.TODO(), listOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -379,7 +377,7 @@ func getPodOwnersInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
 		}
 
 		nsGpClient := clusterScraper.DynamicClient.Resource(res).Namespace(pod.Namespace)
-		gParent, err := nsGpClient.Get(name, metav1.GetOptions{})
+		gParent, err := nsGpClient.Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil || gParent == nil {
 			return nil, nil, nil, nil, gPkind, fmt.Errorf("failed to get pods controller: %s[%v/%v]: %v",
 				gPkind, pod.Namespace, name, err)
@@ -414,14 +412,14 @@ func resourceRollout(client dynamic.ResourceInterface, obj *unstructured.Unstruc
 	// This takes care of conflicting updates for example by operator
 	// Ref: https://github.com/kubernetes/client-go/blob/master/examples/dynamic-create-update-delete-deployment/main.go
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		objCopy, err := client.Get(name, metav1.GetOptions{})
+		objCopy, err := client.Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
 		if err := unstructured.SetNestedField(objCopy.Object, pause, "spec", "paused"); err != nil {
 			return err
 		}
-		_, err = client.Update(objCopy, metav1.UpdateOptions{})
+		_, err = client.Update(context.TODO(), objCopy, metav1.UpdateOptions{})
 		if err != nil {
 			return err
 		}
@@ -441,7 +439,7 @@ func changeScheduler(client dynamic.ResourceInterface, obj *unstructured.Unstruc
 	// This takes care of conflicting updates for example by operator
 	// Ref: https://github.com/kubernetes/client-go/blob/master/examples/dynamic-create-update-delete-deployment/main.go
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		objCopy, err := client.Get(name, metav1.GetOptions{})
+		objCopy, err := client.Get(context.TODO(), name, metav1.GetOptions{})
 		if valid {
 			if err := unstructured.SetNestedField(objCopy.Object, "default-scheduler",
 				"spec", "template", "spec", "schedulerName"); err != nil {
@@ -454,7 +452,7 @@ func changeScheduler(client dynamic.ResourceInterface, obj *unstructured.Unstruc
 			}
 		}
 
-		_, err = client.Update(objCopy, metav1.UpdateOptions{})
+		_, err = client.Update(context.TODO(), objCopy, metav1.UpdateOptions{})
 		if err != nil {
 			return err
 		}
@@ -491,7 +489,7 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructure
 	util.AddAnnotation(npod, TurboActionAnnotationKey, TurboMoveAnnotationValue)
 
 	podClient := client.CoreV1().Pods(pod.Namespace)
-	rpod, err := podClient.Create(npod)
+	rpod, err := podClient.Create(context.TODO(), npod, metav1.CreateOptions{})
 	if err != nil {
 		glog.Errorf("Failed to create a new pod: %s/%s, %v", npod.Namespace, npod.Name, err)
 		return nil, err

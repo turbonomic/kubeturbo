@@ -7,7 +7,7 @@ import (
 
 	"github.com/golang/glog"
 
-	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
+	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
@@ -43,7 +43,7 @@ var (
 
 type ActionHandlerConfig struct {
 	clusterScraper *cluster.ClusterScraper
-	cApiClient     *clientset.Clientset
+	cApiClient     *versioned.Clientset
 	kubeletClient  *kubeletclient.KubeletClient
 	StopEverything chan struct{}
 	sccAllowedSet  map[string]struct{}
@@ -53,7 +53,7 @@ type ActionHandlerConfig struct {
 	failVolumePodMoves bool
 }
 
-func NewActionHandlerConfig(cApiNamespace string, cApiClient *clientset.Clientset, kubeletClient *kubeletclient.KubeletClient,
+func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientset, kubeletClient *kubeletclient.KubeletClient,
 	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient, failVolumePodMoves bool) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {

@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -60,7 +61,7 @@ func NewClusterScraper(kclient *client.Clientset, dynamicClient dynamic.Interfac
 }
 
 func (s *ClusterScraper) GetNamespaces() ([]*api.Namespace, error) {
-	namespaceList, err := s.CoreV1().Namespaces().List(metav1.ListOptions{})
+	namespaceList, err := s.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +74,7 @@ func (s *ClusterScraper) GetNamespaces() ([]*api.Namespace, error) {
 
 func (s *ClusterScraper) getResourceQuotas() ([]*api.ResourceQuota, error) {
 	namespace := api.NamespaceAll
-	quotaList, err := s.CoreV1().ResourceQuotas(namespace).List(metav1.ListOptions{})
+	quotaList, err := s.CoreV1().ResourceQuotas(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +113,7 @@ func (s *ClusterScraper) GetAllNodes() ([]*api.Node, error) {
 }
 
 func (s *ClusterScraper) GetNodes(opts metav1.ListOptions) ([]*api.Node, error) {
-	nodeList, err := s.CoreV1().Nodes().List(opts)
+	nodeList, err := s.CoreV1().Nodes().List(context.TODO(), opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list all nodes in the cluster: %s", err)
 	}
@@ -133,7 +134,7 @@ func (s *ClusterScraper) GetAllPods() ([]*api.Pod, error) {
 }
 
 func (s *ClusterScraper) GetPods(namespaces string, opts metav1.ListOptions) ([]*api.Pod, error) {
-	podList, err := s.CoreV1().Pods(namespaces).List(opts)
+	podList, err := s.CoreV1().Pods(namespaces).List(context.TODO(), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +155,7 @@ func (s *ClusterScraper) GetAllServices() ([]*api.Service, error) {
 }
 
 func (s *ClusterScraper) GetServices(namespace string, opts metav1.ListOptions) ([]*api.Service, error) {
-	serviceList, err := s.CoreV1().Services(namespace).List(opts)
+	serviceList, err := s.CoreV1().Services(namespace).List(context.TODO(), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +168,7 @@ func (s *ClusterScraper) GetServices(namespace string, opts metav1.ListOptions) 
 }
 
 func (s *ClusterScraper) GetEndpoints(namespaces string, opts metav1.ListOptions) ([]*api.Endpoints, error) {
-	epList, err := s.CoreV1().Endpoints(namespaces).List(opts)
+	epList, err := s.CoreV1().Endpoints(namespaces).List(context.TODO(), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +188,7 @@ func (s *ClusterScraper) GetAllEndpoints() ([]*api.Endpoints, error) {
 }
 
 func (s *ClusterScraper) GetKubernetesServiceID() (svcID string, err error) {
-	svc, err := s.CoreV1().Services(k8sDefaultNamespace).Get(kubernetesServiceName, metav1.GetOptions{})
+	svc, err := s.CoreV1().Services(k8sDefaultNamespace).Get(context.TODO(), kubernetesServiceName, metav1.GetOptions{})
 	if err != nil {
 		return
 	}
@@ -249,7 +250,7 @@ func (s *ClusterScraper) GetAllPVs() ([]*api.PersistentVolume, error) {
 		LabelSelector: labelSelectEverything,
 	}
 
-	pvList, err := s.CoreV1().PersistentVolumes().List(listOption)
+	pvList, err := s.CoreV1().PersistentVolumes().List(context.TODO(), listOption)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +271,7 @@ func (s *ClusterScraper) GetAllPVCs() ([]*api.PersistentVolumeClaim, error) {
 }
 
 func (s *ClusterScraper) GetPVCs(namespace string, opts metav1.ListOptions) ([]*api.PersistentVolumeClaim, error) {
-	pvcList, err := s.CoreV1().PersistentVolumeClaims(namespace).List(opts)
+	pvcList, err := s.CoreV1().PersistentVolumeClaims(namespace).List(context.TODO(), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +329,7 @@ func (s *ClusterScraper) GetPodGrandparentInfo(pod *api.Pod, ignoreCache bool) (
 	}
 
 	namespacedClient := s.DynamicClient.Resource(res).Namespace(pod.Namespace)
-	obj, err := namespacedClient.Get(name, metav1.GetOptions{})
+	obj, err := namespacedClient.Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		err = fmt.Errorf("Failed to get %s[%v/%v]: %v", kind, pod.Namespace, name, err)
 		glog.Error(err.Error())
