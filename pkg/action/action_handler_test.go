@@ -1,6 +1,7 @@
 package action
 
 import (
+	"context"
 	"testing"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
@@ -171,7 +172,7 @@ type mockPodInterface struct {
 	namespace string
 }
 
-func (p *mockPodInterface) Get(name string, options metav1.GetOptions) (*api.Pod, error) {
+func (p *mockPodInterface) Get(ctx context.Context, name string, opts metav1.GetOptions) (*api.Pod, error) {
 	pod := &api.Pod{}
 	pod.Name = name
 	pod.Namespace = p.namespace
@@ -184,30 +185,56 @@ func (p *mockPodInterface) Get(name string, options metav1.GetOptions) (*api.Pod
 	return pod, nil
 }
 
-func (p *mockPodInterface) List(opts metav1.ListOptions) (*api.PodList, error) { return nil, nil }
-
-func (p *mockPodInterface) Create(*api.Pod) (*api.Pod, error) { return nil, nil }
-
-func (p *mockPodInterface) Update(*api.Pod) (*api.Pod, error) { return nil, nil }
-
-func (p *mockPodInterface) UpdateStatus(*api.Pod) (*api.Pod, error) { return nil, nil }
-
-func (p *mockPodInterface) Delete(name string, options *metav1.DeleteOptions) error { return nil }
-
-func (p *mockPodInterface) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
-	return nil
-}
-
-func (p *mockPodInterface) Watch(opts metav1.ListOptions) (watch.Interface, error) { return nil, nil }
-
-func (p *mockPodInterface) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *api.Pod, err error) {
+func (p *mockPodInterface) List(ctx context.Context, opts metav1.ListOptions) (*api.PodList, error) {
 	return nil, nil
 }
 
-func (p *mockPodInterface) Bind(binding *api.Binding) error { return nil }
+func (p *mockPodInterface) Create(ctx context.Context, pod *api.Pod, opts metav1.CreateOptions) (*api.Pod, error) {
+	return nil, nil
+}
 
-func (p *mockPodInterface) Evict(eviction *policy.Eviction) error { return nil }
+func (p *mockPodInterface) Update(ctx context.Context, pod *api.Pod, opts metav1.UpdateOptions) (*api.Pod, error) {
+	return nil, nil
+}
+
+func (p *mockPodInterface) UpdateStatus(ctx context.Context, pod *api.Pod, opts metav1.UpdateOptions) (*api.Pod, error) {
+	return nil, nil
+}
+
+func (p *mockPodInterface) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
+	return nil
+}
+
+func (p *mockPodInterface) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
+	return nil
+}
+
+func (p *mockPodInterface) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
+	return nil, nil
+}
+
+func (p *mockPodInterface) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *api.Pod, err error) {
+	return nil, nil
+}
+
+func (p *mockPodInterface) Bind(ctx context.Context, binding *api.Binding, co metav1.CreateOptions) error {
+	return nil
+}
+
+func (p *mockPodInterface) Evict(ctx context.Context, eviction *policy.Eviction) error { return nil }
 
 func (p *mockPodInterface) GetLogs(name string, opts *api.PodLogOptions) *restclient.Request {
 	return nil
+}
+
+func (p *mockPodInterface) ProxyGet(scheme, name, port, path string, params map[string]string) restclient.ResponseWrapper {
+	return nil
+}
+
+func (p *mockPodInterface) GetEphemeralContainers(ctx context.Context, podName string, options metav1.GetOptions) (*api.EphemeralContainers, error) {
+	return nil, nil
+}
+
+func (p *mockPodInterface) UpdateEphemeralContainers(ctx context.Context, podName string, ephemeralContainers *api.EphemeralContainers, opts metav1.UpdateOptions) (*api.EphemeralContainers, error) {
+	return nil, nil
 }

@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"context"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -79,7 +80,7 @@ func (f *TestFramework) GetKubeClient(userAgent string) *kubeclientset.Clientset
 func (f *TestFramework) GetClusterNodes() []string {
 	client := f.GetKubeClient(fmt.Sprintf("%s-cluster", f.BaseName))
 	nodeNames := []string{}
-	nodes, err := client.CoreV1().Nodes().List(metav1.ListOptions{})
+	nodes, err := client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	ExpectNoError(err, fmt.Sprintf("Error retrieving list of cluster nodes: %+v", err))
 
 	for _, node := range nodes.Items {
@@ -122,7 +123,7 @@ func loadConfig(configPath, context string) (*restclient.Config, *clientcmdapi.C
 
 func DeleteNamespace(client kubeclientset.Interface, namespaceName string) {
 	orphanDependents := false
-	if err := client.CoreV1().Namespaces().Delete(namespaceName, &metav1.DeleteOptions{OrphanDependents: &orphanDependents}); err != nil {
+	if err := client.CoreV1().Namespaces().Delete(context.TODO(), namespaceName, metav1.DeleteOptions{OrphanDependents: &orphanDependents}); err != nil {
 		if !apierrors.IsNotFound(err) {
 			Failf("Error while deleting namespace %s: %s", namespaceName, err)
 		}
@@ -148,7 +149,7 @@ func CreateNamespace(client kubeclientset.Interface, generateName string) (strin
 
 	var namespaceName string
 	if err := wait.PollImmediate(PollInterval, TestContext.SingleCallTimeout, func() (bool, error) {
-		namespace, err := client.CoreV1().Namespaces().Create(namespaceObj)
+		namespace, err := client.CoreV1().Namespaces().Create(context.TODO(), namespaceObj, metav1.CreateOptions{})
 		if err != nil {
 			Logf("Unexpected error while creating namespace: %v", err)
 			return false, nil
@@ -163,7 +164,7 @@ func CreateNamespace(client kubeclientset.Interface, generateName string) (strin
 
 func waitForNamespaceDeletion(client kubeclientset.Interface, namespace string) error {
 	err := wait.PollImmediate(PollInterval, TestContext.SingleCallTimeout, func() (bool, error) {
-		if _, err := client.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{}); err != nil {
+		if _, err := client.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{}); err != nil {
 			if apierrors.IsNotFound(err) {
 				return true, nil
 			}

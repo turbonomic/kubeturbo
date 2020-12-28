@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -144,7 +145,7 @@ func createDeployment(client kubeclientset.Interface, dep *appsv1.Deployment) (*
 	var newDep *appsv1.Deployment
 	var err error
 	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
-		newDep, err = client.AppsV1().Deployments(dep.Namespace).Create(dep)
+		newDep, err = client.AppsV1().Deployments(dep.Namespace).Create(context.TODO(), dep, metav1.CreateOptions{})
 		if err != nil {
 			glog.Errorf("Unexpected error while creating deployment: %v", err)
 			return false, nil
@@ -160,7 +161,7 @@ func waitForDeployment(client kubeclientset.Interface, depName, namespace string
 	var newDep *appsv1.Deployment
 	var err error
 	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
-		newDep, err = client.AppsV1().Deployments(namespace).Get(depName, metav1.GetOptions{})
+		newDep, err = client.AppsV1().Deployments(namespace).Get(context.TODO(), depName, metav1.GetOptions{})
 		if err != nil {
 			glog.Errorf("Unexpected error while getting deployment: %v", err)
 			return false, nil
@@ -178,7 +179,7 @@ func waitForDeployment(client kubeclientset.Interface, depName, namespace string
 // We create a deployment with only 1 replica, so we should be able to get
 // the only pod using the name as prefix
 func getDeploymentsPod(client kubeclientset.Interface, depName, namespace, targetNodeName string) (*corev1.Pod, error) {
-	pods, err := client.CoreV1().Pods(namespace).List(metav1.ListOptions{})
+	pods, err := client.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
