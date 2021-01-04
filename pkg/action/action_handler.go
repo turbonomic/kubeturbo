@@ -42,12 +42,13 @@ var (
 )
 
 type ActionHandlerConfig struct {
-	clusterScraper *cluster.ClusterScraper
-	cApiClient     *versioned.Clientset
-	kubeletClient  *kubeletclient.KubeletClient
-	StopEverything chan struct{}
-	sccAllowedSet  map[string]struct{}
-	cAPINamespace  string
+	clusterScraper    *cluster.ClusterScraper
+	cApiClient        *versioned.Clientset
+	kubeletClient     *kubeletclient.KubeletClient
+	StopEverything    chan struct{}
+	sccAllowedSet     map[string]struct{}
+	cAPINamespace     string
+	cloudProviderName string
 	// ormClient provides the capability to update the corresponding CR for an Operator managed resource.
 	ormClient               *resourcemapping.ORMClient
 	failVolumePodMoves      bool
@@ -56,7 +57,7 @@ type ActionHandlerConfig struct {
 
 func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientset, kubeletClient *kubeletclient.KubeletClient,
 	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient,
-	failVolumePodMoves, updateQuotaToAllowMoves bool) *ActionHandlerConfig {
+	failVolumePodMoves, updateQuotaToAllowMoves bool, cloudProviderName string) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
 		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}
@@ -73,6 +74,7 @@ func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientse
 		ormClient:               ormClient,
 		failVolumePodMoves:      failVolumePodMoves,
 		updateQuotaToAllowMoves: updateQuotaToAllowMoves,
+		cloudProviderName:       cloudProviderName,
 	}
 
 	return config
@@ -143,11 +145,26 @@ func (h *ActionHandler) registerActionExecutors() {
 
 	// Only register the actions when API client is non-nil and cluster-api is available.
 	if executor.IsClusterAPIEnabled(c.cApiClient, c.clusterScraper.Clientset) {
-		machineScaler := executor.NewMachineActionExecutor(c.cAPINamespace, ae)
+		machineScaler := executor.NewMachineActionExecutor(c.cAPINamespace, ae, nil)
 		h.actionExecutors[turboActionMachineProvision] = machineScaler
 		h.actionExecutors[turboActionMachineSuspend] = machineScaler
+		// We don't try initialising a clour provider if capi works
+		// TODO: Should we give this choice to the user
+		return
 	} else {
 		glog.V(1).Info("the Cluster API is unavailable")
+	}
+
+	// Try initialising a cloud provider if that was requested
+	if c.cloudProviderName != "" {
+		cp, err := executor.CreateCloudProvider(c.cloudProviderName)
+		if cp != nil && err == nil {
+			machineScaler := executor.NewMachineActionExecutor(c.cAPINamespace, ae, cp)
+			h.actionExecutors[turboActionMachineProvision] = machineScaler
+			h.actionExecutors[turboActionMachineSuspend] = machineScaler
+		} else {
+			glog.Warningf("the Cloud Provider could not be initialised: %s.", err)
+		}
 	}
 }
 

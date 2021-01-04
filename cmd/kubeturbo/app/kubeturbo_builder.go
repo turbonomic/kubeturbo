@@ -133,6 +133,9 @@ type VMTServer struct {
 	// The Cluster API namespace
 	ClusterAPINamespace string
 
+	// The Name of the cloud provider on which the k8s cluster is running
+	CloudProviderName string
+
 	// Busybox image uri used for cpufreq getter job
 	BusyboxImage string
 
@@ -192,6 +195,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.DiscoverySampleIntervalSec, "discovery-sample-interval", DefaultDiscoverySampleIntervalSec, "The discovery interval in seconds to collect additional resource usage data samples from kubelet. This should be no smaller than 10 seconds.")
 	fs.IntVar(&s.GCIntervalMin, "garbage-collection-interval", DefaultGCIntervalMin, "The garbage collection interval in minutes for possible leaked pods from actions failed because of kubeturbo restarts. Default value is 20 mins.")
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all.")
+	fs.StringVar(&s.CloudProviderName, "cloud-provider", "", "The name of cloud provider on which the k8s cluster is running. This value will be used to try and bootstrap the cloud provider for node scaling support. Only supported value is 'azure'.")
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")
 	fs.StringVar(&s.BusyboxImage, "busybox-image", "busybox", "The complete image uri used for fallback node cpu frequency getter job.")
 	fs.StringVar(&s.BusyboxImagePullSecret, "busybox-image-pull-secret", "", "The name of the secret that stores the image pull credentials for busybox image.")
@@ -379,7 +383,8 @@ func (s *VMTServer) Run() {
 		WithContainerUsageDataAggStrategy(s.containerUsageDataAggStrategy).
 		WithVolumePodMoveConfig(s.FailVolumePodMoves).
 		WithQuotaUpdateConfig(s.UpdateQuotaToAllowMoves).
-		WithClusterAPIEnabled(clusterAPIEnabled)
+		WithClusterAPIEnabled(clusterAPIEnabled).
+		WithCloudProviderName(s.CloudProviderName)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service
