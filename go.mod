@@ -21,7 +21,7 @@ require (
 	github.com/prometheus/procfs v0.0.0-20190104112138-b1a0a9a36d74 // indirect
 	github.com/spf13/pflag v1.0.3
 	github.com/stretchr/testify v1.3.0
-	github.com/turbonomic/turbo-go-sdk v0.0.0-20201030102636-d9a5135b441d
+	github.com/turbonomic/turbo-go-sdk v0.0.0-20210105183330-d3c262bfcaa5
 	k8s.io/api v0.17.0
 	k8s.io/apiextensions-apiserver v0.17.0
 	k8s.io/apimachinery v0.17.0

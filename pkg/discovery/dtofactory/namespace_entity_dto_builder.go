@@ -59,6 +59,13 @@ func (builder *namespaceEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 		entityDTOBuilder.IsProvisionable(false)
 		entityDTOBuilder.IsSuspendable(false)
 
+		// Set the average CPU speed on the NamespaceData
+		if namespace.AverageNodeCpuFrequency > 0.0 {
+			entityDTOBuilder.NamespaceData(&proto.EntityDTO_NamespaceData{
+				AverageNodeCpuFrequency: &namespace.AverageNodeCpuFrequency,
+			})
+		}
+
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
 		// build entityDTO.

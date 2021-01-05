@@ -284,6 +284,9 @@ func TestBuildNamespaceDto(t *testing.T) {
 			commMap[commSold.GetCommodityType()] = commSold
 		}
 
+		// Namespace data
+		assert.EqualValues(t, CPUFrequency, *dto.GetNamespaceData().AverageNodeCpuFrequency)
+
 		// source of the commodities
 		kubeNamespace, exists := namespaceMap[dto.GetId()]
 		assert.True(t, exists)
