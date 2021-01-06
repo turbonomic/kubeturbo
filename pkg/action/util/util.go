@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/turbonomic/kubeturbo/pkg/util"
@@ -28,7 +29,7 @@ var (
 
 // Get all nodes currently in K8s.
 func GetAllNodes(kubeClient *client.Clientset) ([]api.Node, error) {
-	nodeList, err := kubeClient.CoreV1().Nodes().List(listOption)
+	nodeList, err := kubeClient.CoreV1().Nodes().List(context.TODO(), listOption)
 	if err != nil {
 		return nil, fmt.Errorf("Error when getting all the nodes :%s", err)
 	}
@@ -59,7 +60,7 @@ func GetNodebyIP(kubeClient *client.Clientset, machineIPs []string) (*api.Node, 
 
 // try to get k8s.node by nodeName
 func GetNodebyName(kubeClient *client.Clientset, nodeName string) (*api.Node, error) {
-	node, err := kubeClient.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
+	node, err := kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 	if err != nil {
 		glog.Errorf("Failed to get node(%v): %v", nodeName, err)
 		return nil, err

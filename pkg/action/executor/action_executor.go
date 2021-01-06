@@ -1,7 +1,7 @@
 package executor
 
 import (
-	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
+	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
@@ -26,12 +26,12 @@ type TurboActionExecutor interface {
 
 type TurboK8sActionExecutor struct {
 	clusterScraper *cluster.ClusterScraper
-	cApiClient     *clientset.Clientset
+	cApiClient     *versioned.Clientset
 	podManager     util.IPodManager
 	ormClient      *resourcemapping.ORMClient
 }
 
-func NewTurboK8sActionExecutor(clusterScraper *cluster.ClusterScraper, cApiClient *clientset.Clientset,
+func NewTurboK8sActionExecutor(clusterScraper *cluster.ClusterScraper, cApiClient *versioned.Clientset,
 	podManager util.IPodManager, ormSpec *resourcemapping.ORMClient) TurboK8sActionExecutor {
 	return TurboK8sActionExecutor{
 		clusterScraper: clusterScraper,

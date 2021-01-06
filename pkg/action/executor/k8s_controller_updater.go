@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
@@ -193,11 +194,11 @@ func (c *k8sControllerUpdater) suspendOrProvision(current, diff int32) (int32, e
 // The call does not block
 func (c *k8sControllerUpdater) suspendPod() error {
 	podClient := c.client.CoreV1().Pods(c.namespace)
-	if _, err := podClient.Get(c.podName, metav1.GetOptions{}); err != nil {
+	if _, err := podClient.Get(context.TODO(), c.podName, metav1.GetOptions{}); err != nil {
 		return fmt.Errorf("failed to get latest pod %s/%s: %v", c.namespace, c.podName, err)
 	}
 	// This function does not block
-	if err := podClient.Delete(c.podName, &metav1.DeleteOptions{}); err != nil {
+	if err := podClient.Delete(context.TODO(), c.podName, metav1.DeleteOptions{}); err != nil {
 		return fmt.Errorf("failed to delete pod %s/%s: %v", c.namespace, c.podName, err)
 	}
 	glog.V(2).Infof("Successfully suspended pod %s/%s", c.namespace, c.podName)

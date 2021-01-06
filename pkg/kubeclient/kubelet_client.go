@@ -1,6 +1,7 @@
 package kubeclient
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -165,7 +166,7 @@ func (client *KubeletClient) callKubeletEndpoint(ip, path string) ([]byte, error
 func (client *KubeletClient) callAPIServerProxyEndpoint(nodeName, path string) ([]byte, error) {
 	var statusCode int
 	fullPath := fmt.Sprintf("%s%s%s%s", "/api/v1/nodes/", nodeName, "/proxy", path)
-	body, err := client.kubeClient.CoreV1().RESTClient().Get().AbsPath(fullPath).Do().StatusCode(&statusCode).Raw()
+	body, err := client.kubeClient.CoreV1().RESTClient().Get().AbsPath(fullPath).Do(context.TODO()).StatusCode(&statusCode).Raw()
 	if err != nil {
 		return nil, err
 	}
