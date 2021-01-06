@@ -49,6 +49,7 @@ type ActionHandlerConfig struct {
 	sccAllowedSet     map[string]struct{}
 	cAPINamespace     string
 	cloudProviderName string
+	nodeGroups        []string
 	// ormClient provides the capability to update the corresponding CR for an Operator managed resource.
 	ormClient               *resourcemapping.ORMClient
 	failVolumePodMoves      bool
@@ -57,7 +58,7 @@ type ActionHandlerConfig struct {
 
 func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientset, kubeletClient *kubeletclient.KubeletClient,
 	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient,
-	failVolumePodMoves, updateQuotaToAllowMoves bool, cloudProviderName string) *ActionHandlerConfig {
+	failVolumePodMoves, updateQuotaToAllowMoves bool, cloudProviderName string, nodeGroups []string) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
 		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}
@@ -75,6 +76,7 @@ func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientse
 		failVolumePodMoves:      failVolumePodMoves,
 		updateQuotaToAllowMoves: updateQuotaToAllowMoves,
 		cloudProviderName:       cloudProviderName,
+		nodeGroups:              nodeGroups,
 	}
 
 	return config
@@ -157,7 +159,7 @@ func (h *ActionHandler) registerActionExecutors() {
 
 	// Try initialising a cloud provider if that was requested
 	if c.cloudProviderName != "" {
-		cp, err := executor.CreateCloudProvider(c.cloudProviderName)
+		cp, err := executor.CreateCloudProvider(c.cloudProviderName, c.nodeGroups)
 		if cp != nil && err == nil {
 			machineScaler := executor.NewMachineActionExecutor(c.cAPINamespace, ae, cp)
 			h.actionExecutors[turboActionMachineProvision] = machineScaler

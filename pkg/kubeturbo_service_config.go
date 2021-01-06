@@ -40,9 +40,10 @@ type Config struct {
 	DiscoverySamples           int
 	DiscoverySampleIntervalSec int
 
-	SccSupport        []string
-	CAPINamespace     string
-	CloudProviderName string
+	SccSupport              []string
+	CAPINamespace           string
+	CloudProviderName       string
+	CloudProviderNodeGroups []string
 
 	// Strategy to aggregate Container utilization data on ContainerSpec entity
 	containerUtilizationDataAggStrategy string
@@ -184,5 +185,10 @@ func (c *Config) WithClusterAPIEnabled(clusterAPIEnabled bool) *Config {
 
 func (c *Config) WithCloudProviderName(cpName string) *Config {
 	c.CloudProviderName = cpName
+	return c
+}
+
+func (c *Config) WithCloudProviderNodeGroups(nodeGroups []string) *Config {
+	c.CloudProviderNodeGroups = nodeGroups
 	return c
 }

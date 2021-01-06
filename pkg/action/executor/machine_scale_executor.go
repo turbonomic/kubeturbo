@@ -109,11 +109,13 @@ func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*Turbo
 
 // CreateCloudProvider is necessary to be implemented here as the k8sautoscalers
 // NewCloudProvder impl can panic on errors.
-func CreateCloudProvider(providerName string) (cloudprovider.CloudProvider, error) {
+func CreateCloudProvider(providerName string, nodeGroups []string) (cloudprovider.CloudProvider, error) {
 	glog.V(1).Infof("Building %s cloud provider.", providerName)
 
-	opts := config.AutoscalingOptions{}
-	opts.CloudProviderName = providerName
+	opts := config.AutoscalingOptions{
+		NodeGroups:        nodeGroups,
+		CloudProviderName: providerName,
+	}
 
 	do := cloudprovider.NodeGroupDiscoveryOptions{
 		NodeGroupSpecs:              opts.NodeGroups,

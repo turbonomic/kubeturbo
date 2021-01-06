@@ -136,6 +136,9 @@ type VMTServer struct {
 	// The Name of the cloud provider on which the k8s cluster is running
 	CloudProviderName string
 
+	// The names of nodegroups in the format <scale-min>:<scale-max>:<nodegroupname>
+	CloudProviderNodeGroups []string
+
 	// Busybox image uri used for cpufreq getter job
 	BusyboxImage string
 
@@ -195,6 +198,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.DiscoverySampleIntervalSec, "discovery-sample-interval", DefaultDiscoverySampleIntervalSec, "The discovery interval in seconds to collect additional resource usage data samples from kubelet. This should be no smaller than 10 seconds.")
 	fs.IntVar(&s.GCIntervalMin, "garbage-collection-interval", DefaultGCIntervalMin, "The garbage collection interval in minutes for possible leaked pods from actions failed because of kubeturbo restarts. Default value is 20 mins.")
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all.")
+	fs.StringSliceVar(&s.CloudProviderNodeGroups, "cp-node-groups", []string{}, "The node group names when initialising the cloud provider with scale min and max. e.g. --cp-node-groups=1:10:nodegroup1,1:5:nodegroup2")
 	fs.StringVar(&s.CloudProviderName, "cloud-provider", "", "The name of cloud provider on which the k8s cluster is running. This value will be used to try and bootstrap the cloud provider for node scaling support. Only supported value is 'azure'.")
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")
 	fs.StringVar(&s.BusyboxImage, "busybox-image", "busybox", "The complete image uri used for fallback node cpu frequency getter job.")
@@ -384,7 +388,8 @@ func (s *VMTServer) Run() {
 		WithVolumePodMoveConfig(s.FailVolumePodMoves).
 		WithQuotaUpdateConfig(s.UpdateQuotaToAllowMoves).
 		WithClusterAPIEnabled(clusterAPIEnabled).
-		WithCloudProviderName(s.CloudProviderName)
+		WithCloudProviderName(s.CloudProviderName).
+		WithCloudProviderNodeGroups(s.CloudProviderNodeGroups)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service
