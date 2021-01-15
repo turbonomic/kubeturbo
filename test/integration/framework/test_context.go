@@ -21,9 +21,9 @@ type TestContextType struct {
 var TestContext *TestContextType = &TestContextType{}
 
 func registerFlags(t *TestContextType) {
-	flag.StringVar(&t.KubeConfig, "kubeconfig", os.Getenv("KUBECONFIG"),
+	flag.StringVar(&t.KubeConfig, "k8s-kubeconfig", os.Getenv("KUBECONFIG"),
 		"Path to kubeconfig containing embedded authinfo.")
-	flag.StringVar(&t.KubeContext, "context", "",
+	flag.StringVar(&t.KubeContext, "k8s-context", "",
 		"kubeconfig context to use/override. If unset, will use value from 'current-context'.")
 	flag.StringVar(&t.TestNamespace, "test-namespace", DefaultTestNS,
 		fmt.Sprintf("The namespace that will be used as the seed name for tests.  If unset, will default to %q.", DefaultTestNS))

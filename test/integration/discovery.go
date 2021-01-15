@@ -167,7 +167,7 @@ func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *
 func createResourcesForDiscovery(client *kubeclientset.Clientset, namespace string, replicas int32) ([]*appsv1.Deployment, error) {
 	depResources := []*appsv1.Deployment{
 		depMultiContainer(namespace, replicas),
-		depSingleContainerWithResources(namespace, replicas),
+		depSingleContainerWithResources(namespace, "", replicas, false),
 		deplMultiContainerWithResources(namespace, replicas),
 	}
 
