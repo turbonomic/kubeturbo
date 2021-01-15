@@ -6,7 +6,7 @@ ENV GIT_COMMIT ${GIT_COMMIT}
 ### Atomic/OpenShift Labels - https://github.com/projectatomic/ContainerApplicationGenericLabels
 LABEL name="Hybrid Cloud Container" \
       vendor="Turbonomic" \
-      version="v7.22.0" \
+      version="v8.0.0" \
       release="1" \
       summary="Performance assurance for the applications in Openshift" \
       description="Hybrid Cloud Container leverages Turbonomic control platform, to assure the performance of micro-services running in OpenShift, as well as the efficiency of underlying infrastructure." \
