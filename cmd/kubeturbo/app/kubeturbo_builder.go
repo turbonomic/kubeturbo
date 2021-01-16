@@ -12,6 +12,7 @@ import (
 
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
+	"github.com/turbonomic/kubeturbo/test/flag"
 
 	clusterclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	apiv1 "k8s.io/api/core/v1"
@@ -30,7 +31,6 @@ import (
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/util"
-	"github.com/turbonomic/kubeturbo/test/flag"
 
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -122,6 +122,12 @@ type VMTServer struct {
 	// The Cluster API namespace
 	ClusterAPINamespace string
 
+	// The Name of the cloud provider on which the k8s cluster is running
+	CloudProviderName string
+
+	// The names of nodegroups in the format <scale-min>:<scale-max>:<nodegroupname>
+	CloudProviderNodeGroups []string
+
 	// Busybox image uri used for cpufreq getter job
 	BusyboxImage string
 
@@ -172,6 +178,8 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.DiscoverySamples, "discovery-samples", DefaultDiscoverySamples, "The number of resource usage data samples to be collected from kubelet in each full discovery cycle. This should be no larger than 60.")
 	fs.IntVar(&s.DiscoverySampleIntervalSec, "discovery-sample-interval", DefaultDiscoverySampleIntervalSec, "The discovery interval in seconds to collect additional resource usage data samples from kubelet. This should be no smaller than 10 seconds.")
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all.")
+	fs.StringSliceVar(&s.CloudProviderNodeGroups, "cp-node-groups", []string{}, "The node group names when initialising the cloud provider with scale min and max values. e.g. --cp-node-groups=1:10:nodegroup1,1:5:nodegroup2")
+	fs.StringVar(&s.CloudProviderName, "cloud-provider", "", "The name of cloud provider on which the k8s cluster is running. This value will be used to try and bootstrap the cloud provider for node scaling support. Only supported value is 'azure'.")
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")
 	fs.StringVar(&s.BusyboxImage, "busybox-image", "busybox", "The complete image uri used for fallback node cpu frequency getter job.")
 	fs.StringVar(&s.containerUtilizationDataAggStrategy, "cnt-utilization-data-agg-strategy", agg.DefaultContainerUtilizationDataAggStrategy, "Container utilization data aggregation strategy.")
@@ -347,7 +355,9 @@ func (s *VMTServer) Run() {
 		WithCAPINamespace(s.ClusterAPINamespace).
 		WithContainerUtilizationDataAggStrategy(s.containerUtilizationDataAggStrategy).
 		WithContainerUsageDataAggStrategy(s.containerUsageDataAggStrategy).
-		WithVolumePodMoveConfig(s.FailVolumePodMoves)
+		WithVolumePodMoveConfig(s.FailVolumePodMoves).
+		WithCloudProviderName(s.CloudProviderName).
+		WithCloudProviderNodeGroups(s.CloudProviderNodeGroups)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service

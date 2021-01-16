@@ -4,9 +4,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/test/integration/framework"
 	"github.com/turbonomic/kubeturbo/test/integration/framework/ginkgowrapper"
+	"k8s.io/klog"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/config"
@@ -49,7 +49,7 @@ var _ = ginkgo.SynchronizedAfterSuite(func() {
 // This function is called on each Ginkgo node in parallel mode.
 func RunIntegrationTests(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgowrapper.Fail)
-	glog.Infof("Starting integration run on Ginkgo node %d", config.GinkgoConfig.ParallelNode)
+	klog.Infof("Starting integration run on Ginkgo node %d", config.GinkgoConfig.ParallelNode)
 	ginkgo.RunSpecs(t, "Kubeturbo integration suite")
 }
 

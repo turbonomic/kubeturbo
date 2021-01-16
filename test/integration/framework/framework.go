@@ -94,8 +94,13 @@ func (f *TestFramework) GetClusterNodes() []string {
 }
 
 func isMasterNode(node corev1.Node) bool {
-	for key := range node.Labels {
+	for key, val := range node.Labels {
 		if key == "node-role.kubernetes.io/master" {
+			return true
+		}
+		// Ignore aks system nodes for testing
+		if key == "kubernetes.azure.com/mode" &&
+			val == "system" {
 			return true
 		}
 	}

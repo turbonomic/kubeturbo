@@ -101,7 +101,6 @@ func (client *k8sClusterApi) listMachinesInMachineSet(ms *machinev1beta1.Machine
 
 // actionRequest represents a single request for action execution.  This is the "base" type for all action requests.
 type actionRequest struct {
-	client      *k8sClusterApi
 	machineName string // name of the Machine to be cloned or deleted
 	diff        int32  // number of Machines to provision (if diff > 0) or suspend (if diff < 0)
 	actionType  ActionType
@@ -115,6 +114,7 @@ type Controller interface {
 
 // machineSetController executes a machineSet scaling action request.
 type machineSetController struct {
+	client      *k8sClusterApi
 	request     *actionRequest              // The action request
 	machineSet  *machinev1beta1.MachineSet  // the MachineSet controlling the machine
 	machine     *machinev1beta1.Machine     // The identified Machine, will be used for SUSPEND action
@@ -145,7 +145,7 @@ func (controller *machineSetController) checkPreconditions() error {
 // executeAction scales a MachineSet by modifying its replica count
 func (controller *machineSetController) executeAction() error {
 	diff := controller.request.diff
-	client := controller.request.client
+	client := controller.client
 	desiredReplicas := controller.machineSet.Status.Replicas + diff
 	controller.machineSet.Spec.Replicas = &desiredReplicas
 
@@ -187,7 +187,7 @@ func (controller *machineSetController) checkMachineSet(args ...interface{}) (bo
 		return false, fmt.Errorf("MachineSet %s invalid replica count (nil)", machineSet.Name)
 	}
 	// get MachineSet's list of managed Machines
-	machineList, err := controller.request.client.listMachinesInMachineSet(machineSet)
+	machineList, err := controller.client.listMachinesInMachineSet(machineSet)
 	if err != nil {
 		return false, err
 	}
@@ -236,7 +236,7 @@ func (controller *machineSetController) checkSuccess() error {
 		return err
 	}
 	// get post-Action list of Machines in the MachineSet
-	machineList, err := controller.request.client.listMachinesInMachineSet(machineSet)
+	machineList, err := controller.client.listMachinesInMachineSet(machineSet)
 	if err != nil {
 		return err
 	}
@@ -260,7 +260,7 @@ func (controller *machineSetController) checkSuccess() error {
 // checkMachineSuccess checks whether machine has been created successfully.
 func (controller *machineSetController) checkMachineSuccess(args ...interface{}) (bool, error) {
 	machineName := args[0].(string)
-	machine, err := controller.request.client.machine.Get(context.TODO(), machineName, metav1.GetOptions{})
+	machine, err := controller.client.machine.Get(context.TODO(), machineName, metav1.GetOptions{})
 	if err != nil {
 		return false, err
 	}
@@ -273,7 +273,7 @@ func (controller *machineSetController) checkMachineSuccess(args ...interface{})
 // isMachineReady checks whether the machine is ready.
 func (controller *machineSetController) isMachineReady(args ...interface{}) (bool, error) {
 	machineName := args[0].(string)
-	machine, err := controller.request.client.machine.Get(context.TODO(), machineName, metav1.GetOptions{})
+	machine, err := controller.client.machine.Get(context.TODO(), machineName, metav1.GetOptions{})
 	if err != nil {
 		return false, err
 	}
@@ -290,7 +290,7 @@ func (controller *machineSetController) waitForMachineProvisioning(newMachine *m
 	if err != nil {
 		return err
 	}
-	machine, err := controller.request.client.machine.Get(context.TODO(), newMachine.Name, metav1.GetOptions{})
+	machine, err := controller.client.machine.Get(context.TODO(), newMachine.Name, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -308,7 +308,7 @@ func (controller *machineSetController) waitForMachineProvisioning(newMachine *m
 // isMachineDeletedOrNotReady checks whether the machine is deleted or not ready.
 func (controller *machineSetController) isMachineDeleted(args ...interface{}) (bool, error) {
 	machineName := args[0].(string)
-	_, err := controller.request.client.machine.Get(context.TODO(), machineName, metav1.GetOptions{})
+	_, err := controller.client.machine.Get(context.TODO(), machineName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		return true, nil
 	}
@@ -368,10 +368,10 @@ func IsClusterAPIEnabled(namespace string, cApiClient *versioned.Clientset, kube
 }
 
 // Construct the controller
-func newController(namespace string, nodeName string, diff int32, actionType ActionType,
-	cApiClient *versioned.Clientset, kubeClient *kubernetes.Clientset) (Controller, *string, error) {
+func newCapiController(namespace string, nodeName string, diff int32, actionType ActionType,
+	cApiClient *versioned.Clientset, kubeClient *kubernetes.Clientset) (Controller, string, error) {
 	if cApiClient == nil {
-		return nil, nil, fmt.Errorf("no Cluster API available")
+		return nil, "", fmt.Errorf("no Cluster API available")
 	}
 	// Construct the API clients.
 	client := &k8sClusterApi{
@@ -384,20 +384,20 @@ func newController(namespace string, nodeName string, diff int32, actionType Act
 	}
 	// Check whether Cluster API is enabled.
 	if err := client.verifyClusterAPIEnabled(); err != nil {
-		return nil, nil, fmt.Errorf("cluster API is not enabled for %s: %v", nodeName, err)
+		return nil, "", fmt.Errorf("cluster API is not enabled for %s: %v", nodeName, err)
 	}
 	// Identify managing machine.
 	machine, err := client.identifyManagingMachine(nodeName)
 	if err != nil {
 		err = fmt.Errorf("cannot identify machine: %v", err)
-		return nil, nil, err
+		return nil, "", err
 	}
 
 	ownerKind, ownerName := "", ""
 	if machine.OwnerReferences != nil && len(machine.OwnerReferences) > 0 {
 		ownerKind, ownerName, _ = discoveryutil.ParseOwnerReferences(machine.OwnerReferences)
 		if !(len(ownerKind) > 0 && len(ownerName) > 0) {
-			return nil, nil, fmt.Errorf("OwnerRef missing from machine %s which manages %s.", machine.Name, nodeName)
+			return nil, "", fmt.Errorf("OwnerRef missing from machine %s which manages %s.", machine.Name, nodeName)
 		}
 
 	}
@@ -406,19 +406,19 @@ func newController(namespace string, nodeName string, diff int32, actionType Act
 	// for a more generic implementation.
 	// In openshift we assume that machines are managed by machinesets.
 	if ownerKind != "MachineSet" {
-		return nil, nil, fmt.Errorf("Invalid owner kind [%s] for machine %s which manages %s.", ownerKind, machine.Name, nodeName)
+		return nil, "", fmt.Errorf("Invalid owner kind [%s] for machine %s which manages %s.", ownerKind, machine.Name, nodeName)
 	}
 	machineSet, err := client.machineSet.Get(context.TODO(), ownerName, metav1.GetOptions{})
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 
 	machineList, err := client.listMachinesInMachineSet(machineSet)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 
-	request := &actionRequest{client, nodeName, diff, actionType}
-	return &machineSetController{request, machineSet, machine, machineList},
-		&ownerName, nil
+	request := &actionRequest{nodeName, diff, actionType}
+	return &machineSetController{client, request, machineSet, machine, machineList},
+		ownerName, nil
 }

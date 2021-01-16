@@ -44,7 +44,7 @@ var _ = Describe("Action Executor", func() {
 
 			cluster.NewClusterScraper(kubeClient, dynamicClient)
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeClient, dynamicClient), nil, nil, true)
+				cluster.NewClusterScraper(kubeClient, dynamicClient), nil, nil, true, "", []string{})
 
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 		}
@@ -69,7 +69,7 @@ var _ = Describe("Action Executor", func() {
 			}
 
 			_, err = actionHandler.ExecuteAction(newActionExecutionDTO(proto.ActionItemDTO_MOVE,
-				newTargetSEFromPod(pod), newHostSEFromNodeName(targetNodeName)), nil, &mockProgressTrack{})
+				newTargetSEFromPod(pod), newSEFromNodeName(targetNodeName)), nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Move action failed")
 
 			validateMovedPod(kubeClient, dep.Name, namespace, targetNodeName)
@@ -233,7 +233,7 @@ func newTargetSEFromPod(pod *corev1.Pod) *proto.EntityDTO {
 	return se
 }
 
-func newHostSEFromNodeName(nodeName string) *proto.EntityDTO {
+func newSEFromNodeName(nodeName string) *proto.EntityDTO {
 	entityType := proto.EntityDTO_VIRTUAL_MACHINE
 	nodeDispName := nodeName
 
