@@ -482,22 +482,15 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructure
 		return nil, fmt.Errorf("movePod: error converting unstructured pod spec to typed pod spec for %s %s: %v", kind, parentName, err)
 	}
 	// annotations
-	annotationsUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "metadata", "annotations")
-	if err != nil || !found {
+	annotations := make(map[string]string)
+	annotationsUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "spec", "template", "metadata", "annotations")
+	if err != nil {
 		return nil, fmt.Errorf("movePod: error retrieving annotations from %s %s: %v", kind, parentName, err)
 	}
-	annotations := make(map[string]string)
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(annotationsUnstructured.(map[string]interface{}), &annotations); err != nil {
-		return nil, fmt.Errorf("movePod: error converting unstructured annotations to typed annotations for %s %s: %v", kind, parentName, err)
-	}
-	// labels
-	labelsUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "metadata", "labels")
-	if err != nil || !found {
-		return nil, fmt.Errorf("movePod: error retrieving labels from %s %s: %v", kind, parentName, err)
-	}
-	labels := make(map[string]string)
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(labelsUnstructured.(map[string]interface{}), &labels); err != nil {
-		return nil, fmt.Errorf("movePod: error converting unstructured labels to typed labels for %s %s: %v", kind, parentName, err)
+	if found {
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(annotationsUnstructured.(map[string]interface{}), &annotations); err != nil {
+			return nil, fmt.Errorf("movePod: error converting unstructured annotations to typed annotations for %s %s: %v", kind, parentName, err)
+		}
 	}
 
 	// Set podSpec retrieved from parent. This saves from landing into
@@ -506,7 +499,6 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructure
 	npod.Spec.NodeName = nodeName
 	npod.Name = genNewPodName(pod)
 	npod.Annotations = annotations
-	npod.Labels = labels
 	// this annotation can be used for future garbage collection if action is interrupted
 	util.AddAnnotation(npod, TurboActionAnnotationKey, TurboMoveAnnotationValue)
 
