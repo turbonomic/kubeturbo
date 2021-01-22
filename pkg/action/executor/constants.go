@@ -9,7 +9,7 @@ const (
 	defaultRetryMore = 55
 
 	defaultRetrySleepInterval = time.Second * 3
-	defaultRetryShortTimeout  = time.Second * 10
+	defaultRetryShortTimeout  = time.Second * 20
 
 	defaultWaitLockTimeOut = time.Second * 300
 	defaultWaitLockSleep   = time.Second * 10
