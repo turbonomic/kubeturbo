@@ -14,7 +14,7 @@ const (
 	// Each API poll interval.
 	PollInterval = 50 * time.Millisecond
 	// How long to try/poll single API call.
-	DefaultSingleCallTimeout = 30 * time.Second
+	DefaultSingleCallTimeout = 120 * time.Second
 
 	DefaultTestNS = "kubeturbo-test"
 )
