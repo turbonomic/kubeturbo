@@ -140,6 +140,32 @@ func AddAnnotation(pod *api.Pod, key, value string) {
 	return
 }
 
+func AddLabel(pod *api.Pod, key, value string) {
+	labels := pod.Labels
+	if labels == nil {
+		labels = make(map[string]string)
+		pod.Labels = labels
+	}
+
+	if oldv, ok := labels[key]; ok {
+		glog.Warningf("Overwrite pod(%v/%v)'s labels (%v=%v)", pod.Namespace, pod.Name, key, oldv)
+	}
+	labels[key] = value
+	return
+}
+
+func RemoveLabel(pod *api.Pod, key, val string) {
+	labels := pod.Labels
+	if labels == nil {
+		return
+	}
+
+	if v, ok := labels[key]; ok && v == val {
+		delete(labels, key)
+	}
+	return
+}
+
 // SupportPrivilegePod checks the pod annotations and returns true if the priviledge requirement
 // is supported. Currently, it only matters for Openshift clusters as it checks the annotation of
 // Openshift SCC (openshift.io/scc). Kubeturbo supports the restricted (default) SCC and rejects

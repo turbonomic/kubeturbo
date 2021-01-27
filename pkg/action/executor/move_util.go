@@ -232,7 +232,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 		}
 	}
 
-	// step A4/B6: add labels to podC
+	// step A4/B6: add labels to podC and remove garbage collection annotation
 	xpod, err := podClient.Get(context.TODO(), npod.Name, metav1.GetOptions{})
 	if err != nil {
 		glog.Errorf("Move pod failed: failed to get the cloned pod: %v", err)
@@ -241,11 +241,16 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 
 	//TODO: compare resourceVersion of xpod and npod before updating
 	if (labels != nil) && len(labels) > 0 {
+		// This should overwrite the garbage collection label with the original pod's labels
 		xpod.Labels = labels
-		if _, err := podClient.Update(context.TODO(), xpod, metav1.UpdateOptions{}); err != nil {
-			glog.Errorf("Move pod failed: failed to update labels for cloned pod: %v", err)
-			return nil, err
-		}
+	} else {
+		// This would remove the GC label if we are moving a standalone pod, simply because
+		// a workloads pod would have labels almost always.
+		xpod.Labels = make(map[string]string)
+	}
+	if _, err := podClient.Update(context.TODO(), xpod, metav1.UpdateOptions{}); err != nil {
+		glog.Errorf("Move pod failed: failed to update labels on the cloned pod: %v", err)
+		return nil, err
 	}
 
 	flag = true
@@ -525,6 +530,8 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructure
 	npod.Annotations = annotations
 	// this annotation can be used for future garbage collection if action is interrupted
 	util.AddAnnotation(npod, TurboActionAnnotationKey, TurboMoveAnnotationValue)
+	// This label is used for garbage collection if a given action leaks this pod.
+	util.AddLabel(npod, TurboGCLabelKey, TurboGCLabelVal)
 
 	podClient := client.CoreV1().Pods(pod.Namespace)
 	rpod, err := podClient.Create(context.TODO(), npod, metav1.CreateOptions{})
