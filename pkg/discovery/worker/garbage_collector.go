@@ -18,10 +18,14 @@ type GarbageCollector struct {
 	client                *kubernetes.Clientset
 	finishCollecting      chan bool
 	collectionIntervalMin int
+
+	// Necessary for test
+	podAge time.Duration
 }
 
-func NewGarbageCollector(client *kubernetes.Clientset, finishChan chan bool, collectionIntervalMin int) *GarbageCollector {
+func NewGarbageCollector(client *kubernetes.Clientset, finishChan chan bool, collectionIntervalMin int, podAge time.Duration) *GarbageCollector {
 	return &GarbageCollector{
+		podAge:                podAge,
 		client:                client,
 		finishCollecting:      finishChan,
 		collectionIntervalMin: collectionIntervalMin,
@@ -30,11 +34,10 @@ func NewGarbageCollector(client *kubernetes.Clientset, finishChan chan bool, col
 
 func (g *GarbageCollector) StartCleanup() {
 	glog.V(4).Info("Start leaked pods cleanup.")
-	// Also cleanup at startup
+	// Also cleanup immediately at startup
 	g.cleanupLeakedPods()
 	go func() {
 		collectionInterval := time.Duration(g.collectionIntervalMin) * time.Minute
-		// Create a ticker to schedule dispatch based on given sampling interval
 		ticker := time.NewTicker(collectionInterval)
 		defer ticker.Stop()
 		for {
@@ -49,12 +52,14 @@ func (g *GarbageCollector) StartCleanup() {
 	}()
 }
 
-func (d *GarbageCollector) cleanupLeakedPods() {
-	// get all pods which have the gc annotation and are more then 30 mins old
+func (g *GarbageCollector) cleanupLeakedPods() {
+	// Get all pods which have the gc annotation. This can include those on which an
+	// action is being executed right now.
 	listOpts := metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", executor.TurboGCLabelKey, executor.TurboGCLabelVal)}
-	podList, err := d.client.CoreV1().Pods("").List(context.TODO(), listOpts)
+	podList, err := g.client.CoreV1().Pods("").List(context.TODO(), listOpts)
 	if err != nil {
 		glog.Warningf("Error getting leaked pods: %v", err)
+		return
 	}
 	if podList == nil {
 		// Nothing to clean
@@ -62,22 +67,25 @@ func (d *GarbageCollector) cleanupLeakedPods() {
 	}
 
 	for _, pod := range podList.Items {
-		if isLeakedPod(pod) {
-			err := d.client.CoreV1().Pods(pod.Namespace).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
+		if g.isLeakedPod(pod) {
+			err := g.client.CoreV1().Pods(pod.Namespace).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 			if err != nil {
-				glog.Warningf("Encountered error trying to clean up leaked pods: %v", err)
+				glog.Warningf("Encountered error trying to clean up leaked pod: %s/%s: %v", pod.Name, pod.Namespace, err)
 			}
 		}
 	}
 }
 
-func isLeakedPod(pod api.Pod) bool {
+func (g *GarbageCollector) isLeakedPod(pod api.Pod) bool {
 	labels := pod.Labels
 	creationTime := pod.CreationTimestamp
 	if labels != nil {
 		gcLabelVal, gcLabelExists := labels[executor.TurboGCLabelKey]
 		// This assumes that the cluster is running a synced os time.
-		if gcLabelExists && gcLabelVal == executor.TurboGCLabelVal && creationTime.Add(time.Minute*30).Before(time.Now()) {
+		// In a remote case of a misconfigured cluster, there is a possibility of
+		// a move actions failing because of this. But this cluster misconfiguration also
+		// means that any other controller can also misbehave.
+		if gcLabelExists && gcLabelVal == executor.TurboGCLabelVal && creationTime.Add(g.podAge).Before(time.Now()) {
 			// No action would persist the cloned pod for 30 mins without updating it to correct set of labels.
 			return true
 		}

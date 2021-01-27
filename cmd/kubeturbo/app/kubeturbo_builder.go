@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
@@ -367,14 +368,14 @@ func (s *VMTServer) Run() {
 	glog.V(2).Infof("No leader election")
 
 	gCChan := make(chan bool)
-	worker.NewGarbageCollector(kubeClient, gCChan, s.GCIntervalMin).StartCleanup()
+	defer close(gCChan)
+	worker.NewGarbageCollector(kubeClient, gCChan, s.GCIntervalMin, time.Minute*30).StartCleanup()
 
 	glog.V(1).Infof("********** Start running Kubeturbo Service **********")
 	// Disconnect from Turbo server when Kubeturbo is shutdown
 	handleExit(func() { k8sTAPService.DisconnectFromTurbo() })
 	k8sTAPService.ConnectToTurbo()
 
-	close(gCChan)
 	glog.V(1).Info("Kubeturbo service is stopped.")
 }
 
