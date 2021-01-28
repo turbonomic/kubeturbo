@@ -260,9 +260,8 @@ func deleteInvalidPendingPods(parent *unstructured.Unstructured, podClient v1.Po
 	// Fetch the parents pods again
 	newPodList, err := parentsPods(parent, podClient)
 	if err != nil {
-		if err != nil {
-			glog.Errorf("Error getting pod list for %s: %s.", parent.GetKind(), parent.GetName())
-		}
+		glog.Errorf("Error getting pod list for %s: %s: %v.", parent.GetKind(), parent.GetName(), err)
+		return
 	}
 
 	// Find the pods which weren't there and if attributed to invalid
@@ -279,23 +278,27 @@ func deleteInvalidPendingPods(parent *unstructured.Unstructured, podClient v1.Po
 
 }
 
-func newPendingInvalidPods(list1, list2 *api.PodList) []*api.Pod {
+func newPendingInvalidPods(newList, oldList *api.PodList) []*api.Pod {
 	var diffList []*api.Pod
-	for _, pod1 := range list1.Items {
+	if newList == nil {
+		return diffList
+	}
+	for _, pod1 := range newList.Items {
 		found := false
-		for _, pod2 := range list2.Items {
-			if pod1.Name == pod2.Name {
-				found = true
-				break
+		if oldList != nil {
+			for _, pod2 := range oldList.Items {
+				if pod1.Name == pod2.Name {
+					// pod1 from newList also exists in oldList
+					found = true
+				}
 			}
 		}
 		if found == true {
 			continue
-		} else {
-			if pod1.Status.Phase == api.PodPending &&
-				pod1.Spec.SchedulerName == "turbo-scheduler" {
-				diffList = append(diffList, &pod1)
-			}
+		}
+		if pod1.Status.Phase == api.PodPending &&
+			pod1.Spec.SchedulerName == "turbo-scheduler" {
+			diffList = append(diffList, &pod1)
 		}
 	}
 
@@ -309,18 +312,39 @@ func parentsPods(parent *unstructured.Unstructured, podClient v1.PodInterface) (
 		return nil, fmt.Errorf("error retrieving selectors from %s %s: %v", kind, objName, err)
 	}
 
-	selectors := metav1.LabelSelector{}
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(selectorUnstructured.(map[string]interface{}), &selectors); err != nil {
-		return nil, fmt.Errorf("error converting unstructured selectors to typed selectors for %s %s: %v", kind, objName, err)
+	selectorString := ""
+	conversionError := fmt.Errorf("error converting unstructured selectors to typed selectors for %s %s: %v", kind, objName, err)
+	if kind == commonutil.KindReplicationController {
+		// Deployment config and ReplicationControllers define selectors as map[string]string
+		// unlike what label selector has evolved as (metav1.LabelSelector{}) upstream.
+		selectors := map[string]string{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(selectorUnstructured.(map[string]interface{}), &selectors); err != nil {
+			return nil, conversionError
+		}
+		selectorString = formatStringMapSelector(selectors)
+	} else {
+		selectors := metav1.LabelSelector{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(selectorUnstructured.(map[string]interface{}), &selectors); err != nil {
+			return nil, conversionError
+		}
+		selectorString = metav1.FormatLabelSelector(&selectors)
 	}
-	sString := metav1.FormatLabelSelector(&selectors)
-	listOpts := metav1.ListOptions{LabelSelector: sString}
+
+	listOpts := metav1.ListOptions{LabelSelector: selectorString}
 	podList, err := podClient.List(context.TODO(), listOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	return podList, nil
+}
+
+func formatStringMapSelector(selectors map[string]string) string {
+	s := []string{}
+	for key, val := range selectors {
+		s = append(s, fmt.Sprintf("%s=%s", key, val))
+	}
+	return strings.Join(s, ",")
 }
 
 func isPodUsingVolume(pod *api.Pod) bool {
@@ -469,8 +493,10 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructure
 	npod := &api.Pod{}
 	copyPodWithoutLabel(pod, npod, false)
 
+	// copy pod spec, annotations, and labels from the parent
 	kind := parent.GetKind()
 	parentName := parent.GetName()
+	// pod spec
 	podSpecUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "spec", "template", "spec")
 	if err != nil || !found {
 		return nil, fmt.Errorf("movePod: error retrieving podSpec from %s %s: %v", kind, parentName, err)
@@ -479,12 +505,24 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructure
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(podSpecUnstructured.(map[string]interface{}), &podSpec); err != nil {
 		return nil, fmt.Errorf("movePod: error converting unstructured pod spec to typed pod spec for %s %s: %v", kind, parentName, err)
 	}
+	// annotations
+	annotations := make(map[string]string)
+	annotationsUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "spec", "template", "metadata", "annotations")
+	if err != nil {
+		return nil, fmt.Errorf("movePod: error retrieving annotations from %s %s: %v", kind, parentName, err)
+	}
+	if found {
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(annotationsUnstructured.(map[string]interface{}), &annotations); err != nil {
+			return nil, fmt.Errorf("movePod: error converting unstructured annotations to typed annotations for %s %s: %v", kind, parentName, err)
+		}
+	}
 
 	// Set podSpec retrieved from parent. This saves from landing into
 	// problems of sidecar containers and injection systems.
 	npod.Spec = podSpec
 	npod.Spec.NodeName = nodeName
 	npod.Name = genNewPodName(pod)
+	npod.Annotations = annotations
 	// this annotation can be used for future garbage collection if action is interrupted
 	util.AddAnnotation(npod, TurboActionAnnotationKey, TurboMoveAnnotationValue)
 

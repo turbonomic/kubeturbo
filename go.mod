@@ -34,8 +34,11 @@ require (
 	sigs.k8s.io/application v0.8.3
 )
 
-// openshift cluster api for cluster-api based node provision and suspend
-require github.com/openshift/machine-api-operator v0.2.1-0.20201216110516-d9e48bb9fc0b
+require (
+	github.com/openshift/client-go v0.0.0-20201020074620-f8fd44879f7c
+	// openshift cluster api for cluster-api based node provision and suspend
+	github.com/openshift/machine-api-operator v0.2.1-0.20201216110516-d9e48bb9fc0b
+)
 
 replace (
 	sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20201125052318-b85a18cbf338
