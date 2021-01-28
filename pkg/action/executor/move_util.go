@@ -302,7 +302,7 @@ func newPendingInvalidPods(newList, oldList *api.PodList) []*api.Pod {
 			continue
 		}
 		if pod1.Status.Phase == api.PodPending &&
-			pod1.Spec.SchedulerName == "turbo-scheduler" {
+			pod1.Spec.SchedulerName == DummyScheduler {
 			diffList = append(diffList, &pod1)
 		}
 	}
@@ -475,7 +475,7 @@ func changeScheduler(client dynamic.ResourceInterface, obj *unstructured.Unstruc
 				return err
 			}
 		} else {
-			if err := unstructured.SetNestedField(objCopy.Object, "turbo-scheduler",
+			if err := unstructured.SetNestedField(objCopy.Object, DummyScheduler,
 				"spec", "template", "spec", "schedulerName"); err != nil {
 				return err
 			}

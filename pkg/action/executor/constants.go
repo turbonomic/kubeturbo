@@ -25,4 +25,7 @@ const (
 	TurboResizeAnnotationValue string = "resize"
 	TurboGCLabelKey            string = "kubeturbo.io"
 	TurboGCLabelVal            string = "gc"
+
+	DummyScheduler   string = "turbo-scheduler"
+	DefaultScheduler string = "default-scheduler"
 )

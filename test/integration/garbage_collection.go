@@ -38,7 +38,7 @@ var _ = Describe("Garbage pod collector ", func() {
 
 			gCChan := make(chan bool)
 			defer close(gCChan)
-			worker.NewGarbageCollector(kubeClient, gCChan, 1, time.Second*1).StartCleanup()
+			worker.NewGarbageCollector(kubeClient, gCChan, 5, time.Second*1).StartCleanup()
 
 			validatePodsCleaned(kubeClient, []*corev1.Pod{pod})
 		})

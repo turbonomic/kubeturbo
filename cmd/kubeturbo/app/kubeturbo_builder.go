@@ -54,7 +54,7 @@ const (
 	DefaultDiscoveryTimeoutSec        = 180
 	DefaultDiscoverySamples           = 10
 	DefaultDiscoverySampleIntervalSec = 60
-	DefaultGCIntervalMin              = 20
+	DefaultGCIntervalMin              = 10
 )
 
 var (
@@ -369,7 +369,7 @@ func (s *VMTServer) Run() {
 
 	gCChan := make(chan bool)
 	defer close(gCChan)
-	worker.NewGarbageCollector(kubeClient, gCChan, s.GCIntervalMin, time.Minute*30).StartCleanup()
+	worker.NewGarbageCollector(kubeClient, gCChan, s.GCIntervalMin*60, time.Minute*30).StartCleanup()
 
 	glog.V(1).Infof("********** Start running Kubeturbo Service **********")
 	// Disconnect from Turbo server when Kubeturbo is shutdown
