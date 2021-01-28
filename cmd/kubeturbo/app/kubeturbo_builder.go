@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
@@ -29,6 +30,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/kubeturbo/test/flag"
 
@@ -52,6 +54,7 @@ const (
 	DefaultDiscoveryTimeoutSec        = 180
 	DefaultDiscoverySamples           = 10
 	DefaultDiscoverySampleIntervalSec = 60
+	DefaultGCIntervalMin              = 10
 )
 
 var (
@@ -107,6 +110,9 @@ type VMTServer struct {
 	// Data sampling discovery related config
 	DiscoverySamples           int
 	DiscoverySampleIntervalSec int
+
+	// Garbage collection (leaked pods) interval config
+	GCIntervalMin int
 
 	// The Openshift SCC list allowed for action execution
 	sccSupport []string
@@ -171,6 +177,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.DiscoveryTimeoutSec, "discovery-timeout-sec", DefaultDiscoveryTimeoutSec, "The discovery timeout in seconds for each discovery worker.")
 	fs.IntVar(&s.DiscoverySamples, "discovery-samples", DefaultDiscoverySamples, "The number of resource usage data samples to be collected from kubelet in each full discovery cycle. This should be no larger than 60.")
 	fs.IntVar(&s.DiscoverySampleIntervalSec, "discovery-sample-interval", DefaultDiscoverySampleIntervalSec, "The discovery interval in seconds to collect additional resource usage data samples from kubelet. This should be no smaller than 10 seconds.")
+	fs.IntVar(&s.GCIntervalMin, "garbage-collection-interval", DefaultGCIntervalMin, "The garbage collection interval in minutes for possible leaked pods from actions failed because of kubeturbo restarts. Default value is 20 mins.")
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all.")
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")
 	fs.StringVar(&s.BusyboxImage, "busybox-image", "busybox", "The complete image uri used for fallback node cpu frequency getter job.")
@@ -359,6 +366,10 @@ func (s *VMTServer) Run() {
 	// The client for healthz, debug, and prometheus
 	go s.startHttp()
 	glog.V(2).Infof("No leader election")
+
+	gCChan := make(chan bool)
+	defer close(gCChan)
+	worker.NewGarbageCollector(kubeClient, gCChan, s.GCIntervalMin*60, time.Minute*30).StartCleanup()
 
 	glog.V(1).Infof("********** Start running Kubeturbo Service **********")
 	// Disconnect from Turbo server when Kubeturbo is shutdown
