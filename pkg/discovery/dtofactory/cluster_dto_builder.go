@@ -11,6 +11,8 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
+const ClusterKeyPrefix = "cluster-"
+
 type clusterDTOBuilder struct {
 	cluster  *repository.ClusterSummary
 	targetId string
@@ -22,6 +24,12 @@ func NewClusterDTOBuilder(cluster *repository.ClusterSummary,
 		cluster:  cluster,
 		targetId: targetId,
 	}
+}
+
+// GetClusterKey constructs the commodity key sold by the cluster entity, by adding a prefix to the cluster id.
+// Use of a prefix is to distinguish the same key used by the node entities in the cluster
+func GetClusterKey(clusterId string) string {
+	return ClusterKeyPrefix + clusterId
 }
 
 func (builder *clusterDTOBuilder) BuildGroup() []*proto.GroupDTO {
@@ -92,20 +100,31 @@ func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO) (*p
 }
 
 func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityDTO) ([]*proto.CommodityDTO, error) {
+	// Cluster access commodity
+	clusterKey := GetClusterKey(builder.cluster.Name)
+	clusterCommodity, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
+		Key(clusterKey).Capacity(accessCommodityDefaultCapacity).Create()
+	if err != nil {
+		glog.Errorf("Failed to build cluster commodity for %s: %s", builder.cluster.Name, err)
+		return nil, err
+	}
+	commoditiesSold := []*proto.CommodityDTO{clusterCommodity}
 	// Accumulate used and capacity values from the nodes on the cluster
 	used := make(map[proto.CommodityDTO_CommodityType]float64)
 	capacity := make(map[proto.CommodityDTO_CommodityType]float64)
 	for _, entityDTO := range entityDTOs {
 		if entityDTO.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE {
 			for _, commodity := range entityDTO.GetCommoditiesSold() {
-				commodityType := commodity.GetCommodityType()
-				used[commodityType] += commodity.GetUsed()
-				capacity[commodityType] += commodity.GetCapacity()
+				// skip aggregating access commodities with keys
+				if commodity.GetKey() == "" {
+					commodityType := commodity.GetCommodityType()
+					used[commodityType] += commodity.GetUsed()
+					capacity[commodityType] += commodity.GetCapacity()
+				}
 			}
 		}
 	}
 
-	var resourceCommoditiesSold []*proto.CommodityDTO
 	for commodityType, capacityValue := range capacity {
 		usedValue := used[commodityType]
 		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(commodityType)
@@ -113,14 +132,13 @@ func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityD
 		commSoldBuilder.Peak(usedValue)
 		commSoldBuilder.Capacity(capacityValue)
 		commSoldBuilder.Resizable(false)
-		commSoldBuilder.Key(builder.cluster.Name)
 
 		commSold, err := commSoldBuilder.Create()
 		if err != nil {
 			glog.Errorf("%s : Failed to build commodity sold: %s", builder.cluster.Name, err)
 			continue
 		}
-		resourceCommoditiesSold = append(resourceCommoditiesSold, commSold)
+		commoditiesSold = append(commoditiesSold, commSold)
 	}
-	return resourceCommoditiesSold, nil
+	return commoditiesSold, nil
 }

@@ -63,9 +63,11 @@ var (
 	vMemLimitQuotaTemplateCommWithKey   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vMemLimitQuotaType}
 	vCpuRequestQuotaTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuRequestQuotaType}
 	vMemRequestQuotaTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vMemRequestQuotaType}
+	storageAmountTemplateCommWithKey    = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &storageAmountType}
+	// Access commodities
 	vmpmAccessTemplateComm              = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
 	applicationTemplateCommWithKey      = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
-	storageAmountTemplateCommWithKey    = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &storageAmountType}
+	clusterTemplateCommWithKey          = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
 
 	// Resold TemplateCommodity with key
 	vCpuLimitQuotaTemplateCommWithKeyResold   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuLimitQuotaType, IsResold: &commIsResold}
@@ -282,18 +284,18 @@ func (f *SupplyChainFactory) buildNamespaceSupplyBuilder() (*proto.TemplateDTO, 
 		Sells(vCpuRequestQuotaTemplateCommWithKey).
 		Sells(vMemRequestQuotaTemplateCommWithKey).
 		Provider(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, proto.Provider_HOSTING).
+		Buys(clusterTemplateCommWithKey).
 		Buys(vCpuTemplateComm).
 		Buys(vMemTemplateComm).
-		Buys(vCpuRequestQuotaTemplateCommWithKey).
-		Buys(vMemRequestQuotaTemplateCommWithKey).
-		Buys(vCpuLimitQuotaTemplateCommWithKey).
-		Buys(vMemLimitQuotaTemplateCommWithKey)
+		Buys(vCpuRequestTemplateComm).
+		Buys(vMemRequestTemplateComm)
 	return namespaceSupplyChainNodeBuilder.Create()
 }
 
 func (f *SupplyChainFactory) buildClusterSupplyBuilder() (*proto.TemplateDTO, error) {
 	clusterSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER)
 	clusterSupplyChainNodeBuilder = clusterSupplyChainNodeBuilder.
+		Sells(clusterTemplateCommWithKey).
 		Sells(vCpuTemplateComm).
 		Sells(vMemTemplateComm).
 		Sells(vCpuRequestTemplateComm).
