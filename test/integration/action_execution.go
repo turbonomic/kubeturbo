@@ -94,7 +94,7 @@ var _ = Describe("Action Executor ", func() {
 			// TODO: The storageclass can be taken as a configurable parameter from commandline
 			// This works against a kind cluster. Ensure to update the storageclass name to the right name when
 			// running against a different cluster.
-			pvc, err := createVolumeClaim(kubeClient, namespace, "gp2")
+			pvc, err := createVolumeClaim(kubeClient, namespace, "standard")
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true))
 			framework.ExpectNoError(err, "Error creating test resources")
 
@@ -121,7 +121,7 @@ var _ = Describe("Action Executor ", func() {
 
 	Describe("executing action move deploymentconfig's pod with volume attached ", func() {
 		It("should result in new pod on target node", func() {
-			//Skip("Ignoring volume based pod move for deploymentconfig. Remove skipping to execute this against an openshift cluster.")
+			Skip("Ignoring volume based pod move for deploymentconfig. Remove skipping to execute this against an openshift cluster.")
 
 			// TODO: The storageclass can be taken as a configurable parameter from commandline
 			// For now this will need to be updated when running against the given cluster
