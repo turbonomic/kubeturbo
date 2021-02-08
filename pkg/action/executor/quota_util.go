@@ -69,9 +69,6 @@ func NewQuotaAccessor(client *kclient.Clientset, namespace string) QuotaAccessor
 // 5. revert the quota back to the original state by applying the previous spec from the annotation
 
 func (q *QuotaAccessorImpl) Get() ([]corev1.ResourceQuota, error) {
-	// get the quotas in this namespace
-	// get the available values for each quota resource via the quota status
-	// check if any of them applies to our pod
 	quotaList, err := q.client.CoreV1().ResourceQuotas(q.namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -188,6 +185,9 @@ func (q *QuotaAccessorImpl) Revert() {
 					continue
 				}
 			}
+		}
+		if revertedQuota == nil {
+			continue
 		}
 		_, err = q.client.CoreV1().ResourceQuotas(q.namespace).Update(context.TODO(), revertedQuota, metav1.UpdateOptions{})
 		if err != nil {

@@ -568,6 +568,7 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructure
 	})
 	if err != nil {
 		glog.Errorf("Failed to create a new pod: %s/%s, %v", npod.Namespace, npod.Name, err)
+		return nil, err
 	}
 
 	glog.V(3).Infof("Create a clone pod success: %s/%s", npod.Namespace, npod.Name)
