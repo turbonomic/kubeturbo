@@ -65,9 +65,9 @@ var (
 	vMemRequestQuotaTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vMemRequestQuotaType}
 	storageAmountTemplateCommWithKey    = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &storageAmountType}
 	// Access commodities
-	vmpmAccessTemplateComm              = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
-	applicationTemplateCommWithKey      = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
-	clusterTemplateCommWithKey          = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
+	vmpmAccessTemplateComm         = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
+	applicationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
+	clusterTemplateCommWithKey     = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
 
 	// Resold TemplateCommodity with key
 	vCpuLimitQuotaTemplateCommWithKeyResold   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuLimitQuotaType, IsResold: &commIsResold}

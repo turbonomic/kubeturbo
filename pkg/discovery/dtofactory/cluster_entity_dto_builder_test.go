@@ -28,8 +28,8 @@ type Node struct {
 	memRequestUsed     float64
 	memUsed            float64
 	storageCap         float64
-	storageAllocatable float64	// not collected yet
-	storageRequestUsed float64	// not collected yet
+	storageAllocatable float64 // not collected yet
+	storageRequestUsed float64 // not collected yet
 	storageUsed        float64
 }
 
@@ -111,7 +111,7 @@ func TestBuildClusterDto(t *testing.T) {
 	assert.Nil(t, err, "Failed to make node DTOs to build the cluster DTO: %s", err)
 	clusterDTO, err := builder.BuildEntity(entityDTOs)
 	assert.Nil(t, err)
-	for _,commSold := range clusterDTO.CommoditiesSold {
+	for _, commSold := range clusterDTO.CommoditiesSold {
 		switch commSold.GetCommodityType() {
 		case proto.CommodityDTO_CLUSTER:
 			assert.Equal(t, GetClusterKey(clusterId), commSold.GetKey())
