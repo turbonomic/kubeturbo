@@ -24,7 +24,7 @@ type TestNode struct {
 	cluster string
 }
 
-const clusterName string = "cluster1"
+const clusterName string = "foo"
 
 var TestNodes = []TestNode{
 	{
@@ -320,19 +320,18 @@ func TestBuildNamespaceDto(t *testing.T) {
 		for _, commBoughtPerProvider := range commBoughtList {
 			boughtList := commBoughtPerProvider.GetBought()
 			commMap = make(map[proto.CommodityDTO_CommodityType]*proto.CommodityDTO)
+			foundClusterCommodity := false
 			for _, commBought := range boughtList {
-				commMap[commBought.GetCommodityType()] = commBought
-			}
-
-			for _, allocationResource := range metrics.QuotaResources {
-				commType, ok := rTypeMapping[allocationResource]
-				if !ok {
+				commType := commBought.GetCommodityType()
+				if commType != proto.CommodityDTO_CLUSTER {
+					commMap[commType] = commBought
 					continue
 				}
-				comm, exists := commMap[commType]
-				assert.True(t, exists)
-				assert.EqualValues(t, *commBoughtPerProvider.ProviderId, comm.GetKey())
+				// verify the cluster commodity
+				foundClusterCommodity = true
+				assert.Equal(t, GetClusterKey(clusterName), commBought.GetKey())
 			}
+			assert.True(t, foundClusterCommodity)
 
 			for _, computeResource := range metrics.ComputeResources {
 				commType, ok := rTypeMapping[computeResource]
@@ -344,7 +343,7 @@ func TestBuildNamespaceDto(t *testing.T) {
 
 				// check and compare with expected values
 				expectedResource, exists := kubeNamespace.ComputeResources[computeResource]
-				assert.EqualValues(t, *commBoughtPerProvider.ProviderId, comm.GetKey())
+				assert.Equal(t, "", comm.GetKey())
 				if len(expectedResource.Points) > 0 {
 					sum := 0.0
 					peak := 0.0

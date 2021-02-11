@@ -122,18 +122,16 @@ func (builder *namespaceEntityDTOBuilder) getQuotaCommoditiesSold(kubeNamespace 
 }
 
 func (builder *namespaceEntityDTOBuilder) getCommoditiesBought(kubeNamespace *repository.KubeNamespace) ([]*proto.CommodityDTO, error) {
-	var commoditiesBought []*proto.CommodityDTO
-	for resourceType, resource := range kubeNamespace.AllocationResources {
-		commBought, err := builder.getCommodityBought(resourceType, resource, kubeNamespace.ClusterName)
-		if err != nil {
-			glog.Errorf("%s: Failed to build commodity bought with resource type %s: %s", kubeNamespace.Name,
-				resourceType, err)
-			continue
-		}
-		commoditiesBought = append(commoditiesBought, commBought)
+	clusterKey := GetClusterKey(kubeNamespace.ClusterName)
+	clusterCommBought, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
+		Key(clusterKey).Used(1).Create()
+	if err != nil {
+		glog.Errorf("Failed to build cluster commodity bought with key %s: %s", kubeNamespace.Name, err)
+		return nil, err
 	}
+	commoditiesBought := []*proto.CommodityDTO{clusterCommBought}
 	for resourceType, resource := range kubeNamespace.ComputeResources {
-		commBought, err := builder.getCommodityBought(resourceType, resource, kubeNamespace.ClusterName)
+		commBought, err := builder.getCommodityBought(resourceType, resource)
 		if err != nil {
 			glog.Errorf("%s: Failed to build commodity bought with resource type %s: %s", kubeNamespace.Name,
 				resourceType, err)
@@ -145,7 +143,7 @@ func (builder *namespaceEntityDTOBuilder) getCommoditiesBought(kubeNamespace *re
 }
 
 func (builder *namespaceEntityDTOBuilder) getCommodityBought(resourceType metrics.ResourceType,
-	resource *repository.KubeDiscoveredResource, key string) (*proto.CommodityDTO, error) {
+	resource *repository.KubeDiscoveredResource) (*proto.CommodityDTO, error) {
 	commodityType, exist := rTypeMapping[resourceType]
 	if !exist {
 		return nil, fmt.Errorf("resourceType %s is not supported", resourceType)
@@ -163,6 +161,5 @@ func (builder *namespaceEntityDTOBuilder) getCommodityBought(resourceType metric
 	}
 	commBoughtBuilder.Used(used)
 	commBoughtBuilder.Peak(peak)
-	commBoughtBuilder.Key(key)
 	return commBoughtBuilder.Create()
 }
