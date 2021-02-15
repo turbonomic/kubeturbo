@@ -17,7 +17,7 @@ import (
 	eval "k8s.io/kubernetes/pkg/quota/v1/evaluator/core"
 )
 
-const quotaAnnotationKey = "kubeturbo.io/last-good-config"
+const QuotaAnnotationKey = "kubeturbo.io/last-good-config"
 
 type QuotaAccessor interface {
 	Get() ([]corev1.ResourceQuota, error)
@@ -122,7 +122,7 @@ func (q *QuotaAccessorImpl) Evaluate(quotas []corev1.ResourceQuota, pod *corev1.
 		restrictedResources := q.evaluator.MatchingResources(hardResources)
 
 		if !hasUsageStats(&resourceQuota, restrictedResources) {
-			// Usage stats are missing from this quota would mean that its
+			// There being no usage stats for this quota would mean that its
 			// allright to be going ahead with trying to move the pod.
 			// We continue to check other quotas
 			glog.Warningf("No usage stats found on resource quota: %s, while validating quota for pod: %s.", resourceQuota.Name, podQualifiedName)
@@ -134,10 +134,10 @@ func (q *QuotaAccessorImpl) Evaluate(quotas []corev1.ResourceQuota, pod *corev1.
 		// We need to mask again as add returns all resources in the first list
 		maskedNewTotalUsage := quota.Mask(newTotalUsage, quota.ResourceNames(requestedUsage))
 
-		if allowed, exceeded := quota.LessThanOrEqual(maskedNewTotalUsage, resourceQuota.Status.Hard); !allowed {
+		if allowed, exceededResources := quota.LessThanOrEqual(maskedNewTotalUsage, resourceQuota.Status.Hard); !allowed {
 			// Add the original quota spec to the annotation on the quota to update
 			newQuota := copyQuota(&resourceQuota)
-			newQuota.Spec.Hard = AddToSpecHard(resourceQuota.Spec.Hard, requestedUsage, exceeded)
+			newQuota.Spec.Hard = AddToSpecHard(resourceQuota.Spec.Hard, requestedUsage, exceededResources)
 			if newQuota.Annotations == nil {
 				newQuota.Annotations = make(map[string]string)
 			}
@@ -146,7 +146,7 @@ func (q *QuotaAccessorImpl) Evaluate(quotas []corev1.ResourceQuota, pod *corev1.
 			// We update the original spec as an annotation on the quota itself
 			// Updating the quota this way will facilitate the garbage collection
 			// TODO: garbage collection across restarts
-			newQuota.Annotations[quotaAnnotationKey], err = encodeQuota(&resourceQuota)
+			newQuota.Annotations[QuotaAnnotationKey], err = encodeQuota(&resourceQuota)
 			if err != nil {
 				// we don't skip this error. It can any ways be problematic if we needed
 				// to update multiple quotas but could not update 1 of them. The action
@@ -177,7 +177,7 @@ func (q *QuotaAccessorImpl) Revert() {
 		var revertedQuota *corev1.ResourceQuota
 		var err error
 		if quota.Annotations != nil {
-			origSpec, exists := quota.Annotations[quotaAnnotationKey]
+			origSpec, exists := quota.Annotations[QuotaAnnotationKey]
 			if exists {
 				revertedQuota, err = decodeQuota([]byte(origSpec))
 				if err != nil {
@@ -197,33 +197,19 @@ func (q *QuotaAccessorImpl) Revert() {
 	}
 }
 
-func getScopeSelectorsFromQuota(quota corev1.ResourceQuota) []corev1.ScopedResourceSelectorRequirement {
-	selectors := []corev1.ScopedResourceSelectorRequirement{}
-	for _, scope := range quota.Spec.Scopes {
-		selectors = append(selectors, corev1.ScopedResourceSelectorRequirement{
-			ScopeName: scope,
-			Operator:  corev1.ScopeSelectorOpExists})
-	}
-	if quota.Spec.ScopeSelector != nil {
-		for _, scopeSelector := range quota.Spec.ScopeSelector.MatchExpressions {
-			selectors = append(selectors, scopeSelector)
-		}
-	}
-	return selectors
-}
-
-// hasUsageStats returns true if for each hard constraint in interestingResources there is a value for its current usage
+// hasUsageStats returns true if for atleast 1 hard constraint in interestingResources there is a value for its current usage
 func hasUsageStats(resourceQuota *corev1.ResourceQuota, interestingResources []corev1.ResourceName) bool {
 	interestingSet := quota.ToSet(interestingResources)
 	for resourceName := range resourceQuota.Status.Hard {
 		if !interestingSet.Has(string(resourceName)) {
 			continue
 		}
-		if _, found := resourceQuota.Status.Used[resourceName]; !found {
-			return false
+		if _, found := resourceQuota.Status.Used[resourceName]; found {
+			return true
 		}
 	}
-	return true
+
+	return false
 }
 
 // RemoveZeros returns a new resource list that only has no zero values

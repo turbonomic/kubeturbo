@@ -3,9 +3,8 @@ package integration
 import (
 	"context"
 	"fmt"
+	"reflect"
 
-	"github.com/turbonomic/kubeturbo/test/integration/framework"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,8 +15,12 @@ import (
 	restclient "k8s.io/client-go/rest"
 
 	. "github.com/onsi/ginkgo"
+
 	"github.com/turbonomic/kubeturbo/pkg/action"
+	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	"github.com/turbonomic/kubeturbo/test/integration/framework"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 var _ = Describe("Action Execution when quota exists ", func() {
@@ -92,7 +95,9 @@ spec:
 				newTargetSEFromPod(pod), newHostSEFromNodeName(targetNodeName)), nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Move action failed")
 
-			validateMovedPod(kubeClient, dep.Name, "deployment", namespace, targetNodeName)
+			pod = validateMovedPod(kubeClient, dep.Name, "deployment", namespace, targetNodeName)
+			validateGCAnnotationRemoved(kubeClient, pod)
+			validateQuotaReverted(kubeClient, quota)
 		})
 	})
 
@@ -126,6 +131,8 @@ spec:
 			framework.ExpectNoError(err, "Move action failed")
 
 			validateMovedPod(kubeClient, dep.Name, "deployment", namespace, targetNodeName)
+			validateGCAnnotationRemoved(kubeClient, pod)
+			validateQuotaReverted(kubeClient, quota)
 		})
 	})
 
@@ -179,5 +186,22 @@ func deleteDeploy(client *kubeclientset.Clientset, dep *appsv1.Deployment) {
 	err := client.AppsV1().Deployments(dep.Namespace).Delete(context.TODO(), dep.Name, metav1.DeleteOptions{})
 	if err != nil {
 		framework.Failf("Error deleting deployment %s/%s. %v", dep.Namespace, dep.Name, err)
+	}
+}
+
+func validateGCAnnotationRemoved(client kubeclientset.Interface, pod *corev1.Pod) {
+	_, gcAnnotationFound := pod.Annotations[executor.QuotaAnnotationKey]
+	if gcAnnotationFound {
+		framework.Failf("The GC annotation was not removed on pod %s/%s.", pod.Name, pod.Namespace)
+	}
+}
+
+func validateQuotaReverted(client kubeclientset.Interface, quota *corev1.ResourceQuota) {
+	usedQuota, err := client.CoreV1().ResourceQuotas(quota.Namespace).Get(context.TODO(), quota.Name, metav1.GetOptions{})
+	if err != nil {
+		framework.Failf("Error getting quota %s/%s again. %v", quota.Namespace, quota.Name, err)
+	}
+	if !reflect.DeepEqual(quota.Spec.Hard, usedQuota.Spec.Hard) {
+		framework.Failf("Quota does not seem to be reverted to its original value after action original: %v new: %v", quota, usedQuota)
 	}
 }

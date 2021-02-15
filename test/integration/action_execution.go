@@ -450,7 +450,7 @@ func isOpenShiftDeployerPod(labels map[string]string) bool {
 	return false
 }
 
-func validateMovedPod(client kubeclientset.Interface, parentName, parentType, namespace, targetNodeName string) {
+func validateMovedPod(client kubeclientset.Interface, parentName, parentType, namespace, targetNodeName string) *corev1.Pod {
 	var pod *corev1.Pod
 	var err error
 
@@ -464,6 +464,8 @@ func validateMovedPod(client kubeclientset.Interface, parentName, parentType, na
 	if pod.Spec.NodeName != targetNodeName {
 		framework.Failf("Pod move failed. Pods node: %s vs target node: %s", pod.Spec.NodeName, targetNodeName)
 	}
+
+	return pod
 }
 
 type mockProgressTrack struct{}
