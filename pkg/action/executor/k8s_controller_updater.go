@@ -96,7 +96,7 @@ func GetSupportedResUsingKind(kind, namespace, name string) (schema.GroupVersion
 
 // updateWithRetry updates a specific k8s controller with retry and timeout
 func (c *k8sControllerUpdater) updateWithRetry(ctlrSpec *controllerSpec) error {
-	retryNum := defaultRetryLess
+	retryNum := DefaultRetryLess
 	interval := defaultUpdateReplicaSleep
 	timeout := time.Duration(retryNum+1) * interval
 	err := util.RetryDuring(retryNum, timeout, interval, func() error {

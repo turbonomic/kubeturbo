@@ -10,7 +10,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 	kubeclientset "k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 
 	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo"
@@ -22,12 +24,22 @@ var _ = Describe("Garbage pod collector ", func() {
 	f := framework.NewTestFramework("garbage-collector")
 	var namespace string
 	var kubeClient *kubeclientset.Clientset
+	var dynamicClient dynamic.Interface
+	var kubeConfig *restclient.Config
 
 	//AfterSuite(f.AfterEach)
 	BeforeEach(func() {
+		var err error
 		f.BeforeEach()
 		// The following setup is shared across tests here
-		kubeClient = f.GetKubeClient("garbage-collector")
+		if kubeConfig == nil {
+			kubeConfig := f.GetKubeConfig()
+			kubeClient = f.GetKubeClient("garbage-collector")
+			dynamicClient, err = dynamic.NewForConfig(kubeConfig)
+			if err != nil {
+				framework.Failf("Failed to generate dynamic client for kubernetes test cluster: %v", err)
+			}
+		}
 		namespace = f.TestNamespaceName()
 	})
 
@@ -38,7 +50,8 @@ var _ = Describe("Garbage pod collector ", func() {
 
 			gCChan := make(chan bool)
 			defer close(gCChan)
-			worker.NewGarbageCollector(kubeClient, gCChan, 5, time.Second*1).StartCleanup()
+			err = worker.NewGarbageCollector(kubeClient, dynamicClient, gCChan, 5, time.Second*1).StartCleanup()
+			framework.ExpectNoError(err, "Error completing garbage cleanup")
 
 			validatePodsCleaned(kubeClient, []*corev1.Pod{pod})
 		})

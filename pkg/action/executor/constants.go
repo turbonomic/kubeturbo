@@ -5,11 +5,11 @@ import (
 )
 
 const (
-	defaultRetryLess = 3
+	DefaultRetryLess = 3
 	defaultRetryMore = 55
 
-	defaultRetrySleepInterval = time.Second * 3
-	defaultRetryShortTimeout  = time.Second * 20
+	DefaultRetrySleepInterval = time.Second * 3
+	DefaultRetryShortTimeout  = time.Second * 20
 
 	defaultWaitLockTimeOut = time.Second * 300
 	defaultWaitLockSleep   = time.Second * 10
