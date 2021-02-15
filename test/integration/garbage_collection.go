@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/turbonomic/kubeturbo/test/integration/framework"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,16 +45,30 @@ var _ = Describe("Garbage pod collector ", func() {
 	})
 
 	Describe("periodic garbage collection", func() {
-		It("should result in leaked pods being cleaned up", func() {
-			pod, err := createPodResource(kubeClient, PodSingleContainerWithKubeturboGCLabel(namespace))
+		It("should result in proper clean up", func() {
+			pod1, err := createPodResource(kubeClient, podSingleContainerWithKubeturboGCLabel(namespace))
 			framework.ExpectNoError(err, "Error creating test pod with kubeturbo GC label")
+			pod2, err := createPodResource(kubeClient, podSingleContainerWithKubeturboGCLabel(namespace))
+			framework.ExpectNoError(err, "Error creating test pod with kubeturbo GC label")
+			dep, err := createDeployment(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, true, true))
+			framework.ExpectNoError(err, "Error creating deployment with garbage collection label")
+			rs, err := createReplicaSet(kubeClient, rsSingleContainerWithResources(namespace, 1, true, true))
+			framework.ExpectNoError(err, "Error creating replicaset with dummy scheduler")
 
 			gCChan := make(chan bool)
 			defer close(gCChan)
 			err = worker.NewGarbageCollector(kubeClient, dynamicClient, gCChan, 5, time.Second*1).StartCleanup()
 			framework.ExpectNoError(err, "Error completing garbage cleanup")
 
-			validatePodsCleaned(kubeClient, []*corev1.Pod{pod})
+			By("ensuring leaked pods are cleaned up")
+			validatePodsCleaned(kubeClient, []*corev1.Pod{pod1, pod2})
+
+			// TODO: At some point make this test generic for supported parents/grandparents
+			By("ensuring leaked unhealthy Replicasets are made healthy")
+			validateRSHealthy(kubeClient, rs)
+
+			By("ensuring leaked unhealthy deployments are made healthy")
+			validateDepHealthy(kubeClient, dep)
 		})
 	})
 
@@ -92,7 +107,7 @@ func createPod(client kubeclientset.Interface, pod *corev1.Pod) (*corev1.Pod, er
 	return newPod, nil
 }
 
-func PodSingleContainerWithKubeturboGCLabel(namespace string) *corev1.Pod {
+func podSingleContainerWithKubeturboGCLabel(namespace string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "test-",
@@ -130,5 +145,54 @@ func validatePodsCleaned(client kubeclientset.Interface, pods []*corev1.Pod) {
 		return false, nil
 	}); err != nil {
 		framework.Failf("Pod cleanup by garbage collector failed. %v", err)
+	}
+}
+
+func validateRSHealthy(client kubeclientset.Interface, rs *appsv1.ReplicaSet) {
+	newRs, err := client.AppsV1().ReplicaSets(rs.Namespace).Get(context.TODO(), rs.Name, metav1.GetOptions{})
+	if err != nil {
+		framework.ExpectNoError(err)
+	}
+
+	validateGCLabelRemovedRS(newRs)
+	validateRSSchedulerHealthy(newRs)
+}
+
+func validateGCLabelRemovedRS(rs *appsv1.ReplicaSet) {
+	_, gcLabelFound := rs.Labels[executor.QuotaAnnotationKey]
+	if gcLabelFound {
+		framework.Failf("The GC label was not removed on RS %s/%s.", rs.Name, rs.Namespace)
+	}
+}
+
+func validateRSSchedulerHealthy(rs *appsv1.ReplicaSet) {
+	healthyScheduler := rs.Spec.Template.Spec.SchedulerName == "default-scheduler"
+	if !healthyScheduler {
+		framework.Failf("The RS scheduler name is still not right %s/%s.", rs.Name, rs.Namespace)
+	}
+}
+
+func validateDepHealthy(client kubeclientset.Interface, dep *appsv1.Deployment) {
+	newDep, err := client.AppsV1().Deployments(dep.Namespace).Get(context.TODO(), dep.Name, metav1.GetOptions{})
+	if err != nil {
+		framework.ExpectNoError(err)
+	}
+
+	validateGCLabelRemovedDep(newDep)
+	validateDepUnpaused(newDep)
+
+}
+
+func validateGCLabelRemovedDep(dep *appsv1.Deployment) {
+	_, gcLabelFound := dep.Labels[executor.QuotaAnnotationKey]
+	if gcLabelFound {
+		framework.Failf("The GC label was not removed on Deployment %s/%s.", dep.Name, dep.Namespace)
+	}
+}
+
+func validateDepUnpaused(dep *appsv1.Deployment) {
+	pausedDeployment := dep.Spec.Paused == true
+	if pausedDeployment {
+		framework.Failf("The GC label was not removed on Deployment %s/%s.", dep.Name, dep.Namespace)
 	}
 }

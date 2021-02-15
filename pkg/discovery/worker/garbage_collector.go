@@ -176,7 +176,7 @@ func (g *GarbageCollector) revertSchedulers() error {
 		objList, err := g.dynClient.Resource(parentRes).Namespace("").List(context.TODO(), gcListOpts)
 		if err != nil {
 			// we fail forcing kubeturbo to restart and try this again
-			glog.Errorf("Error garbage cleaning parent controller for %s: %v", parentRes.String(), err)
+			glog.Errorf("Error reverting scheduler of parent controller for %s: %v", parentRes.String(), err)
 			return err
 		}
 		if objList == nil {
@@ -190,7 +190,7 @@ func (g *GarbageCollector) revertSchedulers() error {
 					return executor.ChangeScheduler(g.dynClient.Resource(parentRes).Namespace(item.GetNamespace()), &item, valid)
 				})
 			if err != nil {
-				glog.Errorf("Error garbage cleaning controller for %s %s/%s: %v", item.GetKind(), item.GetNamespace(), item.GetName(), err)
+				glog.Errorf("Error reverting scheduler of parent controller for %s %s/%s: %v", item.GetKind(), item.GetNamespace(), item.GetName(), err)
 				return err
 			}
 		}
@@ -205,10 +205,10 @@ func (g *GarbageCollector) unpauseRollouts() error {
 		if err != nil {
 			// This error could be because of mising deploymentConfig type from the cluster, so we don't fail here
 			if apierrors.IsNotFound(err) && strings.Contains(err.Error(), "the server could not find the requested resource") {
-				glog.V(3).Infof("Resource not found enabled on cluster while garbage cleaning controllers %s: %v", grandParentRes.String(), err)
+				glog.V(3).Infof("Resource not found enabled on cluster while resuming rollout of controllers %s: %v", grandParentRes.String(), err)
 				continue
 			}
-			glog.Errorf("Error garbage cleaning grand parent controller for %s: %v", grandParentRes.String(), err)
+			glog.Errorf("Error resuming rollout of controller %s: %v", grandParentRes.String(), err)
 			return err
 		}
 		if objList == nil {
@@ -222,7 +222,7 @@ func (g *GarbageCollector) unpauseRollouts() error {
 					return executor.ResourceRollout(g.dynClient.Resource(grandParentRes).Namespace(item.GetNamespace()), &item, unpause)
 				})
 			if err != nil {
-				glog.Errorf("Error garbage cleaning controller for %s %s/%s: %v", item.GetKind(), item.GetNamespace(), item.GetName(), err)
+				glog.Errorf("Error resuming rollout of controller %s %s/%s: %v", item.GetKind(), item.GetNamespace(), item.GetName(), err)
 				return err
 			}
 		}
