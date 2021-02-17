@@ -497,6 +497,10 @@ func ChangeScheduler(client dynamic.ResourceInterface, obj *unstructured.Unstruc
 	// Ref: https://github.com/kubernetes/client-go/blob/master/examples/dynamic-create-update-delete-deployment/main.go
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		objCopy, err := client.Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
 		if valid {
 			if err := unstructured.SetNestedField(objCopy.Object, DefaultScheduler,
 				"spec", "template", "spec", "schedulerName"); err != nil {

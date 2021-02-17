@@ -68,7 +68,7 @@ func (g *GarbageCollector) StartCleanup() error {
 
 	// We cleanup the controllers before cleaning up the pods to ensure
 	// that the pending (invalid controller) pods are deleted at the right time.
-	if err := g.RevertControllers(); err != nil {
+	if err := g.revertControllers(); err != nil {
 		return err
 	}
 
@@ -163,7 +163,7 @@ func (g *GarbageCollector) isLeakedPod(pod api.Pod) bool {
 
 // The controllers cleanup is supposed to happen only at the startup
 // We fail in case of errors to force kubeturbo to restart and try the cleanup again
-func (g *GarbageCollector) RevertControllers() error {
+func (g *GarbageCollector) revertControllers() error {
 	if err := g.revertSchedulers(); err != nil {
 		return err
 	}
@@ -274,12 +274,12 @@ func revertQuota(client *kubernetes.Clientset, quota *api.ResourceQuota) error {
 		}
 	}
 	if revertedQuota != nil {
-		// revertedQuota being nil possibly the result of the decode error above
-		// so we go ahead and try to remove the GC label alone
+		// Although unlikely, revertedQuota being nil possibly the result of the decode error above
+		// so we go ahead and try to remove the GC label alone and leave the annotation behind.
 		quota.Spec.Hard = revertedQuota.Spec.Hard
+		RemoveTurboAnnotionFromQuota(quota)
 	}
 	executor.RemoveGCLabelFromQuota(quota)
-	RemoveTurboAnnotionFromQuota(quota)
 
 	_, err = client.CoreV1().ResourceQuotas(quota.Namespace).Update(context.TODO(), quota, metav1.UpdateOptions{})
 	if err != nil {
@@ -298,7 +298,6 @@ func RemoveTurboAnnotionFromQuota(quota *api.ResourceQuota) {
 	}
 	if _, exists := annotations[executor.QuotaAnnotationKey]; exists {
 		delete(annotations, executor.QuotaAnnotationKey)
+		quota.SetAnnotations(annotations)
 	}
-
-	quota.SetAnnotations(annotations)
 }

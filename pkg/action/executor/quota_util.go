@@ -329,7 +329,6 @@ func RemoveGCLabelFromQuota(quota *corev1.ResourceQuota) {
 	}
 	if _, exists := labels[TurboGCLabelKey]; exists {
 		delete(labels, TurboGCLabelKey)
+		quota.SetLabels(labels)
 	}
-
-	quota.SetLabels(labels)
 }
