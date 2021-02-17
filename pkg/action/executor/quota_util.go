@@ -145,14 +145,14 @@ func (q *QuotaAccessorImpl) Evaluate(quotas []corev1.ResourceQuota, pod *corev1.
 			// As we don't have any other mechanism to have a persistent storage
 			// We update the original spec as an annotation on the quota itself
 			// Updating the quota this way will facilitate the garbage collection
-			// TODO: garbage collection across restarts
-			newQuota.Annotations[QuotaAnnotationKey], err = encodeQuota(&resourceQuota)
+			newQuota.Annotations[QuotaAnnotationKey], err = EncodeQuota(&resourceQuota)
 			if err != nil {
 				// we don't skip this error. It can any ways be problematic if we needed
 				// to update multiple quotas but could not update 1 of them. The action
 				// would still fail.
 				return fmt.Errorf("Error updating resource quota annotations: %v", err)
 			}
+			addGCLabelOnQuota(newQuota)
 			quotasToUpdate = append(quotasToUpdate, *newQuota)
 		}
 	}
@@ -179,7 +179,7 @@ func (q *QuotaAccessorImpl) Revert() {
 		if quota.Annotations != nil {
 			origSpec, exists := quota.Annotations[QuotaAnnotationKey]
 			if exists {
-				revertedQuota, err = decodeQuota([]byte(origSpec))
+				revertedQuota, err = DecodeQuota([]byte(origSpec))
 				if err != nil {
 					glog.Warningf("Error reverting the updated quota: %s/%s: %v", quota.Namespace, quota.Name, err)
 					continue
@@ -189,6 +189,8 @@ func (q *QuotaAccessorImpl) Revert() {
 		if revertedQuota == nil {
 			continue
 		}
+
+		RemoveGCLabelFromQuota(revertedQuota)
 		_, err = q.client.CoreV1().ResourceQuotas(q.namespace).Update(context.TODO(), revertedQuota, metav1.UpdateOptions{})
 		if err != nil {
 			glog.Warningf("Error reverting the updated quota: %s/%s: %v", quota.Namespace, quota.Name, err)
@@ -246,7 +248,7 @@ func inList(k corev1.ResourceName, keys []corev1.ResourceName) bool {
 	return false
 }
 
-func decodeQuota(bytes []byte) (*corev1.ResourceQuota, error) {
+func DecodeQuota(bytes []byte) (*corev1.ResourceQuota, error) {
 	decode := scheme.Codecs.UniversalDeserializer().Decode
 	obj, _, err := decode(bytes, nil, nil)
 	if err != nil {
@@ -255,13 +257,13 @@ func decodeQuota(bytes []byte) (*corev1.ResourceQuota, error) {
 
 	quota, isQuota := obj.(*corev1.ResourceQuota)
 	if !isQuota {
-		return nil, fmt.Errorf("could not get the original quota spec from the kubeturbo applied annotation.")
+		return nil, fmt.Errorf("could not get the quota spec from the supplied json.")
 	}
 
 	return quota, nil
 }
 
-func encodeQuota(quota *corev1.ResourceQuota) (string, error) {
+func EncodeQuota(quota *corev1.ResourceQuota) (string, error) {
 	encoder, err := getCodecForGV(schema.GroupVersion{Group: "", Version: "v1"})
 	if err != nil {
 		return "", err
@@ -280,6 +282,7 @@ func copyQuota(quota *corev1.ResourceQuota) *corev1.ResourceQuota {
 	newQuota := &corev1.ResourceQuota{}
 	newQuota.TypeMeta = quota.TypeMeta
 	newQuota.ObjectMeta = quota.ObjectMeta
+	newQuota.UID = ""
 	newQuota.SelfLink = ""
 	newQuota.ResourceVersion = ""
 	newQuota.Generation = 0
@@ -306,4 +309,27 @@ func getCodecForGV(gv schema.GroupVersion) (runtime.Codec, error) {
 	}
 	codec := codecs.CodecForVersions(serializerInfo.Serializer, codecs.UniversalDeserializer(), gv, nil)
 	return codec, nil
+}
+
+func addGCLabelOnQuota(quota *corev1.ResourceQuota) {
+	labels := quota.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[TurboGCLabelKey] = TurboGCLabelVal
+
+	quota.SetLabels(labels)
+}
+
+func RemoveGCLabelFromQuota(quota *corev1.ResourceQuota) {
+	labels := quota.GetLabels()
+	if labels == nil {
+		// nothing to do
+		return
+	}
+	if _, exists := labels[TurboGCLabelKey]; exists {
+		delete(labels, TurboGCLabelKey)
+	}
+
+	quota.SetLabels(labels)
 }
