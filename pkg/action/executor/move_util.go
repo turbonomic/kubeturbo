@@ -12,9 +12,11 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/retry"
@@ -122,6 +124,21 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 	if parentForPodSpec == nil {
 		parentForPodSpec = parent
 	}
+
+	quotaAccessor := NewQuotaAccessor(clusterScraper.Clientset, pod.Namespace)
+	quotas, err := quotaAccessor.Get()
+	if err != nil {
+		return nil, err
+	}
+	if err := quotaAccessor.Evaluate(quotas, pod); err != nil {
+		return nil, err
+	}
+
+	defer quotaAccessor.Revert()
+	if err := quotaAccessor.Update(); err != nil {
+		return nil, err
+	}
+
 	//step A1/B1. create a clone pod--podC of the original pod--podA
 	npod, err := createClonePod(clusterScraper.Clientset, pod, parentForPodSpec, nodeName)
 	if err != nil {
@@ -534,7 +551,21 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructure
 	util.AddLabel(npod, TurboGCLabelKey, TurboGCLabelVal)
 
 	podClient := client.CoreV1().Pods(pod.Namespace)
-	rpod, err := podClient.Create(context.TODO(), npod, metav1.CreateOptions{})
+	rpod := &api.Pod{}
+	err = wait.PollImmediate(defaultRetrySleepInterval, defaultRetryShortTimeout, func() (bool, error) {
+		rpod, err = podClient.Create(context.TODO(), npod, metav1.CreateOptions{})
+		if err != nil {
+			// The quota update might not reflect in the admission controller cache immediately
+			// which can still fail the new pod creation even after the quota update.
+			// We retry for a short while before failing in such cases.
+			if apierrors.IsForbidden(err) && strings.Contains(err.Error(), "exceeded quota") {
+				return false, nil
+			}
+
+			return false, err
+		}
+		return true, nil
+	})
 	if err != nil {
 		glog.Errorf("Failed to create a new pod: %s/%s, %v", npod.Namespace, npod.Name, err)
 		return nil, err
