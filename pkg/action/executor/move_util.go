@@ -99,8 +99,8 @@ func genNewPodName(oldPod *api.Pod) string {
 //  stepB7: change the scheduler of parent back to to default-scheduler
 //  stepB8: if the parent has parent, unpause the rollout
 // TODO: add support for operator controlled parent or parent's parent.
-func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
-	parentKind, parentName string, retryNum int, failVolumePodMoves, updateQuotaToAllowMoves bool) (*api.Pod, error) {
+func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, parentKind, parentName string,
+	retryNum int, failVolumePodMoves, updateQuotaToAllowMoves bool, lockMap *util.ExpirationMap) (*api.Pod, error) {
 	podClient := clusterScraper.Clientset.CoreV1().Pods(pod.Namespace)
 	podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	podUsingVolume := isPodUsingVolume(pod)
@@ -127,17 +127,27 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 
 	if updateQuotaToAllowMoves {
 		quotaAccessor := NewQuotaAccessor(clusterScraper.Clientset, pod.Namespace)
+		// The accessor should get the quotas again within the lock to avoid
+		// possible race conditions.
 		quotas, err := quotaAccessor.Get()
 		if err != nil {
 			return nil, err
 		}
-		if err := quotaAccessor.Evaluate(quotas, pod); err != nil {
-			return nil, err
-		}
+		hasQuotas := len(quotas) > 0
+		if hasQuotas {
+			// If this namespace has quota we force the move actions to
+			// become sequential.
+			lockHelper, err := lockForQuota(pod.Namespace, lockMap)
+			if err != nil {
+				return nil, err
+			}
+			defer lockHelper.ReleaseLock()
 
-		defer quotaAccessor.Revert()
-		if err := quotaAccessor.Update(); err != nil {
-			return nil, err
+			err = checkQuotas(quotaAccessor, pod, lockMap)
+			if err != nil {
+				return nil, err
+			}
+			defer quotaAccessor.Revert()
 		}
 	}
 
@@ -274,6 +284,40 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 
 	flag = true
 	return xpod, nil
+}
+
+// checkQuotas checks and updates a quota if need be in the pods namespace
+func checkQuotas(quotaAccessor QuotaAccessor, pod *api.Pod, lockMap *util.ExpirationMap) error {
+	quotas, err := quotaAccessor.Get()
+	if err != nil {
+		return err
+	}
+	if err := quotaAccessor.Evaluate(quotas, pod); err != nil {
+		return err
+	}
+
+	if err := quotaAccessor.Update(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func lockForQuota(namespace string, lockMap *util.ExpirationMap) (*util.LockHelper, error) {
+	quotaLockKey := fmt.Sprintf("quota-lock-%s", namespace)
+	lockHelper, err := util.NewLockHelper(quotaLockKey, lockMap)
+	if err != nil {
+		return nil, err
+	}
+
+	err = lockHelper.Trylock(defaultWaitLockTimeOut, defaultWaitLockSleep)
+	if err != nil {
+		glog.Errorf("Failed to acquire lock with key(%v): %v", quotaLockKey, err)
+		return nil, err
+	}
+	lockHelper.KeepRenewLock()
+
+	return lockHelper, nil
 }
 
 func deleteInvalidPendingPods(parent *unstructured.Unstructured, podClient v1.PodInterface,
@@ -608,7 +652,7 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod,
 		return true, nil
 	})
 	if err != nil {
-		glog.Errorf("Failed to create a new pod: %s/%s, %v", npod.Namespace, npod.Name, err)
+		glog.Errorf("Failed to create a new pod while waiting for quota: %s/%s, %v", npod.Namespace, npod.Name, err)
 		return nil, err
 	}
 

@@ -86,6 +86,18 @@ type ActionHandler struct {
 	// concurrency control
 	lockStore IActionLockStore
 
+	// TODO(irfanurrehman): Improve this.
+	// Currently the action handler uses a key based lock
+	// implementing an expiration map and then abstracts the implementation
+	// via the interface IActionLockStore. This does not seem to be needed.
+	// The abstraction also renders other uses of the lock map impossible.
+	// It seems that there is no need to have all the added complexity and a simple
+	// sync.Map is sufficient to hold the locks without expiry.
+	// Currently storing the handle to the lockmap explicitly here to be used at other
+	// places, viz. while evaluating quotas.
+	// This can as well be made a global store for use anywhere.
+	lockMap *util.ExpirationMap
+
 	podManager util.IPodManager
 }
 
@@ -102,8 +114,10 @@ func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 	}
 
 	go lmap.Run(config.StopEverything)
+	handler.lockMap = lmap
 	handler.registerActionExecutors()
 	handler.lockStore = newActionLockStore(lmap, handler.getRelatedPod)
+
 	return handler
 }
 
@@ -113,7 +127,7 @@ func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
 	ae := executor.NewTurboK8sActionExecutor(c.clusterScraper, c.cApiClient, h.podManager, h.config.ormClient)
 
-	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet, c.failVolumePodMoves, c.updateQuotaToAllowMoves)
+	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet, c.failVolumePodMoves, c.updateQuotaToAllowMoves, h.lockMap)
 
 	h.actionExecutors[turboActionPodMove] = reScheduler
 
