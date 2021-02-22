@@ -636,7 +636,7 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod,
 
 	podClient := client.CoreV1().Pods(pod.Namespace)
 	rpod := &api.Pod{}
-	err = wait.PollImmediate(DefaultRetrySleepInterval, DefaultRetryShortTimeout, func() (bool, error) {
+	err = wait.PollImmediate(DefaultRetrySleepInterval, DefaultRetryTimeout, func() (bool, error) {
 		rpod, err = podClient.Create(context.TODO(), npod, metav1.CreateOptions{})
 		if err != nil {
 			// The quota update might not reflect in the admission controller cache immediately
