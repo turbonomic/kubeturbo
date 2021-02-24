@@ -160,7 +160,7 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	err := h.execute(actionExecutionDTO.GetActionItem())
 	if err != nil {
 		glog.Errorf("action execution error %++v", err)
-		return h.failedResult(err.Error()), nil
+		return h.failedResult(err.Error()), err
 	}
 
 	return h.goodResult(), nil

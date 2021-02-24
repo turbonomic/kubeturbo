@@ -595,7 +595,7 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod,
 			// which can still fail the new pod creation even after the quota update.
 			// We retry for a short while before failing in such cases.
 			if updateQuotaToAllowMoves && apierrors.IsForbidden(err) && strings.Contains(err.Error(), "exceeded quota") {
-				// Wait only if quota update to allow moves if enabled.
+				// Wait only if quota update to allow moves is enabled.
 				return false, nil
 			}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +30,7 @@ var _ = Describe("Action Execution when quota exists ", func() {
 	var namespace string
 	var actionHandler *action.ActionHandler
 	var kubeClient *kubeclientset.Clientset
+	var dynamicClient dynamic.Interface
 
 	// This quota yaml maps to exactly one pod for all resources
 	// A pod move will thus have to evaluate and update all the resorces
@@ -54,16 +56,14 @@ spec:
 
 			kubeConfig := f.GetKubeConfig()
 			kubeClient = f.GetKubeClient("action-executor")
-
-			dynamicClient, err := dynamic.NewForConfig(kubeConfig)
+			var err error
+			dynamicClient, err = dynamic.NewForConfig(kubeConfig)
 			if err != nil {
 				framework.Failf("Failed to generate dynamic client for kubernetes test cluster: %v", err)
 			}
 
-			cluster.NewClusterScraper(kubeClient, dynamicClient)
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeClient, dynamicClient), []string{"*"}, nil, false)
-
+				cluster.NewClusterScraper(kubeClient, dynamicClient), []string{"*"}, nil, false, true)
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 
 			namespace = f.TestNamespaceName()
@@ -98,6 +98,37 @@ spec:
 			pod = validateMovedPod(kubeClient, dep.Name, "deployment", namespace, targetNodeName)
 			validateGCAnnotationRemoved(kubeClient, pod)
 			validateQuotaReverted(kubeClient, quota)
+		})
+
+		It("should fail the action if the quota-update is disabled", func() {
+			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
+				cluster.NewClusterScraper(kubeClient, dynamicClient), []string{"*"}, nil, false, false)
+			actionHandler := action.NewActionHandler(actionHandlerConfig)
+
+			quota := createQuota(kubeClient, namespace, quotaYaml)
+			defer deleteQuota(kubeClient, quota)
+
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, true, false))
+			framework.ExpectNoError(err, "Error creating test resources")
+			defer deleteDeploy(kubeClient, dep)
+
+			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
+			framework.ExpectNoError(err, "Error getting deployments pod")
+			// This should not happen. We should ideally get a pod.
+			if pod == nil {
+				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
+			}
+
+			targetNodeName := getTargetSENodeName(f, pod)
+			if targetNodeName == "" {
+				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
+			}
+
+			_, err = actionHandler.ExecuteAction(newActionExecutionDTO(proto.ActionItemDTO_MOVE,
+				newTargetSEFromPod(pod), newHostSEFromNodeName(targetNodeName)), nil, &mockProgressTrack{})
+			if !(err != nil && strings.Contains(err.Error(), "exceeded quota")) {
+				framework.Failf("Action execution with quota update disabled and quota being full should have failed: %v", err)
+			}
 		})
 	})
 
