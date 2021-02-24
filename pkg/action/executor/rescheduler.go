@@ -14,15 +14,17 @@ import (
 
 type ReScheduler struct {
 	TurboK8sActionExecutor
-	sccAllowedSet      map[string]struct{}
-	failVolumePodMoves bool
+	sccAllowedSet           map[string]struct{}
+	failVolumePodMoves      bool
+	updateQuotaToAllowMoves bool
 }
 
-func NewReScheduler(ae TurboK8sActionExecutor, sccAllowedSet map[string]struct{}, failVolumePodMoves bool) *ReScheduler {
+func NewReScheduler(ae TurboK8sActionExecutor, sccAllowedSet map[string]struct{}, failVolumePodMoves, updateQuotaToAllowMoves bool) *ReScheduler {
 	return &ReScheduler{
-		TurboK8sActionExecutor: ae,
-		sccAllowedSet:          sccAllowedSet,
-		failVolumePodMoves:     failVolumePodMoves,
+		TurboK8sActionExecutor:  ae,
+		sccAllowedSet:           sccAllowedSet,
+		failVolumePodMoves:      failVolumePodMoves,
+		updateQuotaToAllowMoves: updateQuotaToAllowMoves,
 	}
 }
 
@@ -174,7 +176,7 @@ func (r *ReScheduler) reSchedule(pod *api.Pod, node *api.Node) (*api.Pod, error)
 
 	//2. move
 	return movePod(r.clusterScraper, pod, nodeName, parentKind,
-		parentName, defaultRetryMore, r.failVolumePodMoves)
+		parentName, defaultRetryMore, r.failVolumePodMoves, r.updateQuotaToAllowMoves)
 }
 
 func getVMIps(entity *proto.EntityDTO) []string {

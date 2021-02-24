@@ -100,7 +100,7 @@ func genNewPodName(oldPod *api.Pod) string {
 //  stepB8: if the parent has parent, unpause the rollout
 // TODO: add support for operator controlled parent or parent's parent.
 func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
-	parentKind, parentName string, retryNum int, failVolumePodMoves bool) (*api.Pod, error) {
+	parentKind, parentName string, retryNum int, failVolumePodMoves, updateQuotaToAllowMoves bool) (*api.Pod, error) {
 	podClient := clusterScraper.Clientset.CoreV1().Pods(pod.Namespace)
 	podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	podUsingVolume := isPodUsingVolume(pod)
@@ -125,22 +125,24 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 		parentForPodSpec = parent
 	}
 
-	quotaAccessor := NewQuotaAccessor(clusterScraper.Clientset, pod.Namespace)
-	quotas, err := quotaAccessor.Get()
-	if err != nil {
-		return nil, err
-	}
-	if err := quotaAccessor.Evaluate(quotas, pod); err != nil {
-		return nil, err
-	}
+	if updateQuotaToAllowMoves {
+		quotaAccessor := NewQuotaAccessor(clusterScraper.Clientset, pod.Namespace)
+		quotas, err := quotaAccessor.Get()
+		if err != nil {
+			return nil, err
+		}
+		if err := quotaAccessor.Evaluate(quotas, pod); err != nil {
+			return nil, err
+		}
 
-	defer quotaAccessor.Revert()
-	if err := quotaAccessor.Update(); err != nil {
-		return nil, err
+		defer quotaAccessor.Revert()
+		if err := quotaAccessor.Update(); err != nil {
+			return nil, err
+		}
 	}
 
 	//step A1/B1. create a clone pod--podC of the original pod--podA
-	npod, err := createClonePod(clusterScraper.Clientset, pod, parentForPodSpec, nodeName)
+	npod, err := createClonePod(clusterScraper.Clientset, pod, parentForPodSpec, updateQuotaToAllowMoves, nodeName)
 	if err != nil {
 		glog.Errorf("Move pod failed: failed to create a clone pod: %v", err)
 		return nil, err
@@ -544,7 +546,8 @@ func removeGCLabel(obj *unstructured.Unstructured) {
 	}
 }
 
-func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructured.Unstructured, nodeName string) (*api.Pod, error) {
+func createClonePod(client *kclient.Clientset, pod *api.Pod,
+	parent *unstructured.Unstructured, updateQuotaToAllowMoves bool, nodeName string) (*api.Pod, error) {
 	npod := &api.Pod{}
 	copyPodWithoutLabel(pod, npod, false)
 
@@ -591,7 +594,8 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructure
 			// The quota update might not reflect in the admission controller cache immediately
 			// which can still fail the new pod creation even after the quota update.
 			// We retry for a short while before failing in such cases.
-			if apierrors.IsForbidden(err) && strings.Contains(err.Error(), "exceeded quota") {
+			if updateQuotaToAllowMoves && apierrors.IsForbidden(err) && strings.Contains(err.Error(), "exceeded quota") {
+				// Wait only if quota update to allow moves if enabled.
 				return false, nil
 			}
 

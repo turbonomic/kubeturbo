@@ -49,12 +49,14 @@ type ActionHandlerConfig struct {
 	sccAllowedSet  map[string]struct{}
 	cAPINamespace  string
 	// ormClient provides the capability to update the corresponding CR for an Operator managed resource.
-	ormClient          *resourcemapping.ORMClient
-	failVolumePodMoves bool
+	ormClient               *resourcemapping.ORMClient
+	failVolumePodMoves      bool
+	updateQuotaToAllowMoves bool
 }
 
 func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientset, kubeletClient *kubeletclient.KubeletClient,
-	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient, failVolumePodMoves bool) *ActionHandlerConfig {
+	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient,
+	failVolumePodMoves, updateQuotaToAllowMoves bool) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
 		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}
@@ -62,14 +64,15 @@ func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientse
 	glog.V(4).Infof("SCC's allowed: %s", sccAllowedSet)
 
 	config := &ActionHandlerConfig{
-		clusterScraper:     clusterScraper,
-		kubeletClient:      kubeletClient,
-		StopEverything:     make(chan struct{}),
-		sccAllowedSet:      sccAllowedSet,
-		cAPINamespace:      cApiNamespace,
-		cApiClient:         cApiClient,
-		ormClient:          ormClient,
-		failVolumePodMoves: failVolumePodMoves,
+		clusterScraper:          clusterScraper,
+		kubeletClient:           kubeletClient,
+		StopEverything:          make(chan struct{}),
+		sccAllowedSet:           sccAllowedSet,
+		cAPINamespace:           cApiNamespace,
+		cApiClient:              cApiClient,
+		ormClient:               ormClient,
+		failVolumePodMoves:      failVolumePodMoves,
+		updateQuotaToAllowMoves: updateQuotaToAllowMoves,
 	}
 
 	return config
@@ -110,7 +113,7 @@ func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
 	ae := executor.NewTurboK8sActionExecutor(c.clusterScraper, c.cApiClient, h.podManager, h.config.ormClient)
 
-	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet, c.failVolumePodMoves)
+	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet, c.failVolumePodMoves, c.updateQuotaToAllowMoves)
 
 	h.actionExecutors[turboActionPodMove] = reScheduler
 
