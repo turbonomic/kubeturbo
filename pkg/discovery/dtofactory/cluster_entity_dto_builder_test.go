@@ -33,26 +33,48 @@ type Node struct {
 	storageUsed        float64
 }
 
-var Nodes = []Node{
-	{
-		"node1id", "node1", 10, 110,
-		2.0, 1.9, 1.0, 0.3,
-		8168868, 8066468, 140000, 3112000,
-		40470, 37297, 0, 9385,
-	},
-	{
-		"node2id", "node2", 22, 110,
-		2.0, 1.9, 0.89, 1.5,
-		8168868, 8066468, 2552000, 1234000,
-		40470, 37297, 0, 23748,
-	},
-	{
-		"node3id", "node3", 16, 110,
-		2.0, 1.9, 0.69, 1.1,
-		8168868, 8066468, 3600000, 4164400,
-		40470, 37297, 1234, 5678,
-	},
-}
+var (
+	Nodes = []Node{
+		{
+			"node1id", "node1", 10, 110,
+			2.0, 1.9, 1.0, 0.3,
+			8168868, 8066468, 140000, 3112000,
+			40470, 37297, 0, 9385,
+		},
+		{
+			"node2id", "node2", 22, 110,
+			2.0, 1.9, 0.89, 1.5,
+			8168868, 8066468, 2552000, 1234000,
+			40470, 37297, 0, 23748,
+		},
+		{
+			"node3id", "node3", 16, 110,
+			2.0, 1.9, 0.69, 1.1,
+			8168868, 8066468, 3600000, 4164400,
+			40470, 37297, 1234, 5678,
+		},
+	}
+	nsVCpuLimitQuotaUsage1 = float64(5)
+	nsVMemLimitQuotaUsage1 = float64(1)
+	namespaceDTO1          = &proto.EntityDTO{
+		CommoditiesSold: []*proto.CommodityDTO{
+			createNSCommodityDTO(proto.CommodityDTO_VCPU_LIMIT_QUOTA, nsVCpuLimitQuotaUsage1),
+			createNSCommodityDTO(proto.CommodityDTO_VMEM_LIMIT_QUOTA, nsVMemLimitQuotaUsage1),
+		},
+	}
+
+	nsVCpuLimitQuotaUsage2 = float64(4)
+	nsVMemLimitQuotaUsage2 = float64(2)
+	namespaceDTO2          = &proto.EntityDTO{
+		CommoditiesSold: []*proto.CommodityDTO{
+			createNSCommodityDTO(proto.CommodityDTO_VCPU_LIMIT_QUOTA, nsVCpuLimitQuotaUsage2),
+			createNSCommodityDTO(proto.CommodityDTO_VMEM_LIMIT_QUOTA, nsVMemLimitQuotaUsage2),
+		},
+	}
+
+	nodeVCpuCap = float64(5)
+	nodeVMemCap = float64(5)
+)
 
 func makeNodeDTOs() ([]*proto.EntityDTO, error) {
 	var nodeDTOs []*proto.EntityDTO
@@ -109,7 +131,7 @@ func TestBuildClusterDto(t *testing.T) {
 	builder := NewClusterDTOBuilder(&clusterSummary, targetId)
 	entityDTOs, err := makeNodeDTOs()
 	assert.Nil(t, err, "Failed to make node DTOs to build the cluster DTO: %s", err)
-	clusterDTO, err := builder.BuildEntity(entityDTOs)
+	clusterDTO, err := builder.BuildEntity(entityDTOs, entityDTOs)
 	assert.Nil(t, err)
 	for _, commSold := range clusterDTO.CommoditiesSold {
 		switch commSold.GetCommodityType() {
@@ -149,5 +171,29 @@ func TestBuildClusterDto(t *testing.T) {
 		default:
 			assert.Fail(t, "Detected unsupported commodity sold %v", commSold)
 		}
+	}
+}
+
+func Test_clusterDTOBuilder_createClusterData(t *testing.T) {
+	kubeCluster := repository.KubeCluster{Name: clusterId}
+	clusterSummary := repository.ClusterSummary{KubeCluster: &kubeCluster}
+	builder := NewClusterDTOBuilder(&clusterSummary, targetId)
+	namespaceDTOs := []*proto.EntityDTO{namespaceDTO1, namespaceDTO2}
+	nodeResourceCapacityMap := map[proto.CommodityDTO_CommodityType]float64{
+		proto.CommodityDTO_VCPU: nodeVCpuCap,
+		proto.CommodityDTO_VMEM: nodeVMemCap,
+	}
+	clusterData := builder.createClusterData(clusterId, namespaceDTOs, nodeResourceCapacityMap)
+
+	expectedCpuOvercommitment := (nsVCpuLimitQuotaUsage1 + nsVCpuLimitQuotaUsage2) / nodeVCpuCap
+	expectedMemOvercommitment := (nsVMemLimitQuotaUsage1 + nsVMemLimitQuotaUsage2) / nodeVMemCap
+	assert.InDelta(t, expectedCpuOvercommitment, *clusterData.CpuOvercommitment, delta)
+	assert.InDelta(t, expectedMemOvercommitment, *clusterData.MemOvercommitment, delta)
+}
+
+func createNSCommodityDTO(commodityType proto.CommodityDTO_CommodityType, used float64) *proto.CommodityDTO {
+	return &proto.CommodityDTO{
+		CommodityType: &commodityType,
+		Used:          &used,
 	}
 }
