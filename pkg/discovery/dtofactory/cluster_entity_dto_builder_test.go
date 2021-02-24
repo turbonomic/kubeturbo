@@ -54,12 +54,12 @@ var (
 			40470, 37297, 1234, 5678,
 		},
 	}
-	nsVCpuLimitQuotaUsage1 = float64(5)
-	nsVMemLimitQuotaUsage1 = float64(1)
+	nsVcpuLimitQuotaUsage1 = float64(5)
+	nsVmemLimitQuotaUsage1 = float64(1)
 	namespaceDTO1          = &proto.EntityDTO{
 		CommoditiesSold: []*proto.CommodityDTO{
-			createNSCommodityDTO(proto.CommodityDTO_VCPU_LIMIT_QUOTA, nsVCpuLimitQuotaUsage1),
-			createNSCommodityDTO(proto.CommodityDTO_VMEM_LIMIT_QUOTA, nsVMemLimitQuotaUsage1),
+			createNSCommodityDTO(proto.CommodityDTO_VCPU_LIMIT_QUOTA, nsVcpuLimitQuotaUsage1),
+			createNSCommodityDTO(proto.CommodityDTO_VMEM_LIMIT_QUOTA, nsVmemLimitQuotaUsage1),
 		},
 	}
 
@@ -185,10 +185,10 @@ func Test_clusterDTOBuilder_createClusterData(t *testing.T) {
 	}
 	clusterData := builder.createClusterData(clusterId, namespaceDTOs, nodeResourceCapacityMap)
 
-	expectedCpuOvercommitment := (nsVCpuLimitQuotaUsage1 + nsVCpuLimitQuotaUsage2) / nodeVCpuCap
-	expectedMemOvercommitment := (nsVMemLimitQuotaUsage1 + nsVMemLimitQuotaUsage2) / nodeVMemCap
-	assert.InDelta(t, expectedCpuOvercommitment, *clusterData.CpuOvercommitment, delta)
-	assert.InDelta(t, expectedMemOvercommitment, *clusterData.MemOvercommitment, delta)
+	expectedVcpuOvercommitment := (nsVcpuLimitQuotaUsage1 + nsVCpuLimitQuotaUsage2) / nodeVCpuCap
+	expectedVmemOvercommitment := (nsVmemLimitQuotaUsage1 + nsVMemLimitQuotaUsage2) / nodeVMemCap
+	assert.InDelta(t, expectedVcpuOvercommitment, *clusterData.VcpuOvercommitment, delta)
+	assert.InDelta(t, expectedVmemOvercommitment, *clusterData.VmemOvercommitment, delta)
 }
 
 func createNSCommodityDTO(commodityType proto.CommodityDTO_CommodityType, used float64) *proto.CommodityDTO {

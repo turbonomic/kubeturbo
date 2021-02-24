@@ -167,19 +167,19 @@ func (builder *clusterDTOBuilder) createClusterData(clusterName string, namespac
 		}
 	}
 
-	cpuOvercommitment := float64(0)
-	memOvercommitment := float64(0)
+	vcpuOvercommitment := float64(0)
+	vmemOvercommitment := float64(0)
 	for commodityType, usage := range overcommitmentUsageMap {
 		switch commodityType {
 		case proto.CommodityDTO_VCPU:
 			resourceCapacity := builder.getNodeResourceCapacity(clusterName, commodityType, nodeResourceCapacityMap)
 			if resourceCapacity != 0 {
-				cpuOvercommitment = usage / resourceCapacity
+				vcpuOvercommitment = usage / resourceCapacity
 			}
 		case proto.CommodityDTO_VMEM:
 			resourceCapacity := builder.getNodeResourceCapacity(clusterName, commodityType, nodeResourceCapacityMap)
 			if resourceCapacity != 0 {
-				memOvercommitment = usage / resourceCapacity
+				vmemOvercommitment = usage / resourceCapacity
 			}
 		default:
 			glog.Errorf("Unsupported commodity type %s for cluster overcommitment", commodityType)
@@ -187,8 +187,8 @@ func (builder *clusterDTOBuilder) createClusterData(clusterName string, namespac
 	}
 
 	return &proto.EntityDTO_ContainerPlatformClusterData{
-		CpuOvercommitment: &cpuOvercommitment,
-		MemOvercommitment: &memOvercommitment,
+		VcpuOvercommitment: &vcpuOvercommitment,
+		VmemOvercommitment: &vmemOvercommitment,
 	}
 }
 
