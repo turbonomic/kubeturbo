@@ -176,9 +176,9 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 				glog.V(3).Infof("Unpausing pods controller: %s for pod: %s", gPKind, podQualifiedName)
 				// We conservatively try additional 3 times in case of any failure as we don't
 				// want the parent to be left in a bad state.
-				err := commonutil.RetryDuring(defaultRetryLess, defaultRetryShortTimeout,
-					defaultRetrySleepInterval, func() error {
-						return resourceRollout(gPClient, grandParent, unpause)
+				err := commonutil.RetryDuring(DefaultRetryLess, DefaultRetryShortTimeout,
+					DefaultRetrySleepInterval, func() error {
+						return ResourceRollout(gPClient, grandParent, unpause)
 					})
 				if err != nil {
 					glog.Errorf("Move pod warning: %v", err)
@@ -187,7 +187,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 
 			// step B2:
 			glog.V(3).Infof("Pausing pods controller: %s for pod: %s", gPKind, podQualifiedName)
-			err := resourceRollout(gPClient, grandParent, pause)
+			err := ResourceRollout(gPClient, grandParent, pause)
 			if err != nil {
 				return nil, err
 			}
@@ -205,9 +205,9 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 			glog.V(3).Infof("Updating scheduler of %s for pod %s back to default.", parentKind, podQualifiedName)
 			// We conservatively try additional 3 times in case of any failure as we don't
 			// want the parent to be left in a bad state.
-			err := commonutil.RetryDuring(defaultRetryLess, defaultRetryShortTimeout,
-				defaultRetrySleepInterval, func() error {
-					return changeScheduler(pClient, parent, valid)
+			err := commonutil.RetryDuring(DefaultRetryLess, DefaultRetryShortTimeout,
+				DefaultRetrySleepInterval, func() error {
+					return ChangeScheduler(pClient, parent, valid)
 				})
 			if err != nil {
 				glog.Errorf("Move pod warning: %v", err)
@@ -216,7 +216,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName,
 		}()
 		// step B3:
 		glog.V(3).Infof("Updating scheduler of %s for pod %s to unknown (turbo-scheduler).", parentKind, pod.Name)
-		err = changeScheduler(pClient, parent, invalid)
+		err = ChangeScheduler(pClient, parent, invalid)
 		if err != nil {
 			return nil, err
 		}
@@ -289,8 +289,8 @@ func deleteInvalidPendingPods(parent *unstructured.Unstructured, podClient v1.Po
 	// Find the pods which weren't there and if attributed to invalid
 	// turbo-scheduler, delete them.
 	for _, pod := range newPendingInvalidPods(newPodList, podList) {
-		err := commonutil.RetryDuring(defaultRetryLess, defaultRetryShortTimeout,
-			defaultRetrySleepInterval, func() error {
+		err := commonutil.RetryDuring(DefaultRetryLess, DefaultRetryShortTimeout,
+			DefaultRetrySleepInterval, func() error {
 				return podClient.Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 			})
 		if err != nil {
@@ -451,8 +451,9 @@ func getPodOwnersInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
 	return parent, nil, nsParentClient, nil, "", nil
 }
 
-// resourceRollout pauses/unpauses the rollout of a deployment or a deploymentconfig
-func resourceRollout(client dynamic.ResourceInterface, obj *unstructured.Unstructured, pause bool) error {
+// ResourceRollout pauses/unpauses the rollout of a deployment or a deploymentconfig
+// This additionally adds or removes the garbage collection label on the resource
+func ResourceRollout(client dynamic.ResourceInterface, obj *unstructured.Unstructured, pause bool) error {
 	kind := obj.GetKind()
 	name := obj.GetName()
 	// This takes care of conflicting updates for example by operator
@@ -462,9 +463,16 @@ func resourceRollout(client dynamic.ResourceInterface, obj *unstructured.Unstruc
 		if err != nil {
 			return err
 		}
+
 		if err := unstructured.SetNestedField(objCopy.Object, pause, "spec", "paused"); err != nil {
 			return err
 		}
+		if pause {
+			addGCLabel(objCopy)
+		} else {
+			removeGCLabel(objCopy)
+		}
+
 		_, err = client.Update(context.TODO(), objCopy, metav1.UpdateOptions{})
 		if err != nil {
 			return err
@@ -478,8 +486,9 @@ func resourceRollout(client dynamic.ResourceInterface, obj *unstructured.Unstruc
 	return nil
 }
 
-// changeScheduler sets the scheduler value to default or unsets it to an invalid one
-func changeScheduler(client dynamic.ResourceInterface, obj *unstructured.Unstructured, valid bool) error {
+// ChangeScheduler sets the scheduler value to default or unsets it to an invalid one
+// This additionally adds or removes the garbage collection label on the resource
+func ChangeScheduler(client dynamic.ResourceInterface, obj *unstructured.Unstructured, valid bool) error {
 	kind := obj.GetKind()
 	name := obj.GetName()
 	// This takes care of conflicting updates for example by operator
@@ -487,15 +496,17 @@ func changeScheduler(client dynamic.ResourceInterface, obj *unstructured.Unstruc
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		objCopy, err := client.Get(context.TODO(), name, metav1.GetOptions{})
 		if valid {
-			if err := unstructured.SetNestedField(objCopy.Object, "default-scheduler",
+			if err := unstructured.SetNestedField(objCopy.Object, DefaultScheduler,
 				"spec", "template", "spec", "schedulerName"); err != nil {
 				return err
 			}
+			removeGCLabel(objCopy)
 		} else {
 			if err := unstructured.SetNestedField(objCopy.Object, DummyScheduler,
 				"spec", "template", "spec", "schedulerName"); err != nil {
 				return err
 			}
+			addGCLabel(objCopy)
 		}
 
 		_, err = client.Update(context.TODO(), objCopy, metav1.UpdateOptions{})
@@ -509,6 +520,28 @@ func changeScheduler(client dynamic.ResourceInterface, obj *unstructured.Unstruc
 		return fmt.Errorf("error updating scheduler [valid=%t] for %s %s: %v", valid, kind, name, retryErr)
 	}
 	return nil
+}
+
+func addGCLabel(obj *unstructured.Unstructured) {
+	labels := obj.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[TurboGCLabelKey] = TurboGCLabelVal
+
+	obj.SetLabels(labels)
+}
+
+func removeGCLabel(obj *unstructured.Unstructured) {
+	labels := obj.GetLabels()
+	if labels == nil {
+		// nothing to do
+		return
+	}
+	if _, exists := labels[TurboGCLabelKey]; exists {
+		delete(labels, TurboGCLabelKey)
+		obj.SetLabels(labels)
+	}
 }
 
 func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructured.Unstructured, nodeName string) (*api.Pod, error) {
@@ -552,7 +585,7 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod, parent *unstructure
 
 	podClient := client.CoreV1().Pods(pod.Namespace)
 	rpod := &api.Pod{}
-	err = wait.PollImmediate(defaultRetrySleepInterval, defaultRetryShortTimeout, func() (bool, error) {
+	err = wait.PollImmediate(DefaultRetrySleepInterval, DefaultRetryShortTimeout, func() (bool, error) {
 		rpod, err = podClient.Create(context.TODO(), npod, metav1.CreateOptions{})
 		if err != nil {
 			// The quota update might not reflect in the admission controller cache immediately

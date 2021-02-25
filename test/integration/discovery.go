@@ -117,6 +117,8 @@ var _ = Describe("Discover Cluster", func() {
 			// The preexisting entities, i.e. control plane components result in a
 			// total of 57 entity DTOs and 23 group DTOs.
 			// New resources included add up to a total of 91 entities and 33 group DTOs.
+			// The entities from other tests might show up in this list.
+			// We thus validate that the discovered entities are >= to the numbers here
 			validateDTOs(entityDTOs, groupDTOs, 91, 33)
 		})
 	})
@@ -132,12 +134,15 @@ var _ = Describe("Discover Cluster", func() {
 })
 
 func validateDTOs(entityDTOs []*proto.EntityDTO, groupDTOs []*proto.GroupDTO, totalEntities, totalGroups int) {
-	if len(entityDTOs) != totalEntities {
-		framework.Failf("Entity count doesn't match post discovery: got: %d, expected: %d", len(entityDTOs), totalEntities)
+	if len(entityDTOs) < totalEntities {
+		framework.Failf("Entity count doesn't match post discovery: got: %d, expected (>=):  %d", len(entityDTOs), totalEntities)
 	}
-	if len(groupDTOs) != totalGroups {
-		framework.Failf("Group count doesn't match post discovery: got: %d, expected: %d", len(entityDTOs), totalGroups)
+	if len(groupDTOs) < totalGroups {
+		framework.Failf("Group count doesn't match post discovery: got: %d, expected (>=): %d", len(entityDTOs), totalGroups)
 	}
+
+	framework.Logf("Validated entities post discovery: got: %d, expected (>=):  %d", len(entityDTOs), totalEntities)
+	framework.Logf("Validate groups post discovery: got: %d, expected (>=): %d", len(entityDTOs), totalGroups)
 }
 
 func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *kubeletclient.KubeletClient, dynamicClient dynamic.Interface) *configs.ProbeConfig {
@@ -167,7 +172,7 @@ func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *
 func createResourcesForDiscovery(client *kubeclientset.Clientset, namespace string, replicas int32) ([]*appsv1.Deployment, error) {
 	depResources := []*appsv1.Deployment{
 		depMultiContainer(namespace, replicas),
-		depSingleContainerWithResources(namespace, "", replicas, false),
+		depSingleContainerWithResources(namespace, "", replicas, false, false, false),
 		deplMultiContainerWithResources(namespace, replicas),
 	}
 

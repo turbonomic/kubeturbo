@@ -21,7 +21,9 @@ import (
 
 	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo"
+
 	"github.com/turbonomic/kubeturbo/pkg/action"
+	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 )
 
@@ -65,7 +67,7 @@ var _ = Describe("Action Executor ", func() {
 
 	Describe("executing action move pod", func() {
 		It("should result in new pod on target node", func() {
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
@@ -95,7 +97,7 @@ var _ = Describe("Action Executor ", func() {
 			// This works against a kind cluster. Ensure to update the storageclass name to the right name when
 			// running against a different cluster.
 			pvc, err := createVolumeClaim(kubeClient, namespace, "standard")
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, false, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
@@ -170,7 +172,7 @@ func createDeployResource(client *kubeclientset.Clientset, dep *appsv1.Deploymen
 
 // This can also be bootstrapped from a test resource directory
 // which holds yaml files.
-func depSingleContainerWithResources(namespace, claimName string, replicas int32, withVolume bool) *appsv1.Deployment {
+func depSingleContainerWithResources(namespace, claimName string, replicas int32, withVolume, withGCLabel, paused bool) *appsv1.Deployment {
 	dep := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "test-",
@@ -225,8 +227,77 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 			},
 		}
 	}
+	if withGCLabel {
+		addGCLabelDep(&dep)
+	}
+	if paused {
+		dep.Spec.Paused = true
+	}
 
 	return &dep
+}
+
+func rsSingleContainerWithResources(namespace string, replicas int32, withGCLabel, withDummyScheduler bool) *appsv1.ReplicaSet {
+	rs := appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "test-",
+			Namespace:    namespace,
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "test-app-rs",
+				},
+			},
+			Replicas: &replicas,
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": "test-app-rs",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:    "test-cont",
+							Image:   "busybox",
+							Command: []string{"/bin/sh"},
+							Args:    []string{"-c", "while true; do sleep 30; done;"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if withGCLabel {
+		addGCLabelRS(&rs)
+	}
+	if withDummyScheduler {
+		rs.Spec.Template.Spec.SchedulerName = "turbo-scheduler"
+	}
+
+	return &rs
+}
+
+func addGCLabelDep(dep *appsv1.Deployment) {
+	labels := dep.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[executor.TurboGCLabelKey] = executor.TurboGCLabelVal
+
+	dep.SetLabels(labels)
+}
+
+func addGCLabelRS(rs *appsv1.ReplicaSet) {
+	labels := rs.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[executor.TurboGCLabelKey] = executor.TurboGCLabelVal
+
+	rs.SetLabels(labels)
 }
 
 func createDCResource(client *osclient.Clientset, dc *osv1.DeploymentConfig) (*osv1.DeploymentConfig, error) {
@@ -347,6 +418,22 @@ func createDeployment(client kubeclientset.Interface, dep *appsv1.Deployment) (*
 		return nil, err
 	}
 	return newDep, nil
+}
+
+func createReplicaSet(client kubeclientset.Interface, rs *appsv1.ReplicaSet) (*appsv1.ReplicaSet, error) {
+	var newRS *appsv1.ReplicaSet
+	var errInternal error
+	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
+		newRS, errInternal = client.AppsV1().ReplicaSets(rs.Namespace).Create(context.TODO(), rs, metav1.CreateOptions{})
+		if errInternal != nil {
+			glog.Errorf("Unexpected error while creating replicaset: %v", errInternal)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		return nil, err
+	}
+	return newRS, nil
 }
 
 func waitForDeployment(client kubeclientset.Interface, depName, namespace string) (*appsv1.Deployment, error) {

@@ -75,7 +75,7 @@ spec:
 			quota := createQuota(kubeClient, namespace, quotaYaml)
 			defer deleteQuota(kubeClient, quota)
 
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, true, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 			defer deleteDeploy(kubeClient, dep)
 
@@ -110,7 +110,7 @@ spec:
 			defer deleteQuota(kubeClient, quota)
 
 			pvc, err := createVolumeClaim(kubeClient, namespace, "standard")
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, true, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 			defer deleteDeploy(kubeClient, dep)
 
