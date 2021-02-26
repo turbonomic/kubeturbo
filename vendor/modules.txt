@@ -503,12 +503,8 @@ github.com/opencontainers/selinux/go-selinux
 github.com/opencontainers/selinux/go-selinux/label
 github.com/opencontainers/selinux/pkg/pwalk
 # github.com/openshift/api v0.0.0-20201019163320-c6a5ec25f267
-github.com/openshift/api/apps/v1
 github.com/openshift/api/config/v1
 # github.com/openshift/client-go v0.0.0-20201020074620-f8fd44879f7c
-github.com/openshift/client-go/apps/clientset/versioned
-github.com/openshift/client-go/apps/clientset/versioned/scheme
-github.com/openshift/client-go/apps/clientset/versioned/typed/apps/v1
 github.com/openshift/client-go/config/clientset/versioned
 github.com/openshift/client-go/config/clientset/versioned/scheme
 github.com/openshift/client-go/config/clientset/versioned/typed/config/v1
@@ -580,7 +576,7 @@ github.com/thecodeteam/goscaleio/types/v1
 # github.com/turbonomic/turbo-api v0.0.0-20210114025310-0e31e19c3312
 github.com/turbonomic/turbo-api/pkg/api
 github.com/turbonomic/turbo-api/pkg/client
-# github.com/turbonomic/turbo-go-sdk v0.0.0-20210225224242-16d0f98c5fc4
+# github.com/turbonomic/turbo-go-sdk v0.0.0-20210114031140-c5661eec1ced
 github.com/turbonomic/turbo-go-sdk/pkg
 github.com/turbonomic/turbo-go-sdk/pkg/builder
 github.com/turbonomic/turbo-go-sdk/pkg/builder/group
@@ -1616,9 +1612,6 @@ k8s.io/kubernetes/pkg/proxy/util
 k8s.io/kubernetes/pkg/proxy/util/iptables
 k8s.io/kubernetes/pkg/proxy/winkernel
 k8s.io/kubernetes/pkg/proxy/winuserspace
-k8s.io/kubernetes/pkg/quota/v1
-k8s.io/kubernetes/pkg/quota/v1/evaluator/core
-k8s.io/kubernetes/pkg/quota/v1/generic
 k8s.io/kubernetes/pkg/scheduler/algorithmprovider
 k8s.io/kubernetes/pkg/scheduler/apis/config
 k8s.io/kubernetes/pkg/scheduler/apis/config/scheme
