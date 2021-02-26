@@ -13,6 +13,11 @@ import (
 
 const ClusterKeyPrefix = "cluster-"
 
+var quotaToComputeResourceCommMap = map[proto.CommodityDTO_CommodityType]proto.CommodityDTO_CommodityType{
+	proto.CommodityDTO_VCPU_LIMIT_QUOTA: proto.CommodityDTO_VCPU,
+	proto.CommodityDTO_VMEM_LIMIT_QUOTA: proto.CommodityDTO_VMEM,
+}
+
 type clusterDTOBuilder struct {
 	cluster  *repository.ClusterSummary
 	targetId string
@@ -65,7 +70,7 @@ func (builder *clusterDTOBuilder) BuildGroup() []*proto.GroupDTO {
 	return clusterGroupDTOs
 }
 
-func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO) (*proto.EntityDTO, error) {
+func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO, namespaceDTOs []*proto.EntityDTO) (*proto.EntityDTO, error) {
 	// id.
 	uid := builder.cluster.Name
 	entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, uid)
@@ -75,12 +80,16 @@ func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO) (*p
 	entityDTOBuilder.DisplayName(displayName)
 
 	// Resource commodities sold.
-	commoditiesSold, err := builder.getCommoditiesSold(entityDTOs)
+	commoditiesSold, nodeResourceCapacityMap, err := builder.getCommoditiesSold(entityDTOs)
 	if err != nil {
 		glog.Errorf("Error creating commoditiesSold for %s: %s", builder.cluster.Name, err)
 		return nil, err
 	}
 	entityDTOBuilder.SellsCommodities(commoditiesSold)
+
+	// Set up ClusterData
+	clusterData := builder.createClusterData(displayName, namespaceDTOs, nodeResourceCapacityMap)
+	entityDTOBuilder.ClusterData(clusterData)
 
 	// Cluster entity cannot be provisioned or suspended by Turbonomic analysis
 	entityDTOBuilder.IsProvisionable(false)
@@ -99,14 +108,15 @@ func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO) (*p
 	return entityDto, nil
 }
 
-func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityDTO) ([]*proto.CommodityDTO, error) {
+func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityDTO) ([]*proto.CommodityDTO,
+	map[proto.CommodityDTO_CommodityType]float64, error) {
 	// Cluster access commodity
 	clusterKey := GetClusterKey(builder.cluster.Name)
 	clusterCommodity, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
 		Key(clusterKey).Capacity(accessCommodityDefaultCapacity).Create()
 	if err != nil {
 		glog.Errorf("Failed to build cluster commodity for %s: %s", builder.cluster.Name, err)
-		return nil, err
+		return nil, nil, err
 	}
 	commoditiesSold := []*proto.CommodityDTO{clusterCommodity}
 	// Accumulate used and capacity values from the nodes on the cluster
@@ -140,5 +150,59 @@ func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityD
 		}
 		commoditiesSold = append(commoditiesSold, commSold)
 	}
-	return commoditiesSold, nil
+	return commoditiesSold, capacity, nil
+}
+
+// Create ContainerPlatformClusterData based on total namespace quota usage (which is equivalent to total container
+// resource capacity) and total node resource capacity.
+func (builder *clusterDTOBuilder) createClusterData(clusterName string, namespaceDTOs []*proto.EntityDTO,
+	nodeResourceCapacityMap map[proto.CommodityDTO_CommodityType]float64) *proto.EntityDTO_ContainerPlatformClusterData {
+	overcommitmentUsageMap := make(map[proto.CommodityDTO_CommodityType]float64)
+	for _, namespaceDTO := range namespaceDTOs {
+		for _, commodity := range namespaceDTO.GetCommoditiesSold() {
+			computeResourceCommType, commExists := quotaToComputeResourceCommMap[commodity.GetCommodityType()]
+			if commExists {
+				overcommitmentUsageMap[computeResourceCommType] += commodity.GetUsed()
+			}
+		}
+	}
+
+	vcpuOvercommitment := float64(0)
+	vmemOvercommitment := float64(0)
+	for commodityType, usage := range overcommitmentUsageMap {
+		switch commodityType {
+		case proto.CommodityDTO_VCPU:
+			resourceCapacity := builder.getNodeResourceCapacity(clusterName, commodityType, nodeResourceCapacityMap)
+			if resourceCapacity != 0 {
+				vcpuOvercommitment = usage / resourceCapacity
+			}
+		case proto.CommodityDTO_VMEM:
+			resourceCapacity := builder.getNodeResourceCapacity(clusterName, commodityType, nodeResourceCapacityMap)
+			if resourceCapacity != 0 {
+				vmemOvercommitment = usage / resourceCapacity
+			}
+		default:
+			glog.Errorf("Unsupported commodity type %s for cluster overcommitment", commodityType)
+		}
+	}
+
+	return &proto.EntityDTO_ContainerPlatformClusterData{
+		VcpuOvercommitment: &vcpuOvercommitment,
+		VmemOvercommitment: &vmemOvercommitment,
+	}
+}
+
+// Get node resource capacity from nodeResourceCapacityMap based on given commodityType
+func (builder clusterDTOBuilder) getNodeResourceCapacity(clusterName string, commodityType proto.CommodityDTO_CommodityType,
+	nodeResourceCapacityMap map[proto.CommodityDTO_CommodityType]float64) float64 {
+	resourceCapacity, ok := nodeResourceCapacityMap[commodityType]
+	if !ok {
+		glog.Errorf("%s commodity does not exist in nodeResourceCapacityMap", commodityType)
+		return 0
+	}
+	if resourceCapacity == 0 {
+		glog.Errorf("%s commodity capacity from all nodes in cluster %s is 0.", commodityType, clusterName)
+		return 0
+	}
+	return resourceCapacity
 }
