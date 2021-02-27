@@ -28,15 +28,9 @@ type ClusterMonitor struct {
 	nodeList []*api.Node
 
 	nodePodMap map[string][]*api.Pod
-	podOwners  map[string]*PodOwner
+	podOwners  map[string]util.OwnerInfo
 
 	stopCh chan struct{}
-}
-
-type PodOwner struct {
-	kind string
-	name string
-	uid  string
 }
 
 func NewClusterMonitor(config *ClusterMonitorConfig) (*ClusterMonitor, error) {
@@ -45,7 +39,7 @@ func NewClusterMonitor(config *ClusterMonitorConfig) (*ClusterMonitor, error) {
 		config:        config,
 		clusterClient: config.clusterInfoScraper,
 		stopCh:        make(chan struct{}, 1),
-		podOwners:     make(map[string]*PodOwner),
+		podOwners:     make(map[string]util.OwnerInfo),
 	}, nil
 }
 
@@ -214,9 +208,9 @@ func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapa
 	for _, pod := range podList {
 		key := util.PodKeyFunc(pod)
 		// Pod owners
-		podOwner, err := m.getPodOwner(pod)
-		if err == nil {
-			m.podOwners[key] = podOwner
+		ownerInfo, _, _, err := m.clusterClient.GetPodControllerInfo(pod, false)
+		if err == nil && !util.IsOwnerInfoEmpty(ownerInfo) {
+			m.podOwners[key] = ownerInfo
 		}
 
 		// Pod capacity metrics and Container resources metric
@@ -228,21 +222,6 @@ func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapa
 	numPods = float64(len(podList))
 	glog.V(3).Infof("Successfully generated pod metrics for node %v.", node.Name)
 	return
-}
-
-func (m *ClusterMonitor) getPodOwner(pod *api.Pod) (*PodOwner, error) {
-	key := util.PodKeyFunc(pod)
-	glog.V(4).Infof("begin to generate pod[%s]'s Owner metric.", key)
-
-	kind, parentName, uid, _, _, err := m.clusterClient.GetPodGrandparentInfo(pod, false)
-	if err != nil {
-		return nil, fmt.Errorf("error getting pod owner: %v", err)
-	}
-
-	if parentName == "" || kind == "" || uid == "" {
-		return nil, fmt.Errorf("invalid pod owner %s::%s::%s", kind, parentName, uid)
-	}
-	return &PodOwner{kind: kind, name: parentName, uid: uid}, nil
 }
 
 // genPodMetrics: based on hosting Node's cpuCapacity, memCapacity, cpuAllocatable and memAllocatable
@@ -271,8 +250,8 @@ func (m *ClusterMonitor) genPodMetrics(pod *api.Pod, nodeCPUCapacity, nodeMemCap
 
 	//3. Owner
 	podOwner, exists := m.podOwners[key]
-	if exists && podOwner != nil {
-		m.genOwnerMetrics(metrics.PodType, key, podOwner.kind, podOwner.name, podOwner.uid)
+	if exists {
+		m.genOwnerMetrics(metrics.PodType, key, podOwner.Kind, podOwner.Name, podOwner.Uid)
 	}
 
 	return podCPURequest, podMemRequest
@@ -322,8 +301,8 @@ func (m *ClusterMonitor) genContainerMetrics(pod *api.Pod, podCPU, podMem float6
 
 		//3. Owner
 		podOwner, exists := m.podOwners[podKey]
-		if exists && podOwner != nil {
-			m.genOwnerMetrics(metrics.ContainerType, containerMId, podOwner.kind, podOwner.name, podOwner.uid)
+		if exists {
+			m.genOwnerMetrics(metrics.ContainerType, containerMId, podOwner.Kind, podOwner.Name, podOwner.Uid)
 		}
 	}
 

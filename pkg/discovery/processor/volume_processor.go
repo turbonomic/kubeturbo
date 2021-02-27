@@ -37,12 +37,6 @@ func (p *VolumeProcessor) ProcessVolumes() {
 	}
 	glog.V(2).Infof("There are %d volume claims.", len(pvcList))
 
-	allPods, err := p.ClusterInfoScraper.GetAllPods()
-	if err != nil {
-		glog.Errorf("Failed to get all pods for cluster %s: %v.", clusterName, err)
-		return
-	}
-
 	// A map which lists the volume to pvc bindings (1 to 1)
 	// There can be volumes which are not bound via claims
 	// and pods use them directly.
@@ -71,7 +65,7 @@ func (p *VolumeProcessor) ProcessVolumes() {
 			// Unused volume.
 			volumeToPodsMap[pv] = nil
 		}
-		for _, pod := range allPods {
+		for _, pod := range p.KubeCluster.Pods {
 			for _, vol := range pod.Spec.Volumes {
 				claim := vol.VolumeSource.PersistentVolumeClaim
 				if claim != nil {

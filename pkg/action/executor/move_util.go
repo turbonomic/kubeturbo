@@ -445,14 +445,14 @@ func isPodUsingVolume(pod *api.Pod) bool {
 func getPodOwnersInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
 	parentKind string) (*unstructured.Unstructured, *unstructured.Unstructured,
 	dynamic.ResourceInterface, dynamic.ResourceInterface, string, error) {
-	gPkind, name, _, parent, nsParentClient, err := clusterScraper.GetPodGrandparentInfo(pod, true)
+	gpOwnerInfo, parent, nsParentClient, err := clusterScraper.GetPodControllerInfo(pod, true)
 	if err != nil {
-		return nil, nil, nil, nil, gPkind, fmt.Errorf("error getting pods final owner: %v", err)
+		return nil, nil, nil, nil, "", fmt.Errorf("error getting pods final owner: %v", err)
 	}
 
-	if gPkind != parentKind {
+	if gpOwnerInfo.Kind != parentKind {
 		var res schema.GroupVersionResource
-		switch gPkind {
+		switch gpOwnerInfo.Kind {
 		case commonutil.KindDeployment:
 			res = schema.GroupVersionResource{
 				Group:    commonutil.K8sAPIDeploymentGV.Group,
@@ -464,15 +464,15 @@ func getPodOwnersInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
 				Version:  commonutil.OpenShiftAPIDeploymentConfigGV.Version,
 				Resource: commonutil.DeploymentConfigResName}
 		default:
-			err = fmt.Errorf("unsupported pods controller kind: %s while moving pod", gPkind)
-			return nil, nil, nil, nil, gPkind, err
+			err = fmt.Errorf("unsupported pods controller kind: %s while moving pod", gpOwnerInfo.Kind)
+			return nil, nil, nil, nil, gpOwnerInfo.Kind, err
 		}
 
 		nsGpClient := clusterScraper.DynamicClient.Resource(res).Namespace(pod.Namespace)
-		gParent, err := nsGpClient.Get(context.TODO(), name, metav1.GetOptions{})
+		gParent, err := nsGpClient.Get(context.TODO(), gpOwnerInfo.Name, metav1.GetOptions{})
 		if err != nil || gParent == nil {
-			return nil, nil, nil, nil, gPkind, fmt.Errorf("failed to get pods controller: %s[%v/%v]: %v",
-				gPkind, pod.Namespace, name, err)
+			return nil, nil, nil, nil, gpOwnerInfo.Kind, fmt.Errorf("failed to get pods controller: %s[%v/%v]: %v",
+				gpOwnerInfo.Kind, pod.Namespace, gpOwnerInfo.Name, err)
 		}
 
 		// As of now we only have XL as the example for operator controlled resources (deployment) which
@@ -489,7 +489,7 @@ func getPodOwnersInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
 			return nil, nil, nil, nil, gPkind, fmt.Errorf("the parent's parent is probably controlled by an operator. "+
 				"Failing podmove for %s[%v/%v]: %v", gPkind, pod.Namespace, name, err)
 		}*/
-		return parent, gParent, nsParentClient, nsGpClient, gPkind, nil
+		return parent, gParent, nsParentClient, nsGpClient, gpOwnerInfo.Kind, nil
 	}
 
 	// This means that the parent itself is the final owner and there is

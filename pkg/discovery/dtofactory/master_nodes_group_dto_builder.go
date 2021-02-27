@@ -25,7 +25,7 @@ func NewMasterNodesGroupDTOBuilder(cluster *repository.ClusterSummary,
 func (builder *masterNodesGroupDTOBuilder) Build() *proto.GroupDTO {
 	var masterNodes []string
 
-	nodes := builder.cluster.NodeList
+	nodes := builder.cluster.Nodes
 	for _, node := range nodes {
 		if util.NodeIsMaster(node) {
 			nodeID := string(node.UID)

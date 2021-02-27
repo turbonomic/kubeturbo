@@ -50,7 +50,7 @@ func (worker *k8sNamespaceDiscoveryWorker) Do(namespaceMetricsList []*repository
 		existingMetric.AggregateUsed(namespaceMetrics.Used)
 	}
 
-	kubeNodes := worker.Cluster.Nodes
+	kubeNodes := worker.Cluster.NodeMap
 	var nodeUIDs []string
 	var totalNodeFrequency float64
 	activeNodeCount := 0

@@ -128,22 +128,15 @@ var (
 		},
 	}
 
-	kubeNode1 = repository.NewKubeNode(n1, cluster1)
-
-	kubeNode2 = repository.NewKubeNode(n2, cluster1)
-
 	kubens1 = repository.CreateDefaultKubeNamespace(cluster1, ns1, "namespace-uuid1")
 	kubens2 = repository.CreateDefaultKubeNamespace(cluster1, ns2, "namespace-uuid2")
 	kubens3 = repository.CreateDefaultKubeNamespace(cluster1, ns3, "namespace-uuid3")
 	kubens4 = repository.CreateDefaultKubeNamespace(cluster1, ns4, "namespace-uuid4")
 
 	kubeCluster = &repository.KubeCluster{
-		Name: cluster1,
-		Nodes: map[string]*repository.KubeNode{
-			node1: kubeNode1,
-			node2: kubeNode2,
-		},
-		Namespaces: map[string]*repository.KubeNamespace{
+		Name:  cluster1,
+		Nodes: []*v1.Node{n1, n2},
+		NamespaceMap: map[string]*repository.KubeNamespace{
 			ns1: kubens1,
 			ns2: kubens2,
 			ns3: kubens3,

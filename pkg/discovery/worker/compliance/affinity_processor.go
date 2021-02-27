@@ -1,54 +1,29 @@
 package compliance
 
 import (
-	api "k8s.io/api/core/v1"
-
-	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-
-	"github.com/golang/glog"
+	api "k8s.io/api/core/v1"
 )
-
-// affinityProcessorConfig defines necessary configuration for build an affinity processor.
-type affinityProcessorConfig struct {
-	// define how affinityProcessor accesses Kubernetes cluster.
-	k8sClusterScraper *cluster.ClusterScraper
-}
-
-func NewAffinityProcessorConfig(k8sClusterScraper *cluster.ClusterScraper) *affinityProcessorConfig {
-	return &affinityProcessorConfig{
-		k8sClusterScraper: k8sClusterScraper,
-	}
-}
 
 // Affinity processor parses each affinity rule defined in pod and creates commodityDTOs for nodes and pods.
 type AffinityProcessor struct {
 	*ComplianceProcessor
-
+	cluster     *repository.ClusterSummary
 	commManager *AffinityCommodityManager
-
-	nodes []*api.Node
-	pods  []*api.Pod
+	nodes       []*api.Node
+	pods        []*api.Pod
 }
 
-func NewAffinityProcessor(config *affinityProcessorConfig) (*AffinityProcessor, error) {
-	allNodes, err := config.k8sClusterScraper.GetAllNodes()
-	if err != nil {
-		return nil, err
-	}
-	allPods, err := config.k8sClusterScraper.GetAllRunningAndReadyPods()
-	if err != nil {
-		return nil, err
-	}
+func NewAffinityProcessor(cluster *repository.ClusterSummary) (*AffinityProcessor, error) {
 	return &AffinityProcessor{
 		ComplianceProcessor: NewComplianceProcessor(),
 		commManager:         NewAffinityCommodityManager(),
-
-		nodes: allNodes,
-		pods:  allPods,
+		nodes:               cluster.Nodes,
+		pods:                cluster.GetReadyPods(),
 	}, nil
 }
 

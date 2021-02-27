@@ -80,7 +80,7 @@ type nodeRole struct {
 // This needs to be done for every discovery as node roles can change
 func (builder *NodeRolesGroupDTOBuilder) getNodeGroups() map[nodeRole][]string {
 	nodeGroups := map[nodeRole][]string{}
-	for _, node := range builder.cluster.NodeList {
+	for _, node := range builder.cluster.Nodes {
 		allRoles := util.DetectNodeRoles(node)
 		for _, role := range allRoles.List() {
 			nodeRole := nodeRole{

@@ -114,11 +114,11 @@ func hasNodeOwner(pod *api.Pod) bool {
 
 // Check is a pod is created by the given type of entity.
 func isPodCreatedBy(pod *api.Pod, kind string) bool {
-	parentKind, _, _, err := GetPodParentInfo(pod)
+	ownerInfo, err := GetPodParentInfo(pod)
 	if err != nil {
 		glog.Errorf("%++v", err)
 	}
-	return parentKind == kind
+	return ownerInfo.Kind == kind
 }
 
 // GroupPodsByNode groups all pods based on their hosting node
@@ -251,31 +251,14 @@ func ParsePodDisplayName(displayName string) (string, string, error) {
 	return namespace, name, nil
 }
 
-func ParseOwnerReferences(owners []metav1.OwnerReference) (string, string, string) {
-	for i := range owners {
-		owner := &owners[i]
-
-		if owner == nil || owner.Controller == nil {
-			glog.Warningf("Nil OwnerReference")
-			continue
-		}
-
-		if *(owner.Controller) && len(owner.Kind) > 0 && len(owner.Name) > 0 {
-			return owner.Kind, owner.Name, string(owner.UID)
-		}
-	}
-
-	return "", "", ""
-}
-
-// GetPodParentInfo gets parent information of a pod: kind, name, uid
-func GetPodParentInfo(pod *api.Pod) (string, string, string, error) {
+// GetPodParentInfo gets parent information of a pod: kind, name, uid.
+// The result OwnerInfo can be empty, indicating that the pod does not have an owner.
+func GetPodParentInfo(pod *api.Pod) (OwnerInfo, error) {
 	//1. check ownerReferences:
-	if pod.OwnerReferences != nil && len(pod.OwnerReferences) > 0 {
-		kind, name, uid := ParseOwnerReferences(pod.OwnerReferences)
-		if len(kind) > 0 && len(name) > 0 {
-			return kind, name, uid, nil
-		}
+	ownerInfo := GetOwnerInfo(pod.OwnerReferences)
+	if !IsOwnerInfoEmpty(ownerInfo) {
+		// OwnerReference is not empty
+		return ownerInfo, nil
 	}
 
 	glog.V(4).Infof("no parent-info for pod-%v/%v in OwnerReferences.", pod.Namespace, pod.Name)
@@ -290,16 +273,16 @@ func GetPodParentInfo(pod *api.Pod) (string, string, string, error) {
 			if err := json.Unmarshal([]byte(value), &ref); err != nil {
 				err = fmt.Errorf("failed to decode parent annoation: %v", err)
 				glog.Errorf("%v\n%v", err, value)
-				return "", "", "", err
+				return OwnerInfo{}, err
 			}
 
-			return ref.Reference.Kind, ref.Reference.Name, string(ref.Reference.UID), nil
+			return OwnerInfo{ref.Reference.Kind, ref.Reference.Name, string(ref.Reference.UID)}, nil
 		}
 	}
 
 	glog.V(4).Infof("no parent-info for pod-%v/%v in Annotations.", pod.Namespace, pod.Name)
 
-	return "", "", "", nil
+	return OwnerInfo{}, nil
 }
 
 // Get controller UID from the given pod and metrics sink.

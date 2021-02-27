@@ -82,7 +82,7 @@ func TestProcessNamespaces(t *testing.T) {
 	}
 
 	namespaceProcessor.ProcessNamespaces()
-	nsMap := ks.Namespaces
+	nsMap := ks.NamespaceMap
 	assert.Equal(t, len(nsMap), len(mockNamepaces))
 	mockedNamespaces := map[string]struct{}{
 		"test-ns1": {},
