@@ -172,7 +172,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&s.UseNodeProxyEndpoint, "use-node-proxy-endpoint", false, "Indicate if Kubelet queries should be routed through APIServer node proxy endpoint.")
 	fs.BoolVar(&s.ForceSelfSignedCerts, "kubelet-force-selfsigned-cert", true, "Indicate if we must use self-signed cert.")
 	fs.BoolVar(&s.FailVolumePodMoves, "fail-volume-pod-moves", true, "Indicate if kubeturbo should fail to move pods which have volumes attached. Default is set to true.")
-	fs.BoolVar(&s.UpdateQuotaToAllowMoves, "update-quota-to-allow-moves", true, "Indicate if kubeturbo should try to update namespace quotas to allow pod moves when quota(s) is/are full. Default is set to true.")
+	fs.BoolVar(&s.UpdateQuotaToAllowMoves, "update-quota-to-allow-moves", false, "Indicate if kubeturbo should try to update namespace quotas to allow pod moves when quota(s) is/are full. Default is set to true.")
 	fs.StringVar(&k8sVersion, "k8sVersion", k8sVersion, "[deprecated] the kubernetes server version; for openshift, it is the underlying Kubernetes' version.")
 	fs.StringVar(&noneSchedulerName, "noneSchedulerName", noneSchedulerName, "[deprecated] a none-exist scheduler name, to prevent controller to create Running pods during move Action.")
 	fs.IntVar(&s.DiscoveryIntervalSec, "discovery-interval-sec", defaultDiscoveryIntervalSec, "The discovery interval in seconds.")
