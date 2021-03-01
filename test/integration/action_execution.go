@@ -56,10 +56,8 @@ var _ = Describe("Action Executor ", func() {
 				framework.Failf("Failed to generate openshift client for kubernetes test cluster: %v", err)
 			}
 
-			cluster.NewClusterScraper(kubeClient, dynamicClient)
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeClient, dynamicClient), []string{"*"}, nil, false)
-
+				cluster.NewClusterScraper(kubeClient, dynamicClient), []string{"*"}, nil, false, true)
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 		}
 		namespace = f.TestNamespaceName()
