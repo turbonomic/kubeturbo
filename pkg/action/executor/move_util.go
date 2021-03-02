@@ -445,7 +445,7 @@ func isPodUsingVolume(pod *api.Pod) bool {
 func getPodOwnersInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
 	parentKind string) (*unstructured.Unstructured, *unstructured.Unstructured,
 	dynamic.ResourceInterface, dynamic.ResourceInterface, string, error) {
-	gpOwnerInfo, parent, nsParentClient, err := clusterScraper.GetPodControllerInfo(pod, true)
+	gpOwnerInfo, parent, nsParentClient, err := clusterScraper.GetPodControllerInfo(pod, false)
 	if err != nil {
 		return nil, nil, nil, nil, "", fmt.Errorf("error getting pods final owner: %v", err)
 	}

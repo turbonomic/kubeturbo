@@ -2,17 +2,18 @@ package compliance
 
 import (
 	"github.com/golang/glog"
+
+	api "k8s.io/api/core/v1"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	api "k8s.io/api/core/v1"
 )
 
 // Affinity processor parses each affinity rule defined in pod and creates commodityDTOs for nodes and pods.
 type AffinityProcessor struct {
 	*ComplianceProcessor
-	cluster     *repository.ClusterSummary
 	commManager *AffinityCommodityManager
 	nodes       []*api.Node
 	pods        []*api.Pod

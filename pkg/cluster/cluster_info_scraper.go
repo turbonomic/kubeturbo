@@ -6,10 +6,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"github.com/turbonomic/kubeturbo/pkg/turbostore"
-	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
+
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -18,6 +15,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	client "k8s.io/client-go/kubernetes"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/turbostore"
+	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
 )
 
 const (
@@ -270,8 +272,8 @@ func (s *ClusterScraper) UpdatePodControllerCache(
 		kind := controller.Kind
 		if kind == commonutil.KindReplicationController || kind == commonutil.KindReplicaSet {
 			// Get grandparent of pod
-			gpOwnerInfo := util.GetOwnerInfo(controller.OwnerReferences)
-			if !util.IsOwnerInfoEmpty(gpOwnerInfo) {
+			gpOwnerInfo, gpOwnerSet := util.GetOwnerInfo(controller.OwnerReferences)
+			if gpOwnerSet {
 				// Found it
 				s.cache.Set(podControllerInfoKey, gpOwnerInfo, 0)
 				added++
@@ -293,18 +295,15 @@ func (s *ClusterScraper) UpdatePodControllerCache(
 // If ignoreCache is set to false, this function will first try to get pod's controller info from the cache
 // maintained by the ClusterScraper.
 func (s *ClusterScraper) GetPodControllerInfo(
-	pod *api.Pod, ignoreCache bool) (util.OwnerInfo, *unstructured.Unstructured, dynamic.ResourceInterface, error) {
+	pod *api.Pod, useCache bool) (util.OwnerInfo, *unstructured.Unstructured, dynamic.ResourceInterface, error) {
 	podControllerInfoKey := util.PodControllerInfoKey(pod)
-	if !ignoreCache {
+	if useCache {
 		// Get pod controller info from cache if exists
 		controllerInfoCache, exists := s.cache.Get(podControllerInfoKey)
 		if exists {
-			ownerInfo, ok := controllerInfoCache.(util.OwnerInfo)
-			if !ok {
-				return util.OwnerInfo{}, nil, nil, fmt.Errorf("error getting controller info cache data: controllerInfoCache is '%t' not 'kubeControllerInfo'",
-					controllerInfoCache)
+			if ownerInfo, ok := controllerInfoCache.(util.OwnerInfo); ok {
+				return ownerInfo, nil, nil, nil
 			}
-			return ownerInfo, nil, nil, nil
 		}
 	}
 
@@ -341,8 +340,8 @@ func (s *ClusterScraper) GetPodControllerInfo(
 		return util.OwnerInfo{}, nil, nil, err
 	}
 	//2.2 get parent's parent info by parsing ownerReferences:
-	gpOwnerInfo := util.GetOwnerInfo(obj.GetOwnerReferences())
-	if !util.IsOwnerInfoEmpty(gpOwnerInfo) {
+	gpOwnerInfo, gpOwnerSet := util.GetOwnerInfo(obj.GetOwnerReferences())
+	if gpOwnerSet {
 		s.cache.Set(podControllerInfoKey, gpOwnerInfo, 0)
 		return gpOwnerInfo, obj, namespacedClient, nil
 	}

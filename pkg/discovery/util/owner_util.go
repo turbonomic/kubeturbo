@@ -13,19 +13,32 @@ type OwnerInfo struct {
 	Uid  string
 }
 
-// Get owner info by parsing the ownerReferences of an object
-func GetOwnerInfo(owners []metav1.OwnerReference) OwnerInfo {
-	for i := range owners {
-		owner := &owners[i]
-		if owner == nil || owner.Controller == nil {
-			glog.Warningf("Nil OwnerReference")
+// Get owner info by parsing the ownerReference of an object
+// A valid owner must be a managing controller, and have non-empty Kind, Name and Uid
+// If there are multiple valid owners, pick the first one
+func GetOwnerInfo(owners []metav1.OwnerReference) (OwnerInfo, bool) {
+	var ownerInfo OwnerInfo
+	var ownerSet bool
+	for _, owner := range owners {
+		if owner.Controller == nil || !(*owner.Controller) {
+			glog.V(3).Info("Owner %+v is not a managing controller.", owner)
 			continue
 		}
-		if *(owner.Controller) && len(owner.Kind) > 0 && len(owner.Name) > 0 && len(owner.UID) > 0 {
-			return OwnerInfo{owner.Kind, owner.Name, string(owner.UID)}
+		if len(owner.Kind) > 0 && len(owner.Name) > 0 && len(owner.UID) > 0 {
+			// Found a valid controller owner
+			if ownerSet {
+				glog.V(3).Infof("Multiple controller owners found: %+v", owner)
+				continue
+			}
+			ownerInfo = OwnerInfo{
+				Kind: owner.Kind,
+				Name: owner.Name,
+				Uid:  string(owner.UID),
+			}
+			ownerSet = true
 		}
 	}
-	return OwnerInfo{}
+	return ownerInfo, ownerSet
 }
 
 // Check if the input ownerInfo is empty

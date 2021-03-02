@@ -3,14 +3,15 @@ package repository
 import (
 	"bytes"
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 
 	"github.com/golang/glog"
+
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
@@ -59,10 +60,15 @@ type ClusterSummary struct {
 	NodeNameUIDMap           map[string]string
 	NamespaceUIDMap          map[string]string
 	PodClusterIDToServiceMap map[string]*v1.Service
-	NodeToRunningPods        map[string][]*v1.Pod
-	NodeToPendingPods        map[string][]*v1.Pod
-	ClusterResources         map[metrics.ResourceType]*KubeDiscoveredResource
-	AverageNodeCpuFrequency  float64
+	// Map node to all Running pods on the node.
+	// Pod in Running phase may NOT necessarily be in a Ready condition
+	NodeToRunningPods map[string][]*v1.Pod
+	// Map node to all Pending pods on the node
+	// A scheduled pod can still be in Pending phase, for example, when
+	// it fails to pull image onto the host
+	NodeToPendingPods       map[string][]*v1.Pod
+	ClusterResources        map[metrics.ResourceType]*KubeDiscoveredResource
+	AverageNodeCpuFrequency float64
 }
 
 func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {

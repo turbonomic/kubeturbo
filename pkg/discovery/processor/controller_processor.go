@@ -1,15 +1,18 @@
 package processor
 
 import (
-	"github.com/davecgh/go-spew/spew"
+	"strings"
+
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/cluster"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/util"
+
+	"github.com/davecgh/go-spew/spew"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"strings"
+
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/util"
 )
 
 // Query and cache predefined controllers
@@ -99,7 +102,8 @@ func (cp *ControllerProcessor) cacheAllControllers() {
 				glog.Warningf("The spec.replicas of %s %s/%s is not an integer.", kind, namespace, name)
 			} else if found {
 				k8sController.WithReplicas(replicas)
-			} else if kind == util.DaemonSetResName {
+			}
+			if kind == util.KindDaemonSet {
 				// For daemonset controller, set the replicas as the number of nodes in the cluster
 				k8sController.WithReplicas(int64(len(cp.KubeCluster.Nodes)))
 			}

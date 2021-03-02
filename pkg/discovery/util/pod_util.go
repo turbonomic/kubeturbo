@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-
 	"github.com/golang/glog"
 
 	api "k8s.io/api/core/v1"
@@ -18,6 +16,7 @@ import (
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
 )
 
@@ -255,9 +254,8 @@ func ParsePodDisplayName(displayName string) (string, string, error) {
 // The result OwnerInfo can be empty, indicating that the pod does not have an owner.
 func GetPodParentInfo(pod *api.Pod) (OwnerInfo, error) {
 	//1. check ownerReferences:
-	ownerInfo := GetOwnerInfo(pod.OwnerReferences)
-	if !IsOwnerInfoEmpty(ownerInfo) {
-		// OwnerReference is not empty
+	ownerInfo, ownerSet := GetOwnerInfo(pod.OwnerReferences)
+	if ownerSet {
 		return ownerInfo, nil
 	}
 

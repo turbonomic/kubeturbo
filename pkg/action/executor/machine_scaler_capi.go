@@ -392,8 +392,8 @@ func newController(namespace string, nodeName string, diff int32, actionType Act
 		err = fmt.Errorf("cannot identify machine: %v", err)
 		return nil, nil, err
 	}
-	ownerInfo := discoveryutil.GetOwnerInfo(machine.OwnerReferences)
-	if discoveryutil.IsOwnerInfoEmpty(ownerInfo) {
+	ownerInfo, ownerSet := discoveryutil.GetOwnerInfo(machine.OwnerReferences)
+	if !ownerSet {
 		return nil, nil, fmt.Errorf("ownerRef missing from machine %s which manages %s", machine.Name, nodeName)
 	}
 	// TODO: Watch cluster-api evolution and check implementers other then openshift

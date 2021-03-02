@@ -208,7 +208,7 @@ func (m *ClusterMonitor) genNodePodsMetrics(node *api.Node, cpuCapacity, memCapa
 	for _, pod := range podList {
 		key := util.PodKeyFunc(pod)
 		// Pod owners
-		ownerInfo, _, _, err := m.clusterClient.GetPodControllerInfo(pod, false)
+		ownerInfo, _, _, err := m.clusterClient.GetPodControllerInfo(pod, true)
 		if err == nil && !util.IsOwnerInfoEmpty(ownerInfo) {
 			m.podOwners[key] = ownerInfo
 		}
