@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 	kubeclientset "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 	restclient "k8s.io/client-go/rest"
 
 	. "github.com/onsi/ginkgo"
@@ -49,6 +48,20 @@ spec:
     pods: "1"
 `
 
+	quota2PodsYaml := `
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  generateName: test-quota-
+spec:
+  hard:
+    requests.cpu: 100m
+    requests.memory: 200Mi
+    limits.cpu: 200m
+    limits.memory: 400Mi
+    pods: "2"
+`
+
 	BeforeEach(func() {
 		f.BeforeEach()
 		// The following setup is shared across tests here
@@ -72,7 +85,7 @@ spec:
 
 	Describe("executing action move pod", func() {
 		It("should result in new pod on target node", func() {
-			quota := createQuota(kubeClient, namespace, quotaYaml)
+			quota := createQuota(kubeClient, namespace, quotaFromYaml(quotaYaml))
 			defer deleteQuota(kubeClient, quota)
 
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, true, false))
@@ -105,7 +118,7 @@ spec:
 				cluster.NewClusterScraper(kubeClient, dynamicClient), []string{"*"}, nil, false, false)
 			actionHandler := action.NewActionHandler(actionHandlerConfig)
 
-			quota := createQuota(kubeClient, namespace, quotaYaml)
+			quota := createQuota(kubeClient, namespace, quotaFromYaml(quotaYaml))
 			defer deleteQuota(kubeClient, quota)
 
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, true, false))
@@ -137,7 +150,7 @@ spec:
 			// TODO: The storageclass can be taken as a configurable parameter from commandline
 			// This works against a kind cluster. Ensure to update the storageclass name to the right name when
 			// running against a different cluster.
-			quota := createQuota(kubeClient, namespace, quotaYaml)
+			quota := createQuota(kubeClient, namespace, quotaFromYaml(quotaYaml))
 			defer deleteQuota(kubeClient, quota)
 
 			pvc, err := createVolumeClaim(kubeClient, namespace, "standard")
@@ -167,6 +180,59 @@ spec:
 		})
 	})
 
+	Describe("executing multiple move pod actions in parallel", func() {
+		It("should result in new pods on target node", func() {
+			parallelMoves := 2
+			quotaToCreate := quotaFromYaml(quota2PodsYaml)
+			// Currently the yaml is hard coded for 2 pods.
+			// TODO: The quota yaml could be updated from a base yaml (adding delta) based
+			// on the number of parallel moves.
+			quota := createQuota(kubeClient, namespace, quotaToCreate)
+			defer deleteQuota(kubeClient, quota)
+
+			var deps []*appsv1.Deployment
+			var pods []*corev1.Pod
+			for i := 0; i < parallelMoves; i++ {
+				dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, true, false))
+				framework.ExpectNoError(err, "Error creating test resources")
+				defer deleteDeploy(kubeClient, dep)
+
+				pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
+				framework.ExpectNoError(err, "Error getting deployments pod")
+				// This should not happen. We should ideally get a pod.
+				if pod == nil {
+					framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
+				}
+				deps = append(deps, dep)
+				pods = append(pods, pod)
+			}
+
+			var wg sync.WaitGroup
+			for i := 0; i < parallelMoves; i++ {
+				wg.Add(1)
+				go func(i int) {
+					defer wg.Done()
+
+					dep := deps[i]
+					pod := pods[i]
+					targetNodeName := getTargetSENodeName(f, pod)
+					if targetNodeName == "" {
+						framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
+					}
+
+					_, err := actionHandler.ExecuteAction(newActionExecutionDTO(proto.ActionItemDTO_MOVE,
+						newTargetSEFromPod(pod), newHostSEFromNodeName(targetNodeName)), nil, &mockProgressTrack{})
+					framework.ExpectNoError(err, "Move action failed")
+
+					pod = validateMovedPod(kubeClient, dep.Name, "deployment", namespace, targetNodeName)
+					validateGCAnnotationRemoved(kubeClient, pod)
+					validateQuotaReverted(kubeClient, quota)
+				}(i)
+			}
+			wg.Wait()
+		})
+	})
+
 	// TODO: this particular Describe is currently used as the teardown for this
 	// whole test (not the suite).
 	// This will work only if run sequentially. Find a better way to do this.
@@ -177,30 +243,19 @@ spec:
 	})
 })
 
-var codecs = scheme.Codecs
-
-func decodeYaml(bytes []byte) (runtime.Object, error) {
-	decode := codecs.UniversalDeserializer().Decode
-	obj, _, err := decode(bytes, nil, nil)
+func quotaFromYaml(quotaYaml string) *corev1.ResourceQuota {
+	quota, err := executor.DecodeQuota([]byte(quotaYaml))
 	if err != nil {
-		return nil, err
+		framework.Failf("Failed to decode quota yaml, %s: %v.", quotaYaml, err)
 	}
 
-	return obj, nil
+	return quota
 }
 
-func createQuota(client *kubeclientset.Clientset, namespace, quotaYaml string) *corev1.ResourceQuota {
-	obj, err := decodeYaml([]byte(quotaYaml))
-	if err != nil {
-		framework.Failf("Failed to decode yaml, %s: %v.", quotaYaml, err)
-	}
-	quota, isQuota := obj.(*corev1.ResourceQuota)
-	if !isQuota {
-		framework.Failf("Incorrect object type after decoding %s.", quotaYaml)
-	}
+func createQuota(client *kubeclientset.Clientset, namespace string, quota *corev1.ResourceQuota) *corev1.ResourceQuota {
 	createdQuota, err := client.CoreV1().ResourceQuotas(namespace).Create(context.TODO(), quota, metav1.CreateOptions{})
 	if err != nil {
-		framework.Failf("Error creating quota %s. %v", quotaYaml, err)
+		framework.Failf("Error creating quota %s/%s. %v", quota.Namespace, quota.Name, err)
 	}
 
 	return createdQuota
@@ -234,5 +289,15 @@ func validateQuotaReverted(client kubeclientset.Interface, quota *corev1.Resourc
 	}
 	if !reflect.DeepEqual(quota.Spec.Hard, usedQuota.Spec.Hard) {
 		framework.Failf("Quota does not seem to be reverted to its original value after action original: %v new: %v", quota, usedQuota)
+	}
+
+	_, turboAnnotationExists := usedQuota.Annotations[executor.QuotaAnnotationKey]
+	if turboAnnotationExists {
+		framework.Failf("Turbo annotation is still there on the quota %s/%s: with value %s", quota.Namespace, quota.Name, usedQuota.Annotations[executor.QuotaAnnotationKey])
+	}
+
+	_, turboGCLabelExists := usedQuota.Labels[executor.TurboGCLabelKey]
+	if turboGCLabelExists {
+		framework.Failf("Turbo GC label is still there on the quota %s/%s: with value %s", quota.Namespace, quota.Name, usedQuota.Labels[executor.TurboGCLabelKey])
 	}
 }

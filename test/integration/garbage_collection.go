@@ -28,6 +28,34 @@ var _ = Describe("Garbage pod collector ", func() {
 	var dynamicClient dynamic.Interface
 	var kubeConfig *restclient.Config
 
+	origQuotaYaml := `
+apiVersion: v1
+kind: ResourceQuota
+spec:
+  hard:
+    requests.cpu: 50m
+    requests.memory: 100Mi
+    limits.cpu: 100m
+    limits.memory: 200Mi
+    pods: "1"
+`
+
+	stretchedQuotaYaml := `
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  generateName: test-quota-
+  labels:
+    kubeturbo.io: gc
+spec:
+  hard:
+    requests.cpu: 51m
+    requests.memory: 101Mi
+    limits.cpu: 101m
+    limits.memory: 201Mi
+    pods: "2"
+`
+
 	//AfterSuite(f.AfterEach)
 	BeforeEach(func() {
 		var err error
@@ -55,6 +83,15 @@ var _ = Describe("Garbage pod collector ", func() {
 			rs, err := createReplicaSet(kubeClient, rsSingleContainerWithResources(namespace, 1, true, true))
 			framework.ExpectNoError(err, "Error creating replicaset with dummy scheduler")
 
+			stretchedQuota := quotaFromYaml(stretchedQuotaYaml)
+			origQuota := quotaFromYaml(origQuotaYaml)
+			encodedOrigQuota, err := executor.EncodeQuota(origQuota)
+			framework.ExpectNoError(err, "Error encoding test quota")
+
+			stretchedQuota.Annotations = make(map[string]string)
+			stretchedQuota.Annotations[executor.QuotaAnnotationKey] = encodedOrigQuota
+			quota := createQuota(kubeClient, namespace, stretchedQuota)
+
 			gCChan := make(chan bool)
 			defer close(gCChan)
 			err = worker.NewGarbageCollector(kubeClient, dynamicClient, gCChan, 5, time.Second*1).StartCleanup()
@@ -69,7 +106,14 @@ var _ = Describe("Garbage pod collector ", func() {
 
 			By("ensuring leaked unhealthy deployments are made healthy")
 			validateDepHealthy(kubeClient, dep)
+
+			// update the created quota spec with the orig for comparison
+			// after cleanup, this is what the quota should become
+			quota.Spec.Hard = origQuota.Spec.Hard
+			By("ensuring quotas are reverted to their original spec")
+			validateQuotaReverted(kubeClient, quota)
 		})
+
 	})
 
 	// TODO: this particular Describe is currently used as the teardown for this

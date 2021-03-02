@@ -20,8 +20,8 @@ import (
 const QuotaAnnotationKey = "kubeturbo.io/last-good-config"
 
 type QuotaAccessor interface {
-	Get() ([]corev1.ResourceQuota, error)
-	Evaluate(quotas []corev1.ResourceQuota, pod *corev1.Pod) error
+	Get() ([]*corev1.ResourceQuota, error)
+	Evaluate(quotas []*corev1.ResourceQuota, pod *corev1.Pod) error
 	Update() error
 	Revert()
 }
@@ -30,7 +30,7 @@ type QuotaAccessorImpl struct {
 	client    *kclient.Clientset
 	evaluator quota.Evaluator
 	namespace string
-	quotas    []corev1.ResourceQuota
+	quotas    []*corev1.ResourceQuota
 }
 
 func NewQuotaAccessor(client *kclient.Clientset, namespace string) QuotaAccessor {
@@ -45,20 +45,6 @@ func NewQuotaAccessor(client *kclient.Clientset, namespace string) QuotaAccessor
 // We currently won't have a way of working around that, as its a one time API
 // plugin configuration. Actions in such cases would fail.
 
-// TODOs:
-// 1. Garbage collection
-// 2. Unhandled corner case
-// 	In case of multiple parallal actions on pods in the same namespace and
-// restricted by the same quota, that quota could be updated twice.
-// For example limits.cpu updated from 10m to 20m by the first action
-// a second action updates it to 30m. The first action records the original
-// spec as the second would record it as 20m (already updated by first).
-// After the first action finishes, it will revert the quota back to 10m.
-// If the second action finishes after first, the quota would be reverted to 20m.
-// Solution: check the presence of orig spec annotation on the quota, if present
-// wait to that to be deleted by the first action (wait for the quota to reach the
-// lat known good state)
-//
 // Current update flow is as below:
 // 1. get all quotas
 // For each quota
@@ -68,13 +54,13 @@ func NewQuotaAccessor(client *kclient.Clientset, namespace string) QuotaAccessor
 // once the action finishes
 // 5. revert the quota back to the original state by applying the previous spec from the annotation
 
-func (q *QuotaAccessorImpl) Get() ([]corev1.ResourceQuota, error) {
+func (q *QuotaAccessorImpl) Get() ([]*corev1.ResourceQuota, error) {
 	quotaList, err := q.client.CoreV1().ResourceQuotas(q.namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	resourceQuotas := []corev1.ResourceQuota{}
+	resourceQuotas := []*corev1.ResourceQuota{}
 	if quotaList == nil {
 		return resourceQuotas, nil
 	}
@@ -85,15 +71,15 @@ func (q *QuotaAccessorImpl) Get() ([]corev1.ResourceQuota, error) {
 	items := quotaList.Items
 	for i := range items {
 		quota := items[i]
-		resourceQuotas = append(resourceQuotas, quota)
+		resourceQuotas = append(resourceQuotas, &quota)
 	}
 
 	return resourceQuotas, nil
 }
 
-func (q *QuotaAccessorImpl) Evaluate(quotas []corev1.ResourceQuota, pod *corev1.Pod) error {
+func (q *QuotaAccessorImpl) Evaluate(quotas []*corev1.ResourceQuota, pod *corev1.Pod) error {
 	podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
-	quotasToUpdate := []corev1.ResourceQuota{}
+	quotasToUpdate := []*corev1.ResourceQuota{}
 	deltaUsage, err := q.evaluator.Usage(pod)
 	if err != nil {
 		return err
@@ -109,7 +95,7 @@ func (q *QuotaAccessorImpl) Evaluate(quotas []corev1.ResourceQuota, pod *corev1.
 	for i := range quotas {
 		resourceQuota := quotas[i]
 
-		match, err := q.evaluator.Matches(&resourceQuota, pod)
+		match, err := q.evaluator.Matches(resourceQuota, pod)
 		if err != nil {
 			glog.Warningf("Error occurred while matching resource quota, %v, against pod %s. Err: %v", resourceQuota, podQualifiedName, err)
 			return err
@@ -121,7 +107,7 @@ func (q *QuotaAccessorImpl) Evaluate(quotas []corev1.ResourceQuota, pod *corev1.
 		hardResources := quota.ResourceNames(resourceQuota.Status.Hard)
 		restrictedResources := q.evaluator.MatchingResources(hardResources)
 
-		if !hasUsageStats(&resourceQuota, restrictedResources) {
+		if !hasUsageStats(resourceQuota, restrictedResources) {
 			// There being no usage stats for this quota would mean that its
 			// allright to be going ahead with trying to move the pod.
 			// We continue to check other quotas
@@ -136,7 +122,7 @@ func (q *QuotaAccessorImpl) Evaluate(quotas []corev1.ResourceQuota, pod *corev1.
 
 		if allowed, exceededResources := quota.LessThanOrEqual(maskedNewTotalUsage, resourceQuota.Status.Hard); !allowed {
 			// Add the original quota spec to the annotation on the quota to update
-			newQuota := copyQuota(&resourceQuota)
+			newQuota := copyQuota(resourceQuota)
 			newQuota.Spec.Hard = AddToSpecHard(resourceQuota.Spec.Hard, requestedUsage, exceededResources)
 			if newQuota.Annotations == nil {
 				newQuota.Annotations = make(map[string]string)
@@ -144,16 +130,16 @@ func (q *QuotaAccessorImpl) Evaluate(quotas []corev1.ResourceQuota, pod *corev1.
 
 			// As we don't have any other mechanism to have a persistent storage
 			// We update the original spec as an annotation on the quota itself
-			// Updating the quota this way will facilitate the garbage collection
-			// TODO: garbage collection across restarts
-			newQuota.Annotations[QuotaAnnotationKey], err = encodeQuota(&resourceQuota)
+			// Updating the quota this way also facilitates the garbage collection
+			newQuota.Annotations[QuotaAnnotationKey], err = EncodeQuota(resourceQuota)
 			if err != nil {
 				// we don't skip this error. It can any ways be problematic if we needed
 				// to update multiple quotas but could not update 1 of them. The action
 				// would still fail.
 				return fmt.Errorf("Error updating resource quota annotations: %v", err)
 			}
-			quotasToUpdate = append(quotasToUpdate, *newQuota)
+			addGCLabelOnQuota(newQuota)
+			quotasToUpdate = append(quotasToUpdate, newQuota)
 		}
 	}
 
@@ -163,7 +149,7 @@ func (q *QuotaAccessorImpl) Evaluate(quotas []corev1.ResourceQuota, pod *corev1.
 
 func (q *QuotaAccessorImpl) Update() error {
 	for _, quota := range q.quotas {
-		_, err := q.client.CoreV1().ResourceQuotas(q.namespace).Update(context.TODO(), &quota, metav1.UpdateOptions{})
+		_, err := q.client.CoreV1().ResourceQuotas(q.namespace).Update(context.TODO(), quota, metav1.UpdateOptions{})
 		if err != nil {
 			// If an update fails we don't continue
 			return err
@@ -179,7 +165,7 @@ func (q *QuotaAccessorImpl) Revert() {
 		if quota.Annotations != nil {
 			origSpec, exists := quota.Annotations[QuotaAnnotationKey]
 			if exists {
-				revertedQuota, err = decodeQuota([]byte(origSpec))
+				revertedQuota, err = DecodeQuota([]byte(origSpec))
 				if err != nil {
 					glog.Warningf("Error reverting the updated quota: %s/%s: %v", quota.Namespace, quota.Name, err)
 					continue
@@ -189,6 +175,8 @@ func (q *QuotaAccessorImpl) Revert() {
 		if revertedQuota == nil {
 			continue
 		}
+
+		RemoveGCLabelFromQuota(revertedQuota)
 		_, err = q.client.CoreV1().ResourceQuotas(q.namespace).Update(context.TODO(), revertedQuota, metav1.UpdateOptions{})
 		if err != nil {
 			glog.Warningf("Error reverting the updated quota: %s/%s: %v", quota.Namespace, quota.Name, err)
@@ -246,7 +234,7 @@ func inList(k corev1.ResourceName, keys []corev1.ResourceName) bool {
 	return false
 }
 
-func decodeQuota(bytes []byte) (*corev1.ResourceQuota, error) {
+func DecodeQuota(bytes []byte) (*corev1.ResourceQuota, error) {
 	decode := scheme.Codecs.UniversalDeserializer().Decode
 	obj, _, err := decode(bytes, nil, nil)
 	if err != nil {
@@ -255,13 +243,13 @@ func decodeQuota(bytes []byte) (*corev1.ResourceQuota, error) {
 
 	quota, isQuota := obj.(*corev1.ResourceQuota)
 	if !isQuota {
-		return nil, fmt.Errorf("could not get the original quota spec from the kubeturbo applied annotation.")
+		return nil, fmt.Errorf("could not get the quota spec from the supplied json.")
 	}
 
 	return quota, nil
 }
 
-func encodeQuota(quota *corev1.ResourceQuota) (string, error) {
+func EncodeQuota(quota *corev1.ResourceQuota) (string, error) {
 	encoder, err := getCodecForGV(schema.GroupVersion{Group: "", Version: "v1"})
 	if err != nil {
 		return "", err
@@ -280,6 +268,7 @@ func copyQuota(quota *corev1.ResourceQuota) *corev1.ResourceQuota {
 	newQuota := &corev1.ResourceQuota{}
 	newQuota.TypeMeta = quota.TypeMeta
 	newQuota.ObjectMeta = quota.ObjectMeta
+	newQuota.UID = ""
 	newQuota.SelfLink = ""
 	newQuota.ResourceVersion = ""
 	newQuota.Generation = 0
@@ -306,4 +295,26 @@ func getCodecForGV(gv schema.GroupVersion) (runtime.Codec, error) {
 	}
 	codec := codecs.CodecForVersions(serializerInfo.Serializer, codecs.UniversalDeserializer(), gv, nil)
 	return codec, nil
+}
+
+func addGCLabelOnQuota(quota *corev1.ResourceQuota) {
+	labels := quota.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[TurboGCLabelKey] = TurboGCLabelVal
+
+	quota.SetLabels(labels)
+}
+
+func RemoveGCLabelFromQuota(quota *corev1.ResourceQuota) {
+	labels := quota.GetLabels()
+	if labels == nil {
+		// nothing to do
+		return
+	}
+	if _, exists := labels[TurboGCLabelKey]; exists {
+		delete(labels, TurboGCLabelKey)
+		quota.SetLabels(labels)
+	}
 }

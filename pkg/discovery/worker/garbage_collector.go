@@ -68,7 +68,7 @@ func (g *GarbageCollector) StartCleanup() error {
 
 	// We cleanup the controllers before cleaning up the pods to ensure
 	// that the pending (invalid controller) pods are deleted at the right time.
-	if err := g.RevertControllers(); err != nil {
+	if err := g.revertControllers(); err != nil {
 		return err
 	}
 
@@ -98,6 +98,10 @@ func (g *GarbageCollector) StartCleanup() error {
 		<-g.finishCollecting
 	}()
 
+	// The quota cleanup can happen in parallel to the pods cleanup
+	if err := g.cleanupQuotas(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -159,7 +163,7 @@ func (g *GarbageCollector) isLeakedPod(pod api.Pod) bool {
 
 // The controllers cleanup is supposed to happen only at the startup
 // We fail in case of errors to force kubeturbo to restart and try the cleanup again
-func (g *GarbageCollector) RevertControllers() error {
+func (g *GarbageCollector) revertControllers() error {
 	if err := g.revertSchedulers(); err != nil {
 		return err
 	}
@@ -230,4 +234,70 @@ func (g *GarbageCollector) unpauseRollouts() error {
 	}
 
 	return nil
+}
+
+func (g *GarbageCollector) cleanupQuotas() error {
+	quotaList, err := g.client.CoreV1().ResourceQuotas("").List(context.TODO(), gcListOpts)
+	if err != nil {
+		glog.Errorf("Error garbage cleaning quotas: %v", err)
+		return err
+	}
+	if quotaList == nil {
+		// ignore
+		return nil
+	}
+
+	for _, quota := range quotaList.Items {
+		err := revertQuota(g.client, &quota)
+		if err != nil {
+			// we force kubeturbo to restart
+			return err
+		}
+	}
+
+	return nil
+}
+
+func revertQuota(client *kubernetes.Clientset, quota *api.ResourceQuota) error {
+	var revertedQuota *api.ResourceQuota
+	var err error
+	if quota.Annotations != nil {
+		origSpec, exists := quota.Annotations[executor.QuotaAnnotationKey]
+		if exists {
+			revertedQuota, err = executor.DecodeQuota([]byte(origSpec))
+			if err != nil {
+				// This is very unlikely but not an error which we can recover from, for example in the next run.
+				// We need to ignore this. The annotation if there still is any would then carry the opportunity
+				// for an user to use this as a reference in case a manual correction is required ever.
+				glog.Warningf("Error reverting quota while garbage collecting resources: %s/%s: %v", quota.Namespace, quota.Name, err)
+			}
+		}
+	}
+	if revertedQuota != nil {
+		// Although unlikely, revertedQuota being nil possibly the result of the decode error above
+		// so we go ahead and try to remove the GC label alone and leave the annotation behind.
+		quota.Spec.Hard = revertedQuota.Spec.Hard
+		RemoveTurboAnnotionFromQuota(quota)
+	}
+	executor.RemoveGCLabelFromQuota(quota)
+
+	_, err = client.CoreV1().ResourceQuotas(quota.Namespace).Update(context.TODO(), quota, metav1.UpdateOptions{})
+	if err != nil {
+		glog.Errorf("Error reverting quota while garbage collecting resources: %s/%s: %v", quota.Namespace, quota.Name, err)
+		return err
+	}
+
+	return nil
+}
+
+func RemoveTurboAnnotionFromQuota(quota *api.ResourceQuota) {
+	annotations := quota.GetAnnotations()
+	if annotations == nil {
+		// nothing to do
+		return
+	}
+	if _, exists := annotations[executor.QuotaAnnotationKey]; exists {
+		delete(annotations, executor.QuotaAnnotationKey)
+		quota.SetAnnotations(annotations)
+	}
 }
