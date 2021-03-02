@@ -21,7 +21,7 @@ func GetOwnerInfo(owners []metav1.OwnerReference) (OwnerInfo, bool) {
 	var ownerSet bool
 	for _, owner := range owners {
 		if owner.Controller == nil || !(*owner.Controller) {
-			glog.V(3).Info("Owner %+v is not a managing controller.", owner)
+			glog.V(3).Infof("Owner %+v is not a managing controller.", owner)
 			continue
 		}
 		if len(owner.Kind) > 0 && len(owner.Name) > 0 && len(owner.UID) > 0 {

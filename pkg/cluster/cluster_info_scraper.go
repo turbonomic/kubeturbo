@@ -25,7 +25,8 @@ import (
 const (
 	k8sDefaultNamespace   = "default"
 	kubernetesServiceName = "kubernetes"
-	defaultCacheTTL       = 24 * time.Hour
+	// Expiration of cached pod controller info.
+	defaultCacheTTL = 12 * time.Hour
 )
 
 var (
@@ -240,10 +241,12 @@ func (s *ClusterScraper) GetPVCs(namespace string, opts metav1.ListOptions) ([]*
 	return pvcs, nil
 }
 
-// UpdatePodControllerCache is called at the beginning of a main discovery after all pods and a predefined types of
+// UpdatePodControllerCache is called at the beginning of a full discovery after all pods and a predefined types of
 // workload controllers (see processor.ControllerProcessor for details) are discovered. We tried to cache all pods'
 // controller info (i.e., kind, name, uid) into the cache maintained by ClusterScraper for speedy look up when building
 // entity DTOs.
+// A pod can have its labels changed on the fly without being restarted, causing its controller to be changed as well.
+// This is very unlikely but still possible. This can be detected when the cache entry expires in defaultCacheTTL.
 func (s *ClusterScraper) UpdatePodControllerCache(
 	pods []*api.Pod, controllers map[string]*repository.K8sController) {
 	existing := 0
