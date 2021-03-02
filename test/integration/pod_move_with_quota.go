@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -45,6 +46,20 @@ spec:
     limits.cpu: 100m
     limits.memory: 200Mi
     pods: "1"
+`
+
+	quota2PodsYaml := `
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  generateName: test-quota-
+spec:
+  hard:
+    requests.cpu: 100m
+    requests.memory: 200Mi
+    limits.cpu: 200m
+    limits.memory: 400Mi
+    pods: "2"
 `
 
 	BeforeEach(func() {
@@ -162,6 +177,59 @@ spec:
 			validateMovedPod(kubeClient, dep.Name, "deployment", namespace, targetNodeName)
 			validateGCAnnotationRemoved(kubeClient, pod)
 			validateQuotaReverted(kubeClient, quota)
+		})
+	})
+
+	Describe("executing multiple move pod actions in parallel", func() {
+		It("should result in new pods on target node", func() {
+			parallelMoves := 2
+			quotaToCreate := quotaFromYaml(quota2PodsYaml)
+			// Currently the yaml is hard coded for 2 pods.
+			// TODO: The quota yaml could be updated from a base yaml (adding delta) based
+			// on the number of parallel moves.
+			quota := createQuota(kubeClient, namespace, quotaToCreate)
+			defer deleteQuota(kubeClient, quota)
+
+			var deps []*appsv1.Deployment
+			var pods []*corev1.Pod
+			for i := 0; i < parallelMoves; i++ {
+				dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, true, false))
+				framework.ExpectNoError(err, "Error creating test resources")
+				defer deleteDeploy(kubeClient, dep)
+
+				pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
+				framework.ExpectNoError(err, "Error getting deployments pod")
+				// This should not happen. We should ideally get a pod.
+				if pod == nil {
+					framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
+				}
+				deps = append(deps, dep)
+				pods = append(pods, pod)
+			}
+
+			var wg sync.WaitGroup
+			for i := 0; i < parallelMoves; i++ {
+				wg.Add(1)
+				go func(i int) {
+					defer wg.Done()
+
+					dep := deps[i]
+					pod := pods[i]
+					targetNodeName := getTargetSENodeName(f, pod)
+					if targetNodeName == "" {
+						framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
+					}
+
+					_, err := actionHandler.ExecuteAction(newActionExecutionDTO(proto.ActionItemDTO_MOVE,
+						newTargetSEFromPod(pod), newHostSEFromNodeName(targetNodeName)), nil, &mockProgressTrack{})
+					framework.ExpectNoError(err, "Move action failed")
+
+					pod = validateMovedPod(kubeClient, dep.Name, "deployment", namespace, targetNodeName)
+					validateGCAnnotationRemoved(kubeClient, pod)
+					validateQuotaReverted(kubeClient, quota)
+				}(i)
+			}
+			wg.Wait()
 		})
 	})
 
