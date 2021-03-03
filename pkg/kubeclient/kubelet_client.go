@@ -20,12 +20,16 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
+	kubeletconfig "k8s.io/kubelet/config/v1beta1"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
+	"k8s.io/kubernetes/pkg/kubelet/eviction"
+	evictionapi "k8s.io/kubernetes/pkg/kubelet/eviction/api"
 )
 
 const (
 	summaryPath string = "/stats/summary/"
 	specPath    string = "/spec"
+	configPath  string = "/configz"
 
 	DefaultKubeletPort  = 10255
 	DefaultKubeletHttps = false
@@ -35,7 +39,7 @@ const (
 )
 
 type KubeHttpClientInterface interface {
-	ExecuteRequestAndGetValue(ip, nodeName, path string, value interface{}) error
+	ExecuteRequestAndGetValue(ip, nodeName, path string) ([]byte, error)
 	GetSummary(ip, nodeName string) (*stats.Summary, error)
 	GetMachineInfo(ip, nodeName string) (*cadvisorapi.MachineInfo, error)
 	GetNodeCpuFrequency(node *v1.Node) (float64, error)
@@ -86,6 +90,8 @@ type KubeletClient struct {
 	port                int
 	cache               map[string]*CacheEntry
 	cacheLock           sync.Mutex
+	configCache         map[string]*CacheEntry
+	configCacheLock     sync.Mutex
 	fallbkCpuFreqGetter *NodeCpuFrequencyGetter
 	defaultCpuFreq      float64
 	// Fallback kubernetes API client to fetch data from node's proxy subresource
@@ -101,34 +107,30 @@ func (s statusNotFoundError) Error() string {
 	return fmt.Sprintf("%q was not found", s.path)
 }
 
-func (client *KubeletClient) ExecuteRequestAndGetValue(ip, nodeName, path string, value interface{}) error {
+func (client *KubeletClient) ExecuteRequestAndGetValue(ip, nodeName, path string) ([]byte, error) {
 	var body []byte
 	var err error
 	if client.forceProxyEndpoint {
 		body, err = client.callAPIServerProxyEndpoint(nodeName, path)
 		if err != nil {
-			return err
+			return body, err
 		}
 	} else {
 		body, err = client.callKubeletEndpoint(ip, path)
 		if _, isStatusNotFoundError := err.(statusNotFoundError); isStatusNotFoundError {
-			return err
+			return body, err
 		}
 		if err != nil && client.kubeClient != nil {
 			glog.V(2).Infof("The kubelet endpoint query for path %s to node: %s/%s did not work."+
 				"Trying proxy endpoint.", path, nodeName, ip)
 			body, err = client.callAPIServerProxyEndpoint(nodeName, path)
 			if err != nil {
-				return err
+				return body, err
 			}
 		}
 	}
 
-	err = json.Unmarshal(body, value)
-	if err != nil {
-		return fmt.Errorf("failed to parse output. Response: %q. Error: %v", string(body), err)
-	}
-	return nil
+	return body, nil
 }
 
 func (client *KubeletClient) callKubeletEndpoint(ip, path string) ([]byte, error) {
@@ -183,7 +185,14 @@ func (client *KubeletClient) callAPIServerProxyEndpoint(nodeName, path string) (
 func (client *KubeletClient) GetSummary(ip, nodeName string) (*stats.Summary, error) {
 	// Get the data
 	summary := &stats.Summary{}
-	err := client.ExecuteRequestAndGetValue(ip, nodeName, summaryPath, summary)
+	body, err := client.ExecuteRequestAndGetValue(ip, nodeName, summaryPath)
+	if err == nil {
+		err = json.Unmarshal(body, summary)
+		if err != nil {
+			glog.Errorf("Failed to parse output. Response: %q. Error: %v", string(body), err)
+		}
+	}
+
 	// Lock and check cache
 	client.cacheLock.Lock()
 	defer client.cacheLock.Unlock()
@@ -218,6 +227,35 @@ func (client *KubeletClient) GetSummary(ip, nodeName string) (*stats.Summary, er
 		client.cache[ip] = entry
 	}
 	return summary, err
+}
+
+type KubeletConfigz struct {
+	KubeletConfig kubeletconfig.KubeletConfiguration `json:"kubeletconfig"`
+}
+
+func (client *KubeletClient) GetKubeletThresholds(ip, nodeName string) ([]evictionapi.Threshold, error) {
+	thresholds := []evictionapi.Threshold{}
+
+	kubeCfgz := &KubeletConfigz{}
+	data, err := client.ExecuteRequestAndGetValue(ip, nodeName, configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(data, kubeCfgz)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse output. Response: %q. Error: %v", string(data), err)
+	}
+	kubeCfg := kubeCfgz.KubeletConfig
+	// We try to consider both hard and soft thresholds for concerned metrics
+	// Soft thresholds if present would also eventually (after a delay) cause the eviction
+	thresholds, err = eviction.ParseThresholdConfig([]string{}, kubeCfg.EvictionHard,
+		kubeCfg.EvictionSoft, kubeCfg.EvictionSoftGracePeriod, kubeCfg.EvictionMinimumReclaim)
+	if err != nil {
+		return thresholds, err
+	}
+
+	return thresholds, nil
 }
 
 // get node single-core Frequency, in MHz
@@ -290,7 +328,12 @@ func (client *KubeletClient) GetNodeCpuFrequency(node *v1.Node) (float64, error)
 
 func (client *KubeletClient) GetMachineInfo(ip, nodeName string) (*cadvisorapi.MachineInfo, error) {
 	var minfo cadvisorapi.MachineInfo
-	err := client.ExecuteRequestAndGetValue(ip, nodeName, specPath, &minfo)
+	body, err := client.ExecuteRequestAndGetValue(ip, nodeName, specPath)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(body, &minfo)
 	if err != nil {
 		return nil, err
 	}

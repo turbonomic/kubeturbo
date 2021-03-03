@@ -2,6 +2,7 @@ package integration
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/test/integration/framework"
@@ -120,6 +121,7 @@ var _ = Describe("Discover Cluster", func() {
 			// The entities from other tests might show up in this list.
 			// We thus validate that the discovered entities are >= to the numbers here
 			validateDTOs(entityDTOs, groupDTOs, 91, 33)
+			validateThresholds(entityDTOs)
 		})
 	})
 
@@ -143,6 +145,40 @@ func validateDTOs(entityDTOs []*proto.EntityDTO, groupDTOs []*proto.GroupDTO, to
 
 	framework.Logf("Validated entities post discovery: got: %d, expected (>=):  %d", len(entityDTOs), totalEntities)
 	framework.Logf("Validate groups post discovery: got: %d, expected (>=): %d", len(entityDTOs), totalGroups)
+}
+
+const float64EqualityThreshold = 1e-3
+
+func almostEqual(a, b float64) bool {
+	return math.Abs(a-b) <= float64EqualityThreshold
+}
+
+func validateThresholds(entityDTOs []*proto.EntityDTO) {
+	// the kind cluster is created with the below hard thresholds
+	// "memory.available": "20%"
+	// "nodefs.available": "20%",
+	memoryUtilizationThresholdPct := float64(0)
+	rootfsUtilizationThresholdPct := float64(0)
+	for _, entityDTO := range entityDTOs {
+		if entityDTO.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE {
+			for _, soldCommodity := range entityDTO.GetCommoditiesSold() {
+				if soldCommodity.GetCommodityType() == proto.CommodityDTO_VMEM {
+					memoryUtilizationThresholdPct = soldCommodity.GetUtilizationThresholdPct()
+				}
+				if soldCommodity.GetCommodityType() == proto.CommodityDTO_VSTORAGE {
+					rootfsUtilizationThresholdPct = soldCommodity.GetUtilizationThresholdPct()
+				}
+			}
+			// Check any node
+			break
+		}
+	}
+	if !almostEqual(memoryUtilizationThresholdPct, float64(80)) || !almostEqual(rootfsUtilizationThresholdPct, float64(80)) {
+		framework.Failf("Thresholds not set correctly. found: MemoryUtilPct: %.9f, RootfsUtilPct: %.9f."+
+			"expected: MemoryUtilPct: %.9f, RootfsUtilPct:  %.9f.", memoryUtilizationThresholdPct, rootfsUtilizationThresholdPct,
+			float64(80), float64(80))
+	}
+
 }
 
 func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *kubeletclient.KubeletClient, dynamicClient dynamic.Interface) *configs.ProbeConfig {

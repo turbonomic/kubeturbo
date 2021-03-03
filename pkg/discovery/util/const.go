@@ -36,6 +36,10 @@ func Base2BytesToMegabytes(val float64) float64 {
 	return val / BASE2MEGA
 }
 
+func Base2MegabytesToBytes(val float64) float64 {
+	return val * BASE2MEGA
+}
+
 func MetricMilliToUnit(val float64) float64 {
 	return val / METRICKILO
 }
