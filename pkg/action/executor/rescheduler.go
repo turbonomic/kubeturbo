@@ -165,21 +165,21 @@ func (r *ReScheduler) reSchedule(pod *api.Pod, node *api.Node) (*api.Pod, error)
 	fullName := util.BuildIdentifier(pod.Namespace, pod.Name)
 	// if the pod is already on the target node, then simply return success.
 	if pod.Spec.NodeName == nodeName {
-		return nil, fmt.Errorf("Pod [%v] is already on host [%v]", fullName, nodeName)
+		return nil, fmt.Errorf("pod [%v] is already on host [%v]", fullName, nodeName)
 	}
 
-	parentKind, parentName, _, err := podutil.GetPodParentInfo(pod)
+	ownerInfo, err := podutil.GetPodParentInfo(pod)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot get parent info of pod [%v]: %v", fullName, err)
+		return nil, fmt.Errorf("cannot get parent info of pod [%v]: %v", fullName, err)
 	}
 
-	if !util.SupportedParent(parentKind, false) {
-		return nil, fmt.Errorf("The object kind [%v] of [%s] is not supported", parentKind, parentName)
+	if !util.SupportedParent(ownerInfo, false) {
+		return nil, fmt.Errorf("the object kind [%v] of [%s] is not supported", ownerInfo.Kind, ownerInfo.Name)
 	}
 
 	//2. move
-	return movePod(r.clusterScraper, pod, nodeName, parentKind, parentName,
-		defaultRetryMore, r.failVolumePodMoves, r.updateQuotaToAllowMoves, r.lockMap)
+	return movePod(r.clusterScraper, pod, nodeName, ownerInfo.Kind,
+		ownerInfo.Name, defaultRetryMore, r.failVolumePodMoves, r.updateQuotaToAllowMoves, r.lockMap)
 }
 
 func getVMIps(entity *proto.EntityDTO) []string {

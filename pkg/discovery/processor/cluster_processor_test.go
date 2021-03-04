@@ -12,6 +12,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 )
@@ -120,7 +122,8 @@ func TestWaitForCompletionFailed(t *testing.T) {
 func TestComputeClusterResources(t *testing.T) {
 	kubeCluster := repository.NewKubeCluster(testClusterName, createMockNodes(allocatableMap, schedulableNodeMap))
 	var resourceMap map[metrics.ResourceType]*repository.KubeDiscoveredResource
-	resourceMap = kubeCluster.ClusterResources
+	clusterSummary := repository.CreateClusterSummary(kubeCluster)
+	resourceMap = clusterSummary.ClusterResources
 	for _, computeTypeList := range metrics.KubeComputeResourceTypes {
 		for _, computeType := range computeTypeList {
 			_, exists := resourceMap[computeType]
@@ -132,7 +135,7 @@ func TestComputeClusterResources(t *testing.T) {
 	assert.Equal(t, int8(12), int8(resourceMap["CPU"].Capacity))
 
 	kubeCluster = repository.NewKubeCluster(testClusterName, createMockNodes(allocatableCpuOnlyMap, schedulableNodeMap))
-	resourceMap = kubeCluster.ClusterResources
+	resourceMap = clusterSummary.ClusterResources
 	for _, computeTypeList := range metrics.KubeComputeResourceTypes {
 		for _, computeType := range computeTypeList {
 			_, exists := resourceMap[computeType]
@@ -150,6 +153,9 @@ func TestDiscoverCluster(t *testing.T) {
 		mockGetAllNodes: func() ([]*v1.Node, error) {
 			return nodeList, nil
 		},
+		mockGetAllPods: func() ([]*v1.Pod, error) {
+			return []*v1.Pod{}, nil
+		},
 	}
 	clusterProcessor := &ClusterProcessor{
 		clusterInfoScraper: ms,
@@ -158,9 +164,9 @@ func TestDiscoverCluster(t *testing.T) {
 
 	testCluster, err := clusterProcessor.DiscoverCluster()
 	assert.Nil(t, err)
-	nodeMap := testCluster.Nodes
+	nodeMap := testCluster.NodeMap
 	assert.Equal(t, len(nodeList), len(nodeMap))
-	assert.Equal(t, 0, len(testCluster.Namespaces))
+	assert.Equal(t, 0, len(testCluster.NamespaceMap))
 }
 
 func TestDiscoverClusterChangedSchedulableNodes(t *testing.T) {
@@ -172,6 +178,9 @@ func TestDiscoverClusterChangedSchedulableNodes(t *testing.T) {
 		mockGetAllNodes: func() ([]*v1.Node, error) {
 			return nodeList, nil
 		},
+		mockGetAllPods: func() ([]*v1.Pod, error) {
+			return []*v1.Pod{}, nil
+		},
 	}
 	clusterProcessor := &ClusterProcessor{
 		clusterInfoScraper: ms,
@@ -179,9 +188,9 @@ func TestDiscoverClusterChangedSchedulableNodes(t *testing.T) {
 	}
 
 	testCluster1, _ := clusterProcessor.DiscoverCluster()
-	nodeMap := testCluster1.Nodes
+	nodeMap := testCluster1.NodeMap
 	assert.Equal(t, len(nodeList), len(nodeMap))
-	assert.Equal(t, 0, len(testCluster1.Namespaces))
+	assert.Equal(t, 0, len(testCluster1.NamespaceMap))
 
 	for _, node := range nodeMap {
 		assert.Equal(t, schedulableNodeMap[node.Name], !node.Node.Spec.Unschedulable)
@@ -198,7 +207,7 @@ func TestDiscoverClusterChangedSchedulableNodes(t *testing.T) {
 		return nodeList, nil
 	}
 	testCluster2, _ := clusterProcessor.DiscoverCluster()
-	nodeMap = testCluster2.Nodes
+	nodeMap = testCluster2.NodeMap
 	assert.Equal(t, len(nodeList), len(nodeMap))
 	for _, node := range nodeMap {
 		assert.Equal(t, newSchedulableNodeMap[node.Name], !node.Node.Spec.Unschedulable)
@@ -298,6 +307,7 @@ type MockClusterScrapper struct {
 	mockGetKubernetesServiceID func() (svcID string, err error)
 	mockGetAllPVs              func() ([]*v1.PersistentVolume, error)
 	mockGetAllPVCs             func() ([]*v1.PersistentVolumeClaim, error)
+	mockGetResources           func(schema.GroupVersionResource) (*unstructured.UnstructuredList, error)
 }
 
 func (s *MockClusterScrapper) GetAllNodes() ([]*v1.Node, error) {
@@ -365,6 +375,10 @@ func (s *MockClusterScrapper) GetAllPVCs() ([]*v1.PersistentVolumeClaim, error) 
 		return s.mockGetAllPVCs()
 	}
 	return nil, fmt.Errorf("GetAllPVCs Not implemented")
+}
+
+func (s *MockClusterScrapper) GetResources(schema.GroupVersionResource) (*unstructured.UnstructuredList, error) {
+	return &unstructured.UnstructuredList{}, nil
 }
 
 // Implements the KubeHttpClientInterface

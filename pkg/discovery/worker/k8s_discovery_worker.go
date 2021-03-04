@@ -437,7 +437,7 @@ func (worker *k8sDiscoveryWorker) buildAppDTOs(
 	applicationEntityDTOBuilder := dtofactory.NewApplicationEntityDTOBuilder(worker.sink,
 		cluster.PodClusterIDToServiceMap)
 	for _, pod := range runningPods {
-		kubeNode := cluster.Nodes[pod.Spec.NodeName]
+		kubeNode := cluster.NodeMap[pod.Spec.NodeName]
 		kubePod := repository.NewKubePod(pod, kubeNode, cluster.Name)
 		// Pod service Id
 		service := cluster.PodClusterIDToServiceMap[kubePod.PodClusterId]

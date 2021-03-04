@@ -151,7 +151,7 @@ func checkNode(node *v1.Node, kc kubeclient.KubeHttpClientInterface) error {
 }
 
 // Query the Kubernetes API Server to get the cluster nodes and namespaces and set in the cluster object
-func (p *ClusterProcessor) DiscoverCluster() (*repository.KubeCluster, error) {
+func (p *ClusterProcessor) DiscoverCluster() (*repository.ClusterSummary, error) {
 	if p.clusterInfoScraper == nil {
 		return nil, fmt.Errorf("null kubernetes cluster client")
 	}
@@ -164,13 +164,19 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.KubeCluster, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get nodes for cluster %s: %v", svcID, err)
 	}
-	glog.V(2).Infof("Discovered cluster with %d nodes.", len(nodeList))
-
+	podList, err := p.clusterInfoScraper.GetAllPods()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pods for cluster %s: %v", svcID, err)
+	}
+	glog.V(2).Infof("Discovering cluster with %d nodes and %d pods.", len(nodeList), len(podList))
 	// Create kubeCluster and compute cluster resource
-	kubeCluster := repository.NewKubeCluster(svcID, nodeList)
+	kubeCluster := repository.NewKubeCluster(svcID, nodeList).WithPods(podList)
 
 	// Discover Namespaces and Quotas
 	NewNamespaceProcessor(p.clusterInfoScraper, kubeCluster).ProcessNamespaces()
+
+	// Discover Workload Controllers
+	NewControllerProcessor(p.clusterInfoScraper, kubeCluster).ProcessControllers()
 
 	// Discover Services
 	NewServiceProcessor(p.clusterInfoScraper, kubeCluster).ProcessServices()
@@ -180,5 +186,10 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.KubeCluster, error) {
 
 	NewBusinessAppProcessor(p.clusterInfoScraper, kubeCluster).ProcessBusinessApps()
 
-	return kubeCluster, nil
+	// Update the pod to controller cache
+	if clusterScraper, ok := p.clusterInfoScraper.(*cluster.ClusterScraper); ok {
+		clusterScraper.UpdatePodControllerCache(kubeCluster.Pods, kubeCluster.ControllerMap)
+	}
+
+	return repository.CreateClusterSummary(kubeCluster), nil
 }

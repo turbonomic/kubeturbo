@@ -204,23 +204,23 @@ func resizeControllerContainer(clusterScraper *cluster.ClusterScraper, pod *k8sa
 func resizeSingleContainer(client *kclient.Clientset, originalPod *k8sapi.Pod, spec *containerResizeSpec) (*k8sapi.Pod, error) {
 	// check parent controller of the original pod
 	fullName := util.BuildIdentifier(originalPod.Namespace, originalPod.Name)
-	parentKind, parentName, _, err := podutil.GetPodParentInfo(originalPod)
+	ownerInfo, err := podutil.GetPodParentInfo(originalPod)
 	if err != nil {
 		glog.Errorf("Resize action failed: failed to get pod[%s] parent info: %v.", fullName, err)
 		return nil, err
 	}
-	if !util.SupportedParent(parentKind, true) {
-		err = fmt.Errorf("parent kind %v is not supported", parentKind)
+	if !util.SupportedParent(ownerInfo, true) {
+		err = fmt.Errorf("parent kind %v is not supported", ownerInfo.Kind)
 		glog.Errorf("Resize action aborted: %v.", err)
 		return nil, err
 	}
 
 	id := fmt.Sprintf("%s/%s-%d", originalPod.Namespace, originalPod.Name, spec.Index)
-	if parentKind == "" {
+	if podutil.IsOwnerInfoEmpty(ownerInfo) {
 		glog.V(2).Infof("Begin to resize bare pod container[%s].", id)
 	} else {
 		glog.V(2).Infof("Begin to resize container[%s] parent=%s/%s.",
-			id, parentKind, parentName)
+			id, ownerInfo.Kind, ownerInfo.Name)
 	}
 
 	// Make sure we can get the pod client

@@ -1,7 +1,6 @@
 package dtofactory
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,16 +98,6 @@ func TestPodFlags(t *testing.T) {
 			t.Errorf("Pod %d Controllable: expected %v, got %v", i,
 				expectedResult[i].Controllable, controllable)
 		}
-	}
-}
-
-func dumpPodFlags(pods []*api.Pod) {
-	// This code dumps the attributes of the saved topology
-	for i, pod := range pods {
-		parentKind, _, _, _ := util.GetPodParentInfo(pod)
-		fmt.Printf("Pod %d: controllable = %v, parentKind = %s\n", i,
-			util.Controllable(pod),
-			parentKind)
 	}
 }
 

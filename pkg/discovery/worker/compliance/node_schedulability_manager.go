@@ -33,7 +33,7 @@ func NewNodeSchedulabilityManager(cluster *repository.ClusterSummary) *NodeSched
 func (manager *NodeSchedulabilityManager) buildNodeNameToPodUIDsMap() map[string][]string {
 	nodeNameToPodUIDsMap := make(map[string][]string)
 
-	nodeNameToPodMap := manager.cluster.NodeNameToPodMap
+	nodeNameToPodMap := manager.cluster.NodeToRunningPods
 	for nodeName, schedulable := range manager.schedulableStateMap {
 		// skip over pods on schedulable nodes
 		if schedulable {
@@ -55,7 +55,7 @@ func (manager *NodeSchedulabilityManager) checkNodes() {
 
 	manager.unSchedulableNodes = nil
 
-	for _, node := range manager.cluster.NodeList {
+	for _, node := range manager.cluster.Nodes {
 		// check for schedulable property
 		schedulable := util.NodeIsReady(node) && util.NodeIsSchedulable(node)
 		manager.schedulableStateMap[node.Name] = schedulable

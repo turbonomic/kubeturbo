@@ -392,23 +392,18 @@ func newController(namespace string, nodeName string, diff int32, actionType Act
 		err = fmt.Errorf("cannot identify machine: %v", err)
 		return nil, nil, err
 	}
-
-	ownerKind, ownerName := "", ""
-	if machine.OwnerReferences != nil && len(machine.OwnerReferences) > 0 {
-		ownerKind, ownerName, _ = discoveryutil.ParseOwnerReferences(machine.OwnerReferences)
-		if !(len(ownerKind) > 0 && len(ownerName) > 0) {
-			return nil, nil, fmt.Errorf("OwnerRef missing from machine %s which manages %s.", machine.Name, nodeName)
-		}
-
+	ownerInfo, ownerSet := discoveryutil.GetOwnerInfo(machine.OwnerReferences)
+	if !ownerSet {
+		return nil, nil, fmt.Errorf("ownerRef missing from machine %s which manages %s", machine.Name, nodeName)
 	}
-
 	// TODO: Watch cluster-api evolution and check implementers other then openshift
 	// for a more generic implementation.
 	// In openshift we assume that machines are managed by machinesets.
-	if ownerKind != "MachineSet" {
-		return nil, nil, fmt.Errorf("Invalid owner kind [%s] for machine %s which manages %s.", ownerKind, machine.Name, nodeName)
+	if ownerInfo.Kind != "MachineSet" {
+		return nil, nil, fmt.Errorf("invalid owner kind [%s] for machine %s which manages %s",
+			ownerInfo.Kind, machine.Name, nodeName)
 	}
-	machineSet, err := client.machineSet.Get(context.TODO(), ownerName, metav1.GetOptions{})
+	machineSet, err := client.machineSet.Get(context.TODO(), ownerInfo.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -420,5 +415,5 @@ func newController(namespace string, nodeName string, diff int32, actionType Act
 
 	request := &actionRequest{client, nodeName, diff, actionType}
 	return &machineSetController{request, machineSet, machine, machineList},
-		&ownerName, nil
+		&ownerInfo.Name, nil
 }

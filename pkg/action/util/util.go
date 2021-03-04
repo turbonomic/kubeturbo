@@ -3,19 +3,18 @@ package util
 import (
 	"context"
 	"fmt"
+	"strings"
 
-	"github.com/turbonomic/kubeturbo/pkg/util"
+	"github.com/golang/glog"
+
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	client "k8s.io/client-go/kubernetes"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
-
+	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-
-	"strings"
-
-	"github.com/golang/glog"
 )
 
 const (
@@ -106,23 +105,19 @@ func BuildIdentifier(namespace, name string) string {
 // check whether parentKind is supported for MovePod/ResizeContainer actions
 // currently, these actions can only works on barePod, ReplicaSet, and ReplicationController
 //   Note: pod's parent cannot be Deployment. Deployment will create/control ReplicaSet, and ReplicaSet will create/control Pods.
-func SupportedParent(parentKind string, isResize bool) bool {
-	if parentKind == "" {
+func SupportedParent(ownerInfo discoveryutil.OwnerInfo, isResize bool) bool {
+	if discoveryutil.IsOwnerInfoEmpty(ownerInfo) {
 		return true
 	}
-
-	if isResize && strings.EqualFold(parentKind, util.KindDaemonSet) {
+	if isResize && strings.EqualFold(ownerInfo.Kind, util.KindDaemonSet) {
 		return true
 	}
-
-	if strings.EqualFold(parentKind, util.KindReplicaSet) {
+	if strings.EqualFold(ownerInfo.Kind, util.KindReplicaSet) {
 		return true
 	}
-
-	if strings.EqualFold(parentKind, util.KindReplicationController) {
+	if strings.EqualFold(ownerInfo.Kind, util.KindReplicationController) {
 		return true
 	}
-
 	return false
 }
 

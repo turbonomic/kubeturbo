@@ -56,5 +56,5 @@ func (p *NamespaceProcessor) ProcessNamespaces() {
 		glog.V(4).Infof("Created namespace entity: %s.", kubeNamespace.String())
 
 	}
-	p.KubeCluster.Namespaces = namespaces
+	p.KubeCluster.NamespaceMap = namespaces
 }

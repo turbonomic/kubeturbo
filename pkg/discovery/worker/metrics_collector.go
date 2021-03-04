@@ -275,7 +275,7 @@ func (collector *MetricsCollector) CollectNamespaceMetrics(podCollection PodMetr
 		namespaceMetrics := repository.CreateDefaultNamespaceMetrics(namespace)
 		// create quota sold used for each namespace handled by this metric collector
 		for _, node := range collector.NodeList {
-			kubeNode := collector.Cluster.Nodes[node.Name]
+			kubeNode := collector.Cluster.NodeMap[node.Name]
 			// list of pods on this namespace on this node
 			podMetricsList, exists := podCollection[node.Name][namespace]
 			if !exists {
@@ -321,7 +321,7 @@ func (collector *MetricsCollector) CollectNamespaceMetrics(podCollection PodMetr
 
 // Get the CPU processor frequency values for the nodes from the Metrics sink
 func (collector *MetricsCollector) collectNodeFrequencies() {
-	kubeNodes := collector.Cluster.Nodes
+	kubeNodes := collector.Cluster.NodeMap
 	for _, node := range collector.NodeList {
 		key := util.NodeKeyFunc(node)
 		cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
@@ -343,7 +343,7 @@ func (collector *MetricsCollector) collectNodeFrequencies() {
 }
 
 func (collector *MetricsCollector) collectNodeFrequency(node *v1.Node) {
-	kubeNodes := collector.Cluster.Nodes
+	kubeNodes := collector.Cluster.NodeMap
 
 	key := util.NodeKeyFunc(node)
 	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)

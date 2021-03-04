@@ -6,10 +6,12 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
+
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
@@ -17,10 +19,10 @@ import (
 // New discovery will bring in changes to the nodes and namespaces
 // Aggregate structure for nodes, namespaces and quotas
 type KubeCluster struct {
-	Name             string
-	Nodes            map[string]*KubeNode
-	Namespaces       map[string]*KubeNamespace
-	ClusterResources map[metrics.ResourceType]*KubeDiscoveredResource
+	Name         string
+	Nodes        []*v1.Node
+	Pods         []*v1.Pod
+	NamespaceMap map[string]*KubeNamespace
 	// Map of Service to Pod cluster Ids
 	Services map[*v1.Service][]string
 	// Map of Persistent Volumes to namespace qualified pod names with their
@@ -33,76 +35,149 @@ type KubeCluster struct {
 
 	K8sAppToComponentMap map[K8sApp][]K8sAppComponent
 	ComponentToAppMap    map[K8sAppComponent][]K8sApp
-}
-
-type K8sApp struct {
-	Uid       string
-	Namespace string
-	Name      string
-}
-
-type K8sAppComponent struct {
-	EntityType proto.EntityDTO_EntityType
-	Uid        string
-	Namespace  string
-	Name       string
-}
-
-type PodVolume struct {
-	// Namespace qualified pod name.
-	QualifiedPodName string
-	// Name used by the pod to mount the volume.
-	MountName string
-}
-
-type MountedVolume struct {
-	UsedVolume *v1.PersistentVolume
-	MountName  string
-}
-
-// Volume metrics reported for a given pod
-type PodVolumeMetrics struct {
-	Volume   *v1.PersistentVolume
-	Capacity float64
-	Used     float64
-	PodVolume
+	ControllerMap        map[string]*K8sController
 }
 
 func NewKubeCluster(clusterName string, nodes []*v1.Node) *KubeCluster {
-	kubeCluster := &KubeCluster{
-		Name:             clusterName,
-		Nodes:            make(map[string]*KubeNode),
-		Namespaces:       make(map[string]*KubeNamespace),
-		ClusterResources: make(map[metrics.ResourceType]*KubeDiscoveredResource),
+	return &KubeCluster{
+		Name:         clusterName,
+		Nodes:        nodes,
+		Pods:         []*v1.Pod{},
+		NamespaceMap: make(map[string]*KubeNamespace),
 	}
-	kubeCluster.addNodes(nodes)
-	if glog.V(3) {
-		kubeCluster.logClusterNodes()
-	}
-	kubeCluster.computeClusterResources()
-	return kubeCluster
 }
 
-func (kc *KubeCluster) addNodes(nodes []*v1.Node) *KubeCluster {
-	for _, node := range nodes {
-		// Create kubeNode with Allocatable resource as the
-		// resource capacity
-		kc.Nodes[node.Name] = NewKubeNode(node, kc.Name)
-	}
+func (kc *KubeCluster) WithPods(pods []*v1.Pod) *KubeCluster {
+	kc.Pods = pods
 	return kc
 }
 
-func (kc *KubeCluster) logClusterNodes() {
-	for _, nodeEntity := range kc.Nodes {
-		glog.Infof("Created node entity : %s", nodeEntity.String())
+// Summary object to get the nodes, quotas and namespaces in the cluster
+type ClusterSummary struct {
+	*KubeCluster
+	// Computed
+	NodeMap                  map[string]*KubeNode
+	NodeNameUIDMap           map[string]string
+	NamespaceUIDMap          map[string]string
+	PodClusterIDToServiceMap map[string]*v1.Service
+	// Map node to all Running pods on the node.
+	// Pod in Running phase may NOT necessarily be in a Ready condition
+	NodeToRunningPods map[string][]*v1.Pod
+	// Map node to all Pending pods on the node
+	// A scheduled pod can still be in Pending phase, for example, when
+	// it fails to pull image onto the host
+	NodeToPendingPods       map[string][]*v1.Pod
+	ClusterResources        map[metrics.ResourceType]*KubeDiscoveredResource
+	AverageNodeCpuFrequency float64
+}
+
+func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
+	clusterSummary := &ClusterSummary{
+		KubeCluster:              kubeCluster,
+		NodeMap:                  make(map[string]*KubeNode),
+		NodeNameUIDMap:           make(map[string]string),
+		NamespaceUIDMap:          make(map[string]string),
+		PodClusterIDToServiceMap: make(map[string]*v1.Service),
+		NodeToRunningPods:        make(map[string][]*v1.Pod),
+		NodeToPendingPods:        make(map[string][]*v1.Pod),
+		ClusterResources:         make(map[metrics.ResourceType]*KubeDiscoveredResource),
+	}
+	clusterSummary.computeNodeMap()
+	clusterSummary.computePodMap()
+	clusterSummary.computeQuotaMap()
+	clusterSummary.computePodToServiceMap()
+	clusterSummary.computeClusterResources()
+	return clusterSummary
+}
+
+func (summary *ClusterSummary) GetKubeNamespace(namespace string) *KubeNamespace {
+	kubeNamespace, exists := summary.NamespaceMap[namespace]
+	if !exists {
+		glog.Errorf("Cannot find KubeNamespace entity for namespace %s", namespace)
+		return nil
+	}
+	return kubeNamespace
+}
+
+func (summary *ClusterSummary) GetReadyPods() (readyPods []*v1.Pod) {
+	for _, pod := range summary.Pods {
+		if util.PodIsReady(pod) {
+			readyPods = append(readyPods, pod)
+		}
+	}
+	return
+}
+
+func (summary *ClusterSummary) GetRunningPodsOnNode(node *v1.Node) []*v1.Pod {
+	runningPods, exists := summary.NodeToRunningPods[node.Name]
+	if !exists {
+		glog.V(3).Infof("No running pods found on node %v.", node.Name)
+		return nil
+	}
+	return runningPods
+
+}
+
+func (summary *ClusterSummary) GetPendingPodsOnNode(node *v1.Node) []*v1.Pod {
+	pendingPods, exists := summary.NodeToPendingPods[node.Name]
+	if !exists {
+		glog.V(3).Infof("No pending pods found on node %v.", node.Name)
+		return nil
+	}
+	return pendingPods
+
+}
+
+func (summary *ClusterSummary) computePodMap() {
+	for _, pod := range summary.Pods {
+		nodeName := pod.Spec.NodeName
+		if nodeName == "" {
+			glog.V(3).Infof("Skip pod %v/%v without assigned node.",
+				pod.Namespace, pod.Name)
+			continue
+		}
+		switch pod.Status.Phase {
+		case v1.PodPending:
+			summary.NodeToPendingPods[nodeName] =
+				append(summary.NodeToPendingPods[nodeName], pod)
+		case v1.PodRunning:
+			summary.NodeToRunningPods[nodeName] =
+				append(summary.NodeToRunningPods[nodeName], pod)
+		default:
+			glog.V(3).Infof("Skip pod %v/%v with status %v.",
+				pod.Namespace, pod.Name, pod.Status.Phase)
+		}
+	}
+}
+
+func (summary *ClusterSummary) computeNodeMap() {
+	for _, node := range summary.Nodes {
+		summary.NodeMap[node.Name] = NewKubeNode(node, summary.Name)
+		summary.NodeNameUIDMap[node.Name] = string(node.UID)
+	}
+	return
+}
+
+func (summary *ClusterSummary) computeQuotaMap() {
+	for namespaceName, namespace := range summary.NamespaceMap {
+		summary.NamespaceUIDMap[namespaceName] = namespace.UID
+	}
+	return
+}
+
+func (summary *ClusterSummary) computePodToServiceMap() {
+	for svc, podList := range summary.Services {
+		for _, podClusterID := range podList {
+			summary.PodClusterIDToServiceMap[podClusterID] = svc
+		}
 	}
 }
 
 // Sum the compute resource capacities from all the nodes to create the cluster resource capacities
-func (kc *KubeCluster) computeClusterResources() {
+func (summary *ClusterSummary) computeClusterResources() {
 	// sum the capacities/used of the node resources
 	computeResources := make(map[metrics.ResourceType]float64)
-	for _, node := range kc.Nodes {
+	for _, node := range summary.NodeMap {
 		nodeActive := util.NodeIsReady(node.Node) && util.NodeIsSchedulable(node.Node)
 		if nodeActive {
 			// Iterate over all ready and schedulable compute resource types
@@ -134,91 +209,7 @@ func (kc *KubeCluster) computeClusterResources() {
 				Type:     rt,
 				Capacity: capacity,
 			}
-			kc.ClusterResources[rt] = r
-		}
-	}
-}
-
-func (kc *KubeCluster) GetKubeNamespace(namespace string) *KubeNamespace {
-	kubeNamespace, exists := kc.Namespaces[namespace]
-	if !exists {
-		glog.Errorf("Cannot find KubeNamespace entity for namespace %s", namespace)
-		return nil
-	}
-	return kubeNamespace
-}
-
-// Summary object to get the nodes, quotas and namespaces in the cluster
-type ClusterSummary struct {
-	*KubeCluster
-	// Computed
-	NodeMap                  map[string]*v1.Node
-	NodeList                 []*v1.Node
-	NamespaceMap             map[string]*KubeNamespace
-	NodeNameUIDMap           map[string]string
-	NamespaceUIDMap          map[string]string
-	PodClusterIDToServiceMap map[string]*v1.Service
-	NodeNameToPodMap         map[string][]*v1.Pod
-	AverageNodeCpuFrequency  float64
-}
-
-func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
-	clusterSummary := &ClusterSummary{
-		KubeCluster:              kubeCluster,
-		NodeMap:                  make(map[string]*v1.Node),
-		NodeList:                 []*v1.Node{},
-		NamespaceMap:             make(map[string]*KubeNamespace),
-		NodeNameUIDMap:           make(map[string]string),
-		NamespaceUIDMap:          make(map[string]string),
-		PodClusterIDToServiceMap: make(map[string]*v1.Service),
-		NodeNameToPodMap:         make(map[string][]*v1.Pod),
-	}
-
-	clusterSummary.computeNodeMap()
-	clusterSummary.computeQuotaMap()
-	clusterSummary.computePodToServiceMap()
-
-	return clusterSummary
-}
-
-func (summary *ClusterSummary) SetRunningPodsOnNode(node *v1.Node, pods []*v1.Pod) {
-
-	if node == nil {
-		glog.Errorf("Null node while setting pods for node")
-		return
-	}
-
-	glog.Infof("Found %d pods for node %s", len(pods), node.Name)
-	summary.NodeNameToPodMap[node.Name] = pods
-}
-
-func (summary *ClusterSummary) computeNodeMap() {
-	summary.NodeMap = make(map[string]*v1.Node)
-	summary.NodeNameUIDMap = make(map[string]string)
-	for nodeName, node := range summary.Nodes {
-		summary.NodeMap[nodeName] = node.Node
-		summary.NodeNameUIDMap[nodeName] = string(node.Node.UID)
-		summary.NodeList = append(summary.NodeList, node.Node)
-	}
-	return
-}
-
-func (getter *ClusterSummary) computeQuotaMap() {
-	getter.NamespaceMap = make(map[string]*KubeNamespace)
-	getter.NamespaceUIDMap = make(map[string]string)
-	for namespaceName, namespace := range getter.Namespaces {
-		getter.NamespaceMap[namespaceName] = namespace
-		getter.NamespaceUIDMap[namespace.Name] = namespace.UID
-	}
-	return
-}
-
-func (summary *ClusterSummary) computePodToServiceMap() {
-	summary.PodClusterIDToServiceMap = make(map[string]*v1.Service)
-
-	for svc, podList := range summary.Services {
-		for _, podClusterID := range podList {
-			summary.PodClusterIDToServiceMap[podClusterID] = svc
+			summary.ClusterResources[rt] = r
 		}
 	}
 }
@@ -307,6 +298,84 @@ func parseResourceValue(computeResourceType metrics.ResourceType, resourceList v
 		return memoryCapacityKiloBytes
 	}
 	return DEFAULT_METRIC_VALUE
+}
+
+type K8sApp struct {
+	Uid       string
+	Namespace string
+	Name      string
+}
+
+type K8sAppComponent struct {
+	EntityType proto.EntityDTO_EntityType
+	Uid        string
+	Namespace  string
+	Name       string
+}
+
+type PodVolume struct {
+	// Namespace qualified pod name.
+	QualifiedPodName string
+	// Name used by the pod to mount the volume.
+	MountName string
+}
+
+type MountedVolume struct {
+	UsedVolume *v1.PersistentVolume
+	MountName  string
+}
+
+// Volume metrics reported for a given pod
+type PodVolumeMetrics struct {
+	Volume   *v1.PersistentVolume
+	Capacity float64
+	Used     float64
+	PodVolume
+}
+
+// An immutable snapshot of a k8s workload controller. This is used by ControllerProcessor
+// to temporarily cache the critical information of a k8s controller for efficient lookup.
+// This is different than the KubeController object which can be incrementally updated or
+// aggregated during discovery to fill in list of pods, resource usage, etc.
+type K8sController struct {
+	Kind            string
+	Name            string
+	Namespace       string
+	UID             string
+	Labels          map[string]string
+	Annotations     map[string]string
+	OwnerReferences []metav1.OwnerReference
+	// May not exist in all controllers. For Daemonset, defaults to number of nodes in the cluster.
+	Replicas *int64
+}
+
+func NewK8sController(kind, name, namespace, uid string) *K8sController {
+	return &K8sController{
+		Kind:      kind,
+		Name:      name,
+		Namespace: namespace,
+		UID:       uid,
+	}
+}
+
+func (kc *K8sController) WithLabels(labels map[string]string) *K8sController {
+	kc.Labels = labels
+	return kc
+}
+
+func (kc *K8sController) WithAnnotations(annotations map[string]string) *K8sController {
+	kc.Annotations = annotations
+	return kc
+}
+
+func (kc *K8sController) WithOwnerReferences(owners []metav1.OwnerReference) *K8sController {
+	kc.OwnerReferences = owners
+	return kc
+}
+
+func (kc *K8sController) WithReplicas(replicas int64) *K8sController {
+	kc.Replicas = &replicas
+	return kc
 }
 
 // K8s controller in the cluster
@@ -467,26 +536,4 @@ func parseAllocationResourceValue(resource v1.ResourceName, allocationResourceTy
 		return memoryKiloBytes
 	}
 	return DEFAULT_METRIC_VALUE
-}
-
-// =================================================================================================
-// The volumes in the cluster
-type KubeVolume struct {
-	*KubeEntity
-	*v1.PersistentVolume
-	ClusterName string
-}
-
-// Create a KubeVolume entity representing a volume in the cluster
-func NewKubeVolume(pv *v1.PersistentVolume, clusterName string) *KubeVolume {
-	entity := NewKubeEntity(metrics.VolumeType, clusterName,
-		pv.ObjectMeta.Namespace, pv.ObjectMeta.Name,
-		string(pv.ObjectMeta.UID))
-
-	volumeEntity := &KubeVolume{
-		KubeEntity:       entity,
-		PersistentVolume: pv,
-	}
-
-	return volumeEntity
 }

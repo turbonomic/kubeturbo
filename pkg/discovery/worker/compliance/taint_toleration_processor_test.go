@@ -54,9 +54,9 @@ func TestProcess(t *testing.T) {
 	kubeCluster := repository.NewKubeCluster(clusterName, nodeAndPodGetter.nodes)
 
 	clusterSummary := repository.CreateClusterSummary(kubeCluster)
-	clusterSummary.SetRunningPodsOnNode(n1, []*api.Pod{pod1})
-	clusterSummary.SetRunningPodsOnNode(n2, []*api.Pod{pod2})
-	clusterSummary.SetRunningPodsOnNode(n3, []*api.Pod{pod3})
+	clusterSummary.NodeToRunningPods[n1.Name] = []*api.Pod{pod1}
+	clusterSummary.NodeToRunningPods[n2.Name] = []*api.Pod{pod2}
+	clusterSummary.NodeToRunningPods[n3.Name] = []*api.Pod{pod3}
 
 	nodesManager := NewNodeSchedulabilityManager(clusterSummary)
 	taintTolerationProcessor, err := NewTaintTolerationProcessor(clusterSummary, nodesManager)

@@ -85,7 +85,7 @@ func TestCollectControllerMetrics(t *testing.T) {
 
 	kubeCluster := &repository.KubeCluster{
 		Name: "cluster",
-		Namespaces: map[string]*repository.KubeNamespace{
+		NamespaceMap: map[string]*repository.KubeNamespace{
 			namespace: kubeNamespace,
 		},
 	}

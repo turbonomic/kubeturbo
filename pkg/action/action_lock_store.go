@@ -94,20 +94,17 @@ func (a *ActionLockStore) getLockKey(actionItem *proto.ActionItemDTO) (string, e
 // Gets lock key for the pod. For a bare pod, the key is its (first) container name + image name. Otherwise, the key is the formatted string:
 // [parentKind]-[pod.Namespace]/[parentName] with its parent controller.
 func getPodLockKey(pod *api.Pod) (string, error) {
-
-	parentKind, parentName, _, err := podutil.GetPodParentInfo(pod)
+	ownerInfo, err := podutil.GetPodParentInfo(pod)
 	if err != nil {
 		glog.Errorf("Failed to get pod[%s] parent info: %v", util.BuildIdentifier(pod.Namespace, pod.Name), err)
 		return "", err
 	}
-
-	// If the pod is not a bare pod, the key is the parent name.
-	if parentKind != "" { // Not a bare pod
-		return fmt.Sprintf("%v-%v/%v", parentKind, pod.Namespace, parentName), nil
+	if podutil.IsOwnerInfoEmpty(ownerInfo) {
+		// For bare-pod case, the pod name and uid will change after actions applied. So, it's not safe to use as key.
+		// Here, use the (first) container name + the image name as the key to safely lock the pod.
+		key := pod.Spec.Containers[0].Image + pod.Spec.Containers[0].Name
+		return key, nil
 	}
-
-	// For bare-pod case, the pod name and uid will change after actions applied. So, it's not safe to use as key.
-	// Here, use the (first) container name + the image name as the key to safely lock the pod.
-	key := pod.Spec.Containers[0].Image + pod.Spec.Containers[0].Name
-	return key, nil
+	// If the pod is not a bare pod, the key is the parent name.
+	return fmt.Sprintf("%v-%v/%v", ownerInfo.Kind, pod.Namespace, ownerInfo.Name), nil
 }

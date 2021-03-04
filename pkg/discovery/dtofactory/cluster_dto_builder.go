@@ -39,7 +39,7 @@ func GetClusterKey(clusterId string) string {
 
 func (builder *clusterDTOBuilder) BuildGroup() []*proto.GroupDTO {
 	var members []string
-	for _, node := range builder.cluster.NodeList {
+	for _, node := range builder.cluster.Nodes {
 		members = append(members, string(node.UID))
 	}
 	var clusterGroupDTOs []*proto.GroupDTO

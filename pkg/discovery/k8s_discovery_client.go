@@ -12,7 +12,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/k8sappcomponents"
@@ -279,11 +278,10 @@ func (dc *K8sDiscoveryClient) Discover(
 */
 func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*proto.EntityDTO, []*proto.GroupDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES, QUOTAS, SERVICES HERE
-	kubeCluster, err := dc.clusterProcessor.DiscoverCluster()
+	clusterSummary, err := dc.clusterProcessor.DiscoverCluster()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to process cluster: %v", err)
 	}
-	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 
 	// Cache operatorResourceSpecMap in ormClient
 	numCRs := dc.config.ormClient.CacheORMSpecMap()
@@ -292,7 +290,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	}
 
 	// Multiple discovery workers to create node and pod DTOs
-	nodes := clusterSummary.NodeList
+	nodes := clusterSummary.Nodes
 	// Call cache cleanup
 	dc.config.probeConfig.NodeClient.CleanupCache(nodes)
 	// Stops scheduling dispatcher to assign sampling discovery tasks.
@@ -377,8 +375,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 
 	// affinity process
 	glog.V(2).Infof("Begin to process affinity.")
-	affinityProcessorConfig := compliance.NewAffinityProcessorConfig(dc.k8sClusterScraper)
-	affinityProcessor, err := compliance.NewAffinityProcessor(affinityProcessorConfig)
+	affinityProcessor, err := compliance.NewAffinityProcessor(clusterSummary)
 	if err != nil {
 		glog.Errorf("Failed during process affinity rules: %s", err)
 	} else {

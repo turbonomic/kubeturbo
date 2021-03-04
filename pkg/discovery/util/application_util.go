@@ -23,19 +23,18 @@ func GetAppType(pod *api.Pod) string {
 		}
 		return result
 	} else {
-		_, parentName, _, err := GetPodParentInfo(pod)
+		ownerInfo, err := GetPodParentInfo(pod)
 		if err != nil {
 			glog.Errorf("fail to getAppType: %v", err.Error())
 			return ""
 		}
-
-		if parentName == "" {
+		if IsOwnerInfoEmpty(ownerInfo) {
 			return pod.Name
 		}
 
 		//TODO: if parent.Kind==ReplicaSet:
 		//       try to find the Deployment if it has.
 		//      or extract the Deployment Name by string operations
-		return parentName
+		return ownerInfo.Name
 	}
 }

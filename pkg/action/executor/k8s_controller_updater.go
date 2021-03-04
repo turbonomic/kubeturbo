@@ -7,13 +7,16 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/cluster"
-	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
-	"github.com/turbonomic/kubeturbo/pkg/util"
+
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	kclient "k8s.io/client-go/kubernetes"
+
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
+	"github.com/turbonomic/kubeturbo/pkg/util"
 )
 
 // k8sControllerUpdater defines a specific k8s controller resource
@@ -37,12 +40,14 @@ type controllerSpec struct {
 // newK8sControllerUpdaterViaPod returns a k8sControllerUpdater based on the parent kind of a pod
 func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, ormClient *resourcemapping.ORMClient) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
-	kind, name, _, _, _, err := clusterScraper.GetPodGrandparentInfo(pod, false)
+	ownerInfo, _, _, err := clusterScraper.GetPodControllerInfo(pod, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get parent info of pod %s/%s: %v", pod.Namespace, pod.Name, err)
 	}
-
-	return newK8sControllerUpdater(clusterScraper, ormClient, kind, name, pod.Name, pod.Namespace)
+	if discoveryutil.IsOwnerInfoEmpty(ownerInfo) {
+		return nil, fmt.Errorf("pod %s/%s does not have controller", pod.Namespace, pod.Name)
+	}
+	return newK8sControllerUpdater(clusterScraper, ormClient, ownerInfo.Kind, ownerInfo.Name, pod.Name, pod.Namespace)
 }
 
 // newK8sControllerUpdater returns a k8sControllerUpdater based on the controller kind
