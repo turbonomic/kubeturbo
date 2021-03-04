@@ -251,6 +251,8 @@ func (s *ClusterScraper) UpdatePodControllerCache(
 	pods []*api.Pod, controllers map[string]*repository.K8sController) {
 	existing := 0
 	added := 0
+	bare := 0
+	custom := 0
 	for _, pod := range pods {
 		podControllerInfoKey := util.PodControllerInfoKey(pod)
 		if _, exists := s.cache.Get(podControllerInfoKey); exists {
@@ -263,13 +265,15 @@ func (s *ClusterScraper) UpdatePodControllerCache(
 			// Pod does not have controller
 			glog.V(3).Infof("Skip updating controller for pod %v/%v: pod has no controller.",
 				pod.Namespace, pod.Name)
+			bare++
 			continue
 		}
 		controller, exists := controllers[ownerInfo.Uid]
 		if !exists {
 			// Could be custom controller. We do not bulk process custom controller.
-			glog.V(3).Infof("Skip updating controller %v/%v for pod %v/%v: controller not cached.",
+			glog.V(2).Infof("Skip updating controller %v/%v for pod %v/%v: controller not cached.",
 				ownerInfo.Kind, ownerInfo.Name, pod.Namespace, pod.Name)
+			custom++
 			continue
 		}
 		kind := controller.Kind
@@ -287,7 +291,8 @@ func (s *ClusterScraper) UpdatePodControllerCache(
 		added++
 	}
 	glog.V(2).Infof("Finished updating pod controller cache."+
-		" Total pod scanned: %d, cached: %d, newly added: %d.", len(pods), existing, added)
+		" Total pod scanned: %d, cached: %d, newly added: %d, bare pods: %d, pods with custom controllers: %d",
+		len(pods), existing, added, bare, custom)
 }
 
 // GetPodControllerInfo gets grandParent (parent's parent) information of a pod: kind, name, uid
@@ -307,6 +312,8 @@ func (s *ClusterScraper) GetPodControllerInfo(
 			if ownerInfo, ok := controllerInfoCache.(util.OwnerInfo); ok {
 				return ownerInfo, nil, nil, nil
 			}
+			glog.Warningf("Failed to get controller info cache data: controllerInfoCache is '%t' not 'OwnerInfo'",
+				controllerInfoCache)
 		}
 	}
 

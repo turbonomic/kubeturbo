@@ -48,6 +48,16 @@ var (
 			Version:  util.K8sAPIDaemonsetGV.Version,
 			Resource: util.DaemonSetResName,
 		},
+		{
+			Group:    util.K8sAPIJobGV.Group,
+			Version:  util.K8sAPIJobGV.Version,
+			Resource: util.JobResName,
+		},
+		{
+			Group:    util.K8sAPICronJobGV.Group,
+			Version:  util.K8sAPICronJobGV.Version,
+			Resource: util.CronJobResName,
+		},
 	}
 )
 

@@ -17,11 +17,13 @@ const (
 	K8sAppsGroupName        = "apps"
 	K8sApplicationGroupName = "app.k8s.io"
 	OpenShiftAppsGroupName  = "apps.openshift.io"
+	K8sBatchGroupName       = "batch"
 
 	ReplicationControllerResName = "replicationcontrollers"
 	ReplicaSetResName            = "replicasets"
 	DeploymentResName            = "deployments"
 	DeploymentConfigResName      = "deploymentconfigs"
+	CronJobResName               = "cronjobs"
 	JobResName                   = "jobs"
 	StatefulSetResName           = "statefulsets"
 	DaemonSetResName             = "daemonsets"
@@ -46,4 +48,8 @@ var (
 	K8sAPIStatefulsetGV = schema.GroupVersion{Group: K8sAppsGroupName, Version: "v1"}
 	// The API group under which daemonsets are exposed by the k8s cluster
 	K8sAPIDaemonsetGV = schema.GroupVersion{Group: K8sAppsGroupName, Version: "v1"}
+	// The API group under which Job are exposed by the k8s cluster
+	K8sAPIJobGV = schema.GroupVersion{Group: K8sBatchGroupName, Version: "v1"}
+	// The API group under which CronJob are exposed by the k8s cluster
+	K8sAPICronJobGV = schema.GroupVersion{Group: K8sBatchGroupName, Version: "v1beta1"}
 )
