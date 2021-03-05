@@ -1,6 +1,7 @@
 package dtofactory
 
 import (
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	api "k8s.io/api/core/v1"
@@ -25,37 +26,33 @@ var (
 )
 
 type ServiceEntityDTOBuilder struct {
-	// Services to list of pods
-	Services map[*api.Service][]string
+	ClusterSummary *repository.ClusterSummary
+	ClusterScraper *cluster.ClusterScraper
 	// Pods with app DTOs
 	PodEntitiesMap map[string]*repository.KubePod
 }
 
-func NewServiceEntityDTOBuilder(services map[*api.Service][]string,
-	podEntitiesMap map[string]*repository.KubePod) *ServiceEntityDTOBuilder {
-
+func NewServiceEntityDTOBuilder(clusterSummary *repository.ClusterSummary,
+	clusterScraper *cluster.ClusterScraper, podEntitiesMap map[string]*repository.KubePod) *ServiceEntityDTOBuilder {
 	builder := &ServiceEntityDTOBuilder{
-		Services:       services,
+		ClusterSummary: clusterSummary,
 		PodEntitiesMap: podEntitiesMap,
+		ClusterScraper: clusterScraper,
 	}
-
 	return builder
 }
 
-func (builder *ServiceEntityDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) {
-	result := []*proto.EntityDTO{}
-
-	for service, podList := range builder.Services {
+func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
+	var result []*proto.EntityDTO
+	for service, podList := range builder.ClusterSummary.Services {
 		serviceName := util.GetServiceClusterID(service)
+		if len(podList) == 0 {
+			glog.Warningf("Service %s has no pods", serviceName)
+			continue
+		}
 		// collection of pods and apps for this service
 		var pods []*api.Pod
 		appEntityDTOsMap := make(map[string]*proto.EntityDTO)
-
-		if len(podList) == 0 {
-			glog.Errorf("Service %s has no pods", serviceName)
-			continue
-		}
-
 		for _, podClusterId := range podList {
 			glog.V(4).Infof("service %s --> pod %s", service.Name, podClusterId)
 			kubePod := builder.PodEntitiesMap[podClusterId]
@@ -75,13 +72,19 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 		ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_SERVICE, id).
 			DisplayName(displayName)
 
-		//1. commodities bought
-		if err := builder.createCommodityBought(ebuilder, pods, appEntityDTOsMap); err != nil {
-			glog.Errorf("failed to create server[%s] EntityDTO: %v", serviceName, err)
+		// commodities sold
+		if err := builder.createCommoditySold(ebuilder, pods, serviceName); err != nil {
+			glog.Warningf("Failed to create commodity sold for service %s: %v", serviceName, err)
 			continue
 		}
 
-		//2. service data.
+		// commodities bought
+		if err := builder.createCommodityBought(ebuilder, pods, appEntityDTOsMap); err != nil {
+			glog.Errorf("Failed to create server[%s] EntityDTO: %v", serviceName, err)
+			continue
+		}
+
+		// service data.
 		serviceData := &proto.EntityDTO_ServiceData{
 			ServiceType: &service.Name,
 		}
@@ -95,14 +98,81 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 		//3. create it
 		entityDto, err := ebuilder.Create()
 		if err != nil {
-			glog.Errorf("failed to create service[%s] EntityDTO: %v", displayName, err)
+			glog.Errorf("Failed to create service[%s] EntityDTO: %v", displayName, err)
 			continue
 		}
 		glog.V(4).Infof("service DTO: %++v", entityDto)
 		result = append(result, entityDto)
 	}
 
-	return result, nil
+	return result
+}
+
+// Create sold commodities for Service entity.
+// Currently, only NumberReplicas is sold by Service
+func (builder *ServiceEntityDTOBuilder) createCommoditySold(
+	ebuilder *sdkbuilder.EntityDTOBuilder, pods []*api.Pod, serviceName string) error {
+	var controllers = make(map[string]*repository.K8sController)
+	readyPods := 0
+	for _, pod := range pods {
+		// Get the pod controller info from the podToController cache in ClusterScraper
+		ownerInfo, _, _, err := builder.ClusterScraper.GetPodControllerInfo(pod, true)
+		if err != nil || util.IsOwnerInfoEmpty(ownerInfo) {
+			// The pod does not have a controller
+			continue
+		}
+		if _, found := controllers[ownerInfo.Uid]; found {
+			// We've already visited this controller
+			if util.PodIsReady(pod) {
+				readyPods++
+			}
+			continue
+		}
+		// Get the cached controller from the controller cache in ClusterSummary
+		controller, found := builder.ClusterSummary.ControllerMap[ownerInfo.Uid]
+		if !found {
+			// No cached controller
+			continue
+		}
+		if controller.Replicas == nil || *controller.Replicas < 1 {
+			// No valid replicas
+			continue
+		}
+		controllers[controller.UID] = controller
+		if util.PodIsReady(pod) {
+			readyPods++
+		}
+	}
+	if len(controllers) == 0 {
+		glog.Errorf("No controllers are found for any pod that provides to service %v.", serviceName)
+		return nil
+	}
+	// The list of pods that provide to the service may belong to multiple controllers
+	// Determine capacity by getting the max of all replicas
+	var replicas int64
+	for _, controller := range controllers {
+		if *controller.Replicas > replicas {
+			replicas = *controller.Replicas
+		}
+	}
+	used := float64(readyPods)
+	capacity := float64(replicas)
+	if used > capacity {
+		glog.Warningf("Number of replicas for %v has used value %f larger than capacity %f",
+			serviceName, used, capacity)
+	}
+	commoditySold, err := sdkbuilder.
+		NewCommodityDTOBuilder(proto.CommodityDTO_NUMBER_REPLICAS).
+		Used(used).
+		Capacity(capacity).
+		// Deactivate the commodity so it is not sent to the market
+		Active(false).
+		Create()
+	if err != nil {
+		return err
+	}
+	ebuilder.SellsCommodity(commoditySold)
+	return nil
 }
 
 func (builder *ServiceEntityDTOBuilder) createCommodityBought(ebuilder *sdkbuilder.EntityDTOBuilder,
@@ -133,9 +203,7 @@ func (builder *ServiceEntityDTOBuilder) createCommodityBought(ebuilder *sdkbuild
 	}
 
 	if !foundProvider {
-		err := fmt.Errorf("Failed to found any provider for service")
-		glog.Warning(err.Error())
-		return err
+		return fmt.Errorf("failed to find any provider for service")
 	}
 
 	return nil

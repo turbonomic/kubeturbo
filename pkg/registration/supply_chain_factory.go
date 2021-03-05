@@ -27,6 +27,7 @@ var (
 	numPodNumConsumersType = proto.CommodityDTO_NUMBER_CONSUMERS
 	vStorageType           = proto.CommodityDTO_VSTORAGE
 	storageAmountType      = proto.CommodityDTO_STORAGE_AMOUNT
+	numberReplicasType     = proto.CommodityDTO_NUMBER_REPLICAS
 
 	fakeKey = "fake"
 
@@ -47,6 +48,7 @@ var (
 	vMemLimitQuotaTemplateCommOpt   = &proto.TemplateCommodity{CommodityType: &vMemLimitQuotaType, Optional: &commIsOptional}
 	vCpuRequestQuotaTemplateCommOpt = &proto.TemplateCommodity{CommodityType: &vCpuRequestQuotaType, Optional: &commIsOptional}
 	vMemRequestQuotaTemplateCommOpt = &proto.TemplateCommodity{CommodityType: &vMemRequestQuotaType, Optional: &commIsOptional}
+	numberReplicasCommOpt           = &proto.TemplateCommodity{CommodityType: &numberReplicasType, Optional: &commIsOptional}
 
 	// Resold TemplateCommodity
 	vCpuTemplateCommResold             = &proto.TemplateCommodity{CommodityType: &vCpuType, IsResold: &commIsResold}
@@ -455,6 +457,7 @@ func (f *SupplyChainFactory) buildBusinessApplicationSupplyBuilder() (*proto.Tem
 func (f *SupplyChainFactory) buildServiceSupplyBuilder() (*proto.TemplateDTO, error) {
 	serviceSupplyChainNodeBuilder := supplychain.NewSupplyChainNodeBuilder(proto.EntityDTO_SERVICE)
 	serviceSupplyChainNodeBuilder = serviceSupplyChainNodeBuilder.
+		Sells(numberReplicasCommOpt).
 		Provider(proto.EntityDTO_APPLICATION_COMPONENT, proto.Provider_LAYERED_OVER).
 		Buys(applicationTemplateCommWithKey)
 	return serviceSupplyChainNodeBuilder.Create()

@@ -343,14 +343,11 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 
 	// Service DTOs
 	glog.V(2).Infof("Begin to generate service EntityDTOs.")
-	svcDiscWorker := worker.Newk8sServiceDiscoveryWorker(clusterSummary)
-	serviceDtos, err := svcDiscWorker.Do(result.PodEntitiesMap)
-	if err != nil {
-		glog.Errorf("Failed to discover services from current Kubernetes cluster with the new discovery framework: %s", err)
-	} else {
-		glog.V(2).Infof("There are %d service entityDTOs.", len(serviceDtos))
-		result.EntityDTOs = append(result.EntityDTOs, serviceDtos...)
-	}
+	serviceDTOs := dtofactory.
+		NewServiceEntityDTOBuilder(clusterSummary, dc.k8sClusterScraper, result.PodEntitiesMap).
+		BuildDTOs()
+	result.EntityDTOs = append(result.EntityDTOs, serviceDTOs...)
+	glog.V(2).Infof("There are %d service entityDTOs.", len(serviceDTOs))
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.PersistentVolumes) {
 		glog.V(2).Infof("Begin to generate persistent volume EntityDTOs.")
