@@ -375,10 +375,7 @@ func (s *VMTServer) Run() {
 
 	gCChan := make(chan bool)
 	defer close(gCChan)
-	err = worker.NewGarbageCollector(kubeClient, dynamicClient, gCChan, s.GCIntervalMin*60, time.Minute*30).StartCleanup()
-	if err != nil {
-		glog.Fatalf("Garbage collection at startup encountered errors, will restart kubeturbo: %v", err)
-	}
+	worker.NewGarbageCollector(kubeClient, dynamicClient, gCChan, s.GCIntervalMin*60, time.Minute*30).StartCleanup()
 
 	glog.V(1).Infof("********** Start running Kubeturbo Service **********")
 	// Disconnect from Turbo server when Kubeturbo is shutdown

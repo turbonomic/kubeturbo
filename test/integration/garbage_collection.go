@@ -94,8 +94,7 @@ spec:
 
 			gCChan := make(chan bool)
 			defer close(gCChan)
-			err = worker.NewGarbageCollector(kubeClient, dynamicClient, gCChan, 5, time.Second*1).StartCleanup()
-			framework.ExpectNoError(err, "Error completing garbage cleanup")
+			worker.NewGarbageCollector(kubeClient, dynamicClient, gCChan, 5, time.Second*1).StartCleanup()
 
 			By("ensuring leaked pods are cleaned up")
 			validatePodsCleaned(kubeClient, []*corev1.Pod{pod1, pod2})

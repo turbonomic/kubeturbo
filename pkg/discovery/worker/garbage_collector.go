@@ -3,14 +3,13 @@ package worker
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/golang/glog"
 
 	api "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -20,25 +19,29 @@ import (
 )
 
 var supportedGrandParents = []schema.GroupVersionResource{
-	schema.GroupVersionResource{
+	{
 		Group:    commonutil.K8sAPIDeploymentGV.Group,
 		Version:  commonutil.K8sAPIDeploymentGV.Version,
-		Resource: commonutil.DeploymentResName},
-	schema.GroupVersionResource{
+		Resource: commonutil.DeploymentResName,
+	},
+	{
 		Group:    commonutil.OpenShiftAPIDeploymentConfigGV.Group,
 		Version:  commonutil.OpenShiftAPIDeploymentConfigGV.Version,
-		Resource: commonutil.DeploymentConfigResName},
+		Resource: commonutil.DeploymentConfigResName,
+	},
 }
 
 var supportedParents = []schema.GroupVersionResource{
-	schema.GroupVersionResource{
+	{
 		Group:    commonutil.K8sAPIReplicationControllerGV.Group,
 		Version:  commonutil.K8sAPIReplicationControllerGV.Version,
-		Resource: commonutil.ReplicationControllerResName},
-	schema.GroupVersionResource{
+		Resource: commonutil.ReplicationControllerResName,
+	},
+	{
 		Group:    commonutil.K8sAPIReplicasetGV.Group,
 		Version:  commonutil.K8sAPIReplicasetGV.Version,
-		Resource: commonutil.ReplicaSetResName},
+		Resource: commonutil.ReplicaSetResName,
+	},
 }
 
 var gcListOpts = metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", executor.TurboGCLabelKey, executor.TurboGCLabelVal)}
@@ -63,14 +66,27 @@ func NewGarbageCollector(client *kubernetes.Clientset, dynClient dynamic.Interfa
 	}
 }
 
-func (g *GarbageCollector) StartCleanup() error {
+// The cleanup routine does not error out. It rather retries couple of times on an api error
+// and continues ahead with trying to revert/clean up other items leaving the failure case behind.
+// The opportunity to revert/cleanup would arise only if and when kubeturbo restarts again.
+// This is a stop gap solution for resources which can possibly be left behind as a result of
+// kubeturbo restarts while resources were in interim states wrt a kubeturbo action(s).
+// Additionally we use "defer" for all the cleanup/revert of resources updated as part of a
+// kubeturbo action which most certainly will be executed even if kubeturbo panics, however
+// the api calls are not guaranteed to suceed in defer, giving a small chance that some resource
+// might still be left in a bad state. The cleanup/revert routines here are sort of an additional
+// safety net to put such resources back in a good state. This also therefor does not guarantee
+// making the resources healthy and/or a proper cleanup.
+// An absolutely error free solution will be implementing kubeturbo action executor to support
+// eventually consistent actions.
+// For possible leaked pods however we continue to try at 10 min intervals, while kubeturbo goes
+// ahead with rest of its tasks in parallel.
+func (g *GarbageCollector) StartCleanup() {
 	glog.V(4).Info("Start garbage cleanup.")
 
 	// We cleanup the controllers before cleaning up the pods to ensure
 	// that the pending (invalid controller) pods are deleted at the right time.
-	if err := g.revertControllers(); err != nil {
-		return err
-	}
+	g.revertControllers()
 
 	go func() {
 		// Also cleanup immediately at startup
@@ -99,10 +115,7 @@ func (g *GarbageCollector) StartCleanup() error {
 	}()
 
 	// The quota cleanup can happen in parallel to the pods cleanup
-	if err := g.cleanupQuotas(); err != nil {
-		return err
-	}
-	return nil
+	g.cleanupQuotas()
 }
 
 func (g *GarbageCollector) cleanupLeakedClonePods() {
@@ -163,29 +176,27 @@ func (g *GarbageCollector) isLeakedPod(pod api.Pod) bool {
 
 // The controllers cleanup is supposed to happen only at the startup
 // We fail in case of errors to force kubeturbo to restart and try the cleanup again
-func (g *GarbageCollector) revertControllers() error {
-	if err := g.revertSchedulers(); err != nil {
-		return err
-	}
-
-	if err := g.unpauseRollouts(); err != nil {
-		return err
-	}
-
-	return nil
+func (g *GarbageCollector) revertControllers() {
+	g.revertSchedulers()
+	g.unpauseRollouts()
 }
 
-func (g *GarbageCollector) revertSchedulers() error {
+func (g *GarbageCollector) revertSchedulers() {
 	for _, parentRes := range supportedParents {
-		objList, err := g.dynClient.Resource(parentRes).Namespace("").List(context.TODO(), gcListOpts)
+		var objList *unstructured.UnstructuredList
+		err := commonutil.RetryDuring(executor.DefaultRetryLess, 0,
+			executor.DefaultRetrySleepInterval, func() error {
+				var internalErr error
+				objList, internalErr = g.dynClient.Resource(parentRes).Namespace("").List(context.TODO(), gcListOpts)
+				return internalErr
+			})
 		if err != nil {
-			// we fail forcing kubeturbo to restart and try this again
-			glog.Errorf("Error reverting scheduler of parent controller for %s: %v", parentRes.String(), err)
-			return err
+			// We don't force kubeturbo to restart. Further retries to this are possible only at kubeturbo restarts.
+			glog.Errorf("Error reverting scheduler of parent controller for %s: %v.", parentRes.String(), err)
 		}
 		if objList == nil {
-			// ignore
-			return nil
+			// ignore and try other items
+			continue
 		}
 		for _, item := range objList.Items {
 			valid := true
@@ -194,30 +205,29 @@ func (g *GarbageCollector) revertSchedulers() error {
 					return executor.ChangeScheduler(g.dynClient.Resource(parentRes).Namespace(item.GetNamespace()), &item, valid)
 				})
 			if err != nil {
+				// we tried couple of times but still saw failures, retrying would be possible only on kubeturbo restarts
 				glog.Errorf("Error reverting scheduler of parent controller for %s %s/%s: %v", item.GetKind(), item.GetNamespace(), item.GetName(), err)
-				return err
 			}
 		}
 	}
-
-	return nil
 }
 
-func (g *GarbageCollector) unpauseRollouts() error {
+func (g *GarbageCollector) unpauseRollouts() {
 	for _, grandParentRes := range supportedGrandParents {
-		objList, err := g.dynClient.Resource(grandParentRes).Namespace("").List(context.TODO(), gcListOpts)
+		var objList *unstructured.UnstructuredList
+		err := commonutil.RetryDuring(executor.DefaultRetryLess, 0,
+			executor.DefaultRetrySleepInterval, func() error {
+				var internalErr error
+				objList, internalErr = g.dynClient.Resource(grandParentRes).Namespace("").List(context.TODO(), gcListOpts)
+				return internalErr
+			})
 		if err != nil {
-			// This error could be because of mising deploymentConfig type from the cluster, so we don't fail here
-			if apierrors.IsNotFound(err) && strings.Contains(err.Error(), "the server could not find the requested resource") {
-				glog.V(3).Infof("Resource not found enabled on cluster while resuming rollout of controllers %s: %v", grandParentRes.String(), err)
-				continue
-			}
+			// We don't force kubeturbo to restart. Further retries to this are possible only at kubeturbo restarts.
 			glog.Errorf("Error resuming rollout of controller %s: %v", grandParentRes.String(), err)
-			return err
 		}
 		if objList == nil {
-			// ignore
-			return nil
+			// ignore and try other items
+			continue
 		}
 		for _, item := range objList.Items {
 			unpause := false
@@ -227,38 +237,33 @@ func (g *GarbageCollector) unpauseRollouts() error {
 				})
 			if err != nil {
 				glog.Errorf("Error resuming rollout of controller %s %s/%s: %v", item.GetKind(), item.GetNamespace(), item.GetName(), err)
-				return err
 			}
 		}
-
 	}
-
-	return nil
 }
 
-func (g *GarbageCollector) cleanupQuotas() error {
-	quotaList, err := g.client.CoreV1().ResourceQuotas("").List(context.TODO(), gcListOpts)
+func (g *GarbageCollector) cleanupQuotas() {
+	var quotaList *api.ResourceQuotaList
+	err := commonutil.RetryDuring(executor.DefaultRetryLess, 0,
+		executor.DefaultRetrySleepInterval, func() error {
+			var internalErr error
+			quotaList, internalErr = g.client.CoreV1().ResourceQuotas("").List(context.TODO(), gcListOpts)
+			return internalErr
+		})
 	if err != nil {
 		glog.Errorf("Error garbage cleaning quotas: %v", err)
-		return err
 	}
 	if quotaList == nil {
 		// ignore
-		return nil
+		return
 	}
 
 	for _, quota := range quotaList.Items {
-		err := revertQuota(g.client, &quota)
-		if err != nil {
-			// we force kubeturbo to restart
-			return err
-		}
+		revertQuota(g.client, &quota)
 	}
-
-	return nil
 }
 
-func revertQuota(client *kubernetes.Clientset, quota *api.ResourceQuota) error {
+func revertQuota(client *kubernetes.Clientset, quota *api.ResourceQuota) {
 	var revertedQuota *api.ResourceQuota
 	var err error
 	if quota.Annotations != nil {
@@ -274,20 +279,21 @@ func revertQuota(client *kubernetes.Clientset, quota *api.ResourceQuota) error {
 		}
 	}
 	if revertedQuota != nil {
-		// Although unlikely, revertedQuota being nil possibly the result of the decode error above
+		// Although unlikely, revertedQuota being nil possibly is the result of the decode error above
 		// so we go ahead and try to remove the GC label alone and leave the annotation behind.
 		quota.Spec.Hard = revertedQuota.Spec.Hard
 		RemoveTurboAnnotionFromQuota(quota)
 	}
 	executor.RemoveGCLabelFromQuota(quota)
 
-	_, err = client.CoreV1().ResourceQuotas(quota.Namespace).Update(context.TODO(), quota, metav1.UpdateOptions{})
+	err = commonutil.RetryDuring(executor.DefaultRetryLess, 0,
+		executor.DefaultRetrySleepInterval, func() error {
+			_, err := client.CoreV1().ResourceQuotas(quota.Namespace).Update(context.TODO(), quota, metav1.UpdateOptions{})
+			return err
+		})
 	if err != nil {
 		glog.Errorf("Error reverting quota while garbage collecting resources: %s/%s: %v", quota.Namespace, quota.Name, err)
-		return err
 	}
-
-	return nil
 }
 
 func RemoveTurboAnnotionFromQuota(quota *api.ResourceQuota) {
