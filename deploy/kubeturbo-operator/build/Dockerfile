@@ -1,15 +1,15 @@
-FROM quay.io/operator-framework/helm-operator:v1.3.0
+FROM quay.io/operator-framework/helm-operator:v1.4.2
 
 # Required OpenShift Labels
 LABEL name="Kubeturbo Operator" \
       vendor="Turbonomic" \
       version="8" \
-      release="0" \
+      release="1" \
       summary="This is the kubeturbo operator." \
       description="This operator will deploy an instance of kubeturbo." \
 ### Required labels above - recommended below
       url="https://www.turbonomic.com" \
-      run='docker run -tdi --name ${NAME} turbonomic/kubeturbo-operator:8.0' \
+      run='docker run -tdi --name ${NAME} turbonomic/kubeturbo-operator:8.1' \
       io.k8s.description="Turbonomic Workload Automation Platform simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.  " \
       io.k8s.display-name="Kubeturbo Operator" \
       io.openshift.expose-services="" \

@@ -34,7 +34,7 @@ data:
     {
         "communicationConfig": {
             "serverMeta": {
-                "version": "7.22",
+                "version": "8.0",
                 "turboServer": "http://topology-processor:8080",
                 "proxy": "http://localhost:9004"
             },
