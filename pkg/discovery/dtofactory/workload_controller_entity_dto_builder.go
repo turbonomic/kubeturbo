@@ -137,6 +137,14 @@ func (builder *workloadControllerDTOBuilder) getCommoditiesBought(kubeController
 func (builder *workloadControllerDTOBuilder) getContainerSpecIds(kubeController *repository.KubeController) []string {
 	containerNameSet := make(map[string]struct{})
 	for _, pod := range kubeController.Pods {
+		// Pods scheduled on a node, but still in Pending phase do not have containers started, exclude them
+		// when getting container specs
+		if discoveryUtil.PodIsPending(pod) {
+			glog.V(3).Infof("Skipping pod %v when building containerSpecs owned by controller %v."+
+				" There is no container started in the pod.", discoveryUtil.GetPodClusterID(pod),
+				kubeController.GetFullName())
+			continue
+		}
 		for _, container := range pod.Spec.Containers {
 			containerNameSet[container.Name] = struct{}{}
 		}
