@@ -183,6 +183,7 @@ func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) []*proto.En
 
 			//4. build entityDTO
 			dto, err := ebuilder.
+				ContainerData(builder.createContainerData(isCpuLimitSet, isMemLimitSet)).
 				ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
 					ProviderMustClone: &truep,
 					Controllable:      &controllable,
@@ -358,6 +359,14 @@ func (builder *containerDTOBuilder) createCommoditiesBought(entityType metrics.D
 	attrSetter := NewCommodityAttrSetter()
 	attrSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(true) }, resourceTypes...)
 	return builder.getResourceCommoditiesBought(entityType, containerMId, resourceTypes, converter, attrSetter)
+}
+
+// createContainerData creates EntityDTO_ContainerData for the given container entity dto builder.
+func (builder *containerDTOBuilder) createContainerData(isCpuLimitSet, isMemLimitSet bool) *proto.EntityDTO_ContainerData {
+	return &proto.EntityDTO_ContainerData{
+		HasCpuLimitsSet: &isCpuLimitSet,
+		HasMemLimitsSet: &isMemLimitSet,
+	}
 }
 
 func (builder *containerDTOBuilder) getContainerProperties(pod *api.Pod, index int) []*proto.EntityDTO_EntityProperty {
