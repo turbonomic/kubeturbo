@@ -27,7 +27,6 @@ var (
 		metrics.CPURequest,
 		metrics.MemoryRequest,
 		metrics.NumPods,
-		metrics.VStorage,
 		// TODO, add back provisioned commodity later
 	}
 
@@ -82,7 +81,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 		}
 
 		// compute and constraint commodities sold.
-		commoditiesSold, err := builder.getNodeCommoditiesSold(node, clusterId)
+		commoditiesSold, isAvailableForPlacement, err := builder.getNodeCommoditiesSold(node, clusterId)
 		if err != nil {
 			glog.Errorf("Error when create commoditiesSold for %s: %s", node.Name, err)
 			nodeActive = false
@@ -163,6 +162,10 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 			continue
 		}
 
+		entityDto.ProviderPolicy = &proto.EntityDTO_ProviderPolicy{AvailableForPlacement: &isAvailableForPlacement}
+		if !isAvailableForPlacement {
+			glog.Warningf("Node %s has been marked unavailable for placement.", node.GetName())
+		}
 		result = append(result, entityDto)
 
 		glog.V(4).Infof("Node DTO : %+v", entityDto)
@@ -174,13 +177,13 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 // Build the sold commodityDTO by each node. They include:
 // VCPU, VMem, CPURequest, MemRequest;
 // VMPMAccessCommodity, ApplicationCommodity, ClusterCommodity.
-func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clusterId string) ([]*proto.CommodityDTO, error) {
+func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clusterId string) ([]*proto.CommodityDTO, bool, error) {
 	var commoditiesSold []*proto.CommodityDTO
 	// get cpu frequency
 	key := util.NodeKeyFunc(node)
 	cpuFrequency, err := builder.getNodeCPUFrequency(key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get cpu frequency from sink for node %s: %s", key, err)
+		return nil, true, fmt.Errorf("failed to get cpu frequency from sink for node %s: %s", key, err)
 	}
 	// cpu and cpu request needs to be converted from number of cores to frequency.
 	converter := NewConverter().Set(
@@ -191,6 +194,8 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clus
 
 	// Resource Commodities
 	resourceCommoditiesSold := builder.getResourceCommoditiesSold(metrics.NodeType, key, nodeResourceCommoditiesSold, converter, nil)
+	storageCommoditiesSold, isAvailableForPlacement := builder.getNodeStorageCommoditiesSold(node.Name)
+	resourceCommoditiesSold = append(resourceCommoditiesSold, storageCommoditiesSold...)
 
 	// Disable vertical resize of the resource commodities for all nodes
 	for _, commSold := range resourceCommoditiesSold {
@@ -210,7 +215,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clus
 			Capacity(accessCommodityDefaultCapacity).
 			Create()
 		if err != nil {
-			return nil, err
+			return nil, isAvailableForPlacement, err
 		}
 		commoditiesSold = append(commoditiesSold, accessComm)
 	}
@@ -221,11 +226,87 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clus
 		Capacity(clusterCommodityDefaultCapacity).
 		Create()
 	if err != nil {
-		return nil, err
+		return nil, isAvailableForPlacement, err
 	}
 	commoditiesSold = append(commoditiesSold, clusterComm)
 
-	return commoditiesSold, nil
+	return commoditiesSold, isAvailableForPlacement, nil
+}
+
+// getNodeStorageCommoditiesSold builds sold storage commodities for the node
+// Returns the built commodities and if this node is available for placement or not.
+// The availability for placement is evaluated based on the current usage crossing the
+// configured threshold. If the usage has crossed the threshold, we mark the node
+// NOT available for placement.
+func (builder *nodeEntityDTOBuilder) getNodeStorageCommoditiesSold(nodeName string) ([]*proto.CommodityDTO, bool) {
+	var resourceCommoditiesSold []*proto.CommodityDTO
+	vstorageResources := []string{"rootfs", "imagefs"}
+	entityType := metrics.NodeType
+	resourceType := metrics.VStorage
+	protoCommodityType := proto.CommodityDTO_VSTORAGE
+	isAvailableForPlacement := true
+
+	for _, resource := range vstorageResources {
+		entityID := nodeName
+		if resource == "imagefs" {
+			entityID = fmt.Sprintf("%s-%s", nodeName, resource)
+		}
+		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(protoCommodityType)
+
+		// set capacity value
+		capacity, err := builder.metricValue(metrics.NodeType, entityID,
+			metrics.VStorage, metrics.Capacity, nil)
+		if err != nil || (capacity.Avg == 0 && capacity.Peak == 0) {
+			glog.Warningf("Missing capacity value for %v : %s for node %s.", resourceType, resource, nodeName)
+			// If we are missing capacity its unlikely we would have other metrics either
+			continue
+		}
+		// Capacity metric is always a single data point. Use Avg to refer to the single point value
+		commSoldBuilder.Capacity(capacity.Avg)
+
+		used, err := builder.metricValue(metrics.NodeType, entityID,
+			metrics.VStorage, metrics.Used, nil)
+		if err != nil {
+			glog.Warningf("Missing used value for %v : %s for node %s.", resourceType, resource, nodeName)
+		} else {
+			// Set used value as the average of multiple used metric points
+			commSoldBuilder.Used(used.Avg)
+			// Set peak value as the peak of multiple used metric points
+			commSoldBuilder.Peak(used.Peak)
+		}
+
+		// set commodity key
+		commSoldBuilder.Key(fmt.Sprintf("k8s-node-%s", resource))
+
+		resourceCommoditySold, err := commSoldBuilder.Create()
+		if err != nil {
+			glog.Warning(err.Error())
+			continue
+		}
+
+		threshold, err := builder.metricValue(entityType, entityID,
+			resourceType, metrics.Threshold, nil)
+		if err != nil {
+			glog.Warningf("Missing threshold value for %v for node %s.", resourceType, entityID)
+			continue
+		}
+		// TODO: The settable method for UtilizationThresholdPct can be added to the sdk instead.
+		if threshold.Avg > 0 && threshold.Avg <= 100 {
+			// Threshold values set in kubelet are in terms of metrics (eg rootfs size) value available.
+			thresholdUtilization := 100 - threshold.Avg
+			resourceCommoditySold.UtilizationThresholdPct = &thresholdUtilization
+			// We set isAvailableForPlacement based on both rootfs and imagefs
+			isUsageBelowThreshold := used.Avg < thresholdUtilization*capacity.Avg/100
+			isAvailableForPlacement = isUsageBelowThreshold
+		} else {
+			glog.Warningf("Threshold value [%.2f] outside range and will not be set for %v : %s for node %s.",
+				threshold.Avg, resourceType, resource, entityID)
+		}
+
+		resourceCommoditiesSold = append(resourceCommoditiesSold, resourceCommoditySold)
+	}
+
+	return resourceCommoditiesSold, isAvailableForPlacement
 }
 
 func (builder *nodeEntityDTOBuilder) getClusterId() (string, error) {

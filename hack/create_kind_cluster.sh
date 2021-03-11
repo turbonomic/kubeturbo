@@ -31,6 +31,7 @@ kubeadmConfigPatches:
   "evictionHard": {
     "memory.available": "20%",
     "nodefs.available": "20%",
+    "imagefs.available": "20%",
   }
 nodes:
 - role: control-plane
