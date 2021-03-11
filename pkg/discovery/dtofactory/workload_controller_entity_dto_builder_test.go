@@ -46,7 +46,7 @@ var (
 		"controller1-UID", testAllocationResources)
 	testKubeController2 = repository.NewKubeController(testClusterName, testNamespace, "controller2", testCustomControllerType, "controller2-UID")
 
-	testWorkloadControllerDTOBuilder = NewWorkloadControllerDTOBuilder(
+	testWorkloadControllerDTOBuilder = NewWorkloadControllerDTOBuilder(nil,
 		map[string]*repository.KubeController{
 			"controller1-UID": testKubeController1,
 			"controller2-UID": testKubeController2,

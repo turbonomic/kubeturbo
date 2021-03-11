@@ -11,13 +11,15 @@ import (
 )
 
 type workloadControllerDTOBuilder struct {
+	clusterSummary *repository.ClusterSummary
 	kubeControllersMap map[string]*repository.KubeController
 	namespaceUIDMap    map[string]string
 }
 
-func NewWorkloadControllerDTOBuilder(kubeControllersMap map[string]*repository.KubeController,
+func NewWorkloadControllerDTOBuilder(clusterSummary *repository.ClusterSummary, kubeControllersMap map[string]*repository.KubeController,
 	namespaceUIDMap map[string]string) *workloadControllerDTOBuilder {
 	return &workloadControllerDTOBuilder{
+		clusterSummary: clusterSummary,
 		kubeControllersMap: kubeControllersMap,
 		namespaceUIDMap:    namespaceUIDMap,
 	}
@@ -74,8 +76,17 @@ func (builder *workloadControllerDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, er
 		entityDTOBuilder.IsSuspendable(false)
 
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
-		entityDTOBuilder.WithProperty(property.BuildWorkloadControllerNsProperty(kubeController.Namespace))
+		entityDTOBuilder.WithProperty(property.BuildWorkloadControllerNSProperty(kubeController.Namespace))
+		if builder.clusterSummary != nil {
+			var labelAnnotations []map[string]string
 
+			controller, found := builder.clusterSummary.ControllerMap[workloadControllerId]
+			if found {
+				labelAnnotations = append(labelAnnotations, controller.Labels, controller.Annotations)
+				entityDTOBuilder.WithProperties(property.BuildLabelAnnotationProperties(labelAnnotations))
+
+			}
+		}
 		entityDTO, err := entityDTOBuilder.Create()
 		if err != nil {
 			glog.Errorf("failed to build WorkloadController[%s] entityDTO: %v", workloadControllerDisplayName, err)
