@@ -11,7 +11,7 @@ import (
 )
 
 type workloadControllerDTOBuilder struct {
-	clusterSummary *repository.ClusterSummary
+	clusterSummary     *repository.ClusterSummary
 	kubeControllersMap map[string]*repository.KubeController
 	namespaceUIDMap    map[string]string
 }
@@ -19,7 +19,7 @@ type workloadControllerDTOBuilder struct {
 func NewWorkloadControllerDTOBuilder(clusterSummary *repository.ClusterSummary, kubeControllersMap map[string]*repository.KubeController,
 	namespaceUIDMap map[string]string) *workloadControllerDTOBuilder {
 	return &workloadControllerDTOBuilder{
-		clusterSummary: clusterSummary,
+		clusterSummary:     clusterSummary,
 		kubeControllersMap: kubeControllersMap,
 		namespaceUIDMap:    namespaceUIDMap,
 	}
