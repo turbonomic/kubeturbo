@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
@@ -25,12 +26,15 @@ type containerSpecDTOBuilder struct {
 	containerUtilizationDataAggregator aggregation.ContainerUtilizationDataAggregator
 	// Aggregator to aggregate container replicas commodity usage data (used, peak and capacity)
 	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator
+	// Cluster Summary needed to populate the labels and annotations from the workload controller cache
+	clusterSummary *repository.ClusterSummary
 }
 
-func NewContainerSpecDTOBuilder(containerSpecMetricsMap map[string]*repository.ContainerSpecMetrics,
+func NewContainerSpecDTOBuilder(clusterSummary *repository.ClusterSummary, containerSpecMetricsMap map[string]*repository.ContainerSpecMetrics,
 	containerUtilizationDataAggregator aggregation.ContainerUtilizationDataAggregator,
 	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator) *containerSpecDTOBuilder {
 	return &containerSpecDTOBuilder{
+		clusterSummary:                     clusterSummary,
 		containerSpecMetricsMap:            containerSpecMetricsMap,
 		containerUtilizationDataAggregator: containerUtilizationDataAggregator,
 		containerUsageDataAggregator:       containerUsageDataAggregator,
@@ -50,6 +54,16 @@ func (builder *containerSpecDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 		// ContainerSpec entity is not monitored and will not be sent to Market analysis engine in turbo server
 		entityDTOBuilder.Monitored(false)
+		if builder.clusterSummary != nil {
+			var labelAnnotations []map[string]string
+
+			controller, found := builder.clusterSummary.ControllerMap[containerSpec.ControllerUID]
+			if found {
+				labelAnnotations = append(labelAnnotations, controller.Labels, controller.Annotations)
+				entityDTOBuilder.WithProperties(property.BuildLabelAnnotationProperties(labelAnnotations))
+
+			}
+		}
 		dto, err := entityDTOBuilder.Create()
 		if err != nil {
 			glog.Errorf("Failed to build ContainerSpec[%s] entityDTO: %v", containerSpecId, err)

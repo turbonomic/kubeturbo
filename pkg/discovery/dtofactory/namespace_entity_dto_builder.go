@@ -70,7 +70,7 @@ func (builder *namespaceEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 
 		// build entityDTO.
 		entityDto, err := entityDTOBuilder.WithProperties(property.
-			BuildNamespaceProperties(namespace.TagProperties)).
+			BuildLabelAnnotationProperties(namespace.TagProperties)).
 			Create()
 		if err != nil {
 			glog.Errorf("Failed to build Namespace entityDTO: %s", err)

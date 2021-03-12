@@ -7,7 +7,7 @@ import (
 )
 
 // Build entity properties of a pod. The properties are consisted of name and namespace of a pod.
-func BuildWorkloadControllerNsProperty(namespace string) *proto.EntityDTO_EntityProperty {
+func BuildWorkloadControllerNSProperty(namespace string) *proto.EntityDTO_EntityProperty {
 	propertyNamespace := k8sPropertyNamespace
 	podNamespacePropertyName := k8sNamespace
 	podNamespacePropertyValue := namespace

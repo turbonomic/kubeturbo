@@ -320,7 +320,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 
 	// K8s workload controller discovery worker to create WorkloadController DTOs
 	controllerDiscoveryWorker := worker.NewK8sControllerDiscoveryWorker(clusterSummary)
-	workloadControllerDtos, err := controllerDiscoveryWorker.Do(result.KubeControllers)
+	workloadControllerDtos, err := controllerDiscoveryWorker.Do(clusterSummary, result.KubeControllers)
 	if err != nil {
 		glog.Errorf("Failed to discover workload controllers from current Kubernetes cluster with the new discovery framework: %s", err)
 	} else {
@@ -332,7 +332,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	// replicas. ContainerSpec is an entity type which represents a certain type of container replicas deployed by a
 	// K8s controller.
 	containerSpecDiscoveryWorker := worker.NewK8sContainerSpecDiscoveryWorker()
-	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(result.ContainerSpecMetrics, dc.config.containerUtilizationDataAggStrategy,
+	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(clusterSummary, result.ContainerSpecMetrics, dc.config.containerUtilizationDataAggStrategy,
 		dc.config.containerUsageDataAggStrategy)
 	if err != nil {
 		glog.Errorf("Failed to discover ContainerSpecs from current Kubernetes cluster with the new discovery framework: %s", err)

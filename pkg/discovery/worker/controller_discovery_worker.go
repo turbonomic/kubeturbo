@@ -25,7 +25,7 @@ func NewK8sControllerDiscoveryWorker(cluster *repository.ClusterSummary) *K8sCon
 // allocation resources usage of the same KubeController from different workers.
 // Then it creates entity DTOs for the K8s controllers to be sent to the Turbonomic server.
 // This runs after cluster NamespaceMap is populated.
-func (worker *K8sControllerDiscoveryWorker) Do(kubeControllers []*repository.KubeController) ([]*proto.EntityDTO, error) {
+func (worker *K8sControllerDiscoveryWorker) Do(cluster *repository.ClusterSummary, kubeControllers []*repository.KubeController) ([]*proto.EntityDTO, error) {
 	namespacesMap := worker.cluster.NamespaceMap
 	// Map from controller UID to the corresponding kubeController
 	kubeControllersMap := make(map[string]*repository.KubeController)
@@ -77,7 +77,7 @@ func (worker *K8sControllerDiscoveryWorker) Do(kubeControllers []*repository.Kub
 		glog.V(4).Infof("Discovered WorkloadController entity: %s", kubeController)
 	}
 	// Create DTOs for each k8s WorkloadController entity
-	workloadControllerDTOBuilder := dtofactory.NewWorkloadControllerDTOBuilder(kubeControllersMap, worker.cluster.NamespaceUIDMap)
+	workloadControllerDTOBuilder := dtofactory.NewWorkloadControllerDTOBuilder(cluster, kubeControllersMap, worker.cluster.NamespaceUIDMap)
 	workloadControllerDtos, err := workloadControllerDTOBuilder.BuildDTOs()
 	if err != nil {
 		return nil, fmt.Errorf("error while creating WorkloadController entityDTOs: %v", err)

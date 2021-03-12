@@ -23,14 +23,14 @@ func NewK8sContainerSpecDiscoveryWorker() *k8sContainerSpecDiscoveryWorker {
 // strategies.
 // Then it creates entity DTOs for the ContainerSpecs with the aggregated commodities data of container replicas to be
 // sent to the Turbonomic server.
-func (worker *k8sContainerSpecDiscoveryWorker) Do(containerSpecMetrics []*repository.ContainerSpecMetrics,
+func (worker *k8sContainerSpecDiscoveryWorker) Do(clusterSummary *repository.ClusterSummary, containerSpecMetrics []*repository.ContainerSpecMetrics,
 	utilizationDataAggStrategy, usageDataAggStrategy string) ([]*proto.EntityDTO, error) {
 	// Get data aggregators based on the given data aggregation strategies
 	utilizationDataAggregator, usageDataAggregator := worker.getContainerDataAggregators(utilizationDataAggStrategy, usageDataAggStrategy)
 	// Create containerSpecMetrics map from ContainerSpec ID to ContainerSpecMetrics with merged resource usage data samples
 	// of container replicas
 	containerSpecMetricsMap := worker.createContainerSpecMetricsMap(containerSpecMetrics)
-	containerSpecEntityDTOBuilder := dtofactory.NewContainerSpecDTOBuilder(containerSpecMetricsMap, utilizationDataAggregator,
+	containerSpecEntityDTOBuilder := dtofactory.NewContainerSpecDTOBuilder(clusterSummary, containerSpecMetricsMap, utilizationDataAggregator,
 		usageDataAggregator)
 	containerSpecEntityDTOs, err := containerSpecEntityDTOBuilder.BuildDTOs()
 	if err != nil {
