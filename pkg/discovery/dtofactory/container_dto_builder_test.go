@@ -1,12 +1,14 @@
 package dtofactory
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -123,6 +125,27 @@ func Test_containerDTOBuilder_BuildDTOs_layeredOver(t *testing.T) {
 	}
 }
 
+func Test_containerDTOBuilder_BuildDTOs_containerData(t *testing.T) {
+	containerFoo := mockContainer(containerNameFoo)
+	containerFoo.Resources = api.ResourceRequirements{
+		Limits: buildResource(cpuCap, int64(memCap)),
+	}
+	containerBar := mockContainer(containerNameBar)
+	testPod.Spec.Containers = []api.Container{
+		containerFoo,
+		containerBar,
+	}
+	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink())
+	containerDTOs := containerDTOBuilder.BuildEntityDTOs([]*api.Pod{testPod})
+	assert.Equal(t, 2, len(containerDTOs))
+	// containerFoo DTO has cpu and mem limits set.
+	assert.True(t, containerDTOs[0].GetContainerData().GetHasCpuLimit())
+	assert.True(t, containerDTOs[0].GetContainerData().GetHasMemLimit())
+	// containerBar DTO doesn't have cpu and mem limits set.
+	assert.False(t, containerDTOs[1].GetContainerData().GetHasCpuLimit())
+	assert.False(t, containerDTOs[1].GetContainerData().GetHasMemLimit())
+}
+
 func mockOwnerReference() (r metav1.OwnerReference) {
 	isController := true
 	return metav1.OwnerReference{
@@ -145,4 +168,21 @@ func mockMetricsSink() *metrics.EntityMetricSink {
 	metricsSink.AddNewMetricEntries(containerFooCPUUsed, containerFooMemUsed, containerFooCPUCap, containerFooMemCap,
 		containerBarCPUUsed, containerBarCPUCap, containerBarMemUsed, containerBarMemCap, testCPUFrequency, ownerUIDMetric)
 	return metricsSink
+}
+
+func buildResource(cores float64, numMB int64) api.ResourceList {
+	resourceList := make(api.ResourceList)
+	resourceList[api.ResourceCPU] = getCPUQuantity(cores)
+	resourceList[api.ResourceMemory] = getMemQuantity(numMB)
+	return resourceList
+}
+
+func getCPUQuantity(cores float64) resource.Quantity {
+	result, _ := resource.ParseQuantity(fmt.Sprintf("%dm", int(cores*1000)))
+	return result
+}
+
+func getMemQuantity(numKB int64) resource.Quantity {
+	result, _ := resource.ParseQuantity(fmt.Sprintf("%dMi", numKB))
+	return result
 }

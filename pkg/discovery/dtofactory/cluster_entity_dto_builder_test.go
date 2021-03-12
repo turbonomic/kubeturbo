@@ -172,6 +172,7 @@ func TestBuildClusterDto(t *testing.T) {
 			assert.Fail(t, "Detected unsupported commodity sold %v", commSold)
 		}
 	}
+	assert.False(t, clusterDTO.GetProviderPolicy().GetAvailableForPlacement())
 }
 
 func Test_clusterDTOBuilder_createClusterData(t *testing.T) {
