@@ -364,8 +364,8 @@ func (builder *containerDTOBuilder) createCommoditiesBought(entityType metrics.D
 // createContainerData creates EntityDTO_ContainerData for the given container entity dto builder.
 func (builder *containerDTOBuilder) createContainerData(isCpuLimitSet, isMemLimitSet bool) *proto.EntityDTO_ContainerData {
 	return &proto.EntityDTO_ContainerData{
-		HasCpuLimitsSet: &isCpuLimitSet,
-		HasMemLimitsSet: &isMemLimitSet,
+		HasCpuLimit: &isCpuLimitSet,
+		HasMemLimit: &isMemLimitSet,
 	}
 }
 

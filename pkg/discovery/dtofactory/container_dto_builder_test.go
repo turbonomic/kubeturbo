@@ -139,11 +139,11 @@ func Test_containerDTOBuilder_BuildDTOs_containerData(t *testing.T) {
 	containerDTOs := containerDTOBuilder.BuildEntityDTOs([]*api.Pod{testPod})
 	assert.Equal(t, 2, len(containerDTOs))
 	// containerFoo DTO has cpu and mem limits set.
-	assert.True(t, containerDTOs[0].GetContainerData().GetHasCpuLimitsSet())
-	assert.True(t, containerDTOs[0].GetContainerData().GetHasMemLimitsSet())
+	assert.True(t, containerDTOs[0].GetContainerData().GetHasCpuLimit())
+	assert.True(t, containerDTOs[0].GetContainerData().GetHasMemLimit())
 	// containerBar DTO doesn't have cpu and mem limits set.
-	assert.False(t, containerDTOs[1].GetContainerData().GetHasCpuLimitsSet())
-	assert.False(t, containerDTOs[1].GetContainerData().GetHasMemLimitsSet())
+	assert.False(t, containerDTOs[1].GetContainerData().GetHasCpuLimit())
+	assert.False(t, containerDTOs[1].GetContainerData().GetHasMemLimit())
 }
 
 func mockOwnerReference() (r metav1.OwnerReference) {
