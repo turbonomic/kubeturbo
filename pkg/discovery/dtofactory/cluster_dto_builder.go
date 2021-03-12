@@ -94,6 +94,14 @@ func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO, nam
 	// Cluster entity cannot be provisioned or suspended by Turbonomic analysis
 	entityDTOBuilder.IsProvisionable(false)
 	entityDTOBuilder.IsSuspendable(false)
+	// Set AvailableForPlacement to false to cluster entities so that there won't be unexpected entities incorrectly
+	// placed on the cluster during Turbonomic analysis.
+	// Note that this flag won't affect resize actions, so this won't affect the use case in the future if we want to
+	// make cluster as provider to resize namespaces.
+	falseFlag := false
+	entityDTOBuilder.ProviderPolicy(&proto.EntityDTO_ProviderPolicy{
+		AvailableForPlacement: &falseFlag,
+	})
 
 	entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
