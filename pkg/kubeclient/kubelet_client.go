@@ -1,6 +1,7 @@
 package kubeclient
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -24,22 +25,29 @@ import (
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 	"k8s.io/kubernetes/pkg/kubelet/eviction"
 	evictionapi "k8s.io/kubernetes/pkg/kubelet/eviction/api"
+
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 )
 
 const (
-	summaryPath string = "/stats/summary/"
-	specPath    string = "/spec"
-	configPath  string = "/configz"
+	summaryPath  string = "/stats/summary/"
+	specPath     string = "/spec"
+	configPath   string = "/configz"
+	cadvisorPath string = "/metrics/cadvisor"
 
 	DefaultKubeletPort  = 10255
 	DefaultKubeletHttps = false
 
 	defaultConnTimeOut         = 20 * time.Second
 	defaultTLSHandShakeTimeout = 10 * time.Second
+
+	ContainerCPUThrottledTotal = "container_cpu_cfs_throttled_periods_total"
+	ContainerCPUTotal          = "container_cpu_cfs_periods_total"
 )
 
 type KubeHttpClientInterface interface {
-	ExecuteRequestAndGetValue(ip, nodeName, path string) ([]byte, error)
+	ExecuteRequest(ip, nodeName, path string) ([]byte, error)
 	GetSummary(ip, nodeName string) (*stats.Summary, error)
 	GetMachineInfo(ip, nodeName string) (*cadvisorapi.MachineInfo, error)
 	GetNodeCpuFrequency(node *v1.Node) (float64, error)
@@ -107,7 +115,7 @@ func (s statusNotFoundError) Error() string {
 	return fmt.Sprintf("%q was not found", s.path)
 }
 
-func (client *KubeletClient) ExecuteRequestAndGetValue(ip, nodeName, path string) ([]byte, error) {
+func (client *KubeletClient) ExecuteRequest(ip, nodeName, path string) ([]byte, error) {
 	var body []byte
 	var err error
 	if client.forceProxyEndpoint {
@@ -185,7 +193,7 @@ func (client *KubeletClient) callAPIServerProxyEndpoint(nodeName, path string) (
 func (client *KubeletClient) GetSummary(ip, nodeName string) (*stats.Summary, error) {
 	// Get the data
 	summary := &stats.Summary{}
-	body, err := client.ExecuteRequestAndGetValue(ip, nodeName, summaryPath)
+	body, err := client.ExecuteRequest(ip, nodeName, summaryPath)
 	if err == nil {
 		err = json.Unmarshal(body, summary)
 		if err != nil {
@@ -207,7 +215,7 @@ func (client *KubeletClient) GetSummary(ip, nodeName string) (*stats.Summary, er
 			glog.V(2).Infof("unable to retrieve machine[%s/%s] summary: %v. Using cached value", nodeName, ip, err)
 			// TODO(irfanurrehman): Improve the node check [fn checknode()].
 			// This looks flawed. The same is also used as checknode;
-			// if ExecuteRequestAndGetValue() returns error, checknode should get error
+			// if ExecuteRequest() returns error, checknode should get error
 			// rather then a value from cache.
 			return entry.statsSummary, nil
 		} else {
@@ -237,7 +245,7 @@ func (client *KubeletClient) GetKubeletThresholds(ip, nodeName string) ([]evicti
 	thresholds := []evictionapi.Threshold{}
 
 	kubeCfgz := &KubeletConfigz{}
-	data, err := client.ExecuteRequestAndGetValue(ip, nodeName, configPath)
+	data, err := client.ExecuteRequest(ip, nodeName, configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -256,6 +264,33 @@ func (client *KubeletClient) GetKubeletThresholds(ip, nodeName string) ([]evicti
 	}
 
 	return thresholds, nil
+}
+
+func (client *KubeletClient) GetCPUThrottlingMetrics(ip, nodeName string) (map[string]*dto.MetricFamily, error) {
+	data, err := client.ExecuteRequest(ip, nodeName, cadvisorPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return TextToThrottlingMetricFamilies(data)
+}
+
+func TextToThrottlingMetricFamilies(data []byte) (map[string]*dto.MetricFamily, error) {
+	var parser expfmt.TextParser
+	parsed, err := parser.TextToMetricFamilies(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(parsed) < 1 {
+		return nil, nil
+	}
+
+	metricFamilies := make(map[string]*dto.MetricFamily)
+	metricFamilies[ContainerCPUThrottledTotal] = parsed[ContainerCPUThrottledTotal]
+	metricFamilies[ContainerCPUTotal] = parsed[ContainerCPUTotal]
+
+	return metricFamilies, nil
 }
 
 // get node single-core Frequency, in MHz
@@ -328,7 +363,7 @@ func (client *KubeletClient) GetNodeCpuFrequency(node *v1.Node) (float64, error)
 
 func (client *KubeletClient) GetMachineInfo(ip, nodeName string) (*cadvisorapi.MachineInfo, error) {
 	var minfo cadvisorapi.MachineInfo
-	body, err := client.ExecuteRequestAndGetValue(ip, nodeName, specPath)
+	body, err := client.ExecuteRequest(ip, nodeName, specPath)
 	if err != nil {
 		return nil, err
 	}

@@ -30,6 +30,7 @@ var (
 		metrics.NumPods:            proto.CommodityDTO_NUMBER_CONSUMERS,
 		metrics.VStorage:           proto.CommodityDTO_VSTORAGE,
 		metrics.StorageAmount:      proto.CommodityDTO_STORAGE_AMOUNT,
+		metrics.VCPUThrottling:     proto.CommodityDTO_VCPU_THROTTLING,
 	}
 )
 
@@ -158,13 +159,19 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 	commSoldBuilder.Peak(metricValue.Peak)
 
 	// set capacity value
-	capacityMetricValue, err := builder.metricValue(entityType, entityID,
-		resourceType, metrics.Capacity, converter)
-	if err != nil {
-		return nil, err
+	if resourceType == metrics.VCPUThrottling {
+		// This is better then separately posting the capacity into metrics sync
+		// and then reading it here.
+		commSoldBuilder.Capacity(100)
+	} else {
+		capacityMetricValue, err := builder.metricValue(entityType, entityID,
+			resourceType, metrics.Capacity, converter)
+		if err != nil {
+			return nil, err
+		}
+		// Capacity metric is always a single data point. Use Avg to refer to the single point value
+		commSoldBuilder.Capacity(capacityMetricValue.Avg)
 	}
-	// Capacity metric is always a single data point. Use Avg to refer to the single point value
-	commSoldBuilder.Capacity(capacityMetricValue.Avg)
 
 	// set additional attribute
 	if commodityAttrSetter != nil && commodityAttrSetter.Settable(resourceType) {
@@ -209,19 +216,29 @@ func (builder generalBuilder) metricValue(entityType metrics.DiscoveredEntityTyp
 	}
 
 	value := metric.GetValue()
-	switch value.(type) {
+	switch typedValue := value.(type) {
 	case []metrics.Point:
 		var sum float64
 		var peak float64
-		for _, point := range value.([]metrics.Point) {
+		for _, point := range typedValue {
 			sum += point.Value
 			peak = math.Max(peak, point.Value)
 		}
-		metricValue.Avg = sum / float64(len(value.([]metrics.Point)))
+		metricValue.Avg = sum / float64(len(typedValue))
 		metricValue.Peak = peak
+	case []metrics.ThrottlingCumulative:
+		numberOfSamples := len(typedValue)
+		if numberOfSamples <= 1 {
+			// We don't have enough samples to calculate this value.
+			// Throttling value would appear as zero on the entity.
+			break
+		}
+		metricValue.Avg = (typedValue[numberOfSamples-1].Throttled - typedValue[0].Throttled) /
+			(typedValue[numberOfSamples-1].Total - typedValue[0].Total)
+		metricValue.Peak = metricValue.Avg
 	case float64:
-		metricValue.Avg = value.(float64)
-		metricValue.Peak = value.(float64)
+		metricValue.Avg = typedValue
+		metricValue.Peak = typedValue
 	default:
 		return metricValue, fmt.Errorf("unsupported metric value type %t", metric.GetValue())
 	}

@@ -17,7 +17,7 @@ require (
 	github.com/prometheus/client_golang v1.7.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.6.1
-	github.com/turbonomic/turbo-go-sdk v0.0.0-20210312042142-5a5a8362b499
+	github.com/turbonomic/turbo-go-sdk v0.0.0-20210326125330-5d184a461727
 )
 
 // k8s and relevant dependencies
@@ -39,6 +39,8 @@ require (
 	github.com/openshift/client-go v0.0.0-20201020074620-f8fd44879f7c
 	// openshift cluster api for cluster-api based node provision and suspend
 	github.com/openshift/machine-api-operator v0.2.1-0.20201216110516-d9e48bb9fc0b
+	github.com/prometheus/client_model v0.2.0
+	github.com/prometheus/common v0.10.0
 	k8s.io/kubelet v0.0.0
 )
 

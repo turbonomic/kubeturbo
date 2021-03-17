@@ -14,13 +14,14 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/features"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/kubernetes"
 	evictionapi "k8s.io/kubernetes/pkg/kubelet/eviction/api"
 
+	dto "github.com/prometheus/client_model/go"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
-
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 // KubeletMonitor is a resource monitoring worker.
@@ -151,12 +152,101 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 		glog.Warningf("Failed to get kubelet thresholds for %s, %v.", node.Name, err)
 	}
 
+	metricFamilies, err := kc.GetCPUThrottlingMetrics(ip, node.Name)
+	if err != nil {
+		glog.Warningf("Failed to read kubelet cadvisor metrics for %s, %v.", node.Name, err)
+	}
+	if _, found := metricFamilies[kubeclient.ContainerCPUThrottledTotal]; !found {
+		glog.V(3).Infof("No throttling metrics found for node %s.", node.Name)
+	}
+
 	// TODO Use time stamp attached to the discovered CPUStats/MemoryStats of node and pod from kubelet to be more precise
 	currentMilliSec := time.Now().UnixNano() / int64(time.Millisecond)
+	m.generateThrottlingMetrics(metricFamilies, currentMilliSec)
 	m.parseNodeStats(summary.Node, thresholds, currentMilliSec)
 	m.parsePodStats(summary.Pods, currentMilliSec)
 
 	glog.V(4).Infof("Finished scrape node %s.", node.Name)
+}
+
+func (m *KubeletMonitor) generateThrottlingMetrics(metricFamilies map[string]*dto.MetricFamily, timestamp int64) {
+	parsedMetrics := parseMetricFamilies(metricFamilies)
+	for metricID, tm := range parsedMetrics {
+		if tm != nil {
+			glog.V(4).Infof("Throttling Metrics for container: %s, cpuThrottled: %.3f, cpuTotal: %.3f.", metricID, tm.cpuThrottled, tm.cpuTotal)
+			m.genThrottlingMetrics(metrics.ContainerType, metricID, tm.cpuThrottled, tm.cpuTotal, timestamp)
+		}
+	}
+}
+
+type throttlingMetric struct {
+	cpuThrottled float64
+	cpuTotal     float64
+}
+
+// parseMetricFamilies parses the incoming prometheus format metric from two metric families
+// "container_cpu_cfs_throttled_periods_total" and "container_cpu_cfs_periods_total".
+// It deciphers the container id from the labels on the metric and merges the two for
+// each container into "type throttlingMetric struct".
+// Example:
+// in:
+// # TYPE container_cpu_cfs_periods_total counter
+// container_cpu_cfs_periods_total{container="metallb-speaker",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af/8e1a2ff0f116c9d086af53cbd7430dced0e70fed104aea79e3891870564aed38",image="sha256:8c49f7de2c13b87026d7afb04f35494e5d9ce6b5eeeb7f8983d38e601d0ac910",name="k8s_metallb-speaker_metallb-speaker-m29mf_ccp_8266a379-dd56-42f8-8af0-19fc0d8ea3af_16",namespace="ccp",pod="metallb-speaker-m29mf"} 10 1616975907597
+// # TYPE container_cpu_cfs_throttled_periods_total counter
+// container_cpu_cfs_throttled_periods_total{container="metallb-speaker",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af/8e1a2ff0f116c9d086af53cbd7430dced0e70fed104aea79e3891870564aed38",image="sha256:8c49f7de2c13b87026d7afb04f35494e5d9ce6b5eeeb7f8983d38e601d0ac910",name="k8s_metallb-speaker_metallb-speaker-m29mf_ccp_8266a379-dd56-42f8-8af0-19fc0d8ea3af_16",namespace="ccp",pod="metallb-speaker-m29mf"} 5 1616976197080
+//
+//out:
+// map[string]*throttlingMetric{
+//		"ccp/metallb-speaker-m29mf/metallb-speaker": {
+//			cpuThrottled: 5,
+//			cpuTotal:     10,
+//		},
+//	}
+//
+// Please check the unit test for more details.
+func parseMetricFamilies(metricFamilies map[string]*dto.MetricFamily) map[string]*throttlingMetric {
+	parsed := make(map[string]*throttlingMetric)
+	for metricName, metricFamily := range metricFamilies {
+		if metricFamily.GetType() != dto.MetricType_COUNTER {
+			// We ideally should not land into this situation
+			glog.Warningf("Expected metrics type: %v, but received type: %v"+
+				"while parsing throttling metrics.", dto.MetricType_COUNTER, metricFamily.GetType())
+			return parsed
+		}
+		for _, metric := range metricFamily.GetMetric() {
+			if metric == nil {
+				continue
+			}
+			var name, namespace, podName string
+			for _, l := range metric.GetLabel() {
+				switch l.GetName() {
+				case "container", "container_name":
+					name = l.GetValue()
+				case "namespace":
+					namespace = l.GetValue()
+				case "pod", "pod_name":
+					podName = l.GetValue()
+				default:
+				}
+			}
+			if name == "" {
+				// This metric is for pod not container
+				continue
+			}
+			metricID := fmt.Sprintf("%s/%s/%s", namespace, podName, name)
+			tm, exists := parsed[metricID]
+			if !exists {
+				tm = &throttlingMetric{}
+			}
+			if metricName == kubeclient.ContainerCPUTotal {
+				tm.cpuTotal = metric.Counter.GetValue()
+			} else {
+				tm.cpuThrottled = metric.Counter.GetValue()
+			}
+			parsed[metricID] = tm
+		}
+	}
+	return parsed
 }
 
 func (m *KubeletMonitor) parseNodeCpuFreq(node *api.Node, cpuFrequencyMHz float64) {
@@ -377,6 +467,16 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats, timestamp int6
 	}
 
 	return totalUsedCPU, totalUsedMem
+}
+
+func (m *KubeletMonitor) genThrottlingMetrics(etype metrics.DiscoveredEntityType, key string, throttled, total float64, timestamp int64) {
+	metric := metrics.NewEntityResourceMetric(etype, key, metrics.VCPUThrottling, metrics.Used,
+		[]metrics.ThrottlingCumulative{{
+			Throttled: throttled,
+			Total:     total,
+			Timestamp: timestamp,
+		}})
+	m.metricSink.AddNewMetricEntries(metric)
 }
 
 func (m *KubeletMonitor) genUsedMetrics(etype metrics.DiscoveredEntityType, key string, cpu, memory float64, timestamp int64) {

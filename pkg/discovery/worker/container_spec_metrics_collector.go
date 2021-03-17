@@ -2,6 +2,7 @@ package worker
 
 import (
 	"fmt"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -106,6 +107,8 @@ func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containe
 		containerResourceMetrics := repository.NewContainerMetrics([]float64{capVal}, usedValPoints)
 		containerSpecMetric.ContainerMetrics[resourceType] = containerResourceMetrics
 	}
+	// TODO: Collect the throttling metrics data, whose collection is slightly different from other metrics.
+
 }
 
 func (collector *ContainerSpecMetricsCollector) getResourceMetricValue(containerMId string, rType metrics.ResourceType,
