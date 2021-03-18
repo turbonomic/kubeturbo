@@ -246,7 +246,7 @@ func (client *KubeletClient) GetNodeCpuFrequency(node *v1.Node) (float64, error)
 	freqDiscovered := true
 	if err != nil {
 		glog.Errorf("Failed to get machine[%s] cpu.frequency from kubelet: %v. Will try pod based getter.", node.Name, err)
-		nodeIsActive := util.NodeIsReady(node) && util.NodeIsSchedulable(node)
+		nodeIsActive := util.NodeIsReady(node)
 		if nodeIsActive {
 			nodeFreq, err = client.fallbkCpuFreqGetter.GetFrequency(node.Name)
 			if err != nil {

@@ -55,7 +55,7 @@ func (worker *k8sNamespaceDiscoveryWorker) Do(namespaceMetricsList []*repository
 	var totalNodeFrequency float64
 	activeNodeCount := 0
 	for _, node := range kubeNodes {
-		nodeActive := util.NodeIsReady(node.Node) && util.NodeIsSchedulable(node.Node)
+		nodeActive := util.NodeIsReady(node.Node)
 		if nodeActive {
 			nodeUIDs = append(nodeUIDs, node.UID)
 			totalNodeFrequency += node.NodeCpuFrequency

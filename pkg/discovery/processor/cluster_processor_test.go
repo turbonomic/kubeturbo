@@ -7,7 +7,6 @@ import (
 
 	cadvisorapi "github.com/google/cadvisor/info/v1"
 	"github.com/stretchr/testify/assert"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -117,31 +116,6 @@ func TestWaitForCompletionFailed(t *testing.T) {
 	totalWaitTime = time.Second
 	assert.False(t, waitForCompletion(done))
 	totalWaitTime = 60 * time.Second
-}
-
-func TestComputeClusterResources(t *testing.T) {
-	kubeCluster := repository.NewKubeCluster(testClusterName, createMockNodes(allocatableMap, schedulableNodeMap))
-	var resourceMap map[metrics.ResourceType]*repository.KubeDiscoveredResource
-	clusterSummary := repository.CreateClusterSummary(kubeCluster)
-	resourceMap = clusterSummary.ClusterResources
-	for _, computeTypeList := range metrics.KubeComputeResourceTypes {
-		for _, computeType := range computeTypeList {
-			_, exists := resourceMap[computeType]
-			assert.True(t, exists)
-		}
-	}
-	// Among all nodes, one of the nodes is not schedulable, so the capacity should be 3 * node capacity
-	assert.Equal(t, int32(24032436), int32(resourceMap["Memory"].Capacity))
-	assert.Equal(t, int8(12), int8(resourceMap["CPU"].Capacity))
-
-	kubeCluster = repository.NewKubeCluster(testClusterName, createMockNodes(allocatableCpuOnlyMap, schedulableNodeMap))
-	resourceMap = clusterSummary.ClusterResources
-	for _, computeTypeList := range metrics.KubeComputeResourceTypes {
-		for _, computeType := range computeTypeList {
-			_, exists := resourceMap[computeType]
-			assert.True(t, exists, fmt.Sprintf("missing %s resource", computeType))
-		}
-	}
 }
 
 func TestDiscoverCluster(t *testing.T) {
