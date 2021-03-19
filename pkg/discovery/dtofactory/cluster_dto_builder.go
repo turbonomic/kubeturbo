@@ -131,7 +131,8 @@ func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityD
 	used := make(map[proto.CommodityDTO_CommodityType]float64)
 	capacity := make(map[proto.CommodityDTO_CommodityType]float64)
 	for _, entityDTO := range entityDTOs {
-		if entityDTO.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE {
+		// Only take active nodes into account for cluster resource commodities.
+		if entityDTO.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE && entityDTO.GetPowerState() == proto.EntityDTO_POWERED_ON {
 			for _, commodity := range entityDTO.GetCommoditiesSold() {
 				// skip aggregating access commodities with keys
 				if commodity.GetKey() == "" {

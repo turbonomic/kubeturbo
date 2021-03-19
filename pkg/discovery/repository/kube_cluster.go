@@ -67,7 +67,6 @@ type ClusterSummary struct {
 	// A scheduled pod can still be in Pending phase, for example, when
 	// it fails to pull image onto the host
 	NodeToPendingPods       map[string][]*v1.Pod
-	ClusterResources        map[metrics.ResourceType]*KubeDiscoveredResource
 	AverageNodeCpuFrequency float64
 }
 
@@ -80,13 +79,11 @@ func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
 		PodClusterIDToServiceMap: make(map[string]*v1.Service),
 		NodeToRunningPods:        make(map[string][]*v1.Pod),
 		NodeToPendingPods:        make(map[string][]*v1.Pod),
-		ClusterResources:         make(map[metrics.ResourceType]*KubeDiscoveredResource),
 	}
 	clusterSummary.computeNodeMap()
 	clusterSummary.computePodMap()
 	clusterSummary.computeQuotaMap()
 	clusterSummary.computePodToServiceMap()
-	clusterSummary.computeClusterResources()
 	return clusterSummary
 }
 
@@ -169,47 +166,6 @@ func (summary *ClusterSummary) computePodToServiceMap() {
 	for svc, podList := range summary.Services {
 		for _, podClusterID := range podList {
 			summary.PodClusterIDToServiceMap[podClusterID] = svc
-		}
-	}
-}
-
-// Sum the compute resource capacities from all the nodes to create the cluster resource capacities
-func (summary *ClusterSummary) computeClusterResources() {
-	// sum the capacities/used of the node resources
-	computeResources := make(map[metrics.ResourceType]float64)
-	for _, node := range summary.NodeMap {
-		nodeActive := util.NodeIsReady(node.Node) && util.NodeIsSchedulable(node.Node)
-		if nodeActive {
-			// Iterate over all ready and schedulable compute resource types
-			for _, rtList := range metrics.KubeComputeResourceTypes {
-				for _, rt := range rtList {
-					// get the compute resource if it exists
-					nodeResource, exists := node.ComputeResources[rt]
-					if !exists {
-						glog.Errorf("Missing %s resource in node %s", rt, node.Name)
-						continue
-					}
-					// add the capacity to the cluster compute resource map
-					computeCap, exists := computeResources[rt]
-					if !exists {
-						computeCap = nodeResource.Capacity
-					} else {
-						computeCap = computeCap + nodeResource.Capacity
-					}
-					computeResources[rt] = computeCap
-				}
-			}
-		}
-	}
-	// create KubeDiscoveredResource object for each compute resource type
-	for _, rtList := range metrics.KubeComputeResourceTypes {
-		for _, rt := range rtList {
-			capacity := computeResources[rt]
-			r := &KubeDiscoveredResource{
-				Type:     rt,
-				Capacity: capacity,
-			}
-			summary.ClusterResources[rt] = r
 		}
 	}
 }

@@ -31,6 +31,7 @@ type Node struct {
 	storageAllocatable float64 // not collected yet
 	storageRequestUsed float64 // not collected yet
 	storageUsed        float64
+	powerState         proto.EntityDTO_PowerState
 }
 
 var (
@@ -40,18 +41,28 @@ var (
 			2.0, 1.9, 1.0, 0.3,
 			8168868, 8066468, 140000, 3112000,
 			40470, 37297, 0, 9385,
+			proto.EntityDTO_POWERED_ON,
 		},
 		{
 			"node2id", "node2", 22, 110,
 			2.0, 1.9, 0.89, 1.5,
 			8168868, 8066468, 2552000, 1234000,
 			40470, 37297, 0, 23748,
+			proto.EntityDTO_POWERED_ON,
 		},
 		{
 			"node3id", "node3", 16, 110,
 			2.0, 1.9, 0.69, 1.1,
 			8168868, 8066468, 3600000, 4164400,
 			40470, 37297, 1234, 5678,
+			proto.EntityDTO_POWERED_ON,
+		},
+		{
+			"node4id", "powerStateUnknownNode4", 16, 110,
+			2.0, 1.9, 0.69, 1.1,
+			8168868, 8066468, 3600000, 4164400,
+			40470, 37297, 1234, 5678,
+			proto.EntityDTO_POWERSTATE_UNKNOWN,
 		},
 	}
 	nsVcpuLimitQuotaUsage1 = float64(5)
@@ -80,6 +91,7 @@ func makeNodeDTOs() ([]*proto.EntityDTO, error) {
 	var nodeDTOs []*proto.EntityDTO
 	for _, node := range Nodes {
 		nodeDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_VIRTUAL_MACHINE, node.id)
+		nodeDTOBuilder.WithPowerState(node.powerState)
 		cpu, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VCPU).
 			Capacity(node.cpuCap).Used(node.cpuUsed).Create()
 		if err != nil {
@@ -133,6 +145,8 @@ func TestBuildClusterDto(t *testing.T) {
 	assert.Nil(t, err, "Failed to make node DTOs to build the cluster DTO: %s", err)
 	clusterDTO, err := builder.BuildEntity(entityDTOs, entityDTOs)
 	assert.Nil(t, err)
+	// Cluster commodities will be aggregated from "node1", "node2" and "node3" which have POWERED_ON.
+	// Node "powerStateUnknownNode4" is skipped because it has POWERSTATE_UNKNOWN.
 	for _, commSold := range clusterDTO.CommoditiesSold {
 		switch commSold.GetCommodityType() {
 		case proto.CommodityDTO_CLUSTER:
