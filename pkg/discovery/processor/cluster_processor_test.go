@@ -358,17 +358,17 @@ func (s *MockClusterScrapper) GetResources(schema.GroupVersionResource) (*unstru
 // Implements the KubeHttpClientInterface
 // Method implementation will check to see if the test has provided the mockXXX method function
 type MockNodeScrapper struct {
-	mockExecuteRequestAndGetValue func(ip, nodeName, path string, value interface{}) error
+	mockExecuteRequestAndGetValue func(ip, nodeName, path string) ([]byte, error)
 	mockGetSummary                func(ip, nodeName string) (*stats.Summary, error)
 	mockGetMachineInfo            func(ip, nodeName string) (*cadvisorapi.MachineInfo, error)
 	mockGetNodeCpuFrequency       func(node *v1.Node) (float64, error)
 }
 
-func (s *MockNodeScrapper) ExecuteRequestAndGetValue(ip, nodeName, path string, value interface{}) error {
+func (s *MockNodeScrapper) ExecuteRequestAndGetValue(ip, nodeName, path string) ([]byte, error) {
 	if s.mockExecuteRequestAndGetValue != nil {
-		return s.mockExecuteRequestAndGetValue(ip, "", path, value)
+		return s.mockExecuteRequestAndGetValue(ip, "", path)
 	}
-	return fmt.Errorf("ExecuteRequestAndGetValue Not implemented")
+	return nil, fmt.Errorf("ExecuteRequestAndGetValue Not implemented")
 }
 
 func (s *MockNodeScrapper) GetSummary(ip, nodeName string) (*stats.Summary, error) {

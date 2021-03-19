@@ -39,6 +39,7 @@ require (
 	github.com/openshift/client-go v0.0.0-20201020074620-f8fd44879f7c
 	// openshift cluster api for cluster-api based node provision and suspend
 	github.com/openshift/machine-api-operator v0.2.1-0.20201216110516-d9e48bb9fc0b
+	k8s.io/kubelet v0.0.0
 )
 
 replace (

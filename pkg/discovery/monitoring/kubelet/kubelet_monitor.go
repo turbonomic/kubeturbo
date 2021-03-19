@@ -14,6 +14,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/features"
 	"k8s.io/client-go/kubernetes"
+	evictionapi "k8s.io/kubernetes/pkg/kubelet/eviction/api"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
@@ -144,9 +145,14 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 		}
 	}
 
+	thresholds, err := kc.GetKubeletThresholds(ip, node.Name)
+	if err != nil {
+		glog.Warningf("Failed to get kubelet thresholds for %s, %v.", node.Name, err)
+	}
+
 	// TODO Use time stamp attached to the discovered CPUStats/MemoryStats of node and pod from kubelet to be more precise
 	currentMilliSec := time.Now().UnixNano() / int64(time.Millisecond)
-	m.parseNodeStats(summary.Node, currentMilliSec)
+	m.parseNodeStats(summary.Node, thresholds, currentMilliSec)
 	m.parsePodStats(summary.Pods, currentMilliSec)
 
 	glog.V(4).Infof("Finished scrape node %s.", node.Name)
@@ -159,34 +165,85 @@ func (m *KubeletMonitor) parseNodeCpuFreq(node *api.Node, cpuFrequencyMHz float6
 }
 
 // Parse node stats and put it into sink.
-func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats, timestamp int64) {
-	var cpuUsageCore, memoryWorkingSetKiloBytes, rootfsCapacity, rootfsUsed float64
+func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats, thresholds []evictionapi.Threshold, timestamp int64) {
+	var cpuUsageCore, memoryWorkingSetBytes, memoryAvailableBytes, rootfsCapacityBytes, rootfsUsedMegaBytes float64
 	// cpu
 	if nodeStats.CPU != nil && nodeStats.CPU.UsageNanoCores != nil {
 		cpuUsageCore = util.MetricNanoToUnit(float64(*nodeStats.CPU.UsageNanoCores))
 	}
 	if nodeStats.Memory != nil && nodeStats.Memory.WorkingSetBytes != nil {
-		memoryWorkingSetKiloBytes = util.Base2BytesToKilobytes(float64(*nodeStats.Memory.WorkingSetBytes))
+		memoryWorkingSetBytes = float64(*nodeStats.Memory.WorkingSetBytes)
+	}
+	if nodeStats.Memory != nil && nodeStats.Memory.AvailableBytes != nil {
+		memoryAvailableBytes = float64(*nodeStats.Memory.AvailableBytes)
 	}
 	if nodeStats.Fs != nil && nodeStats.Fs.CapacityBytes != nil {
-		rootfsCapacity = util.Base2BytesToMegabytes(float64(*nodeStats.Fs.CapacityBytes))
+		rootfsCapacityBytes = float64(*nodeStats.Fs.CapacityBytes)
 	}
 	if nodeStats.Fs != nil && nodeStats.Fs.UsedBytes != nil {
 		// OpsMgr server expects the reported size in megabytes
-		rootfsUsed = util.Base2BytesToMegabytes(float64(*nodeStats.Fs.UsedBytes))
+		rootfsUsedMegaBytes = util.Base2BytesToMegabytes(float64(*nodeStats.Fs.UsedBytes))
 	}
 
 	key := util.NodeStatsKeyFunc(nodeStats)
 	nodeName := nodeStats.NodeName
+	memoryWorkingSetKiloBytes := util.Base2BytesToKilobytes(memoryWorkingSetBytes)
+	memoryCapacityBytes := memoryAvailableBytes + memoryWorkingSetBytes
+	rootfsCapacityMegaBytes := util.Base2BytesToMegabytes(rootfsCapacityBytes)
 	glog.V(4).Infof("CPU usage of node %s is %.3f core", nodeName, cpuUsageCore)
 	glog.V(4).Infof("Memory working set of node %s is %.3f KB", nodeName, memoryWorkingSetKiloBytes)
-	glog.V(4).Infof("Root File System size for node %s is %.3f Megabytes", nodeName, rootfsCapacity)
-	glog.V(4).Infof("Root File System used for node %s is %.3f Megabytes", nodeName, rootfsUsed)
+	glog.V(4).Infof("Memory capacity for node %s is %.3f Bytes", nodeName, memoryCapacityBytes)
+	glog.V(4).Infof("Root File System size for node %s is %.3f Megabytes", nodeName, rootfsCapacityMegaBytes)
+	glog.V(4).Infof("Root File System used for node %s is %.3f Megabytes", nodeName, rootfsUsedMegaBytes)
+
 	m.genUsedMetrics(metrics.NodeType, key, cpuUsageCore, memoryWorkingSetKiloBytes, timestamp)
 	// Collect node fsMetrics only in full discovery not in sampling discovery
 	if m.isFullDiscovery {
-		m.genFSMetrics(metrics.NodeType, key, rootfsCapacity, rootfsUsed)
+		m.genFSMetrics(metrics.NodeType, key, rootfsCapacityMegaBytes, rootfsUsedMegaBytes)
+		m.parseThresholdValues(key, memoryCapacityBytes, rootfsCapacityBytes, thresholds)
 	}
+}
+
+func (m *KubeletMonitor) parseThresholdValues(key string, memoryCapacity, rootfsCapacity float64, thresholds []evictionapi.Threshold) {
+	var memThreshold, rootfsThreshold float64
+
+	for _, threshold := range thresholds {
+		switch threshold.Signal {
+		case evictionapi.SignalMemoryAvailable:
+			memThreshold = GetThresholdPercentile(threshold.Value, memoryCapacity)
+		case evictionapi.SignalNodeFsAvailable:
+			rootfsThreshold = GetThresholdPercentile(threshold.Value, rootfsCapacity)
+		default:
+			// TODO: add support for imagefs when we can differentiate imagefs from rootfs
+		}
+	}
+
+	// Ref: https://kubernetes.io/docs/tasks/administer-cluster/out-of-resource/#hard-eviction-thresholds
+	// Ref: https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/apis/config/v1beta1/defaults_others.go#L22
+	// The configured thresholds are value going less then available bytes or percentage.
+	if memThreshold <= 0 || memThreshold >= 100 {
+		// default 100Mi
+		memThreshold = util.Base2MegabytesToBytes(100) * 100 / memoryCapacity
+	}
+	if rootfsThreshold <= 0 || rootfsThreshold >= 100 {
+		// default 10%
+		rootfsThreshold = 10
+	}
+
+	m.metricSink.AddNewMetricEntries(metrics.NewEntityResourceMetric(metrics.NodeType, key, metrics.Memory, metrics.Threshold, memThreshold))
+	m.metricSink.AddNewMetricEntries(metrics.NewEntityResourceMetric(metrics.NodeType, key, metrics.VStorage, metrics.Threshold, rootfsThreshold))
+	glog.V(4).Infof("Memory threshold for node %s is %.3f", key, memThreshold)
+	glog.V(4).Infof("Rootfs threshold for node %s is %.3f", key, rootfsThreshold)
+
+}
+
+func GetThresholdPercentile(value evictionapi.ThresholdValue, capacity float64) float64 {
+	if value.Percentage != 0 {
+		// The percentage value parsed in threshold is in decimal points wrt 1
+		// eg. 20% is represented as .20
+		return float64(value.Percentage) * 100
+	}
+	return float64(value.Quantity.Value()) * 100 / capacity
 }
 
 // Parse pod stats for every pod and put them into sink.
