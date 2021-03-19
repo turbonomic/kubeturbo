@@ -178,6 +178,21 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 	if err != nil {
 		return nil, err
 	}
+
+	if (resourceType == metrics.Memory || resourceType == metrics.VStorage) && entityType == metrics.NodeType {
+		thresholdAvailable, err := builder.metricValue(entityType, entityID,
+			resourceType, metrics.Threshold, nil)
+		if err != nil {
+			glog.Warningf("Missing threshold value for %v for node %s.", resourceType, entityID)
+		}
+		// TODO: The settable method for UtilizationThresholdPct can be added to the sdk instead.
+		if thresholdAvailable.Avg > 0 && thresholdAvailable.Avg <= 100 {
+			thresholdUtilization := 100 - thresholdAvailable.Avg
+			resourceCommoditySold.UtilizationThresholdPct = &thresholdUtilization
+		} else {
+			glog.Warningf("Threshold value [%.2f] outside range and will not be set for %v for node %s.", thresholdAvailable.Avg, resourceType, entityID)
+		}
+	}
 	return resourceCommoditySold, nil
 }
 

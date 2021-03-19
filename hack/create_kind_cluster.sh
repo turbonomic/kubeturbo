@@ -24,6 +24,14 @@ function create-cluster() {
   cat <<EOF | ${kind_path} create cluster --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
+kubeadmConfigPatches:
+- |
+  apiVersion: kubelet.config.k8s.io/v1beta1
+  kind: KubeletConfiguration
+  "evictionHard": {
+    "memory.available": "20%",
+    "nodefs.available": "20%",
+  }
 nodes:
 - role: control-plane
   image: kindest/node:v1.18.0@sha256:0e20578828edd939d25eb98496a685c76c98d54084932f76069f886ec315d694
