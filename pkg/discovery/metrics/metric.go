@@ -169,6 +169,7 @@ type MetricProp string
 const (
 	Capacity  MetricProp = "Capacity"
 	Used      MetricProp = "Used"
+	Available MetricProp = "Available"
 	Threshold MetricProp = "Threshold"
 )
 

@@ -180,11 +180,18 @@ func validateThresholds(entityDTOs []*proto.EntityDTO) {
 		}
 	}
 	if !almostEqual(memoryUtilizationThresholdPct, float64(80)) ||
-		!almostEqual(rootfsUtilizationThresholdPct, float64(80)) ||
-		!almostEqual(imagefsUtilizationThresholdPct, float64(80)) {
-		framework.Failf("Thresholds not set correctly. found: MemoryUtilPct: %.9f, RootfsUtilPct: %.9f, ImagefsUtilPct: %.9f.\n"+
-			"expected: MemoryUtilPct: %.9f, RootfsUtilPct:  %.9f, ImagefsUtilPct:  %.9f.", memoryUtilizationThresholdPct,
-			rootfsUtilizationThresholdPct, rootfsUtilizationThresholdPct, float64(80), float64(80), float64(80))
+		!almostEqual(rootfsUtilizationThresholdPct, float64(80)) {
+		framework.Failf("Thresholds not set correctly. found: MemoryUtilPct: %.9f, RootfsUtilPct: %.9f.\n"+
+			"expected: MemoryUtilPct: %.9f, RootfsUtilPct:  %.9f.", memoryUtilizationThresholdPct,
+			rootfsUtilizationThresholdPct, float64(80), float64(80))
+	}
+
+	// Because we ignore adding the imagefs commodity if the rootfs and imagefs partitions are same
+	// we would not get a value for imagefs threshold from a kind cluster.
+	// This can be uncommented on a cluster where imagefs is configured.
+	if !almostEqual(imagefsUtilizationThresholdPct, float64(80)) {
+		//		framework.Failf("Thresholds not set correctly. found: ImagefsUtilPct: %.9f.\n"+
+		//			"expected:  ImagefsUtilPct:  %.9f.", imagefsUtilizationThresholdPct, float64(80))
 	}
 
 }
