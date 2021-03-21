@@ -30,6 +30,11 @@ spec:
 {{- end }}
       containers:
         - name: {{ .Chart.Name }}
+          env:
+          - name: KUBETURBO_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
 {{- if .Values.image.related }}
           image: {{ .Values.image.related }}
 {{- else }}
@@ -42,6 +47,9 @@ spec:
           {{- if .Values.args.kubelethttps }}
           - --kubelet-https={{ .Values.args.kubelethttps }}
           - --kubelet-port={{ .Values.args.kubeletport }}
+          {{- end }}
+          {{- if .Values.image.busyboxRepository }}
+          - --busybox-image={{ .Values.image.busyboxRepository }}
           {{- end }}
           {{- if not .Values.args.stitchuuid }}
           - --stitch-uuid={{ .Values.args.stitchuuid }}

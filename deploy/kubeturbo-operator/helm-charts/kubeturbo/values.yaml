@@ -7,8 +7,9 @@ replicaCount: 1
 # Replace the image with desired version
 image:
   repository: turbonomic/kubeturbo
-e  tag: 8.1.2
+  tag: 8.1.3
   pullPolicy: IfNotPresent
+#  busyboxRepository: busybox
 
 annotations:
   kubeturbo.io/controllable: "false"

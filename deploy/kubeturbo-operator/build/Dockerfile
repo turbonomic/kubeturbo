@@ -1,4 +1,4 @@
-FROM quay.io/operator-framework/helm-operator:v1.4.2
+FROM quay.io/operator-framework/helm-operator:v1.5.0
 
 # Required OpenShift Labels
 LABEL name="Kubeturbo Operator" \

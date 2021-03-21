@@ -56,6 +56,9 @@ spec:
                 tag:
                   description: Kubeturbo container image tag
                   type: string
+                busyboxRepository:
+                  description: Busybox repository. default is busybox
+                  type: string
                 pullPolicy:
                   description: Define pull policy, Always is default
                   type: string
