@@ -179,18 +179,19 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 		return nil, err
 	}
 
-	if (resourceType == metrics.Memory || resourceType == metrics.VStorage) && entityType == metrics.NodeType {
-		thresholdAvailable, err := builder.metricValue(entityType, entityID,
+	if resourceType == metrics.Memory && entityType == metrics.NodeType {
+		threshold, err := builder.metricValue(entityType, entityID,
 			resourceType, metrics.Threshold, nil)
 		if err != nil {
 			glog.Warningf("Missing threshold value for %v for node %s.", resourceType, entityID)
 		}
 		// TODO: The settable method for UtilizationThresholdPct can be added to the sdk instead.
-		if thresholdAvailable.Avg > 0 && thresholdAvailable.Avg <= 100 {
-			thresholdUtilization := 100 - thresholdAvailable.Avg
+		if threshold.Avg > 0 && threshold.Avg <= 100 {
+			// Threshold values set in kubelet are in terms of metrics (eg rootfs size) value available.
+			thresholdUtilization := 100 - threshold.Avg
 			resourceCommoditySold.UtilizationThresholdPct = &thresholdUtilization
 		} else {
-			glog.Warningf("Threshold value [%.2f] outside range and will not be set for %v for node %s.", thresholdAvailable.Avg, resourceType, entityID)
+			glog.Warningf("Threshold value [%.2f] outside range and will not be set for %v for node %s.", threshold.Avg, resourceType, entityID)
 		}
 	}
 	return resourceCommoditySold, nil
@@ -264,6 +265,12 @@ func (builder generalBuilder) getResourceCommoditiesBought(entityType metrics.Di
 
 		// set peak value as the used value
 		commBoughtBuilder.Peak(metricValue.Peak)
+
+		if rType == metrics.VStorage {
+			// set commodity key only for vstorahge.
+			// currently pods only report and buy rootfs usage.
+			commBoughtBuilder.Key("k8s-node-rootfs")
+		}
 
 		// set additional attribute
 		if commodityAttrSetter != nil && commodityAttrSetter.Settable(rType) {

@@ -3,6 +3,7 @@ package integration
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/test/integration/framework"
@@ -159,6 +160,7 @@ func validateThresholds(entityDTOs []*proto.EntityDTO) {
 	// "nodefs.available": "20%",
 	memoryUtilizationThresholdPct := float64(0)
 	rootfsUtilizationThresholdPct := float64(0)
+	imagefsUtilizationThresholdPct := float64(0)
 	for _, entityDTO := range entityDTOs {
 		if entityDTO.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE {
 			for _, soldCommodity := range entityDTO.GetCommoditiesSold() {
@@ -166,17 +168,30 @@ func validateThresholds(entityDTOs []*proto.EntityDTO) {
 					memoryUtilizationThresholdPct = soldCommodity.GetUtilizationThresholdPct()
 				}
 				if soldCommodity.GetCommodityType() == proto.CommodityDTO_VSTORAGE {
-					rootfsUtilizationThresholdPct = soldCommodity.GetUtilizationThresholdPct()
+					if strings.HasSuffix(soldCommodity.GetKey(), "imagefs") {
+						imagefsUtilizationThresholdPct = soldCommodity.GetUtilizationThresholdPct()
+					} else {
+						rootfsUtilizationThresholdPct = soldCommodity.GetUtilizationThresholdPct()
+					}
 				}
 			}
 			// Check any node
 			break
 		}
 	}
-	if !almostEqual(memoryUtilizationThresholdPct, float64(80)) || !almostEqual(rootfsUtilizationThresholdPct, float64(80)) {
-		framework.Failf("Thresholds not set correctly. found: MemoryUtilPct: %.9f, RootfsUtilPct: %.9f."+
-			"expected: MemoryUtilPct: %.9f, RootfsUtilPct:  %.9f.", memoryUtilizationThresholdPct, rootfsUtilizationThresholdPct,
-			float64(80), float64(80))
+	if !almostEqual(memoryUtilizationThresholdPct, float64(80)) ||
+		!almostEqual(rootfsUtilizationThresholdPct, float64(80)) {
+		framework.Failf("Thresholds not set correctly. found: MemoryUtilPct: %.9f, RootfsUtilPct: %.9f.\n"+
+			"expected: MemoryUtilPct: %.9f, RootfsUtilPct:  %.9f.", memoryUtilizationThresholdPct,
+			rootfsUtilizationThresholdPct, float64(80), float64(80))
+	}
+
+	// Because we ignore adding the imagefs commodity if the rootfs and imagefs partitions are same
+	// we would not get a value for imagefs threshold from a kind cluster.
+	// This can be uncommented on a cluster where imagefs is configured.
+	if !almostEqual(imagefsUtilizationThresholdPct, float64(80)) {
+		//		framework.Failf("Thresholds not set correctly. found: ImagefsUtilPct: %.9f.\n"+
+		//			"expected:  ImagefsUtilPct:  %.9f.", imagefsUtilizationThresholdPct, float64(80))
 	}
 
 }

@@ -2,6 +2,7 @@ package kubelet
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -166,7 +167,8 @@ func (m *KubeletMonitor) parseNodeCpuFreq(node *api.Node, cpuFrequencyMHz float6
 
 // Parse node stats and put it into sink.
 func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats, thresholds []evictionapi.Threshold, timestamp int64) {
-	var cpuUsageCore, memoryWorkingSetBytes, memoryAvailableBytes, rootfsCapacityBytes, rootfsUsedMegaBytes float64
+	var cpuUsageCore, memoryWorkingSetBytes, memoryAvailableBytes, rootfsCapacityBytes,
+		rootfsUsedBytes, rootfsAvailableBytes, imagefsCapacityBytes, imagefsAvailableBytes float64
 	// cpu
 	if nodeStats.CPU != nil && nodeStats.CPU.UsageNanoCores != nil {
 		cpuUsageCore = util.MetricNanoToUnit(float64(*nodeStats.CPU.UsageNanoCores))
@@ -182,7 +184,20 @@ func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats, thresholds []
 	}
 	if nodeStats.Fs != nil && nodeStats.Fs.UsedBytes != nil {
 		// OpsMgr server expects the reported size in megabytes
-		rootfsUsedMegaBytes = util.Base2BytesToMegabytes(float64(*nodeStats.Fs.UsedBytes))
+		rootfsUsedBytes = float64(*nodeStats.Fs.UsedBytes)
+	}
+	if nodeStats.Fs != nil && nodeStats.Fs.AvailableBytes != nil {
+		rootfsAvailableBytes = float64(*nodeStats.Fs.AvailableBytes)
+	}
+	if nodeStats.Runtime != nil && nodeStats.Runtime.ImageFs != nil && nodeStats.Runtime.ImageFs.CapacityBytes != nil {
+		imagefsCapacityBytes = float64(*nodeStats.Runtime.ImageFs.CapacityBytes)
+	}
+	if nodeStats.Runtime != nil && nodeStats.Runtime.ImageFs != nil && nodeStats.Runtime.ImageFs.UsedBytes != nil {
+		// The imagefs used bytes represent the sum total of bytes occupied by
+		// the images on the file system. This means the shared layers might be
+		// counted multiple times and this value can sometimes even go above the
+		// reported capacity. We use AvailableBytes in place.
+		imagefsAvailableBytes = float64(*nodeStats.Runtime.ImageFs.AvailableBytes)
 	}
 
 	key := util.NodeStatsKeyFunc(nodeStats)
@@ -190,22 +205,33 @@ func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats, thresholds []
 	memoryWorkingSetKiloBytes := util.Base2BytesToKilobytes(memoryWorkingSetBytes)
 	memoryCapacityBytes := memoryAvailableBytes + memoryWorkingSetBytes
 	rootfsCapacityMegaBytes := util.Base2BytesToMegabytes(rootfsCapacityBytes)
+	rootfsUsedMegaBytes := util.Base2BytesToMegabytes(rootfsUsedBytes)
+	imagefsCapacityMegaBytes := util.Base2BytesToMegabytes(imagefsCapacityBytes)
+	imagefsUsedBytes := imagefsCapacityBytes - imagefsAvailableBytes
+	imagefsUsedMegaBytes := util.Base2BytesToMegabytes(imagefsUsedBytes)
+
 	glog.V(4).Infof("CPU usage of node %s is %.3f core", nodeName, cpuUsageCore)
 	glog.V(4).Infof("Memory working set of node %s is %.3f KB", nodeName, memoryWorkingSetKiloBytes)
 	glog.V(4).Infof("Memory capacity for node %s is %.3f Bytes", nodeName, memoryCapacityBytes)
-	glog.V(4).Infof("Root File System size for node %s is %.3f Megabytes", nodeName, rootfsCapacityMegaBytes)
-	glog.V(4).Infof("Root File System used for node %s is %.3f Megabytes", nodeName, rootfsUsedMegaBytes)
 
 	m.genUsedMetrics(metrics.NodeType, key, cpuUsageCore, memoryWorkingSetKiloBytes, timestamp)
+
 	// Collect node fsMetrics only in full discovery not in sampling discovery
 	if m.isFullDiscovery {
-		m.genFSMetrics(metrics.NodeType, key, rootfsCapacityMegaBytes, rootfsUsedMegaBytes)
-		m.parseThresholdValues(key, memoryCapacityBytes, rootfsCapacityBytes, thresholds)
+		imagefsKey := fmt.Sprintf("%s-imagefs", key)
+		m.genFSMetrics(metrics.NodeType, key, rootfsCapacityBytes, 0, rootfsAvailableBytes)
+		m.genFSMetrics(metrics.NodeType, imagefsKey, imagefsCapacityBytes, 0, imagefsAvailableBytes)
+		m.parseThresholdValues(key, memoryCapacityBytes, rootfsCapacityBytes, imagefsCapacityBytes, thresholds)
+
+		glog.V(4).Infof("Root File System size for node %s is %.3f Megabytes", nodeName, rootfsCapacityMegaBytes)
+		glog.V(4).Infof("Root File System used for node %s is %.3f Megabytes", nodeName, rootfsUsedMegaBytes)
+		glog.V(4).Infof("Image File System size for node %s is %.3f Megabytes", nodeName, imagefsCapacityMegaBytes)
+		glog.V(4).Infof("Image File System used for node %s is %.3f Megabytes", nodeName, imagefsUsedMegaBytes)
 	}
 }
 
-func (m *KubeletMonitor) parseThresholdValues(key string, memoryCapacity, rootfsCapacity float64, thresholds []evictionapi.Threshold) {
-	var memThreshold, rootfsThreshold float64
+func (m *KubeletMonitor) parseThresholdValues(key string, memoryCapacity, rootfsCapacity, imagefsCapacity float64, thresholds []evictionapi.Threshold) {
+	var memThreshold, rootfsThreshold, imagefsThreshold float64
 
 	for _, threshold := range thresholds {
 		switch threshold.Signal {
@@ -213,8 +239,9 @@ func (m *KubeletMonitor) parseThresholdValues(key string, memoryCapacity, rootfs
 			memThreshold = GetThresholdPercentile(threshold.Value, memoryCapacity)
 		case evictionapi.SignalNodeFsAvailable:
 			rootfsThreshold = GetThresholdPercentile(threshold.Value, rootfsCapacity)
+		case evictionapi.SignalImageFsAvailable:
+			imagefsThreshold = GetThresholdPercentile(threshold.Value, imagefsCapacity)
 		default:
-			// TODO: add support for imagefs when we can differentiate imagefs from rootfs
 		}
 	}
 
@@ -229,11 +256,18 @@ func (m *KubeletMonitor) parseThresholdValues(key string, memoryCapacity, rootfs
 		// default 10%
 		rootfsThreshold = 10
 	}
+	if imagefsThreshold <= 0 || imagefsThreshold >= 100 {
+		// default 15%
+		rootfsThreshold = 15
+	}
 
+	imagefsKey := fmt.Sprintf("%s-imagefs", key)
 	m.metricSink.AddNewMetricEntries(metrics.NewEntityResourceMetric(metrics.NodeType, key, metrics.Memory, metrics.Threshold, memThreshold))
 	m.metricSink.AddNewMetricEntries(metrics.NewEntityResourceMetric(metrics.NodeType, key, metrics.VStorage, metrics.Threshold, rootfsThreshold))
+	m.metricSink.AddNewMetricEntries(metrics.NewEntityResourceMetric(metrics.NodeType, imagefsKey, metrics.VStorage, metrics.Threshold, imagefsThreshold))
 	glog.V(4).Infof("Memory threshold for node %s is %.3f", key, memThreshold)
 	glog.V(4).Infof("Rootfs threshold for node %s is %.3f", key, rootfsThreshold)
+	glog.V(4).Infof("Imagefs threshold for node %s is %.3f", key, imagefsThreshold)
 
 }
 
@@ -275,7 +309,7 @@ func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats, timestamp int6
 		// Collect pod numConsumersUsedMetrics and fsMetrics only in full discovery not in sampling discovery
 		if m.isFullDiscovery {
 			m.genNumConsumersUsedMetrics(metrics.PodType, key)
-			m.genFSMetrics(metrics.PodType, key, ephemeralFsCapacity, ephemeralFsUsed)
+			m.genFSMetrics(metrics.PodType, key, ephemeralFsCapacity, ephemeralFsUsed, 0)
 			if utilfeature.DefaultFeatureGate.Enabled(features.PersistentVolumes) {
 				m.parseVolumeStats(pod.VolumeStats, key)
 			}
@@ -384,10 +418,16 @@ func (m *KubeletMonitor) genNumConsumersUsedMetrics(etype metrics.DiscoveredEnti
 	m.metricSink.AddNewMetricEntries(numConsumersMetric)
 }
 
-func (m *KubeletMonitor) genFSMetrics(etype metrics.DiscoveredEntityType, key string, capacity, used float64) {
+func (m *KubeletMonitor) genFSMetrics(etype metrics.DiscoveredEntityType, key string, capacity, used, available float64) {
 	capacityMetric := metrics.NewEntityResourceMetric(etype, key, metrics.VStorage, metrics.Capacity, capacity)
-	usedMetric := metrics.NewEntityResourceMetric(etype, key, metrics.VStorage, metrics.Used, used)
-	m.metricSink.AddNewMetricEntries(capacityMetric, usedMetric)
+	m.metricSink.AddNewMetricEntries(capacityMetric)
+	if etype == metrics.NodeType {
+		availableMetric := metrics.NewEntityResourceMetric(etype, key, metrics.VStorage, metrics.Available, available)
+		m.metricSink.AddNewMetricEntries(availableMetric)
+	} else {
+		usedMetric := metrics.NewEntityResourceMetric(etype, key, metrics.VStorage, metrics.Used, used)
+		m.metricSink.AddNewMetricEntries(usedMetric)
+	}
 }
 
 func (m *KubeletMonitor) genPVMetrics(etype metrics.DiscoveredEntityType, key string, capacity, used float64) {
