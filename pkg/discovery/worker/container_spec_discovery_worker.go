@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -68,11 +69,11 @@ func (worker *k8sContainerSpecDiscoveryWorker) createContainerSpecMetricsMap(con
 	containerSpecMetricsMap := make(map[string]*repository.ContainerSpecMetrics)
 	for _, containerSpecMetrics := range containerSpecMetricsList {
 		containerSpecId := containerSpecMetrics.ContainerSpecId
-		existingContainerSpec, exists := containerSpecMetricsMap[containerSpecId]
+		containerSpecMetricsInMap, exists := containerSpecMetricsMap[containerSpecId]
 		if !exists {
 			containerSpecMetricsMap[containerSpecId] = containerSpecMetrics
 		} else {
-			for resourceType, existingResourceMetrics := range existingContainerSpec.ContainerMetrics {
+			for resourceType, existingResourceMetrics := range containerSpecMetricsInMap.ContainerMetrics {
 				containerMetrics, exists := containerSpecMetrics.ContainerMetrics[resourceType]
 				if !exists {
 					glog.Errorf("%s resource does not exist for ContainerSpec %s", resourceType, containerSpecMetrics.ContainerSpecId)
@@ -85,14 +86,32 @@ func (worker *k8sContainerSpecDiscoveryWorker) createContainerSpecMetricsMap(con
 				// replicas here and will use max value when building container spec entity dto.
 				existingResourceMetrics.Capacity = append(existingResourceMetrics.Capacity, containerMetrics.Capacity...)
 				// Append containerMetrics used data points of same resource type of container replicas from different nodes.
-				existingResourceMetrics.Used = append(existingResourceMetrics.Used, containerMetrics.Used...)
+				existingResourceMetrics.Used = appendMetricsByType(existingResourceMetrics.Used, containerMetrics.Used)
 			}
 			// Increment number of container replicas
-			existingContainerSpec.ContainerReplicas++
+			containerSpecMetricsInMap.ContainerReplicas++
 		}
 	}
 	for containerSpecId, containerSpec := range containerSpecMetricsMap {
 		glog.V(4).Infof("Discovered ContainerSpec entity %s has %d container replicas", containerSpecId, containerSpec.ContainerReplicas)
 	}
 	return containerSpecMetricsMap
+}
+
+func appendMetricsByType(slice, elements interface{}) interface{} {
+	switch typedSlice := slice.(type) {
+	case []metrics.Point:
+		typedElements, isRightType := elements.([]metrics.Point)
+		if isRightType {
+			typedSlice = append(typedSlice, typedElements...)
+		}
+		return typedSlice
+	case [][]metrics.ThrottlingCumulative:
+		typedElements, isRightType := elements.([][]metrics.ThrottlingCumulative)
+		if isRightType {
+			typedSlice = append(typedSlice, typedElements...)
+		}
+		return typedSlice
+	}
+	return nil
 }

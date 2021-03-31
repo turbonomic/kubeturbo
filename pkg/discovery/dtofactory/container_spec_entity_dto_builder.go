@@ -1,6 +1,9 @@
 package dtofactory
 
 import (
+	"math"
+	"sort"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -16,6 +19,7 @@ var (
 		metrics.Memory,
 		metrics.CPURequest,
 		metrics.MemoryRequest,
+		metrics.VCPUThrottling,
 	}
 )
 
@@ -96,26 +100,36 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 		// Note that the returned dataIntervalMs is not the real sampling interval because there could be multiple data
 		// points from container replicas discovered at the same time in one set of data samples. This is just a calculated
 		// equivalent interval between 2 data points to be fed into percentile based algorithm in Turbo server side.
-		utilizationDataPoints, lastPointTimestamp, dataIntervalMs, err := builder.containerUtilizationDataAggregator.Aggregate(resourceMetrics)
-		if err != nil {
-			glog.Errorf("Error aggregating %s utilization data for ContainerSpec %s, %v",
-				resourceType, containerSpecMetrics.ContainerSpecId, err)
-			continue
-		}
-		// Construct UtilizationData with multiple data points, last point timestamp in milliseconds and interval in milliseconds
-		commSoldBuilder.UtilizationData(utilizationDataPoints, lastPointTimestamp, dataIntervalMs)
+		// We don't need utilization data for VCPU Throttling and average aggregation strategies are not applicable.
+		if resourceType != metrics.VCPUThrottling {
+			utilizationDataPoints, lastPointTimestamp, dataIntervalMs, err := builder.containerUtilizationDataAggregator.Aggregate(resourceMetrics)
+			if err != nil {
+				glog.Errorf("Error aggregating %s utilization data for ContainerSpec %s, %v",
+					resourceType, containerSpecMetrics.ContainerSpecId, err)
+				continue
+			}
+			// Construct UtilizationData with multiple data points, last point timestamp in milliseconds and interval in milliseconds
+			commSoldBuilder.UtilizationData(utilizationDataPoints, lastPointTimestamp, dataIntervalMs)
 
-		// Aggregate container replicas usage data (capacity, used and peak)
-		aggregatedCap, aggregatedUsed, aggregatedPeak, err :=
-			builder.containerUsageDataAggregator.Aggregate(resourceMetrics)
-		if err != nil {
-			glog.Errorf("Error aggregating commodity usage data for ContainerSpec %s, %v",
-				containerSpecMetrics.ContainerSpecId, err)
-			continue
+			// Aggregate container replicas usage data (capacity, used and peak)
+			aggregatedCap, aggregatedUsed, aggregatedPeak, err :=
+				builder.containerUsageDataAggregator.Aggregate(resourceMetrics)
+			if err != nil {
+				glog.Errorf("Error aggregating commodity usage data for ContainerSpec %s, %v",
+					containerSpecMetrics.ContainerSpecId, err)
+				continue
+			}
+			commSoldBuilder.Capacity(aggregatedCap)
+			commSoldBuilder.Peak(aggregatedPeak)
+			commSoldBuilder.Used(aggregatedUsed)
+		} else {
+			aggregatedCap, aggregatedUsed, aggregatedPeak, ok := aggregateThrottlingSamples(resourceMetrics.Used)
+			if ok {
+				commSoldBuilder.Capacity(aggregatedCap)
+				commSoldBuilder.Peak(aggregatedPeak)
+				commSoldBuilder.Used(aggregatedUsed)
+			}
 		}
-		commSoldBuilder.Capacity(aggregatedCap)
-		commSoldBuilder.Peak(aggregatedPeak)
-		commSoldBuilder.Used(aggregatedUsed)
 
 		// Commodities sold by ContainerSpec entities have resizable flag as true so as to update resizable flag to
 		// the commodities sold by corresponding Container entities in the server side when taking historical percentile
@@ -132,4 +146,43 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 		commoditiesSold = append(commoditiesSold, commSold)
 	}
 	return commoditiesSold, nil
+}
+
+func aggregateThrottlingSamples(samples interface{}) (float64, float64, float64, bool) {
+	typedSamples, ok := samples.([][]metrics.ThrottlingCumulative)
+	if !ok {
+		return 0, 0, 0, false
+	}
+
+	var throttledOverall, totalOverall, peakOverall float64
+	for _, singleContainerSamples := range typedSamples {
+		numberOfSamples := len(singleContainerSamples)
+		if numberOfSamples <= 1 {
+			// We don't have enough samples to calculate this value.
+			continue
+		}
+		sort.SliceStable(singleContainerSamples, func(i, j int) bool {
+			return singleContainerSamples[i].Timestamp < singleContainerSamples[j].Timestamp
+		})
+
+		throttledOverall += singleContainerSamples[numberOfSamples-1].Throttled - singleContainerSamples[0].Throttled
+		totalOverall += singleContainerSamples[numberOfSamples-1].Total - singleContainerSamples[0].Total
+
+		var peak float64
+		for i := 0; i < numberOfSamples-1; i++ {
+			total := singleContainerSamples[i+1].Total - singleContainerSamples[i].Total
+			singleSamplePercent := float64(0)
+			if total > 0 {
+				singleSamplePercent = (singleContainerSamples[i+1].Throttled - singleContainerSamples[i].Throttled) * 100 / total
+			}
+			peak = math.Max(peak, singleSamplePercent)
+		}
+		peakOverall = math.Max(peakOverall, peak)
+	}
+	avgThrottled := float64(0)
+	if totalOverall > 0 {
+		avgThrottled = throttledOverall * 100 / totalOverall
+	}
+
+	return 100, avgThrottled, peakOverall, true
 }

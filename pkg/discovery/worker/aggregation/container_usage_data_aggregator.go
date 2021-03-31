@@ -1,8 +1,9 @@
 package aggregation
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"math"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 const (
@@ -37,18 +38,18 @@ func (avgUsageDataAggregator *avgUsageDataAggregator) String() string {
 }
 
 func (avgUsageDataAggregator *avgUsageDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) (float64, float64, float64, error) {
-	isValid, err := isResourceMetricsValid(resourceMetrics, avgUsageDataAggregator)
+	usedPoints, isValid, err := isResourceMetricsValid(resourceMetrics, avgUsageDataAggregator)
 	if !isValid || err != nil {
 		return 0.0, 0.0, 0.0, err
 	}
 	capacity := getResourceCapacity(resourceMetrics)
 	usedSum := 0.0
 	peak := 0.0
-	for _, usedPoint := range resourceMetrics.Used {
+	for _, usedPoint := range usedPoints {
 		usedSum += usedPoint.Value
 		peak = math.Max(peak, usedPoint.Value)
 	}
-	avgUsed := usedSum / float64(len(resourceMetrics.Used))
+	avgUsed := usedSum / float64(len(usedPoints))
 	return capacity, avgUsed, peak, nil
 }
 
@@ -62,7 +63,7 @@ func (maxUsageDataAggregator *maxUsageDataAggregator) String() string {
 }
 
 func (maxUsageDataAggregator *maxUsageDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) (float64, float64, float64, error) {
-	isValid, err := isResourceMetricsValid(resourceMetrics, maxUsageDataAggregator)
+	usedPoints, isValid, err := isResourceMetricsValid(resourceMetrics, maxUsageDataAggregator)
 	if !isValid || err != nil {
 		return 0.0, 0.0, 0.0, err
 	}
@@ -71,7 +72,7 @@ func (maxUsageDataAggregator *maxUsageDataAggregator) Aggregate(resourceMetrics 
 		capacity = math.Max(capacity, capVal)
 	}
 	maxUsed := 0.0
-	for _, usedPoint := range resourceMetrics.Used {
+	for _, usedPoint := range usedPoints {
 		maxUsed = math.Max(maxUsed, usedPoint.Value)
 	}
 	return capacity, maxUsed, maxUsed, nil

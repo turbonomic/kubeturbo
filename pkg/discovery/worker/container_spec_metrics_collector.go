@@ -16,6 +16,7 @@ var (
 		metrics.Memory,
 		metrics.CPURequest,
 		metrics.MemoryRequest,
+		metrics.VCPUThrottling,
 	}
 )
 
@@ -82,33 +83,31 @@ func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containe
 			glog.V(4).Infof("Container %s has no %s set", containerMId, resourceType)
 			continue
 		}
-		usedMetricValue, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Used, nodeCPUFrequency)
+		usedMetricPoints, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Used, nodeCPUFrequency)
 		if err != nil {
 			glog.Warningf("Cannot get resource %s value for container %s %s: %v", metrics.Used, containerMId, resourceType, err)
 			continue
 		}
-		usedValPoints, ok := usedMetricValue.([]metrics.Point)
-		if !ok {
-			glog.Errorf("Error getting resource %s value for container %s %s: usedMetricValue is %t not '[]metrics.Point' type",
-				metrics.Used, containerMId, resourceType, usedMetricValue)
-			continue
+		var capVal float64
+		if resourceType == metrics.VCPUThrottling {
+			capVal = 100
+		} else {
+			capacityMetricValue, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Capacity, nodeCPUFrequency)
+			if err != nil {
+				glog.Warningf("Cannot get resource %s value for container %s %s", metrics.Capacity, containerMId, resourceType)
+				continue
+			}
+			ok := false
+			capVal, ok = capacityMetricValue.(float64)
+			if !ok {
+				glog.Errorf("Error getting resource %s value for container %s %s: capacityMetricValue is %t not 'float64' type",
+					metrics.Capacity, containerMId, resourceType, capacityMetricValue)
+				continue
+			}
 		}
-		capacityMetricValue, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Capacity, nodeCPUFrequency)
-		if err != nil {
-			glog.Warningf("Cannot get resource %s value for container %s %s", metrics.Capacity, containerMId, resourceType)
-			continue
-		}
-		capVal, ok := capacityMetricValue.(float64)
-		if !ok {
-			glog.Errorf("Error getting resource %s value for container %s %s: capacityMetricValue is %t not 'float64' type",
-				metrics.Capacity, containerMId, resourceType, capacityMetricValue)
-			continue
-		}
-		containerResourceMetrics := repository.NewContainerMetrics([]float64{capVal}, usedValPoints)
+		containerResourceMetrics := repository.NewContainerMetrics([]float64{capVal}, usedMetricPoints)
 		containerSpecMetric.ContainerMetrics[resourceType] = containerResourceMetrics
 	}
-	// TODO: Collect the throttling metrics data, whose collection is slightly different from other metrics.
-
 }
 
 func (collector *ContainerSpecMetricsCollector) getResourceMetricValue(containerMId string, rType metrics.ResourceType,
@@ -118,9 +117,9 @@ func (collector *ContainerSpecMetricsCollector) getResourceMetricValue(container
 	if err != nil {
 		return nil, fmt.Errorf("missing metrics %s", metricUID)
 	}
-	switch resourceMetric.GetValue().(type) {
+	switch typedValue := resourceMetric.GetValue().(type) {
 	case []metrics.Point:
-		metricPoints, _ := resourceMetric.GetValue().([]metrics.Point)
+		metricPoints := typedValue
 		// Create new metricPoints instead of modifying existing metricPoints values if it's CPU type.
 		// This will guarantee the data stored in metrics sink have original values when building container dtos.
 		newMetricPoints := make([]metrics.Point, len(metricPoints))
@@ -137,8 +136,21 @@ func (collector *ContainerSpecMetricsCollector) getResourceMetricValue(container
 			}
 		}
 		return newMetricPoints, nil
+	case []metrics.ThrottlingCumulative:
+		var newMetricTCs []metrics.ThrottlingCumulative
+		numberOfSamples := len(typedValue)
+		if typedValue != nil {
+			newMetricTCs = make([]metrics.ThrottlingCumulative, numberOfSamples)
+			copy(newMetricTCs, typedValue)
+		}
+		if numberOfSamples <= 1 {
+			// we dont have enough samples.
+			return [][]metrics.ThrottlingCumulative{}, fmt.Errorf("not enough data points [%d] to"+
+				"aggregate throttling metrics for: %s", numberOfSamples, metricUID)
+		}
+		return [][]metrics.ThrottlingCumulative{newMetricTCs}, nil
 	case float64:
-		metricValue := resourceMetric.GetValue().(float64)
+		metricValue := typedValue
 		if metrics.IsCPUType(rType) {
 			// If resource is CPU type, convert metricValue expressed in number of cores to MHz
 			metricValue *= nodeCPUFrequency
