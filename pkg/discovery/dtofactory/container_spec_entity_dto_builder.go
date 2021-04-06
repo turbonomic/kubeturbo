@@ -2,7 +2,6 @@ package dtofactory
 
 import (
 	"math"
-	"sort"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
@@ -101,7 +100,17 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 		// points from container replicas discovered at the same time in one set of data samples. This is just a calculated
 		// equivalent interval between 2 data points to be fed into percentile based algorithm in Turbo server side.
 		// We don't need utilization data for VCPU Throttling and average aggregation strategies are not applicable.
-		if resourceType != metrics.VCPUThrottling {
+		if resourceType == metrics.VCPUThrottling {
+			typedUsed, ok := resourceMetrics.Used.([][]metrics.ThrottlingCumulative)
+			if ok {
+				aggregatedCap, aggregatedUsed, aggregatedPeak := aggregateThrottlingSamples(typedUsed)
+				commSoldBuilder.Capacity(aggregatedCap)
+				commSoldBuilder.Peak(aggregatedPeak)
+				commSoldBuilder.Used(aggregatedUsed)
+			} else {
+				glog.Warningf("Invalid throttling metrics type: expected: [][]metrics.ThrottlingCumulative, got: %T.", resourceMetrics.Used)
+			}
+		} else {
 			utilizationDataPoints, lastPointTimestamp, dataIntervalMs, err := builder.containerUtilizationDataAggregator.Aggregate(resourceMetrics)
 			if err != nil {
 				glog.Errorf("Error aggregating %s utilization data for ContainerSpec %s, %v",
@@ -122,13 +131,6 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 			commSoldBuilder.Capacity(aggregatedCap)
 			commSoldBuilder.Peak(aggregatedPeak)
 			commSoldBuilder.Used(aggregatedUsed)
-		} else {
-			aggregatedCap, aggregatedUsed, aggregatedPeak, ok := aggregateThrottlingSamples(resourceMetrics.Used)
-			if ok {
-				commSoldBuilder.Capacity(aggregatedCap)
-				commSoldBuilder.Peak(aggregatedPeak)
-				commSoldBuilder.Used(aggregatedUsed)
-			}
 		}
 
 		// Commodities sold by ContainerSpec entities have resizable flag as true so as to update resizable flag to
@@ -148,41 +150,27 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 	return commoditiesSold, nil
 }
 
-func aggregateThrottlingSamples(samples interface{}) (float64, float64, float64, bool) {
-	typedSamples, ok := samples.([][]metrics.ThrottlingCumulative)
-	if !ok {
-		return 0, 0, 0, false
-	}
-
+// aggregateThrottlingSamples aggregates the throttling samples collected across all containers for the
+// given container spec.
+// Throttled values is the percentage of overall throttled counter sum wrt the overall total counter sum
+// across all containers. Peak is the peak of peaks, ie. the peak of individual container peaks calculated
+// from diff of subsequent samples per container.
+func aggregateThrottlingSamples(samples [][]metrics.ThrottlingCumulative) (float64, float64, float64) {
 	var throttledOverall, totalOverall, peakOverall float64
-	for _, singleContainerSamples := range typedSamples {
-		numberOfSamples := len(singleContainerSamples)
-		if numberOfSamples <= 1 {
+	for _, singleContainerSamples := range samples {
+		containerThrottled, containerTotal, containerPeak, ok := aggregateContainerThrottlingSamples("", singleContainerSamples)
+		if !ok {
 			// We don't have enough samples to calculate this value.
 			continue
 		}
-		sort.SliceStable(singleContainerSamples, func(i, j int) bool {
-			return singleContainerSamples[i].Timestamp < singleContainerSamples[j].Timestamp
-		})
-
-		throttledOverall += singleContainerSamples[numberOfSamples-1].Throttled - singleContainerSamples[0].Throttled
-		totalOverall += singleContainerSamples[numberOfSamples-1].Total - singleContainerSamples[0].Total
-
-		var peak float64
-		for i := 0; i < numberOfSamples-1; i++ {
-			total := singleContainerSamples[i+1].Total - singleContainerSamples[i].Total
-			singleSamplePercent := float64(0)
-			if total > 0 {
-				singleSamplePercent = (singleContainerSamples[i+1].Throttled - singleContainerSamples[i].Throttled) * 100 / total
-			}
-			peak = math.Max(peak, singleSamplePercent)
-		}
-		peakOverall = math.Max(peakOverall, peak)
+		throttledOverall += containerThrottled
+		totalOverall += containerTotal
+		peakOverall = math.Max(peakOverall, containerPeak)
 	}
-	avgThrottled := float64(0)
+	avgThrottledOverall := float64(0)
 	if totalOverall > 0 {
-		avgThrottled = throttledOverall * 100 / totalOverall
+		avgThrottledOverall = throttledOverall * 100 / totalOverall
 	}
 
-	return 100, avgThrottled, peakOverall, true
+	return 100, avgThrottledOverall, peakOverall
 }

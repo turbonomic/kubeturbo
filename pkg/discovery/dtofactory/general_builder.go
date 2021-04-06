@@ -228,32 +228,14 @@ func (builder generalBuilder) metricValue(entityType metrics.DiscoveredEntityTyp
 		metricValue.Avg = sum / float64(len(typedValue))
 		metricValue.Peak = peak
 	case []metrics.ThrottlingCumulative:
-		numberOfSamples := len(typedValue)
-		if numberOfSamples <= 1 {
+		throttled, total, peak, ok := aggregateContainerThrottlingSamples(entityID, typedValue)
+		if !ok {
 			// We don't have enough samples to calculate this value.
-			// Throttling value would appear as zero on the entity.
-			glog.V(3).Infof("Number of samples not enough to calculate throttling value on: %s", entityID)
 			break
 		}
 
-		// TODO: The need of this sort could be removed if the metrics sinks
-		// are always merged in timed order.
-		sort.SliceStable(typedValue, func(i, j int) bool {
-			return typedValue[i].Timestamp < typedValue[j].Timestamp
-		})
-		total := typedValue[numberOfSamples-1].Total - typedValue[0].Total
 		if total > 0 {
-			metricValue.Avg = (typedValue[numberOfSamples-1].Throttled - typedValue[0].Throttled) * 100 / total
-		}
-
-		var peak float64
-		for i := 0; i < numberOfSamples-1; i++ {
-			total := typedValue[i+1].Total - typedValue[i].Total
-			throttledPercent := float64(0)
-			if total > 0 {
-				throttledPercent = (typedValue[i+1].Throttled - typedValue[i].Throttled) * 100 / total
-			}
-			peak = math.Max(peak, throttledPercent)
+			metricValue.Avg = throttled * 100 / total
 		}
 		metricValue.Peak = peak
 	case float64:
@@ -373,4 +355,42 @@ func (builder generalBuilder) getNodeCPUFrequency(nodeKey string) (float64, erro
 	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
 	glog.V(4).Infof("CPU frequency for node %s: %f", nodeKey, cpuFrequency)
 	return cpuFrequency, nil
+}
+
+// aggregateContainerThrottlingSamples aggregates the throttling samples collected
+// over a period of time but within a single discovery cycle for a single container.
+// Throttled value is calculated as the overall percentage from the counter data collected
+// from the first and the last sample. The peak is calculated from the individual throttling
+// percentages by the diff of counters between two subsequent samples.
+func aggregateContainerThrottlingSamples(entityID string, samples []metrics.ThrottlingCumulative) (throttled float64, total float64, peak float64, ok bool) {
+	numberOfSamples := len(samples)
+	if numberOfSamples <= 1 {
+		// We don't have enough samples to calculate this value.
+		// Throttling value would appear as zero on the entity.
+		if entityID != "" {
+			// We log this while calculating the Avg and Peak on an individual container
+			// We do not have the container id while aggregating on the container specs
+			// but its ok as the information will anyways be a repeated msg only.
+			glog.V(3).Infof("Number of samples not enough to calculate throttling value on: %s", entityID)
+		}
+		return 0, 0, 0, false
+	}
+
+	// TODO: The need of this sort could be removed if the metrics sinks
+	// are always merged in timed order.
+	sort.SliceStable(samples, func(i, j int) bool {
+		return samples[i].Timestamp < samples[j].Timestamp
+	})
+	throttled = (samples[numberOfSamples-1].Throttled - samples[0].Throttled)
+	total = samples[numberOfSamples-1].Total - samples[0].Total
+
+	for i := 0; i < numberOfSamples-1; i++ {
+		total := samples[i+1].Total - samples[i].Total
+		throttledPercent := float64(0)
+		if total > 0 {
+			throttledPercent = (samples[i+1].Throttled - samples[i].Throttled) * 100 / total
+		}
+		peak = math.Max(peak, throttledPercent)
+	}
+	return throttled, total, peak, true
 }
