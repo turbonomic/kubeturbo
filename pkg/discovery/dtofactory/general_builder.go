@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"math"
+	"sort"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
@@ -30,6 +31,7 @@ var (
 		metrics.NumPods:            proto.CommodityDTO_NUMBER_CONSUMERS,
 		metrics.VStorage:           proto.CommodityDTO_VSTORAGE,
 		metrics.StorageAmount:      proto.CommodityDTO_STORAGE_AMOUNT,
+		metrics.VCPUThrottling:     proto.CommodityDTO_VCPU_THROTTLING,
 	}
 )
 
@@ -158,13 +160,19 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 	commSoldBuilder.Peak(metricValue.Peak)
 
 	// set capacity value
-	capacityMetricValue, err := builder.metricValue(entityType, entityID,
-		resourceType, metrics.Capacity, converter)
-	if err != nil {
-		return nil, err
+	if resourceType == metrics.VCPUThrottling {
+		// This is better then separately posting the capacity into metrics sync
+		// and then reading it here.
+		commSoldBuilder.Capacity(100)
+	} else {
+		capacityMetricValue, err := builder.metricValue(entityType, entityID,
+			resourceType, metrics.Capacity, converter)
+		if err != nil {
+			return nil, err
+		}
+		// Capacity metric is always a single data point. Use Avg to refer to the single point value
+		commSoldBuilder.Capacity(capacityMetricValue.Avg)
 	}
-	// Capacity metric is always a single data point. Use Avg to refer to the single point value
-	commSoldBuilder.Capacity(capacityMetricValue.Avg)
 
 	// set additional attribute
 	if commodityAttrSetter != nil && commodityAttrSetter.Settable(resourceType) {
@@ -209,19 +217,30 @@ func (builder generalBuilder) metricValue(entityType metrics.DiscoveredEntityTyp
 	}
 
 	value := metric.GetValue()
-	switch value.(type) {
+	switch typedValue := value.(type) {
 	case []metrics.Point:
 		var sum float64
 		var peak float64
-		for _, point := range value.([]metrics.Point) {
+		for _, point := range typedValue {
 			sum += point.Value
 			peak = math.Max(peak, point.Value)
 		}
-		metricValue.Avg = sum / float64(len(value.([]metrics.Point)))
+		metricValue.Avg = sum / float64(len(typedValue))
+		metricValue.Peak = peak
+	case []metrics.ThrottlingCumulative:
+		throttled, total, peak, ok := aggregateContainerThrottlingSamples(entityID, typedValue)
+		if !ok {
+			// We don't have enough samples to calculate this value.
+			break
+		}
+
+		if total > 0 {
+			metricValue.Avg = throttled * 100 / total
+		}
 		metricValue.Peak = peak
 	case float64:
-		metricValue.Avg = value.(float64)
-		metricValue.Peak = value.(float64)
+		metricValue.Avg = typedValue
+		metricValue.Peak = typedValue
 	default:
 		return metricValue, fmt.Errorf("unsupported metric value type %t", metric.GetValue())
 	}
@@ -336,4 +355,42 @@ func (builder generalBuilder) getNodeCPUFrequency(nodeKey string) (float64, erro
 	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
 	glog.V(4).Infof("CPU frequency for node %s: %f", nodeKey, cpuFrequency)
 	return cpuFrequency, nil
+}
+
+// aggregateContainerThrottlingSamples aggregates the throttling samples collected
+// over a period of time but within a single discovery cycle for a single container.
+// Throttled value is calculated as the overall percentage from the counter data collected
+// from the first and the last sample. The peak is calculated from the individual throttling
+// percentages by the diff of counters between two subsequent samples.
+func aggregateContainerThrottlingSamples(entityID string, samples []metrics.ThrottlingCumulative) (throttled float64, total float64, peak float64, ok bool) {
+	numberOfSamples := len(samples)
+	if numberOfSamples <= 1 {
+		// We don't have enough samples to calculate this value.
+		// Throttling value would appear as zero on the entity.
+		if entityID != "" {
+			// We log this while calculating the Avg and Peak on an individual container
+			// We do not have the container id while aggregating on the container specs
+			// but its ok as the information will anyways be a repeated msg only.
+			glog.V(3).Infof("Number of samples not enough to calculate throttling value on: %s", entityID)
+		}
+		return 0, 0, 0, false
+	}
+
+	// TODO: The need of this sort could be removed if the metrics sinks
+	// are always merged in timed order.
+	sort.SliceStable(samples, func(i, j int) bool {
+		return samples[i].Timestamp < samples[j].Timestamp
+	})
+	throttled = (samples[numberOfSamples-1].Throttled - samples[0].Throttled)
+	total = samples[numberOfSamples-1].Total - samples[0].Total
+
+	for i := 0; i < numberOfSamples-1; i++ {
+		total := samples[i+1].Total - samples[i].Total
+		throttledPercent := float64(0)
+		if total > 0 {
+			throttledPercent = (samples[i+1].Throttled - samples[i].Throttled) * 100 / total
+		}
+		peak = math.Max(peak, throttledPercent)
+	}
+	return throttled, total, peak, true
 }

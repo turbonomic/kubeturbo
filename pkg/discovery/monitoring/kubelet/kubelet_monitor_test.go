@@ -12,6 +12,7 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 )
 
 const (
@@ -224,4 +225,76 @@ func TestParseStats(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestParseMetricFamilies(t *testing.T) {
+	// This sample is an actual metric copied from a live cluster to also document
+	// how an actual metric retrieved from kubelet would look like.
+	// The throttled period and total period values are updated to the test values.
+	metricSample := []byte(`
+# HELP container_cpu_cfs_periods_total Number of elapsed enforcement period intervals.
+# TYPE container_cpu_cfs_periods_total counter
+container_cpu_cfs_periods_total{container="",id="/kubepods/burstable/pod278c96f7-c22a-466a-85ae-69f221705a38",image="",name="",namespace="lens-metrics",pod="node-exporter-pmngv"} 476995 1616975911629
+container_cpu_cfs_periods_total{container="",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af",image="",name="",namespace="ccp",pod="metallb-speaker-m29mf"} 2.074517e+06 1616975909256
+container_cpu_cfs_periods_total{container="metallb-speaker",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af/8e1a2ff0f116c9d086af53cbd7430dced0e70fed104aea79e3891870564aed38",image="sha256:8c49f7de2c13b87026d7afb04f35494e5d9ce6b5eeeb7f8983d38e601d0ac910",name="k8s_metallb-speaker_metallb-speaker-m29mf_ccp_8266a379-dd56-42f8-8af0-19fc0d8ea3af_16",namespace="ccp",pod="metallb-speaker-m29mf"} 10 1616975907597
+container_cpu_cfs_periods_total{container="node-exporter",id="/kubepods/burstable/pod278c96f7-c22a-466a-85ae-69f221705a38/6a79a7d41fcfb3347875e6bfa17a7c6daa7911ff42a0177906a2005b1e8ffa12",image="sha256:0e0218889c33b5fbb9e158d45ff6193c7c145b4ce3ec348045626cfa09f8331d",name="k8s_node-exporter_node-exporter-pmngv_lens-metrics_278c96f7-c22a-466a-85ae-69f221705a38_1",namespace="lens-metrics",pod="node-exporter-pmngv"} 20 1616975915711
+# HELP container_cpu_cfs_throttled_periods_total Number of throttled period intervals.
+# TYPE container_cpu_cfs_throttled_periods_total counter
+container_cpu_cfs_throttled_periods_total{container="",id="/kubepods/burstable/pod278c96f7-c22a-466a-85ae-69f221705a38",image="",name="",namespace="lens-metrics",pod="node-exporter-pmngv"} 158736 1616976193974
+container_cpu_cfs_throttled_periods_total{container="",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af",image="",name="",namespace="ccp",pod="metallb-speaker-m29mf"} 38909 1616976189755
+container_cpu_cfs_throttled_periods_total{container="metallb-speaker",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af/8e1a2ff0f116c9d086af53cbd7430dced0e70fed104aea79e3891870564aed38",image="sha256:8c49f7de2c13b87026d7afb04f35494e5d9ce6b5eeeb7f8983d38e601d0ac910",name="k8s_metallb-speaker_metallb-speaker-m29mf_ccp_8266a379-dd56-42f8-8af0-19fc0d8ea3af_16",namespace="ccp",pod="metallb-speaker-m29mf"} 5 1616976197080
+container_cpu_cfs_throttled_periods_total{container="node-exporter",id="/kubepods/burstable/pod278c96f7-c22a-466a-85ae-69f221705a38/6a79a7d41fcfb3347875e6bfa17a7c6daa7911ff42a0177906a2005b1e8ffa12",image="sha256:0e0218889c33b5fbb9e158d45ff6193c7c145b4ce3ec348045626cfa09f8331d",name="k8s_node-exporter_node-exporter-pmngv_lens-metrics_278c96f7-c22a-466a-85ae-69f221705a38_1",namespace="lens-metrics",pod="node-exporter-pmngv"} 15 1616976196348
+`)
+	mfs, err := kubeclient.TextToThrottlingMetricFamilies(metricSample)
+	if err != nil {
+		t.Errorf("Unexpeced error parsing metric families: %v", err)
+	}
+
+	parsed := parseMetricFamilies(mfs)
+	verifyParsedMetrics(t, parsed)
+}
+
+func verifyParsedMetrics(t *testing.T, got map[string]*throttlingMetric) {
+	// The parsed metric is a map which should have keys as container ids formatted as
+	// <namespace>/<podname>/<containername>
+	// the namespace, podname and containername is extracted from the labels on
+	// individual metric.
+	// The throttled value and the total value is merged into:
+	// type throttlingMetric struct {
+	// cpuThrottled float64
+	// cpuTotal     float64
+	// }
+	// from the two separately reported metrics for each container.
+	// The parsing ignores the metrics with container names = ""
+	// These metrics are sum total of all containers for a pod.
+	expected := map[string]*throttlingMetric{
+		"ccp/metallb-speaker-m29mf/metallb-speaker": {
+			cpuThrottled: 5,
+			cpuTotal:     10,
+		},
+		"lens-metrics/node-exporter-pmngv/node-exporter": {
+			cpuThrottled: 15,
+			cpuTotal:     20,
+		},
+	}
+
+	for key, expectedMetrics := range expected {
+		gotMetrics, exists := got[key]
+		if !exists {
+			t.Errorf("Missing metrics after parsing for container key: %s", key)
+		}
+		if !matchMetrics(gotMetrics, expectedMetrics) {
+			t.Errorf("Parsed metrics don't match for: %s: got: %v++, expected: %v++", key, gotMetrics, expectedMetrics)
+		}
+	}
+}
+
+func matchMetrics(got, expected *throttlingMetric) bool {
+	return almostEqual(got.cpuThrottled, expected.cpuThrottled) && almostEqual(got.cpuTotal, expected.cpuTotal)
+}
+
+const float64EqualityThreshold = 1e-9
+
+func almostEqual(a, b float64) bool {
+	return math.Abs(a-b) <= float64EqualityThreshold
 }

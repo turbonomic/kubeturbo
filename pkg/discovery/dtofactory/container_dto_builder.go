@@ -45,6 +45,10 @@ var (
 		metrics.MemoryRequest,
 	}
 
+	throttlingCommodity = []metrics.ResourceType{
+		metrics.VCPUThrottling,
+	}
+
 	commodityBought = []metrics.ResourceType{
 		metrics.CPU,
 		metrics.Memory,
@@ -149,7 +153,7 @@ func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) []*proto.En
 			commoditiesSold, err := builder.getCommoditiesSold(name, containerId, containerMId, nodeCPUFrequency,
 				isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet)
 			if err != nil {
-				glog.Warningf("failed to create commoditiesSold for container[%s]: %v", name, err)
+				glog.Warningf("Failed to create commoditiesSold for container[%s]: %v", name, err)
 				continue
 			}
 			ebuilder.SellsCommodities(commoditiesSold)
@@ -240,6 +244,9 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 		memRequestCommodities := builder.createCommoditiesSold(containerEntityType, memRequestCommodity, containerMId, nil, true)
 		result = append(result, memRequestCommodities...)
 	}
+
+	throttlingCommodities := builder.createCommoditiesSold(containerEntityType, throttlingCommodity, containerMId, nil, false)
+	result = append(result, throttlingCommodities...)
 
 	//2. Application
 	appCommodity, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).

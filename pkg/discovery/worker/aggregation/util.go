@@ -2,15 +2,22 @@ package aggregation
 
 import (
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"math"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
-func isResourceMetricsValid(resourceMetrics *repository.ContainerMetrics, dataAggregator interface{}) (bool, error) {
-	if len(resourceMetrics.Used) == 0 || len(resourceMetrics.Capacity) == 0 {
-		return false, fmt.Errorf("error aggregating container data using %s: used or capacity data points list is empty", dataAggregator)
+func isResourceMetricsValid(resourceMetrics *repository.ContainerMetrics, dataAggregator interface{}) ([]metrics.Point, bool, error) {
+	usedPoints, isRightType := resourceMetrics.Used.([]metrics.Point)
+	if !isRightType {
+		err := fmt.Errorf("the metrics type received for aggregation is wrong expected []metrics.Point: got: %T", resourceMetrics.Used)
+		return usedPoints, false, err
 	}
-	return true, nil
+	if len(usedPoints) == 0 || len(resourceMetrics.Capacity) == 0 {
+		return usedPoints, false, fmt.Errorf("error aggregating container data using %s: used or capacity data points list is empty", dataAggregator)
+	}
+	return usedPoints, true, nil
 }
 
 // Use the max of resource capacity values from all container replicas.

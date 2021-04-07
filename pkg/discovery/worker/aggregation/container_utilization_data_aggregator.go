@@ -2,8 +2,9 @@ package aggregation
 
 import (
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"math"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 const (
@@ -39,7 +40,7 @@ func (allDataAggregator *allUtilizationDataAggregator) String() string {
 }
 
 func (allDataAggregator *allUtilizationDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) ([]float64, int64, int32, error) {
-	isValid, err := isResourceMetricsValid(resourceMetrics, allDataAggregator)
+	usedPoints, isValid, err := isResourceMetricsValid(resourceMetrics, allDataAggregator)
 	if !isValid || err != nil {
 		return []float64{}, 0, 0, err
 	}
@@ -51,7 +52,8 @@ func (allDataAggregator *allUtilizationDataAggregator) Aggregate(resourceMetrics
 	var utilizationDataPoints []float64
 	var firstTimestamp int64
 	var lastTimestamp int64
-	for _, usedPoint := range resourceMetrics.Used {
+
+	for _, usedPoint := range usedPoints {
 		utilization := usedPoint.Value / capacity * 100
 		utilizationDataPoints = append(utilizationDataPoints, utilization)
 		if firstTimestamp == 0 || usedPoint.Timestamp < firstTimestamp {
@@ -79,7 +81,7 @@ func (maxDataAggregator *maxUtilizationDataAggregator) String() string {
 }
 
 func (maxDataAggregator *maxUtilizationDataAggregator) Aggregate(resourceMetrics *repository.ContainerMetrics) ([]float64, int64, int32, error) {
-	isValid, err := isResourceMetricsValid(resourceMetrics, maxDataAggregator)
+	usedPoints, isValid, err := isResourceMetricsValid(resourceMetrics, maxDataAggregator)
 	if !isValid || err != nil {
 		return []float64{}, 0, 0, err
 	}
@@ -90,7 +92,8 @@ func (maxDataAggregator *maxUtilizationDataAggregator) Aggregate(resourceMetrics
 	}
 	var maxUtilization float64
 	var lastTimestamp int64
-	for _, usedPoint := range resourceMetrics.Used {
+
+	for _, usedPoint := range usedPoints {
 		utilization := usedPoint.Value / capacity * 100
 		maxUtilization = math.Max(utilization, maxUtilization)
 		if usedPoint.Timestamp > lastTimestamp {

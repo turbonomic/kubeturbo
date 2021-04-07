@@ -2,10 +2,11 @@ package dtofactory
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	"testing"
 )
 
 var (
@@ -220,4 +221,56 @@ func TestMetricValueWithMultiplePoints(t *testing.T) {
 	metricValue, _ := dtoBuilder.metricValue(metrics.ContainerType, containerId, metrics.CPU, metrics.Used, nil)
 	assert.EqualValues(t, 3, int(metricValue.Avg))
 	assert.EqualValues(t, 4, int(metricValue.Peak))
+}
+
+func TestMetricValueWithThrottlingCumulativePoints(t *testing.T) {
+	metricsSink = metrics.NewEntityMetricSink().WithMaxMetricPointsSize(5)
+	containerId := "container-throttling"
+	cpuUsedMetric1 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
+		[]metrics.ThrottlingCumulative{{
+			Throttled: 1,
+			Total:     5,
+			Timestamp: 1,
+		}})
+	cpuUsedMetric2 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
+		[]metrics.ThrottlingCumulative{{
+			Throttled: 3,
+			Total:     8,
+			Timestamp: 2,
+		}})
+	cpuUsedMetric3 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
+		[]metrics.ThrottlingCumulative{{
+			Throttled: 5,
+			Total:     10,
+			Timestamp: 3,
+		}})
+	cpuUsedMetric4 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
+		[]metrics.ThrottlingCumulative{{
+			Throttled: 6,
+			Total:     15,
+			Timestamp: 4,
+		}})
+	cpuUsedMetric5 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
+		[]metrics.ThrottlingCumulative{{
+			Throttled: 11,
+			Total:     25,
+			Timestamp: 5,
+		}})
+	metricsSink.AddNewMetricEntries(cpuUsedMetric1)
+	metricsSink.UpdateMetricEntry(cpuUsedMetric2)
+	metricsSink.UpdateMetricEntry(cpuUsedMetric3)
+	metricsSink.UpdateMetricEntry(cpuUsedMetric4)
+	metricsSink.UpdateMetricEntry(cpuUsedMetric5)
+
+	dtoBuilder := &generalBuilder{
+		metricsSink: metricsSink,
+	}
+
+	metricValue, _ := dtoBuilder.metricValue(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used, nil)
+	// throttled samples = (11-6) (6-5) (5-3) (3-1)
+	// total samples = (20-15) (15-10) (10-8) (8-5)
+	// Avg = (11-1)*100/(25-5)
+	// Peak = (5-3)*100/(10-8)
+	assert.EqualValues(t, 50, int(metricValue.Avg))
+	assert.EqualValues(t, 100, int(metricValue.Peak))
 }

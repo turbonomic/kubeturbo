@@ -36,6 +36,7 @@ const (
 	NumPods            ResourceType = "NumPods"
 	VStorage           ResourceType = "VStorage"
 	StorageAmount      ResourceType = "StorageAmount"
+	VCPUThrottling     ResourceType = "VCPUThrottling"
 
 	Access       ResourceType = "Access"
 	Cluster      ResourceType = "Cluster"
@@ -204,6 +205,16 @@ type Point struct {
 	Timestamp int64
 }
 
+// Counter type cumilative data point of cpu throttling metric sample collected from kubelet
+type ThrottlingCumulative struct {
+	// Cumulative throttled number of runnable periods for the resource
+	Throttled float64
+	// Cumulative total number of runnable periods for the resource
+	Total float64
+	// Time at which the metric value is collected
+	Timestamp int64
+}
+
 func NewResourceMetric(rType ResourceType, mProp MetricProp, v interface{}) ResourceMetric {
 	return ResourceMetric{
 		resourceType: rType,
@@ -259,21 +270,31 @@ func (m EntityResourceMetric) UpdateValue(existing interface{}, maxMetricPointsS
 		return m
 	}
 
-	newPoints, isMultiPoint := m.value.([]Point)
-	if !isMultiPoint {
+	switch newValues := m.value.(type) {
+	case []Point:
+		// The caller should ensure that right type is created and matching
+		// type updated, else this will CRASH.
+		points := typedExisting.value.([]Point)
+		points = append(points, newValues...)
+		// If points length is larger than maxMetricPointsSize, use latest maxMetricPointsSize of points
+		if len(points) > maxMetricPointsSize {
+			points = points[len(points)-maxMetricPointsSize:]
+		}
+		m.value = points
+	case []ThrottlingCumulative:
+		// The caller should ensure that right type is created and matching
+		// type updated, else this will CRASH.
+		tc := typedExisting.value.([]ThrottlingCumulative)
+		tc = append(tc, newValues...)
+		if len(tc) > maxMetricPointsSize {
+			tc = tc[len(tc)-maxMetricPointsSize:]
+		}
+		m.value = tc
+	default:
 		m.value = typedExisting.value
 		return m
 	}
 
-	// The caller should ensure that right type is created and matching
-	// type updated for multi point metrics, else this will CRASH.
-	points := typedExisting.value.([]Point)
-	points = append(points, newPoints...)
-	// If points length is larger than maxMetricPointsSize, use latest maxMetricPointsSize of points
-	if len(points) > maxMetricPointsSize {
-		points = points[len(points)-maxMetricPointsSize:]
-	}
-	m.value = points
 	return m
 }
 

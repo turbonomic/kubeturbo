@@ -1,6 +1,8 @@
 package dtofactory
 
 import (
+	"math"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -16,6 +18,7 @@ var (
 		metrics.Memory,
 		metrics.CPURequest,
 		metrics.MemoryRequest,
+		metrics.VCPUThrottling,
 	}
 )
 
@@ -96,26 +99,39 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 		// Note that the returned dataIntervalMs is not the real sampling interval because there could be multiple data
 		// points from container replicas discovered at the same time in one set of data samples. This is just a calculated
 		// equivalent interval between 2 data points to be fed into percentile based algorithm in Turbo server side.
-		utilizationDataPoints, lastPointTimestamp, dataIntervalMs, err := builder.containerUtilizationDataAggregator.Aggregate(resourceMetrics)
-		if err != nil {
-			glog.Errorf("Error aggregating %s utilization data for ContainerSpec %s, %v",
-				resourceType, containerSpecMetrics.ContainerSpecId, err)
-			continue
-		}
-		// Construct UtilizationData with multiple data points, last point timestamp in milliseconds and interval in milliseconds
-		commSoldBuilder.UtilizationData(utilizationDataPoints, lastPointTimestamp, dataIntervalMs)
+		// We don't need utilization data for VCPU Throttling and average aggregation strategies are not applicable.
+		if resourceType == metrics.VCPUThrottling {
+			typedUsed, ok := resourceMetrics.Used.([][]metrics.ThrottlingCumulative)
+			if ok {
+				aggregatedCap, aggregatedUsed, aggregatedPeak := aggregateThrottlingSamples(typedUsed)
+				commSoldBuilder.Capacity(aggregatedCap)
+				commSoldBuilder.Peak(aggregatedPeak)
+				commSoldBuilder.Used(aggregatedUsed)
+			} else {
+				glog.Warningf("Invalid throttling metrics type: expected: [][]metrics.ThrottlingCumulative, got: %T.", resourceMetrics.Used)
+			}
+		} else {
+			utilizationDataPoints, lastPointTimestamp, dataIntervalMs, err := builder.containerUtilizationDataAggregator.Aggregate(resourceMetrics)
+			if err != nil {
+				glog.Errorf("Error aggregating %s utilization data for ContainerSpec %s, %v",
+					resourceType, containerSpecMetrics.ContainerSpecId, err)
+				continue
+			}
+			// Construct UtilizationData with multiple data points, last point timestamp in milliseconds and interval in milliseconds
+			commSoldBuilder.UtilizationData(utilizationDataPoints, lastPointTimestamp, dataIntervalMs)
 
-		// Aggregate container replicas usage data (capacity, used and peak)
-		aggregatedCap, aggregatedUsed, aggregatedPeak, err :=
-			builder.containerUsageDataAggregator.Aggregate(resourceMetrics)
-		if err != nil {
-			glog.Errorf("Error aggregating commodity usage data for ContainerSpec %s, %v",
-				containerSpecMetrics.ContainerSpecId, err)
-			continue
+			// Aggregate container replicas usage data (capacity, used and peak)
+			aggregatedCap, aggregatedUsed, aggregatedPeak, err :=
+				builder.containerUsageDataAggregator.Aggregate(resourceMetrics)
+			if err != nil {
+				glog.Errorf("Error aggregating commodity usage data for ContainerSpec %s, %v",
+					containerSpecMetrics.ContainerSpecId, err)
+				continue
+			}
+			commSoldBuilder.Capacity(aggregatedCap)
+			commSoldBuilder.Peak(aggregatedPeak)
+			commSoldBuilder.Used(aggregatedUsed)
 		}
-		commSoldBuilder.Capacity(aggregatedCap)
-		commSoldBuilder.Peak(aggregatedPeak)
-		commSoldBuilder.Used(aggregatedUsed)
 
 		// Commodities sold by ContainerSpec entities have resizable flag as true so as to update resizable flag to
 		// the commodities sold by corresponding Container entities in the server side when taking historical percentile
@@ -132,4 +148,29 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 		commoditiesSold = append(commoditiesSold, commSold)
 	}
 	return commoditiesSold, nil
+}
+
+// aggregateThrottlingSamples aggregates the throttling samples collected across all containers for the
+// given container spec.
+// Throttled values is the percentage of overall throttled counter sum wrt the overall total counter sum
+// across all containers. Peak is the peak of peaks, ie. the peak of individual container peaks calculated
+// from diff of subsequent samples per container.
+func aggregateThrottlingSamples(samples [][]metrics.ThrottlingCumulative) (float64, float64, float64) {
+	var throttledOverall, totalOverall, peakOverall float64
+	for _, singleContainerSamples := range samples {
+		containerThrottled, containerTotal, containerPeak, ok := aggregateContainerThrottlingSamples("", singleContainerSamples)
+		if !ok {
+			// We don't have enough samples to calculate this value.
+			continue
+		}
+		throttledOverall += containerThrottled
+		totalOverall += containerTotal
+		peakOverall = math.Max(peakOverall, containerPeak)
+	}
+	avgThrottledOverall := float64(0)
+	if totalOverall > 0 {
+		avgThrottledOverall = throttledOverall * 100 / totalOverall
+	}
+
+	return 100, avgThrottledOverall, peakOverall
 }
