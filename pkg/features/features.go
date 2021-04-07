@@ -19,6 +19,12 @@ const (
 	//
 	// Persistent volumes support.
 	PersistentVolumes featuregate.Feature = "PersistentVolumes"
+
+	// owner: @irfanurrehman
+	// beta:
+	//
+	// Persistent volumes support.
+	ThrottlingMetrics featuregate.Feature = "ThrottlingMetrics"
 )
 
 func init() {
@@ -34,4 +40,5 @@ func init() {
 // Note: We use the config to feed the values, not the command line params.
 var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	PersistentVolumes: {Default: true, PreRelease: featuregate.Beta},
+	ThrottlingMetrics: {Default: true, PreRelease: featuregate.Beta},
 }

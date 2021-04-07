@@ -8,8 +8,10 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 var (
@@ -81,6 +83,9 @@ func (builder *containerSpecDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics *repository.ContainerSpecMetrics) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
 	for _, resourceType := range ContainerSpecResourceTypes {
+		if resourceType == metrics.VCPUThrottling && !utilfeature.DefaultFeatureGate.Enabled(features.ThrottlingMetrics) {
+			continue
+		}
 		commodityType, exist := rTypeMapping[resourceType]
 		if !exist {
 			glog.Errorf("Unsupported resource type %s when building commoditiesSold for ContainerSpec %s",

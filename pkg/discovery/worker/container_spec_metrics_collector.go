@@ -3,11 +3,14 @@ package worker
 import (
 	"fmt"
 
+	api "k8s.io/api/core/v1"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	api "k8s.io/api/core/v1"
+	"github.com/turbonomic/kubeturbo/pkg/features"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 var (
@@ -78,6 +81,10 @@ func (collector *ContainerSpecMetricsCollector) CollectContainerSpecMetrics() []
 func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containerSpecMetric *repository.ContainerSpecMetrics,
 	containerMId string, nodeCPUFrequency float64, isCpuRequestSet, isMemRequestSet bool) {
 	for _, resourceType := range resourceTypes {
+		if resourceType == metrics.VCPUThrottling && !utilfeature.DefaultFeatureGate.Enabled(features.ThrottlingMetrics) {
+			// skip collecting throttling metrics if feature is disabled
+			continue
+		}
 		if resourceType == metrics.CPURequest && !isCpuRequestSet || resourceType == metrics.MemoryRequest && !isMemRequestSet {
 			// If CPU/Memory request is not set on container, no need to collect request resource metrics
 			glog.V(4).Infof("Container %s has no %s set", containerMId, resourceType)

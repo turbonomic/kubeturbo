@@ -83,7 +83,7 @@ func (namespaceMetrics *NamespaceMetrics) AggregateUsed(partialUsed map[metrics.
 type ContainerMetrics struct {
 	Capacity []float64
 	// Used could be []metrics.Point or [][]metrics.ThrottlingCumulative
-	// [][]metrics. ThrottlingCumulative stores multipoints segregated per container.
+	// [][]metrics.ThrottlingCumulative stores multipoints segregated per container.
 	// Storing it this way helps in identifying metrics per container while aggregating
 	// the metrics for containerSpecs.
 	// TODO: At some point this can be converted to a typed UsedMetric interface which

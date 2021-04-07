@@ -152,17 +152,19 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 		glog.Warningf("Failed to get kubelet thresholds for %s, %v.", node.Name, err)
 	}
 
-	metricFamilies, err := kc.GetCPUThrottlingMetrics(ip, node.Name)
-	if err != nil {
-		glog.Warningf("Failed to read kubelet cadvisor metrics for %s, %v.", node.Name, err)
-	}
-	if _, found := metricFamilies[kubeclient.ContainerCPUThrottledTotal]; !found {
-		glog.V(3).Infof("No throttling metrics found for node %s.", node.Name)
-	}
-
 	// TODO Use time stamp attached to the discovered CPUStats/MemoryStats of node and pod from kubelet to be more precise
 	currentMilliSec := time.Now().UnixNano() / int64(time.Millisecond)
-	m.generateThrottlingMetrics(metricFamilies, currentMilliSec)
+	if utilfeature.DefaultFeatureGate.Enabled(features.ThrottlingMetrics) {
+		metricFamilies, err := kc.GetCPUThrottlingMetrics(ip, node.Name)
+		if err != nil {
+			glog.Warningf("Failed to read kubelet cadvisor metrics for %s, %v.", node.Name, err)
+		}
+		if _, found := metricFamilies[kubeclient.ContainerCPUThrottledTotal]; !found {
+			glog.V(3).Infof("No throttling metrics found for node %s.", node.Name)
+		}
+		m.generateThrottlingMetrics(metricFamilies, currentMilliSec)
+	}
+
 	m.parseNodeStats(summary.Node, thresholds, currentMilliSec)
 	m.parsePodStats(summary.Pods, currentMilliSec)
 
