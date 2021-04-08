@@ -108,7 +108,7 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 		if resourceType == metrics.VCPUThrottling {
 			typedUsed, ok := resourceMetrics.Used.([][]metrics.ThrottlingCumulative)
 			if ok {
-				aggregatedCap, aggregatedUsed, aggregatedPeak := aggregateThrottlingSamples(typedUsed)
+				aggregatedCap, aggregatedUsed, aggregatedPeak := aggregateThrottlingSamples(containerSpecMetrics.ContainerSpecId, typedUsed)
 				commSoldBuilder.Capacity(aggregatedCap)
 				commSoldBuilder.Peak(aggregatedPeak)
 				commSoldBuilder.Used(aggregatedUsed)
@@ -160,7 +160,7 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 // Throttled values is the percentage of overall throttled counter sum wrt the overall total counter sum
 // across all containers. Peak is the peak of peaks, ie. the peak of individual container peaks calculated
 // from diff of subsequent samples per container.
-func aggregateThrottlingSamples(samples [][]metrics.ThrottlingCumulative) (float64, float64, float64) {
+func aggregateThrottlingSamples(containerSpecId string, samples [][]metrics.ThrottlingCumulative) (float64, float64, float64) {
 	var throttledOverall, totalOverall, peakOverall float64
 	for _, singleContainerSamples := range samples {
 		containerThrottled, containerTotal, containerPeak, ok := aggregateContainerThrottlingSamples("", singleContainerSamples)
@@ -176,6 +176,8 @@ func aggregateThrottlingSamples(samples [][]metrics.ThrottlingCumulative) (float
 	if totalOverall > 0 {
 		if throttledOverall > totalOverall {
 			avgThrottledOverall = 100
+			glog.Warningf("Aggregated throttled cpu samples overshoots total cpu samples for containerSpec %s."+
+				" Throttling set to 100 percent.", containerSpecId)
 		} else {
 			avgThrottledOverall = throttledOverall * 100 / totalOverall
 		}

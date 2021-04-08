@@ -92,8 +92,15 @@ func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containe
 		}
 		usedMetricPoints, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Used, nodeCPUFrequency)
 		if err != nil {
-			glog.Warningf("Cannot get resource %s value for container %s %s: %v", metrics.Used, containerMId, resourceType, err)
-			continue
+			if resourceType == metrics.VCPUThrottling {
+				// We dont want to pollute the logs at low verbosity when we don't get throttling metrics from
+				// kubelet. We add the throttling commodity even when we don't have the metrics.
+				glog.V(5).Infof("Cannot get resource %s value for container %s %s: %v", metrics.Used, containerMId, resourceType, err)
+				usedMetricPoints = [][]metrics.ThrottlingCumulative{}
+			} else {
+				glog.Warningf("Cannot get resource %s value for container %s %s: %v", metrics.Used, containerMId, resourceType, err)
+				continue
+			}
 		}
 		var capVal float64
 		if resourceType == metrics.VCPUThrottling {

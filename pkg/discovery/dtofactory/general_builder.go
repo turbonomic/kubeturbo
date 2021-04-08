@@ -213,6 +213,11 @@ func (builder generalBuilder) metricValue(entityType metrics.DiscoveredEntityTyp
 	metricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, resourceType, metricProp)
 	metric, err := builder.metricsSink.GetMetric(metricUID)
 	if err != nil {
+		if resourceType == metrics.VCPUThrottling {
+			// We add the throttling commodity, even when we don't get the metrics from kubelet.
+			glog.V(4).Infof("Missing throttling metrics for: %s", entityID)
+			return metricValue, nil
+		}
 		return metricValue, fmt.Errorf("missing metrics %s", metricProp)
 	}
 
@@ -404,6 +409,7 @@ func aggregateContainerThrottlingSamples(entityID string, samples []metrics.Thro
 			if throttledSingleSample > totalSingleSample {
 				// This is unlikely but possible because of errors at cadvisors end.
 				throttledPercent = 100
+				glog.Warningf("Throttled cpu samples overshoots total cpu samples for container %s. Throttling set to 100 percent.", entityID)
 			} else {
 				throttledPercent = throttledSingleSample * 100 / totalSingleSample
 			}
