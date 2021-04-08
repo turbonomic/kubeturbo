@@ -224,7 +224,7 @@ func TestMetricValueWithMultiplePoints(t *testing.T) {
 }
 
 func TestMetricValueWithThrottlingCumulativePoints(t *testing.T) {
-	metricsSink = metrics.NewEntityMetricSink().WithMaxMetricPointsSize(5)
+	metricsSink = metrics.NewEntityMetricSink().WithMaxMetricPointsSize(11)
 	containerId := "container-throttling"
 	cpuUsedMetric1 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
@@ -265,12 +265,77 @@ func TestMetricValueWithThrottlingCumulativePoints(t *testing.T) {
 	dtoBuilder := &generalBuilder{
 		metricsSink: metricsSink,
 	}
-
 	metricValue, _ := dtoBuilder.metricValue(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used, nil)
-	// throttled samples = (11-6) (6-5) (5-3) (3-1)
-	// total samples = (20-15) (15-10) (10-8) (8-5)
-	// Avg = (11-1)*100/(25-5)
-	// Peak = (5-3)*100/(10-8)
+	// throttled   = (3-1) (5-3)  (6-5)   (11-6)
+	// total   =     (8-5) (10-8) (15-10) (20-15)
+	// Avg = (11-1)*100/(25-5) = 50
+	// Peak = (5-3)*100/(10-8) = 100
 	assert.EqualValues(t, 50, int(metricValue.Avg))
+	assert.EqualValues(t, 100, int(metricValue.Peak))
+
+	// ------------------------------------------
+
+	// Adding more metrics where the counter is reset in continuation to previous 5
+	cpuUsedMetric6 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
+		[]metrics.ThrottlingCumulative{{
+			Throttled: 0,
+			Total:     0,
+			Timestamp: 6,
+		}})
+
+	cpuUsedMetric7 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
+		[]metrics.ThrottlingCumulative{{
+			Throttled: 1,
+			Total:     5,
+			Timestamp: 7,
+		}})
+
+	cpuUsedMetric8 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
+		[]metrics.ThrottlingCumulative{{
+			Throttled: 3,
+			Total:     8,
+			Timestamp: 8,
+		}})
+
+	// Counter set to an old value again on this sample
+	cpuUsedMetric9 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
+		[]metrics.ThrottlingCumulative{{
+			Throttled: 1,
+			Total:     5,
+			Timestamp: 9,
+		}})
+	cpuUsedMetric10 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
+		[]metrics.ThrottlingCumulative{{
+			Throttled: 3,
+			Total:     8,
+			Timestamp: 10,
+		}})
+	cpuUsedMetric11 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
+		[]metrics.ThrottlingCumulative{{
+			Throttled: 1,
+			Total:     5,
+			Timestamp: 10,
+		}})
+
+	metricsSink.UpdateMetricEntry(cpuUsedMetric6)
+	metricsSink.UpdateMetricEntry(cpuUsedMetric7)
+	metricsSink.UpdateMetricEntry(cpuUsedMetric8)
+	metricsSink.UpdateMetricEntry(cpuUsedMetric9)
+	metricsSink.UpdateMetricEntry(cpuUsedMetric10)
+	metricsSink.UpdateMetricEntry(cpuUsedMetric11)
+
+	metricValue, _ = dtoBuilder.metricValue(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used, nil)
+
+	// time                  t1   t2    t3     t4      t5                  t6     t7    t8               t9     t10    t11
+	// throttled samples =   1    3     5      6       11                  0      1     3                1       3      1
+	// total samples =       5    8     10     15      25                  0      5     8                5       8      5
+	// diff                   d1    d2     d3      d4          d5              d6    d7       d8              d9       d10
+	// throttled =           (3-1) (5-3)  (6-5)   (11-6)  (reset/ignore 0-11) (1-0) (3-1) (reset/ignore 1-3) (3-1)  (reset/ignore 1-3)
+	// total =               (8-5) (10-8) (15-10) (25-15) (reset/ignore 0-25) (5-0) (8-5) (reset/ignore 5-8) (8-5)  (reset/ignore 5-8)
+	// Window                |_____________w1___________|                     |___w2____|                    |_w3_|
+
+	// Avg = ((11-1)+(3-0)+(3-1))*100/((25-5)+(8-0)+(8-5)) = 48.387
+	// Peak = (5-3)*100/(10-8) = 100
+	assert.EqualValues(t, 48, int(metricValue.Avg))
 	assert.EqualValues(t, 100, int(metricValue.Peak))
 }

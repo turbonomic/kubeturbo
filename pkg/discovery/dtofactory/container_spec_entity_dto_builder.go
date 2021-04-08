@@ -174,7 +174,11 @@ func aggregateThrottlingSamples(samples [][]metrics.ThrottlingCumulative) (float
 	}
 	avgThrottledOverall := float64(0)
 	if totalOverall > 0 {
-		avgThrottledOverall = throttledOverall * 100 / totalOverall
+		if throttledOverall > totalOverall {
+			avgThrottledOverall = 100
+		} else {
+			avgThrottledOverall = throttledOverall * 100 / totalOverall
+		}
 	}
 
 	return 100, avgThrottledOverall, peakOverall

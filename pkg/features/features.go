@@ -23,7 +23,7 @@ const (
 	// owner: @irfanurrehman
 	// beta:
 	//
-	// Persistent volumes support.
+	// Throttling Metrics support.
 	ThrottlingMetrics featuregate.Feature = "ThrottlingMetrics"
 )
 
