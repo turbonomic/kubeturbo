@@ -1,6 +1,9 @@
 package worker
 
 import (
+	"reflect"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -8,8 +11,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
-	"testing"
 )
 
 const (
@@ -210,6 +211,11 @@ func TestContainerSpecMetricsCollector_CollectContainerSpecMetrics_WithoutReques
 					createContainerMetricPoint(containerFooMemUsed2, 2),
 				},
 			},
+			// We add throttling metrics in all cases
+			metrics.VCPUThrottling: {
+				Capacity: []float64{100},
+				Used:     [][]metrics.ThrottlingCumulative{},
+			},
 		},
 	}
 	assert.EqualValues(t, 1, len(containerSpecMetricsList))
@@ -257,6 +263,11 @@ func TestContainerSpecMetricsCollector_CollectContainerSpecMetrics_WithRequestMe
 					createContainerMetricPoint(containerBarMemRequestUsed1, 1),
 					createContainerMetricPoint(containerBarMemRequestUsed2, 2),
 				},
+			},
+			// We add throttling metrics in all cases
+			metrics.VCPUThrottling: {
+				Capacity: []float64{100},
+				Used:     [][]metrics.ThrottlingCumulative{},
 			},
 		},
 	}

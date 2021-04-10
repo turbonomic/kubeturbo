@@ -213,6 +213,11 @@ func (builder generalBuilder) metricValue(entityType metrics.DiscoveredEntityTyp
 	metricUID := metrics.GenerateEntityResourceMetricUID(entityType, entityID, resourceType, metricProp)
 	metric, err := builder.metricsSink.GetMetric(metricUID)
 	if err != nil {
+		if resourceType == metrics.VCPUThrottling {
+			// We add the throttling commodity, even when we don't get the metrics from kubelet.
+			glog.V(4).Infof("Missing throttling metrics for: %s", entityID)
+			return metricValue, nil
+		}
 		return metricValue, fmt.Errorf("missing metrics %s", metricProp)
 	}
 
@@ -235,7 +240,11 @@ func (builder generalBuilder) metricValue(entityType metrics.DiscoveredEntityTyp
 		}
 
 		if total > 0 {
-			metricValue.Avg = throttled * 100 / total
+			if throttled > total {
+				metricValue.Avg = 100
+			} else {
+				metricValue.Avg = throttled * 100 / total
+			}
 		}
 		metricValue.Peak = peak
 	case float64:
@@ -381,16 +390,38 @@ func aggregateContainerThrottlingSamples(entityID string, samples []metrics.Thro
 	sort.SliceStable(samples, func(i, j int) bool {
 		return samples[i].Timestamp < samples[j].Timestamp
 	})
-	throttled = (samples[numberOfSamples-1].Throttled - samples[0].Throttled)
-	total = samples[numberOfSamples-1].Total - samples[0].Total
 
+	lastReset := 0
 	for i := 0; i < numberOfSamples-1; i++ {
-		total := samples[i+1].Total - samples[i].Total
+		if samples[i+1].Total < samples[i].Total || samples[i+1].Throttled < samples[i].Throttled {
+			// This probably means the counter was reset for some reason
+			throttled += (samples[i].Throttled - samples[lastReset].Throttled)
+			total += samples[i].Total - samples[lastReset].Total
+			lastReset = i + 1
+			// we ignore this samples diff for our peak calculations
+			continue
+		}
+
+		totalSingleSample := samples[i+1].Total - samples[i].Total
 		throttledPercent := float64(0)
-		if total > 0 {
-			throttledPercent = (samples[i+1].Throttled - samples[i].Throttled) * 100 / total
+		if totalSingleSample > 0 {
+			throttledSingleSample := samples[i+1].Throttled - samples[i].Throttled
+			if throttledSingleSample > totalSingleSample {
+				// This is unlikely but possible because of errors at cadvisors end.
+				throttledPercent = 100
+				glog.Warningf("Throttled cpu samples overshoots total cpu samples for container %s. Throttling set to 100 percent.", entityID)
+			} else {
+				throttledPercent = throttledSingleSample * 100 / totalSingleSample
+			}
 		}
 		peak = math.Max(peak, throttledPercent)
 	}
+
+	// handle last window if there ever was one, else this calculates the diff of the first and the last sample.
+	if lastReset != numberOfSamples-1 {
+		throttled += (samples[numberOfSamples-1].Throttled - samples[lastReset].Throttled)
+		total += samples[numberOfSamples-1].Total - samples[lastReset].Total
+	}
+
 	return throttled, total, peak, true
 }

@@ -3,11 +3,14 @@ package worker
 import (
 	"fmt"
 
+	api "k8s.io/api/core/v1"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	api "k8s.io/api/core/v1"
+	"github.com/turbonomic/kubeturbo/pkg/features"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 var (
@@ -78,6 +81,10 @@ func (collector *ContainerSpecMetricsCollector) CollectContainerSpecMetrics() []
 func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containerSpecMetric *repository.ContainerSpecMetrics,
 	containerMId string, nodeCPUFrequency float64, isCpuRequestSet, isMemRequestSet bool) {
 	for _, resourceType := range resourceTypes {
+		if resourceType == metrics.VCPUThrottling && !utilfeature.DefaultFeatureGate.Enabled(features.ThrottlingMetrics) {
+			// skip collecting throttling metrics if feature is disabled
+			continue
+		}
 		if resourceType == metrics.CPURequest && !isCpuRequestSet || resourceType == metrics.MemoryRequest && !isMemRequestSet {
 			// If CPU/Memory request is not set on container, no need to collect request resource metrics
 			glog.V(4).Infof("Container %s has no %s set", containerMId, resourceType)
@@ -85,8 +92,15 @@ func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containe
 		}
 		usedMetricPoints, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Used, nodeCPUFrequency)
 		if err != nil {
-			glog.Warningf("Cannot get resource %s value for container %s %s: %v", metrics.Used, containerMId, resourceType, err)
-			continue
+			if resourceType == metrics.VCPUThrottling {
+				// We dont want to pollute the logs at low verbosity when we don't get throttling metrics from
+				// kubelet. We add the throttling commodity even when we don't have the metrics.
+				glog.V(5).Infof("Cannot get resource %s value for container %s %s: %v", metrics.Used, containerMId, resourceType, err)
+				usedMetricPoints = [][]metrics.ThrottlingCumulative{}
+			} else {
+				glog.Warningf("Cannot get resource %s value for container %s %s: %v", metrics.Used, containerMId, resourceType, err)
+				continue
+			}
 		}
 		var capVal float64
 		if resourceType == metrics.VCPUThrottling {

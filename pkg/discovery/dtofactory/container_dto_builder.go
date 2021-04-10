@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 
 	"github.com/golang/glog"
 	api "k8s.io/api/core/v1"
@@ -14,6 +15,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 var (
@@ -245,8 +247,10 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 		result = append(result, memRequestCommodities...)
 	}
 
-	throttlingCommodities := builder.createCommoditiesSold(containerEntityType, throttlingCommodity, containerMId, nil, false)
-	result = append(result, throttlingCommodities...)
+	if utilfeature.DefaultFeatureGate.Enabled(features.ThrottlingMetrics) {
+		throttlingCommodities := builder.createCommoditiesSold(containerEntityType, throttlingCommodity, containerMId, nil, false)
+		result = append(result, throttlingCommodities...)
+	}
 
 	//2. Application
 	appCommodity, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
