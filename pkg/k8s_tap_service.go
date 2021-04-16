@@ -196,8 +196,14 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		probeBuilder = probeBuilder.WithDiscoveryClient(discoveryClient)
 	}
 
+	k8sSvcId, err := probeConfig.ClusterScraper.GetKubernetesServiceID()
+	if err != nil {
+		glog.Errorf("Error retrieving the Kubernetes service id: %v", err)
+		k8sSvcId = ""
+	}
 	tapService, err :=
 		service.NewTAPServiceBuilder().
+			WithCommunicationBindingChannel(k8sSvcId).
 			WithTurboCommunicator(config.tapSpec.TurboCommunicationConfig).
 			WithTurboProbe(probeBuilder).
 			Create()
