@@ -24,8 +24,13 @@ import (
 const (
 	kubeturboNamespace = "KUBETURBO_NAMESPACE"
 	defaultNamespace   = "default"
-	DefaultCpuFreq     = float64(2000) //MHz
+	defaultCpuFreq     = float64(2000) //MHz
 )
+
+var DefaultCpufreqJobExcludeNodeLabels = map[string]string{
+	"kubernetes.io/os":      "windows",
+	"beta.kubernetes.io/os": "windows",
+}
 
 type NodeCpuFrequencyGetter struct {
 	kubeClient   *kubernetes.Clientset

@@ -68,7 +68,7 @@ func TestKubeletClientCacheNil(t *testing.T) {
 	kubeConf := &rest.Config{}
 	conf := NewKubeletConfig(kubeConf)
 
-	kc, _ := conf.Create(nil, "busybox", false)
+	kc, _ := conf.Create(nil, "busybox", map[string]string{}, false)
 	entry := &CacheEntry{}
 	kc.cache["host_1"] = entry
 	assert.False(t, kc.HasCacheBeenUsed("host_1"))
