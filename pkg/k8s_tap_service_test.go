@@ -19,7 +19,7 @@ func TestParseK8sTAPServiceSpecWithMissingTargetConfig(t *testing.T) {
 
 	// Check target config
 	checkStartWith(config.ProbeCategory, "Cloud Native", t)
-	check(config.TargetType, "Kubernetes-"+defaultTargetName, t)
+	check(config.TargetType, "Kubernetes", t)
 	check(config.TargetIdentifier, "Kubernetes-"+defaultTargetName, t)
 
 	// Check comm config
@@ -52,7 +52,7 @@ func TestParseK8sTAPServiceSpecWithEmptyTargetConfig(t *testing.T) {
 
 	// Check target config
 	checkStartWith(config.ProbeCategory, "Cloud Native", t)
-	check(config.TargetType, "Kubernetes-"+defaultTargetName, t)
+	check(config.TargetType, "Kubernetes", t)
 	check(config.TargetIdentifier, "Kubernetes-"+defaultTargetName, t)
 }
 
@@ -88,7 +88,7 @@ func TestParseK8sTAPServiceSpecWithTargetName(t *testing.T) {
 	// Check target config
 	checkStartWith(config.ProbeCategory, "Cloud Native", t)
 	// The target name should be the one from the config file
-	check(config.TargetType, "Kubernetes-cluster-foo", t)
+	check(config.TargetType, "Kubernetes", t)
 	check(config.TargetIdentifier, "Kubernetes-cluster-foo", t)
 	check(config.OpsManagerUsername, "foo", t)
 	check(config.OpsManagerPassword, "bar", t)
