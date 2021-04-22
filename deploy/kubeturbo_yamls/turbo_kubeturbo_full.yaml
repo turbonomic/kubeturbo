@@ -57,7 +57,7 @@ data:
     {
         "communicationConfig": {
             "serverMeta": {
-                "version": "8.0",
+                "version": "8.1",
                 "turboServer": "https://<Turbo_server_URL>"
             },
             "restAPIConfig": {
@@ -69,7 +69,7 @@ data:
             "targetName":"whateverYouWant"
         },
         "HANodeConfig": {
-            "nodeRoles": [ "master", "worker"]
+            "nodeRoles": [ "master"]
         }
     }
 ---
@@ -97,7 +97,12 @@ spec:
       containers:
       - name: kubeturbo
         # Replace the image with desired version:6.4.4 or latest
-        image: turbonomic/kubeturbo:8.1.3
+        image: turbonomic/kubeturbo:8.1.4
+        env:
+          - name: KUBETURBO_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
         args:
           - --turboconfig=/etc/kubeturbo/turbo.config
           - --v=2
@@ -105,6 +110,11 @@ spec:
           # change to https=false and port=10255 if unsecure kubelet read only is configured
           - --kubelet-https=true
           - --kubelet-port=10250
+          # Uncomment for pod moves in OpenShift
+          #- --scc-support=*
+          # Uncomment for pod moves with pvs
+          #- --fail-volume-pod-moves=false
+          # Uncomment for specifying cpu frequency getter job from RHCC
           #- --busybox-image=registry.access.redhat.com/ubi8/ubi-minimal
           # Uncomment to stitch using IP, or if using Openstack, Hyper-V/VMM
           #- --stitch-uuid=false
@@ -132,3 +142,15 @@ spec:
       - name: varlog
         emptyDir: {}
       restartPolicy: Always
+---
+#option to use secret for Turbo credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: turbonomic-credentials
+  namespace: turbo
+type: Opaque
+data:
+  username: BASE64encodedValue
+  password: BASE64encodedValue
+---
