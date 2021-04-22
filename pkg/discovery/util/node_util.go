@@ -3,8 +3,9 @@ package util
 import (
 	"errors"
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"strings"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
@@ -43,6 +44,31 @@ func NodeIsReady(node *api.Node) bool {
 		}
 	}
 	glog.Errorf("Node %s does not have Ready status.", node.Name)
+	return false
+}
+
+func NodeMatchesLabels(node *api.Node, defaultLabels, mustMatchLabels map[string]string) bool {
+	if len(mustMatchLabels) > 0 {
+		// All labels must match
+		for k, v := range mustMatchLabels {
+			value, ok := node.Labels[k]
+			if !ok {
+				return false
+			}
+			if value != v {
+				return false
+			}
+		}
+		return true
+	}
+
+	// Any label matched from default is a match
+	for k, v := range defaultLabels {
+		value, ok := node.Labels[k]
+		if ok && value == v {
+			return true
+		}
+	}
 	return false
 }
 

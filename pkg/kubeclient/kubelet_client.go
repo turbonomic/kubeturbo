@@ -93,15 +93,16 @@ func (client *KubeletClient) CleanupCache(nodes []*v1.Node) int {
 // Since http.Client is thread safe (https://golang.org/src/net/http/client.go)
 // KubeletClient is also thread-safe if concurrent goroutines won't change the fields.
 type KubeletClient struct {
-	client              *http.Client
-	scheme              string
-	port                int
-	cache               map[string]*CacheEntry
-	cacheLock           sync.Mutex
-	configCache         map[string]*CacheEntry
-	configCacheLock     sync.Mutex
-	fallbkCpuFreqGetter *NodeCpuFrequencyGetter
-	defaultCpuFreq      float64
+	client                      *http.Client
+	scheme                      string
+	port                        int
+	cache                       map[string]*CacheEntry
+	cacheLock                   sync.Mutex
+	configCache                 map[string]*CacheEntry
+	configCacheLock             sync.Mutex
+	fallbkCpuFreqGetter         *NodeCpuFrequencyGetter
+	defaultCpuFreq              float64
+	cpufreqJobExcludeNodeLabels map[string]string
 	// Fallback kubernetes API client to fetch data from node's proxy subresource
 	kubeClient         *kubernetes.Clientset
 	forceProxyEndpoint bool
@@ -320,7 +321,11 @@ func (client *KubeletClient) GetNodeCpuFrequency(node *v1.Node) (float64, error)
 	if err != nil {
 		glog.Errorf("Failed to get machine[%s] cpu.frequency from kubelet: %v. Will try pod based getter.", node.Name, err)
 		nodeIsActive := util.NodeIsReady(node)
-		if nodeIsActive {
+		skipFallback := util.NodeMatchesLabels(node, DefaultCpufreqJobExcludeNodeLabels, client.cpufreqJobExcludeNodeLabels)
+		if skipFallback {
+			glog.Warningf("Node %s seems to be a windows node, default cpu frequency will be used.", node.Name)
+		}
+		if nodeIsActive && !skipFallback {
 			nodeFreq, err = client.fallbkCpuFreqGetter.GetFrequency(node.Name)
 			if err != nil {
 				glog.Errorf("Failed to get cpufreq from getter %s: %s. Default value will be used.", node.Name, err)
@@ -427,7 +432,8 @@ func (kc *KubeletConfig) Timeout(timeout int) *KubeletConfig {
 	return kc
 }
 
-func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, busyboxImage string, useProxyEndpoint bool) (*KubeletClient, error) {
+func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, busyboxImage string,
+	excludeLabelsMap map[string]string, useProxyEndpoint bool) (*KubeletClient, error) {
 	// 1. http transport
 	transport, err := makeTransport(kc.kubeConfig, kc.enableHttps, kc.tlsTimeOut, kc.forceSelfSignedCerts)
 	if err != nil {
@@ -446,14 +452,15 @@ func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, busyboxIma
 
 	// 3. create a KubeletClient
 	return &KubeletClient{
-		client:              c,
-		scheme:              scheme,
-		port:                kc.port,
-		cache:               make(map[string]*CacheEntry),
-		fallbkCpuFreqGetter: NewNodeCpuFrequencyGetter(fallbackClient, busyboxImage),
-		defaultCpuFreq:      DefaultCpuFreq,
-		kubeClient:          fallbackClient,
-		forceProxyEndpoint:  useProxyEndpoint,
+		client:                      c,
+		scheme:                      scheme,
+		port:                        kc.port,
+		cache:                       make(map[string]*CacheEntry),
+		fallbkCpuFreqGetter:         NewNodeCpuFrequencyGetter(fallbackClient, busyboxImage),
+		cpufreqJobExcludeNodeLabels: excludeLabelsMap,
+		defaultCpuFreq:              defaultCpuFreq,
+		kubeClient:                  fallbackClient,
+		forceProxyEndpoint:          useProxyEndpoint,
 	}, nil
 }
 
