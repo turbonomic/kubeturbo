@@ -7,7 +7,7 @@ replicaCount: 1
 # Replace the image with desired version
 image:
   repository: turbonomic/kubeturbo
-  tag: 8.1.3
+  tag: 8.1.5
   pullPolicy: IfNotPresent
 #  busyboxRepository: busybox
 
@@ -28,7 +28,7 @@ serviceAccountName: "turbo-user"
 
 # Turbo server version and address
 serverMeta:
-  version: 8.0
+  version: "8.0"
   turboServer: https://Turbo_server_URL
 #  proxy: http://username:password@proxyserver:proxyport
 

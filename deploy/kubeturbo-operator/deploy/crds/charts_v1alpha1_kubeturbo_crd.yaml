@@ -88,6 +88,13 @@ spec:
                 opsManagerPassword:
                   description: Turbo admin user password
                   type: string
+            featureGates:
+              type: object
+              description: Disable features
+              properties:
+                disabledFeatures:
+                  description: Feature names
+                  type: string, quote
             HANodeConfig:
               type: object
               description: Create HA placement policy for Node to Hypervisor by node role. Master is default
@@ -115,12 +122,18 @@ spec:
                 kubeletport:
                   description: Identify kubelet port
                   type: integer
-                stitchuuid:
-                  description: Identify if using uuid or ip for stitching
-                  type: boolean
                 sccsupport:
                   description: Allow kubeturbo to execute actions in OCP
                   type: string
+                failVolumePodMoves:
+                  description: Allow kubeturbo to reschedule pods with volumes attached
+                  type: string
+                busyboxExcludeNodeLabels:
+                  description: Do not run busybox on these nodes to discover the cpu frequency with k8s 1.18 and later, default is either of kubernetes.io/os=windows or beta.kubernetes.io/os=windows present as node label
+                  type: string
+                stitchuuid:
+                  description: Identify if using uuid or ip for stitching, the default is true (use uuid instead of ip)
+                  type: boolean
             resources:
               type: object
               description: Kubeturbo resource configuration
