@@ -7,7 +7,7 @@ replicaCount: 1
 # Replace the image with desired version
 image:
   repository: turbonomic/kubeturbo
-  tag: 8.1.5
+  tag: 8.1.6
   pullPolicy: IfNotPresent
 #  busyboxRepository: busybox
 
