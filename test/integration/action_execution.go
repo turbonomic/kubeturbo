@@ -119,6 +119,36 @@ var _ = Describe("Action Executor ", func() {
 		})
 	})
 
+	Describe("executing action move pod on deploymentconfig ", func() {
+		It("should result in new pod on target node", func() {
+			Skip("Ignoring volume based pod move for deploymentconfig. Remove skipping to execute this against an openshift cluster.")
+
+			// TODO: The storageclass can be taken as a configurable parameter from commandline
+			// For now this will need to be updated when running against the given cluster
+			dc, err := createDCResource(osClient, dCSingleContainerWithResources(namespace, "", 1, false))
+			framework.ExpectNoError(err, "Error creating test resources")
+
+			pod, err := getDeploymentConfigsPod(kubeClient, dc.Name, namespace, "")
+			framework.ExpectNoError(err, "Error getting deployment configs pod")
+			// This should not happen. We should ideally get a pod.
+			if pod == nil {
+				framework.Failf("Failed to find a pod for deployment config: %s", dc.Name)
+			}
+
+			targetNodeName := getTargetSENodeName(f, pod)
+			if targetNodeName == "" {
+				framework.Failf("Failed to find a pod for deployment config: %s", dc.Name)
+			}
+
+			_, err = actionHandler.ExecuteAction(newActionExecutionDTO(proto.ActionItemDTO_MOVE,
+				newTargetSEFromPod(pod), newHostSEFromNodeName(targetNodeName)), nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Move action failed")
+
+			validateMovedPod(kubeClient, dc.Name, "deploymentconfig", namespace, targetNodeName)
+
+		})
+	})
+
 	Describe("executing action move deploymentconfig's pod with volume attached ", func() {
 		It("should result in new pod on target node", func() {
 			Skip("Ignoring volume based pod move for deploymentconfig. Remove skipping to execute this against an openshift cluster.")
