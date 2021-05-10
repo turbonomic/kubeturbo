@@ -296,7 +296,7 @@ func clonePodWithNewSize(client *kclient.Clientset, pod *k8sapi.Pod, spec *conta
 
 	//1. copy pod
 	npod := &k8sapi.Pod{}
-	copyPodWithoutLabel(pod, npod, true)
+	copyPodWithoutLabel(pod, npod)
 	npod.Spec.NodeName = pod.Spec.NodeName
 	npod.Name = genNewPodName(pod)
 	// this annotation can be used for future garbage collection if action is interrupted

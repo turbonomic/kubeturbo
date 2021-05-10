@@ -54,12 +54,40 @@ func copyPodInfo(oldPod, newPod *api.Pod, copySpec bool) {
 	return
 }
 
-func copyPodWithoutLabel(oldPod, newPod *api.Pod, copySpec bool) {
-	copyPodInfo(oldPod, newPod, copySpec)
+func copyPodWithoutLabel(oldPod, newPod *api.Pod) {
+	copyPodInfo(oldPod, newPod, true)
 
 	// set Labels and OwnerReference to be empty
 	newPod.Labels = make(map[string]string)
 	newPod.OwnerReferences = []metav1.OwnerReference{}
+}
+
+func copyPodWithoutSelectedLabels(oldPod, newPod *api.Pod, excludeKeys []string) {
+	copyPodInfo(oldPod, newPod, false)
+	// set labels excluding ownership labels (those used by replicasets and replicationcontrollers)
+	newPod.Labels = excludeFromLabels(newPod.Labels, excludeKeys)
+	// set OwnerRef to be empty
+	newPod.OwnerReferences = []metav1.OwnerReference{}
+}
+
+func excludeFromLabels(originalLabels map[string]string, excludeKeys []string) map[string]string {
+	newLabels := make(map[string]string)
+	for key, val := range originalLabels {
+		if keyInKeys(key, excludeKeys) {
+			continue
+		}
+		newLabels[key] = val
+	}
+	return newLabels
+}
+
+func keyInKeys(key string, keys []string) bool {
+	for _, k := range keys {
+		if k == key {
+			return true
+		}
+	}
+	return false
 }
 
 // Generates a name for the new pod from the old one. The new pod name will
@@ -270,7 +298,8 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 
 	//TODO: compare resourceVersion of xpod and npod before updating
 	if (labels != nil) && len(labels) > 0 {
-		// This should overwrite the garbage collection label with the original pod's labels
+		// This should overwrite the GC label with the original pod's labels
+		// This will also bring the excluded labels (excluded while creating clone pod) back
 		xpod.Labels = labels
 	} else {
 		// This would remove the GC label if we are moving a standalone pod, simply because
@@ -597,7 +626,14 @@ func removeGCLabel(obj *unstructured.Unstructured) {
 func createClonePod(client *kclient.Clientset, pod *api.Pod,
 	parent *unstructured.Unstructured, updateQuotaToAllowMoves bool, nodeName string) (*api.Pod, error) {
 	npod := &api.Pod{}
-	copyPodWithoutLabel(pod, npod, false)
+
+	// This can be made configurable if need be in future
+	var excludeKeys = []string{
+		"pod-template-hash", // used by replicaset to adopt a pod
+		"deployment",        // used by a replicationcontroller to adopt pod
+		"deploymentconfig",  // used by a replicationcontroller to adopt pod
+	}
+	copyPodWithoutSelectedLabels(pod, npod, excludeKeys)
 
 	// copy pod spec, annotations, and labels from the parent
 	kind := parent.GetKind()
