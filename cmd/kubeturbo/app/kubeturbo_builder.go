@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
+	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/kubeturbo/test/flag"
@@ -348,6 +349,7 @@ func (s *VMTServer) Run() {
 	}
 
 	ormClient := resourcemapping.NewORMClient(dynamicClient, apiExtClient)
+	clusterAPIEnabled := executor.IsClusterAPIEnabled(caClient, kubeClient)
 
 	// Configuration for creating the Kubeturbo TAP service
 	vmtConfig := kubeturbo.NewVMTConfig2()
@@ -372,7 +374,8 @@ func (s *VMTServer) Run() {
 		WithContainerUtilizationDataAggStrategy(s.containerUtilizationDataAggStrategy).
 		WithContainerUsageDataAggStrategy(s.containerUsageDataAggStrategy).
 		WithVolumePodMoveConfig(s.FailVolumePodMoves).
-		WithQuotaUpdateConfig(s.UpdateQuotaToAllowMoves)
+		WithQuotaUpdateConfig(s.UpdateQuotaToAllowMoves).
+		WithClusterAPIEnabled(clusterAPIEnabled)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service
