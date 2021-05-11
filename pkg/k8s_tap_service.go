@@ -198,8 +198,7 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 
 	k8sSvcId, err := probeConfig.ClusterScraper.GetKubernetesServiceID()
 	if err != nil {
-		glog.Errorf("Error retrieving the Kubernetes service id: %v", err)
-		k8sSvcId = ""
+		glog.Fatalf("Error retrieving the Kubernetes service id: %v", err)
 	}
 	tapService, err :=
 		service.NewTAPServiceBuilder().
