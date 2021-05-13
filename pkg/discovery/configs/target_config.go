@@ -44,10 +44,9 @@ func (config *K8sTargetConfig) ValidateK8sTargetConfig() error {
 	// Determine target type
 	prefix := defaultTargetType + "-"
 	if config.TargetType == "" {
-		config.TargetType = config.TargetIdentifier
-	}
-	// Prefix targetType with Kubernetes if needed
-	if !strings.HasPrefix(config.TargetType, prefix) {
+		config.TargetType = defaultTargetType
+	} else if !strings.HasPrefix(config.TargetType, prefix) {
+		// Prefix targetType with "Kubernetes-"
 		config.TargetType = prefix + config.TargetType
 	}
 	if config.ProbeCategory == "" {
