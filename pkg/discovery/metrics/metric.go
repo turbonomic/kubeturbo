@@ -38,12 +38,13 @@ const (
 	StorageAmount      ResourceType = "StorageAmount"
 	VCPUThrottling     ResourceType = "VCPUThrottling"
 
-	Access       ResourceType = "Access"
-	Cluster      ResourceType = "Cluster"
-	CpuFrequency ResourceType = "CpuFrequency"
-	Owner        ResourceType = "Owner"
-	OwnerType    ResourceType = "OwnerType"
-	OwnerUID     ResourceType = "OwnerUID"
+	Access              ResourceType = "Access"
+	Cluster             ResourceType = "Cluster"
+	CpuFrequency        ResourceType = "CpuFrequency"
+	Owner               ResourceType = "Owner"
+	OwnerType           ResourceType = "OwnerType"
+	OwnerUID            ResourceType = "OwnerUID"
+	MetricsAvailability ResourceType = "MetricsAvailability"
 )
 
 var (

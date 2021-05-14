@@ -42,7 +42,7 @@ func createContainerStat(name string, cpu, mem int) stats.ContainerStats {
 	return container
 }
 
-func createPodStat(podname string) *stats.PodStats {
+func createPodStat(podname string, containerStatsMissing bool) *stats.PodStats {
 	cpuUsed := 100 + rand.Intn(200)
 	memUsed := rand.Intn(200)
 	container1 := createContainerStat("container1", cpuUsed*1e6, memUsed*1000*1024)
@@ -59,7 +59,9 @@ func createPodStat(podname string) *stats.PodStats {
 			Name:      podname,
 			UID:       "uuid1",
 		},
-		Containers: containers,
+	}
+	if !containerStatsMissing {
+		pod.Containers = containers
 	}
 
 	fsStats := &stats.FsStats{}
@@ -72,6 +74,29 @@ func createPodStat(podname string) *stats.PodStats {
 	return pod
 }
 
+func checkContainerMetricsAvailability(sink *metrics.EntityMetricSink, pod *api.Pod, isMissing bool) error {
+	isAvailable := true
+	entityKey := util.PodMetricIdAPI(pod)
+	ownerMetricId := metrics.GenerateEntityStateMetricUID(metrics.PodType, entityKey, metrics.MetricsAvailability)
+	availabilityMetric, err := sink.GetMetric(ownerMetricId)
+	if err != nil {
+		return fmt.Errorf("error getting %s from metrics sink for pod %s --> %v", metrics.MetricsAvailability, entityKey, err)
+	} else {
+		availabilityMetricValue := availabilityMetric.GetValue()
+		ok := false
+		isAvailable, ok = availabilityMetricValue.(bool)
+		if !ok {
+			return fmt.Errorf("error getting %s from metrics sink for pod %s. Wrong type: %T, Expected: bool.", metrics.MetricsAvailability, entityKey, availabilityMetricValue)
+		}
+	}
+
+	// We have isAvailable set in sink which should be opposite of isMissing
+	if isMissing == isAvailable {
+		return fmt.Errorf("failed matching container metric availability, got: %t, expected: %t.", isAvailable, isMissing)
+	}
+	return nil
+}
+
 func checkPodMetrics(sink *metrics.EntityMetricSink, podMId string, pod *stats.PodStats) error {
 	etype := metrics.PodType
 	resources := []metrics.ResourceType{metrics.CPU, metrics.Memory}
@@ -80,7 +105,7 @@ func checkPodMetrics(sink *metrics.EntityMetricSink, podMId string, pod *stats.P
 		mid := metrics.GenerateEntityResourceMetricUID(etype, podMId, res, metrics.Used)
 		tmp, err := sink.GetMetric(mid)
 		if err != nil {
-			return fmt.Errorf("Failed to get resource[%v] used value: %v", res, err)
+			return fmt.Errorf("failed to get resource[%v] used value: %v", res, err)
 		}
 
 		valuePoints := tmp.GetValue().([]metrics.Point)
@@ -118,7 +143,7 @@ func checkContainerMetrics(sink *metrics.EntityMetricSink, containerMId string, 
 		mid := metrics.GenerateEntityResourceMetricUID(etype, containerMId, res, metrics.Used)
 		tmp, err := sink.GetMetric(mid)
 		if err != nil {
-			return fmt.Errorf("Failed to get resource[%v] used value: %v", res, err)
+			return fmt.Errorf("failed to get resource[%v] used value: %v", res, err)
 		}
 
 		valuePoints := tmp.GetValue().([]metrics.Point)
@@ -151,7 +176,7 @@ func checkApplicationMetrics(sink *metrics.EntityMetricSink, appMId string, cont
 		mid := metrics.GenerateEntityResourceMetricUID(etype, appMId, res, metrics.Used)
 		tmp, err := sink.GetMetric(mid)
 		if err != nil {
-			return fmt.Errorf("Failed to get resource[%v] used value: %v", res, err)
+			return fmt.Errorf("failed to get resource[%v] used value: %v", res, err)
 		}
 
 		valuePoints := tmp.GetValue().([]metrics.Point)
@@ -184,14 +209,32 @@ func TestParseStats(t *testing.T) {
 		t.Errorf("Failed to create kubeletMonitor: %v", err)
 	}
 
-	podstat1 := createPodStat("pod1")
-	podstat2 := createPodStat("pod2")
-	pods := []stats.PodStats{*podstat1, *podstat2}
-	klet.parsePodStats(pods, timestamp)
+	podTests := []struct {
+		podStat               *stats.PodStats
+		containerStatsMissing bool
+	}{
+		{
+			podStat:               createPodStat("pod1", false),
+			containerStatsMissing: false,
+		},
+		{
+			podStat:               createPodStat("pod2", false),
+			containerStatsMissing: false,
+		},
+		{
+			podStat:               createPodStat("pod3", true),
+			containerStatsMissing: true,
+		},
+	}
 
-	for _, podstat := range pods {
-		//1. check pod metrics
-		podref := podstat.PodRef
+	podStats := []stats.PodStats{}
+	for _, podTest := range podTests {
+		podStats = append(podStats, *podTest.podStat)
+	}
+	klet.parsePodStats(podStats, timestamp)
+
+	for _, podTest := range podTests {
+		podref := podTest.podStat.PodRef
 		pod := &api.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: podref.Namespace,
@@ -199,29 +242,43 @@ func TestParseStats(t *testing.T) {
 				UID:       "pod.real.uuid1",
 			},
 		}
-		podMId := util.PodMetricIdAPI(pod)
-		err = checkPodMetrics(klet.metricSink, podMId, &podstat)
+
+		//1. check container metrics availability
+		err = checkContainerMetricsAvailability(klet.metricSink, pod, podTest.containerStatsMissing)
 		if err != nil {
-			t.Errorf("check pod used metrics failed: %v", err)
+			t.Errorf("Check container metrics availability failed: %v", err)
 			return
 		}
 
-		//2. container info
-		for _, c := range podstat.Containers {
+		if podTest.containerStatsMissing {
+			// There won't be other metrics to verify
+			return
+		}
+
+		//2. check pod metrics
+		podMId := util.PodMetricIdAPI(pod)
+		err = checkPodMetrics(klet.metricSink, podMId, podTest.podStat)
+		if err != nil {
+			t.Errorf("Check pod used metrics failed: %v", err)
+			return
+		}
+
+		//3. container info
+		for _, c := range podTest.podStat.Containers {
 			containerMId := util.ContainerMetricId(podMId, c.Name)
 			err = checkContainerMetrics(klet.metricSink, containerMId, &c)
 			if err != nil {
-				t.Errorf("check container used metrics failed: %v", err)
+				t.Errorf("Check container used metrics failed: %v", err)
 			}
 		}
 
-		//3. application info
-		for _, c := range podstat.Containers {
+		//4. application info
+		for _, c := range podTest.podStat.Containers {
 			containerMId := util.ContainerMetricId(podMId, c.Name)
 			appMId := util.ApplicationMetricId(containerMId)
 			err = checkApplicationMetrics(klet.metricSink, appMId, &c)
 			if err != nil {
-				t.Errorf("check application used metrics failed: %v", err)
+				t.Errorf("Check application used metrics failed: %v", err)
 			}
 		}
 	}
