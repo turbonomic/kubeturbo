@@ -91,7 +91,7 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 		ebuilder.ServiceData(serviceData)
 
 		// set the ip property for stitching
-		ebuilder.WithProperty(getIPProperty(pods))
+		ebuilder.WithProperty(getIPProperty(pods)).WithProperty(getUUIDProperty(id))
 
 		ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
@@ -232,6 +232,17 @@ func (builder *ServiceEntityDTOBuilder) getCommoditiesBought(appDTO *proto.Entit
 	}
 
 	return commoditiesBoughtFromApp, nil
+}
+
+// Get the UUID property of the service for stitching purpose
+func getUUIDProperty(uuid string) *proto.EntityDTO_EntityProperty {
+	ns := stitching.DefaultPropertyNamespace
+	attr := string(stitching.UUID)
+	return &proto.EntityDTO_EntityProperty{
+		Namespace: &ns,
+		Name:      &attr,
+		Value:     &uuid,
+	}
 }
 
 // Get the IP property of the service for stitching purpose
