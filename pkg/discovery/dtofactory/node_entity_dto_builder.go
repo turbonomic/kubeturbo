@@ -162,10 +162,16 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 			continue
 		}
 
-		entityDto.ProviderPolicy = &proto.EntityDTO_ProviderPolicy{AvailableForPlacement: &isAvailableForPlacement}
 		if !isAvailableForPlacement {
 			glog.Warningf("Node %s has been marked unavailable for placement due to disk pressure.", node.GetName())
 		}
+		nodeSchedulable := nodeActive && util.NodeIsSchedulable(node)
+		if !nodeSchedulable {
+			glog.Warningf("Node %s has been marked unavailable for placement because its Unschedulable.", node.GetName())
+		}
+		isAvailableForPlacement = isAvailableForPlacement && nodeSchedulable
+		entityDto.ProviderPolicy = &proto.EntityDTO_ProviderPolicy{AvailableForPlacement: &isAvailableForPlacement}
+
 		result = append(result, entityDto)
 
 		glog.V(4).Infof("Node DTO : %+v", entityDto)
