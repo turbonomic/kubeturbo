@@ -33,7 +33,7 @@ func xcheck(expected map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_Ac
 }
 
 func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
-	conf := NewRegistrationClientConfig(stitching.UUID, 0, true)
+	conf := NewRegistrationClientConfig(stitching.UUID, 0, true, true)
 	targetConf := &configs.K8sTargetConfig{}
 	reg := NewK8sRegistrationClient(conf, targetConf)
 
@@ -136,7 +136,7 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 }
 
 func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
-	conf := NewRegistrationClientConfig(stitching.UUID, 0, true)
+	conf := NewRegistrationClientConfig(stitching.UUID, 0, true, true)
 	targetConf := &configs.K8sTargetConfig{}
 	reg := NewK8sRegistrationClient(conf, targetConf)
 

@@ -13,6 +13,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/golang/glog"
 )
 
 // ActionType describes the current phase of processing the Action request.
@@ -20,6 +22,8 @@ type ActionType string
 
 // These are the valid Action types.
 const (
+	// TODO: When we have an actual user scenario, find out the version the user has and
+	// add support for multiple cluster-api versions if need be.
 	clusterAPIGroupVersion                = "machine.openshift.io/v1beta1"
 	DeleteNodeAnnotation                  = "machine.openshift.io/cluster-api-delete-machine"
 	ProvisionAction            ActionType = "Provision"
@@ -41,19 +45,24 @@ type k8sClusterApi struct {
 	// Cluster API Resource client interfaces
 	machine    v1beta1.MachineInterface
 	machineSet v1beta1.MachineSetInterface
-
-	caGroupVersion string // clusterAPI group and version
 }
 
-// verifyClusterAPIEnabled Checks whether Cluster API is enabled.
-func (client *k8sClusterApi) verifyClusterAPIEnabled() error {
-	serviceString := fmt.Sprintf("ClusterAPI service \"%s\"", client.caGroupVersion)
-	_, err := client.discovery.ServerResourcesForGroupVersion(client.caGroupVersion)
-	if err != nil {
-		err := fmt.Errorf("%s is not available: %v", serviceString, err)
-		return err
+// IsClusterAPIEnabled checks whether cluster API is in fact enabled.
+func IsClusterAPIEnabled(cApiClient *versioned.Clientset, kubeClient *kubernetes.Clientset) bool {
+	if cApiClient == nil {
+		return false
 	}
-	return nil
+
+	serviceString := fmt.Sprintf("ClusterAPI service \"%s\"", clusterAPIGroupVersion)
+	_, err := kubeClient.Discovery().ServerResourcesForGroupVersion(clusterAPIGroupVersion)
+	// Ideally notFound is the error type which would definitively say that the resource
+	// is unavailable, but we also don't know if the functionality would work if we get some
+	// other error here. We thus treat all errors as problematic.
+	if err != nil {
+		glog.Warningf("%s is not available: %v", serviceString, err)
+		return false
+	}
+	return true
 }
 
 // identifyManagingMachine returns the Machine that manages the given node.
@@ -346,27 +355,6 @@ func (controller *machineSetController) waitForState(stateDesc string, f stateCh
 		stateDesc, time.Duration(operationMaxWaits)*operationWaitSleepInterval)
 }
 
-// IsClusterAPIEnabled checks whether cluster API is in fact enabled.
-func IsClusterAPIEnabled(namespace string, cApiClient *versioned.Clientset, kubeClient *kubernetes.Clientset) (bool, error) {
-	if cApiClient == nil {
-		return false, nil
-	}
-	// Construct the API clients.
-	client := &k8sClusterApi{
-		caClient:       cApiClient,
-		k8sClient:      kubeClient,
-		discovery:      kubeClient.Discovery(),
-		machine:        cApiClient.MachineV1beta1().Machines(namespace),
-		machineSet:     cApiClient.MachineV1beta1().MachineSets(namespace),
-		caGroupVersion: clusterAPIGroupVersion,
-	}
-	// Check whether Cluster API is enabled.
-	if err := client.verifyClusterAPIEnabled(); err != nil {
-		return false, nil
-	}
-	return true, nil
-}
-
 // Construct the controller
 func newController(namespace string, nodeName string, diff int32, actionType ActionType,
 	cApiClient *versioned.Clientset, kubeClient *kubernetes.Clientset) (Controller, *string, error) {
@@ -375,16 +363,15 @@ func newController(namespace string, nodeName string, diff int32, actionType Act
 	}
 	// Construct the API clients.
 	client := &k8sClusterApi{
-		caClient:       cApiClient,
-		k8sClient:      kubeClient,
-		discovery:      kubeClient.Discovery(),
-		machine:        cApiClient.MachineV1beta1().Machines(namespace),
-		machineSet:     cApiClient.MachineV1beta1().MachineSets(namespace),
-		caGroupVersion: clusterAPIGroupVersion,
+		caClient:   cApiClient,
+		k8sClient:  kubeClient,
+		discovery:  kubeClient.Discovery(),
+		machine:    cApiClient.MachineV1beta1().Machines(namespace),
+		machineSet: cApiClient.MachineV1beta1().MachineSets(namespace),
 	}
 	// Check whether Cluster API is enabled.
-	if err := client.verifyClusterAPIEnabled(); err != nil {
-		return nil, nil, fmt.Errorf("cluster API is not enabled for %s: %v", nodeName, err)
+	if !IsClusterAPIEnabled(cApiClient, kubeClient) {
+		return nil, nil, fmt.Errorf("cluster API is not enabled for %s", nodeName)
 	}
 	// Identify managing machine.
 	machine, err := client.identifyManagingMachine(nodeName)

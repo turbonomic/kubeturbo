@@ -50,6 +50,7 @@ type Config struct {
 
 	failVolumePodMoves      bool
 	updateQuotaToAllowMoves bool
+	clusterAPIEnabled       bool
 }
 
 func NewVMTConfig2() *Config {
@@ -172,5 +173,10 @@ func (c *Config) WithVolumePodMoveConfig(failVolumePodMoves bool) *Config {
 
 func (c *Config) WithQuotaUpdateConfig(updateQuotaToAllowMoves bool) *Config {
 	c.updateQuotaToAllowMoves = updateQuotaToAllowMoves
+	return c
+}
+
+func (c *Config) WithClusterAPIEnabled(clusterAPIEnabled bool) *Config {
+	c.clusterAPIEnabled = clusterAPIEnabled
 	return c
 }
