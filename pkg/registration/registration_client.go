@@ -22,13 +22,16 @@ type RegistrationConfig struct {
 	stitchingPropertyType stitching.StitchingPropertyType
 	vmPriority            int32
 	vmIsBase              bool
+	// cluster API
+	cAPIEnabled bool
 }
 
-func NewRegistrationClientConfig(pType stitching.StitchingPropertyType, p int32, isbase bool) *RegistrationConfig {
+func NewRegistrationClientConfig(pType stitching.StitchingPropertyType, p int32, isbase, cAPIEnabled bool) *RegistrationConfig {
 	return &RegistrationConfig{
 		stitchingPropertyType: pType,
 		vmPriority:            p,
 		vmIsBase:              isbase,
+		cAPIEnabled:           cAPIEnabled,
 	}
 }
 
@@ -142,10 +145,15 @@ func (rClient *K8sRegistrationClient) GetActionPolicy() []*proto.ActionPolicyDTO
 	// 5. node: support provision and suspend; not resize; do not set move
 	node := proto.EntityDTO_VIRTUAL_MACHINE
 	nodePolicy := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	nodePolicy[proto.ActionItemDTO_PROVISION] = supported
 	nodePolicy[proto.ActionItemDTO_RIGHT_SIZE] = notSupported
 	nodePolicy[proto.ActionItemDTO_SCALE] = notSupported
-	nodePolicy[proto.ActionItemDTO_SUSPEND] = supported
+	if rClient.config.cAPIEnabled {
+		nodePolicy[proto.ActionItemDTO_PROVISION] = supported
+		nodePolicy[proto.ActionItemDTO_SUSPEND] = supported
+	} else {
+		nodePolicy[proto.ActionItemDTO_PROVISION] = recommend
+		nodePolicy[proto.ActionItemDTO_SUSPEND] = recommend
+	}
 
 	rClient.addActionPolicy(ab, node, nodePolicy)
 

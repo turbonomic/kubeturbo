@@ -141,8 +141,8 @@ func (h *ActionHandler) registerActionExecutors() {
 	controllerResizer := executor.NewWorkloadControllerResizer(ae, c.kubeletClient, c.sccAllowedSet)
 	h.actionExecutors[turboActionControllerResize] = controllerResizer
 
-	// Only register the actions when API client is non-nil.
-	if ok, err := executor.IsClusterAPIEnabled(c.cAPINamespace, c.cApiClient, c.clusterScraper.Clientset); ok && err == nil {
+	// Only register the actions when API client is non-nil and cluster-api is available.
+	if executor.IsClusterAPIEnabled(c.cApiClient, c.clusterScraper.Clientset) {
 		machineScaler := executor.NewMachineActionExecutor(c.cAPINamespace, ae)
 		h.actionExecutors[turboActionMachineProvision] = machineScaler
 		h.actionExecutors[turboActionMachineSuspend] = machineScaler
