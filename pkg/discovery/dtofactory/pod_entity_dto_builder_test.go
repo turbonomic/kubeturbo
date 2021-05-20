@@ -1,14 +1,17 @@
 package dtofactory
 
 import (
+	"reflect"
 	"testing"
 
-	"reflect"
+	"github.com/stretchr/testify/assert"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 var builder = &podEntityDTOBuilder{
@@ -100,5 +103,65 @@ func createPodWithReadyCondition() *api.Pod {
 				Status: api.ConditionTrue,
 			}},
 		},
+	}
+}
+
+func TestContainerMetricsAvailability(t *testing.T) {
+	testPod1 := &api.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "pod1",
+		},
+		Spec: api.PodSpec{
+			NodeName: nodeName,
+		},
+	}
+	testPod2 := &api.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "pod2",
+		},
+		Spec: api.PodSpec{
+			NodeName: nodeName,
+		},
+	}
+	testPod3 := &api.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "pod3",
+		},
+		Spec: api.PodSpec{
+			NodeName: nodeName,
+		},
+	}
+
+	tests := []struct {
+		pod                      *api.Pod
+		expectedMetricsAvailable bool
+	}{
+		{
+			pod:                      testPod1,
+			expectedMetricsAvailable: true,
+		},
+		{
+			pod:                      testPod2,
+			expectedMetricsAvailable: false,
+		},
+		{
+			pod:                      testPod3,
+			expectedMetricsAvailable: true,
+		},
+	}
+	sink := metrics.NewEntityMetricSink()
+	containerMetricsAvailableMetric := metrics.NewEntityStateMetric(metrics.PodType,
+		util.PodKeyFunc(testPod1), metrics.MetricsAvailability, true)
+	containerMetricsNotAvailableMetric := metrics.NewEntityStateMetric(metrics.PodType,
+		util.PodKeyFunc(testPod2), metrics.MetricsAvailability, false)
+	sink.AddNewMetricEntries(containerMetricsAvailableMetric, containerMetricsNotAvailableMetric)
+	// pod3 does not have any isAvailability metrics created, we consider it as powerON
+
+	podDTOBuilder := NewPodEntityDTOBuilder(sink, nil)
+	for _, test := range tests {
+		assert.Equal(t, podDTOBuilder.isContainerMetricsAvailable(test.pod), test.expectedMetricsAvailable)
 	}
 }

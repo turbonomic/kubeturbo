@@ -376,7 +376,7 @@ func GetThresholdPercentile(value evictionapi.ThresholdValue, capacity float64) 
 func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats, timestamp int64) {
 	for i := range podStats {
 		pod := &(podStats[i])
-		cpuUsed, memUsed := m.parseContainerStats(pod, timestamp)
+		cpuUsed, memUsed, isContMetricsMissing := m.parseContainerStats(pod, timestamp)
 		key := util.PodMetricId(&(pod.PodRef))
 
 		ephemeralFsCapacity, ephemeralFsUsed := float64(0), float64(0)
@@ -398,6 +398,8 @@ func (m *KubeletMonitor) parsePodStats(podStats []stats.PodStats, timestamp int6
 		glog.V(4).Infof("Ephemeral fs used for pod %s is %.3f Megabytes", key, ephemeralFsUsed)
 
 		m.genUsedMetrics(metrics.PodType, key, cpuUsed, memUsed, timestamp)
+		// We set isAvailable against the metrics "MetricsAvailability"
+		m.genMetricAvailablityMetrics(metrics.PodType, key, !isContMetricsMissing)
 		// Collect pod numConsumersUsedMetrics and fsMetrics only in full discovery not in sampling discovery
 		if m.isFullDiscovery {
 			m.genNumConsumersUsedMetrics(metrics.PodType, key)
@@ -430,25 +432,31 @@ func (m *KubeletMonitor) parseVolumeStats(volStats []stats.VolumeStats, podKey s
 	}
 }
 
-func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats, timestamp int64) (float64, float64) {
+func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats, timestamp int64) (float64, float64, bool) {
 
 	totalUsedCPU := float64(0.0)
 	totalUsedMem := float64(0.0)
 
 	podMId := util.PodMetricId(&(pod.PodRef))
 	containers := pod.Containers
-
+	allMetricsMissing := true
 	for i := range containers {
 		container := &containers[i]
-		if container.CPU == nil || container.CPU.UsageNanoCores == nil {
-			continue
-		}
-		if container.Memory == nil || container.Memory.WorkingSetBytes == nil {
+		cpuUsed := float64(0.0)
+		memUsed := float64(0.0)
+		cpuMetricsMissing := container.CPU == nil || container.CPU.UsageNanoCores == nil
+		memMetricsMissing := container.Memory == nil || container.Memory.WorkingSetBytes == nil
+		if cpuMetricsMissing && memMetricsMissing {
 			continue
 		}
 
-		cpuUsed := util.MetricNanoToUnit(float64(*container.CPU.UsageNanoCores))
-		memUsed := util.Base2BytesToKilobytes(float64(*container.Memory.WorkingSetBytes))
+		allMetricsMissing = false
+		if !cpuMetricsMissing {
+			cpuUsed = util.MetricNanoToUnit(float64(*container.CPU.UsageNanoCores))
+		}
+		if !memMetricsMissing {
+			memUsed = util.Base2BytesToKilobytes(float64(*container.Memory.WorkingSetBytes))
+		}
 
 		totalUsedCPU += cpuUsed
 		totalUsedMem += memUsed
@@ -468,7 +476,7 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats, timestamp int6
 		m.genUsedMetrics(metrics.ApplicationType, appMId, cpuUsed, memUsed, timestamp)
 	}
 
-	return totalUsedCPU, totalUsedMem
+	return totalUsedCPU, totalUsedMem, allMetricsMissing
 }
 
 func (m *KubeletMonitor) genThrottlingMetrics(etype metrics.DiscoveredEntityType, key string, throttled, total float64, timestamp int64) {
@@ -536,4 +544,12 @@ func (m *KubeletMonitor) genPVMetrics(etype metrics.DiscoveredEntityType, key st
 	capacityMetric := metrics.NewEntityResourceMetric(etype, key, metrics.StorageAmount, metrics.Capacity, capacity)
 	usedMetric := metrics.NewEntityResourceMetric(etype, key, metrics.StorageAmount, metrics.Used, used)
 	m.metricSink.AddNewMetricEntries(capacityMetric, usedMetric)
+}
+
+func (m *KubeletMonitor) genMetricAvailablityMetrics(etype metrics.DiscoveredEntityType, key string, isAvailable bool) {
+	// Right now we only care about container metrics missing for a given pod, in which case a container as an entity
+	// might not be created at all in the supply chain. If we need to pinpoint what metrics is missing (in future), we
+	// can add the exact metrics name also in the metrics val.
+	metrics := metrics.NewEntityStateMetric(etype, key, metrics.MetricsAvailability, isAvailable)
+	m.metricSink.AddNewMetricEntries(metrics)
 }

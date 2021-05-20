@@ -2,9 +2,10 @@ package util
 
 import (
 	"fmt"
-	"github.com/golang/glog"
 	"testing"
 	"time"
+
+	"github.com/golang/glog"
 )
 
 const (
@@ -83,7 +84,9 @@ func TestExpirationMap_Touch(t *testing.T) {
 		t.Errorf("Add failed.")
 	}
 
-	for i := 0; i < 10; i++ {
+	// Latest version of go (1.16+) has the test timeout set a 30 seconds
+	// for each individual test by default. We try to have this finish under that.
+	for i := 0; i < 5; i++ {
 		flag := store.Touch(key, v)
 		if !flag {
 			t.Errorf("Touch test1 failed.")

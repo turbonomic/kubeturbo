@@ -222,6 +222,9 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 		suspendable := true
 		provisionable := true
 		powerState := proto.EntityDTO_POWERED_ON
+		if !builder.isContainerMetricsAvailable(pod) {
+			powerState = proto.EntityDTO_POWERSTATE_UNKNOWN
+		}
 		// action eligibility for daemon pods
 		if daemon {
 			suspendable = false
@@ -283,6 +286,26 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 	}
 
 	return result
+}
+
+func (builder *podEntityDTOBuilder) isContainerMetricsAvailable(pod *api.Pod) bool {
+	// We consider that the metrics for a pods containers are available until we don't
+	// explicitly see an availability metrics set to false.
+	isAvailable := true
+	entityKey := util.PodMetricIdAPI(pod)
+	ownerMetricId := metrics.GenerateEntityStateMetricUID(metrics.PodType, entityKey, metrics.MetricsAvailability)
+	availabilityMetric, err := builder.metricsSink.GetMetric(ownerMetricId)
+	if err != nil {
+		glog.Warningf("Error getting %s from metrics sink for pod %s --> %v", metrics.MetricsAvailability, entityKey, err)
+	} else {
+		availabilityMetricValue := availabilityMetric.GetValue()
+		ok := false
+		isAvailable, ok = availabilityMetricValue.(bool)
+		if !ok {
+			glog.Warningf("Error getting %s from metrics sink for pod %s. Wrong type: %T, Expected: bool.", metrics.MetricsAvailability, entityKey, availabilityMetricValue)
+		}
+	}
+	return isAvailable
 }
 
 // VCPURequestQuota/VMemRequestQuota commodities.
