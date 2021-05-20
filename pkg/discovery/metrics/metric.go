@@ -348,7 +348,7 @@ func (m EntityStateMetric) GetValue() interface{} {
 
 func (m EntityStateMetric) UpdateValue(existing interface{}, maxMetricPointsSize int) Metric {
 	// NOP
-	return nil
+	return m
 }
 
 // Generate the UID for each metric entry based on entityType, entityID and resourceType.

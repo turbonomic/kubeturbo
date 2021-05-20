@@ -51,6 +51,9 @@ func (s *Cache) Get(key string) (interface{}, bool) {
 
 // Get all the keys of current cache.
 func (s *Cache) AllKeys() []string {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
 	keys := make([]string, 0, len(s.items))
 	for k := range s.items {
 		keys = append(keys, k)
