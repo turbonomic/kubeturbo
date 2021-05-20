@@ -2,12 +2,14 @@ package worker
 
 import (
 	"fmt"
+
 	"github.com/golang/glog"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"k8s.io/api/core/v1"
 )
 
 // Collects parent info for the pods and containers and converts to EntityGroup objects
@@ -60,8 +62,18 @@ func (collector *GroupMetricsCollector) CollectGroupMetrics() []*repository.Enti
 		}
 		entityGroupByParentKind := entityGroupsByParentKind[ownerTypeString]
 
-		// Add pod member to the group1
-		entityGroup.AddMember(metrics.PodType, podId)
+		// We currently skip adding pod members which results in no groups of
+		// pods per parent controller for each namespace being created. These groups
+		// are not needed and cause performance overhead, especially in large topologies.
+		//
+		// TODO: Cleanup all the relevant group creation code after the alternative
+		// mechanism for consistent scaling of containers across pods of one parent
+		// is in place.
+		// TODO: Also consider having code for atleast some of these autocreated groups,
+		// behind a flag useful for smaller topologies.
+		//
+		// entityGroup.AddMember(metrics.PodType, podId)
+
 		// Add pod member to the group2
 		entityGroupByParentKind.AddMember(metrics.PodType, podId)
 
