@@ -202,13 +202,13 @@ func (rClient *K8sRegistrationClient) GetActionMergePolicy() []*proto.ActionMerg
 
 	actionMergeTarget := builder.NewActionDeDuplicateAndAggregationTargetBuilder().
 		DeDuplicatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_CONTAINER_SPEC,
-			proto.ConnectedEntity_AGGREGATED_BY_CONNECTION)).
+			proto.ConnectedEntity_CONTROLLED_BY_CONNECTION)).
 		AggregatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER,
 			proto.ConnectedEntity_CONTROLLED_BY_CONNECTION))
 
 	actionMergeTarget2 := builder.NewActionDeDuplicateAndAggregationTargetBuilder().
 		DeDuplicatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_CONTAINER_SPEC,
-			proto.ConnectedEntity_AGGREGATED_BY_CONNECTION)).
+			proto.ConnectedEntity_CONTROLLED_BY_CONNECTION)).
 		AggregatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER,
 			proto.ConnectedEntity_OWNS_CONNECTION))
 
