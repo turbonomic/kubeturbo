@@ -88,8 +88,11 @@ var (
 	VMUUID         = supplychain.SUPPLY_CHAIN_CONSTANT_ID
 
 	// Common property
-	path                   = "path"
-	ActionEligibilityField = "actionEligibility"
+	path                       = "path"
+	ActionEligibilityField     = "actionEligibility"
+	providerPolicyPath         = "providerPolicy"
+	availableForPlacementField = "availableForPlacement"
+	powerStateField            = "powerState"
 )
 
 type SupplyChainFactory struct {
@@ -230,6 +233,7 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 	mergedEntityMetadataBuilder := builder.NewMergedEntityMetadataBuilder()
 
 	mergedEntityMetadataBuilder.PatchField(ActionEligibilityField, []string{})
+	mergedEntityMetadataBuilder.PatchField(availableForPlacementField, []string{providerPolicyPath})
 	// Set up matching criteria based on stitching type
 	switch f.stitchingPropertyType {
 	case stitching.UUID:
@@ -244,6 +248,7 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 		return nil, fmt.Errorf("stitching property type %s is not supported",
 			f.stitchingPropertyType)
 	}
+
 	return mergedEntityMetadataBuilder.
 		PatchSoldMetadata(proto.CommodityDTO_CLUSTER, fieldsCapactiy).
 		PatchSoldMetadata(proto.CommodityDTO_VMPM_ACCESS, fieldsCapactiy).
@@ -483,7 +488,7 @@ func (f *SupplyChainFactory) buildVolumeMergedEntityMetadata() (*proto.MergedEnt
 	mergedEntityMetadataBuilder := builder.NewMergedEntityMetadataBuilder()
 
 	mergedEntityMetadataBuilder.PatchField(ActionEligibilityField, []string{}).
-		PatchField("powerState", []string{}).
+		PatchField(powerStateField, []string{}).
 		InternalMatchingProperty(proxyVolumeUUID).
 		ExternalMatchingField(supplychain.SUPPLY_CHAIN_CONSTANT_ID, []string{}).
 		InternalMatchingProperty(path).
