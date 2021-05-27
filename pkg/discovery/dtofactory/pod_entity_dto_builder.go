@@ -382,6 +382,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
 		if err != nil {
 			return nil, err
 		}
+		glog.V(5).Infof("Adding access commodity for Pod %s with key : %s", pod.Name, selector)
 		commoditiesBought = append(commoditiesBought, accessComm)
 	}
 

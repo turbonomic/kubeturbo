@@ -225,14 +225,13 @@ func createTaintAccessComms(node *api.Node, taintCollection map[api.Taint]string
 				return nil, err
 			}
 			visited[key] = true
-			glog.V(4).Infof("Created access commodity with key %s for node %s", key, node.GetName())
+			glog.V(5).Infof("Created access commodity with key %s for node %s", key, node.GetName())
 
 			accessComms = append(accessComms, accessComm)
 		}
 	}
 
 	glog.V(4).Infof("Created %d access commodities for node %s", len(accessComms), node.GetName())
-
 	return accessComms, nil
 }
 
@@ -257,7 +256,7 @@ func createTolerationAccessComms(pod *api.Pod, taintCollection map[api.Taint]str
 				return nil, err
 			}
 			visited[key] = true
-			glog.V(4).Infof("Created access commodity with key %s for pod %s", key, pod.GetName())
+			glog.V(5).Infof("Created access commodity with key %s for pod %s", key, pod.GetName())
 
 			accessComms = append(accessComms, accessComm)
 		}
@@ -298,7 +297,7 @@ func createSchedulableSoldComms(node *api.Node, nodesManager *NodeSchedulability
 
 		return schedAccessComm, nil
 	} else {
-		glog.V(4).Infof("Skip schedulable commodity for node %s", node.Name)
+		glog.V(5).Infof("Skip schedulable commodity for node %s", node.Name)
 	}
 
 	return nil, nil
