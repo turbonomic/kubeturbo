@@ -142,6 +142,7 @@ func (am *AffinityProcessor) addCommoditySoldByNode(node *api.Node, affinityAcce
 		glog.Errorf("Cannot find the entityDTO: %s", err)
 		return
 	}
+	glog.V(4).Infof("Adding affinity access commodities for node: %s, Commodities: %v", node.Name, affinityAccessCommodityDTOs)
 	err = am.AddCommoditiesSold(nodeEntityDTO, affinityAccessCommodityDTOs...)
 	if err != nil {
 		glog.Errorf("Failed to add commodityDTO to %s: %s", node.Name, err)
@@ -154,6 +155,7 @@ func (am *AffinityProcessor) addCommodityBoughtByPod(pod *api.Pod, node *api.Nod
 		glog.Errorf("Cannot find the entityDTO: %s", err)
 		return
 	}
+	glog.V(4).Infof("Adding affinity access commodities for pod: %s, Commodities: %v", pod.Name, affinityAccessCommodityDTOs)
 	provider := sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, string(node.UID))
 	err = am.AddCommoditiesBought(podEntityDTO, provider, affinityAccessCommodityDTOs...)
 	if err != nil {

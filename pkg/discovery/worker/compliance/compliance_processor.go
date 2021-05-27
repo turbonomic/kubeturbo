@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/golang/glog"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
@@ -83,6 +84,8 @@ func (cp *ComplianceProcessor) AddCommoditiesSold(entityDTO *proto.EntityDTO, co
 	for _, comm := range commodities {
 		if !hasCommoditySold(entityDTO, comm) {
 			commoditiesSold = append(commoditiesSold, comm)
+		} else {
+			glog.V(4).Info("Access commodity sold exists. Skip adding access commodity: %v.", comm)
 		}
 	}
 
@@ -112,6 +115,8 @@ func (cp *ComplianceProcessor) AddCommoditiesBought(entityDTO *proto.EntityDTO, 
 			for _, comm := range commodities {
 				if !hasCommodityBought(commBoughtType, comm) {
 					commBoughtType.Bought = append(commBoughtType.GetBought(), comm)
+				} else {
+					glog.V(4).Info("Access commodity bought exists. Skip adding access commodity: %v.", comm)
 				}
 			}
 			foundProvider = true
