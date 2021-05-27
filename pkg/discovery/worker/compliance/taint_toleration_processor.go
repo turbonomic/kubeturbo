@@ -2,6 +2,7 @@ package compliance
 
 import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	api "k8s.io/api/core/v1"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
@@ -31,9 +32,13 @@ type TaintTolerationProcessor struct {
 	nodeNameToUID map[string]string
 
 	cluster *repository.ClusterSummary
+
+	// Manager for schedulable nodes
+	nodesManager *NodeSchedulabilityManager
 }
 
-func NewTaintTolerationProcessor(cluster *repository.ClusterSummary) (*TaintTolerationProcessor, error) {
+func NewTaintTolerationProcessor(cluster *repository.ClusterSummary,
+	unSchedulableNodesManager *NodeSchedulabilityManager) (*TaintTolerationProcessor, error) {
 
 	nodeMap := make(map[string]*api.Node)
 	podMap := make(map[string]*api.Pod)
@@ -55,6 +60,7 @@ func NewTaintTolerationProcessor(cluster *repository.ClusterSummary) (*TaintTole
 		pods:          podMap,
 		nodeNameToUID: nodeNameToUID,
 		cluster:       cluster,
+		nodesManager:  unSchedulableNodesManager,
 	}, nil
 }
 
@@ -79,6 +85,15 @@ func (t *TaintTolerationProcessor) createAccessCommoditiesSold(nodeDTOs []*proto
 		if !ok {
 			glog.Errorf("Unable to find node object with uid %s::%s", *nodeDTO.Id, *nodeDTO.DisplayName)
 			continue
+		}
+
+		// Schedulable
+		schedulableAccessComm, err := createSchedulableSoldComms(node, t.nodesManager)
+		if err != nil {
+			glog.Errorf("Error while creating schedulable commodity for node %s", node.GetName())
+		}
+		if schedulableAccessComm != nil {
+			nodeDTO.CommoditiesSold = append(nodeDTO.CommoditiesSold, schedulableAccessComm)
 		}
 
 		// Taints
@@ -108,11 +123,21 @@ func (t *TaintTolerationProcessor) createAccessCommoditiesBought(podDTOs []*prot
 			continue
 		}
 
+		// Schedulable
+		schedulableComm, err := createSchedulableBoughtComms(pod, t.nodesManager)
+		if err != nil {
+			glog.Errorf("Error while creating schedulable commodity for pod %s/%s", pod.Namespace, pod.Name)
+		}
+
 		// Toleration
 		tolerateAccessComms, err := createTolerationAccessComms(pod, taintCollection)
 		if err != nil {
 			glog.Errorf("Error while processing tolerations for pod %s/%s", pod.Namespace, pod.Name)
 			continue
+		}
+
+		if schedulableComm != nil {
+			tolerateAccessComms = append(tolerateAccessComms, schedulableComm)
 		}
 
 		podBuysCommodities(podDTO, tolerateAccessComms, providerId)
@@ -251,4 +276,60 @@ func TolerationsTolerateTaint(tolerations []api.Toleration, taint *api.Taint) bo
 		}
 	}
 	return false
+}
+
+// Create an access commodity for schedulable nodes to serve as provider for pods.
+// Access commodity with a special key 'schedulable' is used to represent the fact
+// that a node can serve as providers for pods.
+func createSchedulableSoldComms(node *api.Node, nodesManager *NodeSchedulabilityManager) (*proto.CommodityDTO, error) {
+	// Access commodity: schedulable.
+	schedulable := nodesManager.CheckSchedulable(node)
+
+	//We create an Access commodity with a special key 'schedulable' to indicate to the market that this node
+	// is a provider for pods
+	if schedulable {
+		schedAccessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
+			Key(schedAccessCommodityKey).
+			Capacity(accessCommodityDefaultCapacity).
+			Create()
+		if err != nil {
+			return nil, err
+		}
+
+		return schedAccessComm, nil
+	} else {
+		glog.V(4).Infof("Skip schedulable commodity for node %s", node.Name)
+	}
+
+	return nil, nil
+}
+
+// Create an access commodity for the pods so it can run nodes selling the same commodity.
+// Access commodity with a special key 'schedulable' is used to represent the fact
+// that a pod can run on a node that is a valid provider. This node will sell the corresponding commodity.
+func createSchedulableBoughtComms(pod *api.Pod, nodesManager *NodeSchedulabilityManager) (*proto.CommodityDTO, error) {
+	nodeName := pod.Spec.NodeName
+	schedulable := nodesManager.CheckSchedulableByName(nodeName)
+
+	// Pods buy an access commodity with the special key 'schedulable' to imply that they can be deployed
+	// or run on the node that sells the same commodity.
+	// When a node becomes unschedulable, it is desirable that the pods already running on the node
+	// continue to stay on the node unless there is a resource(compute) constraint or policy violation.
+	// To prevent Turbo to give recommendations to move these pods, the schedulable access commodity for the pod
+	// is created only when it is running on a node that is schedulable
+	if schedulable {
+		if util.Controllable(pod) {
+			schedAccessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
+				Key(schedAccessCommodityKey).
+				Create()
+			if err != nil {
+				return nil, err
+			}
+			return schedAccessComm, nil
+		}
+	} else {
+		glog.V(4).Infof("Skip schedulable commodity for pod %s/%s", pod.Namespace, pod.Name)
+	}
+
+	return nil, nil
 }

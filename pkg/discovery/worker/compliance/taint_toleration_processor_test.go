@@ -2,9 +2,8 @@ package compliance
 
 import (
 	"fmt"
-	"testing"
-
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"testing"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
@@ -59,7 +58,8 @@ func TestProcess(t *testing.T) {
 	clusterSummary.NodeToRunningPods[n2.Name] = []*api.Pod{pod2}
 	clusterSummary.NodeToRunningPods[n3.Name] = []*api.Pod{pod3}
 
-	taintTolerationProcessor, err := NewTaintTolerationProcessor(clusterSummary)
+	nodesManager := NewNodeSchedulabilityManager(clusterSummary)
+	taintTolerationProcessor, err := NewTaintTolerationProcessor(clusterSummary, nodesManager)
 
 	if err != nil {
 		t.Errorf("Failed to create TaintTolerationProcessor: %v", err)
