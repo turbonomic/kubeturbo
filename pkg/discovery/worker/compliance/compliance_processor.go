@@ -82,10 +82,10 @@ func (cp *ComplianceProcessor) AddCommoditiesSold(entityDTO *proto.EntityDTO, co
 	}
 	commoditiesSold := entityDTO.GetCommoditiesSold()
 	for _, comm := range commodities {
-		if !hasCommoditySold(entityDTO, comm) {
+		if !hasCommodity(commoditiesSold, comm) {
 			commoditiesSold = append(commoditiesSold, comm)
 		} else {
-			glog.V(4).Info("Access commodity sold exists. Skip adding access commodity: %v.", comm)
+			glog.V(4).Infof("Access commodity sold exists. Skip adding access commodity: %v.", comm)
 		}
 	}
 
@@ -109,48 +109,51 @@ func (cp *ComplianceProcessor) AddCommoditiesBought(entityDTO *proto.EntityDTO, 
 		return errors.New("invalid input: provider is nil.")
 	}
 	foundProvider := false
-	for _, commBoughtType := range entityDTO.GetCommoditiesBought() {
-		// TODO compare GetProviderType
-		if commBoughtType.GetProviderId() == provider.GetId() { // && commBoughtType.GetProviderType() == provider.GetProviderType() {
+	for _, commsBoughtFromOneProvider := range entityDTO.GetCommoditiesBought() {
+		if commsBoughtFromOneProvider.GetProviderId() == provider.GetId() {
+			commsBought := commsBoughtFromOneProvider.GetBought()
 			for _, comm := range commodities {
-				if !hasCommodityBought(commBoughtType, comm) {
-					commBoughtType.Bought = append(commBoughtType.GetBought(), comm)
+				if !hasCommodity(commsBought, comm) {
+					commsBought = append(commsBought, comm)
 				} else {
-					glog.V(4).Info("Access commodity bought exists. Skip adding access commodity: %v.", comm)
+					glog.V(4).Infof("Access commodity bought exists. Skip adding access commodity: %v.", comm)
 				}
 			}
+			commsBoughtFromOneProvider.Bought = commsBought
 			foundProvider = true
 		}
 	}
 	if !foundProvider {
 		providerID := provider.GetId()
 		pType := provider.GetProviderType()
-		boughtType := &proto.EntityDTO_CommodityBought{
+		boughtFromProvider := &proto.EntityDTO_CommodityBought{
 			ProviderId:   &providerID,
 			ProviderType: &pType,
 			Bought:       []*proto.CommodityDTO{},
 		}
-		boughtType.Bought = append(boughtType.Bought, commodities...)
-		entityDTO.CommoditiesBought = append(entityDTO.GetCommoditiesBought(), boughtType)
+		boughtFromProvider.Bought = append(boughtFromProvider.Bought, commodities...)
+		entityDTO.CommoditiesBought = append(entityDTO.GetCommoditiesBought(), boughtFromProvider)
 
 		err := cp.UpdateEntityDTO(entityDTO)
 		if err != nil {
-			return fmt.Errorf("failed to update node entityDTO: %s", err)
+			return fmt.Errorf("failed to update pod entityDTO: %s", err)
 		}
 	}
 	return nil
 }
 
-// check if a commodity has already been sold by the entity.
-func hasCommoditySold(entityDTO *proto.EntityDTO, commDTO *proto.CommodityDTO) bool {
-	commoditiesSold := entityDTO.GetCommoditiesSold()
-	return hasCommodity(commoditiesSold, commDTO)
-}
-
-// check if a commodity has already been bought by the entity
-func hasCommodityBought(commodityBought *proto.EntityDTO_CommodityBought, commDTO *proto.CommodityDTO) bool {
-	commoditiesBought := commodityBought.GetBought()
-	return hasCommodity(commoditiesBought, commDTO)
+// check for commodity to exist only once.
+func hasCommodityUnique(commodities []*proto.CommodityDTO, commDTO *proto.CommodityDTO) bool {
+	timesFound := 0
+	found := false
+	for _, comm := range commodities {
+		if commDTO == comm || commDTO.GetCommodityType() == comm.GetCommodityType() &&
+			commDTO.GetKey() == comm.GetKey() {
+			found = true
+			timesFound += 1
+		}
+	}
+	return found && timesFound == 1
 }
 
 func hasCommodity(commodityDTOs []*proto.CommodityDTO, commDTO *proto.CommodityDTO) bool {
