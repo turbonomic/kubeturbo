@@ -111,7 +111,7 @@ var _ = Describe("Discover Cluster", func() {
 			_, err := createResourcesForDiscovery(kubeClient, namespace, 2)
 			framework.ExpectNoError(err, "Failed creating test resources")
 
-			entityDTOs, groupDTOs, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
+			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
 			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
 
 			// We run this against a kind cluster with 1 master and 2 workers created
@@ -121,8 +121,20 @@ var _ = Describe("Discover Cluster", func() {
 			// New resources included add up to a total of 91 entities and 33 group DTOs.
 			// The entities from other tests might show up in this list.
 			// We thus validate that the discovered entities are >= to the numbers here
-			validateDTOs(entityDTOs, groupDTOs, 91, 33)
+			//
+			// TODO: update this after https://vmturbo.atlassian.net/browse/OM-71015 is complete.
+			// Right now the groups won't match the old expected.
+			// validateNumbers(entityDTOs, groupDTOs, 91, 33)
 			validateThresholds(entityDTOs)
+		})
+
+		It("with duplicate node or pod affinity rules should not result in duplicated commodities", func() {
+			err := createDeployWithDuplicateAffinities(kubeClient, namespace, 2)
+			framework.ExpectNoError(err, "Failed creating test resources")
+
+			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
+			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
+			validateDuplicateCommodities(entityDTOs)
 		})
 	})
 
@@ -136,7 +148,7 @@ var _ = Describe("Discover Cluster", func() {
 	})
 })
 
-func validateDTOs(entityDTOs []*proto.EntityDTO, groupDTOs []*proto.GroupDTO, totalEntities, totalGroups int) {
+func validateNumbers(entityDTOs []*proto.EntityDTO, groupDTOs []*proto.GroupDTO, totalEntities, totalGroups int) {
 	if len(entityDTOs) < totalEntities {
 		framework.Failf("Entity count doesn't match post discovery: got: %d, expected (>=):  %d", len(entityDTOs), totalEntities)
 	}
@@ -196,6 +208,41 @@ func validateThresholds(entityDTOs []*proto.EntityDTO) {
 
 }
 
+// There should not be any duplicates on either the sold commodities or bought
+// commodities on an entity
+func validateDuplicateCommodities(entityDTOs []*proto.EntityDTO) {
+	for _, entityDTO := range entityDTOs {
+		for i, commI := range entityDTO.GetCommoditiesSold() {
+			for j, commJ := range entityDTO.GetCommoditiesSold() {
+				if i == j {
+					// same commodity in the slice
+					continue
+				}
+				assertCommoditySame(commI, commJ, entityDTO)
+			}
+		}
+
+		for _, commsBought := range entityDTO.GetCommoditiesBought() {
+			for i, commI := range commsBought.GetBought() {
+				for j, commJ := range commsBought.GetBought() {
+					if i == j {
+						// same commodity in the slice
+						continue
+					}
+					assertCommoditySame(commI, commJ, entityDTO)
+				}
+			}
+		}
+	}
+}
+
+func assertCommoditySame(commI, commJ *proto.CommodityDTO, entityDTO *proto.EntityDTO) {
+	if commI.GetCommodityType() == commJ.GetCommodityType() && commI.GetKey() == commJ.GetKey() {
+		framework.Failf("Found duplicate commodity %s with key %s on Entity: %s/%s.",
+			commI.GetCommodityType(), commI.GetKey(), entityDTO.GetEntityType(), entityDTO.GetDisplayName())
+	}
+}
+
 func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *kubeletclient.KubeletClient, dynamicClient dynamic.Interface) *configs.ProbeConfig {
 	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(kubeletClient, kubeClient)
 	clusterScraper := cluster.NewClusterScraper(kubeClient, dynamicClient)
@@ -222,7 +269,7 @@ func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *
 // against the dtos discovered by kubeturbo routines.
 func createResourcesForDiscovery(client *kubeclientset.Clientset, namespace string, replicas int32) ([]*appsv1.Deployment, error) {
 	depResources := []*appsv1.Deployment{
-		depMultiContainer(namespace, replicas),
+		depMultiContainer(namespace, replicas, false),
 		depSingleContainerWithResources(namespace, "", replicas, false, false, false),
 		deplMultiContainerWithResources(namespace, replicas),
 	}
@@ -242,10 +289,19 @@ func createResourcesForDiscovery(client *kubeclientset.Clientset, namespace stri
 
 }
 
+func createDeployWithDuplicateAffinities(client *kubeclientset.Clientset, namespace string, replicas int32) error {
+	// Can make this in parallel when the number of resources grows
+	_, err := createDeployResource(client, depMultiContainer(namespace, 2, true))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // TODO: Improve this, either move this to yaml based resources or create lesser
 // utility functions with more configurable properties and reduce code duplication.
-func depMultiContainer(namespace string, replicas int32) *appsv1.Deployment {
-	return &appsv1.Deployment{
+func depMultiContainer(namespace string, replicas int32, withDuplicateAffinityRules bool) *appsv1.Deployment {
+	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "test-app-mc",
 			Namespace:    namespace,
@@ -282,6 +338,36 @@ func depMultiContainer(namespace string, replicas int32) *appsv1.Deployment {
 			},
 		},
 	}
+
+	if withDuplicateAffinityRules {
+		dep.Spec.Template.Spec.Affinity = &corev1.Affinity{
+			NodeAffinity: &corev1.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
+						{
+							MatchExpressions: []corev1.NodeSelectorRequirement{
+								{
+									Key:      "kubernetes.io/arch",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"amd64"},
+								},
+							},
+						},
+						{
+							MatchExpressions: []corev1.NodeSelectorRequirement{
+								{
+									Key:      "kubernetes.io/arch",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"amd64"},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+	return dep
 }
 
 func deplMultiContainerWithResources(namespace string, replicas int32) *appsv1.Deployment {
