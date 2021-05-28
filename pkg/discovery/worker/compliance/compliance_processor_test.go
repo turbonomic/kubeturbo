@@ -192,6 +192,24 @@ func TestAddCommoditiesSold(t *testing.T) {
 			entityDTO: &proto.EntityDTO{
 				EntityType: getEntityTypePointer(proto.EntityDTO_VIRTUAL_MACHINE),
 				Id:         getStringPointer("foo"),
+			},
+			commodities: []*proto.CommodityDTO{
+				{
+					CommodityType: getCommodityTypePointer(proto.CommodityDTO_CPU),
+					Key:           getStringPointer("some_key"),
+				},
+				{
+					CommodityType: getCommodityTypePointer(proto.CommodityDTO_CPU),
+					Key:           getStringPointer("some_key"),
+				},
+			},
+
+			expectsErr: false,
+		},
+		{
+			entityDTO: &proto.EntityDTO{
+				EntityType: getEntityTypePointer(proto.EntityDTO_VIRTUAL_MACHINE),
+				Id:         getStringPointer("foo"),
 				CommoditiesSold: []*proto.CommodityDTO{
 					{
 						CommodityType: getCommodityTypePointer(proto.CommodityDTO_CPU),
@@ -252,7 +270,7 @@ func TestAddCommoditiesSold(t *testing.T) {
 					t.Errorf("Test case %d failed. Unexpected error when try to get the target entityDTO: %s", i, err)
 				} else {
 					for _, commSold := range item.commodities {
-						if !hasCommoditySold(entityDTO, commSold) {
+						if !hasCommodityUnique(entityDTO.GetCommoditiesSold(), commSold) {
 							t.Errorf("Test case %d failed: didn't find the expected commodity: %++v", i, commSold)
 						}
 					}
@@ -308,6 +326,37 @@ func TestAddCommodityBought(t *testing.T) {
 				{
 					CommodityType: getCommodityTypePointer(proto.CommodityDTO_CPU),
 					Key:           getStringPointer("commodity_key_foo"),
+				},
+				{
+					CommodityType: getCommodityTypePointer(proto.CommodityDTO_CPU),
+					Key:           getStringPointer("commodity_key_bar"),
+				},
+			},
+			provider: sdkbuilder.CreateProvider(proto.EntityDTO_VIRTUAL_MACHINE, "vm_key_foo"),
+
+			expectsErr: false,
+		},
+		{
+			// multiple new diff commodities when commodity exists
+			entityDTO: &proto.EntityDTO{
+				EntityType: getEntityTypePointer(proto.EntityDTO_CONTAINER_POD),
+				Id:         getStringPointer("foo"),
+				CommoditiesBought: []*proto.EntityDTO_CommodityBought{
+					{
+						ProviderId: getStringPointer("vm_key_foo"),
+						Bought: []*proto.CommodityDTO{
+							{
+								CommodityType: getCommodityTypePointer(proto.CommodityDTO_CPU),
+								Key:           getStringPointer("commodity_key_foo"),
+							},
+						},
+					},
+				},
+			},
+			commodities: []*proto.CommodityDTO{
+				{
+					CommodityType: getCommodityTypePointer(proto.CommodityDTO_CPU),
+					Key:           getStringPointer("commodity_key_bar"),
 				},
 				{
 					CommodityType: getCommodityTypePointer(proto.CommodityDTO_CPU),
@@ -417,7 +466,7 @@ func TestAddCommodityBought(t *testing.T) {
 					for _, commBought := range entityDTO.GetCommoditiesBought() {
 						if commBought.GetProviderId() == item.provider.GetId() {
 							for _, comm := range item.commodities {
-								if !hasCommodityBought(commBought, comm) {
+								if !hasCommodityUnique(commBought.GetBought(), comm) {
 									t.Errorf("Test case %d failed: didn't find the expected commodity: %++v", i, comm)
 								}
 							}
