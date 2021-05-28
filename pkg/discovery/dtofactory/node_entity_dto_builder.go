@@ -208,8 +208,6 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clus
 	// Access commodities: labels.
 	for key, value := range node.ObjectMeta.Labels {
 		label := key + "=" + value
-		glog.V(4).Infof("label for this Node is : %s", label)
-
 		accessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
 			Key(label).
 			Capacity(accessCommodityDefaultCapacity).
@@ -217,6 +215,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clus
 		if err != nil {
 			return nil, isAvailableForPlacement, err
 		}
+		glog.V(5).Infof("Adding access commodity for Node %s with key : %s", node.Name, label)
 		commoditiesSold = append(commoditiesSold, accessComm)
 	}
 
