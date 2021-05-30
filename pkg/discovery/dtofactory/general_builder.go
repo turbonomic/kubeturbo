@@ -33,6 +33,7 @@ var (
 		metrics.StorageAmount:      proto.CommodityDTO_STORAGE_AMOUNT,
 		metrics.VCPUThrottling:     proto.CommodityDTO_VCPU_THROTTLING,
 	}
+	vcpuUtilThreshold = 5.0
 )
 
 type ValueConversionFunc func(input float64) float64
@@ -164,6 +165,7 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 		// This is better then separately posting the capacity into metrics sync
 		// and then reading it here.
 		commSoldBuilder.Capacity(100)
+		commSoldBuilder.UtilizationThresholdPct(vcpuUtilThreshold) // keeping throttling low
 	} else {
 		capacityMetricValue, err := builder.metricValue(entityType, entityID,
 			resourceType, metrics.Capacity, converter)
