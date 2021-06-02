@@ -10,10 +10,13 @@ import (
 )
 
 var (
-	pod1  = "pod1"
-	node1 = "node1"
+	container1 = "container1"
+	pod1       = "pod1"
+	node1      = "node1"
 
 	metricsSink = metrics.NewEntityMetricSink()
+
+	container1CpuThrottlingUsed = metrics.NewEntityResourceMetric(metrics.ContainerType, container1, metrics.VCPUThrottling, metrics.Used, 35.0)
 
 	cpuUsed_pod1 = metrics.NewEntityResourceMetric(metrics.PodType, pod1, metrics.CPU, metrics.Used, 1.0)
 	memUsed_pod1 = metrics.NewEntityResourceMetric(metrics.PodType, pod1, metrics.Memory, metrics.Used, 8010812.000000/8)
@@ -34,6 +37,27 @@ var (
 		},
 		metrics.CPU)
 )
+
+func TestBuildVCPUThrottlingSold(t *testing.T) {
+	metricsSink = metrics.NewEntityMetricSink()
+	metricsSink.AddNewMetricEntries(container1CpuThrottlingUsed)
+
+	dtoBuilder := &generalBuilder{
+		metricsSink: metricsSink,
+	}
+
+	eType := metrics.ContainerType
+	commSold, err := dtoBuilder.getSoldResourceCommodityWithKey(eType, container1, metrics.VCPUThrottling, "", cpuConverter, nil)
+	fmt.Printf("%++v\n", commSold)
+	fmt.Printf("%++v\n", err)
+	assert.Nil(t, err)
+	assert.NotNil(t, commSold)
+	assert.Equal(t, proto.CommodityDTO_VCPU_THROTTLING, commSold.GetCommodityType())
+	usedValue := container1CpuThrottlingUsed.GetValue().(float64)
+	assert.Equal(t, usedValue, commSold.GetUsed())
+	assert.Equal(t, 100.0, commSold.GetCapacity())
+	assert.Equal(t, vcpuUtilThreshold, commSold.GetUtilizationThresholdPct())
+}
 
 func TestBuildCPUSold(t *testing.T) {
 	metricsSink = metrics.NewEntityMetricSink()
