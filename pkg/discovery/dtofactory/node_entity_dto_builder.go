@@ -162,16 +162,10 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 			continue
 		}
 
+		entityDto.ProviderPolicy = &proto.EntityDTO_ProviderPolicy{AvailableForPlacement: &isAvailableForPlacement}
 		if !isAvailableForPlacement {
 			glog.Warningf("Node %s has been marked unavailable for placement due to disk pressure.", node.GetName())
 		}
-		nodeSchedulable := nodeActive && util.NodeIsSchedulable(node)
-		if !nodeSchedulable {
-			glog.Warningf("Node %s has been marked unavailable for placement because its Unschedulable.", node.GetName())
-		}
-		isAvailableForPlacement = isAvailableForPlacement && nodeSchedulable
-		entityDto.ProviderPolicy = &proto.EntityDTO_ProviderPolicy{AvailableForPlacement: &isAvailableForPlacement}
-
 		result = append(result, entityDto)
 
 		glog.V(4).Infof("Node DTO : %+v", entityDto)
@@ -214,8 +208,6 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clus
 	// Access commodities: labels.
 	for key, value := range node.ObjectMeta.Labels {
 		label := key + "=" + value
-		glog.V(4).Infof("label for this Node is : %s", label)
-
 		accessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
 			Key(label).
 			Capacity(accessCommodityDefaultCapacity).
@@ -223,6 +215,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clus
 		if err != nil {
 			return nil, isAvailableForPlacement, err
 		}
+		glog.V(5).Infof("Adding access commodity for Node %s with key : %s", node.Name, label)
 		commoditiesSold = append(commoditiesSold, accessComm)
 	}
 

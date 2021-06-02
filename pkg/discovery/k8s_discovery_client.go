@@ -381,14 +381,22 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	glog.V(2).Infof("Successfully processed affinity.")
 
 	// Taint-toleration process to create access commodities
+	// Also handles the creation of access commodities to handle unschedulable nodes
 	glog.V(2).Infof("Begin to process taints and tolerations")
-	taintTolerationProcessor, err := compliance.NewTaintTolerationProcessor(clusterSummary)
+	nodesManager := compliance.NewNodeSchedulabilityManager(clusterSummary)
+
+	taintTolerationProcessor, err := compliance.NewTaintTolerationProcessor(clusterSummary, nodesManager)
 	if err != nil {
 		glog.Errorf("Failed during process taints and tolerations: %v", err)
 	} else {
 		// Add access commodities to entity DOTs based on the taint-toleration rules
 		taintTolerationProcessor.Process(result.EntityDTOs)
 	}
+
+	// Anti-Affinity policy to prevent pods on unschedulable nodes to move to other unschedulable nodes
+	nodesAntiAffinityGroupBuilder := compliance.NewUnschedulableNodesAntiAffinityGroupDTOBuilder(
+		clusterSummary, targetID, nodesManager)
+	nodeAntiAffinityGroupDTOs := nodesAntiAffinityGroupBuilder.Build()
 
 	glog.V(2).Infof("Successfully processed taints and tolerations.")
 
@@ -404,6 +412,8 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 				groupDto.GetMemberList().Member)
 		}
 	}
+
+	groupDTOs = append(groupDTOs, nodeAntiAffinityGroupDTOs...)
 
 	// Create the cluster DTO
 	clusterEntityDTO, err := dtofactory.NewClusterDTOBuilder(clusterSummary, targetID).BuildEntity(result.EntityDTOs, namespaceDtos)
