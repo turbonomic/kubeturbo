@@ -112,7 +112,7 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 				commSoldBuilder.Capacity(aggregatedCap)
 				commSoldBuilder.Peak(aggregatedPeak)
 				commSoldBuilder.Used(aggregatedUsed)
-				commSoldBuilder.UtilizationThresholdPct(vcpuUtilThreshold)
+				commSoldBuilder.UtilizationThresholdPct(vcpuThrottlingUtilThreshold)
 			} else {
 				glog.Warningf("Invalid throttling metrics type: expected: [][]metrics.ThrottlingCumulative, got: %T.", resourceMetrics.Used)
 			}

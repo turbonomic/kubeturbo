@@ -56,7 +56,7 @@ func TestBuildVCPUThrottlingSold(t *testing.T) {
 	usedValue := container1CpuThrottlingUsed.GetValue().(float64)
 	assert.Equal(t, usedValue, commSold.GetUsed())
 	assert.Equal(t, 100.0, commSold.GetCapacity())
-	assert.Equal(t, vcpuUtilThreshold, commSold.GetUtilizationThresholdPct())
+	assert.Equal(t, vcpuThrottlingUtilThreshold, commSold.GetUtilizationThresholdPct())
 }
 
 func TestBuildCPUSold(t *testing.T) {
