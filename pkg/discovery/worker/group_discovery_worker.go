@@ -50,15 +50,6 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 					existingGroup.Members[etype] = append(existingGroup.Members[etype], newmembers...)
 				}
 			}
-
-			// groups by container names
-			for containerName, newMembers := range entityGroup.ContainerGroups {
-				if _, hasMembers := existingGroup.ContainerGroups[containerName]; hasMembers {
-					existingGroup.ContainerGroups[containerName] = append(existingGroup.ContainerGroups[containerName], newMembers...)
-				} else {
-					existingGroup.ContainerGroups[containerName] = newMembers
-				}
-			}
 		} else {
 			entityGroupMap[groupId] = entityGroup
 		}
@@ -66,12 +57,9 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 
 	if glog.V(4) {
 		for _, entityGroup := range entityGroupMap {
-			glog.Infof("Group --> %s::%s\n", entityGroup.ParentKind, entityGroup.ParentName)
+			glog.Infof("Group --> ::%s::\n", entityGroup.ParentKind)
 			for etype, members := range entityGroup.Members {
 				glog.Infof("	Members: %s -> %s", etype, members)
-			}
-			for cname, members := range entityGroup.ContainerGroups {
-				glog.Infof("	Container Groups: %s -> %s", cname, members)
 			}
 		}
 	}

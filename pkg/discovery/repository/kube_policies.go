@@ -5,20 +5,16 @@ import (
 )
 
 type EntityGroup struct {
-	Members         map[metrics.DiscoveredEntityType][]string
-	ParentKind      string
-	ParentName      string
-	GroupId         string
-	ContainerGroups map[string][]string
+	Members    map[metrics.DiscoveredEntityType][]string
+	ParentKind string
+	GroupId    string
 }
 
-func NewEntityGroup(kind, name, groupId string) *EntityGroup {
+func NewEntityGroup(kind, groupId string) *EntityGroup {
 	return &EntityGroup{
-		GroupId:         groupId,
-		ParentKind:      kind,
-		ParentName:      name,
-		Members:         make(map[metrics.DiscoveredEntityType][]string),
-		ContainerGroups: make(map[string][]string),
+		GroupId:    groupId,
+		ParentKind: kind,
+		Members:    make(map[metrics.DiscoveredEntityType][]string),
 	}
 }
 
