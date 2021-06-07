@@ -11,6 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
+
+	"github.com/turbonomic/kubeturbo/pkg/util"
 )
 
 // k8sController defines a common interface for kubernetes controller actions
@@ -48,9 +50,13 @@ func (c *parentController) get(name string) (*k8sControllerSpec, error) {
 	objName := fmt.Sprintf("%s/%s", obj.GetNamespace(), name)
 	kind := obj.GetKind()
 
-	replicas, found, err := unstructured.NestedInt64(obj.Object, "spec", "replicas")
-	if err != nil || !found {
-		return nil, fmt.Errorf("error retrieving replicas from %s %s: %v", kind, objName, err)
+	replicas := int64(0)
+	found := false
+	if kind != util.KindDaemonSet { // daemonsets do not have replica field
+		replicas, found, err = unstructured.NestedInt64(obj.Object, "spec", "replicas")
+		if err != nil || !found {
+			return nil, fmt.Errorf("error retrieving replicas from %s %s: %v", kind, objName, err)
+		}
 	}
 
 	podSpecUnstructured, found, err := unstructured.NestedFieldCopy(obj.Object, "spec", "template", "spec")
@@ -83,8 +89,10 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 	}
 
 	origControllerObj := c.obj.DeepCopy()
-	if err := unstructured.SetNestedField(c.obj.Object, replicaVal, "spec", "replicas"); err != nil {
-		return fmt.Errorf("error setting replicas into unstructured %s %s: %v", kind, objName, err)
+	if kind != util.KindDaemonSet { // daemonsets do not have replica field
+		if err := unstructured.SetNestedField(c.obj.Object, replicaVal, "spec", "replicas"); err != nil {
+			return fmt.Errorf("error setting replicas into unstructured %s %s: %v", kind, objName, err)
+		}
 	}
 	if err := unstructured.SetNestedField(c.obj.Object, podSpecUnstructured, "spec", "template", "spec"); err != nil {
 		return fmt.Errorf("error setting podSpec into unstructured %s %s: %v", kind, objName, err)
