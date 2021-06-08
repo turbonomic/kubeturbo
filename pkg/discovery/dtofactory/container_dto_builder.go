@@ -128,11 +128,9 @@ func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) []*proto.En
 			ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER, containerId).DisplayName(name)
 
 			if controllerUID != "" {
-				// To connect Container to ContainerSpec entity, Container is LayeredOver by the associated ContainerSpec.
-				// The platform will translate this into the following relation:
-				// ContainerSpec aggregates Containers
+				// To connect Container to ContainerSpec entity, Container is Controlled by the associated ContainerSpec.
 				containerSpecId := util.ContainerSpecIdFunc(controllerUID, container.Name)
-				ebuilder.LayeredOver([]string{containerSpecId})
+				ebuilder.ControlledBy(containerSpecId)
 			}
 
 			//1. commodities sold

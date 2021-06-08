@@ -31,12 +31,11 @@ func NewGroupMetricsCollector(discoveryWorker *k8sDiscoveryWorker, currTask *tas
 func (collector *GroupMetricsCollector) CollectGroupMetrics() []*repository.EntityGroup {
 	var entityGroupList []*repository.EntityGroup
 
-	entityGroups := make(map[string]*repository.EntityGroup)
 	entityGroupsByParentKind := make(map[string]*repository.EntityGroup)
 
 	for _, pod := range collector.PodList {
 		podKey := util.PodKeyFunc(pod)
-		ownerTypeString, ownerString, err := collector.getGroupName(metrics.PodType, podKey)
+		ownerTypeString, err := collector.getOwnerType(metrics.PodType, podKey)
 		if err != nil {
 			// TODO: Handle this informational logging in a better way
 			// collector.getGroupName can return a bool in place of error
@@ -46,83 +45,37 @@ func (collector *GroupMetricsCollector) CollectGroupMetrics() []*repository.Enti
 		}
 
 		podId := string(pod.UID)
-		groupKey := fmt.Sprintf("%s/%s/%s", ownerTypeString, pod.Namespace, ownerString)
-
-		// group1 = A group for each parent qualified as namespace/parentName of this kind/type
-		if _, groupExists := entityGroups[groupKey]; !groupExists {
-			entityGroups[groupKey] = repository.NewEntityGroup(ownerTypeString, ownerString, groupKey)
-			entityGroupList = append(entityGroupList, entityGroups[groupKey])
-		}
-		entityGroup := entityGroups[groupKey]
-
-		// group2 = One global group by each parent kind/type
+		// One global group by each parent kind/type
 		if _, exists := entityGroupsByParentKind[ownerTypeString]; !exists {
-			entityGroupsByParentKind[ownerTypeString] = repository.NewEntityGroup(ownerTypeString, "", ownerTypeString)
+			entityGroupsByParentKind[ownerTypeString] = repository.NewEntityGroup(ownerTypeString, ownerTypeString)
 			entityGroupList = append(entityGroupList, entityGroupsByParentKind[ownerTypeString])
 		}
 		entityGroupByParentKind := entityGroupsByParentKind[ownerTypeString]
 
-		// We currently skip adding pod members which results in no groups of
-		// pods per parent controller for each namespace being created. These groups
-		// are not needed and cause performance overhead, especially in large topologies.
-		//
-		// TODO: Cleanup all the relevant group creation code after the alternative
-		// mechanism for consistent scaling of containers across pods of one parent
-		// is in place.
-		// TODO: Also consider having code for atleast some of these autocreated groups,
-		// behind a flag useful for smaller topologies.
-		//
-		// entityGroup.AddMember(metrics.PodType, podId)
-
-		// Add pod member to the group2
+		// Add pod member to the group
 		entityGroupByParentKind.AddMember(metrics.PodType, podId)
-
 		for i := range pod.Spec.Containers {
 			// Add container members to the group
 			containerId := util.ContainerIdFunc(podId, i)
-			entityGroup.AddMember(metrics.ContainerType, containerId)
 			entityGroupByParentKind.AddMember(metrics.ContainerType, containerId)
-
-			// Compute groups for different containers in the pod
-			container := pod.Spec.Containers[i]
-			containerName := container.Name
-
-			// Add subgroups of containers by name as members to group1 only
-			// (Sub-groups that are to be created with consistent resize = true).
-			if _, containerGroupExists := entityGroup.ContainerGroups[containerName]; !containerGroupExists {
-				entityGroup.ContainerGroups[containerName] = []string{}
-			}
-			entityGroup.ContainerGroups[containerName] = append(entityGroup.ContainerGroups[containerName], containerId)
 		}
 	}
 
 	return entityGroupList
 }
 
-func (collector *GroupMetricsCollector) getGroupName(etype metrics.DiscoveredEntityType, entityKey string) (string, string, error) {
+func (collector *GroupMetricsCollector) getOwnerType(etype metrics.DiscoveredEntityType, entityKey string) (string, error) {
 	ownerTypeMetricId := metrics.GenerateEntityStateMetricUID(etype, entityKey, metrics.OwnerType)
-	ownerMetricId := metrics.GenerateEntityStateMetricUID(etype, entityKey, metrics.Owner)
 
 	ownerTypeMetric, err := collector.MetricsSink.GetMetric(ownerTypeMetricId)
 	if err != nil {
-		return "", "", fmt.Errorf("Error getting owner type for pod %s --> %v\n", entityKey, err)
+		return "", fmt.Errorf("Error getting owner type for pod %s --> %v\n", entityKey, err)
 	}
 	ownerType := ownerTypeMetric.GetValue()
 	ownerTypeString, ok := ownerType.(string)
 	if !ok || ownerTypeString == "" {
-		return "", "", fmt.Errorf("Empty owner type for pod %s\n", entityKey)
+		return "", fmt.Errorf("Empty owner type for pod %s\n", entityKey)
 	}
 
-	ownerMetric, err := collector.MetricsSink.GetMetric(ownerMetricId)
-	if err != nil {
-		return "", "", fmt.Errorf("Error getting owner for pod %s --> %v\n", entityKey, err)
-	}
-
-	owner := ownerMetric.GetValue()
-	ownerString, ok := owner.(string)
-	if !ok || ownerString == "" {
-		return "", "", fmt.Errorf("Empty owner for pod %s\n", entityKey)
-	}
-
-	return ownerTypeString, ownerString, nil
+	return ownerTypeString, nil
 }

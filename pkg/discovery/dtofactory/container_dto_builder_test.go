@@ -11,6 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 var (
@@ -118,10 +120,19 @@ func Test_containerDTOBuilder_BuildDTOs_layeredOver(t *testing.T) {
 	assert.Equal(t, 2, len(containerDTOs))
 	for _, containerDTO := range containerDTOs {
 		if *containerDTO.DisplayName == util.ContainerNameFunc(testPod, &containerFoo) {
-			assert.ElementsMatch(t, []string{util.ContainerSpecIdFunc(controllerUID, containerNameFoo)}, containerDTO.LayeredOver)
+			assert.ElementsMatch(t, []*proto.ConnectedEntity{NewConnectedEntity(controllerUID, containerNameFoo)}, containerDTO.ConnectedEntities)
 		} else if *containerDTO.DisplayName == util.ContainerNameFunc(testPod, &containerBar) {
-			assert.ElementsMatch(t, []string{util.ContainerSpecIdFunc(controllerUID, containerNameBar)}, containerDTO.LayeredOver)
+			assert.ElementsMatch(t, containerDTO.ConnectedEntities, []*proto.ConnectedEntity{NewConnectedEntity(controllerUID, containerNameBar)})
 		}
+	}
+}
+
+func NewConnectedEntity(controllerUID string, containerName string) *proto.ConnectedEntity {
+	entityID := util.ContainerSpecIdFunc(controllerUID, containerName)
+	conType := proto.ConnectedEntity_CONTROLLED_BY_CONNECTION
+	return &proto.ConnectedEntity{
+		ConnectedEntityId: &entityID,
+		ConnectionType:    &conType,
 	}
 }
 
