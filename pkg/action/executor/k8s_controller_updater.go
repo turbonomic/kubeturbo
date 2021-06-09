@@ -93,6 +93,11 @@ func GetSupportedResUsingKind(kind, namespace, name string) (schema.GroupVersion
 			Group:    util.OpenShiftAPIDeploymentConfigGV.Group,
 			Version:  util.OpenShiftAPIDeploymentConfigGV.Version,
 			Resource: util.DeploymentConfigResName}
+	case util.KindDaemonSet:
+		res = schema.GroupVersionResource{
+			Group:    util.K8sAPIDaemonsetGV.Group,
+			Version:  util.K8sAPIDaemonsetGV.Version,
+			Resource: util.DaemonSetResName}
 	default:
 		err = fmt.Errorf("unsupport controller type %s for %s/%s", kind, namespace, name)
 	}
