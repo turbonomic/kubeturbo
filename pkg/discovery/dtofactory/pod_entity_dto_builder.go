@@ -134,19 +134,15 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 		// display name.
 		displayName := util.GetPodClusterID(pod)
 		entityDTOBuilder.DisplayName(displayName)
-		cpuFrequency, err := builder.getNodeCPUFrequency(util.NodeKeyFromPodFunc(pod))
-		if err != nil {
-			glog.Errorf("Failed to build EntityDTO for pod %s: %v", displayName, err)
-			continue
-		}
+
 		// consumption resource commodities sold
-		commoditiesSold, err := builder.getPodCommoditiesSold(pod, cpuFrequency, resCommTypeSold)
+		commoditiesSold, err := builder.getPodCommoditiesSold(pod, resCommTypeSold)
 		if err != nil {
 			glog.Warningf("Skip building DTO for pod %s: %s", displayName, err)
 			continue
 		}
 		// allocation resource commodities sold
-		quotaCommoditiesSold, err := builder.getPodQuotaCommoditiesSold(pod, cpuFrequency)
+		quotaCommoditiesSold, err := builder.getPodQuotaCommoditiesSold(pod)
 		if err != nil {
 			glog.Warningf("Skip building DTO for pod %s: %s", displayName, err)
 			continue
@@ -155,7 +151,7 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 		// commodities bought - from node provider
-		commoditiesBought, err := builder.getPodCommoditiesBought(pod, cpuFrequency, resCommTypeBoughtFromNode)
+		commoditiesBought, err := builder.getPodCommoditiesBought(pod, resCommTypeBoughtFromNode)
 		if err != nil {
 			glog.Warningf("Skip building DTO for pod %s: %s", displayName, err)
 			continue
@@ -180,7 +176,7 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 		if !util.HasController(pod) {
 			namespaceUID, exists := builder.namespaceUIDMap[pod.Namespace]
 			if exists {
-				commoditiesBoughtQuota, err := builder.getQuotaCommoditiesBought(namespaceUID, pod, cpuFrequency)
+				commoditiesBoughtQuota, err := builder.getQuotaCommoditiesBought(namespaceUID, pod)
 				if err != nil {
 					glog.Warningf("Skip building DTO for pod %s: %s", displayName, err)
 					continue
@@ -202,7 +198,7 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 				glog.Errorf("Error when creating commoditiesBought for pod %s: %v", displayName, err)
 				continue
 			}
-			commoditiesBoughtQuota, err := builder.getQuotaCommoditiesBought(controllerUID, pod, cpuFrequency)
+			commoditiesBoughtQuota, err := builder.getQuotaCommoditiesBought(controllerUID, pod)
 			if err != nil {
 				glog.Warningf("Skip building DTO for pod %s: %s", displayName, err)
 				continue
@@ -312,12 +308,8 @@ func (builder *podEntityDTOBuilder) isContainerMetricsAvailable(pod *api.Pod) bo
 // Build the CommodityDTOs sold  by the pod for vCPU, vMem and VMPMAcces.
 // VMPMAccess is used to bind container to the hosting pod so the container is not moved out of the pod
 func (builder *podEntityDTOBuilder) getPodCommoditiesSold(
-	pod *api.Pod, cpuFrequency float64, resCommTypeSold []metrics.ResourceType) ([]*proto.CommodityDTO, error) {
+	pod *api.Pod, resCommTypeSold []metrics.ResourceType) ([]*proto.CommodityDTO, error) {
 	var commoditiesSold []*proto.CommodityDTO
-
-	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
-	converter := NewConverter().
-		Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPURequest)
 
 	attributeSetter := NewCommodityAttrSetter()
 	attributeSetter.Add(
@@ -325,7 +317,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(
 
 	// Resource Commodities
 	podMId := util.PodMetricIdAPI(pod)
-	resourceCommoditiesSold := builder.getResourceCommoditiesSold(metrics.PodType, podMId, resCommTypeSold, converter, attributeSetter)
+	resourceCommoditiesSold := builder.getResourceCommoditiesSold(metrics.PodType, podMId, resCommTypeSold, nil, attributeSetter)
 	if len(resourceCommoditiesSold) != len(resCommTypeSold) {
 		// Only return error when pod is ready. Unready pods may not have resource consumption, but we still want to
 		// create the pod DTOs
@@ -350,23 +342,13 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(
 }
 
 // getPodQuotaCommoditiesSold builds the quota commodity DTOs sold by the pod
-func (builder *podEntityDTOBuilder) getPodQuotaCommoditiesSold(pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
-	// CPU resource needs to be converted from number of cores to frequency.
-	converter := NewConverter().Set(func(input float64) float64 {
-		// If CPU resource quota capacity is repository.DEFAULT_METRIC_CAPACITY_VALUE (infinity), skip converting from
-		// cores to frequency.
-		if input == repository.DEFAULT_METRIC_CAPACITY_VALUE {
-			return input
-		}
-		return input * cpuFrequency
-	}, metrics.CPULimitQuota, metrics.CPURequestQuota)
-
+func (builder *podEntityDTOBuilder) getPodQuotaCommoditiesSold(pod *api.Pod) ([]*proto.CommodityDTO, error) {
 	attributeSetter := NewCommodityAttrSetter()
 	attributeSetter.Add(func(commBuilder *sdkbuilder.CommodityDTOBuilder) { commBuilder.Resizable(false) }, podQuotaCommType...)
 
 	// Resource Commodities
 	podMId := util.PodMetricIdAPI(pod)
-	quotaCommoditiesSold := builder.getResourceCommoditiesSold(metrics.PodType, podMId, podQuotaCommType, converter, attributeSetter)
+	quotaCommoditiesSold := builder.getResourceCommoditiesSold(metrics.PodType, podMId, podQuotaCommType, nil, attributeSetter)
 	if len(quotaCommoditiesSold) != len(podQuotaCommType) {
 		return nil, fmt.Errorf("mismatch num of sold commidities (%d Vs. %d) for pod %s",
 			len(quotaCommoditiesSold), len(podQuotaCommType), pod.Name)
@@ -377,15 +359,12 @@ func (builder *podEntityDTOBuilder) getPodQuotaCommoditiesSold(pod *api.Pod, cpu
 // Build the CommodityDTOs bought by the pod from the node provider.
 // Commodities bought are vCPU, vMem vmpm access, cluster
 func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
-	pod *api.Pod, cpuFrequency float64, resCommTypeBoughtFromNode []metrics.ResourceType) ([]*proto.CommodityDTO, error) {
+	pod *api.Pod, resCommTypeBoughtFromNode []metrics.ResourceType) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
-
-	// cpu and cpu provisioned needs to be converted from number of cores to frequency.
-	converter := NewConverter().Set(func(input float64) float64 { return input * cpuFrequency }, metrics.CPU, metrics.CPURequest)
 
 	// Resource Commodities.
 	podMId := util.PodMetricIdAPI(pod)
-	resourceCommoditiesBought := builder.getResourceCommoditiesBought(metrics.PodType, podMId, resCommTypeBoughtFromNode, converter, nil)
+	resourceCommoditiesBought := builder.getResourceCommoditiesBought(metrics.PodType, podMId, resCommTypeBoughtFromNode, nil, nil)
 	if len(resourceCommoditiesBought) != len(resCommTypeBoughtFromNode) {
 		// Only return error when pod is ready. Unready pods may not have resource consumption, but we still want to
 		// create the pod DTOs
@@ -432,19 +411,14 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
 }
 
 // Build the CommodityDTOs bought by the pod from the quota provider.
-func (builder *podEntityDTOBuilder) getQuotaCommoditiesBought(providerUID string, pod *api.Pod, cpuFrequency float64) ([]*proto.CommodityDTO, error) {
+func (builder *podEntityDTOBuilder) getQuotaCommoditiesBought(providerUID string, pod *api.Pod) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 	key := util.PodKeyFunc(pod)
-
-	// cpu allocation needs to be converted from number of cores to frequency.
-	converter := NewConverter().Set(func(input float64) float64 {
-		return input * cpuFrequency
-	}, metrics.CPULimitQuota, metrics.CPURequestQuota)
 
 	// Resource Commodities.
 	for _, resourceType := range podQuotaCommType {
 		commBought, err := builder.getResourceCommodityBoughtWithKey(metrics.PodType, key,
-			resourceType, providerUID, converter, nil)
+			resourceType, providerUID, nil, nil)
 		if err != nil {
 			glog.Warningf("Cannot build %s bought by pod %s from quota provider %s: %v",
 				resourceType, key, providerUID, err)

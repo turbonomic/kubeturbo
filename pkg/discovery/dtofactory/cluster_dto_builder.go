@@ -2,9 +2,11 @@ package dtofactory
 
 import (
 	"fmt"
+
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder/group"
@@ -105,8 +107,14 @@ func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO, nam
 
 	entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
+	var properties []*proto.EntityDTO_EntityProperty
+	// The added property indicates that this cluster now uses millicore as unit for vcpu commodities
+	properties = append(properties, property.BuildClusterProperty())
+
 	// build entityDTO.
-	entityDto, err := entityDTOBuilder.Create()
+	entityDto, err := entityDTOBuilder.
+		WithProperties(properties).
+		Create()
 	if err != nil {
 		glog.Errorf("Failed to build Cluster entityDTO: %s", err)
 		return nil, err

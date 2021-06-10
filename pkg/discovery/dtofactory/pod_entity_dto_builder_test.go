@@ -27,7 +27,7 @@ func Test_podEntityDTOBuilder_getPodCommoditiesBought_Error(t *testing.T) {
 }
 
 func Test_podEntityDTOBuilder_getPodCommoditiesBoughtFromQuota_Error(t *testing.T) {
-	if _, err := builder.getQuotaCommoditiesBought("quota1", &api.Pod{}, 100.0); err == nil {
+	if _, err := builder.getQuotaCommoditiesBought("quota1", &api.Pod{}); err == nil {
 		t.Errorf("Error thrown expected")
 	}
 }
@@ -77,8 +77,8 @@ func Test_podEntityDTOBuilder_createContainerPodData(t *testing.T) {
 }
 
 func testGetCommoditiesWithError(t *testing.T,
-	f func(pod *api.Pod, cpuFrequency float64, resType []metrics.ResourceType) ([]*proto.CommodityDTO, error)) {
-	if _, err := f(createPodWithReadyCondition(), 100.0, runningPodResCommTypeSold); err == nil {
+	f func(pod *api.Pod, resType []metrics.ResourceType) ([]*proto.CommodityDTO, error)) {
+	if _, err := f(createPodWithReadyCondition(), runningPodResCommTypeSold); err == nil {
 		t.Errorf("Error thrown expected")
 	}
 }

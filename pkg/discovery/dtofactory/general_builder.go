@@ -142,11 +142,6 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 		return nil, fmt.Errorf("unsupported commodity type %s", resourceType)
 	}
 
-	// check for the unit converter for cpu resources
-	if metrics.IsCPUType(resourceType) && converter == nil {
-		return nil, fmt.Errorf("missing cpu converter")
-	}
-
 	commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
 
 	metricValue, err := builder.metricValue(entityType, entityID,
@@ -325,11 +320,6 @@ func (builder generalBuilder) getResourceCommodityBoughtWithKey(entityType metri
 	cType, exist := rTypeMapping[resourceType]
 	if !exist {
 		return nil, fmt.Errorf("unsupported commodity type %s", resourceType)
-	}
-
-	// check for the unit converter for cpu resources
-	if metrics.IsCPUType(resourceType) && converter == nil {
-		return nil, fmt.Errorf("missing cpu converter")
 	}
 
 	commBoughtBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)

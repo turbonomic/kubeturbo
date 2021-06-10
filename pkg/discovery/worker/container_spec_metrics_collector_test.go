@@ -96,10 +96,9 @@ var (
 		},
 	}
 
-	pod4OwnerUIDMetric  = metrics.NewEntityStateMetric(metrics.PodType, discoveryutil.PodKeyFunc(testPod4), metrics.OwnerUID, controllerUID)
-	pod5OwnerUIDMetric  = metrics.NewEntityStateMetric(metrics.PodType, discoveryutil.PodKeyFunc(testPod5), metrics.OwnerUID, controllerUID)
-	pod6OwnerUIDMetric  = metrics.NewEntityStateMetric(metrics.PodType, discoveryutil.PodKeyFunc(testPod6), metrics.OwnerUID, controllerUID)
-	podNodeCPUFrequency = metrics.NewEntityStateMetric(metrics.NodeType, nodeName, metrics.CpuFrequency, cpuFrequency)
+	pod4OwnerUIDMetric = metrics.NewEntityStateMetric(metrics.PodType, discoveryutil.PodKeyFunc(testPod4), metrics.OwnerUID, controllerUID)
+	pod5OwnerUIDMetric = metrics.NewEntityStateMetric(metrics.PodType, discoveryutil.PodKeyFunc(testPod5), metrics.OwnerUID, controllerUID)
+	pod6OwnerUIDMetric = metrics.NewEntityStateMetric(metrics.PodType, discoveryutil.PodKeyFunc(testPod6), metrics.OwnerUID, controllerUID)
 
 	containerFooCPUCapMetric = metrics.NewEntityResourceMetric(metrics.ContainerType,
 		discoveryutil.ContainerMetricId(discoveryutil.PodMetricIdAPI(testPod4), containerFoo), metrics.CPU, metrics.Capacity, containerFooCPUCap)
@@ -180,7 +179,7 @@ func TestContainerSpecMetricsCollector_CollectContainerSpecMetrics_WithoutReques
 	pods := []*api.Pod{testPod4}
 	metricsSink := metrics.NewEntityMetricSink().WithMaxMetricPointsSize(10)
 	// Add pod owner UID and node CPU frequency metrics
-	metricsSink.AddNewMetricEntries(pod4OwnerUIDMetric, podNodeCPUFrequency)
+	metricsSink.AddNewMetricEntries(pod4OwnerUIDMetric)
 
 	// Add and update containerFoo CPU and memory metrics
 	metricsSink.AddNewMetricEntries(containerFooCPUCapMetric, containerFooCPUUsedMetric1, containerFooMemCapMetric, containerFooMemUsedMetric1)
@@ -198,10 +197,10 @@ func TestContainerSpecMetricsCollector_CollectContainerSpecMetrics_WithoutReques
 		ContainerReplicas: 1,
 		ContainerMetrics: map[metrics.ResourceType]*repository.ContainerMetrics{
 			metrics.CPU: {
-				Capacity: []float64{cpuFrequency * containerFooCPUCap},
+				Capacity: []float64{containerFooCPUCap},
 				Used: []metrics.Point{
-					createContainerMetricPoint(cpuFrequency*containerFooCPUUsed1, 1),
-					createContainerMetricPoint(cpuFrequency*containerFooCPUUsed2, 2),
+					createContainerMetricPoint(containerFooCPUUsed1, 1),
+					createContainerMetricPoint(containerFooCPUUsed2, 2),
 				},
 			},
 			metrics.Memory: {
@@ -229,7 +228,7 @@ func TestContainerSpecMetricsCollector_CollectContainerSpecMetrics_WithRequestMe
 	pods := []*api.Pod{testPod5, testPod6}
 	metricsSink := metrics.NewEntityMetricSink().WithMaxMetricPointsSize(10)
 	// Add pod owner UID and node CPU frequency metrics
-	metricsSink.AddNewMetricEntries(pod5OwnerUIDMetric, pod6OwnerUIDMetric, podNodeCPUFrequency)
+	metricsSink.AddNewMetricEntries(pod5OwnerUIDMetric, pod6OwnerUIDMetric)
 
 	// Add and update containerFoo CPURequest and MemoryRequest metrics
 	metricsSink.AddNewMetricEntries(containerBarCPURequestCapMetric, containerBarCPURequestUsedMetric1,
@@ -251,10 +250,10 @@ func TestContainerSpecMetricsCollector_CollectContainerSpecMetrics_WithRequestMe
 		ContainerReplicas: 1,
 		ContainerMetrics: map[metrics.ResourceType]*repository.ContainerMetrics{
 			metrics.CPURequest: {
-				Capacity: []float64{cpuFrequency * containerBarCPURequestCap},
+				Capacity: []float64{containerBarCPURequestCap},
 				Used: []metrics.Point{
-					createContainerMetricPoint(cpuFrequency*containerBarCPURequestUsed1, 1),
-					createContainerMetricPoint(cpuFrequency*containerBarCPURequestUsed2, 2),
+					createContainerMetricPoint(containerBarCPURequestUsed1, 1),
+					createContainerMetricPoint(containerBarCPURequestUsed2, 2),
 				},
 			},
 			metrics.MemoryRequest: {

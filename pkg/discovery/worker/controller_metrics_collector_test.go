@@ -1,6 +1,8 @@
 package worker
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
@@ -11,7 +13,6 @@ import (
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"testing"
 )
 
 var (
@@ -71,11 +72,6 @@ var (
 	pod1CPULimitQuotaUsed      = metrics.NewEntityResourceMetric(metrics.PodType, discoveryutil.PodKeyFunc(testPod1), metrics.CPULimitQuota, metrics.Used, 1.0)
 	pod2CPULimitQuotaUsed      = metrics.NewEntityResourceMetric(metrics.PodType, discoveryutil.PodKeyFunc(testPod2), metrics.CPULimitQuota, metrics.Used, 2.0)
 	pod3MemoryRequestQuotaUsed = metrics.NewEntityResourceMetric(metrics.PodType, discoveryutil.PodKeyFunc(testPod3), metrics.MemoryRequestQuota, metrics.Used, 10.0)
-
-	cpuFrequency = 1000.0
-
-	pod1NodeCPUFrequency = metrics.NewEntityStateMetric(metrics.NodeType, discoveryutil.NodeKeyFromPodFunc(testPod1), metrics.CpuFrequency, cpuFrequency)
-	pod2NodeCPUFrequency = metrics.NewEntityStateMetric(metrics.NodeType, discoveryutil.NodeKeyFromPodFunc(testPod2), metrics.CpuFrequency, cpuFrequency)
 )
 
 func TestCollectControllerMetrics(t *testing.T) {
@@ -111,10 +107,6 @@ func TestCollectControllerMetrics(t *testing.T) {
 	discoveryWorker.sink.AddNewMetricEntries(pod2CPULimitQuotaUsed)
 	discoveryWorker.sink.AddNewMetricEntries(pod3MemoryRequestQuotaUsed)
 
-	// Add CPU frequency metrics to the metric sink
-	discoveryWorker.sink.AddNewMetricEntries(pod1NodeCPUFrequency)
-	discoveryWorker.sink.AddNewMetricEntries(pod2NodeCPUFrequency)
-
 	// Test CollectControllerMetrics
 	controllerMetricsCollector := NewControllerMetricsCollector(discoveryWorker, currTask)
 	kubeControllers := controllerMetricsCollector.CollectControllerMetrics()
@@ -122,15 +114,15 @@ func TestCollectControllerMetrics(t *testing.T) {
 	// 2 KubeControllers are created
 	assert.Equal(t, 2, len(kubeControllers))
 
-	// CPULimitQuota usage of the first controller is aggregated from testPod1 and testPod2 and converted from cores to MHz.
+	// CPULimitQuota usage of the first controller is aggregated from testPod1 and testPod2.
 	kubeController1 := kubeControllers[0]
 	assert.Equal(t, util.KindDeployment, kubeController1.ControllerType)
 	assert.Equal(t, 2, len(kubeController1.Pods))
 	kubeController1AllocationResources := kubeController1.AllocationResources
 	assert.Equal(t, 4, int(kubeController1AllocationResources[metrics.CPULimitQuota].Capacity))
-	// Usage value is aggregated from testPod1 and testPod2 and converted to MHz, which is calculated by:
-	// (1.0 + 2.0) * 1000 = 3000
-	assert.Equal(t, 3000, int(kubeController1AllocationResources[metrics.CPULimitQuota].Used))
+	// Usage value is aggregated from testPod1 and testPod2:
+	// (1.0 + 2.0) = 3
+	assert.Equal(t, 3, int(kubeController1AllocationResources[metrics.CPULimitQuota].Used))
 	assert.Equal(t, 4, int(kubeController1AllocationResources[metrics.CPULimitQuota].Capacity))
 	assert.Equal(t, 3, int(kubeController1AllocationResources[metrics.MemoryLimitQuota].Capacity))
 	// Resource capacity of metrics.CPURequestQuota and metrics.MemoryRequestQuota is not configured on namespace,

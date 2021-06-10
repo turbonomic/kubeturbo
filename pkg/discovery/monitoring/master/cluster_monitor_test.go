@@ -2,8 +2,9 @@ package master
 
 import (
 	"fmt"
-	client "k8s.io/client-go/kubernetes"
 	"testing"
+
+	client "k8s.io/client-go/kubernetes"
 
 	"github.com/golang/glog"
 	"github.com/stretchr/testify/assert"
@@ -14,36 +15,37 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// All cpu metrics are generated in millicores
 var expectedMetrics = map[string]float64{
 	// Node metrics
-	"Node-mynode-CPU-Capacity":           2,
+	"Node-mynode-CPU-Capacity":           2000,
 	"Node-mynode-Memory-Capacity":        8.388608e+06,
-	"Node-mynode-CPURequest-Capacity":    1.9,
+	"Node-mynode-CPURequest-Capacity":    1900,
 	"Node-mynode-MemoryRequest-Capacity": 7.340032e+06,
-	"Node-mynode-CPURequest-Used":        0.26,
+	"Node-mynode-CPURequest-Used":        260,
 	"Node-mynode-MemoryRequest-Used":     262144,
 
 	// Pod metrics
-	"Pod-default/mypod-CPU-Capacity":       2,
+	"Pod-default/mypod-CPU-Capacity":       2000,
 	"Pod-default/mypod-Memory-Capacity":    8.388608e+06,
-	"Pod-default/mypod-CPURequest-Used":    0.26,
+	"Pod-default/mypod-CPURequest-Used":    260,
 	"Pod-default/mypod-MemoryRequest-Used": 262144,
 
 	// Container metrics
-	"Container-default/mypod/twitter-cass-tweet-CPU-Capacity":            0.25,
+	"Container-default/mypod/twitter-cass-tweet-CPU-Capacity":            250,
 	"Container-default/mypod/twitter-cass-tweet-Memory-Capacity":         262144,
-	"Container-default/mypod/twitter-cass-tweet-CPURequest-Capacity":     0.25,
+	"Container-default/mypod/twitter-cass-tweet-CPURequest-Capacity":     250,
 	"Container-default/mypod/twitter-cass-tweet-MemoryRequest-Capacity":  262144,
-	"Container-default/mypod/istio-proxy-CPU-Capacity":                   2,
+	"Container-default/mypod/istio-proxy-CPU-Capacity":                   2000,
 	"Container-default/mypod/istio-proxy-Memory-Capacity":                8.388608e+06,
-	"Container-default/mypod/istio-proxy-CPURequest-Capacity":            0.01,
+	"Container-default/mypod/istio-proxy-CPURequest-Capacity":            10,
 	"Container-default/mypod/istio-proxy-MemoryRequest-Capacity":         0,
-	"Container-default/mypod/twitter-cass-tweet-CPULimitQuota-Used":      0.25,
+	"Container-default/mypod/twitter-cass-tweet-CPULimitQuota-Used":      250,
 	"Container-default/mypod/twitter-cass-tweet-MemoryLimitQuota-Used":   262144,
-	"Container-default/mypod/twitter-cass-tweet-CPURequestQuota-Used":    0.25,
+	"Container-default/mypod/twitter-cass-tweet-CPURequestQuota-Used":    250,
 	"Container-default/mypod/twitter-cass-tweet-MemoryRequestQuota-Used": 262144,
-	"Container-default/mypod/istio-proxy-CPULimitQuota-Used":             2,
-	"Container-default/mypod/istio-proxy-CPURequestQuota-Used":           0.01,
+	"Container-default/mypod/istio-proxy-CPULimitQuota-Used":             2000,
+	"Container-default/mypod/istio-proxy-CPURequestQuota-Used":           10,
 	"Container-default/mypod/istio-proxy-MemoryLimitQuota-Used":          8.388608e+06,
 	"Container-default/mypod/istio-proxy-MemoryRequestQuota-Used":        0,
 }
@@ -134,6 +136,7 @@ func mockNode(name string, capacity, allocatable api.ResourceList) *api.Node {
 }
 
 func TestGenNodeResourceMetrics(t *testing.T) {
+	// Build a node
 	// Build a node
 	node := mockNode(
 		"mynode",

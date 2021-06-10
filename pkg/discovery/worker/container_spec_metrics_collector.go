@@ -51,11 +51,7 @@ func (collector *ContainerSpecMetricsCollector) CollectContainerSpecMetrics() []
 				glog.Errorf("Error getting controller UID from pod %s, %v", pod.Name, err)
 				continue
 			}
-			nodeCPUFrequency, err := util.GetNodeCPUFrequency(util.NodeKeyFromPodFunc(pod), collector.metricsSink)
-			if err != nil {
-				glog.Errorf("failed to build ContainerDTOs for pod[%s]: %v", pod.Name, err)
-				continue
-			}
+
 			podMId := util.PodMetricIdAPI(pod)
 			for _, container := range pod.Spec.Containers {
 				// Create ContainerSpecMetrics object to collect resource metrics of each individual container replica for a
@@ -68,7 +64,7 @@ func (collector *ContainerSpecMetricsCollector) CollectContainerSpecMetrics() []
 				isCpuRequestSet := !container.Resources.Requests.Cpu().IsZero()
 				isMemRequestSet := !container.Resources.Requests.Memory().IsZero()
 				containerMId := util.ContainerMetricId(podMId, container.Name)
-				collector.collectContainerMetrics(containerSpecMetrics, containerMId, nodeCPUFrequency, isCpuRequestSet, isMemRequestSet)
+				collector.collectContainerMetrics(containerSpecMetrics, containerMId, isCpuRequestSet, isMemRequestSet)
 
 				containerSpecMetricsList = append(containerSpecMetricsList, containerSpecMetrics)
 			}
@@ -79,7 +75,7 @@ func (collector *ContainerSpecMetricsCollector) CollectContainerSpecMetrics() []
 
 // collectContainerMetrics collects container metrics from metricsSink and stores them in the given ContainerSpecMetrics
 func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containerSpecMetric *repository.ContainerSpecMetrics,
-	containerMId string, nodeCPUFrequency float64, isCpuRequestSet, isMemRequestSet bool) {
+	containerMId string, isCpuRequestSet, isMemRequestSet bool) {
 	for _, resourceType := range resourceTypes {
 		if resourceType == metrics.VCPUThrottling && !utilfeature.DefaultFeatureGate.Enabled(features.ThrottlingMetrics) {
 			// skip collecting throttling metrics if feature is disabled
@@ -90,7 +86,7 @@ func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containe
 			glog.V(4).Infof("Container %s has no %s set", containerMId, resourceType)
 			continue
 		}
-		usedMetricPoints, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Used, nodeCPUFrequency)
+		usedMetricPoints, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Used)
 		if err != nil {
 			if resourceType == metrics.VCPUThrottling {
 				// We dont want to pollute the logs at low verbosity when we don't get throttling metrics from
@@ -106,7 +102,7 @@ func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containe
 		if resourceType == metrics.VCPUThrottling {
 			capVal = 100
 		} else {
-			capacityMetricValue, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Capacity, nodeCPUFrequency)
+			capacityMetricValue, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Capacity)
 			if err != nil {
 				glog.Warningf("Cannot get resource %s value for container %s %s", metrics.Capacity, containerMId, resourceType)
 				continue
@@ -125,7 +121,7 @@ func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containe
 }
 
 func (collector *ContainerSpecMetricsCollector) getResourceMetricValue(containerMId string, rType metrics.ResourceType,
-	mType metrics.MetricProp, nodeCPUFrequency float64) (interface{}, error) {
+	mType metrics.MetricProp) (interface{}, error) {
 	metricUID := metrics.GenerateEntityResourceMetricUID(metrics.ContainerType, containerMId, rType, mType)
 	resourceMetric, err := collector.metricsSink.GetMetric(metricUID)
 	if err != nil {
@@ -134,16 +130,11 @@ func (collector *ContainerSpecMetricsCollector) getResourceMetricValue(container
 	switch typedValue := resourceMetric.GetValue().(type) {
 	case []metrics.Point:
 		metricPoints := typedValue
-		// Create new metricPoints instead of modifying existing metricPoints values if it's CPU type.
+		// Create new metricPoints instead of modifying existing metricPoints values.
 		// This will guarantee the data stored in metrics sink have original values when building container dtos.
 		newMetricPoints := make([]metrics.Point, len(metricPoints))
-		isCPUType := metrics.IsCPUType(rType)
 		for i := range metricPoints {
 			value := metricPoints[i].Value
-			if isCPUType {
-				// If resource is CPU type, convert values expressed in number of cores to MHz
-				value *= nodeCPUFrequency
-			}
 			newMetricPoints[i] = metrics.Point{
 				Value:     value,
 				Timestamp: metricPoints[i].Timestamp,
@@ -165,10 +156,6 @@ func (collector *ContainerSpecMetricsCollector) getResourceMetricValue(container
 		return [][]metrics.ThrottlingCumulative{newMetricTCs}, nil
 	case float64:
 		metricValue := typedValue
-		if metrics.IsCPUType(rType) {
-			// If resource is CPU type, convert metricValue expressed in number of cores to MHz
-			metricValue *= nodeCPUFrequency
-		}
 		return metricValue, nil
 	default:
 		return nil, fmt.Errorf("unsupported metric value type: %t", resourceMetric.GetValue())
