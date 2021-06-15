@@ -80,7 +80,7 @@ var _ = Describe("Discover Cluster", func() {
 			}
 
 			s := app.NewVMTServer()
-			kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, "busybox", map[string]string{}, true)
+			kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, "", "busybox", map[string]string{}, true)
 
 			apiExtClient, err := apiextclient.NewForConfig(kubeConfig)
 			if err != nil {

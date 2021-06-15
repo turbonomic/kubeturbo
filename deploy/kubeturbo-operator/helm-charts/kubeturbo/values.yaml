@@ -10,6 +10,7 @@ image:
   tag: 8.1.6
   pullPolicy: IfNotPresent
 #  busyboxRepository: busybox
+#  imagePullSecret: ""
 
 annotations:
   kubeturbo.io/controllable: "false"
