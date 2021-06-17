@@ -203,9 +203,12 @@ func (builder *clusterDTOBuilder) createClusterData(clusterName string, namespac
 		}
 	}
 
+	// Post 8.2.3 kubeturbo sends all vcpu related commodities in millicores
+	vcpuCommodityUnit := proto.EntityDTO_MILLICORE
 	return &proto.EntityDTO_ContainerPlatformClusterData{
 		VcpuOvercommitment: &vcpuOvercommitment,
 		VmemOvercommitment: &vmemOvercommitment,
+		VcpuUnit:           &vcpuCommodityUnit,
 	}
 }
 
