@@ -21,8 +21,13 @@ spec:
       serviceAccountName: turbo-user
       containers:
       - name: kubeturbo
-        # Replace the image with desired version:6.4.4 or latest
-        image: turbonomic/kubeturbo:8.1.6
+        # Replace the image with desired version
+        image: turbonomic/kubeturbo:8.2.2
+        env:
+          - name: KUBETURBO_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
         args:
           - --turboconfig=/etc/kubeturbo/turbo.config
           - --v=2
@@ -30,7 +35,18 @@ spec:
           # change to https=false and port=10255 if unsecure kubelet read only is configured
           - --kubelet-https=true
           - --kubelet-port=10250
+          # Uncomment for pod moves in OpenShift
+          #- --scc-support=*
+          # Uncomment for pod moves with pvs
+          #- --fail-volume-pod-moves=false
+          # Uncomment to override default, and specify your own location
+          #- --busybox-image=docker.io/busybox
+          # or uncomment below to pull from RHCC
           #- --busybox-image=registry.access.redhat.com/ubi8/ubi-minimal
+          # Specify nodes to exclude from cpu frequency getter job.
+          # Note kubernetes.io/os=windows and/or beta.kubernetes.io/os=windows labels will be automatically excluded by default.
+          # If specified all the labels will be used to select the node ignoring the default.
+          #- --cpufreq-job-exclude-node-labels=kubernetes.io/key=value
           # Uncomment to stitch using IP, or if using Openstack, Hyper-V/VMM
           #- --stitch-uuid=false
         volumeMounts:
