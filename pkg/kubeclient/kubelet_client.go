@@ -432,7 +432,7 @@ func (kc *KubeletConfig) Timeout(timeout int) *KubeletConfig {
 	return kc
 }
 
-func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, busyboxImage string,
+func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, busyboxImage, imagePullSecret string,
 	excludeLabelsMap map[string]string, useProxyEndpoint bool) (*KubeletClient, error) {
 	// 1. http transport
 	transport, err := makeTransport(kc.kubeConfig, kc.enableHttps, kc.tlsTimeOut, kc.forceSelfSignedCerts)
@@ -456,7 +456,7 @@ func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, busyboxIma
 		scheme:                      scheme,
 		port:                        kc.port,
 		cache:                       make(map[string]*CacheEntry),
-		fallbkCpuFreqGetter:         NewNodeCpuFrequencyGetter(fallbackClient, busyboxImage),
+		fallbkCpuFreqGetter:         NewNodeCpuFrequencyGetter(fallbackClient, busyboxImage, imagePullSecret),
 		cpufreqJobExcludeNodeLabels: excludeLabelsMap,
 		defaultCpuFreq:              defaultCpuFreq,
 		kubeClient:                  fallbackClient,

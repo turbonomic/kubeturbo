@@ -137,6 +137,9 @@ type VMTServer struct {
 	// Busybox image uri used for cpufreq getter job
 	BusyboxImage string
 
+	// Name of the secret that stores the image pull credentials of cpu freq getter job image
+	BusyboxImagePullSecret string
+
 	// CpufreqJobExcludeNodeLabels is used to specify node labels for nodes to be
 	// excluded from running cpufreq job
 	CpufreqJobExcludeNodeLabels string
@@ -192,6 +195,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all.")
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")
 	fs.StringVar(&s.BusyboxImage, "busybox-image", "busybox", "The complete image uri used for fallback node cpu frequency getter job.")
+	fs.StringVar(&s.BusyboxImagePullSecret, "busybox-image-pull-secret", "", "The name of the secret that stores the image pull credentials for busybox image.")
 	fs.StringVar(&s.CpufreqJobExcludeNodeLabels, "cpufreq-job-exclude-node-labels", "", "The comma separated list of key=value node label pairs for the nodes (for example windows nodes) to be excluded from running job based cpufrequency getter.")
 	fs.StringVar(&s.containerUtilizationDataAggStrategy, "cnt-utilization-data-agg-strategy", agg.DefaultContainerUtilizationDataAggStrategy, "Container utilization data aggregation strategy.")
 	fs.StringVar(&s.containerUsageDataAggStrategy, "cnt-usage-data-agg-strategy", agg.DefaultContainerUsageDataAggStrategy, "Container usage data aggregation strategy.")
@@ -233,13 +237,13 @@ func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubern
 }
 
 func (s *VMTServer) CreateKubeletClientOrDie(kubeConfig *restclient.Config, fallbackClient *kubernetes.Clientset,
-	busyboxImage string, cpufreqJobExcludeNodeLabels map[string]string, useProxyEndpoint bool) *kubeclient.KubeletClient {
+	busyboxImage, imagePullSecret string, cpufreqJobExcludeNodeLabels map[string]string, useProxyEndpoint bool) *kubeclient.KubeletClient {
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
 		ForceSelfSignedCerts(s.ForceSelfSignedCerts).
 		// Timeout(to).
-		Create(fallbackClient, busyboxImage, cpufreqJobExcludeNodeLabels, useProxyEndpoint)
+		Create(fallbackClient, busyboxImage, imagePullSecret, cpufreqJobExcludeNodeLabels, useProxyEndpoint)
 	if err != nil {
 		glog.Errorf("Fatal error: failed to create kubeletClient: %v", err)
 		os.Exit(1)
@@ -341,7 +345,8 @@ func (s *VMTServer) Run() {
 		glog.Fatalf("Invalid cpu frequency exclude node label selectors: %v. The selectors "+
 			"should be a comma saperated list of key=value node label pairs", err)
 	}
-	kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, s.BusyboxImage, excludeLabelsMap, s.UseNodeProxyEndpoint)
+	kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, s.BusyboxImage,
+		s.BusyboxImagePullSecret, excludeLabelsMap, s.UseNodeProxyEndpoint)
 	caClient, err := clusterclient.NewForConfig(kubeConfig)
 	if err != nil {
 		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
