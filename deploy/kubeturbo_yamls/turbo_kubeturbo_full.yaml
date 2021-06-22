@@ -114,13 +114,18 @@ spec:
           #- --scc-support=*
           # Uncomment for pod moves with pvs
           #- --fail-volume-pod-moves=false
-          # Uncomment to stitch using IP, or if using Openstack, Hyper-V/VMM
-          #- --stitch-uuid=false
-          # Uncomment to specify a non default image for cpu freq getter job, for example ubi-minimal from RHCC
-          # Default is "busybox".
+          # Uncomment to override default, and specify your own location
+          #- --busybox-image=docker.io/busybox
+          # or uncomment below to pull from RHCC
           #- --busybox-image=registry.access.redhat.com/ubi8/ubi-minimal
           # Uncomment to specify the secret name which holds the credentials to busybox image
           #- --busybox-image-pull-secret=<secret-name>
+          # Specify nodes to exclude from cpu frequency getter job.
+          # Note kubernetes.io/os=windows and/or beta.kubernetes.io/os=windows labels will be automatically excluded by default.
+          # If specified all the labels will be used to select the node ignoring the default.
+          #- --cpufreq-job-exclude-node-labels=kubernetes.io/key=value
+          # Uncomment to stitch using IP, or if using Openstack, Hyper-V/VMM
+          #- --stitch-uuid=false
         volumeMounts:
           # volume will be created, any name will work and must match below
           - name: turbo-volume
