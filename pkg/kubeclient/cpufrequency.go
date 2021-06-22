@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	kubeturboNamespace = "KUBETURBO_NAMESPACE"
-	defaultNamespace   = "default"
-	defaultCpuFreq     = float64(2000) //MHz
+	kubeturboNamespaceEnv = "KUBETURBO_NAMESPACE"
+	defaultNamespace      = "default"
+	defaultCpuFreq        = float64(2000) //MHz
 )
 
 var DefaultCpufreqJobExcludeNodeLabels = map[string]string{
@@ -33,15 +33,17 @@ var DefaultCpufreqJobExcludeNodeLabels = map[string]string{
 }
 
 type NodeCpuFrequencyGetter struct {
-	kubeClient   *kubernetes.Clientset
-	node         *corev1.Node
-	busyboxImage string
+	kubeClient      *kubernetes.Clientset
+	node            *corev1.Node
+	busyboxImage    string
+	imagePullSecret string
 }
 
-func NewNodeCpuFrequencyGetter(kubeClient *kubernetes.Clientset, busyboxImage string) *NodeCpuFrequencyGetter {
+func NewNodeCpuFrequencyGetter(kubeClient *kubernetes.Clientset, busyboxImage, imagePullSecret string) *NodeCpuFrequencyGetter {
 	return &NodeCpuFrequencyGetter{
-		kubeClient:   kubeClient,
-		busyboxImage: busyboxImage,
+		kubeClient:      kubeClient,
+		busyboxImage:    busyboxImage,
+		imagePullSecret: imagePullSecret,
 	}
 }
 
@@ -49,11 +51,12 @@ func (n *NodeCpuFrequencyGetter) GetFrequency(nodeName string) (float64, error) 
 	glog.V(4).Infof("Start query node frequency via pod for %s.", nodeName)
 
 	// TODO: See if retries are needed
-	namespace := os.Getenv(kubeturboNamespace)
+	namespace := os.Getenv(kubeturboNamespaceEnv)
 	if namespace == "" {
 		namespace = defaultNamespace
 	}
-	job, err := n.createJob(nodeName, namespace)
+
+	job, err := n.createJob(nodeName, namespace, n.imagePullSecret)
 	if err != nil {
 		return 0, err
 	}
@@ -184,8 +187,8 @@ func (n *NodeCpuFrequencyGetter) getJobsPod(podNamePrefix, namespace string) (*c
 	return pod, nil
 }
 
-func (n *NodeCpuFrequencyGetter) createJob(nodeName, namespace string) (*batchv1.Job, error) {
-	job, err := n.kubeClient.BatchV1().Jobs(namespace).Create(context.TODO(), getCpuFreqJobDefinition(nodeName, n.busyboxImage), metav1.CreateOptions{})
+func (n *NodeCpuFrequencyGetter) createJob(nodeName, namespace, imagePullSecret string) (*batchv1.Job, error) {
+	job, err := n.kubeClient.BatchV1().Jobs(namespace).Create(context.TODO(), getCpuFreqJobDefinition(nodeName, n.busyboxImage, imagePullSecret), metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error creating cpufreq job for node: %s : %v", nodeName, err)
 	}
@@ -193,7 +196,7 @@ func (n *NodeCpuFrequencyGetter) createJob(nodeName, namespace string) (*batchv1
 	return job, err
 }
 
-func getCpuFreqJobDefinition(nodeName, busyboxImage string) *batchv1.Job {
+func getCpuFreqJobDefinition(nodeName, busyboxImage, imagePullSecret string) *batchv1.Job {
 	// There are no retries if the job fails it fails
 	backoffLimit := int32(0)
 	return &batchv1.Job{
@@ -211,6 +214,11 @@ func getCpuFreqJobDefinition(nodeName, busyboxImage string) *batchv1.Job {
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: imagePullSecret,
+						},
+					},
 					NodeName:      nodeName,
 					RestartPolicy: "Never",
 					Containers: []corev1.Container{

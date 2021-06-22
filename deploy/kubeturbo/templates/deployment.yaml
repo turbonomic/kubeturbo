@@ -57,6 +57,9 @@ spec:
           {{- if .Values.image.busyboxRepository }}
           - --busybox-image={{ .Values.image.busyboxRepository }}
           {{- end }}
+          {{- if .Values.image.imagePullSecret }}
+          - --busybox-image-pull-secret={{ .Values.image.imagePullSecret }}
+          {{- end }}
           {{- if .Values.args.busyboxExcludeNodeLabels }}
           - --cpufreq-job-exclude-node-labels={{ .Values.args.busyboxExcludeNodeLabels }}
           {{- end }}
