@@ -25,7 +25,7 @@ limitations under the License.
 ![Docker Pulls](https://img.shields.io/docker/pulls/turbonomic/kubeturbo.svg?maxAge=604800)
 
 
-Documentation is being maintained on the Wiki for this project.  Visit [Kubeturbo Wiki](https://github.com/turbonomic/kubeturbo/wiki)for the full documentation, examples and guides.
+Documentation is being maintained on the Wiki for this project.  Visit [Kubeturbo Wiki](https://github.com/turbonomic/kubeturbo/wiki) for the full documentation, examples and guides.
 
 
 ## Overview 
