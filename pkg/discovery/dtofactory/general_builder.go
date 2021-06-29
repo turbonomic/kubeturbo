@@ -292,7 +292,7 @@ func (builder generalBuilder) getResourceCommoditiesBought(entityType metrics.Di
 		commBoughtBuilder.Peak(metricValue.Peak)
 
 		if rType == metrics.VStorage {
-			// set commodity key only for vstorahge.
+			// set commodity key only for vstorage.
 			// currently pods only report and buy rootfs usage.
 			commBoughtBuilder.Key("k8s-node-rootfs")
 		}

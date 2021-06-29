@@ -96,6 +96,15 @@ func (summary *ClusterSummary) GetKubeNamespace(namespace string) *KubeNamespace
 	return kubeNamespace
 }
 
+func (summary *ClusterSummary) GetNodeCPUFrequency(nodeName string) float64 {
+	node, exists := summary.NodeMap[nodeName]
+	if !exists {
+		glog.Errorf("Cannot find KubeNamespace entity for namespace %s", nodeName)
+		return 0
+	}
+	return node.NodeCpuFrequency
+}
+
 func (summary *ClusterSummary) GetReadyPods() (readyPods []*v1.Pod) {
 	for _, pod := range summary.Pods {
 		if util.PodIsReady(pod) {
