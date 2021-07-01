@@ -499,23 +499,31 @@ func (builder *podEntityDTOBuilder) getPodProperties(pod *api.Pod, vols []reposi
 }
 
 func (builder *podEntityDTOBuilder) createContainerPodData(pod *api.Pod) *proto.EntityDTO_ContainerPodData {
-	// Add IP address in ContainerPodData. Some pods (system pods and daemonset pods) may use the host IP as the pod IP,
-	// in which case the IP address will not be unique (in the k8s cluster) and hence not populated in ContainerPodData.
 	fullName := pod.Name
 	ns := pod.Namespace
+	nodeCPUFrequency, err := builder.getNodeCPUFrequencyViaPod(pod)
+	if err != nil {
+		glog.Warningf("Failed to get node cpu frequency for pod[%s/%s]."+
+			"\nHosted application usage data may not reflect right Mhz values: %v", ns, fullName, err)
+		nodeCPUFrequency = 1.0
+	}
+	podData := &proto.EntityDTO_ContainerPodData{
+		HostingNodeCpuFrequency: &nodeCPUFrequency,
+	}
+
+	// Add IP address in ContainerPodData. Some pods (system pods and daemonset pods) may use the host IP as the pod IP,
+	// in which case the IP address will not be unique (in the k8s cluster) and hence not populated in ContainerPodData.
 	port := "not-set"
 	if pod.Status.PodIP != "" && pod.Status.PodIP != pod.Status.HostIP {
-		return &proto.EntityDTO_ContainerPodData{
-			// Note the port needs to be set if needed
-			IpAddress: &(pod.Status.PodIP),
-			Port:      &port,
-			FullName:  &fullName,
-			Namespace: &ns,
-		}
+		// Note the port needs to be set if needed
+		podData.IpAddress = &(pod.Status.PodIP)
+		podData.Port = &port
+		podData.FullName = &fullName
+		podData.Namespace = &ns
 	}
 
 	if util.PodIsReady(pod) && pod.Status.PodIP == "" {
 		glog.Errorf("No IP found for pod %s", fullName)
 	}
-	return nil
+	return podData
 }

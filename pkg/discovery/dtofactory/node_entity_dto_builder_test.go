@@ -2,11 +2,12 @@ package dtofactory
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"testing"
 
 	"github.com/golang/glog"
 
@@ -173,7 +174,7 @@ func TestGetNodeNumCPUs(t *testing.T) {
 	node := mockNode()
 	nodeKey := util.NodeKeyFunc(node)
 	metricsSink = metrics.NewEntityMetricSink()
-	cpuCapMetric := metrics.NewEntityResourceMetric(metrics.NodeType, nodeKey, metrics.CPU, metrics.Capacity, float64(10))
+	cpuCapMetric := metrics.NewEntityResourceMetric(metrics.NodeType, nodeKey, metrics.CPU, metrics.Capacity, float64(10000))
 	metricsSink.AddNewMetricEntries(cpuCapMetric)
 	kubernetesSvcID := "abcdef"
 	clusterInfo := metrics.NewEntityStateMetric(metrics.ClusterType, "", metrics.Cluster, kubernetesSvcID)
@@ -181,5 +182,6 @@ func TestGetNodeNumCPUs(t *testing.T) {
 	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitching.NewStitchingManager(stitching.UUID))
 	nodeEntityDTOs := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node})
 	vmData := nodeEntityDTOs[0].GetVirtualMachineData()
+	// The capacity metric is set in millicores but numcpus is set in cores
 	assert.EqualValues(t, 10, vmData.GetNumCpus())
 }

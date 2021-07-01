@@ -39,28 +39,16 @@ func NewApplicationEntityDTOBuilder(sink *metrics.EntityMetricSink,
 	}
 }
 
-func (builder *applicationEntityDTOBuilder) getNodeCPUFrequency(pod *api.Pod) (float64, error) {
-	key := util.NodeKeyFromPodFunc(pod)
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
-	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
-	if err != nil {
-		err := fmt.Errorf("Failed to get cpu frequency from sink for node %s: %v", key, err)
-		glog.Error(err)
-		return 0.0, err
-	}
-
-	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
-	return cpuFrequency, nil
-}
-
 func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
 	podFullName := util.GetPodClusterID(pod)
 	podId := string(pod.UID)
 	podMId := util.PodMetricIdAPI(pod)
-	nodeCPUFrequency, err := builder.getNodeCPUFrequency(pod)
+	nodeCPUFrequency, err := builder.getNodeCPUFrequencyViaPod(pod)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build application DTOs for pod[%s]: %v", podFullName, err)
+		glog.Warningf("Failed to get node cpu frequency for pod[%s]."+
+			"\nHosted application usage data may not reflect right Mhz values: %v", podFullName, err)
+		nodeCPUFrequency = 1.0
 	}
 
 	for i := range pod.Spec.Containers {
@@ -111,8 +99,9 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 		appType := util.GetAppType(pod)
 		entityDTO, err := ebuilder.
 			ApplicationData(&proto.EntityDTO_ApplicationData{
-				Type:      &appType,
-				IpAddress: &(pod.Status.PodIP),
+				Type:                    &appType,
+				IpAddress:               &(pod.Status.PodIP),
+				HostingNodeCpuFrequency: &nodeCPUFrequency,
 			}).
 			ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
 				ProviderMustClone: &truep,

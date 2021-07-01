@@ -1,15 +1,17 @@
 package dtofactory
 
 import (
+	"fmt"
 	"math"
 	"sort"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
+	api "k8s.io/api/core/v1"
 
+	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
-	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 
 	"github.com/golang/glog"
 )
@@ -109,6 +111,20 @@ func newGeneralBuilder(sink *metrics.EntityMetricSink) generalBuilder {
 	return generalBuilder{
 		metricsSink: sink,
 	}
+}
+
+func (builder generalBuilder) getNodeCPUFrequencyViaPod(pod *api.Pod) (float64, error) {
+	key := util.NodeKeyFromPodFunc(pod)
+	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
+	cpuFrequencyMetric, err := builder.metricsSink.GetMetric(cpuFrequencyUID)
+	if err != nil {
+		err := fmt.Errorf("Failed to get cpu frequency from sink for node %s: %v", key, err)
+		glog.Error(err)
+		return 0.0, err
+	}
+
+	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
+	return cpuFrequency, nil
 }
 
 // Create commodity DTOs for the given list of resources

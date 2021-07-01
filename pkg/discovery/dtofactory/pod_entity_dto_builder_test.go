@@ -38,6 +38,8 @@ func Test_podEntityDTOBuilder_createContainerPodData(t *testing.T) {
 	namespace := "foo"
 	podName := "bar"
 	port := "not-set"
+	defCPUFreq := 1.0
+	setCPUFreq := 2.0
 
 	tests := []struct {
 		name string
@@ -45,29 +47,52 @@ func Test_podEntityDTOBuilder_createContainerPodData(t *testing.T) {
 		want *proto.EntityDTO_ContainerPodData
 	}{
 		{
-			name: "test-pod-with-empty-IP",
+			name: "test-pod-with-empty-IP-and-no-cpu-freq-found",
 			pod:  createPodWithIPs("", hostIP),
-			want: nil,
+			want: &proto.EntityDTO_ContainerPodData{
+				HostingNodeCpuFrequency: &defCPUFreq,
+			},
 		},
 		{
-			name: "test-pod-with-same-host-IP",
+			name: "test-pod-with-same-host-IP-and-no-cpu-freq-found",
 			pod:  createPodWithIPs(podIP, podIP),
-			want: nil,
+			want: &proto.EntityDTO_ContainerPodData{
+				HostingNodeCpuFrequency: &defCPUFreq,
+			},
 		},
 		{
-			name: "test-pod-with-different-IP",
+			name: "test-pod-with-different-IP-and-no-cpu-freq-found",
 			pod:  createPodWithIPs(podIP, hostIP),
 			want: &proto.EntityDTO_ContainerPodData{
-				IpAddress: &podIP,
-				FullName:  &podName,
-				Namespace: &namespace,
-				Port:      &port,
+				IpAddress:               &podIP,
+				FullName:                &podName,
+				Namespace:               &namespace,
+				Port:                    &port,
+				HostingNodeCpuFrequency: &defCPUFreq,
+			},
+		},
+		{
+			name: "test-pod-with-different-IP-and-cpu-freq-found",
+			pod:  createPodWithIPs(podIP, hostIP),
+			want: &proto.EntityDTO_ContainerPodData{
+				IpAddress:               &podIP,
+				FullName:                &podName,
+				Namespace:               &namespace,
+				Port:                    &port,
+				HostingNodeCpuFrequency: &setCPUFreq,
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			pod := tt.pod
+			nodeName := "test-node"
+			pod.Spec.NodeName = nodeName
+			if tt.name == "test-pod-with-different-IP-and-cpu-freq-found" {
+				cpuFrequencyMetric := metrics.NewEntityStateMetric(metrics.NodeType, nodeName, metrics.CpuFrequency, setCPUFreq)
+				builder.metricsSink.AddNewMetricEntries(cpuFrequencyMetric)
+			}
 			if got := builder.createContainerPodData(tt.pod); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("got = %v while want = %v", got, tt.want)
 			}
