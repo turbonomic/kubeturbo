@@ -230,8 +230,9 @@ func TestAccumulatingOverPodMetricsList(t *testing.T) {
 	podMetricsList = append(podMetricsList, pm2)
 
 	quotaUsedSumMap := podMetricsList.SumQuotaUsage()
-	cpuLimitQuotaUsed := cpuLimits_container1 + cpuLimits_container2
-	cpuRequestQuotaUsed := cpuRequests_container1 + cpuRequests_container2
+	// The generated metrics all all in millicores
+	cpuLimitQuotaUsed := util.MetricUnitToMilli(cpuLimits_container1 + cpuLimits_container2)
+	cpuRequestQuotaUsed := util.MetricUnitToMilli(cpuRequests_container1 + cpuRequests_container2)
 	memLimitQuotaUsed := 0.0
 	memRequestQuotaUsed := 0.0
 	assert.Equal(t, cpuLimitQuotaUsed, quotaUsedSumMap[metrics.CPULimitQuota])

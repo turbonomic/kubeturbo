@@ -96,6 +96,15 @@ func (summary *ClusterSummary) GetKubeNamespace(namespace string) *KubeNamespace
 	return kubeNamespace
 }
 
+func (summary *ClusterSummary) GetNodeCPUFrequency(nodeName string) float64 {
+	node, exists := summary.NodeMap[nodeName]
+	if !exists {
+		glog.Errorf("Cannot find KubeNamespace entity for namespace %s", nodeName)
+		return 0
+	}
+	return node.NodeCpuFrequency
+}
+
 func (summary *ClusterSummary) GetReadyPods() (readyPods []*v1.Pod) {
 	for _, pod := range summary.Pods {
 		if util.PodIsReady(pod) {
@@ -243,8 +252,7 @@ func parseResourceValue(computeResourceType metrics.ResourceType, resourceList v
 	if computeResourceType == metrics.CPU ||
 		computeResourceType == metrics.CPURequest {
 		ctnCpuCapacityMilliCore := resourceList.Cpu().MilliValue()
-		cpuCapacityCore := util.MetricMilliToUnit(float64(ctnCpuCapacityMilliCore))
-		return cpuCapacityCore
+		return float64(ctnCpuCapacityMilliCore)
 	}
 
 	if computeResourceType == metrics.Memory ||
@@ -437,7 +445,7 @@ func (kubeNamespace *KubeNamespace) ReconcileQuotas(quotas []*v1.ResourceQuota) 
 		resourceStatus := item.Status
 		resourceHardList := resourceStatus.Hard
 
-		for resource, _ := range resourceHardList {
+		for resource := range resourceHardList {
 			// This will return resourceType as "limits.cpu" for resource as both "cpu" and "limits.cpu"
 			// Likewise for memory.
 			resourceType, isAllocationType := metrics.KubeQuotaResourceTypes[resource]
@@ -447,7 +455,7 @@ func (kubeNamespace *KubeNamespace) ReconcileQuotas(quotas []*v1.ResourceQuota) 
 			// Quota is defined for the quota resource
 			kubeNamespace.QuotaDefined[resourceType] = true
 
-			// Parse the CPU  values into number of cores, Memory values into KBytes
+			// Parse the CPU  values into number of millicores, Memory values into KBytes
 			capacityValue := parseAllocationResourceValue(resource, resourceType, resourceHardList)
 
 			// Update the namespace entity resource with the most restrictive quota value
@@ -475,14 +483,13 @@ func (kubeNamespace *KubeNamespace) ReconcileQuotas(quotas []*v1.ResourceQuota) 
 }
 
 // Parse the CPU and Memory resource values.
-// CPU is represented in number of cores, Memory in KBytes
+// CPU is represented in number of millicores, Memory in KBytes
 func parseAllocationResourceValue(resource v1.ResourceName, allocationResourceType metrics.ResourceType, resourceList v1.ResourceList) float64 {
 
 	if allocationResourceType == metrics.CPULimitQuota || allocationResourceType == metrics.CPURequestQuota {
 		quantity := resourceList[resource]
 		cpuMilliCore := quantity.MilliValue()
-		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
-		return cpuCore
+		return float64(cpuMilliCore)
 	}
 
 	if allocationResourceType == metrics.MemoryLimitQuota || allocationResourceType == metrics.MemoryRequestQuota {

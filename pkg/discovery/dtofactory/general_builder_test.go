@@ -31,11 +31,6 @@ var (
 	memUsed_node1 = metrics.NewEntityResourceMetric(metrics.NodeType, node1, metrics.Memory, metrics.Used, 8010812.000000/4)
 
 	cpuFrequency = 2048.0
-	cpuConverter = NewConverter().Set(
-		func(input float64) float64 {
-			return input * cpuFrequency
-		},
-		metrics.CPU)
 )
 
 func TestBuildVCPUThrottlingSold(t *testing.T) {
@@ -47,7 +42,7 @@ func TestBuildVCPUThrottlingSold(t *testing.T) {
 	}
 
 	eType := metrics.ContainerType
-	commSold, err := dtoBuilder.getSoldResourceCommodityWithKey(eType, container1, metrics.VCPUThrottling, "", cpuConverter, nil)
+	commSold, err := dtoBuilder.getSoldResourceCommodityWithKey(eType, container1, metrics.VCPUThrottling, "", nil, nil)
 	fmt.Printf("%++v\n", commSold)
 	fmt.Printf("%++v\n", err)
 	assert.Nil(t, err)
@@ -68,14 +63,14 @@ func TestBuildCPUSold(t *testing.T) {
 	}
 
 	eType := metrics.PodType
-	commSold, err := dtoBuilder.getSoldResourceCommodityWithKey(eType, pod1, metrics.CPU, "", cpuConverter, nil)
+	commSold, err := dtoBuilder.getSoldResourceCommodityWithKey(eType, pod1, metrics.CPU, "", nil, nil)
 	fmt.Printf("%++v\n", commSold)
 	fmt.Printf("%++v\n", err)
 	assert.Nil(t, err)
 	assert.NotNil(t, commSold)
 	assert.Equal(t, proto.CommodityDTO_VCPU, commSold.GetCommodityType())
-	capacityValue := cpuConverter.Convert(metrics.CPU, cpuCap_pod1.GetValue().(float64))
-	usedValue := cpuConverter.Convert(metrics.CPU, cpuUsed_pod1.GetValue().(float64))
+	capacityValue := cpuCap_pod1.GetValue().(float64)
+	usedValue := cpuUsed_pod1.GetValue().(float64)
 	assert.Equal(t, usedValue, commSold.GetUsed())
 	assert.Equal(t, capacityValue, commSold.GetCapacity())
 }
@@ -120,7 +115,7 @@ func TestBuildCPUSoldWithMissingCap(t *testing.T) {
 	dtoBuilder := &generalBuilder{
 		metricsSink: metricsSink,
 	}
-	commSold, err := dtoBuilder.getSoldResourceCommodityWithKey(eType, pod1, metrics.CPU, "", cpuConverter, nil)
+	commSold, err := dtoBuilder.getSoldResourceCommodityWithKey(eType, pod1, metrics.CPU, "", nil, nil)
 	assert.Nil(t, commSold)
 	assert.NotNil(t, err)
 }
@@ -130,18 +125,6 @@ func TestBuildCPUSoldWithMissingUsed(t *testing.T) {
 	metricsSink = metrics.NewEntityMetricSink()
 	metricsSink.AddNewMetricEntries(cpuCap_pod1)
 
-	dtoBuilder := &generalBuilder{
-		metricsSink: metricsSink,
-	}
-	commSold, err := dtoBuilder.getSoldResourceCommodityWithKey(eType, pod1, metrics.CPU, "", cpuConverter, nil)
-	assert.Nil(t, commSold)
-	assert.NotNil(t, err)
-}
-
-func TestBuildCPUSoldWithMissingConverter(t *testing.T) {
-	eType := metrics.PodType
-	metricsSink = metrics.NewEntityMetricSink()
-	metricsSink.AddNewMetricEntries(cpuUsed_pod1, cpuCap_pod1)
 	dtoBuilder := &generalBuilder{
 		metricsSink: metricsSink,
 	}
@@ -176,7 +159,7 @@ func TestBuildCommSold(t *testing.T) {
 
 	eType := metrics.PodType
 	resourceTypesList := []metrics.ResourceType{metrics.CPU, metrics.Memory}
-	commSoldList := dtoBuilder.getResourceCommoditiesSold(eType, pod1, resourceTypesList, cpuConverter, nil)
+	commSoldList := dtoBuilder.getResourceCommoditiesSold(eType, pod1, resourceTypesList, nil, nil)
 	commMap := make(map[proto.CommodityDTO_CommodityType]*proto.CommodityDTO)
 
 	for _, commSold := range commSoldList {
@@ -201,7 +184,7 @@ func TestBuildCommBought(t *testing.T) {
 
 	eType := metrics.PodType
 	resourceTypesList := []metrics.ResourceType{metrics.CPU, metrics.Memory}
-	commBoughtList := dtoBuilder.getResourceCommoditiesBought(eType, pod1, resourceTypesList, cpuConverter, nil)
+	commBoughtList := dtoBuilder.getResourceCommoditiesBought(eType, pod1, resourceTypesList, nil, nil)
 	commMap := make(map[proto.CommodityDTO_CommodityType]*proto.CommodityDTO)
 
 	for _, commBought := range commBoughtList {

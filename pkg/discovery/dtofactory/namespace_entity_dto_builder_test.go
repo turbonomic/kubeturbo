@@ -2,6 +2,10 @@ package dtofactory
 
 import (
 	"fmt"
+	"math"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -10,9 +14,6 @@ import (
 	k8sres "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"math"
-	"testing"
-	"time"
 )
 
 const CPUFrequency float64 = 2663.778000
@@ -306,13 +307,13 @@ func TestBuildNamespaceDto(t *testing.T) {
 				if dto.GetId() == "namespace-3" {
 					assert.EqualValues(t, resource.Capacity, comm.GetCapacity())
 				} else {
-					assert.EqualValues(t, resource.Capacity*CPUFrequency, comm.GetCapacity())
+					assert.EqualValues(t, resource.Capacity, comm.GetCapacity())
 				}
 			} else {
 				assert.EqualValues(t, resource.Capacity, comm.GetCapacity())
 			}
 			if metrics.IsCPUType(allocationResource) && kubeNamespace.QuotaDefined[allocationResource] {
-				assert.EqualValues(t, resource.Used*CPUFrequency, comm.GetUsed())
+				assert.EqualValues(t, resource.Used, comm.GetUsed())
 			}
 		}
 

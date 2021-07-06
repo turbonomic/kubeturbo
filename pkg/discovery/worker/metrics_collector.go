@@ -198,11 +198,11 @@ func collectContainersComputeResources(pod *v1.Pod) (float64, float64, float64, 
 	for _, container := range pod.Spec.Containers {
 		// Compute resource limits
 		limits := container.Resources.Limits
-		totalCPULimits += util.MetricMilliToUnit(float64(limits.Cpu().MilliValue()))
+		totalCPULimits += float64(limits.Cpu().MilliValue())
 		totalMemLimits += util.Base2BytesToKilobytes(float64(limits.Memory().Value()))
 		// Compute resource requests
 		requests := container.Resources.Requests
-		totalCPURequests += util.MetricMilliToUnit(float64(requests.Cpu().MilliValue()))
+		totalCPURequests += float64(requests.Cpu().MilliValue())
 		totalMemRequests += util.Base2BytesToKilobytes(float64(requests.Memory().Value()))
 	}
 	return totalCPULimits, totalCPURequests, totalMemLimits, totalMemRequests
@@ -275,7 +275,7 @@ func (collector *MetricsCollector) CollectNamespaceMetrics(podCollection PodMetr
 		namespaceMetrics := repository.CreateDefaultNamespaceMetrics(namespace)
 		// create quota sold used for each namespace handled by this metric collector
 		for _, node := range collector.NodeList {
-			kubeNode := collector.Cluster.NodeMap[node.Name]
+
 			// list of pods on this namespace on this node
 			podMetricsList, exists := podCollection[node.Name][namespace]
 			if !exists {
@@ -291,23 +291,6 @@ func (collector *MetricsCollector) CollectNamespaceMetrics(podCollection PodMetr
 			// sum the usages for all the pods in this namespace and node
 			podQuotaUsed := podMetricsList.SumQuotaUsage()
 			podUsed := podMetricsList.SumUsage()
-
-			// conversion for cpu resource usages from cores to MHz for this list of pods
-			// the sum of cpu usages for all the pods on this node is in cores,
-			// convert to MHz using the node frequency metric value
-			for rt, val := range podQuotaUsed {
-				if metrics.IsCPUType(rt) && kubeNode.NodeCpuFrequency > 0.0 {
-					newVal := val * kubeNode.NodeCpuFrequency
-					podQuotaUsed[rt] = newVal
-				}
-			}
-			for rt, points := range podUsed {
-				if metrics.IsCPUType(rt) && kubeNode.NodeCpuFrequency > 0.0 {
-					for idx, point := range points {
-						points[idx].Value = point.Value * kubeNode.NodeCpuFrequency
-					}
-				}
-			}
 
 			// usages for the quota sold from this node
 			// is added to the usages from other nodes

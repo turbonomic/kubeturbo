@@ -80,8 +80,6 @@ func (worker *k8sContainerSpecDiscoveryWorker) createContainerSpecMetricsMap(con
 					continue
 				}
 				// Append resource capacity values of same resource type of container replicas from different nodes.
-				// We have already converted CPU capacity from milli-cores into MHz based on node CPU frequency. Different
-				// node CPU frequency leads to different container CPU capacity in MHz although CPU in milli-cores is the same.
 				// To make sure CPU capacity of container spec is consistent, we collect capacity values from all container
 				// replicas here and will use max value when building container spec entity dto.
 				existingResourceMetrics.Capacity = append(existingResourceMetrics.Capacity, containerMetrics.Capacity...)

@@ -19,15 +19,17 @@ var TestNodes = []struct {
 	memCap  float64
 	cluster string
 }{
-	{"node1", 4.0, 819200, "cluster1"},
-	{"node2", 5.0, 614400, "cluster1"},
-	{"node3", 6.0, 409600, "cluster1"},
+	{"node1", 4000.0, 819200, "cluster1"},
+	{"node2", 5000.0, 614400, "cluster1"},
+	{"node3", 6000.0, 409600, "cluster1"},
 }
 
 func TestKubeNode(t *testing.T) {
 	for _, testNode := range TestNodes {
 		resourceList := v1.ResourceList{
-			v1.ResourceCPU:    resource.MustParse(fmt.Sprint(testNode.cpuCap)),
+			// We query cpu capacity as millicores from node properties.
+			// What we set here to be parsed is cpu cores.
+			v1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%d", int(testNode.cpuCap/1000))),
 			v1.ResourceMemory: resource.MustParse(fmt.Sprint(testNode.memCap)),
 		}
 
@@ -100,8 +102,7 @@ func TestKubeNamespace(t *testing.T) {
 		resource, _ := kubeNamespace.GetAllocationResource(metrics.CPULimitQuota)
 		quantity := hardResourceList[v1.ResourceLimitsCPU]
 		cpuMilliCore := quantity.MilliValue()
-		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
-		assert.Equal(t, resource.Capacity, cpuCore)
+		assert.Equal(t, resource.Capacity, float64(cpuMilliCore))
 
 		resource, _ = kubeNamespace.GetAllocationResource(metrics.MemoryLimitQuota)
 		quantity = hardResourceList[v1.ResourceLimitsMemory]
@@ -140,8 +141,7 @@ func TestKubeNamespaceWithMissingAllocations(t *testing.T) {
 		resource, _ := kubeNamespace.GetAllocationResource(metrics.CPULimitQuota)
 		quantity := hardResourceList[v1.ResourceLimitsCPU]
 		cpuMilliCore := quantity.MilliValue()
-		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
-		assert.Equal(t, resource.Capacity, cpuCore)
+		assert.Equal(t, resource.Capacity, float64(cpuMilliCore))
 
 		resource, _ = kubeNamespace.GetAllocationResource(metrics.MemoryLimitQuota)
 		assert.Equal(t, resource.Capacity, DEFAULT_METRIC_CAPACITY_VALUE)
@@ -158,15 +158,14 @@ func TestKubeNamespaceQuotaReconcile(t *testing.T) {
 	for _, testQuota := range TestQuotas {
 
 		quantity := resource.MustParse(testQuota.cpuLimit)
-		cpuMilliCore := quantity.MilliValue()
-		cpuCore := util.MetricMilliToUnit(float64(cpuMilliCore))
+		cpuMilliCore := float64(quantity.MilliValue())
 
 		quantity = resource.MustParse(testQuota.memLimit)
 		memoryBytes := quantity.Value()
 		memoryKiloBytes := util.Base2BytesToKilobytes(float64(memoryBytes))
 
-		if leastCpuCore == 0.0 || cpuCore < leastCpuCore {
-			leastCpuCore = cpuCore
+		if leastCpuCore == 0.0 || cpuMilliCore < leastCpuCore {
+			leastCpuCore = cpuMilliCore
 		}
 
 		if leastMemKB == 0.0 || memoryKiloBytes < leastMemKB {
