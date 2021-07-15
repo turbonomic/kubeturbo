@@ -197,9 +197,10 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 			wg.Add(1)
 			go func(w monitoring.MonitoringWorker) {
 				finishCh := make(chan struct{})
-				stopCh := make(chan struct{}, 1)
+				stopCh := make(chan struct{})
+				timeoutCh := make(chan struct{}, 1)
 				defer close(finishCh)
-				defer close(stopCh)
+				defer close(timeoutCh)
 				defer wg.Done()
 
 				w.ReceiveTask(resourceMonitorTask)
@@ -208,9 +209,9 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 					glog.V(3).Infof("A %s monitoring worker from discovery worker %v is invoked for task %s.",
 						w.GetMonitoringSource(), worker.id, resourceMonitorTask)
 					// Assign task to monitoring worker.
-					monitoringSink := w.Do()
+					monitoringSink := w.Do(stopCh)
 					select {
-					case <-stopCh:
+					case <-timeoutCh:
 						// glog.Infof("Calling thread: %s monitoring worker timeout!", w.GetMonitoringSource())
 						return
 					default:
@@ -236,9 +237,9 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 					glog.Errorf("%s monitoring worker from discovery worker %v exceeds the max time limit for "+
 						"completing the task %s: %v", w.GetMonitoringSource(), worker.id, resourceMonitorTask, timeoutSecond)
 					timeout = true
-					stopCh <- struct{}{}
+					timeoutCh <- struct{}{}
 					// glog.Infof("%s stop", w.GetMonitoringSource())
-					w.Stop()
+					close(stopCh)
 					return
 				}
 			}(rmWorker)

@@ -3,18 +3,20 @@ package worker
 import (
 	"flag"
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"math"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
-	"k8s.io/api/core/v1"
 )
 
 func init() {
@@ -143,6 +145,8 @@ func TestDispatcher_Dispatch_With_Task_Timeout(t *testing.T) {
 			}
 		}()
 		result = resultCollector.Collect(len(nodes))
+		// Sleep a little to give chance to defer funcs to be called
+		time.Sleep(time.Second * 5)
 		done <- true
 	}()
 

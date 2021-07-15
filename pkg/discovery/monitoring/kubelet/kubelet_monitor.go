@@ -35,8 +35,6 @@ type KubeletMonitor struct {
 
 	metricSink *metrics.EntityMetricSink
 
-	stopCh chan struct{}
-
 	wg sync.WaitGroup
 
 	// Whether this kubelet monitor runs during full discovery
@@ -48,14 +46,12 @@ func NewKubeletMonitor(config *KubeletMonitorConfig, isFullDiscovery bool) (*Kub
 		kubeletClient:   config.kubeletClient,
 		kubeClient:      config.kubeClient,
 		metricSink:      metrics.NewEntityMetricSink(),
-		stopCh:          make(chan struct{}, 1),
 		isFullDiscovery: isFullDiscovery,
 	}, nil
 }
 
 func (m *KubeletMonitor) reset() {
 	m.metricSink = metrics.NewEntityMetricSink()
-	m.stopCh = make(chan struct{}, 1)
 }
 
 func (m *KubeletMonitor) GetMonitoringSource() types.MonitoringSource {
@@ -64,17 +60,12 @@ func (m *KubeletMonitor) GetMonitoringSource() types.MonitoringSource {
 
 func (m *KubeletMonitor) ReceiveTask(task *task.Task) {
 	m.reset()
-
 	m.nodeList = task.NodeList()
 }
 
-func (m *KubeletMonitor) Stop() {
-	m.stopCh <- struct{}{}
-}
-
-func (m *KubeletMonitor) Do() *metrics.EntityMetricSink {
+func (m *KubeletMonitor) Do(stopChan <-chan struct{}) *metrics.EntityMetricSink {
 	glog.V(4).Infof("%s has started task.", m.GetMonitoringSource())
-	err := m.RetrieveResourceStat()
+	err := m.RetrieveResourceStat(stopChan)
 	if err != nil {
 		glog.Errorf("Failed to execute task: %s", err)
 	}
@@ -83,27 +74,23 @@ func (m *KubeletMonitor) Do() *metrics.EntityMetricSink {
 }
 
 // Start to retrieve resource stats for the received list of nodes.
-func (m *KubeletMonitor) RetrieveResourceStat() error {
-	defer func() {
-		close(m.stopCh)
-	}()
+func (m *KubeletMonitor) RetrieveResourceStat(stopChan <-chan struct{}) error {
 	if m.nodeList == nil || len(m.nodeList) == 0 {
 		return errors.New("Invalid nodeList or empty nodeList. Finish Immediately...")
 	}
-	m.wg.Add(len(m.nodeList))
 
+	m.wg.Add(len(m.nodeList))
 	for _, node := range m.nodeList {
 		go func(n *api.Node) {
 			defer m.wg.Done()
 			select {
-			case <-m.stopCh:
+			case <-stopChan:
 				return
 			default:
 				m.scrapeKubelet(n)
 			}
 		}(node)
 	}
-
 	m.wg.Wait()
 
 	return nil

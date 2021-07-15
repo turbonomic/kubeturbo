@@ -29,16 +29,12 @@ type ClusterMonitor struct {
 
 	nodePodMap map[string][]*api.Pod
 	podOwners  map[string]util.OwnerInfo
-
-	stopCh chan struct{}
 }
 
 func NewClusterMonitor(config *ClusterMonitorConfig) (*ClusterMonitor, error) {
-
 	return &ClusterMonitor{
 		config:        config,
 		clusterClient: config.clusterInfoScraper,
-		stopCh:        make(chan struct{}, 1),
 		podOwners:     make(map[string]util.OwnerInfo),
 	}, nil
 }
@@ -49,18 +45,13 @@ func (m *ClusterMonitor) GetMonitoringSource() types.MonitoringSource {
 
 func (m *ClusterMonitor) ReceiveTask(task *task.Task) {
 	m.reset()
-
 	m.nodeList = task.NodeList()
 	m.nodePodMap = util.GroupPodsByNode(task.PodList())
 }
 
-func (m *ClusterMonitor) Stop() {
-	m.stopCh <- struct{}{}
-}
-
-func (m *ClusterMonitor) Do() *metrics.EntityMetricSink {
+func (m *ClusterMonitor) Do(stopChan <-chan struct{}) *metrics.EntityMetricSink {
 	glog.V(4).Infof("%s has started task.", m.GetMonitoringSource())
-	err := m.RetrieveClusterStat()
+	err := m.RetrieveClusterStat(stopChan)
 	if err != nil {
 		glog.Errorf("Failed to execute task: %s", err)
 	}
@@ -69,14 +60,13 @@ func (m *ClusterMonitor) Do() *metrics.EntityMetricSink {
 }
 
 // RetrieveClusterStat retrieves resource stats for the received list of nodes.
-func (m *ClusterMonitor) RetrieveClusterStat() error {
-	defer close(m.stopCh)
-
+func (m *ClusterMonitor) RetrieveClusterStat(stopChan <-chan struct{}) error {
 	if m.nodeList == nil {
 		return errors.New("invalid nodeList or empty nodeList. Nothing to monitor")
 	}
+
 	select {
-	case <-m.stopCh:
+	case <-stopChan:
 		return nil
 	default:
 		err := m.findClusterID()
@@ -84,7 +74,7 @@ func (m *ClusterMonitor) RetrieveClusterStat() error {
 			return fmt.Errorf("failed to find cluster ID based on Kubernetes service: %v", err)
 		}
 		select {
-		case <-m.stopCh:
+		case <-stopChan:
 			return nil
 		default:
 			m.findNodeStates()
@@ -96,7 +86,6 @@ func (m *ClusterMonitor) RetrieveClusterStat() error {
 
 func (m *ClusterMonitor) reset() {
 	m.sink = metrics.NewEntityMetricSink()
-	m.stopCh = make(chan struct{}, 1)
 }
 
 // ----------------------------------------------- Cluster State -------------------------------------------------
