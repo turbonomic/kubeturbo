@@ -773,10 +773,10 @@ github.com/tidwall/pretty v1.0.0/go.mod h1:XNkn88O1ChpSDQmQeStsy+sBenx6DDtFZJxhV
 github.com/tmc/grpc-websocket-proxy v0.0.0-20170815181823-89b8d40f7ca8/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5 h1:LnC5Kc/wtumK+WB441p7ynQJzVuNRJiqddSIE3IlSEQ=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
-github.com/turbonomic/turbo-api v0.0.0-20210513030812-aca128ea36a0 h1:q3hPEL6M8BIvAxkxIGfY5vo+0bphDz6bA9d41PCoIoQ=
-github.com/turbonomic/turbo-api v0.0.0-20210513030812-aca128ea36a0/go.mod h1:L3eNZzTD3Iw8GV+cfeJD/lfDaEGPbZZGQrtml71yG10=
-github.com/turbonomic/turbo-go-sdk v0.0.0-20210602130418-d2213f9b17de h1:ZY/jhJ+rZmUGuLkxIrfd/cG7eUG5m0Zlem6JR03n0+A=
-github.com/turbonomic/turbo-go-sdk v0.0.0-20210602130418-d2213f9b17de/go.mod h1:C/3vkBwvmsdBH4AAgFUsmOe8BA6cQpomZaRVY4Bqo8g=
+github.com/turbonomic/turbo-api v0.0.0-20210715215202-c125bbe789ca h1:kWhxdWkGgeMNZQgZ+FQVFW0FEau2fHwraM7OGFug6Tw=
+github.com/turbonomic/turbo-api v0.0.0-20210715215202-c125bbe789ca/go.mod h1:L3eNZzTD3Iw8GV+cfeJD/lfDaEGPbZZGQrtml71yG10=
+github.com/turbonomic/turbo-go-sdk v0.0.0-20210715225224-e8539c776a5d h1:MEO/4X/55ZUzTiU4xB5/uMclChJM1OYCjDIlu9aA38U=
+github.com/turbonomic/turbo-go-sdk v0.0.0-20210715225224-e8539c776a5d/go.mod h1:WaHgsSYDOVV+5Jq2SGmvsl60SBVsf+LutnpsvuE2Ks8=
 github.com/ugorji/go v1.1.4/go.mod h1:uQMGLiO92mf5W77hV/PUCpI3pbzQx3CRekS0kk+RGrc=
 github.com/ugorji/go/codec v0.0.0-20181204163529-d75b2dcb6bc8/go.mod h1:VFNgLljTbGfSG7qAOspJ7OScBnGdDN/yBr0sguwnwf0=
 github.com/urfave/cli v1.20.0/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijbERA=
