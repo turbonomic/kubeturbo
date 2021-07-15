@@ -577,10 +577,10 @@ github.com/syndtr/gocapability/capability
 # github.com/thecodeteam/goscaleio v0.1.0
 github.com/thecodeteam/goscaleio
 github.com/thecodeteam/goscaleio/types/v1
-# github.com/turbonomic/turbo-api v0.0.0-20210513030812-aca128ea36a0
+# github.com/turbonomic/turbo-api v0.0.0-20210715215202-c125bbe789ca
 github.com/turbonomic/turbo-api/pkg/api
 github.com/turbonomic/turbo-api/pkg/client
-# github.com/turbonomic/turbo-go-sdk v0.0.0-20210602130418-d2213f9b17de
+# github.com/turbonomic/turbo-go-sdk v0.0.0-20210715225224-e8539c776a5d
 github.com/turbonomic/turbo-go-sdk/pkg
 github.com/turbonomic/turbo-go-sdk/pkg/builder
 github.com/turbonomic/turbo-go-sdk/pkg/builder/group
@@ -682,7 +682,7 @@ golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/pkcs12
 golang.org/x/crypto/pkcs12/internal/rc2
 golang.org/x/crypto/ssh/terminal
-# golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
+# golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 golang.org/x/net/bpf
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
@@ -708,9 +708,9 @@ golang.org/x/oauth2/google
 golang.org/x/oauth2/internal
 golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
-# golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
+# golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 golang.org/x/sync/singleflight
-# golang.org/x/sys v0.0.0-20201110211018-35f3e6cf4a65
+# golang.org/x/sys v0.0.0-20210510120138-977fb7262007
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows
