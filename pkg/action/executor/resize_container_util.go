@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"github.com/golang/glog"
 
@@ -140,7 +141,8 @@ func updateResourceAmount(podSpec *k8sapi.PodSpec, specs []*containerResizeSpec,
 // Generate a resource.Quantity for CPU.
 // @newValue is from Turbo platform, in millicores
 func genCPUQuantity(newValue float64) (resource.Quantity, error) {
-	cpuTime := int(newValue)
+	// Round the value to nearest integer
+	cpuTime := int(math.Round(newValue))
 	if cpuTime < 1 {
 		cpuTime = 1
 	}
@@ -149,7 +151,8 @@ func genCPUQuantity(newValue float64) (resource.Quantity, error) {
 
 // generate a resource.Quantity for Memory
 func genMemoryQuantity(newValue float64) (resource.Quantity, error) {
-	tmp := int64(newValue)
+	// Round the value to nearest integer
+	tmp := int64(math.Round(newValue))
 	if tmp < 1 {
 		tmp = 1
 	}

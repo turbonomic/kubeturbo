@@ -278,6 +278,17 @@ func TestBuildResourceListsWithRequests(t *testing.T) {
 	assert.EqualValues(t, "20Ki", newMemoryRequests.String())
 }
 
+func TestGenCPUAndMemQuantity(t *testing.T) {
+	amount, _ := genCPUQuantity(1.9999)
+	assert.Equal(t, "2m", amount.String())
+	amount, _ = genMemoryQuantity(1.9999)
+	assert.Equal(t, "2Ki", amount.String())
+	amount, _ = genCPUQuantity(1.001)
+	assert.Equal(t, "1m", amount.String())
+	amount, _ = genMemoryQuantity(1.001)
+	assert.Equal(t, "1Ki", amount.String())
+}
+
 func mockCommodity(commodityType proto.CommodityDTO_CommodityType, capacity float64) *proto.CommodityDTO {
 	return &proto.CommodityDTO{
 		CommodityType: &commodityType,
