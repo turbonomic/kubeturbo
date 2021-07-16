@@ -1,10 +1,14 @@
 OUTPUT_DIR=build
-SOURCE_DIRS = cmd pkg
-PACKAGES := go list ./... | grep -v /vendor | grep -v /out
-SHELL := '/bin/bash'
+SOURCE_DIRS=cmd pkg
+PACKAGES=go list ./... | grep -v /vendor | grep -v /out
+SHELL='/bin/bash'
 
-product: clean
-	env GOOS=linux GOARCH=amd64 go build -o ${OUTPUT_DIR}/kubeturbo ./cmd/kubeturbo
+LINUX_ARCH=amd64 arm64 ppc64le s390x
+
+$(LINUX_ARCH): clean
+	env GOOS=linux GOARCH=$@ go build -o ${OUTPUT_DIR}/linux/$@/kubeturbo ./cmd/kubeturbo
+
+product: $(LINUX_ARCH)
 
 debug-product: clean
 	env GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -gcflags "-N -l" -o ${OUTPUT_DIR}/kubeturbo.debug ./cmd/kubeturbo
@@ -38,7 +42,7 @@ test: clean
 
 .PHONY: clean
 clean:
-	@: if [ -f ${OUTPUT_DIR} ] then rm -rf ${OUTPUT_DIR} fi
+	@if [ -f ${OUTPUT_DIR} ]; then rm -rf ${OUTPUT_DIR}/linux; fi
 
 .PHONY: fmtcheck
 fmtcheck:

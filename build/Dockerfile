@@ -2,6 +2,10 @@ FROM registry.access.redhat.com/ubi8
 MAINTAINER Enlin Xu <enlin.xu@turbonomic.com>
 ARG GIT_COMMIT
 ENV GIT_COMMIT ${GIT_COMMIT}
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+
+RUN echo "Running on $BUILDPLATFORM, and building for $TARGETPLATFORM"
 
 ### Atomic/OpenShift Labels - https://github.com/projectatomic/ContainerApplicationGenericLabels
 LABEL name="Hybrid Cloud Container" \
@@ -28,7 +32,7 @@ COPY licenses /licenses
 COPY Dockerfile /Dockerfile
 
 ### Add md2man package
-RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
     dnf install -y --setopt=tsflags=nodocs golang-github-cpuguy83-go-md2man && \
     dnf clean all && \
 
@@ -42,7 +46,7 @@ ENV APP_ROOT=/opt/turbonomic \
 ENV PATH=$PATH:${APP_ROOT}/bin
 
 RUN mkdir -p ${APP_ROOT}/bin
-COPY kubeturbo ${APP_ROOT}/bin/kubeturbo
+COPY ${TARGETPLATFORM}/kubeturbo ${APP_ROOT}/bin/kubeturbo
 RUN chmod -R ug+x ${APP_ROOT}/bin && sync && \
     useradd -l -u ${USER_UID} -r -g 0 -d ${APP_ROOT} -s /sbin/nologin -c "${USER_NAME} user" ${USER_NAME} && \
     chown -R ${USER_UID}:0 ${APP_ROOT} && \
