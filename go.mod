@@ -17,7 +17,7 @@ require (
 	github.com/prometheus/client_golang v1.7.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.6.1
-	github.com/turbonomic/turbo-go-sdk v0.0.0-20210602130418-d2213f9b17de
+	github.com/turbonomic/turbo-go-sdk v0.0.0-20210715225224-e8539c776a5d
 )
 
 // k8s and relevant dependencies
@@ -41,6 +41,9 @@ require (
 	github.com/openshift/machine-api-operator v0.2.1-0.20201216110516-d9e48bb9fc0b
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.10.0
+	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4 // indirect
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
+	golang.org/x/sys v0.0.0-20210510120138-977fb7262007 // indirect
 	k8s.io/kubelet v0.0.0
 )
 
