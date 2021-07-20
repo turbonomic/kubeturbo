@@ -92,17 +92,6 @@ func (builder *namespaceEntityDTOBuilder) getQuotaCommoditiesSold(kubeNamespace 
 		}
 		capacityValue := resource.Capacity
 		usedValue := resource.Used
-		// For CPU resources, convert the capacity and usage values expressed in
-		// number of cores to MHz
-		if metrics.IsCPUType(resourceType) && kubeNamespace.AverageNodeCpuFrequency > 0.0 {
-			if capacityValue != repository.DEFAULT_METRIC_CAPACITY_VALUE {
-				// Modify the capacity value from cores to MHz if capacity is not default infinity
-				newVal := capacityValue * kubeNamespace.AverageNodeCpuFrequency
-				glog.V(4).Infof("Changing capacity of %s::%s from %f cores to %f MHz",
-					kubeNamespace.Name, resourceType, capacityValue, newVal)
-				capacityValue = newVal
-			}
-		}
 
 		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(cType)
 		commSoldBuilder.Used(usedValue)

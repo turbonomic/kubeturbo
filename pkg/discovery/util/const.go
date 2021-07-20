@@ -28,6 +28,22 @@ func MetricNanoToUnit(val float64) float64 {
 	return val / METRICGIGA
 }
 
+func MetricNanoToMilli(val float64) float64 {
+	return val / METRICMEGA
+}
+
+func MetricMilliToUnit(val float64) float64 {
+	return val / METRICKILO
+}
+
+func MetricUnitToMilli(val float64) float64 {
+	return val * METRICKILO
+}
+
+func MetricKiloToMega(val float64) float64 {
+	return val / METRICKILO
+}
+
 func Base2BytesToKilobytes(val float64) float64 {
 	return val / BASE2KILO
 }
@@ -38,12 +54,4 @@ func Base2BytesToMegabytes(val float64) float64 {
 
 func Base2MegabytesToBytes(val float64) float64 {
 	return val * BASE2MEGA
-}
-
-func MetricMilliToUnit(val float64) float64 {
-	return val / METRICKILO
-}
-
-func MetricKiloToMega(val float64) float64 {
-	return val / METRICKILO
 }

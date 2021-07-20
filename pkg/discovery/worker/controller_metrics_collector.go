@@ -2,6 +2,7 @@ package worker
 
 import (
 	"fmt"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -119,8 +120,7 @@ func (collector *ControllerMetricsCollector) getOwnerMetric(entityType metrics.D
 	return metricValue, nil
 }
 
-// Update quota resources used for the controller from pod quota usage. The usage values of CPU resources are converted
-// from cores to MHz based on the CPU frequency of the corresponding node where the given pod is located.
+// Update quota resources used for the controller from pod quota usage.
 func (collector *ControllerMetricsCollector) updateQuotaResourcesUsed(kubeController *repository.KubeController, pod *api.Pod) {
 	for _, resourceType := range metrics.QuotaResources {
 		podKey := util.PodKeyFunc(pod)
@@ -131,23 +131,6 @@ func (collector *ControllerMetricsCollector) updateQuotaResourcesUsed(kubeContro
 			continue
 		}
 		resourceUsed := metric.GetValue().(float64)
-		if metrics.IsCPUType(resourceType) {
-			// For CPU resources, convert the usage values expressed in cores to MHz based on the CPU frequency of the
-			// corresponding node where the given pod is located
-			cpuFrequency, err := util.GetNodeCPUFrequency(util.NodeKeyFromPodFunc(pod), collector.metricsSink)
-			if err != nil {
-				glog.Errorf("Error getting node cpuFrequency from pod %s: %v", podKey, err)
-				continue
-			}
-			if cpuFrequency > 0.0 {
-				usedValue := resourceUsed * cpuFrequency
-				if usedValue > 0.0 {
-					glog.V(4).Infof("Changing usage of %s::%s from pod %s from %f cores to %f MHz",
-						kubeController.GetFullName(), resourceType, pod.Name, resourceUsed, usedValue)
-				}
-				resourceUsed = usedValue
-			}
-		}
 		// Get existing resource of the given resourceType where used value is to be updated
 		existingResource, err := kubeController.GetResource(resourceType)
 		if err != nil {

@@ -27,7 +27,7 @@ func Test_podEntityDTOBuilder_getPodCommoditiesBought_Error(t *testing.T) {
 }
 
 func Test_podEntityDTOBuilder_getPodCommoditiesBoughtFromQuota_Error(t *testing.T) {
-	if _, err := builder.getQuotaCommoditiesBought("quota1", &api.Pod{}, 100.0); err == nil {
+	if _, err := builder.getQuotaCommoditiesBought("quota1", &api.Pod{}); err == nil {
 		t.Errorf("Error thrown expected")
 	}
 }
@@ -38,6 +38,8 @@ func Test_podEntityDTOBuilder_createContainerPodData(t *testing.T) {
 	namespace := "foo"
 	podName := "bar"
 	port := "not-set"
+	defCPUFreq := 1.0
+	setCPUFreq := 2.0
 
 	tests := []struct {
 		name string
@@ -45,29 +47,52 @@ func Test_podEntityDTOBuilder_createContainerPodData(t *testing.T) {
 		want *proto.EntityDTO_ContainerPodData
 	}{
 		{
-			name: "test-pod-with-empty-IP",
+			name: "test-pod-with-empty-IP-and-no-cpu-freq-found",
 			pod:  createPodWithIPs("", hostIP),
-			want: nil,
+			want: &proto.EntityDTO_ContainerPodData{
+				HostingNodeCpuFrequency: &defCPUFreq,
+			},
 		},
 		{
-			name: "test-pod-with-same-host-IP",
+			name: "test-pod-with-same-host-IP-and-no-cpu-freq-found",
 			pod:  createPodWithIPs(podIP, podIP),
-			want: nil,
+			want: &proto.EntityDTO_ContainerPodData{
+				HostingNodeCpuFrequency: &defCPUFreq,
+			},
 		},
 		{
-			name: "test-pod-with-different-IP",
+			name: "test-pod-with-different-IP-and-no-cpu-freq-found",
 			pod:  createPodWithIPs(podIP, hostIP),
 			want: &proto.EntityDTO_ContainerPodData{
-				IpAddress: &podIP,
-				FullName:  &podName,
-				Namespace: &namespace,
-				Port:      &port,
+				IpAddress:               &podIP,
+				FullName:                &podName,
+				Namespace:               &namespace,
+				Port:                    &port,
+				HostingNodeCpuFrequency: &defCPUFreq,
+			},
+		},
+		{
+			name: "test-pod-with-different-IP-and-cpu-freq-found",
+			pod:  createPodWithIPs(podIP, hostIP),
+			want: &proto.EntityDTO_ContainerPodData{
+				IpAddress:               &podIP,
+				FullName:                &podName,
+				Namespace:               &namespace,
+				Port:                    &port,
+				HostingNodeCpuFrequency: &setCPUFreq,
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			pod := tt.pod
+			nodeName := "test-node"
+			pod.Spec.NodeName = nodeName
+			if tt.name == "test-pod-with-different-IP-and-cpu-freq-found" {
+				cpuFrequencyMetric := metrics.NewEntityStateMetric(metrics.NodeType, nodeName, metrics.CpuFrequency, setCPUFreq)
+				builder.metricsSink.AddNewMetricEntries(cpuFrequencyMetric)
+			}
 			if got := builder.createContainerPodData(tt.pod); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("got = %v while want = %v", got, tt.want)
 			}
@@ -77,8 +102,8 @@ func Test_podEntityDTOBuilder_createContainerPodData(t *testing.T) {
 }
 
 func testGetCommoditiesWithError(t *testing.T,
-	f func(pod *api.Pod, cpuFrequency float64, resType []metrics.ResourceType) ([]*proto.CommodityDTO, error)) {
-	if _, err := f(createPodWithReadyCondition(), 100.0, runningPodResCommTypeSold); err == nil {
+	f func(pod *api.Pod, resType []metrics.ResourceType) ([]*proto.CommodityDTO, error)) {
+	if _, err := f(createPodWithReadyCondition(), runningPodResCommTypeSold); err == nil {
 		t.Errorf("Error thrown expected")
 	}
 }

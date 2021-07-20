@@ -114,7 +114,7 @@ func checkPodMetrics(sink *metrics.EntityMetricSink, podMId string, pod *stats.P
 			for _, c := range pod.Containers {
 				expected += float64(*c.CPU.UsageNanoCores)
 			}
-			expected = util.MetricNanoToUnit(expected)
+			expected = util.MetricNanoToMilli(expected)
 		} else {
 			for _, c := range pod.Containers {
 				expected += float64(*c.Memory.WorkingSetBytes)
@@ -150,7 +150,7 @@ func checkContainerMetrics(sink *metrics.EntityMetricSink, containerMId string, 
 		expected := float64(0.0)
 		if res == metrics.CPU {
 			expected += float64(*container.CPU.UsageNanoCores)
-			expected = util.MetricNanoToUnit(expected)
+			expected = util.MetricNanoToMilli(expected)
 		} else {
 			expected += float64(*container.Memory.WorkingSetBytes)
 			expected = util.Base2BytesToKilobytes(expected)
@@ -183,7 +183,7 @@ func checkApplicationMetrics(sink *metrics.EntityMetricSink, appMId string, cont
 		expected := float64(0.0)
 		if res == metrics.CPU {
 			expected += float64(*container.CPU.UsageNanoCores)
-			expected = util.MetricNanoToUnit(expected)
+			expected = util.MetricNanoToMilli(expected)
 		} else {
 			expected += float64(*container.Memory.WorkingSetBytes)
 			expected = util.Base2BytesToKilobytes(expected)

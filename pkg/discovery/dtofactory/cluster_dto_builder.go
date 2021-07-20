@@ -2,11 +2,14 @@ package dtofactory
 
 import (
 	"fmt"
+
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder/group"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
@@ -104,9 +107,13 @@ func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO, nam
 	})
 
 	entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
+	// The added property indicates that this cluster now uses millicore as unit for vcpu commodities
+	properties := property.BuildClusterProperty()
 
 	// build entityDTO.
-	entityDto, err := entityDTOBuilder.Create()
+	entityDto, err := entityDTOBuilder.
+		WithProperties(properties).
+		Create()
 	if err != nil {
 		glog.Errorf("Failed to build Cluster entityDTO: %s", err)
 		return nil, err
@@ -128,24 +135,35 @@ func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityD
 	}
 	commoditiesSold := []*proto.CommodityDTO{clusterCommodity}
 	// Accumulate used and capacity values from the nodes on the cluster
-	used := make(map[proto.CommodityDTO_CommodityType]float64)
-	capacity := make(map[proto.CommodityDTO_CommodityType]float64)
+	usedTotal := make(map[proto.CommodityDTO_CommodityType]float64)
+	capacityTotal := make(map[proto.CommodityDTO_CommodityType]float64)
 	for _, entityDTO := range entityDTOs {
 		// Only take active nodes into account for cluster resource commodities.
 		if entityDTO.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE && entityDTO.GetPowerState() == proto.EntityDTO_POWERED_ON {
 			for _, commodity := range entityDTO.GetCommoditiesSold() {
 				// skip aggregating access commodities with keys
 				if commodity.GetKey() == "" {
+					used := commodity.GetUsed()
+					capacity := commodity.GetCapacity()
 					commodityType := commodity.GetCommodityType()
-					used[commodityType] += commodity.GetUsed()
-					capacity[commodityType] += commodity.GetCapacity()
+					if commodityType == proto.CommodityDTO_VCPU {
+						// We want the aggregated vCpu on cluster represented in millicores unlike nodes which we show in Mhz.
+						cpuFreq := builder.cluster.GetNodeCPUFrequency(entityDTO.GetDisplayName())
+						if cpuFreq > 0 {
+							used = util.MetricUnitToMilli(used / cpuFreq)
+							capacity = util.MetricUnitToMilli(capacity / cpuFreq)
+						}
+					}
+
+					usedTotal[commodityType] += used
+					capacityTotal[commodityType] += capacity
 				}
 			}
 		}
 	}
 
-	for commodityType, capacityValue := range capacity {
-		usedValue := used[commodityType]
+	for commodityType, capacityValue := range capacityTotal {
+		usedValue := usedTotal[commodityType]
 		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(commodityType)
 		commSoldBuilder.Used(usedValue)
 		commSoldBuilder.Peak(usedValue)
@@ -159,7 +177,7 @@ func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityD
 		}
 		commoditiesSold = append(commoditiesSold, commSold)
 	}
-	return commoditiesSold, capacity, nil
+	return commoditiesSold, capacityTotal, nil
 }
 
 // Create ContainerPlatformClusterData based on total namespace quota usage (which is equivalent to total container
@@ -195,9 +213,12 @@ func (builder *clusterDTOBuilder) createClusterData(clusterName string, namespac
 		}
 	}
 
+	// Post 8.2.5 kubeturbo sends all vcpu related commodities in millicores
+	vcpuCommodityUnit := proto.EntityDTO_MILLICORE
 	return &proto.EntityDTO_ContainerPlatformClusterData{
 		VcpuOvercommitment: &vcpuOvercommitment,
 		VmemOvercommitment: &vmemOvercommitment,
+		VcpuUnit:           &vcpuCommodityUnit,
 	}
 }
 

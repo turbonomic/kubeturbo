@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"fmt"
+	"math"
 
 	api "k8s.io/api/core/v1"
 
@@ -144,7 +145,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 			glog.Errorf("Failed to get number of CPU in cores for VM %s: %v", nodeKey, err)
 			continue
 		}
-		cpuCores := int32(cpuMetricValue.Avg)
+		cpuCores := int32(math.Round(util.MetricMilliToUnit(cpuMetricValue.Avg)))
 		vmdata := &proto.EntityDTO_VirtualMachineData{
 			IpAddress: getNodeIPs(node),
 			// Set numCPUs in cores.
@@ -191,12 +192,14 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clus
 	if err != nil {
 		return nil, true, fmt.Errorf("failed to get cpu frequency from sink for node %s: %s", key, err)
 	}
-	// cpu and cpu request needs to be converted from number of cores to frequency.
+	// cpu and cpu request needs to be converted from number of millicores to frequency.
 	converter := NewConverter().Set(
 		func(input float64) float64 {
-			return input * cpuFrequency
+			// All cpu metrics are stored in millicores in metrics sink for consistency
+			// But we send the node cpu metrics in MHz.
+			return util.MetricMilliToUnit(input) * cpuFrequency
 		},
-		metrics.CPU, metrics.CPURequest)
+		metrics.CPU)
 
 	// Resource Commodities
 	resourceCommoditiesSold := builder.getResourceCommoditiesSold(metrics.NodeType, key, nodeResourceCommoditiesSold, converter, nil)
