@@ -505,7 +505,6 @@ func (builder *podEntityDTOBuilder) createContainerPodData(pod *api.Pod) *proto.
 	if err != nil {
 		glog.Warningf("Failed to get node cpu frequency for pod[%s/%s]."+
 			"\nHosted application usage data may not reflect right Mhz values: %v", ns, fullName, err)
-		nodeCPUFrequency = 1.0
 	}
 	podData := &proto.EntityDTO_ContainerPodData{
 		HostingNodeCpuFrequency: &nodeCPUFrequency,

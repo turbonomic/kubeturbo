@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"fmt"
+	"math"
 
 	api "k8s.io/api/core/v1"
 
@@ -144,7 +145,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 			glog.Errorf("Failed to get number of CPU in cores for VM %s: %v", nodeKey, err)
 			continue
 		}
-		cpuCores := int32(util.MetricMilliToUnit(cpuMetricValue.Avg))
+		cpuCores := int32(math.Round(util.MetricMilliToUnit(cpuMetricValue.Avg)))
 		vmdata := &proto.EntityDTO_VirtualMachineData{
 			IpAddress: getNodeIPs(node),
 			// Set numCPUs in cores.

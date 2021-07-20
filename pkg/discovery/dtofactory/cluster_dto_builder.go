@@ -107,10 +107,8 @@ func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO, nam
 	})
 
 	entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
-
-	var properties []*proto.EntityDTO_EntityProperty
 	// The added property indicates that this cluster now uses millicore as unit for vcpu commodities
-	properties = append(properties, property.BuildClusterProperty())
+	properties := property.BuildClusterProperty()
 
 	// build entityDTO.
 	entityDto, err := entityDTOBuilder.
@@ -215,7 +213,7 @@ func (builder *clusterDTOBuilder) createClusterData(clusterName string, namespac
 		}
 	}
 
-	// Post 8.2.3 kubeturbo sends all vcpu related commodities in millicores
+	// Post 8.2.5 kubeturbo sends all vcpu related commodities in millicores
 	vcpuCommodityUnit := proto.EntityDTO_MILLICORE
 	return &proto.EntityDTO_ContainerPlatformClusterData{
 		VcpuOvercommitment: &vcpuOvercommitment,

@@ -48,7 +48,6 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 	if err != nil {
 		glog.Warningf("Failed to get node cpu frequency for pod[%s]."+
 			"\nHosted application usage data may not reflect right Mhz values: %v", podFullName, err)
-		nodeCPUFrequency = 1.0
 	}
 
 	for i := range pod.Spec.Containers {

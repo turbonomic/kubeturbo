@@ -137,7 +137,6 @@ func mockNode(name string, capacity, allocatable api.ResourceList) *api.Node {
 
 func TestGenNodeResourceMetrics(t *testing.T) {
 	// Build a node
-	// Build a node
 	node := mockNode(
 		"mynode",
 		buildResource(2.0, 8192), // node capacity: 2.0 cores, 8 GiB mem

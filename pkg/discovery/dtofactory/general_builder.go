@@ -120,7 +120,7 @@ func (builder generalBuilder) getNodeCPUFrequencyViaPod(pod *api.Pod) (float64, 
 	if err != nil {
 		err := fmt.Errorf("Failed to get cpu frequency from sink for node %s: %v", key, err)
 		glog.Error(err)
-		return 0.0, err
+		return 1.0, err
 	}
 
 	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
