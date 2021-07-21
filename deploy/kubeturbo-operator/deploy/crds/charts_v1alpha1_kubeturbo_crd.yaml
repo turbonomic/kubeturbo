@@ -43,6 +43,12 @@ spec:
         spec:
           type: object
           properties:
+            roleBinding:
+              description: The name of cluster role binding. Default is turbo-all-binding
+              type: string
+            serviceAccountName:
+              description: The name of the service account name. Default is turbo-user
+              type: string
             replicaCount:
               description: Kubeturbo replicaCount
               type: integer
