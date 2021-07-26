@@ -3,6 +3,8 @@ package worker
 import (
 	"fmt"
 
+	"time"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
@@ -11,7 +13,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
 	api "k8s.io/api/core/v1"
-	"time"
 )
 
 type DispatcherConfig struct {
@@ -218,8 +219,9 @@ func (d *SamplingDispatcher) dispatchSamplingDiscoveries(nodes []*api.Node, samp
 }
 
 // Assign task to the k8sDiscoveryWorker
-func (d *Dispatcher) assignTask(t *task.Task) {
+func (d *Dispatcher) assignTask(task *task.Task) {
 	// assignTask to a task channel of a worker.
-	taskChannel := <-d.workerPool // pick a free worker from the worker pool, when its channel frees up
-	taskChannel <- t
+	// Worker pool is channel of channels.
+	workerChannel := <-d.workerPool // pick a free worker from the worker pool, when its channel frees up
+	workerChannel <- task
 }

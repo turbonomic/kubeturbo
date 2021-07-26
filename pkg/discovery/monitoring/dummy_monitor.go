@@ -1,10 +1,14 @@
 package monitoring
 
 import (
+	"sync"
+	"time"
+
+	"github.com/golang/glog"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
-	"time"
 )
 
 // This implementation is for Test only
@@ -23,25 +27,52 @@ func (config DummyMonitorConfig) GetMonitoringSource() types.MonitoringSource {
 type DummyMonitor struct {
 	config     *DummyMonitorConfig
 	metricSink *metrics.EntityMetricSink
+	wg         sync.WaitGroup
 }
 
 func NewDummyMonitor(config *DummyMonitorConfig) (*DummyMonitor, error) {
 	return &DummyMonitor{
 		config:     config,
-		metricSink: metrics.NewEntityMetricSink()}, nil
+		metricSink: metrics.NewEntityMetricSink(),
+	}, nil
+}
+
+func (m *DummyMonitor) reset() {
+	m.metricSink = metrics.NewEntityMetricSink()
 }
 
 func (m *DummyMonitor) GetMonitoringSource() types.MonitoringSource {
-	return types.ClusterSource
+	return types.DummySource
 }
 
 func (m *DummyMonitor) ReceiveTask(task *task.Task) {
+	m.reset()
 }
 
-func (m *DummyMonitor) Stop() {
-}
-
-func (m *DummyMonitor) Do() *metrics.EntityMetricSink {
-	time.Sleep(time.Second * time.Duration(m.config.TaskRunTime))
+func (m *DummyMonitor) Do(stopChan <-chan struct{}) *metrics.EntityMetricSink {
+	glog.V(4).Infof("%s has started task.", m.GetMonitoringSource())
+	err := m.ActualDummyWork(stopChan)
+	if err != nil {
+		glog.Errorf("Failed to execute task: %s", err)
+	}
+	glog.V(4).Infof("%s monitor has finished task.", m.GetMonitoringSource())
 	return m.metricSink
+}
+
+func (m *DummyMonitor) ActualDummyWork(stopChan <-chan struct{}) error {
+	numWorkers := 4 // some arbitrary number of parallel routines
+	for i := 0; i < numWorkers; i++ {
+		m.wg.Add(1)
+		go func() {
+			defer m.wg.Done()
+			select {
+			case <-stopChan:
+				return
+			default:
+				time.Sleep(time.Second * time.Duration(m.config.TaskRunTime))
+			}
+		}()
+	}
+	m.wg.Wait()
+	return nil
 }

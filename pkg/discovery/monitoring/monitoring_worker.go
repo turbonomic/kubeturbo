@@ -17,8 +17,7 @@ type MonitorWorkerConfig interface {
 }
 
 type MonitoringWorker interface {
-	Do() *metrics.EntityMetricSink
-	Stop()
+	Do(stopChan <-chan struct{}) *metrics.EntityMetricSink
 	ReceiveTask(task *task.Task)
 	GetMonitoringSource() types.MonitoringSource
 }
