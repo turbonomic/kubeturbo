@@ -6,12 +6,12 @@ metadata:
     capabilities: Basic Install
     categories: Monitoring
     certified: "false"
-    containerImage: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:773900bd43fe8899799bb7f3ee49ee44f7ca31508df8ad00b0b45ab5c00daac6
+    containerImage: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:04cf8a19e8ecb9214c3851566112ecb750333308ed6e1458feb2697ac0682a3b
     createdAt: 2019-05-01T00:00:00.000Z
     description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
     repository: https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo-operator
     support: Turbonomic, Inc.
-  name: kubeturbo-operator.v8.2.2
+  name: kubeturbo-operator.v8.2.5
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -181,8 +181,8 @@ spec:
                       - name: OPERATOR_NAME
                         value: kubeturbo-operator
                       - name: RELATED_IMAGE_KUBETURBO
-                        value: registry.connect.redhat.com/turbonomic/kubeturbo@sha256:e170779b91ae6dab2931020cec074d6005aece1a12e2c21758e13b1d6129eaf2
-                    image: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:773900bd43fe8899799bb7f3ee49ee44f7ca31508df8ad00b0b45ab5c00daac6
+                        value: registry.connect.redhat.com/turbonomic/kubeturbo@sha256:ea56b9ca24e60981b579de471624d7d57868b62a7824cdbf2d5f64fdc6b34106
+                    image: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:04cf8a19e8ecb9214c3851566112ecb750333308ed6e1458feb2697ac0682a3b
                     imagePullPolicy: Always
                     name: kubeturbo-operator
                     resources: {}
@@ -208,5 +208,5 @@ spec:
   maturity: alpha
   provider:
     name: Turbonomic, Inc.
-  replaces: kubeturbo-operator.v8.1.6
-  version: 8.2.2
+  replaces: kubeturbo-operator.v8.2.2
+  version: 8.2.5
