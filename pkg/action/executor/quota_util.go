@@ -11,9 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/clock"
+	quota "k8s.io/apiserver/pkg/quota/v1"
 	kclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	quota "k8s.io/kubernetes/pkg/quota/v1"
 	eval "k8s.io/kubernetes/pkg/quota/v1/evaluator/core"
 )
 

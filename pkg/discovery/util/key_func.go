@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
-	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
+	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"fmt"
 

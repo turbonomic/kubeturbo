@@ -22,7 +22,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 	kubeletconfig "k8s.io/kubelet/config/v1beta1"
-	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
+	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 	"k8s.io/kubernetes/pkg/kubelet/eviction"
 	evictionapi "k8s.io/kubernetes/pkg/kubelet/eviction/api"
 
