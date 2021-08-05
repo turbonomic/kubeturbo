@@ -26,9 +26,9 @@ import (
 	v1listers "k8s.io/client-go/listers/core/v1"
 	klog "k8s.io/klog/v2"
 	scheduler_apis_config "k8s.io/kubernetes/pkg/scheduler/apis/config"
+	schedulerframework "k8s.io/kubernetes/pkg/scheduler/framework"
 	scheduler_plugins "k8s.io/kubernetes/pkg/scheduler/framework/plugins"
 	schedulerframeworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
-	schedulerframework "k8s.io/kubernetes/pkg/scheduler/framework/v1alpha1"
 
 	// We need to import provider to initialize default scheduler.
 	"k8s.io/kubernetes/pkg/scheduler/algorithmprovider"
@@ -41,6 +41,7 @@ type SchedulerBasedPredicateChecker struct {
 	delegatingSharedLister *DelegatingSchedulerSharedLister
 	nodeLister             v1listers.NodeLister
 	podLister              v1listers.PodLister
+	lastIndex              int
 }
 
 // NewSchedulerBasedPredicateChecker builds scheduler based PredicateChecker.
@@ -49,11 +50,14 @@ func NewSchedulerBasedPredicateChecker(kubeClient kube_client.Interface, stop <-
 	providerRegistry := algorithmprovider.NewRegistry()
 	plugins := providerRegistry[scheduler_apis_config.SchedulerDefaultProviderName]
 	sharedLister := NewDelegatingSchedulerSharedLister()
+	kubeSchedulerProfile := &scheduler_apis_config.KubeSchedulerProfile{
+		Plugins:      plugins,
+		PluginConfig: nil, // This is fine
+	}
 
 	framework, err := schedulerframeworkruntime.NewFramework(
 		scheduler_plugins.NewInTreeRegistry(),
-		plugins,
-		nil, // This is fine.
+		kubeSchedulerProfile,
 		schedulerframeworkruntime.WithInformerFactory(informerFactory),
 		schedulerframeworkruntime.WithSnapshotSharedLister(sharedLister),
 	)
@@ -106,7 +110,8 @@ func (p *SchedulerBasedPredicateChecker) FitsAnyNodeMatching(clusterSnapshot Clu
 		return "", fmt.Errorf("error running pre filter plugins for pod %s; %s", pod.Name, preFilterStatus.Message())
 	}
 
-	for _, nodeInfo := range nodeInfosList {
+	for i := range nodeInfosList {
+		nodeInfo := nodeInfosList[(p.lastIndex+i)%len(nodeInfosList)]
 		if !nodeMatches(nodeInfo) {
 			continue
 		}
@@ -125,6 +130,7 @@ func (p *SchedulerBasedPredicateChecker) FitsAnyNodeMatching(clusterSnapshot Clu
 			}
 		}
 		if ok {
+			p.lastIndex = (p.lastIndex + i + 1) % len(nodeInfosList)
 			return nodeInfo.Node().Name, nil
 		}
 	}

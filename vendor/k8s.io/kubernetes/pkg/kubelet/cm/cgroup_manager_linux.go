@@ -31,13 +31,12 @@ import (
 	cgroupfs2 "github.com/opencontainers/runc/libcontainer/cgroups/fs2"
 	cgroupsystemd "github.com/opencontainers/runc/libcontainer/cgroups/systemd"
 	libcontainerconfigs "github.com/opencontainers/runc/libcontainer/configs"
+	libcontainerdevices "github.com/opencontainers/runc/libcontainer/devices"
 	"k8s.io/klog/v2"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	kubefeatures "k8s.io/kubernetes/pkg/features"
 	cmutil "k8s.io/kubernetes/pkg/kubelet/cm/util"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 )
@@ -260,7 +259,7 @@ func (m *cgroupManagerImpl) Exists(name CgroupName) bool {
 		}
 		difference := neededControllers.Difference(enabledControllers)
 		if difference.Len() > 0 {
-			klog.V(4).Infof("The Cgroup %v has some missing controllers: %v", name, difference)
+			klog.V(4).InfoS("The cgroup has some missing controllers", "cgroupName", name, "controllers", difference)
 			return false
 		}
 		return true
@@ -275,11 +274,8 @@ func (m *cgroupManagerImpl) Exists(name CgroupName) bool {
 	// scoped to the set control groups it understands.  this is being discussed
 	// in https://github.com/opencontainers/runc/issues/1440
 	// once resolved, we can remove this code.
-	whitelistControllers := sets.NewString("cpu", "cpuacct", "cpuset", "memory", "systemd")
+	whitelistControllers := sets.NewString("cpu", "cpuacct", "cpuset", "memory", "systemd", "pids")
 
-	if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.SupportPodPidsLimit) || utilfeature.DefaultFeatureGate.Enabled(kubefeatures.SupportNodePidsLimit) {
-		whitelistControllers.Insert("pids")
-	}
 	if _, ok := m.subsystems.MountPoints["hugetlb"]; ok {
 		whitelistControllers.Insert("hugetlb")
 	}
@@ -296,7 +292,7 @@ func (m *cgroupManagerImpl) Exists(name CgroupName) bool {
 	}
 
 	if len(missingPaths) > 0 {
-		klog.V(4).Infof("The Cgroup %v has some missing paths: %v", name, missingPaths)
+		klog.V(4).InfoS("The cgroup has some missing paths", "cgroupName", name, "paths", missingPaths)
 		return false
 	}
 
@@ -318,11 +314,7 @@ func (m *cgroupManagerImpl) Destroy(cgroupConfig *CgroupConfig) error {
 	if m.adapter.cgroupManagerType == libcontainerSystemd {
 		updateSystemdCgroupInfo(libcontainerCgroupConfig, cgroupConfig.Name)
 	} else {
-		if libcontainercgroups.IsCgroup2UnifiedMode() {
-			libcontainerCgroupConfig.Path = m.buildCgroupUnifiedPath(cgroupConfig.Name)
-		} else {
-			libcontainerCgroupConfig.Path = cgroupConfig.Name.ToCgroupfs()
-		}
+		libcontainerCgroupConfig.Path = cgroupConfig.Name.ToCgroupfs()
 	}
 
 	manager, err := m.adapter.newManager(libcontainerCgroupConfig, cgroupPaths)
@@ -352,13 +344,10 @@ func getSupportedSubsystems() map[subsystem]bool {
 	supportedSubsystems := map[subsystem]bool{
 		&cgroupfs.MemoryGroup{}: true,
 		&cgroupfs.CpuGroup{}:    true,
-		&cgroupfs.PidsGroup{}:   false,
+		&cgroupfs.PidsGroup{}:   true,
 	}
 	// not all hosts support hugetlb cgroup, and in the absent of hugetlb, we will fail silently by reporting no capacity.
 	supportedSubsystems[&cgroupfs.HugetlbGroup{}] = false
-	if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.SupportPodPidsLimit) || utilfeature.DefaultFeatureGate.Enabled(kubefeatures.SupportNodePidsLimit) {
-		supportedSubsystems[&cgroupfs.PidsGroup{}] = true
-	}
 	return supportedSubsystems
 }
 
@@ -378,7 +367,7 @@ func setSupportedSubsystemsV1(cgroupConfig *libcontainerconfigs.Cgroup) error {
 				return fmt.Errorf("failed to find subsystem mount for required subsystem: %v", sys.Name())
 			}
 			// the cgroup is not mounted, but its not required so continue...
-			klog.V(6).Infof("Unable to find subsystem mount for optional subsystem: %v", sys.Name())
+			klog.V(6).InfoS("Unable to find subsystem mount for optional subsystem", "subsystemName", sys.Name())
 			continue
 		}
 		if err := sys.Set(cgroupConfig.Paths[sys.Name()], cgroupConfig); err != nil {
@@ -417,10 +406,7 @@ var (
 // getSupportedUnifiedControllers returns a set of supported controllers when running on cgroup v2
 func getSupportedUnifiedControllers() sets.String {
 	// This is the set of controllers used by the Kubelet
-	supportedControllers := sets.NewString("cpu", "cpuset", "memory", "hugetlb")
-	if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.SupportPodPidsLimit) || utilfeature.DefaultFeatureGate.Enabled(kubefeatures.SupportNodePidsLimit) {
-		supportedControllers.Insert("pids")
-	}
+	supportedControllers := sets.NewString("cpu", "cpuset", "memory", "hugetlb", "pids")
 	// Memoize the set of controllers that are present in the root cgroup
 	availableRootControllersOnce.Do(func() {
 		var err error
@@ -435,7 +421,7 @@ func getSupportedUnifiedControllers() sets.String {
 
 // propagateControllers on an unified hierarchy enables all the supported controllers for the specified cgroup
 func propagateControllers(path string) error {
-	if err := os.MkdirAll(path, 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(cmutil.CgroupRoot, path), 0755); err != nil {
 		return fmt.Errorf("failed to create cgroup %q : %v", path, err)
 	}
 
@@ -464,15 +450,12 @@ func propagateControllers(path string) error {
 	}
 
 	current := cmutil.CgroupRoot
-	relPath, err := filepath.Rel(cmutil.CgroupRoot, path)
-	if err != nil {
-		return fmt.Errorf("failed to get relative path to cgroup root from %q: %v", path, err)
-	}
+
 	// Write the controllers list to each "cgroup.subtree_control" file until it reaches the parent cgroup.
 	// For the /foo/bar/baz cgroup, controllers must be enabled sequentially in the files:
 	// - /sys/fs/cgroup/foo/cgroup.subtree_control
 	// - /sys/fs/cgroup/foo/bar/cgroup.subtree_control
-	for _, p := range strings.Split(filepath.Dir(relPath), "/") {
+	for _, p := range strings.Split(filepath.Dir(path), "/") {
 		current = filepath.Join(current, p)
 		if err := ioutil.WriteFile(filepath.Join(current, "cgroup.subtree_control"), []byte(controllers), 0755); err != nil {
 			return fmt.Errorf("failed to enable controllers on %q: %v", cmutil.CgroupRoot, err)
@@ -486,13 +469,13 @@ func setResourcesV2(cgroupConfig *libcontainerconfigs.Cgroup) error {
 	if err := propagateControllers(cgroupConfig.Path); err != nil {
 		return err
 	}
-	cgroupConfig.Resources.Devices = []*libcontainerconfigs.DeviceRule{
+	cgroupConfig.Resources.Devices = []*libcontainerdevices.Rule{
 		{
 			Type:        'a',
 			Permissions: "rwm",
 			Allow:       true,
-			Minor:       libcontainerconfigs.Wildcard,
-			Major:       libcontainerconfigs.Wildcard,
+			Minor:       libcontainerdevices.Wildcard,
+			Major:       libcontainerdevices.Wildcard,
 		},
 	}
 	cgroupConfig.Resources.SkipDevices = true
@@ -502,10 +485,10 @@ func setResourcesV2(cgroupConfig *libcontainerconfigs.Cgroup) error {
 	if !supportedControllers.Has("hugetlb") {
 		cgroupConfig.Resources.HugetlbLimit = nil
 		// the cgroup is not present, but its not required so skip it
-		klog.V(6).Infof("Optional subsystem not supported: hugetlb")
+		klog.V(6).InfoS("Optional subsystem not supported: hugetlb")
 	}
 
-	manager, err := cgroupfs2.NewManager(cgroupConfig, cgroupConfig.Path, false)
+	manager, err := cgroupfs2.NewManager(cgroupConfig, filepath.Join(cmutil.CgroupRoot, cgroupConfig.Path), false)
 	if err != nil {
 		return fmt.Errorf("failed to create cgroup v2 manager: %v", err)
 	}
@@ -517,13 +500,13 @@ func setResourcesV2(cgroupConfig *libcontainerconfigs.Cgroup) error {
 
 func (m *cgroupManagerImpl) toResources(resourceConfig *ResourceConfig) *libcontainerconfigs.Resources {
 	resources := &libcontainerconfigs.Resources{
-		Devices: []*libcontainerconfigs.DeviceRule{
+		Devices: []*libcontainerdevices.Rule{
 			{
 				Type:        'a',
 				Permissions: "rwm",
 				Allow:       true,
-				Minor:       libcontainerconfigs.Wildcard,
-				Major:       libcontainerconfigs.Wildcard,
+				Minor:       libcontainerdevices.Wildcard,
+				Major:       libcontainerdevices.Wildcard,
 			},
 		},
 		SkipDevices: true,
@@ -547,10 +530,8 @@ func (m *cgroupManagerImpl) toResources(resourceConfig *ResourceConfig) *libcont
 	if resourceConfig.CpuPeriod != nil {
 		resources.CpuPeriod = *resourceConfig.CpuPeriod
 	}
-	if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.SupportPodPidsLimit) || utilfeature.DefaultFeatureGate.Enabled(kubefeatures.SupportNodePidsLimit) {
-		if resourceConfig.PidsLimit != nil {
-			resources.PidsLimit = *resourceConfig.PidsLimit
-		}
+	if resourceConfig.PidsLimit != nil {
+		resources.PidsLimit = *resourceConfig.PidsLimit
 	}
 	// if huge pages are enabled, we set them in libcontainer
 	// for each page size enumerated, set that value
@@ -558,7 +539,7 @@ func (m *cgroupManagerImpl) toResources(resourceConfig *ResourceConfig) *libcont
 	for pageSize, limit := range resourceConfig.HugePageLimit {
 		sizeString, err := v1helper.HugePageUnitSizeFromByteSize(pageSize)
 		if err != nil {
-			klog.Warningf("pageSize is invalid: %v", err)
+			klog.InfoS("Invalid pageSize", "err", err)
 			continue
 		}
 		resources.HugetlbLimit = append(resources.HugetlbLimit, &libcontainerconfigs.HugepageLimit{
@@ -597,7 +578,7 @@ func (m *cgroupManagerImpl) Update(cgroupConfig *CgroupConfig) error {
 
 	unified := libcontainercgroups.IsCgroup2UnifiedMode()
 	if unified {
-		libcontainerCgroupConfig.Path = m.buildCgroupUnifiedPath(cgroupConfig.Name)
+		libcontainerCgroupConfig.Path = m.Name(cgroupConfig.Name)
 	} else {
 		libcontainerCgroupConfig.Paths = m.buildCgroupPaths(cgroupConfig.Name)
 	}
@@ -608,7 +589,7 @@ func (m *cgroupManagerImpl) Update(cgroupConfig *CgroupConfig) error {
 		updateSystemdCgroupInfo(libcontainerCgroupConfig, cgroupConfig.Name)
 	}
 
-	if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.SupportPodPidsLimit) && cgroupConfig.ResourceParameters != nil && cgroupConfig.ResourceParameters.PidsLimit != nil {
+	if cgroupConfig.ResourceParameters != nil && cgroupConfig.ResourceParameters.PidsLimit != nil {
 		libcontainerCgroupConfig.PidsLimit = *cgroupConfig.ResourceParameters.PidsLimit
 	}
 
@@ -641,14 +622,10 @@ func (m *cgroupManagerImpl) Create(cgroupConfig *CgroupConfig) error {
 	if m.adapter.cgroupManagerType == libcontainerSystemd {
 		updateSystemdCgroupInfo(libcontainerCgroupConfig, cgroupConfig.Name)
 	} else {
-		if libcontainercgroups.IsCgroup2UnifiedMode() {
-			libcontainerCgroupConfig.Path = m.buildCgroupUnifiedPath(cgroupConfig.Name)
-		} else {
-			libcontainerCgroupConfig.Path = cgroupConfig.Name.ToCgroupfs()
-		}
+		libcontainerCgroupConfig.Path = cgroupConfig.Name.ToCgroupfs()
 	}
 
-	if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.SupportPodPidsLimit) && cgroupConfig.ResourceParameters != nil && cgroupConfig.ResourceParameters.PidsLimit != nil {
+	if cgroupConfig.ResourceParameters != nil && cgroupConfig.ResourceParameters.PidsLimit != nil {
 		libcontainerCgroupConfig.PidsLimit = *cgroupConfig.ResourceParameters.PidsLimit
 	}
 
@@ -703,7 +680,7 @@ func (m *cgroupManagerImpl) Pids(name CgroupName) []int {
 		// WalkFunc which is called for each file and directory in the pod cgroup dir
 		visitor := func(path string, info os.FileInfo, err error) error {
 			if err != nil {
-				klog.V(4).Infof("cgroup manager encountered error scanning cgroup path %q: %v", path, err)
+				klog.V(4).InfoS("Cgroup manager encountered error scanning cgroup path", "path", path, "err", err)
 				return filepath.SkipDir
 			}
 			if !info.IsDir() {
@@ -711,7 +688,7 @@ func (m *cgroupManagerImpl) Pids(name CgroupName) []int {
 			}
 			pids, err = getCgroupProcs(path)
 			if err != nil {
-				klog.V(4).Infof("cgroup manager encountered error getting procs for cgroup path %q: %v", path, err)
+				klog.V(4).InfoS("Cgroup manager encountered error getting procs for cgroup path", "path", path, "err", err)
 				return filepath.SkipDir
 			}
 			pidsToKill.Insert(pids...)
@@ -721,7 +698,7 @@ func (m *cgroupManagerImpl) Pids(name CgroupName) []int {
 		// container cgroups haven't been GCed yet. Get attached processes to
 		// all such unwanted containers under the pod cgroup
 		if err = filepath.Walk(dir, visitor); err != nil {
-			klog.V(4).Infof("cgroup manager encountered error scanning pids for directory: %q: %v", dir, err)
+			klog.V(4).InfoS("Cgroup manager encountered error scanning pids for directory", "path", dir, "err", err)
 		}
 	}
 	return pidsToKill.List()
@@ -749,7 +726,7 @@ func getStatsSupportedSubsystems(cgroupPaths map[string]string) (*libcontainercg
 				return nil, fmt.Errorf("failed to find subsystem mount for required subsystem: %v", sys.Name())
 			}
 			// the cgroup is not mounted, but its not required so continue...
-			klog.V(6).Infof("Unable to find subsystem mount for optional subsystem: %v", sys.Name())
+			klog.V(6).InfoS("Unable to find subsystem mount for optional subsystem", "subsystemName", sys.Name())
 			continue
 		}
 		if err := sys.GetStats(cgroupPaths[sys.Name()], stats); err != nil {

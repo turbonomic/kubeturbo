@@ -48,6 +48,9 @@ by specifying Auto Scaling Group ARNs in the `Resource` list of the policy. More
 information can be found
 [here](https://docs.aws.amazon.com/autoscaling/latest/userguide/control-access-using-iam.html#policy-auto-scaling-resources).
 
+### Using OIDC Federated Authentication
+OIDC federated authentication allows your service to assume an IAM role and interact with AWS services without having to store credentials as environment variables. For an example of how to use AWS IAM OIDC with the Cluster Autoscaler please see [here](CA_with_AWS_IAM_OIDC.md).
+
 ### Using AWS Credentials
 
 **NOTE** The following is not recommended for Kubernetes clusters running on
@@ -205,16 +208,17 @@ kubectl apply -f examples/cluster-autoscaler-one-asg.yaml
 kubectl apply -f examples/cluster-autoscaler-multi-asg.yaml
 ```
 
-## Master Node Setup
+<!--TODO: Remove "previously referred to as master" references from this doc once this terminology is fully removed from k8s-->
+## Control Plane (previously referred to as master) Node Setup
 
 **NOTE**: This setup is not compatible with Amazon EKS.
 
-To run a CA pod in master node - CA deployment should tolerate the master
-`taint` and `nodeSelector` should be used to schedule the pods in master node.
+To run a CA pod on a control plane node the CA deployment should tolerate the `master`
+taint and `nodeSelector` should be used to schedule the pods on a control plane node.
 Please replace `{{ node_asg_min }}`, `{{ node_asg_max }}` and `{{ name }}` with
 your ASG setting in the yaml file.
 ```
-kubectl apply -f examples/cluster-autoscaler-run-on-master.yaml
+kubectl apply -f examples/cluster-autoscaler-run-on-control-plane.yaml
 ```
 
 ## Using Mixed Instances Policies and Spot Instances
@@ -327,7 +331,7 @@ To refresh static list, please run `go run ec2_instance_types/gen.go` under
   between AZs, and possibly terminate instances. If your applications could be
   impacted from sudden termination, you can either suspend the AZRebalance
   feature, or use a tool for automatic draining upon ASG scale-in such as the
-  [k8s-node-drainer]https://github.com/aws-samples/amazon-k8s-node-drainer. The
+  [k8s-node-drainer](https://github.com/aws-samples/amazon-k8s-node-drainer). The
   [AWS Node Termination
   Handler](https://github.com/aws/aws-node-termination-handler/issues/95) will
   also support this use-case in the future.

@@ -26,31 +26,31 @@ type fakeManager struct{}
 
 //NewFakeManager returns an instance of FakeManager
 func NewFakeManager() Manager {
-	klog.Infof("[fake topologymanager] NewFakeManager")
+	klog.InfoS("NewFakeManager")
 	return &fakeManager{}
 }
 
 func (m *fakeManager) GetAffinity(podUID string, containerName string) TopologyHint {
-	klog.Infof("[fake topologymanager] GetAffinity podUID: %v container name:  %v", podUID, containerName)
+	klog.InfoS("GetAffinity", "podUID", podUID, "containerName", containerName)
 	return TopologyHint{}
 }
 
 func (m *fakeManager) AddHintProvider(h HintProvider) {
-	klog.Infof("[fake topologymanager] AddHintProvider HintProvider:  %v", h)
+	klog.InfoS("AddHintProvider", "hintProvider", h)
 }
 
 func (m *fakeManager) AddContainer(pod *v1.Pod, containerID string) error {
-	klog.Infof("[fake topologymanager] AddContainer  pod: %v container id:  %v", pod, containerID)
+	klog.InfoS("AddContainer", "pod", klog.KObj(pod), "containerID", containerID)
 	return nil
 }
 
 func (m *fakeManager) RemoveContainer(containerID string) error {
-	klog.Infof("[fake topologymanager] RemoveContainer container id:  %v", containerID)
+	klog.InfoS("RemoveContainer", "containerID", containerID)
 	return nil
 }
 
 func (m *fakeManager) Admit(attrs *lifecycle.PodAdmitAttributes) lifecycle.PodAdmitResult {
-	klog.Infof("[fake topologymanager] Topology Admit Handler")
+	klog.InfoS("Topology Admit Handler")
 	return lifecycle.PodAdmitResult{
 		Admit: true,
 	}
