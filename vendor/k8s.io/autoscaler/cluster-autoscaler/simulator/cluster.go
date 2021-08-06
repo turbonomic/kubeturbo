@@ -24,7 +24,6 @@ import (
 	"k8s.io/autoscaler/cluster-autoscaler/utils/drain"
 	"k8s.io/autoscaler/cluster-autoscaler/utils/errors"
 	"k8s.io/autoscaler/cluster-autoscaler/utils/gpu"
-	"k8s.io/autoscaler/cluster-autoscaler/utils/klogx"
 	kube_util "k8s.io/autoscaler/cluster-autoscaler/utils/kubernetes"
 	pod_util "k8s.io/autoscaler/cluster-autoscaler/utils/pod"
 	"k8s.io/autoscaler/cluster-autoscaler/utils/tpu"
@@ -32,7 +31,7 @@ import (
 	apiv1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	schedulerframework "k8s.io/kubernetes/pkg/scheduler/framework/v1alpha1"
+	schedulerframework "k8s.io/kubernetes/pkg/scheduler/framework"
 
 	klog "k8s.io/klog/v2"
 )
@@ -54,6 +53,7 @@ type NodeToBeRemoved struct {
 	Node *apiv1.Node
 	// PodsToReschedule contains pods on the node that should be rescheduled elsewhere.
 	PodsToReschedule []*apiv1.Pod
+	DaemonSetPods    []*apiv1.Pod
 }
 
 // UnremovableNode represents a node that can't be removed by CA.
@@ -148,6 +148,7 @@ candidateloop:
 		klog.V(2).Infof("%s: %s for removal", evaluationType, nodeName)
 
 		var podsToRemove []*apiv1.Pod
+		var daemonSetPods []*apiv1.Pod
 		var blockingPod *drain.BlockingPod
 
 		if _, found := destinationMap[nodeName]; !found {
@@ -157,11 +158,11 @@ candidateloop:
 		}
 
 		if fastCheck {
-			podsToRemove, blockingPod, err = FastGetPodsToMove(nodeInfo, *skipNodesWithSystemPods, *skipNodesWithLocalStorage,
-				podDisruptionBudgets)
+			podsToRemove, daemonSetPods, blockingPod, err = FastGetPodsToMove(nodeInfo, *skipNodesWithSystemPods, *skipNodesWithLocalStorage,
+				podDisruptionBudgets, timestamp)
 		} else {
-			podsToRemove, blockingPod, err = DetailedGetPodsForMove(nodeInfo, *skipNodesWithSystemPods, *skipNodesWithLocalStorage, listers, int32(*minReplicaCount),
-				podDisruptionBudgets)
+			podsToRemove, daemonSetPods, blockingPod, err = DetailedGetPodsForMove(nodeInfo, *skipNodesWithSystemPods, *skipNodesWithLocalStorage, listers, int32(*minReplicaCount),
+				podDisruptionBudgets, timestamp)
 		}
 
 		if err != nil {
@@ -181,6 +182,7 @@ candidateloop:
 			result = append(result, NodeToBeRemoved{
 				Node:             nodeInfo.Node(),
 				PodsToReschedule: podsToRemove,
+				DaemonSetPods:    daemonSetPods,
 			})
 			klog.V(2).Infof("%s: node %s may be removed", evaluationType, nodeName)
 			if len(result) >= maxCount {
@@ -195,7 +197,7 @@ candidateloop:
 }
 
 // FindEmptyNodesToRemove finds empty nodes that can be removed.
-func FindEmptyNodesToRemove(snapshot ClusterSnapshot, candidates []string) []string {
+func FindEmptyNodesToRemove(snapshot ClusterSnapshot, candidates []string, timestamp time.Time) []string {
 	result := make([]string, 0)
 	for _, node := range candidates {
 		nodeInfo, err := snapshot.NodeInfos().Get(node)
@@ -204,7 +206,7 @@ func FindEmptyNodesToRemove(snapshot ClusterSnapshot, candidates []string) []str
 			continue
 		}
 		// Should block on all pods.
-		podsToRemove, _, err := FastGetPodsToMove(nodeInfo, true, true, nil)
+		podsToRemove, _, _, err := FastGetPodsToMove(nodeInfo, true, true, nil, timestamp)
 		if err == nil && len(podsToRemove) == 0 {
 			result = append(result, node)
 		}
@@ -215,9 +217,9 @@ func FindEmptyNodesToRemove(snapshot ClusterSnapshot, candidates []string) []str
 // CalculateUtilization calculates utilization of a node, defined as maximum of (cpu, memory) or gpu utilization
 // based on if the node has GPU or not. Per resource utilization is the sum of requests for it divided by allocatable.
 // It also returns the individual cpu, memory and gpu utilization.
-func CalculateUtilization(node *apiv1.Node, nodeInfo *schedulerframework.NodeInfo, skipDaemonSetPods, skipMirrorPods bool, gpuLabel string) (utilInfo UtilizationInfo, err error) {
+func CalculateUtilization(node *apiv1.Node, nodeInfo *schedulerframework.NodeInfo, skipDaemonSetPods, skipMirrorPods bool, gpuLabel string, currentTime time.Time) (utilInfo UtilizationInfo, err error) {
 	if gpu.NodeHasGpu(gpuLabel, node) {
-		gpuUtil, err := calculateUtilizationOfResource(node, nodeInfo, gpu.ResourceNvidiaGPU, skipDaemonSetPods, skipMirrorPods)
+		gpuUtil, err := calculateUtilizationOfResource(node, nodeInfo, gpu.ResourceNvidiaGPU, skipDaemonSetPods, skipMirrorPods, currentTime)
 		if err != nil {
 			klog.V(3).Infof("node %s has unready GPU", node.Name)
 			// Return 0 if GPU is unready. This will guarantee we can still scale down a node with unready GPU.
@@ -228,11 +230,11 @@ func CalculateUtilization(node *apiv1.Node, nodeInfo *schedulerframework.NodeInf
 		return UtilizationInfo{GpuUtil: gpuUtil, ResourceName: gpu.ResourceNvidiaGPU, Utilization: gpuUtil}, nil
 	}
 
-	cpu, err := calculateUtilizationOfResource(node, nodeInfo, apiv1.ResourceCPU, skipDaemonSetPods, skipMirrorPods)
+	cpu, err := calculateUtilizationOfResource(node, nodeInfo, apiv1.ResourceCPU, skipDaemonSetPods, skipMirrorPods, currentTime)
 	if err != nil {
 		return UtilizationInfo{}, err
 	}
-	mem, err := calculateUtilizationOfResource(node, nodeInfo, apiv1.ResourceMemory, skipDaemonSetPods, skipMirrorPods)
+	mem, err := calculateUtilizationOfResource(node, nodeInfo, apiv1.ResourceMemory, skipDaemonSetPods, skipMirrorPods, currentTime)
 	if err != nil {
 		return UtilizationInfo{}, err
 	}
@@ -250,7 +252,7 @@ func CalculateUtilization(node *apiv1.Node, nodeInfo *schedulerframework.NodeInf
 	return utilization, nil
 }
 
-func calculateUtilizationOfResource(node *apiv1.Node, nodeInfo *schedulerframework.NodeInfo, resourceName apiv1.ResourceName, skipDaemonSetPods, skipMirrorPods bool) (float64, error) {
+func calculateUtilizationOfResource(node *apiv1.Node, nodeInfo *schedulerframework.NodeInfo, resourceName apiv1.ResourceName, skipDaemonSetPods, skipMirrorPods bool, currentTime time.Time) (float64, error) {
 	nodeAllocatable, found := node.Status.Allocatable[resourceName]
 	if !found {
 		return 0, fmt.Errorf("failed to get %v from %s", resourceName, node.Name)
@@ -259,13 +261,32 @@ func calculateUtilizationOfResource(node *apiv1.Node, nodeInfo *schedulerframewo
 		return 0, fmt.Errorf("%v is 0 at %s", resourceName, node.Name)
 	}
 	podsRequest := resource.MustParse("0")
+
+	// if skipDaemonSetPods = True, DaemonSet pods resourses will be subtracted
+	// from the node allocatable and won't be added to pods requests
+	// the same with the Mirror pod.
+	daemonSetAndMirrorPodsUtilization := resource.MustParse("0")
 	for _, podInfo := range nodeInfo.Pods {
 		// factor daemonset pods out of the utilization calculations
 		if skipDaemonSetPods && pod_util.IsDaemonSetPod(podInfo.Pod) {
+			for _, container := range podInfo.Pod.Spec.Containers {
+				if resourceValue, found := container.Resources.Requests[resourceName]; found {
+					daemonSetAndMirrorPodsUtilization.Add(resourceValue)
+				}
+			}
 			continue
 		}
 		// factor mirror pods out of the utilization calculations
 		if skipMirrorPods && pod_util.IsMirrorPod(podInfo.Pod) {
+			for _, container := range podInfo.Pod.Spec.Containers {
+				if resourceValue, found := container.Resources.Requests[resourceName]; found {
+					daemonSetAndMirrorPodsUtilization.Add(resourceValue)
+				}
+			}
+			continue
+		}
+		// ignore Pods that should be terminated
+		if drain.IsPodLongTerminating(podInfo.Pod, currentTime) {
 			continue
 		}
 		for _, container := range podInfo.Pod.Spec.Containers {
@@ -274,7 +295,7 @@ func calculateUtilizationOfResource(node *apiv1.Node, nodeInfo *schedulerframewo
 			}
 		}
 	}
-	return float64(podsRequest.MilliValue()) / float64(nodeAllocatable.MilliValue()), nil
+	return float64(podsRequest.MilliValue()) / float64(nodeAllocatable.MilliValue()-daemonSetAndMirrorPodsUtilization.MilliValue()), nil
 }
 
 func findPlaceFor(removedNode string, pods []*apiv1.Pod, nodes map[string]bool,
@@ -295,21 +316,8 @@ func findPlaceFor(removedNode string, pods []*apiv1.Pod, nodes map[string]bool,
 		return fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	}
 
-	loggingQuota := klogx.PodsLoggingQuota()
-
-	tryNodeForPod := func(nodename string, pod *apiv1.Pod) bool {
-		if err := predicateChecker.CheckPredicates(clusterSnapshot, pod, nodename); err != nil {
-			klogx.V(4).UpTo(loggingQuota).Infof("Evaluation %s for %s/%s -> %v", nodename, pod.Namespace, pod.Name, err.VerboseMessage())
-			return false
-		}
-
-		klog.V(4).Infof("Pod %s/%s can be moved to %s", pod.Namespace, pod.Name, nodename)
-		if err := clusterSnapshot.AddPod(pod, nodename); err != nil {
-			klog.Errorf("Simulating scheduling of %s/%s to %s return error; %v", pod.Namespace, pod.Name, nodename, err)
-			return false
-		}
-		newHints[podKey(pod)] = nodename
-		return true
+	isCandidateNode := func(nodeName string) bool {
+		return nodeName != removedNode && nodes[nodeName]
 	}
 
 	pods = tpu.ClearTPURequests(pods)
@@ -330,30 +338,32 @@ func findPlaceFor(removedNode string, pods []*apiv1.Pod, nodes map[string]bool,
 		foundPlace := false
 		targetNode := ""
 
-		loggingQuota.Reset()
-
 		klog.V(5).Infof("Looking for place for %s/%s", pod.Namespace, pod.Name)
 
-		if hintedNode, hasHint := oldHints[podKey(pod)]; hasHint {
-			if hintedNode != removedNode && tryNodeForPod(hintedNode, pod) {
+		if hintedNode, hasHint := oldHints[podKey(pod)]; hasHint && isCandidateNode(hintedNode) {
+			if err := predicateChecker.CheckPredicates(clusterSnapshot, pod, hintedNode); err == nil {
+				klog.V(4).Infof("Pod %s/%s can be moved to %s", pod.Namespace, pod.Name, hintedNode)
+				if err := clusterSnapshot.AddPod(pod, hintedNode); err != nil {
+					return fmt.Errorf("Simulating scheduling of %s/%s to %s return error; %v", pod.Namespace, pod.Name, hintedNode, err)
+				}
+				newHints[podKey(pod)] = hintedNode
 				foundPlace = true
 				targetNode = hintedNode
 			}
 		}
 
 		if !foundPlace {
-			for nodeName := range nodes {
-				if nodeName == removedNode {
-					continue
+			newNodeName, err := predicateChecker.FitsAnyNodeMatching(clusterSnapshot, pod, func(nodeInfo *schedulerframework.NodeInfo) bool {
+				return isCandidateNode(nodeInfo.Node().Name)
+			})
+			if err == nil {
+				klog.V(4).Infof("Pod %s/%s can be moved to %s", pod.Namespace, pod.Name, newNodeName)
+				if err := clusterSnapshot.AddPod(pod, newNodeName); err != nil {
+					return fmt.Errorf("Simulating scheduling of %s/%s to %s return error; %v", pod.Namespace, pod.Name, newNodeName, err)
 				}
-				if tryNodeForPod(nodeName, pod) {
-					foundPlace = true
-					targetNode = nodeName
-					break
-				}
-			}
-			if !foundPlace {
-				klogx.V(4).Over(loggingQuota).Infof("%v other nodes evaluated for %s/%s", -loggingQuota.Left(), pod.Namespace, pod.Name)
+				newHints[podKey(pod)] = newNodeName
+				targetNode = newNodeName
+			} else {
 				return fmt.Errorf("failed to find place for %s", podKey(pod))
 			}
 		}

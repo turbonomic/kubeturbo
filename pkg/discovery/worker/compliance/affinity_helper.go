@@ -54,7 +54,7 @@ func matchesNodeAffinity(pod *api.Pod, node *api.Node) bool {
 // terms are ORed, and an empty list of terms will match nothing.
 func nodeMatchesNodeSelectorTerms(node *api.Node, nodeSelectorTerms []api.NodeSelectorTerm) bool {
 	for _, req := range nodeSelectorTerms {
-		nodeSelector, err := nodeSelectorRequirementsAsSelector(req.MatchExpressions)
+		nodeSelector, err := NodeSelectorRequirementsAsSelector(req.MatchExpressions)
 		if err != nil {
 			glog.V(10).Infof("Failed to parse MatchExpressions: %+v, regarding as not match.", req.MatchExpressions)
 			return false
@@ -264,7 +264,7 @@ func nodesHaveSameTopologyKey(nodeA, nodeB *api.Node, topologyKey string) bool {
 
 // NodeSelectorRequirementsAsSelector converts the []NodeSelectorRequirement api type into a struct that implements
 // labels.Selector.
-func nodeSelectorRequirementsAsSelector(nsm []api.NodeSelectorRequirement) (labels.Selector, error) {
+func NodeSelectorRequirementsAsSelector(nsm []api.NodeSelectorRequirement) (labels.Selector, error) {
 	if len(nsm) == 0 {
 		return labels.Nothing(), nil
 	}

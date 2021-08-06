@@ -7,7 +7,6 @@ import (
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -133,13 +132,13 @@ func generateKey(termString string) (string, error) {
 
 func getReadableNodeSelectorTermString(term api.NodeSelectorTerm) string {
 	expressionsString, fieldsString := "", ""
-	expressionsSelectors, err := corev1helper.NodeSelectorRequirementsAsSelector(term.MatchExpressions)
+	expressionsSelectors, err := NodeSelectorRequirementsAsSelector(term.MatchExpressions)
 	if err != nil {
 		expressionsString = "<error>"
 	} else {
 		expressionsString = expressionsSelectors.String()
 	}
-	fieldsSelectors, err := corev1helper.NodeSelectorRequirementsAsSelector(term.MatchFields)
+	fieldsSelectors, err := NodeSelectorRequirementsAsSelector(term.MatchFields)
 	if err != nil {
 		fieldsString = "<error>"
 	} else {

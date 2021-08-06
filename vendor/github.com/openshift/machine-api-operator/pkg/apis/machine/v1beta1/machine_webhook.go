@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime"
 	"strings"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
@@ -16,7 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	kruntime "k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -79,7 +80,8 @@ const (
 
 	// AWS Defaults
 	defaultAWSCredentialsSecret = "aws-cloud-credentials"
-	defaultAWSInstanceType      = "m4.large"
+	defaultAWSX86InstanceType   = "m5.large"
+	defaultAWSARMInstanceType   = "m6g.large"
 
 	// Azure Defaults
 	defaultAzureVMSize            = "Standard_D4s_V3"
@@ -93,10 +95,9 @@ const (
 	defaultGCPCredentialsSecret = "gcp-cloud-credentials"
 	defaultGCPDiskSizeGb        = 128
 	defaultGCPDiskType          = "pd-standard"
-	// https://releases-art-rhcos.svc.ci.openshift.org/art/storage/releases/rhcos-4.6/46.82.202007212240-0/x86_64/meta.json
-	// https://github.com/openshift/installer/pull/3808
-	// https://github.com/openshift/installer/blob/d75bf7ad98124b901ae7e22b5595e0392ed6ea3c/data/data/rhcos.json
-	defaultGCPDiskImage = "projects/rhcos-cloud/global/images/rhcos-46-82-202007212240-0-gcp-x86-64"
+	// https://releases-art-rhcos.svc.ci.openshift.org/art/storage/releases/rhcos-4.8/48.83.202103122318-0/x86_64/meta.json
+	// https://github.com/openshift/installer/blob/796a99049d3b7489b6c08ec5bd7c7983731afbcf/data/data/rhcos.json#L90-L94
+	defaultGCPDiskImage = "projects/rhcos-cloud/global/images/rhcos-48-83-202103221318-0-gcp-x86-64"
 
 	// vSphere Defaults
 	defaultVSphereCredentialsSecret = "vsphere-cloud-credentials"
@@ -224,19 +225,10 @@ type machineDefaulterHandler struct {
 }
 
 // NewValidator returns a new machineValidatorHandler.
-func NewMachineValidator() (*machineValidatorHandler, error) {
+func NewMachineValidator(client client.Client) (*machineValidatorHandler, error) {
 	infra, err := getInfra()
 	if err != nil {
 		return nil, err
-	}
-
-	cfg, err := ctrl.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-	c, err := client.New(cfg, client.Options{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to build kubernetes client: %v", err)
 	}
 
 	dns, err := getDNS()
@@ -244,7 +236,7 @@ func NewMachineValidator() (*machineValidatorHandler, error) {
 		return nil, err
 	}
 
-	return createMachineValidator(infra, c, dns), nil
+	return createMachineValidator(infra, client, dns), nil
 }
 
 func createMachineValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS) *machineValidatorHandler {
@@ -306,7 +298,8 @@ func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) mac
 		if platformStatus.AWS != nil {
 			region = platformStatus.AWS.Region
 		}
-		return awsDefaulter{region: region}.defaultAWS
+		arch := runtime.GOARCH
+		return awsDefaulter{region: region, arch: arch}.defaultAWS
 	case osconfigv1.AzurePlatformType:
 		return defaultAzure
 	case osconfigv1.GCPPlatformType:
@@ -351,7 +344,7 @@ func MachineValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
 	}
 	return admissionregistrationv1.ValidatingWebhook{
-		AdmissionReviewVersions: []string{"v1beta1"},
+		AdmissionReviewVersions: []string{"v1"},
 		Name:                    "validation.machine.machine.openshift.io",
 		FailurePolicy:           &webhookFailurePolicy,
 		SideEffects:             &webhookSideEffects,
@@ -383,7 +376,7 @@ func MachineSetValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
 	}
 	return admissionregistrationv1.ValidatingWebhook{
-		AdmissionReviewVersions: []string{"v1beta1"},
+		AdmissionReviewVersions: []string{"v1"},
 		Name:                    "validation.machineset.machine.openshift.io",
 		FailurePolicy:           &webhookFailurePolicy,
 		SideEffects:             &webhookSideEffects,
@@ -436,7 +429,7 @@ func MachineMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
 	}
 	return admissionregistrationv1.MutatingWebhook{
-		AdmissionReviewVersions: []string{"v1beta1"},
+		AdmissionReviewVersions: []string{"v1"},
 		Name:                    "default.machine.machine.openshift.io",
 		FailurePolicy:           &webhookFailurePolicy,
 		SideEffects:             &webhookSideEffects,
@@ -467,7 +460,7 @@ func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
 	}
 	return admissionregistrationv1.MutatingWebhook{
-		AdmissionReviewVersions: []string{"v1beta1"},
+		AdmissionReviewVersions: []string{"v1"},
 		Name:                    "default.machineset.machine.openshift.io",
 		FailurePolicy:           &webhookFailurePolicy,
 		SideEffects:             &webhookSideEffects,
@@ -489,11 +482,6 @@ func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 	}
 }
 
-func responseWithWarnings(response admission.Response, warnings []string) admission.Response {
-	response.AdmissionResponse.Warnings = warnings
-	return response
-}
-
 // Handle handles HTTP requests for admission webhook servers.
 func (h *machineValidatorHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	m := &Machine{}
@@ -506,10 +494,10 @@ func (h *machineValidatorHandler) Handle(ctx context.Context, req admission.Requ
 
 	ok, warnings, errs := h.webhookOperations(m, h.admissionConfig)
 	if !ok {
-		return responseWithWarnings(admission.Denied(errs.Error()), warnings)
+		return admission.Denied(errs.Error()).WithWarnings(warnings...)
 	}
 
-	return responseWithWarnings(admission.Allowed("Machine valid"), warnings)
+	return admission.Allowed("Machine valid").WithWarnings(warnings...)
 }
 
 // Handle handles HTTP requests for admission webhook servers.
@@ -535,18 +523,19 @@ func (h *machineDefaulterHandler) Handle(ctx context.Context, req admission.Requ
 
 	ok, warnings, errs := h.webhookOperations(m, h.admissionConfig)
 	if !ok {
-		return responseWithWarnings(admission.Denied(errs.Error()), warnings)
+		return admission.Denied(errs.Error()).WithWarnings(warnings...)
 	}
 
 	marshaledMachine, err := json.Marshal(m)
 	if err != nil {
-		return responseWithWarnings(admission.Errored(http.StatusInternalServerError, err), warnings)
+		return admission.Errored(http.StatusInternalServerError, err).WithWarnings(warnings...)
 	}
-	return responseWithWarnings(admission.PatchResponseFromRaw(req.Object.Raw, marshaledMachine), warnings)
+	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledMachine).WithWarnings(warnings...)
 }
 
 type awsDefaulter struct {
 	region string
+	arch   string
 }
 
 func (a awsDefaulter) defaultAWS(m *Machine, config *admissionConfig) (bool, []string, utilerrors.Aggregate) {
@@ -561,7 +550,11 @@ func (a awsDefaulter) defaultAWS(m *Machine, config *admissionConfig) (bool, []s
 	}
 
 	if providerSpec.InstanceType == "" {
-		providerSpec.InstanceType = defaultAWSInstanceType
+		if a.arch == "arm64" {
+			providerSpec.InstanceType = defaultAWSARMInstanceType
+		} else {
+			providerSpec.InstanceType = defaultAWSX86InstanceType
+		}
 	}
 
 	if providerSpec.Placement.Region == "" {
@@ -585,7 +578,7 @@ func (a awsDefaulter) defaultAWS(m *Machine, config *admissionConfig) (bool, []s
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
-	m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 	return true, warnings, nil
 }
 
@@ -669,6 +662,11 @@ func validateAWS(m *Machine, config *admissionConfig) (bool, []string, utilerror
 			"providerSpec.subnet: No subnet has been provided. Instances may be created in an unexpected subnet and may not join the cluster.",
 		)
 	}
+
+	if providerSpec.IAMInstanceProfile == nil {
+		warnings = append(warnings, "providerSpec.iamInstanceProfile: no IAM instance profile provided: nodes may be unable to join the cluster")
+	}
+
 	// TODO(alberto): Validate providerSpec.BlockDevices.
 	// https://github.com/openshift/cluster-api-provider-aws/pull/299#discussion_r433920532
 
@@ -744,7 +742,7 @@ func defaultAzure(m *Machine, config *admissionConfig) (bool, []string, utilerro
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
-	m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 	return true, warnings, nil
 }
 
@@ -887,7 +885,7 @@ func defaultGCP(m *Machine, config *admissionConfig) (bool, []string, utilerrors
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
-	m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 	return true, warnings, nil
 }
 
@@ -1070,7 +1068,7 @@ func defaultVSphere(m *Machine, config *admissionConfig) (bool, []string, utiler
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
-	m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 	return true, warnings, nil
 }
 

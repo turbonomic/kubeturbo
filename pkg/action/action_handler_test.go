@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	corev1 "k8s.io/client-go/applyconfigurations/core/v1"
 	client "k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	restclient "k8s.io/client-go/rest"
@@ -229,6 +230,12 @@ func (p *mockPodInterface) GetLogs(name string, opts *api.PodLogOptions) *restcl
 
 func (p *mockPodInterface) ProxyGet(scheme, name, port, path string, params map[string]string) restclient.ResponseWrapper {
 	return nil
+}
+func (p *mockPodInterface) Apply(ctx context.Context, pod *corev1.PodApplyConfiguration, opts metav1.ApplyOptions) (result *api.Pod, err error) {
+	return nil, nil
+}
+func (p *mockPodInterface) ApplyStatus(ctx context.Context, pod *corev1.PodApplyConfiguration, opts metav1.ApplyOptions) (result *api.Pod, err error) {
+	return nil, nil
 }
 
 func (p *mockPodInterface) GetEphemeralContainers(ctx context.Context, podName string, options metav1.GetOptions) (*api.EphemeralContainers, error) {
