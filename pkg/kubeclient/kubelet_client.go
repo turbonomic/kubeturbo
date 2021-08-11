@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
+	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
 	cadvisorapi "github.com/google/cadvisor/info/v1"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 	v1 "k8s.io/api/core/v1"
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/kubernetes"
@@ -26,8 +26,9 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/eviction"
 	evictionapi "k8s.io/kubernetes/pkg/kubelet/eviction/api"
 
-	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 )
 
 const (
@@ -102,7 +103,7 @@ type KubeletClient struct {
 	configCacheLock             sync.Mutex
 	fallbkCpuFreqGetter         *NodeCpuFrequencyGetter
 	defaultCpuFreq              float64
-	cpufreqJobExcludeNodeLabels map[string]string
+	cpufreqJobExcludeNodeLabels map[string]set.Set
 	// Fallback kubernetes API client to fetch data from node's proxy subresource
 	kubeClient         *kubernetes.Clientset
 	forceProxyEndpoint bool
@@ -294,14 +295,15 @@ func TextToThrottlingMetricFamilies(data []byte) (map[string]*dto.MetricFamily, 
 	return metricFamilies, nil
 }
 
-// get node single-core Frequency, in MHz
+// GetNodeCpuFrequency gets node single-core Frequency, in MHz
 func (client *KubeletClient) GetNodeCpuFrequency(node *v1.Node) (float64, error) {
 	ip, err := util.GetNodeIPForMonitor(node, types.KubeletSource)
 	if err != nil {
-		glog.Errorf("Failed to IP for node %s: %s", node.Name, err)
+		glog.Errorf("Failed to get IP for node %s: %s", node.Name, err)
 		return 0, err
 	}
-
+	os, arch := util.GetNodeOSArch(node)
+	glog.Infof("Node %s is running with %s/%s.", node.Name, os, arch)
 	// Get value from cache if exists
 	client.cacheLock.Lock()
 	entry, entryPresent := client.cache[ip]
@@ -316,33 +318,19 @@ func (client *KubeletClient) GetNodeCpuFrequency(node *v1.Node) (float64, error)
 
 	// We could not get a valid cpu frequency from cache, discover it.
 	var nodeFreq float64
-	minfo, err := client.GetMachineInfo(ip, node.Name)
-	freqDiscovered := true
-	if err != nil {
-		glog.Errorf("Failed to get machine[%s] cpu.frequency from kubelet: %v. Will try pod based getter.", node.Name, err)
-		nodeIsActive := util.NodeIsReady(node)
-		skipFallback := util.NodeMatchesLabels(node, DefaultCpufreqJobExcludeNodeLabels, client.cpufreqJobExcludeNodeLabels)
-		if skipFallback {
-			glog.Warningf("Node %s seems to be a windows node, default cpu frequency will be used.", node.Name)
-		}
-		if nodeIsActive && !skipFallback {
-			nodeFreq, err = client.fallbkCpuFreqGetter.GetFrequency(node.Name)
-			if err != nil {
-				glog.Errorf("Failed to get cpufreq from getter %s: %s. Default value will be used.", node.Name, err)
-				freqDiscovered = false
-			}
-		} else {
-			freqDiscovered = false
-		}
+	var freqDiscovered = true
+	if mInfo, err := client.GetMachineInfo(ip, node.Name); err == nil {
+		nodeFreq = util.MetricKiloToMega(float64(mInfo.CpuFrequency))
 	} else {
-		nodeFreq = util.MetricKiloToMega(float64(minfo.CpuFrequency))
+		glog.Warningf("Failed to get CPU frequency for node %s from kubelet: %v. Will try job based getter.",
+			node.Name, err)
+		nodeFreq, freqDiscovered = client.GetCpuFrequencyFromJob(node, os+"."+arch)
 	}
 
 	if !freqDiscovered {
 		// We probably could not discover the cpufreq by any means and default
 		// value is what we need to stick to. However, we might be able to discover
 		// a valid one in the next discovery cycle.
-
 		return client.defaultCpuFreq, nil
 	}
 
@@ -364,6 +352,41 @@ func (client *KubeletClient) GetNodeCpuFrequency(node *v1.Node) (float64, error)
 	}
 
 	return nodeFreq, nil
+}
+
+func (client *KubeletClient) GetCpuFrequencyFromJob(node *v1.Node, osArch string) (float64, bool) {
+	if !util.NodeIsReady(node) {
+		glog.Warningf("Skip getting CPU frequency from job on node %s because the node is not ready.", node.Name)
+		return 0, false
+	}
+	if util.NodeMatchesLabels(node, client.cpufreqJobExcludeNodeLabels) {
+		glog.Warningf("Skip getting CPU frequency from job on node %s because the node is excluded by labels.",
+			node.Name)
+		return 0, false
+	}
+	if !supportedOSArch.Contains(osArch) {
+		glog.Warningf("Skip getting CPU frequency from job on node %s because the OS/Arch %s is not supported.",
+			node.Name, osArch)
+		return 0, false
+	}
+	var getter iNodeCpuFrequencyGetter
+	switch osArch {
+	case "linux.ppc64le":
+		getter = &LinuxPpc64leNodeCpuFrequencyGetter{
+			NodeCpuFrequencyGetter: *client.fallbkCpuFreqGetter,
+		}
+	default:
+		getter = &LinuxAmd64NodeCpuFrequencyGetter{
+			NodeCpuFrequencyGetter: *client.fallbkCpuFreqGetter,
+		}
+	}
+	nodeFreq, err := getter.GetFrequency(getter, node.Name)
+	if err != nil {
+		glog.Errorf("Failed to get CPU frequency from job on node %s: %v.", node.Name, err)
+		return 0, false
+	}
+	glog.Infof("CPU frequency of node %s: %v MHz", node.Name, nodeFreq)
+	return nodeFreq, true
 }
 
 func (client *KubeletClient) GetMachineInfo(ip, nodeName string) (*cadvisorapi.MachineInfo, error) {
@@ -433,7 +456,7 @@ func (kc *KubeletConfig) Timeout(timeout int) *KubeletConfig {
 }
 
 func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, busyboxImage, imagePullSecret string,
-	excludeLabelsMap map[string]string, useProxyEndpoint bool) (*KubeletClient, error) {
+	excludeLabelsMap map[string]set.Set, useProxyEndpoint bool) (*KubeletClient, error) {
 	// 1. http transport
 	transport, err := makeTransport(kc.kubeConfig, kc.enableHttps, kc.tlsTimeOut, kc.forceSelfSignedCerts)
 	if err != nil {

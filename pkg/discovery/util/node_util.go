@@ -5,14 +5,30 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	set "github.com/deckarep/golang-set"
+	"github.com/golang/glog"
+	api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
-	api "k8s.io/api/core/v1"
+)
 
-	"github.com/golang/glog"
-	"k8s.io/apimachinery/pkg/util/sets"
+const (
+	// NodeLabelRolePrefix and NodeLabelRole
+	// There are two node labels that can be used to specify node roles:
+	// 1. node-role.kubernetes.io/<role-name>=
+	// 2. kubernetes.io/role=<role-name>
+	// NodeLabelRolePrefix is a label prefix for node roles
+	NodeLabelRolePrefix = "node-role.kubernetes.io/"
+	// NodeLabelRole specifies the role of a node
+	NodeLabelRole = "kubernetes.io/role"
+	// NodeLabelOS and NodeLabelOSBeta specifies the OS of a node
+	NodeLabelOS     = "kubernetes.io/os"
+	NodeLabelOSBeta = "beta.kubernetes.io/os"
+	// NodeLabelArch and NodeLabelArchBeta specifies the arch of a node
+	NodeLabelArch     = "kubernetes.io/arch"
+	NodeLabelArchBeta = "beta.kubernetes.io/arch"
 )
 
 func GetNodeIPForMonitor(node *api.Node, source types.MonitoringSource) (string, error) {
@@ -30,13 +46,33 @@ func GetNodeIPForMonitor(node *api.Node, source types.MonitoringSource) (string,
 		if ip != "" {
 			return ip, nil
 		}
-		return "", fmt.Errorf("Node %v has no valid hostname and/or IP address: %v %v", node.Name, hostname, ip)
+		return "", fmt.Errorf("node %v has no valid hostname and/or IP address: %v %v", node.Name, hostname, ip)
 	default:
-		return "", errors.New("Unsupported monitoring source or monitoring source not provided")
+		return "", errors.New("unsupported monitoring source or monitoring source not provided")
 	}
 }
 
-// Check if a node is in Ready status.
+func GetNodeOSArch(node *api.Node) (os string, arch string) {
+	os = "unknown"
+	arch = "unknown"
+	labelsMap := node.ObjectMeta.Labels
+	if len(labelsMap) == 0 {
+		return
+	}
+	if val, ok := labelsMap[NodeLabelOS]; ok {
+		os = val
+	} else if val, ok := labelsMap[NodeLabelOSBeta]; ok {
+		os = val
+	}
+	if val, ok := labelsMap[NodeLabelArch]; ok {
+		arch = val
+	} else if val, ok := labelsMap[NodeLabelArchBeta]; ok {
+		arch = val
+	}
+	return
+}
+
+// NodeIsReady checks if a node is in Ready status.
 func NodeIsReady(node *api.Node) bool {
 	for _, condition := range node.Status.Conditions {
 		if condition.Type == api.NodeReady {
@@ -47,50 +83,58 @@ func NodeIsReady(node *api.Node) bool {
 	return false
 }
 
-func NodeMatchesLabels(node *api.Node, defaultLabels, mustMatchLabels map[string]string) bool {
-	if len(mustMatchLabels) > 0 {
-		// All labels must match
-		for k, v := range mustMatchLabels {
-			value, ok := node.Labels[k]
-			if !ok {
-				return false
-			}
-			if value != v {
-				return false
-			}
-		}
-		return true
+func LabelMapFromNodeSelectorString(selector string) (map[string]set.Set, error) {
+	labelsMap := make(map[string]set.Set)
+
+	if len(selector) == 0 {
+		return labelsMap, nil
 	}
 
-	// Any label matched from default is a match
-	for k, v := range defaultLabels {
-		value, ok := node.Labels[k]
-		if ok && value == v {
-			return true
+	labels := strings.Split(selector, ",")
+	for _, label := range labels {
+		l := strings.Split(label, "=")
+		if len(l) != 2 {
+			return labelsMap, fmt.Errorf("invalid selector: %s", l)
 		}
+		key := strings.TrimSpace(l[0])
+		value := strings.TrimSpace(l[1])
+		if _, exist := labelsMap[key]; !exist {
+			labelsMap[key] = set.NewSet()
+		}
+		labelsMap[key].Add(value)
 	}
-	return false
+	return labelsMap, nil
 }
 
-// Check if a node is schedulable.
+func NodeMatchesLabels(node *api.Node, mustMatchLabels map[string]set.Set) bool {
+	if len(mustMatchLabels) == 0 {
+		return false
+	}
+	// 1. All keys in the specified label list must match
+	// For example:
+	//   Given the specified labels on the command line:
+	//     --cpufreq-job-exclude-node-labels=kubernetes.io/arch=s390x,beta.kubernetes.io/arch=s390x
+	//   Then for a node to match, it must have both kubernetes.io/arch AND beta.kubernetes.io/arch keys
+	// 2. For labels with the same key but multiple values, at least one value must match
+	// For example:
+	//   Given the specified labels on the command line:
+	//     --cpufreq-job-exclude-node-labels=kubernetes.io/arch=s390x,kubernetes.io/arch=arm64
+	//   Then both s390x and arm64 nodes will match
+	for key, values := range mustMatchLabels {
+		value, ok := node.Labels[key]
+		if !ok || !values.Contains(value) {
+			return false
+		}
+	}
+	return true
+}
+
+// NodeIsSchedulable checks if a node is schedulable.
 func NodeIsSchedulable(node *api.Node) bool {
 	return !node.Spec.Unschedulable
 }
 
-func GetNodeIP(node *api.Node) (string, error) {
-	ip := ""
-	for _, addr := range node.Status.Addresses {
-		if addr.Type == api.NodeInternalIP && addr.Address != "" {
-			ip = addr.Address
-		}
-	}
-	if ip != "" {
-		return ip, nil
-	}
-	return "", fmt.Errorf("node %v has no valid hostname and/or IP address: %v", node.Name, ip)
-}
-
-// Check whether the node is a master
+// NodeIsMaster checks whether the node is a master
 func NodeIsMaster(node *api.Node) bool {
 	master := detectors.IsMasterDetected(node.Name, node.ObjectMeta.Labels)
 	if master {
@@ -99,7 +143,7 @@ func NodeIsMaster(node *api.Node) bool {
 	return master
 }
 
-// Returns whether the node is controllable
+// NodeIsControllable checks whether the node is controllable
 func NodeIsControllable(node *api.Node) bool {
 	controllable := !NodeIsMaster(node)
 	if !controllable {
@@ -108,26 +152,16 @@ func NodeIsControllable(node *api.Node) bool {
 	return controllable
 }
 
-// There are two node labels that can be used to specify node roles:
-// 1. node-role.kubernetes.io/<role-name>=
-// 2. kubernetes.io/role=<role-name>
-const (
-	// labelNodeRolePrefix is a label prefix for node roles
-	labelNodeRolePrefix = "node-role.kubernetes.io/"
-	// nodeLabelRole specifies the role of a node
-	nodeLabelRole = "kubernetes.io/role"
-)
-
 func DetectNodeRoles(node *api.Node) sets.String {
 	// Parse all roles of a node, and add them to a set
 	allRoles := sets.NewString()
 	for k, v := range node.Labels {
 		switch {
-		case strings.HasPrefix(k, labelNodeRolePrefix):
-			if role := strings.TrimPrefix(k, labelNodeRolePrefix); len(role) > 0 {
+		case strings.HasPrefix(k, NodeLabelRolePrefix):
+			if role := strings.TrimPrefix(k, NodeLabelRolePrefix); len(role) > 0 {
 				allRoles.Insert(role)
 			}
-		case k == nodeLabelRole && v != "":
+		case k == NodeLabelRole && v != "":
 			allRoles.Insert(v)
 		}
 	}
@@ -144,16 +178,4 @@ func DetectHARole(node *api.Node) bool {
 		glog.V(2).Infof("%s is a HA node and will be marked Non Suspendable.", node.Name)
 	}
 	return isHANode
-}
-
-// GetNodeCPUFrequency gets hosting node CPU frequency from EntityMetricSink.
-func GetNodeCPUFrequency(nodeName string, metricsSink *metrics.EntityMetricSink) (float64, error) {
-	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, nodeName, metrics.CpuFrequency)
-	cpuFrequencyMetric, err := metricsSink.GetMetric(cpuFrequencyUID)
-	if err != nil {
-		err := fmt.Errorf("failed to get cpu frequency from sink for node %s: %v", nodeName, err)
-		return 0.0, err
-	}
-	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
-	return cpuFrequency, nil
 }

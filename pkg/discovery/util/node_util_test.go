@@ -3,15 +3,16 @@ package util
 import (
 	"testing"
 
+	set "github.com/deckarep/golang-set"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestNodeMatchesLabels(t *testing.T) {
-	defaultExcludeLabels := map[string]string{
-		"kubernetes.io/os":      "windows",
-		"beta.kubernetes.io/os": "windows",
-	}
+	// Custom labels with unique keys
+	customLabels1, _ := LabelMapFromNodeSelectorString("key1=value1,key2=value2")
+	// Custom labels with same key but different values
+	customLabels2, _ := LabelMapFromNodeSelectorString("kubernetes.io/arch=s390x,kubernetes.io/arch=arm64")
 
 	windowsLabels1 := map[string]string{
 		"kubernetes.io/os":      "windows",
@@ -22,6 +23,7 @@ func TestNodeMatchesLabels(t *testing.T) {
 	windowsLabels2 := map[string]string{
 		"beta.kubernetes.io/os": "windows",
 		"node1":                 "value1",
+		"key1":                  "value1",
 	}
 
 	windowsLabels3 := map[string]string{
@@ -35,13 +37,18 @@ func TestNodeMatchesLabels(t *testing.T) {
 		"node2":            "value2",
 	}
 
-	customLabels := map[string]string{
-		"key1": "value1",
-		"key2": "value2",
+	s390xLabels := map[string]string{
+		"kubernetes.io/arch": "s390x",
+		"node2":              "value2",
+	}
+
+	arm64Labels := map[string]string{
+		"kubernetes.io/arch": "arm64",
+		"node3":              "value3",
 	}
 
 	type labelTest struct {
-		mustMatchLabels map[string]string
+		mustMatchLabels map[string]set.Set
 		node            *v1.Node
 		expectMatch     bool
 	}
@@ -50,12 +57,12 @@ func TestNodeMatchesLabels(t *testing.T) {
 		{
 			mustMatchLabels: nil,
 			node:            getNodeWithLabels(windowsLabels1),
-			expectMatch:     true,
+			expectMatch:     false,
 		},
 		{
 			mustMatchLabels: nil,
 			node:            getNodeWithLabels(windowsLabels2),
-			expectMatch:     true,
+			expectMatch:     false,
 		},
 		{
 			mustMatchLabels: nil,
@@ -63,32 +70,85 @@ func TestNodeMatchesLabels(t *testing.T) {
 			expectMatch:     false,
 		},
 		{
-			mustMatchLabels: defaultExcludeLabels,
-			node:            getNodeWithLabels(windowsLabels1),
-			expectMatch:     true,
-		},
-		{
-			mustMatchLabels: defaultExcludeLabels,
-			node:            getNodeWithLabels(windowsLabels2),
-			expectMatch:     false,
-		},
-		{
-			mustMatchLabels: defaultExcludeLabels,
-			node:            getNodeWithLabels(linuxLabels),
-			expectMatch:     false,
-		},
-		{
-			mustMatchLabels: customLabels,
+			mustMatchLabels: customLabels1,
 			node:            getNodeWithLabels(windowsLabels3),
+			expectMatch:     true,
+		},
+		{
+			mustMatchLabels: customLabels1,
+			node:            getNodeWithLabels(windowsLabels2),
+			expectMatch:     false,
+		},
+		{
+			mustMatchLabels: customLabels2,
+			node:            getNodeWithLabels(s390xLabels),
+			expectMatch:     true,
+		},
+		{
+			mustMatchLabels: customLabels2,
+			node:            getNodeWithLabels(arm64Labels),
 			expectMatch:     true,
 		},
 	}
 
 	for _, test := range tests {
-		match := NodeMatchesLabels(test.node, defaultExcludeLabels, test.mustMatchLabels)
+		match := NodeMatchesLabels(test.node, test.mustMatchLabels)
 		if match != test.expectMatch {
-			t.Errorf("Label match failed, Nodes labels: %++v, excludeLabels: %++v, mustMatchLabels: %++v."+
-				"Expected match: %v, got: %v", test.node.Labels, defaultExcludeLabels, test.mustMatchLabels, test.expectMatch, match)
+			t.Errorf("Label match failed, Nodes labels: %+v, mustMatchLabels: %+v."+
+				"Expected match: %v, got: %v", test.node.Labels, test.mustMatchLabels, test.expectMatch, match)
+		}
+	}
+}
+
+func TestGetNodeOSArch(t *testing.T) {
+	labels1 := map[string]string{
+		"kubernetes.io/os":      "windows",
+		"beta.kubernetes.io/os": "windows",
+		"node1":                 "value1",
+	}
+
+	labels2 := map[string]string{
+		"beta.kubernetes.io/os": "windows",
+		"node1":                 "value1",
+		"key1":                  "value1",
+	}
+	labels3 := map[string]string{
+		"kubernetes.io/os":   "windows",
+		"kubernetes.io/arch": "amd64",
+		"node1":              "value1",
+		"key1":               "value1",
+	}
+	type nodeOsArchTest struct {
+		nodeLabels   map[string]string
+		expectedOS   string
+		expectedArch string
+	}
+	tests := []nodeOsArchTest{
+		{
+			labels1,
+			"windows",
+			"unknown",
+		},
+		{
+			labels2,
+			"windows",
+			"unknown",
+		},
+		{
+			labels3,
+			"windows",
+			"amd64",
+		},
+	}
+	for _, test := range tests {
+		os, arch := GetNodeOSArch(getNodeWithLabels(test.nodeLabels))
+		if os != test.expectedOS {
+			t.Errorf("GetNodeOSArch test failed, Nodes labels: %+v, expected OS: %s, got OS: %s.",
+				test.nodeLabels, test.expectedOS, os)
+		}
+		if arch != test.expectedArch {
+			t.Errorf("GetNodeOSArch test failed, Nodes labels: %+v, expected arch: %s, got arch: %s.",
+				test.nodeLabels, test.expectedArch, arch)
 		}
 	}
 }

@@ -5,8 +5,9 @@ import (
 	"math"
 	"strings"
 
+	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/test/integration/framework"
+	. "github.com/onsi/ginkgo"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
@@ -16,7 +17,6 @@ import (
 	kubeclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 
-	. "github.com/onsi/ginkgo"
 	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery"
@@ -28,6 +28,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	kubeletclient "github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
+	"github.com/turbonomic/kubeturbo/test/integration/framework"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
@@ -80,7 +81,7 @@ var _ = Describe("Discover Cluster", func() {
 			}
 
 			s := app.NewVMTServer()
-			kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, "", "busybox", map[string]string{}, true)
+			kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, "", "busybox", map[string]set.Set{}, true)
 
 			apiExtClient, err := apiextclient.NewForConfig(kubeConfig)
 			if err != nil {

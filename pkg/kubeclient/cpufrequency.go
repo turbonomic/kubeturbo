@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	set "github.com/deckarep/golang-set"
+	"github.com/golang/glog"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -18,7 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 )
 
 const (
@@ -27,18 +28,90 @@ const (
 	defaultCpuFreq        = float64(2000) //MHz
 )
 
-var DefaultCpufreqJobExcludeNodeLabels = map[string]string{
-	"kubernetes.io/os":      "windows",
-	"beta.kubernetes.io/os": "windows",
+var (
+	supportedOSArch = set.NewSet("linux.amd64", "linux.ppc64le")
+)
+
+// iNodeCpuFrequencyGetter defines an interface
+type iNodeCpuFrequencyGetter interface {
+	// GetFrequency is the shared method called by all concrete types
+	GetFrequency(iNodeCpuFrequencyGetter, string) (float64, error)
+	// GetJobCommand is a type specific method to get job command
+	GetJobCommand() string
+	// ParseCpuFrequency is a type specific method to parse CPU frequency from job log
+	ParseCpuFrequency(string) (float64, error)
 }
 
+// NodeCpuFrequencyGetter defines an abstract type with default methods and fields shared by all concrete types
 type NodeCpuFrequencyGetter struct {
 	kubeClient      *kubernetes.Clientset
-	node            *corev1.Node
 	busyboxImage    string
 	imagePullSecret string
 }
 
+// LinuxAmd64NodeCpuFrequencyGetter is a concrete type that embeds the NodeCpuFrequencyGetter and implements
+// methods specific to linux amd64
+type LinuxAmd64NodeCpuFrequencyGetter struct {
+	NodeCpuFrequencyGetter
+}
+
+// GetJobCommand returns the command used to obtain CPU frequency on x64 linux
+// TODO: Ideally we should use lscpu to get the averaged CPU speed across all CPUs on the node, instead of the CPU
+//   speed of the first CPU
+func (amd64 *LinuxAmd64NodeCpuFrequencyGetter) GetJobCommand() string {
+	return `cat /proc/cpuinfo | grep -m 1 'cpu MHz'`
+}
+
+func (amd64 *LinuxAmd64NodeCpuFrequencyGetter) ParseCpuFrequency(jobLog string) (float64, error) {
+	str := strings.Split(jobLog, ":")
+	if len(str) != 2 {
+		return 0, fmt.Errorf("invalid cpufreq logs from pod")
+	}
+	return strconv.ParseFloat(strings.TrimSpace(str[1]), 64)
+}
+
+// LinuxPpc64leNodeCpuFrequencyGetter is a concrete type that embeds the NodeCpuFrequencyGetter and implements
+// methods specific to linux ppc64le
+type LinuxPpc64leNodeCpuFrequencyGetter struct {
+	NodeCpuFrequencyGetter
+}
+
+// GetJobCommand returns the command used to obtain CPU frequency on Power linux
+// We have to use cat /proc/cpuinfo, as lscpu command does not return CPU speed on Power linux
+func (ppc64le *LinuxPpc64leNodeCpuFrequencyGetter) GetJobCommand() string {
+	return `cat /proc/cpuinfo | grep -m 1 'clock'`
+}
+
+// ParseCpuFrequency ParseCPUFrequency parses the CPU frequency for Power Linux
+/*
+# cat /proc/cpuinfo
+processor       : 0
+cpu             : POWER8E (raw), altivec supported
+clock           : 3425.000000MHz
+revision        : 2.1 (pvr 004b 0201)
+
+processor       : 1
+cpu             : POWER8E (raw), altivec supported
+clock           : 3425.000000MHz
+revision        : 2.1 (pvr 004b 0201)
+
+timebase        : 512000000
+platform        : pSeries
+model           : IBM pSeries (emulated by qemu)
+machine         : CHRP IBM pSeries (emulated by qemu)
+*/
+func (ppc64le *LinuxPpc64leNodeCpuFrequencyGetter) ParseCpuFrequency(jobLog string) (float64, error) {
+	str := strings.Split(jobLog, ":")
+	if len(str) != 2 {
+		return 0, fmt.Errorf("invalid cpufreq logs from pod")
+	}
+	clock := strings.TrimSpace(str[1])
+	// TODO: I cannot find the specification of /proc/cpuinfo output for Power linux. It is not clear if the MHz unit
+	//   could potentially be different, such as GHz, on different node. For now, assume the unit is always MHz
+	return strconv.ParseFloat(strings.TrimSuffix(clock, "MHz"), 64)
+}
+
+// NewNodeCpuFrequencyGetter creates an instance of the abstract type
 func NewNodeCpuFrequencyGetter(kubeClient *kubernetes.Clientset, busyboxImage, imagePullSecret string) *NodeCpuFrequencyGetter {
 	return &NodeCpuFrequencyGetter{
 		kubeClient:      kubeClient,
@@ -47,7 +120,9 @@ func NewNodeCpuFrequencyGetter(kubeClient *kubernetes.Clientset, busyboxImage, i
 	}
 }
 
-func (n *NodeCpuFrequencyGetter) GetFrequency(nodeName string) (float64, error) {
+// GetFrequency obtains CPU frequency of a node by running a kubernetes job on that node, and then reading the
+// /proc/cpuinfo file and parsing the CPU speed from the output. The job is cleaned up at the end.
+func (n *NodeCpuFrequencyGetter) GetFrequency(i iNodeCpuFrequencyGetter, nodeName string) (float64, error) {
 	glog.V(4).Infof("Start query node frequency via pod for %s.", nodeName)
 
 	// TODO: See if retries are needed
@@ -56,55 +131,50 @@ func (n *NodeCpuFrequencyGetter) GetFrequency(nodeName string) (float64, error) 
 		namespace = defaultNamespace
 	}
 
-	job, err := n.createJob(nodeName, namespace, n.imagePullSecret)
+	job, err := n.createJob(i, namespace, nodeName)
 	if err != nil {
 		return 0, err
 	}
 
 	jobName := job.Name
-	defer n.waitForJobCleanup(jobName, namespace)
+	defer func() {
+		err := n.waitForJobCleanup(jobName, namespace)
+		if err != nil {
+			glog.Warningf("Failed to clean up job %s/%s on node %s: %v", namespace, jobName, nodeName, err)
+		}
+	}()
 
 	err = n.waitForJob(jobName, namespace)
 	if err != nil {
-		return 0, fmt.Errorf("wait for job failed, node: %s : %v", nodeName, err)
+		return 0, fmt.Errorf("wait for job %s/%s failed on node %s: %v", namespace, jobName, nodeName, err)
 	}
 
 	pod, err := n.getJobsPod(jobName, namespace)
 	if err != nil {
-		return 0, fmt.Errorf("get cpufreq job pod failed for node: %s", nodeName)
+		return 0, fmt.Errorf("get popd for job %s/%s failed on node %s: %v", namespace, jobName, nodeName, err)
 	}
 
-	return n.getCpufreqFromPodLog(pod)
-
+	return n.getCpuFreqFromPodLog(i, pod)
 }
 
-func (n *NodeCpuFrequencyGetter) getCpufreqFromPodLog(pod *corev1.Pod) (float64, error) {
+func (n *NodeCpuFrequencyGetter) getCpuFreqFromPodLog(i iNodeCpuFrequencyGetter, pod *corev1.Pod) (float64, error) {
 	req := n.kubeClient.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{})
 	logs, err := req.Stream(context.TODO())
 	if err != nil {
-		return 0, fmt.Errorf("error in opening stream")
+		return 0, fmt.Errorf("error in opening stream: %v", err)
 	}
-	defer logs.Close()
-
+	defer func() {
+		err := logs.Close()
+		if err != nil {
+			glog.Warningf("Failed to close log stream: %v", err)
+		}
+	}()
 	buf := new(bytes.Buffer)
 	_, err = io.Copy(buf, logs)
 	if err != nil {
-		return 0, fmt.Errorf("error in copy pod logs")
+		return 0, fmt.Errorf("error in copy pod logs: %v", err)
 	}
-	line := buf.String()
-
-	str := strings.Split(line, ":")
-	if len(str) != 2 {
-		return 0, fmt.Errorf("invalid cpufreq logs from pod")
-	}
-
-	cpufreq, err := strconv.ParseFloat(strings.TrimSpace(str[1]), 64)
-	if err != nil {
-		return 0, err
-	}
-
-	return cpufreq, nil
-
+	return i.ParseCpuFrequency(buf.String())
 }
 
 func (n *NodeCpuFrequencyGetter) waitForJob(jobName, namespace string) error {
@@ -119,7 +189,6 @@ func (n *NodeCpuFrequencyGetter) waitForJob(jobName, namespace string) error {
 		if j.Status.Failed == 1 {
 			return false, fmt.Errorf("cpufreq job failed for job: %s/%s", namespace, jobName)
 		}
-
 		// Retry
 		return false, nil
 	})
@@ -130,13 +199,13 @@ func (n *NodeCpuFrequencyGetter) waitForJob(jobName, namespace string) error {
 		if err != nil {
 			return err
 		}
-		n.LogPodErrorEvents(jobName, pod)
+		n.logPodErrorEvents(pod)
 	}
 
 	return err
 }
 
-func (n *NodeCpuFrequencyGetter) LogPodErrorEvents(jobName string, pod *corev1.Pod) {
+func (n *NodeCpuFrequencyGetter) logPodErrorEvents(pod *corev1.Pod) {
 	// log a list of unique error events that belong to this pod
 	podName := pod.Name
 	podNamespace := pod.Namespace
@@ -158,9 +227,8 @@ func (n *NodeCpuFrequencyGetter) waitForJobCleanup(jobName, namespace string) er
 			return true, nil
 		}
 		if err != nil {
-			glog.Warning(fmt.Printf("Error deleting cpufreq job: %s/%s: %v.", namespace, jobName, err))
+			glog.Warningf("Error deleting cpufreq job: %s/%s: %v.", namespace, jobName, err)
 		}
-
 		// Retry
 		return false, nil
 	})
@@ -187,16 +255,16 @@ func (n *NodeCpuFrequencyGetter) getJobsPod(podNamePrefix, namespace string) (*c
 	return pod, nil
 }
 
-func (n *NodeCpuFrequencyGetter) createJob(nodeName, namespace, imagePullSecret string) (*batchv1.Job, error) {
-	job, err := n.kubeClient.BatchV1().Jobs(namespace).Create(context.TODO(), getCpuFreqJobDefinition(nodeName, n.busyboxImage, imagePullSecret), metav1.CreateOptions{})
+func (n *NodeCpuFrequencyGetter) createJob(i iNodeCpuFrequencyGetter, namespace, nodeName string) (*batchv1.Job, error) {
+	job, err := n.kubeClient.BatchV1().Jobs(namespace).
+		Create(context.TODO(), n.getCpuFreqJobDefinition(i, nodeName), metav1.CreateOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("error creating cpufreq job for node: %s : %v", nodeName, err)
+		return nil, fmt.Errorf("error creating cpufreq job for node: %s: %v", nodeName, err)
 	}
-
-	return job, err
+	return job, nil
 }
 
-func getCpuFreqJobDefinition(nodeName, busyboxImage, imagePullSecret string) *batchv1.Job {
+func (n *NodeCpuFrequencyGetter) getCpuFreqJobDefinition(i iNodeCpuFrequencyGetter, nodeName string) *batchv1.Job {
 	// There are no retries if the job fails it fails
 	backoffLimit := int32(0)
 	return &batchv1.Job{
@@ -216,7 +284,7 @@ func getCpuFreqJobDefinition(nodeName, busyboxImage, imagePullSecret string) *ba
 				Spec: corev1.PodSpec{
 					ImagePullSecrets: []corev1.LocalObjectReference{
 						{
-							Name: imagePullSecret,
+							Name: n.imagePullSecret,
 						},
 					},
 					NodeName:      nodeName,
@@ -224,9 +292,9 @@ func getCpuFreqJobDefinition(nodeName, busyboxImage, imagePullSecret string) *ba
 					Containers: []corev1.Container{
 						{
 							Name:    "cpufreq",
-							Image:   busyboxImage,
+							Image:   n.busyboxImage,
 							Command: []string{`/bin/sh`},
-							Args:    []string{"-c", `cat /proc/cpuinfo | grep -m 1 'cpu MHz'`},
+							Args:    []string{"-c", i.GetJobCommand()},
 						},
 					},
 				},
