@@ -23,10 +23,10 @@ const (
 	NodeLabelRolePrefix = "node-role.kubernetes.io/"
 	// NodeLabelRole specifies the role of a node
 	NodeLabelRole = "kubernetes.io/role"
-	// NodeLabelOS and NodeLabelOSBeta specifies the OS of a node
+	// NodeLabelOS and NodeLabelOSBeta specify the OS of a node
 	NodeLabelOS     = "kubernetes.io/os"
 	NodeLabelOSBeta = "beta.kubernetes.io/os"
-	// NodeLabelArch and NodeLabelArchBeta specifies the arch of a node
+	// NodeLabelArch and NodeLabelArchBeta specify the arch of a node
 	NodeLabelArch     = "kubernetes.io/arch"
 	NodeLabelArchBeta = "beta.kubernetes.io/arch"
 )
@@ -83,6 +83,11 @@ func NodeIsReady(node *api.Node) bool {
 	return false
 }
 
+// LabelMapFromNodeSelectorString constructs a map of labels from the label selector string specified in the command
+// line arguments.
+// Example input label selector strings:
+//   "kubernetes.io/arch=s390x,beta.kubernetes.io/arch=s390x"
+//   "kubernetes.io/arch=s390x,kubernetes.io/arch=arm64"
 func LabelMapFromNodeSelectorString(selector string) (map[string]set.Set, error) {
 	labelsMap := make(map[string]set.Set)
 
@@ -94,7 +99,7 @@ func LabelMapFromNodeSelectorString(selector string) (map[string]set.Set, error)
 	for _, label := range labels {
 		l := strings.Split(label, "=")
 		if len(l) != 2 {
-			return labelsMap, fmt.Errorf("invalid selector: %s", l)
+			return labelsMap, fmt.Errorf("invalid selector: %v", l)
 		}
 		key := strings.TrimSpace(l[0])
 		value := strings.TrimSpace(l[1])

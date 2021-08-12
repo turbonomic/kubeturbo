@@ -151,7 +151,7 @@ func (n *NodeCpuFrequencyGetter) GetFrequency(i iNodeCpuFrequencyGetter, nodeNam
 
 	pod, err := n.getJobsPod(jobName, namespace)
 	if err != nil {
-		return 0, fmt.Errorf("get popd for job %s/%s failed on node %s: %v", namespace, jobName, nodeName, err)
+		return 0, fmt.Errorf("get pod for job %s/%s failed on node %s: %v", namespace, jobName, nodeName, err)
 	}
 
 	return n.getCpuFreqFromPodLog(i, pod)

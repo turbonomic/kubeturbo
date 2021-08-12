@@ -354,20 +354,24 @@ func (client *KubeletClient) GetNodeCpuFrequency(node *v1.Node) (float64, error)
 	return nodeFreq, nil
 }
 
-func (client *KubeletClient) GetCpuFrequencyFromJob(node *v1.Node, osArch string) (float64, bool) {
+// GetCpuFrequencyFromJob runs a kubernetes job on the given node to retrieve the CPU frequency of that node.
+// The node must be in Ready state, run the supported os/arch, and not be excluded by labels.
+func (client *KubeletClient) GetCpuFrequencyFromJob(node *v1.Node, osArch string) (nodeFreq float64, discovered bool) {
+	nodeFreq = 0.0
+	discovered = false
 	if !util.NodeIsReady(node) {
 		glog.Warningf("Skip getting CPU frequency from job on node %s because the node is not ready.", node.Name)
-		return 0, false
+		return
 	}
 	if util.NodeMatchesLabels(node, client.cpufreqJobExcludeNodeLabels) {
 		glog.Warningf("Skip getting CPU frequency from job on node %s because the node is excluded by labels.",
 			node.Name)
-		return 0, false
+		return
 	}
 	if !supportedOSArch.Contains(osArch) {
 		glog.Warningf("Skip getting CPU frequency from job on node %s because the OS/Arch %s is not supported.",
 			node.Name, osArch)
-		return 0, false
+		return
 	}
 	var getter iNodeCpuFrequencyGetter
 	switch osArch {
@@ -380,13 +384,14 @@ func (client *KubeletClient) GetCpuFrequencyFromJob(node *v1.Node, osArch string
 			NodeCpuFrequencyGetter: *client.fallbkCpuFreqGetter,
 		}
 	}
-	nodeFreq, err := getter.GetFrequency(getter, node.Name)
-	if err != nil {
+	var err error
+	if nodeFreq, err = getter.GetFrequency(getter, node.Name); err != nil {
 		glog.Errorf("Failed to get CPU frequency from job on node %s: %v.", node.Name, err)
-		return 0, false
+		return
 	}
-	glog.Infof("CPU frequency of node %s: %v MHz", node.Name, nodeFreq)
-	return nodeFreq, true
+	discovered = true
+	glog.Infof("CPU frequency of node %s: %v MHz.", node.Name, nodeFreq)
+	return
 }
 
 func (client *KubeletClient) GetMachineInfo(ip, nodeName string) (*cadvisorapi.MachineInfo, error) {
