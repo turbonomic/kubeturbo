@@ -56,6 +56,16 @@ func GetNodeOSArch(node *api.Node) (os string, arch string) {
 	os = "unknown"
 	arch = "unknown"
 	labelsMap := node.ObjectMeta.Labels
+	defer func() {
+		if os == "unknown" {
+			glog.Warningf("Unable to parse os of node %s. Current labels %v. Missing labels %s.",
+				node.Name, labelsMap, strings.Join([]string{NodeLabelOS, NodeLabelOSBeta}, ","))
+		}
+		if arch == "unknown" {
+			glog.Warningf("Unable to parse arch of node %s. Current labels %v. Missing labels %s.",
+				node.Name, labelsMap, strings.Join([]string{NodeLabelArch, NodeLabelArchBeta}, ","))
+		}
+	}()
 	if len(labelsMap) == 0 {
 		return
 	}
