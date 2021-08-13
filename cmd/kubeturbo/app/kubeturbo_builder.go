@@ -8,14 +8,14 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
-	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
-	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
-
+	set "github.com/deckarep/golang-set"
+	"github.com/golang/glog"
 	clusterclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/spf13/pflag"
 	apiv1 "k8s.io/api/core/v1"
 	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -32,14 +32,13 @@ import (
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
+	nodeUtil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
+	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
+	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/kubeturbo/test/flag"
-
-	"github.com/golang/glog"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/spf13/pflag"
-	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 )
 
 const (
@@ -237,7 +236,7 @@ func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubern
 }
 
 func (s *VMTServer) CreateKubeletClientOrDie(kubeConfig *restclient.Config, fallbackClient *kubernetes.Clientset,
-	busyboxImage, imagePullSecret string, cpufreqJobExcludeNodeLabels map[string]string, useProxyEndpoint bool) *kubeclient.KubeletClient {
+	busyboxImage, imagePullSecret string, cpufreqJobExcludeNodeLabels map[string]set.Set, useProxyEndpoint bool) *kubeclient.KubeletClient {
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
@@ -340,7 +339,7 @@ func (s *VMTServer) Run() {
 	// Collect target and probe info such as master host, server version, probe container image, etc
 	k8sTAPSpec.CollectK8sTargetAndProbeInfo(kubeConfig, kubeClient)
 
-	excludeLabelsMap, err := mapFromSelector(s.CpufreqJobExcludeNodeLabels)
+	excludeLabelsMap, err := nodeUtil.LabelMapFromNodeSelectorString(s.CpufreqJobExcludeNodeLabels)
 	if err != nil {
 		glog.Fatalf("Invalid cpu frequency exclude node label selectors: %v. The selectors "+
 			"should be a comma saperated list of key=value node label pairs", err)
@@ -510,24 +509,4 @@ func latestComparedVersion(newVersion, existingVersion string) string {
 		return existingVersion
 	}
 	return newVersion
-}
-
-func mapFromSelector(selector string) (map[string]string, error) {
-	labelsMap := make(map[string]string)
-
-	if len(selector) == 0 {
-		return labelsMap, nil
-	}
-
-	labels := strings.Split(selector, ",")
-	for _, label := range labels {
-		l := strings.Split(label, "=")
-		if len(l) != 2 {
-			return labelsMap, fmt.Errorf("invalid selector: %s", l)
-		}
-		key := strings.TrimSpace(l[0])
-		value := strings.TrimSpace(l[1])
-		labelsMap[key] = value
-	}
-	return labelsMap, nil
 }

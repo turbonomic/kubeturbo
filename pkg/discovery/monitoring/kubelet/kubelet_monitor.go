@@ -73,10 +73,10 @@ func (m *KubeletMonitor) Do(stopChan <-chan struct{}) *metrics.EntityMetricSink 
 	return m.metricSink
 }
 
-// Start to retrieve resource stats for the received list of nodes.
+// RetrieveResourceStat retrieves resource stats for the received list of nodes.
 func (m *KubeletMonitor) RetrieveResourceStat(stopChan <-chan struct{}) error {
 	if m.nodeList == nil || len(m.nodeList) == 0 {
-		return errors.New("Invalid nodeList or empty nodeList. Finish Immediately...")
+		return errors.New("empty node list")
 	}
 
 	m.wg.Add(len(m.nodeList))

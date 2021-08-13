@@ -1,6 +1,7 @@
 package kubeclient
 
 import (
+	set "github.com/deckarep/golang-set"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,7 +69,7 @@ func TestKubeletClientCacheNil(t *testing.T) {
 	kubeConf := &rest.Config{}
 	conf := NewKubeletConfig(kubeConf)
 
-	kc, _ := conf.Create(nil, "busybox", "", map[string]string{}, false)
+	kc, _ := conf.Create(nil, "busybox", "", map[string]set.Set{}, false)
 	entry := &CacheEntry{}
 	kc.cache["host_1"] = entry
 	assert.False(t, kc.HasCacheBeenUsed("host_1"))
