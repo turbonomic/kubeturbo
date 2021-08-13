@@ -10,7 +10,11 @@ import (
 	"github.com/golang/glog"
 )
 
-const schedAccessCommodityKey string = "schedulable"
+// k8s marks a node as unschedulable when it sees a taint with below key by setting
+// the field spec.unschedulable: true.
+// we handle the unschedulable nodes by marking them with AvailableForPlacement = false
+// so we don't need taints processor to handle this taint via VMPM_ACCESS saperately.
+const unschedulableNodeTaintKey string = "node.kubernetes.io/unschedulable"
 
 type NodeAndPodGetter interface {
 	GetAllNodes() ([]*api.Node, error)
@@ -161,7 +165,8 @@ func getTaintCollection(nodes map[string]*api.Node) map[api.Taint]string {
 		taints := node.Spec.Taints
 
 		for _, taint := range taints {
-			if taint.Effect == api.TaintEffectNoExecute || taint.Effect == api.TaintEffectNoSchedule {
+			if !isUnschedulableNodeTaint(taint) && (taint.Effect == api.TaintEffectNoExecute ||
+				taint.Effect == api.TaintEffectNoSchedule) {
 				taintCollection[taint] = taint.Key + "=" + taint.Value + ":" + string(taint.Effect)
 				glog.V(2).Infof("Found taint (comm key = %s): %+v)", taintCollection[taint], taint)
 			}
@@ -171,6 +176,10 @@ func getTaintCollection(nodes map[string]*api.Node) map[api.Taint]string {
 	glog.V(2).Infof("Created taint collection with %d taints found", len(taintCollection))
 
 	return taintCollection
+}
+
+func isUnschedulableNodeTaint(taint api.Taint) bool {
+	return taint.Key == unschedulableNodeTaintKey
 }
 
 // Creates access commodities sold by VMs based on the taint collection.
@@ -186,7 +195,7 @@ func createTaintAccessComms(node *api.Node, taintCollection map[api.Taint]string
 	visited := make(map[string]bool, 0)
 	for taint, key := range taintCollection {
 		if visited[key] {
-			glog.V(4).Infof("Commodity with key %s for taint %v has already been created", key, taint)
+			glog.V(4).Infof("Commodity with key %s for taint %v already created for node %s", key, taint, node.Name)
 			continue
 		}
 		// If the node doesn't contain the taint, create access commodity
@@ -217,7 +226,7 @@ func createTolerationAccessComms(pod *api.Pod, taintCollection map[api.Taint]str
 	visited := make(map[string]bool, 0)
 	for taint, key := range taintCollection {
 		if visited[key] {
-			glog.V(4).Infof("Commodity with key %s for taint %v has already been created", key, taint)
+			glog.V(4).Infof("Commodity with key %s for taint %v already created for pod %s.", key, taint, pod.Name)
 			continue
 		}
 		// If the pod doesn't have the proper toleration, create access commodity to buy

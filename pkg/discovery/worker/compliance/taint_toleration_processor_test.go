@@ -77,7 +77,7 @@ func TestProcess(t *testing.T) {
 	entityDTOs := []*proto.EntityDTO{&dto1, &dto2, &dto3, &dto4, &dto5, &dto6, &dto7}
 	taintTolerationProcessor.Process(entityDTOs)
 
-	// Check entity DTOs for access commodities created from tatins and tolerations
+	// Check entity DTOs for access commodities created from taints and tolerations
 	checkPodEntity(t, &dto1, "node-1")
 	checkPodEntity(t, &dto2, "node-2")
 	checkPodEntity(t, &dto3, "node-3")
@@ -118,8 +118,14 @@ func (m *mockNodeAndPodGetter) GetAllPods() ([]*api.Pod, error) {
 }
 
 func TestGetTaintCollection(t *testing.T) {
-	taintCollection := getTaintCollection(nodes)
+	// The unschedulable taint with any effect should be skipped from the taints collection
+	// effectively resulting in no access commodity created for the same.
+	unschedulableNodeTaint1 := newTaint(unschedulableNodeTaintKey, "", api.TaintEffectNoSchedule)
+	unschedulableNodeTaint2 := newTaint(unschedulableNodeTaintKey, "", api.TaintEffectNoExecute)
+	nodes[string(n1.UID)].Spec.Taints = append(nodes[string(n1.UID)].Spec.Taints,
+		unschedulableNodeTaint1, unschedulableNodeTaint2)
 
+	taintCollection := getTaintCollection(nodes)
 	fmt.Printf("taintCollection: %++v", taintCollection)
 
 	if len(taintCollection) != 2 {
