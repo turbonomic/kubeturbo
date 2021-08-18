@@ -31,13 +31,6 @@ COPY licenses /licenses
 
 COPY Dockerfile /Dockerfile
 
-### Add md2man package
-RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
-    dnf install -y --setopt=tsflags=nodocs golang-github-cpuguy83-go-md2man && \
-    dnf clean all && \
-
-### help file markdown to man conversion
-    go-md2man -in /tmp/help.md -out /help.1
 
 ### Setup user for build execution and application runtime
 ENV APP_ROOT=/opt/turbonomic \
