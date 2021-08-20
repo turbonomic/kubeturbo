@@ -604,7 +604,7 @@ github.com/thecodeteam/goscaleio/types/v1
 # github.com/turbonomic/turbo-api v0.0.0-20210715215202-c125bbe789ca
 github.com/turbonomic/turbo-api/pkg/api
 github.com/turbonomic/turbo-api/pkg/client
-# github.com/turbonomic/turbo-go-sdk v0.0.0-20210727055052-ae95c7e5f800
+# github.com/turbonomic/turbo-go-sdk v0.0.0-20210820114323-d54aadceaf9e
 ## explicit
 github.com/turbonomic/turbo-go-sdk/pkg
 github.com/turbonomic/turbo-go-sdk/pkg/builder
