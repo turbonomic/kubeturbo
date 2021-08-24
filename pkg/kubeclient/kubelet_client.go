@@ -45,6 +45,8 @@ const (
 
 	ContainerCPUThrottledTotal = "container_cpu_cfs_throttled_periods_total"
 	ContainerCPUTotal          = "container_cpu_cfs_periods_total"
+	ContainerCPUQuota          = "container_spec_cpu_quota"
+	ContainerCPUPeriod         = "container_spec_cpu_period"
 )
 
 type KubeHttpClientInterface interface {
@@ -291,6 +293,8 @@ func TextToThrottlingMetricFamilies(data []byte) (map[string]*dto.MetricFamily, 
 	metricFamilies := make(map[string]*dto.MetricFamily)
 	metricFamilies[ContainerCPUThrottledTotal] = parsed[ContainerCPUThrottledTotal]
 	metricFamilies[ContainerCPUTotal] = parsed[ContainerCPUTotal]
+	metricFamilies[ContainerCPUQuota] = parsed[ContainerCPUQuota]
+	metricFamilies[ContainerCPUPeriod] = parsed[ContainerCPUPeriod]
 
 	return metricFamilies, nil
 }
