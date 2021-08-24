@@ -44,7 +44,7 @@ func (allDataAggregator *allUtilizationDataAggregator) Aggregate(resourceMetrics
 	if !isValid || err != nil {
 		return []float64{}, 0, 0, err
 	}
-	capacity := getResourceCapacity(resourceMetrics)
+	capacity := GetResourceCapacity(resourceMetrics)
 	if capacity == 0.0 {
 		err := fmt.Errorf("error aggregating container utilization data using %s: capacity is 0", allDataAggregator)
 		return []float64{}, 0, 0, err
@@ -85,7 +85,7 @@ func (maxDataAggregator *maxUtilizationDataAggregator) Aggregate(resourceMetrics
 	if !isValid || err != nil {
 		return []float64{}, 0, 0, err
 	}
-	capacity := getResourceCapacity(resourceMetrics)
+	capacity := GetResourceCapacity(resourceMetrics)
 	if capacity == 0.0 {
 		err := fmt.Errorf("error aggregating container utilization data using %s: capacity is 0", maxDataAggregator)
 		return []float64{}, 0, 0, err

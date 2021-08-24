@@ -111,10 +111,7 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 				}
 				// Get max container CPU value as containerSpec VCPU capacity which matches the logic in
 				// container_usage_data_aggregator#Aggregate
-				containerSpecVCPUCapacity := float64(0)
-				for _, containerVCPUCapacity := range containerCPUMetrics.Capacity {
-					containerSpecVCPUCapacity = math.Max(containerSpecVCPUCapacity, containerVCPUCapacity)
-				}
+				containerSpecVCPUCapacity := aggregation.GetResourceCapacity(containerCPUMetrics)
 				aggregatedCap, aggregatedUsed, aggregatedPeak :=
 					aggregateThrottlingSamples(containerSpecMetrics.ContainerSpecId, containerSpecVCPUCapacity, typedUsed)
 				commSoldBuilder.Capacity(aggregatedCap)
