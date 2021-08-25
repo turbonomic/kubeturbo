@@ -201,15 +201,15 @@ func aggregateThrottlingSamples(containerSpecId string, containerSpecVCPUCapacit
 func filterContainerThrottlingSamples(containerSpecId string, singleContainerSamples []metrics.ThrottlingCumulative, containerSpecVCPUCapacity float64) []metrics.ThrottlingCumulative {
 	var filteredSamples []metrics.ThrottlingCumulative
 	for _, sample := range singleContainerSamples {
-		if int(math.Round(sample.CPULimits)) == int(math.Round(containerSpecVCPUCapacity)) {
+		if int(math.Round(sample.CPULimit)) == int(math.Round(containerSpecVCPUCapacity)) {
 			filteredSamples = append(filteredSamples, sample)
-		} else if sample.CPULimits != 0 {
+		} else if sample.CPULimit != 0 {
 			// Log a message only when CPU limit of container sample is not 0, which means CPU limit is defined for corresponding
 			// container.
 			// When CPU limit is not defined on a container, VCPU capacity is node VCPU capacity. We don't need to log
 			// such valid case.
 			glog.V(3).Infof("Container data sample with CPU limits %v collected at timestamp %v doesn't match VCPU capacity %v for ContainerSpec %s. Skip this data sample.",
-				sample.CPULimits, sample.Timestamp, containerSpecVCPUCapacity, containerSpecId)
+				sample.CPULimit, sample.Timestamp, containerSpecVCPUCapacity, containerSpecId)
 		}
 	}
 	return filteredSamples

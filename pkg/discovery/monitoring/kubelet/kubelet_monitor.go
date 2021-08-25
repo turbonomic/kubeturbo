@@ -247,16 +247,24 @@ func parseMetricFamilies(metricFamilies map[string]*dto.MetricFamily) map[string
 				tm = &throttlingMetric{}
 			}
 			if metricFamily.GetType() == dto.MetricType_COUNTER {
-				if metricName == kubeclient.ContainerCPUTotal {
+				switch metricName {
+				case kubeclient.ContainerCPUTotal:
 					tm.cpuTotal = metric.Counter.GetValue()
-				} else {
+				case kubeclient.ContainerCPUThrottledTotal:
 					tm.cpuThrottled = metric.Counter.GetValue()
+				default:
+					glog.Errorf("Unsupported counter metric %s", metricName)
+					continue
 				}
 			} else if metricFamily.GetType() == dto.MetricType_GAUGE {
-				if metricName == kubeclient.ContainerCPUQuota {
+				switch metricName {
+				case kubeclient.ContainerCPUQuota:
 					tm.cpuQuota = metric.Gauge.GetValue()
-				} else {
+				case kubeclient.ContainerCPUPeriod:
 					tm.cpuPeriod = metric.Gauge.GetValue()
+				default:
+					glog.Errorf("Unsupported gauge metric %s", metricName)
+					continue
 				}
 			}
 			parsed[metricID] = tm
@@ -494,15 +502,15 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats, timestamp int6
 }
 
 func (m *KubeletMonitor) genThrottlingMetrics(etype metrics.DiscoveredEntityType, key string, tm *throttlingMetric, timestamp int64) {
-	cpuLimits := float64(0)
+	cpuLimit := float64(0)
 	if tm.cpuQuota != 0 && tm.cpuPeriod != 0 {
-		cpuLimits = tm.cpuQuota * 1000 / tm.cpuPeriod
+		cpuLimit = tm.cpuQuota * 1000 / tm.cpuPeriod
 	}
 	metric := metrics.NewEntityResourceMetric(etype, key, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
 			Throttled: tm.cpuThrottled,
 			Total:     tm.cpuTotal,
-			CPULimits: cpuLimits,
+			CPULimit:  cpuLimit,
 			Timestamp: timestamp,
 		}})
 	m.metricSink.AddNewMetricEntries(metric)

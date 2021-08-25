@@ -99,19 +99,19 @@ func createContainerMetricCumulativeThrottling(thr1, tot1, cpu1, thr2, tot2, cpu
 		{
 			Throttled: thr1,
 			Total:     tot1,
-			CPULimits: cpu1,
+			CPULimit:  cpu1,
 			Timestamp: t1,
 		},
 		{
 			Throttled: thr2,
 			Total:     tot2,
-			CPULimits: cpu2,
+			CPULimit:  cpu2,
 			Timestamp: t2,
 		},
 		{
 			Throttled: thr3,
 			Total:     tot3,
-			CPULimits: cpu3,
+			CPULimit:  cpu3,
 			Timestamp: t3,
 		},
 	}

@@ -306,7 +306,35 @@ func TestGenThrottlingMetrics(t *testing.T) {
 	expectedThrottlingMetricValue := []metrics.ThrottlingCumulative{{
 		Throttled: 2,
 		Total:     10,
-		CPULimits: 200,
+		CPULimit:  200,
+		Timestamp: timestamp,
+	}}
+	if !reflect.DeepEqual(expectedThrottlingMetricValue, throttlingMetricValue) {
+		t.Errorf("genThrottlingMetrics() expected: %v, actual: %v", expectedThrottlingMetricValue, throttlingMetricValue)
+	}
+}
+
+func TestGenThrottlingMetricsWithoutCPULimit(t *testing.T) {
+	kubeletMonitorConf := &KubeletMonitorConfig{}
+	kubeletMonitor, _ := NewKubeletMonitor(kubeletMonitorConf, true)
+
+	throttlingMetric := &throttlingMetric{
+		cpuThrottled: 2,
+		cpuTotal:     10,
+		cpuQuota:     0,
+		cpuPeriod:    10000,
+	}
+	metricID := "cpu_throttling_metric"
+	kubeletMonitor.genThrottlingMetrics(metrics.ContainerType, metricID, throttlingMetric, timestamp)
+	key := metrics.GenerateEntityResourceMetricUID(metrics.ContainerType, metricID, metrics.VCPUThrottling, metrics.Used)
+	metric, _ := kubeletMonitor.metricSink.GetMetric(key)
+	throttlingMetricValue, ok := metric.GetValue().([]metrics.ThrottlingCumulative)
+
+	assert.True(t, ok)
+	expectedThrottlingMetricValue := []metrics.ThrottlingCumulative{{
+		Throttled: 2,
+		Total:     10,
+		CPULimit:  0,
 		Timestamp: timestamp,
 	}}
 	if !reflect.DeepEqual(expectedThrottlingMetricValue, throttlingMetricValue) {
