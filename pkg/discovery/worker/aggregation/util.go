@@ -20,7 +20,13 @@ func isResourceMetricsValid(resourceMetrics *repository.ContainerMetrics, dataAg
 	return usedPoints, true, nil
 }
 
-// Get the max of resource capacity values from all container replicas.
+// Get the max of resource capacity values from all container replicas. This function is used to aggregate container
+// capacity values to ContainerSpec capacity.
+//
+// 	TODO: It's possible that main discovery happens during the rolling update of a K8s Deployment so that for the same
+//	 container spc, some container replicas have previous larger resource limits/requests and others have the updated
+//	 smaller values. In this case, max capacity is not latest actual value but won't cause unexpected results in Turbo
+//	 server side. We could extract the correct resource limits/requests from parent controller instead of simply using max.
 func GetResourceCapacity(resourceMetrics *repository.ContainerMetrics) float64 {
 	capacity := 0.0
 	for _, capVal := range resourceMetrics.Capacity {

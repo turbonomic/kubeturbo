@@ -109,8 +109,7 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 					glog.Errorf("CPU metrics do not exist in resource metrics for ContainerSpec %s", containerSpecMetrics.ContainerSpecId)
 					continue
 				}
-				// Get max container CPU value as containerSpec VCPU capacity which matches the logic in
-				// container_usage_data_aggregator#Aggregate
+				// Get VCPU capacity for containerSpec from container CPU metrics.
 				containerSpecVCPUCapacity := aggregation.GetResourceCapacity(containerCPUMetrics)
 				aggregatedCap, aggregatedUsed, aggregatedPeak :=
 					aggregateThrottlingSamples(containerSpecMetrics.ContainerSpecId, containerSpecVCPUCapacity, typedUsed)
