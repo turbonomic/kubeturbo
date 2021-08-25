@@ -431,9 +431,8 @@ func (s *VMTServer) startHttp() {
 // handleExit disconnects the tap service from Turbo service when Kubeturbo is shotdown
 func handleExit(disconnectFunc disconnectFromTurboFunc) { // k8sTAPService *kubeturbo.K8sTAPService) {
 	glog.V(4).Infof("*** Handling Kubeturbo Termination ***")
-	sigChan := make(chan os.Signal)
+	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan,
-		os.Interrupt,
 		syscall.SIGTERM,
 		syscall.SIGINT,
 		syscall.SIGQUIT,
