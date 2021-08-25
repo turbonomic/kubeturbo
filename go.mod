@@ -35,6 +35,7 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1
+	github.com/deckarep/golang-set v1.7.1
 	github.com/openshift/client-go v0.0.0-20210409155308-a8e62c60e930
 	// openshift cluster api for cluster-api based node provision and suspend
 	// TODO (fix this): There are two observed problems here:
