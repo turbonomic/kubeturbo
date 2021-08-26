@@ -20,10 +20,14 @@ func isResourceMetricsValid(resourceMetrics *repository.ContainerMetrics, dataAg
 	return usedPoints, true, nil
 }
 
-// Use the max of resource capacity values from all container replicas.
-// CPU capacity has been converted from milli-cores to MHz. This will make the aggregated CPU capacity on container
-// spec more consistent if container replicas are on different nodes with different CPU frequency.
-func getResourceCapacity(resourceMetrics *repository.ContainerMetrics) float64 {
+// Get the max of resource capacity values from all container replicas. This function is used to aggregate container
+// capacity values to ContainerSpec capacity.
+//
+// 	TODO: It's possible that main discovery happens during the rolling update of a K8s Deployment so that for the same
+//	 container spc, some container replicas have previous larger resource limits/requests and others have the updated
+//	 smaller values. In this case, max capacity is not latest actual value but won't cause unexpected results in Turbo
+//	 server side. We could extract the correct resource limits/requests from parent controller instead of simply using max.
+func GetResourceCapacity(resourceMetrics *repository.ContainerMetrics) float64 {
 	capacity := 0.0
 	for _, capVal := range resourceMetrics.Capacity {
 		capacity = math.Max(capacity, capVal)

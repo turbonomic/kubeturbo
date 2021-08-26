@@ -42,7 +42,7 @@ func (avgUsageDataAggregator *avgUsageDataAggregator) Aggregate(resourceMetrics 
 	if !isValid || err != nil {
 		return 0.0, 0.0, 0.0, err
 	}
-	capacity := getResourceCapacity(resourceMetrics)
+	capacity := GetResourceCapacity(resourceMetrics)
 	usedSum := 0.0
 	peak := 0.0
 	for _, usedPoint := range usedPoints {
@@ -67,10 +67,7 @@ func (maxUsageDataAggregator *maxUsageDataAggregator) Aggregate(resourceMetrics 
 	if !isValid || err != nil {
 		return 0.0, 0.0, 0.0, err
 	}
-	capacity := getResourceCapacity(resourceMetrics)
-	for _, capVal := range resourceMetrics.Capacity {
-		capacity = math.Max(capacity, capVal)
-	}
+	capacity := GetResourceCapacity(resourceMetrics)
 	maxUsed := 0.0
 	for _, usedPoint := range usedPoints {
 		maxUsed = math.Max(maxUsed, usedPoint.Value)

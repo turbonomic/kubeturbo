@@ -212,6 +212,8 @@ type ThrottlingCumulative struct {
 	Throttled float64
 	// Cumulative total number of runnable periods for the resource
 	Total float64
+	// Container CPU limit when collecting this set of throttling metrics
+	CPULimit float64
 	// Time at which the metric value is collected
 	Timestamp int64
 }

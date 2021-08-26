@@ -100,15 +100,19 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 		}
 		commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(commodityType)
 
-		// Aggregate container replicas utilization data.
-		// Note that the returned dataIntervalMs is not the real sampling interval because there could be multiple data
-		// points from container replicas discovered at the same time in one set of data samples. This is just a calculated
-		// equivalent interval between 2 data points to be fed into percentile based algorithm in Turbo server side.
-		// We don't need utilization data for VCPU Throttling and average aggregation strategies are not applicable.
 		if resourceType == metrics.VCPUThrottling {
+			// We don't need utilization data for VCPU Throttling and average aggregation strategies are not applicable.
 			typedUsed, ok := resourceMetrics.Used.([][]metrics.ThrottlingCumulative)
 			if ok {
-				aggregatedCap, aggregatedUsed, aggregatedPeak := aggregateThrottlingSamples(containerSpecMetrics.ContainerSpecId, typedUsed)
+				containerCPUMetrics, exists := containerSpecMetrics.ContainerMetrics[metrics.CPU]
+				if !exists {
+					glog.Errorf("CPU metrics do not exist in resource metrics for ContainerSpec %s", containerSpecMetrics.ContainerSpecId)
+					continue
+				}
+				// Get VCPU capacity for containerSpec from container CPU metrics.
+				containerSpecVCPUCapacity := aggregation.GetResourceCapacity(containerCPUMetrics)
+				aggregatedCap, aggregatedUsed, aggregatedPeak :=
+					aggregateThrottlingSamples(containerSpecMetrics.ContainerSpecId, containerSpecVCPUCapacity, typedUsed)
 				commSoldBuilder.Capacity(aggregatedCap)
 				commSoldBuilder.Peak(aggregatedPeak)
 				commSoldBuilder.Used(aggregatedUsed)
@@ -117,6 +121,10 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 				glog.Warningf("Invalid throttling metrics type: expected: [][]metrics.ThrottlingCumulative, got: %T.", resourceMetrics.Used)
 			}
 		} else {
+			// Aggregate container replicas utilization data.
+			// Note that the returned dataIntervalMs is not the real sampling interval because there could be multiple data
+			// points from container replicas discovered at the same time in one set of data samples. This is just a calculated
+			// equivalent interval between 2 data points to be fed into percentile based algorithm in Turbo server side.
 			utilizationDataPoints, lastPointTimestamp, dataIntervalMs, err := builder.containerUtilizationDataAggregator.Aggregate(resourceMetrics)
 			if err != nil {
 				glog.Errorf("Error aggregating %s utilization data for ContainerSpec %s, %v",
@@ -161,10 +169,12 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 // Throttled values is the percentage of overall throttled counter sum wrt the overall total counter sum
 // across all containers. Peak is the peak of peaks, ie. the peak of individual container peaks calculated
 // from diff of subsequent samples per container.
-func aggregateThrottlingSamples(containerSpecId string, samples [][]metrics.ThrottlingCumulative) (float64, float64, float64) {
+func aggregateThrottlingSamples(containerSpecId string, containerSpecVCPUCapacity float64, samples [][]metrics.ThrottlingCumulative) (float64, float64, float64) {
 	var throttledOverall, totalOverall, peakOverall float64
 	for _, singleContainerSamples := range samples {
-		containerThrottled, containerTotal, containerPeak, ok := aggregateContainerThrottlingSamples("", singleContainerSamples)
+		// Include container samples only if corresponding CPU limit is same as containerSpec VCPU capacity.
+		filteredContainerSamples := filterContainerThrottlingSamples(containerSpecId, singleContainerSamples, containerSpecVCPUCapacity)
+		containerThrottled, containerTotal, containerPeak, ok := aggregateContainerThrottlingSamples("", filteredContainerSamples)
 		if !ok {
 			// We don't have enough samples to calculate this value.
 			continue
@@ -185,4 +195,21 @@ func aggregateThrottlingSamples(containerSpecId string, samples [][]metrics.Thro
 	}
 
 	return 100, avgThrottledOverall, peakOverall
+}
+
+func filterContainerThrottlingSamples(containerSpecId string, singleContainerSamples []metrics.ThrottlingCumulative, containerSpecVCPUCapacity float64) []metrics.ThrottlingCumulative {
+	var filteredSamples []metrics.ThrottlingCumulative
+	for _, sample := range singleContainerSamples {
+		if int(math.Round(sample.CPULimit)) == int(math.Round(containerSpecVCPUCapacity)) {
+			filteredSamples = append(filteredSamples, sample)
+		} else if sample.CPULimit != 0 {
+			// Log a message only when CPU limit of container sample is not 0, which means CPU limit is defined for corresponding
+			// container.
+			// When CPU limit is not defined on a container, VCPU capacity is node VCPU capacity. We don't need to log
+			// such valid case.
+			glog.V(3).Infof("Container data sample with CPU limits %v collected at timestamp %v doesn't match VCPU capacity %v for ContainerSpec %s. Skip this data sample.",
+				sample.CPULimit, sample.Timestamp, containerSpecVCPUCapacity, containerSpecId)
+		}
+	}
+	return filteredSamples
 }

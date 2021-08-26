@@ -162,33 +162,51 @@ func (m *KubeletMonitor) generateThrottlingMetrics(metricFamilies map[string]*dt
 	parsedMetrics := parseMetricFamilies(metricFamilies)
 	for metricID, tm := range parsedMetrics {
 		if tm != nil {
-			glog.V(4).Infof("Throttling Metrics for container: %s, cpuThrottled: %.3f, cpuTotal: %.3f.", metricID, tm.cpuThrottled, tm.cpuTotal)
-			m.genThrottlingMetrics(metrics.ContainerType, metricID, tm.cpuThrottled, tm.cpuTotal, timestamp)
+			glog.V(4).Infof("Throttling Metrics for container: %s, cpuThrottled: %.3f, cpuTotal: %.3f, cpuQuota: %.3f, cpuPeriod: %.3f",
+				metricID, tm.cpuThrottled, tm.cpuTotal, tm.cpuQuota, tm.cpuPeriod)
+			m.genThrottlingMetrics(metrics.ContainerType, metricID, tm, timestamp)
 		}
 	}
 }
 
 type throttlingMetric struct {
+	// container_cpu_cfs_throttled_periods_total
 	cpuThrottled float64
-	cpuTotal     float64
+	// container_cpu_cfs_periods_total
+	cpuTotal float64
+	// container_spec_cpu_quota
+	cpuQuota float64
+	// container_spec_cpu_period
+	cpuPeriod float64
 }
 
-// parseMetricFamilies parses the incoming prometheus format metric from two metric families
-// "container_cpu_cfs_throttled_periods_total" and "container_cpu_cfs_periods_total".
-// It deciphers the container id from the labels on the metric and merges the two for
+// parseMetricFamilies parses the incoming prometheus format metric from four metric families
+// "container_cpu_cfs_throttled_periods_total", "container_cpu_cfs_periods_total", "container_spec_cpu_quota"
+// and "container_spec_cpu_period".
+// It deciphers the container id from the labels on the metric and merges the four for
 // each container into "type throttlingMetric struct".
 // Example:
 // in:
+// # HELP container_cpu_cfs_periods_total Number of elapsed enforcement period intervals.
 // # TYPE container_cpu_cfs_periods_total counter
 // container_cpu_cfs_periods_total{container="metallb-speaker",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af/8e1a2ff0f116c9d086af53cbd7430dced0e70fed104aea79e3891870564aed38",image="sha256:8c49f7de2c13b87026d7afb04f35494e5d9ce6b5eeeb7f8983d38e601d0ac910",name="k8s_metallb-speaker_metallb-speaker-m29mf_ccp_8266a379-dd56-42f8-8af0-19fc0d8ea3af_16",namespace="ccp",pod="metallb-speaker-m29mf"} 10 1616975907597
+// # HELP container_cpu_cfs_throttled_periods_total Number of throttled period intervals.
 // # TYPE container_cpu_cfs_throttled_periods_total counter
 // container_cpu_cfs_throttled_periods_total{container="metallb-speaker",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af/8e1a2ff0f116c9d086af53cbd7430dced0e70fed104aea79e3891870564aed38",image="sha256:8c49f7de2c13b87026d7afb04f35494e5d9ce6b5eeeb7f8983d38e601d0ac910",name="k8s_metallb-speaker_metallb-speaker-m29mf_ccp_8266a379-dd56-42f8-8af0-19fc0d8ea3af_16",namespace="ccp",pod="metallb-speaker-m29mf"} 5 1616976197080
+// # HELP container_spec_cpu_quota CPU quota of the container.
+// # TYPE container_spec_cpu_quota gauge
+// container_spec_cpu_quota{container="metallb-speaker",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af/8e1a2ff0f116c9d086af53cbd7430dced0e70fed104aea79e3891870564aed38",image="sha256:8c49f7de2c13b87026d7afb04f35494e5d9ce6b5eeeb7f8983d38e601d0ac910",name="k8s_metallb-speaker_metallb-speaker-m29mf_ccp_8266a379-dd56-42f8-8af0-19fc0d8ea3af_16",namespace="ccp",pod="metallb-speaker-m29mf"} 10000 1629775344665
+// # HELP container_spec_cpu_period CPU period of the container.
+// # TYPE container_spec_cpu_period gauge
+// container_spec_cpu_period{container="metallb-speaker",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af/8e1a2ff0f116c9d086af53cbd7430dced0e70fed104aea79e3891870564aed38",image="sha256:8c49f7de2c13b87026d7afb04f35494e5d9ce6b5eeeb7f8983d38e601d0ac910",name="k8s_metallb-speaker_metallb-speaker-m29mf_ccp_8266a379-dd56-42f8-8af0-19fc0d8ea3af_16",namespace="ccp",pod="metallb-speaker-m29mf"} 100000 1629775404902
 //
 //out:
 // map[string]*throttlingMetric{
 //		"ccp/metallb-speaker-m29mf/metallb-speaker": {
 //			cpuThrottled: 5,
 //			cpuTotal:     10,
+//          cpuQuota:     10000,
+//          cpuPeriod:    100000,
 //		},
 //	}
 //
@@ -196,10 +214,10 @@ type throttlingMetric struct {
 func parseMetricFamilies(metricFamilies map[string]*dto.MetricFamily) map[string]*throttlingMetric {
 	parsed := make(map[string]*throttlingMetric)
 	for metricName, metricFamily := range metricFamilies {
-		if metricFamily.GetType() != dto.MetricType_COUNTER {
+		if metricFamily.GetType() != dto.MetricType_COUNTER && metricFamily.GetType() != dto.MetricType_GAUGE {
 			// We ideally should not land into this situation
-			glog.Warningf("Expected metrics type: %v, but received type: %v"+
-				"while parsing throttling metrics.", dto.MetricType_COUNTER, metricFamily.GetType())
+			glog.Warningf("Expected metrics type: %v or %v, but received type: %v"+
+				"while parsing throttling metrics.", dto.MetricType_COUNTER, dto.MetricType_GAUGE, metricFamily.GetType())
 			return parsed
 		}
 		for _, metric := range metricFamily.GetMetric() {
@@ -218,8 +236,9 @@ func parseMetricFamilies(metricFamilies map[string]*dto.MetricFamily) map[string
 				default:
 				}
 			}
-			if name == "" {
-				// This metric is for pod not container
+			if name == "" || name == "POD" {
+				// A metric with name as "" are for pod not container and a metric with name as "POD" is parent cgroup
+				// for this container and tracks stats for all the containers in the pod. Skip these metrics.
 				continue
 			}
 			metricID := fmt.Sprintf("%s/%s/%s", namespace, podName, name)
@@ -227,10 +246,26 @@ func parseMetricFamilies(metricFamilies map[string]*dto.MetricFamily) map[string
 			if !exists {
 				tm = &throttlingMetric{}
 			}
-			if metricName == kubeclient.ContainerCPUTotal {
-				tm.cpuTotal = metric.Counter.GetValue()
-			} else {
-				tm.cpuThrottled = metric.Counter.GetValue()
+			if metricFamily.GetType() == dto.MetricType_COUNTER {
+				switch metricName {
+				case kubeclient.ContainerCPUTotal:
+					tm.cpuTotal = metric.Counter.GetValue()
+				case kubeclient.ContainerCPUThrottledTotal:
+					tm.cpuThrottled = metric.Counter.GetValue()
+				default:
+					glog.Errorf("Unsupported counter metric %s", metricName)
+					continue
+				}
+			} else if metricFamily.GetType() == dto.MetricType_GAUGE {
+				switch metricName {
+				case kubeclient.ContainerCPUQuota:
+					tm.cpuQuota = metric.Gauge.GetValue()
+				case kubeclient.ContainerCPUPeriod:
+					tm.cpuPeriod = metric.Gauge.GetValue()
+				default:
+					glog.Errorf("Unsupported gauge metric %s", metricName)
+					continue
+				}
 			}
 			parsed[metricID] = tm
 		}
@@ -466,11 +501,16 @@ func (m *KubeletMonitor) parseContainerStats(pod *stats.PodStats, timestamp int6
 	return totalUsedCPU, totalUsedMem, allMetricsMissing
 }
 
-func (m *KubeletMonitor) genThrottlingMetrics(etype metrics.DiscoveredEntityType, key string, throttled, total float64, timestamp int64) {
+func (m *KubeletMonitor) genThrottlingMetrics(etype metrics.DiscoveredEntityType, key string, tm *throttlingMetric, timestamp int64) {
+	cpuLimit := float64(0)
+	if tm.cpuQuota != 0 && tm.cpuPeriod != 0 {
+		cpuLimit = tm.cpuQuota * 1000 / tm.cpuPeriod
+	}
 	metric := metrics.NewEntityResourceMetric(etype, key, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: throttled,
-			Total:     total,
+			Throttled: tm.cpuThrottled,
+			Total:     tm.cpuTotal,
+			CPULimit:  cpuLimit,
 			Timestamp: timestamp,
 		}})
 	m.metricSink.AddNewMetricEntries(metric)

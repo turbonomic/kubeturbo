@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"reflect"
 	"testing"
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
@@ -284,6 +286,62 @@ func TestParseStats(t *testing.T) {
 	}
 }
 
+func TestGenThrottlingMetrics(t *testing.T) {
+	kubeletMonitorConf := &KubeletMonitorConfig{}
+	kubeletMonitor, _ := NewKubeletMonitor(kubeletMonitorConf, true)
+
+	throttlingMetric := &throttlingMetric{
+		cpuThrottled: 2,
+		cpuTotal:     10,
+		cpuQuota:     2000,
+		cpuPeriod:    10000,
+	}
+	metricID := "cpu_throttling_metric"
+	kubeletMonitor.genThrottlingMetrics(metrics.ContainerType, metricID, throttlingMetric, timestamp)
+	key := metrics.GenerateEntityResourceMetricUID(metrics.ContainerType, metricID, metrics.VCPUThrottling, metrics.Used)
+	metric, _ := kubeletMonitor.metricSink.GetMetric(key)
+	throttlingMetricValue, ok := metric.GetValue().([]metrics.ThrottlingCumulative)
+
+	assert.True(t, ok)
+	expectedThrottlingMetricValue := []metrics.ThrottlingCumulative{{
+		Throttled: 2,
+		Total:     10,
+		CPULimit:  200,
+		Timestamp: timestamp,
+	}}
+	if !reflect.DeepEqual(expectedThrottlingMetricValue, throttlingMetricValue) {
+		t.Errorf("genThrottlingMetrics() expected: %v, actual: %v", expectedThrottlingMetricValue, throttlingMetricValue)
+	}
+}
+
+func TestGenThrottlingMetricsWithoutCPULimit(t *testing.T) {
+	kubeletMonitorConf := &KubeletMonitorConfig{}
+	kubeletMonitor, _ := NewKubeletMonitor(kubeletMonitorConf, true)
+
+	throttlingMetric := &throttlingMetric{
+		cpuThrottled: 2,
+		cpuTotal:     10,
+		cpuQuota:     0,
+		cpuPeriod:    10000,
+	}
+	metricID := "cpu_throttling_metric"
+	kubeletMonitor.genThrottlingMetrics(metrics.ContainerType, metricID, throttlingMetric, timestamp)
+	key := metrics.GenerateEntityResourceMetricUID(metrics.ContainerType, metricID, metrics.VCPUThrottling, metrics.Used)
+	metric, _ := kubeletMonitor.metricSink.GetMetric(key)
+	throttlingMetricValue, ok := metric.GetValue().([]metrics.ThrottlingCumulative)
+
+	assert.True(t, ok)
+	expectedThrottlingMetricValue := []metrics.ThrottlingCumulative{{
+		Throttled: 2,
+		Total:     10,
+		CPULimit:  0,
+		Timestamp: timestamp,
+	}}
+	if !reflect.DeepEqual(expectedThrottlingMetricValue, throttlingMetricValue) {
+		t.Errorf("genThrottlingMetrics() expected: %v, actual: %v", expectedThrottlingMetricValue, throttlingMetricValue)
+	}
+}
+
 func TestParseMetricFamilies(t *testing.T) {
 	// This sample is an actual metric copied from a live cluster to also document
 	// how an actual metric retrieved from kubelet would look like.
@@ -301,6 +359,18 @@ container_cpu_cfs_throttled_periods_total{container="",id="/kubepods/burstable/p
 container_cpu_cfs_throttled_periods_total{container="",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af",image="",name="",namespace="ccp",pod="metallb-speaker-m29mf"} 38909 1616976189755
 container_cpu_cfs_throttled_periods_total{container="metallb-speaker",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af/8e1a2ff0f116c9d086af53cbd7430dced0e70fed104aea79e3891870564aed38",image="sha256:8c49f7de2c13b87026d7afb04f35494e5d9ce6b5eeeb7f8983d38e601d0ac910",name="k8s_metallb-speaker_metallb-speaker-m29mf_ccp_8266a379-dd56-42f8-8af0-19fc0d8ea3af_16",namespace="ccp",pod="metallb-speaker-m29mf"} 5 1616976197080
 container_cpu_cfs_throttled_periods_total{container="node-exporter",id="/kubepods/burstable/pod278c96f7-c22a-466a-85ae-69f221705a38/6a79a7d41fcfb3347875e6bfa17a7c6daa7911ff42a0177906a2005b1e8ffa12",image="sha256:0e0218889c33b5fbb9e158d45ff6193c7c145b4ce3ec348045626cfa09f8331d",name="k8s_node-exporter_node-exporter-pmngv_lens-metrics_278c96f7-c22a-466a-85ae-69f221705a38_1",namespace="lens-metrics",pod="node-exporter-pmngv"} 15 1616976196348
+# HELP container_spec_cpu_quota CPU quota of the container.
+# TYPE container_spec_cpu_quota gauge
+container_spec_cpu_quota{container="",id="/kubepods/burstable/pod278c96f7-c22a-466a-85ae-69f221705a38",image="",name="",namespace="lens-metrics",pod="node-exporter-pmngv"} 20000 1616975920718
+container_spec_cpu_quota{container="",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af",image="",name="",namespace="ccp",pod="metallb-speaker-m29mf"} 10000 1616976289754
+container_spec_cpu_quota{container="metallb-speaker",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af/8e1a2ff0f116c9d086af53cbd7430dced0e70fed104aea79e3891870564aed38",image="sha256:8c49f7de2c13b87026d7afb04f35494e5d9ce6b5eeeb7f8983d38e601d0ac910",name="k8s_metallb-speaker_metallb-speaker-m29mf_ccp_8266a379-dd56-42f8-8af0-19fc0d8ea3af_16",namespace="ccp",pod="metallb-speaker-m29mf"} 10000 1629775344665
+container_spec_cpu_quota{container="node-exporter",id="/kubepods/burstable/pod278c96f7-c22a-466a-85ae-69f221705a38/6a79a7d41fcfb3347875e6bfa17a7c6daa7911ff42a0177906a2005b1e8ffa12",image="sha256:0e0218889c33b5fbb9e158d45ff6193c7c145b4ce3ec348045626cfa09f8331d",name="k8s_node-exporter_node-exporter-pmngv_lens-metrics_278c96f7-c22a-466a-85ae-69f221705a38_1",namespace="lens-metrics",pod="node-exporter-pmngv"} 20000 1616975915711
+# HELP container_spec_cpu_period CPU period of the container.
+# TYPE container_spec_cpu_period gauge
+container_spec_cpu_period{container="",id="/kubepods/burstable/pod278c96f7-c22a-466a-85ae-69f221705a38",image="",name="",namespace="lens-metrics",pod="node-exporter-pmngv"} 100000 1616975920718
+container_spec_cpu_period{container="",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af",image="",name="",namespace="ccp",pod="metallb-speaker-m29mf"} 100000 1616976289754
+container_spec_cpu_period{container="metallb-speaker",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af/8e1a2ff0f116c9d086af53cbd7430dced0e70fed104aea79e3891870564aed38",image="sha256:8c49f7de2c13b87026d7afb04f35494e5d9ce6b5eeeb7f8983d38e601d0ac910",name="k8s_metallb-speaker_metallb-speaker-m29mf_ccp_8266a379-dd56-42f8-8af0-19fc0d8ea3af_16",namespace="ccp",pod="metallb-speaker-m29mf"} 100000 1629775404902
+container_spec_cpu_period{container="node-exporter",id="/kubepods/burstable/pod278c96f7-c22a-466a-85ae-69f221705a38/6a79a7d41fcfb3347875e6bfa17a7c6daa7911ff42a0177906a2005b1e8ffa12",image="sha256:0e0218889c33b5fbb9e158d45ff6193c7c145b4ce3ec348045626cfa09f8331d",name="k8s_node-exporter_node-exporter-pmngv_lens-metrics_278c96f7-c22a-466a-85ae-69f221705a38_1",namespace="lens-metrics",pod="node-exporter-pmngv"} 100000 1616975915711
 `)
 	mfs, err := kubeclient.TextToThrottlingMetricFamilies(metricSample)
 	if err != nil {
@@ -320,20 +390,29 @@ func verifyParsedMetrics(t *testing.T, got map[string]*throttlingMetric) {
 	// type throttlingMetric struct {
 	// cpuThrottled float64
 	// cpuTotal     float64
+	// cpuQuota     float64
+	// cpuPeriod    float64
 	// }
 	// from the two separately reported metrics for each container.
-	// The parsing ignores the metrics with container names = ""
+	// The parsing ignores the metrics with container names = "" or "POD"
 	// These metrics are sum total of all containers for a pod.
 	expected := map[string]*throttlingMetric{
 		"ccp/metallb-speaker-m29mf/metallb-speaker": {
 			cpuThrottled: 5,
 			cpuTotal:     10,
+			cpuQuota:     10000,
+			cpuPeriod:    100000,
 		},
 		"lens-metrics/node-exporter-pmngv/node-exporter": {
 			cpuThrottled: 15,
 			cpuTotal:     20,
+			cpuQuota:     20000,
+			cpuPeriod:    100000,
 		},
 	}
+
+	// Returned throttlingMetrics only include 2 metrics
+	assert.Equal(t, 2, len(got))
 
 	for key, expectedMetrics := range expected {
 		gotMetrics, exists := got[key]
