@@ -9,7 +9,7 @@ move a pod which is controlled by a ReplicationController, or ReplicaSet, or Dep
    
  2. Delete the original Pod
  
-   Once the original Pod get deleted, the controller will create another new Pod **podB**.
+   Wait for the new pod to be ready and delete the original pod. Once the original Pod get deleted, the controller will create another new Pod **podB**.
    
  3. Update the new Pod **podA** by adding the labels
  
