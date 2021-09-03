@@ -47,8 +47,13 @@ func copyPodInfo(oldPod, newPod *api.Pod, copySpec bool) {
 		spec.Hostname = ""
 		spec.Subdomain = ""
 		spec.NodeName = ""
-
 		newPod.Spec = spec
+
+		// TODO: Check why were annotations never copied over in the legacy code.
+		// The spec is copied over for bare pod moves and resizes.
+		// We ideally should have the annotations also copied over.
+		//4. annotations
+		newPod.Annotations = oldPod.Annotations
 	}
 
 	return
@@ -62,8 +67,8 @@ func copyPodWithoutLabel(oldPod, newPod *api.Pod) {
 	newPod.OwnerReferences = []metav1.OwnerReference{}
 }
 
-func copyPodWithoutSelectedLabels(oldPod, newPod *api.Pod, excludeKeys []string) {
-	copyPodInfo(oldPod, newPod, false)
+func copyPodWithoutSelectedLabels(oldPod, newPod *api.Pod, excludeKeys []string, copySpec bool) {
+	copyPodInfo(oldPod, newPod, copySpec)
 	// set labels excluding ownership labels (those used by replicasets and replicationcontrollers)
 	newPod.Labels = excludeFromLabels(newPod.Labels, excludeKeys)
 	// set OwnerRef to be empty
@@ -633,38 +638,45 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod,
 		"deployment",        // used by a replicationcontroller to adopt pod
 		"deploymentconfig",  // used by a replicationcontroller to adopt pod
 	}
-	copyPodWithoutSelectedLabels(pod, npod, excludeKeys)
 
-	// copy pod spec, annotations, and labels from the parent
-	kind := parent.GetKind()
-	parentName := parent.GetName()
-	// pod spec
-	podSpecUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "spec", "template", "spec")
-	if err != nil || !found {
-		return nil, fmt.Errorf("movePod: error retrieving podSpec from %s %s: %v", kind, parentName, err)
-	}
-	podSpec := api.PodSpec{}
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(podSpecUnstructured.(map[string]interface{}), &podSpec); err != nil {
-		return nil, fmt.Errorf("movePod: error converting unstructured pod spec to typed pod spec for %s %s: %v", kind, parentName, err)
-	}
-	// annotations
-	annotations := make(map[string]string)
-	annotationsUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "spec", "template", "metadata", "annotations")
-	if err != nil {
-		return nil, fmt.Errorf("movePod: error retrieving annotations from %s %s: %v", kind, parentName, err)
-	}
-	if found {
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(annotationsUnstructured.(map[string]interface{}), &annotations); err != nil {
-			return nil, fmt.Errorf("movePod: error converting unstructured annotations to typed annotations for %s %s: %v", kind, parentName, err)
+	copySpec := true // true = case of bare pod
+	if parent != nil {
+		// copy pod spec, annotations, and labels from the parent
+		kind := parent.GetKind()
+		parentName := parent.GetName()
+		// pod spec from parent
+		podSpecUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "spec", "template", "spec")
+		if err != nil || !found {
+			return nil, fmt.Errorf("movePod: error retrieving podSpec from %s %s: %v", kind, parentName, err)
 		}
+
+		podSpec := api.PodSpec{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(podSpecUnstructured.(map[string]interface{}), &podSpec); err != nil {
+			return nil, fmt.Errorf("movePod: error converting unstructured pod spec to typed pod spec for %s %s: %v", kind, parentName, err)
+		}
+		// annotations also from parent
+		annotations := make(map[string]string)
+		annotationsUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "spec", "template", "metadata", "annotations")
+		if err != nil {
+			return nil, fmt.Errorf("movePod: error retrieving annotations from %s %s: %v", kind, parentName, err)
+		}
+		if found {
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(annotationsUnstructured.(map[string]interface{}), &annotations); err != nil {
+				return nil, fmt.Errorf("movePod: error converting unstructured annotations to typed annotations for %s %s: %v", kind, parentName, err)
+			}
+		}
+		// The podspec and annotations are set here before calling copyPodWithoutSelectedLabels below
+		// For a bare pod both are set from the original pod
+		npod.Spec = podSpec
+		npod.Annotations = annotations
+		copySpec = false
 	}
 
+	copyPodWithoutSelectedLabels(pod, npod, excludeKeys, copySpec)
 	// Set podSpec retrieved from parent. This saves from landing into
 	// problems of sidecar containers and injection systems.
-	npod.Spec = podSpec
 	npod.Spec.NodeName = nodeName
 	npod.Name = genNewPodName(pod)
-	npod.Annotations = annotations
 	// this annotation can be used for future garbage collection if action is interrupted
 	util.AddAnnotation(npod, TurboActionAnnotationKey, TurboMoveAnnotationValue)
 	// This label is used for garbage collection if a given action leaks this pod.
@@ -672,18 +684,19 @@ func createClonePod(client *kclient.Clientset, pod *api.Pod,
 
 	podClient := client.CoreV1().Pods(pod.Namespace)
 	rpod := &api.Pod{}
-	err = wait.PollImmediate(DefaultRetrySleepInterval, DefaultRetryTimeout, func() (bool, error) {
-		rpod, err = podClient.Create(context.TODO(), npod, metav1.CreateOptions{})
-		if err != nil {
+	err := wait.PollImmediate(DefaultRetrySleepInterval, DefaultRetryTimeout, func() (bool, error) {
+		var innerErr error
+		rpod, innerErr = podClient.Create(context.TODO(), npod, metav1.CreateOptions{})
+		if innerErr != nil {
 			// The quota update might not reflect in the admission controller cache immediately
 			// which can still fail the new pod creation even after the quota update.
 			// We retry for a short while before failing in such cases.
-			if updateQuotaToAllowMoves && apierrors.IsForbidden(err) && strings.Contains(err.Error(), "exceeded quota") {
+			if updateQuotaToAllowMoves && apierrors.IsForbidden(innerErr) && strings.Contains(innerErr.Error(), "exceeded quota") {
 				// Wait only if quota update to allow moves is enabled.
 				return false, nil
 			}
 
-			return false, err
+			return false, innerErr
 		}
 		return true, nil
 	})
