@@ -164,7 +164,7 @@ Input GCE.k8s.Node info:
   spec:
     providerID: gce://turbonomic-eng/us-central1-a/gke-enlin-cluster-1-default-pool-b0f2516c-mrl0
 
- Output:  gcp::us-central1::VM::8108478110475488564
+ Output:  gcp::us-central1-a::VM::8108478110475488564
 */
 
 type gceNodeUUIDGetter struct {
@@ -197,16 +197,7 @@ func (gce *gceNodeUUIDGetter) GetUUID(node *api.Node) (string, error) {
 		return "", fmt.Errorf("Invalid")
 	}
 
-	//3. get region by remove the zone suffix
-	if len(parts[1]) < 2 {
-		glog.Errorf("Invalid zone Id: %v", providerId)
-		return "", fmt.Errorf("Invalid")
-	}
-
-	end := len(parts[1]) - 2
-	region := parts[1][0:end]
-
-	result := fmt.Sprintf(gceFormat, region, instanceId)
+	result := fmt.Sprintf(gceFormat, parts[1], instanceId)
 	return result, nil
 }
 

@@ -28,6 +28,24 @@ func mockAzureNode(uuid string) *api.Node {
 	return node
 }
 
+func mockGKENode(uuid string) *api.Node {
+	node := &api.Node{}
+
+	node.Spec.ProviderID = uuid
+	addAnnotation(node, "container.googleapis.com/instance_id", "8108478110475488564")
+	return node
+}
+
+func addAnnotation(node *api.Node, key, value string) {
+	annotations := node.ObjectMeta.Annotations
+	if annotations == nil {
+		annotations = make(map[string]string)
+		node.Annotations = annotations
+	}
+	annotations[key] = value
+	return
+}
+
 func mockVsphereNode(uuid, systemUUID string) *api.Node {
 	node := &api.Node{}
 
@@ -139,6 +157,28 @@ func TestVsphereNodeUUIDGetter_GetUUID(t *testing.T) {
 		}
 		if strings.Compare(result, allIDs) != 0 {
 			t.Errorf("Wrong node UUID %v Vs. %v", result, allIDs)
+		}
+	}
+}
+
+func TestGKENodeUUIDGetter_GetUUID(t *testing.T) {
+	tests := [][]string{
+		{"gce://turbonomic-eng/us-central1-a/gke-enlin-cluster-1-default-pool-b0f2516c-mrl0", "gcp::us-central1-a::VM::8108478110475488564"},
+	}
+
+	gke := &gceNodeUUIDGetter{}
+
+	for _, pair := range tests {
+		node := mockGKENode(pair[0])
+		result, err := gke.GetUUID(node)
+
+		if err != nil {
+			t.Errorf("Failed to get GKE node UUID: %v", err)
+			continue
+		}
+
+		if strings.Compare(result, pair[1]) != 0 {
+			t.Errorf("Wrong node UUID %v Vs. %v", result, pair[1])
 		}
 	}
 }
