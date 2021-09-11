@@ -7,7 +7,7 @@
 http://www.apache.org/licenses/LICENSE-2.0.txt
 
 
-Copyright 2015 Turbonomic
+Copyright 2021 Turbonomic
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,36 +27,56 @@ limitations under the License.
 
 Documentation is being maintained on the Wiki for this project.  Visit [Kubeturbo Wiki](https://github.com/turbonomic/kubeturbo/wiki) for the full documentation, examples and guides.
 
-
 ## Overview 
 
-Kubeturbo leverages [Turbonomic's](https://turbonomic.com/) patented analysis engine to provide visibility and control across the entire stack in order to assure the performance of running micro-services in Kubernetes Pods, as well as the efficiency of underlying infrastructure.
+Kubeturbo leverages [Turbonomic's](https://turbonomic.com/) patented analysis engine to provide observability WITH control across the entire stack in order to assure the performance of running micro-services on Kubernetes platforms, as well as driving efficiency of underlying infrastructure.  You work hard.  Let software make automated resources decisions so you can focus on on-boarding more performant applications.
+
+Use cases and More:
+1. Full Stack Management
+2. Intelligent SLO Scaling
+3. Proactive Rescheduling
+4. What's New
+5. Supported Platforms
 
 
-## Use Cases
-* Full-Stack Visibility by leveraging 50+ existing Turbonomic controllers, from on-prem DataCenter to major public cloud providers. No more shadow IT
-  * From Load Balancer all the way down to your physical Infrastructure
-  * Real-Time resource monitoring across entire DataCenter
-  * Real-Time Cost visibility for your public cloud deployment
+## Full Stack Management
+Starts with Full-Stack Visibility by leveraging 50+ existing Turbonomic controllers, from on-prem DataCenter to major public cloud providers. No more shadow IT
+  * From the Business Application all the way down to your physical Infrastructure
+  * Continuous Real-Time resource management across entire DataCenter
+  * Cost optimization for your public cloud deployment
+<img width="1322" src="https://github.com/evat-pm/images/blob/aa796457175c77b3954a584c1bd68bd2685eacee/fullStack-containerizedApps.png">
 
-<img width="1322" alt="screen shot 2017-06-01 at 10 10 48 am" src="https://cloud.githubusercontent.com/assets/4391815/26683739/cfde3c7e-46b2-11e7-84b5-a39c12f47022.png">
-<img width="1320" alt="screen shot 2017-06-01 at 10 11 54 am" src="https://cloud.githubusercontent.com/assets/4391815/26683749/d7813a30-46b2-11e7-9283-0dbc63769d90.png">
-<img width="1403" alt="screen shot 2017-06-01 at 10 11 03 am" src="https://cloud.githubusercontent.com/assets/4391815/26683745/d3c42a38-46b2-11e7-9e6c-3587a1480afc.png">
+## Intelligent SLO Scaling
+Manage the Trade-offs of Performance and Efficiency with Intelligent Vertical and Horizontal scaling that understands the entire IT stack
+  *	Combining Turbonomic real-time performance monitoring and analysis engine, Turbonomic is able to provide right-sizing and scaling decisions for each service as well as the entire IT stack.
+  *	Scale services based on SLO and simultaneously managed cluster resources to mitigate pending pods
+  * Right-sizing up your Pod limit to avoid OOM and address CPU Throttling
+  * Right-sizing down your Pod requested resource to avoid resource over-provisioning or overspending in public cloud deployment.
+  * Intelligently scale your nodes based on usage, requests, not just pod pending conditions
+<img width="1320" src="https://github.com/evat-pm/images/blob/aa796457175c77b3954a584c1bd68bd2685eacee/sloScaling-actions.png">
+<img width="1320" src="https://github.com/evat-pm/images/blob/aa796457175c77b3954a584c1bd68bd2685eacee/vertical-actions.png">
 
-* Intelligently, continuously redistribute workload under changing conditions by leveraging The Turbonomic analysis engine 
+## Proactive Rescheduling
+Intelligently, continuously redistribute workload under changing conditions by leveraging The Turbonomic analysis engine 
   * Consolidate Pods in real-time to increase node efficiency
   * Reschedule Pod to prevent performance degradation due to resource congestion from the underlying node
-  *	Reschedule Pod to leverage resources from new node added to the cluster
+  *	Redistribute Pods to leverage resources when new node capacity comes on line
   *	Reschedule Pods that peak together to different nodes, to avoid performance issues due to "noisy neighbors"
-<img width="1320" alt="screen shot 2017-06-01 at 10 11 31 am" src="https://cloud.githubusercontent.com/assets/4391815/26683755/dccd6ad6-46b2-11e7-8d9f-452b60e827d5.png">
+<img width="1320" src="https://github.com/evat-pm/images/blob/aa796457175c77b3954a584c1bd68bd2685eacee/moves-nodeOptimize.png">
 
+## What's New
+With the release of 8.3.1, we are pleased to announce
+  * **CPU Throttling** Turbonomic can now recommend increasing vCPU limit capacity to address slow response times associated with
+CPU throttling. As throttling drops and performance improves, it analyzes throttling data holistically to ensure that a
+subsequent action to decrease capacity will not result in throttling.
+  * **Power10 Support** KubeTurbo now supports Kubernetes clusters that run on Linux ppc64le
+(including Power10) architectures. Select the architecture you want from the public Docker Hub repo starting with KubeTurbo image 8.3.1, at
+[turbonomic/kubeturbo:8.3.1](https://hub.docker.com/layers/turbonomic/kubeturbo/8.3.1/images/sha256-f1770480f31b974488e25a5c3c2c4633b480dabe28fde5640fd23aebdb54b91e?context=explore).
+To deploy Kubeturbo via Operator, use the Operator image at [turbonomic/kubeturbo-operator:8.2](https://hub.docker.com/layers/turbonomic/kubeturbo-operator/8.2/images/sha256-f02b7523fd9be7db367fc28a6b9b740e36a87f17121b4cacf3218f8ae0868fb7?context=explore). Note that
+KubeTurbo deployed via the [OpenShift Operator Hub](https://operatorhub.io/operator/kubeturbo) currently only supports x86.
 
-* Right-Sizing your Pod and your entire IT stack
-  *	Combining Turbonomic real-time performance monitoring and analysis engine, Turbonomic is able to provide right-sizing information for each service as well as the entire IT stack.
-  * Right-sizing up your Pod limit, if necessary, to avoid OOM
-  * Right-sizing down your Pod requested resource, if necessary, to avoid resource over-provisioning or overspending in public cloud deployment.
-![screen shot 2017-06-01 at 9 56 55 am](https://cloud.githubusercontent.com/assets/4391815/26683094/b330c350-46b0-11e7-91e5-a1db65a89d50.png)
-
-
+## [Supported Platforms](https://www.turbonomic.com/platform/integrations/?_integrations_filter_buttons=container-platforms)
+Any upstream compliant Kubernetes distribution, starting with v1.8+ to current GA
+<img width="1320" src="https://github.com/evat-pm/images/blob/aa796457175c77b3954a584c1bd68bd2685eacee/kubeturbo-support.png">
 
 
