@@ -66,14 +66,6 @@ func TestProcess(t *testing.T) {
 		return
 	}
 
-	//dto1 := *podDTO1
-	//dto2 := *podDTO2
-	//dto3 := *podDTO3
-	//dto4 := *nodeDTO1
-	//dto5 := *nodeDTO2
-	//dto6 := *nodeDTO3
-	//dto7 := *otherDTO1
-
 	entityDTOs := []*proto.EntityDTO{podDTO1, podDTO2, podDTO3, nodeDTO1, nodeDTO2, nodeDTO3, otherDTO1}
 	taintTolerationProcessor.Process(entityDTOs)
 
