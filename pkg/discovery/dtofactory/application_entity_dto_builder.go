@@ -100,7 +100,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 			ApplicationData(&proto.EntityDTO_ApplicationData{
 				Type:                    &appType,
 				IpAddress:               &(pod.Status.PodIP),
-				HostingNodeCpuFrequency: &nodeCPUFrequency,
+				//HostingNodeCpuFrequency: &nodeCPUFrequency,
 			}).
 			ConsumerPolicy(&proto.EntityDTO_ConsumerPolicy{
 				ProviderMustClone: &truep,

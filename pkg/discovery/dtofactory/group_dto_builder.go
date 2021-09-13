@@ -79,7 +79,7 @@ func (builder *groupDTOBuilder) createGroup(entityGroup *repository.EntityGroup,
 	displayName := fmt.Sprintf("%s %ss", groupId, entityType)
 
 	// static group
-	groupBuilder := group.StaticGroup(id).
+	groupBuilder := group.StaticGroup(id,group.REGULAR).
 		OfType(protoType).
 		WithEntities(memberList).
 		WithDisplayName(displayName)

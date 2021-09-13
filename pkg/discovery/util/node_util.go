@@ -29,6 +29,7 @@ const (
 	// NodeLabelArch and NodeLabelArchBeta specify the arch of a node
 	NodeLabelArch     = "kubernetes.io/arch"
 	NodeLabelArchBeta = "beta.kubernetes.io/arch"
+	NodePoolAKS = "agentpool"
 )
 
 func GetNodeIPForMonitor(node *api.Node, source types.MonitoringSource) (string, error) {
@@ -183,6 +184,17 @@ func DetectNodeRoles(node *api.Node) sets.String {
 
 	// return all the role associated with the node
 	return allRoles
+}
+
+func DetectNodePools(node *api.Node) sets.String {
+	allPools := sets.NewString()
+	for k, v := range node.Labels {
+		switch {
+		case k == NodePoolAKS && v != "":
+			allPools.Insert(v)
+		}
+	}
+	return allPools
 }
 
 func DetectHARole(node *api.Node) bool {
