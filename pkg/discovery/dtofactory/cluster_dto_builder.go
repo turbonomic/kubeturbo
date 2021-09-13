@@ -60,7 +60,7 @@ func (builder *clusterDTOBuilder) BuildGroup() []*proto.GroupDTO {
 	// This group can be removed when the server is upgraded to 7.21.2+
 	vmGroupID := fmt.Sprintf("%s-%s", builder.targetId, metrics.ClusterType)
 	vmGroupDisplayName := fmt.Sprintf("%s/%s", metrics.ClusterType, builder.targetId)
-	vmGroupDTO, err := group.StaticGroup(vmGroupID).
+	vmGroupDTO, err := group.StaticRegularGroup(vmGroupID).
 		OfType(proto.EntityDTO_VIRTUAL_MACHINE).
 		WithEntities(members).
 		WithDisplayName(vmGroupDisplayName).

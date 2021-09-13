@@ -55,7 +55,7 @@ func (builder *NodeRolesGroupDTOBuilder) Build() []*proto.GroupDTO {
 			groupID := fmt.Sprintf("NodeRole::%s [%s]", roleName, builder.targetId)
 			displayName := fmt.Sprintf("NodeRole-%s-%s", roleName, builder.targetId)
 			// static group
-			dto, err := group.StaticGroup(groupID).
+			dto, err := group.StaticRegularGroup(groupID).
 				OfType(proto.EntityDTO_VIRTUAL_MACHINE).
 				WithEntities(members).
 				WithDisplayName(displayName).Build()
