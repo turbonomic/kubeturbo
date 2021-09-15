@@ -178,7 +178,7 @@ func (n *NodeCpuFrequencyGetter) getCpuFreqFromPodLog(i iNodeCpuFrequencyGetter,
 }
 
 func (n *NodeCpuFrequencyGetter) waitForJob(jobName, namespace string) error {
-	err := wait.Poll(1*time.Second, 20*time.Second, func() (bool, error) {
+	err := wait.Poll(1*time.Second, 30*time.Second, func() (bool, error) {
 		j, err := n.kubeClient.BatchV1().Jobs(namespace).Get(context.TODO(), jobName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
@@ -291,10 +291,11 @@ func (n *NodeCpuFrequencyGetter) getCpuFreqJobDefinition(i iNodeCpuFrequencyGett
 					RestartPolicy: "Never",
 					Containers: []corev1.Container{
 						{
-							Name:    "cpufreq",
-							Image:   n.busyboxImage,
-							Command: []string{`/bin/sh`},
-							Args:    []string{"-c", i.GetJobCommand()},
+							Name:            "cpufreq",
+							Image:           n.busyboxImage,
+							Command:         []string{`/bin/sh`},
+							Args:            []string{"-c", i.GetJobCommand()},
+							ImagePullPolicy: "IfNotPresent",
 						},
 					},
 				},
