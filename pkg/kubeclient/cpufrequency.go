@@ -26,7 +26,7 @@ import (
 const (
 	kubeturboNamespaceEnv = "KUBETURBO_NAMESPACE"
 	defaultNamespace      = "default"
-	defaultCpuFreq        = float64(2000) //MHz
+	defaultCpuFreq        = float64(2600) //MHz
 	// cpufreq job by default is created every 10 mins
 	// if there has been failures, a backoff delay would be added to retrials
 	defaultInitialDelay = 10 * time.Minute
