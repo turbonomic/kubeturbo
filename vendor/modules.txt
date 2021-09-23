@@ -261,7 +261,7 @@ github.com/golang/glog
 github.com/golang/groupcache/lru
 # github.com/golang/mock v1.4.4
 github.com/golang/mock/gomock
-# github.com/golang/protobuf v1.5.0
+# github.com/golang/protobuf v1.5.2
 github.com/golang/protobuf/proto
 github.com/golang/protobuf/protoc-gen-go/descriptor
 github.com/golang/protobuf/ptypes
@@ -605,7 +605,7 @@ github.com/thecodeteam/goscaleio/types/v1
 # github.com/turbonomic/turbo-api v0.0.0-20210715215202-c125bbe789ca
 github.com/turbonomic/turbo-api/pkg/api
 github.com/turbonomic/turbo-api/pkg/client
-# github.com/turbonomic/turbo-go-sdk v0.0.0-20210913162157-dd2ce246dea6
+# github.com/turbonomic/turbo-go-sdk v0.0.0-20210923181632-23eee963f7d3
 ## explicit
 github.com/turbonomic/turbo-go-sdk/pkg
 github.com/turbonomic/turbo-go-sdk/pkg/builder
