@@ -26,7 +26,7 @@ func NewNodePoolsGroupDTOBuilder(cluster *repository.ClusterSummary,
 func (builder *NodePoolsGroupDTOBuilder) Build() []*proto.GroupDTO {
 	nodeGroups := builder.getNodeGroups()
 	if len(nodeGroups) == 0 {
-		glog.Infof("*********** No node pools detected.")
+		glog.V(3).Infof("No node pools detected.")
 		return nil
 	}
 
@@ -38,7 +38,7 @@ func (builder *NodePoolsGroupDTOBuilder) Build() []*proto.GroupDTO {
 		groupID := fmt.Sprintf("NodePool::%s [%s]", poolName, builder.targetId)
 		displayName := fmt.Sprintf("NodePool-%s-%s", poolName, builder.targetId)
 		// static group
-		glog.V(2).Infof("Node Pool group: %s belongs to cluster [%s]",
+		glog.V(3).Infof("Node Pool group: %s belongs to cluster [%s]",
 			displayName, builder.cluster.Name)
 		//clusterId := "d5788b67-9212-4ca2-a5bf-5fd316fb2eb5"
 
@@ -53,7 +53,7 @@ func (builder *NodePoolsGroupDTOBuilder) Build() []*proto.GroupDTO {
 			continue
 		}
 		dtos = append(dtos, dto)
-		glog.V(2).Infof("Built Node Pool group: %+v", dto)
+		glog.V(4).Infof("Built Node Pool group: %+v", dto)
 		groupDTOs = append(groupDTOs, dtos...)
 
 	}
