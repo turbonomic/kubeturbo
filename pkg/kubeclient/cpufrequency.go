@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -25,7 +26,10 @@ import (
 const (
 	kubeturboNamespaceEnv = "KUBETURBO_NAMESPACE"
 	defaultNamespace      = "default"
-	defaultCpuFreq        = float64(2000) //MHz
+	defaultCpuFreq        = float64(2600) //MHz
+	// cpufreq job by default is created every 10 mins
+	// if there has been failures, a backoff delay would be added to retrials
+	defaultInitialDelay = 10 * time.Minute
 )
 
 var (
@@ -47,6 +51,39 @@ type NodeCpuFrequencyGetter struct {
 	kubeClient      *kubernetes.Clientset
 	busyboxImage    string
 	imagePullSecret string
+	backoffFailures map[string]*backoffFailure
+}
+
+type backoffFailure struct {
+	// Number of times job failed since last success or since start
+	failedTimes float64
+	// Last failure timestamp
+	lastTimestamp time.Time
+	initialDelay  time.Duration
+}
+
+func newBackoff(delay time.Duration) *backoffFailure {
+	return &backoffFailure{initialDelay: delay}
+}
+
+// Each failure would add a 2 exponent times initialDelay to backoff
+// Any backoff call before that would return true meaning "back off"
+func (b *backoffFailure) backoff() bool {
+	return !b.lastTimestamp.IsZero() &&
+		b.lastTimestamp.Add(time.Duration(math.Pow(2,
+			b.failedTimes))*b.initialDelay).After(time.Now())
+}
+
+func (b *backoffFailure) setFailure() {
+	if b.lastTimestamp.IsZero() {
+		b.lastTimestamp = time.Now()
+	}
+	b.failedTimes++
+}
+
+func (b *backoffFailure) reset() {
+	b.lastTimestamp = time.Time{}
+	b.failedTimes = 0
 }
 
 // LinuxAmd64NodeCpuFrequencyGetter is a concrete type that embeds the NodeCpuFrequencyGetter and implements
@@ -117,6 +154,7 @@ func NewNodeCpuFrequencyGetter(kubeClient *kubernetes.Clientset, busyboxImage, i
 		kubeClient:      kubeClient,
 		busyboxImage:    busyboxImage,
 		imagePullSecret: imagePullSecret,
+		backoffFailures: make(map[string]*backoffFailure),
 	}
 }
 
@@ -125,14 +163,32 @@ func NewNodeCpuFrequencyGetter(kubeClient *kubernetes.Clientset, busyboxImage, i
 func (n *NodeCpuFrequencyGetter) GetFrequency(i iNodeCpuFrequencyGetter, nodeName string) (float64, error) {
 	glog.V(4).Infof("Start query node frequency via pod for %s.", nodeName)
 
+	backoff, exists := n.backoffFailures[nodeName]
+	if !exists {
+		n.backoffFailures[nodeName] = newBackoff(defaultInitialDelay)
+		backoff = n.backoffFailures[nodeName]
+	}
+	if backoff.backoff() {
+		return 0, fmt.Errorf("backoff getting node cpu freq for: %s", nodeName)
+	}
+
 	// TODO: See if retries are needed
 	namespace := os.Getenv(kubeturboNamespaceEnv)
 	if namespace == "" {
 		namespace = defaultNamespace
 	}
 
+	failed := false
+	defer func() {
+		if failed {
+			backoff.setFailure()
+		} else {
+			backoff.reset()
+		}
+	}()
 	job, err := n.createJob(i, namespace, nodeName)
 	if err != nil {
+		failed = true
 		return 0, err
 	}
 
@@ -146,15 +202,22 @@ func (n *NodeCpuFrequencyGetter) GetFrequency(i iNodeCpuFrequencyGetter, nodeNam
 
 	err = n.waitForJob(jobName, namespace)
 	if err != nil {
+		failed = true
 		return 0, fmt.Errorf("wait for job %s/%s failed on node %s: %v", namespace, jobName, nodeName, err)
 	}
 
 	pod, err := n.getJobsPod(jobName, namespace)
 	if err != nil {
+		failed = true
 		return 0, fmt.Errorf("get pod for job %s/%s failed on node %s: %v", namespace, jobName, nodeName, err)
 	}
 
-	return n.getCpuFreqFromPodLog(i, pod)
+	cpufreq, err := n.getCpuFreqFromPodLog(i, pod)
+	if err != nil {
+		failed = true
+		return 0, err
+	}
+	return cpufreq, nil
 }
 
 func (n *NodeCpuFrequencyGetter) getCpuFreqFromPodLog(i iNodeCpuFrequencyGetter, pod *corev1.Pod) (float64, error) {
@@ -178,7 +241,7 @@ func (n *NodeCpuFrequencyGetter) getCpuFreqFromPodLog(i iNodeCpuFrequencyGetter,
 }
 
 func (n *NodeCpuFrequencyGetter) waitForJob(jobName, namespace string) error {
-	err := wait.Poll(1*time.Second, 20*time.Second, func() (bool, error) {
+	err := wait.Poll(1*time.Second, 30*time.Second, func() (bool, error) {
 		j, err := n.kubeClient.BatchV1().Jobs(namespace).Get(context.TODO(), jobName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
@@ -291,10 +354,11 @@ func (n *NodeCpuFrequencyGetter) getCpuFreqJobDefinition(i iNodeCpuFrequencyGett
 					RestartPolicy: "Never",
 					Containers: []corev1.Container{
 						{
-							Name:    "cpufreq",
-							Image:   n.busyboxImage,
-							Command: []string{`/bin/sh`},
-							Args:    []string{"-c", i.GetJobCommand()},
+							Name:            "cpufreq",
+							Image:           n.busyboxImage,
+							Command:         []string{`/bin/sh`},
+							Args:            []string{"-c", i.GetJobCommand()},
+							ImagePullPolicy: "IfNotPresent",
 						},
 					},
 				},

@@ -77,7 +77,6 @@ func TestProcess(t *testing.T) {
 	checkNodeEntity(t, nodeDTO1, 1)
 	checkNodeEntity(t, nodeDTO2, 1)
 	checkNodeEntity(t, nodeDTO3, 2)
-
 }
 
 func checkPodEntity(t *testing.T, dto1 *proto.EntityDTO, providerId string) {

@@ -158,3 +158,55 @@ func checkProbeConfig(t *testing.T, pc *configs.ProbeConfig, stitchingPropertyTy
 		t.Errorf("StitchingPropertyType = %v, want %v", pc.StitchingPropertyType, stitchingPropertyType)
 	}
 }
+
+func TestExtractTagFromImage(t *testing.T) {
+	tests := []struct {
+		inputImageString  string
+		expectedOutputTag string
+	}{
+		{
+			inputImageString:  "foo/kubeturbo:bar",
+			expectedOutputTag: "bar",
+		},
+		{
+			inputImageString:  "foo/kubeturbo",
+			expectedOutputTag: "foo/kubeturbo",
+		},
+		{
+			inputImageString:  "",
+			expectedOutputTag: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.inputImageString, func(t *testing.T) {
+			actualVersion := extractTagFromImage(tt.inputImageString)
+			if actualVersion != tt.expectedOutputTag {
+				t.Errorf("Expected output version is %v from image %v, but the actual output version is %v",
+					tt.expectedOutputTag, tt.inputImageString, actualVersion)
+			}
+		})
+	}
+}
+
+func TestGetProbeDisplayName(t *testing.T) {
+	tests := []struct {
+		inputProbeType            string
+		inputTargetId             string
+		expectedOutputDisplayName string
+	}{
+		{
+			inputProbeType:            "Kubernetes",
+			inputTargetId:             "foo",
+			expectedOutputDisplayName: "Kubernetes Probe foo",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.inputProbeType, func(t *testing.T) {
+			actualOutputDisplayName := getProbeDisplayName(tt.inputProbeType, tt.inputTargetId)
+			if actualOutputDisplayName != tt.expectedOutputDisplayName {
+				t.Errorf("Expected output display name is %v from probe type %v and target id %v, but the actual output is %v",
+					tt.expectedOutputDisplayName, tt.inputProbeType, tt.inputTargetId, actualOutputDisplayName)
+			}
+		})
+	}
+}

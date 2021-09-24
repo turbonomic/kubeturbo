@@ -178,8 +178,13 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 	// Kubernetes Probe Action Execution Client
 	actionHandler := action.NewActionHandler(actionHandlerConfig)
 
+	probeVersion := extractTagFromImage(config.tapSpec.ProbeContainerImage)
+	probeDisplayName := getProbeDisplayName(config.tapSpec.TargetType, config.tapSpec.TargetIdentifier)
+
 	probeBuilder := probe.NewProbeBuilder(config.tapSpec.TargetType,
 		config.tapSpec.ProbeCategory, config.tapSpec.ProbeUICategory).
+		WithVersion(probeVersion).
+		WithDisplayName(probeDisplayName).
 		WithDiscoveryOptions(probe.FullRediscoveryIntervalSecondsOption(int32(config.DiscoveryIntervalSec))).
 		RegisteredBy(registrationClient).
 		WithActionPolicies(registrationClient).
@@ -212,6 +217,21 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 	}
 
 	return &K8sTAPService{tapService}, nil
+}
+
+// extractTagFromImage extracts the tag out of the given image string.
+func extractTagFromImage(image string) string {
+	splitsByColon := strings.Split(image, ":")
+	if len(splitsByColon) != 2 {
+		glog.Warningf("Cannot extract a version from the image string %v; return the whole string", image)
+		return image
+	}
+	return splitsByColon[1]
+}
+
+// getProbeDisplayName constructs a display name for the probe based on the input probe type and target id
+func getProbeDisplayName(probeType, targetId string) string {
+	return strings.Join([]string{probeType, "Probe", targetId}, " ")
 }
 
 func (s *K8sTAPService) Run() {
