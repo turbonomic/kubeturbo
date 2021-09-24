@@ -10,15 +10,16 @@ import (
 type GroupType string
 
 const (
-	REGULAR   GroupType = "REGULAR"
-	NODE_POOL GroupType = "NODE_POOL"
+	// Static group contains a fixed list of entity id's
+	STATIC_GROUP GroupType = "Static"
+	// Dynamic group contains selection criteria to select entity id's
+	DYNAMIC_GROUP GroupType = "Dynamic"
 )
 
 // Builder for creating a GroupDTO
 type AbstractBuilder struct {
 	groupId          string
 	displayName      string
-	owner            string
 	entityTypePtr    *proto.EntityDTO_EntityType
 	memberList       []string
 	matching         *Matching
@@ -26,61 +27,31 @@ type AbstractBuilder struct {
 	//groupDTO *proto.GroupDTO
 	ec        *builder.ErrorCollector
 	groupType GroupType
-	isStatic  bool
 }
 
 // Create a new instance of AbstractBuilder.
 // Specify the group id and if the group is static or dynamic.
-func newAbstractBuilder(id string, groupType GroupType, isStatic bool) *AbstractBuilder {
+func newAbstractBuilder(id string, groupType GroupType) *AbstractBuilder {
 	groupBuilder := &AbstractBuilder{
 		groupType:        groupType,
 		groupId:          id,
 		ec:               new(builder.ErrorCollector),
 		consistentResize: false,
-		isStatic:         isStatic,
 	}
 	return groupBuilder
 }
 
 // Create a new instance of builder for creating Static groups.
 // Static group contains a fixed list of entity id's
-func StaticGroup(id string, groupType GroupType) *AbstractBuilder {
-	groupBuilder := newAbstractBuilder(id, groupType, true)
-	return groupBuilder
-}
-
-// Create a new instance of builder for creating REGULAR Static groups.
-// Static group contains a fixed list of entity id's
-func StaticRegularGroup(id string) *AbstractBuilder {
-	groupBuilder := newAbstractBuilder(id, REGULAR, true)
-	return groupBuilder
-}
-
-// Create a new instance of builder for creating NODE_POOL Static groups.
-// Static group contains a fixed list of entity id's
-func StaticNodePool(id string) *AbstractBuilder {
-	groupBuilder := newAbstractBuilder(id, NODE_POOL, true)
+func StaticGroup(id string) *AbstractBuilder {
+	groupBuilder := newAbstractBuilder(id, STATIC_GROUP)
 	return groupBuilder
 }
 
 // Create a new instance of builder for creating Dynamic groups.
 // Dynamic group contains selection criteria using entity properties to select entities.
-func DynamicGroup(id string, groupType GroupType) *AbstractBuilder {
-	groupBuilder := newAbstractBuilder(id, groupType, false)
-	return groupBuilder
-}
-
-// Create a new instance of builder for creating REGULAR Dynamic groups.
-// Dynamic group contains selection criteria using entity properties to select entities.
-func DynamicRegularGroup(id string) *AbstractBuilder {
-	groupBuilder := newAbstractBuilder(id, REGULAR, false)
-	return groupBuilder
-}
-
-// Create a new instance of builder for creating NODE_POOL Dynamic groups.
-// Dynamic group contains selection criteria using entity properties to select entities.
-func DynamicNodePoolGroup(id string) *AbstractBuilder {
-	groupBuilder := newAbstractBuilder(id, NODE_POOL, false)
+func DynamicGroup(id string) *AbstractBuilder {
+	groupBuilder := newAbstractBuilder(id, DYNAMIC_GROUP)
 	return groupBuilder
 }
 
@@ -105,7 +76,7 @@ func (groupBuilder *AbstractBuilder) Build() (*proto.GroupDTO, error) {
 		groupBuilder.ec.Collect(err)
 	}
 
-	if groupBuilder.isStatic {
+	if groupBuilder.groupType == STATIC_GROUP {
 		err := groupBuilder.setUpStaticMembers(groupDTO)
 		if err != nil {
 			groupBuilder.ec.Collect(err)
@@ -115,18 +86,6 @@ func (groupBuilder *AbstractBuilder) Build() (*proto.GroupDTO, error) {
 		if err != nil {
 			groupBuilder.ec.Collect(err)
 		}
-	}
-
-	if groupBuilder.groupType == REGULAR {
-		regular := proto.GroupDTO_REGULAR
-		groupDTO.GroupType = &regular
-	} else if groupBuilder.groupType == NODE_POOL {
-		resource := proto.GroupDTO_NODE_POOL
-		groupDTO.GroupType = &resource
-	}
-
-	if groupBuilder.owner != "" {
-		groupDTO.Owner = &groupBuilder.owner
 	}
 
 	groupDTO.IsConsistentResizing = &groupBuilder.consistentResize
@@ -145,16 +104,6 @@ func (groupBuilder *AbstractBuilder) WithDisplayName(displayName string) *Abstra
 	}
 	// Setup entity type
 	groupBuilder.displayName = displayName
-
-	return groupBuilder
-}
-
-func (groupBuilder *AbstractBuilder) WithOwner(owner string) *AbstractBuilder {
-	if owner == "" {
-		return groupBuilder
-	}
-	// Setup entity type
-	groupBuilder.owner = owner
 
 	return groupBuilder
 }
@@ -197,7 +146,7 @@ func (groupBuilder *AbstractBuilder) setupEntityType(groupDTO *proto.GroupDTO) e
 func (groupBuilder *AbstractBuilder) WithEntities(entities []string) *AbstractBuilder {
 
 	// Assert that the group is a static group
-	if !groupBuilder.isStatic {
+	if groupBuilder.groupType != STATIC_GROUP {
 		groupBuilder.ec.Collect(fmt.Errorf("cannot set member uuid list for dynamic group"))
 		return groupBuilder
 	}
@@ -226,7 +175,7 @@ func (groupBuilder *AbstractBuilder) setUpStaticMembers(groupDTO *proto.GroupDTO
 func (groupBuilder *AbstractBuilder) MatchingEntities(matching *Matching) *AbstractBuilder {
 
 	// Assert that the group is a dynamci group
-	if groupBuilder.isStatic {
+	if groupBuilder.groupType != DYNAMIC_GROUP {
 		groupBuilder.ec.Collect(fmt.Errorf("cannot set matching criteria for static group"))
 		return groupBuilder
 	}
