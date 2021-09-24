@@ -66,25 +66,17 @@ func TestProcess(t *testing.T) {
 		return
 	}
 
-	dto1 := *podDTO1
-	dto2 := *podDTO2
-	dto3 := *podDTO3
-	dto4 := *nodeDTO1
-	dto5 := *nodeDTO2
-	dto6 := *nodeDTO3
-	dto7 := *otherDTO1
-
-	entityDTOs := []*proto.EntityDTO{&dto1, &dto2, &dto3, &dto4, &dto5, &dto6, &dto7}
+	entityDTOs := []*proto.EntityDTO{podDTO1, podDTO2, podDTO3, nodeDTO1, nodeDTO2, nodeDTO3, otherDTO1}
 	taintTolerationProcessor.Process(entityDTOs)
 
 	// Check entity DTOs for access commodities created from taints and tolerations
-	checkPodEntity(t, &dto1, "node-1")
-	checkPodEntity(t, &dto2, "node-2")
-	checkPodEntity(t, &dto3, "node-3")
+	checkPodEntity(t, podDTO1, "node-1")
+	checkPodEntity(t, podDTO2, "node-2")
+	checkPodEntity(t, podDTO3, "node-3")
 
-	checkNodeEntity(t, &dto4, 1)
-	checkNodeEntity(t, &dto5, 1)
-	checkNodeEntity(t, &dto6, 2)
+	checkNodeEntity(t, nodeDTO1, 1)
+	checkNodeEntity(t, nodeDTO2, 1)
+	checkNodeEntity(t, nodeDTO3, 2)
 
 }
 

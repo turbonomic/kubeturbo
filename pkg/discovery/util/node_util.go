@@ -29,7 +29,7 @@ const (
 	// NodeLabelArch and NodeLabelArchBeta specify the arch of a node
 	NodeLabelArch     = "kubernetes.io/arch"
 	NodeLabelArchBeta = "beta.kubernetes.io/arch"
-	NodePoolAKS = "agentpool"
+	NodePoolAKS       = "agentpool"
 )
 
 func GetNodeIPForMonitor(node *api.Node, source types.MonitoringSource) (string, error) {

@@ -45,7 +45,7 @@ func (builder *masterNodesGroupDTOBuilder) Build() *proto.GroupDTO {
 
 	displayName := fmt.Sprintf("%s[%s]", groupId, builder.targetId)
 
-	groupBuilder := group.StaticGroup(id,group.REGULAR).
+	groupBuilder := group.StaticGroup(id, group.REGULAR).
 		WithDisplayName(displayName).
 		OfType(proto.EntityDTO_VIRTUAL_MACHINE).
 		WithEntities(masterNodes)
