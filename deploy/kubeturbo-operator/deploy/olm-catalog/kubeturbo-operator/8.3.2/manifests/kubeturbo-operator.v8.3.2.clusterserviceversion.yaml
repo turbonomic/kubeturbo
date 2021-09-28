@@ -2,16 +2,17 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1","kind":"Kubeturbo","metadata":{"name":"kubeturbo-release"},"spec":{"serverMeta":{"turboServer":"https://Turbo_server_URL"}}}]'
+    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1","kind":"Kubeturbo","metadata":{"name":"kubeturbo-release"},"spec":{"serverMeta":{"turboServer":"https://Turbo_server_URL"},"targetConfig":{"targetName":"Cluster_Name"}}}]'
     capabilities: Basic Install
     categories: Monitoring
     certified: "false"
-    containerImage: turbonomic/kubeturbo-operator:8.2
+    containerImage: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:32178a16dd2115e0a11a2e3dfbfc130ae1d0afd8e293131e76b6fc1a79b36c12
     createdAt: 2019-05-01T00:00:00.000Z
     description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
+    olm.properties: '[{"type": "olm.maxOpenShiftVersion", "value": "4.8"}]'
     repository: https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo-operator
     support: Turbonomic, Inc.
-  name: kubeturbo-operator.v8.2.0
+  name: kubeturbo-operator.v8.3.2
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -180,7 +181,9 @@ spec:
                             fieldPath: metadata.name
                       - name: OPERATOR_NAME
                         value: kubeturbo-operator
-                    image: turbonomic/kubeturbo-operator:8.2
+                      - name: RELATED_IMAGE_KUBETURBO
+                        value: registry.connect.redhat.com/turbonomic/kubeturbo@sha256:9eea6feebf73a7343b2a57b86d8cb2bcb8f6d7ed42a4b4ab406000244e4f3f49
+                    image: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:32178a16dd2115e0a11a2e3dfbfc130ae1d0afd8e293131e76b6fc1a79b36c12
                     imagePullPolicy: Always
                     name: kubeturbo-operator
                     resources: {}
@@ -206,5 +209,5 @@ spec:
   maturity: alpha
   provider:
     name: Turbonomic, Inc.
-  replaces: kubeturbo-operator.v8.1.0
-  version: 8.2.0
+  replaces: kubeturbo-operator.v8.3.1
+  version: 8.3.2
