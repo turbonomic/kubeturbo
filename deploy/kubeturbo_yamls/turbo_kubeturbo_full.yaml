@@ -97,7 +97,7 @@ spec:
       containers:
       - name: kubeturbo
         # Replace the image with desired version:6.4.4 or latest
-        image: turbonomic/kubeturbo:8.3.1
+        image: turbonomic/kubeturbo:8.3.2
         env:
           - name: KUBETURBO_NAMESPACE
             valueFrom:

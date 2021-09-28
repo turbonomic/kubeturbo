@@ -23,7 +23,7 @@ spec:
         app.kubernetes.io/name: {{ include "kubeturbo.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
-      serviceAccountName: turbo-user
+      serviceAccountName: {{ .Values.serviceAccountName }}
 {{- if .Values.image.imagePullSecret }}
       imagePullSecrets:
         - name: {{ .Values.image.imagePullSecret }}
@@ -35,7 +35,7 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
-{{- if .Values.image.related }}
+{{- if and .Values.image.related (eq .Values.image.repository "turbonomic/kubeturbo") }}
           image: {{ .Values.image.related }}
 {{- else }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
