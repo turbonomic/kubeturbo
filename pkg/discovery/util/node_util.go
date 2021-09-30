@@ -197,7 +197,9 @@ func DetectNodePools(node *api.Node) sets.String {
 	for k, v := range node.Labels {
 		switch {
 		case k == NodePoolAKS && v != "":
+			allPools.Insert(v)
 		case k == NodePoolGKE && v != "":
+			allPools.Insert(v)
 		case strings.Contains(k, NodePoolEKSIdentifier) && v != "":
 			allPools.Insert(v)
 		}
