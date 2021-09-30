@@ -24,14 +24,14 @@ func NewNodePoolsGroupDTOBuilder(cluster *repository.ClusterSummary,
 }
 
 func (builder *NodePoolsGroupDTOBuilder) Build() []*proto.GroupDTO {
-	nodeGroups := builder.getNodeGroups()
-	if len(nodeGroups) == 0 {
+	nodePools := builder.getNodePools()
+	if len(nodePools) == 0 {
 		glog.V(3).Infof("No node pools detected.")
 		return nil
 	}
 
 	var groupDTOs []*proto.GroupDTO
-	for poolName, members := range nodeGroups {
+	for poolName, members := range nodePools {
 		var dtos []*proto.GroupDTO
 		var err error
 
@@ -40,7 +40,6 @@ func (builder *NodePoolsGroupDTOBuilder) Build() []*proto.GroupDTO {
 		// static group
 		glog.V(3).Infof("Node Pool group: %s belongs to cluster [%s]",
 			displayName, builder.cluster.Name)
-		//clusterId := "d5788b67-9212-4ca2-a5bf-5fd316fb2eb5"
 
 		dto, err := group.StaticNodePool(groupID).
 			OfType(proto.EntityDTO_VIRTUAL_MACHINE).
@@ -53,21 +52,20 @@ func (builder *NodePoolsGroupDTOBuilder) Build() []*proto.GroupDTO {
 			continue
 		}
 		dtos = append(dtos, dto)
-		glog.V(4).Infof("Built Node Pool group: %+v", dto)
 		groupDTOs = append(groupDTOs, dtos...)
 
 	}
 	return groupDTOs
 }
 
-func (builder *NodePoolsGroupDTOBuilder) getNodeGroups() map[string][]string {
-	nodeGroups := make(map[string][]string)
+func (builder *NodePoolsGroupDTOBuilder) getNodePools() map[string][]string {
+	nodePools := make(map[string][]string)
 	for _, node := range builder.cluster.Nodes {
 		allPools := util.DetectNodePools(node)
 		for _, pool := range allPools.List() {
 			glog.Infof("%s node in node pool %s", node.Name, pool)
-			nodeGroups[pool] = append(nodeGroups[pool], string(node.UID))
+			nodePools[pool] = append(nodePools[pool], string(node.UID))
 		}
 	}
-	return nodeGroups
+	return nodePools
 }

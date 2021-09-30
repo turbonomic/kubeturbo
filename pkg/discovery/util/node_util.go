@@ -29,7 +29,13 @@ const (
 	// NodeLabelArch and NodeLabelArchBeta specify the arch of a node
 	NodeLabelArch     = "kubernetes.io/arch"
 	NodeLabelArchBeta = "beta.kubernetes.io/arch"
-	NodePoolAKS       = "agentpool"
+
+	// AKS Node pool label
+	NodePoolAKS = "agentpool"
+	// GKE Node pool label
+	NodePoolGKE = "cloud.google.com/gke-nodepool"
+	// EKS Node pool label
+	NodePoolEKSIdentifier = "/nodegroup" //alpha.eksctl.io/nodegroup-name or eks.amazonaws.com/nodegroup
 )
 
 func GetNodeIPForMonitor(node *api.Node, source types.MonitoringSource) (string, error) {
@@ -191,6 +197,8 @@ func DetectNodePools(node *api.Node) sets.String {
 	for k, v := range node.Labels {
 		switch {
 		case k == NodePoolAKS && v != "":
+		case k == NodePoolGKE && v != "":
+		case strings.Contains(k, NodePoolEKSIdentifier) && v != "":
 			allPools.Insert(v)
 		}
 	}
