@@ -32,15 +32,14 @@ func (builder *NodePoolsGroupDTOBuilder) Build() []*proto.GroupDTO {
 
 	var groupDTOs []*proto.GroupDTO
 	for poolName, members := range nodePools {
-		var dtos []*proto.GroupDTO
 		var err error
 
 		groupID := fmt.Sprintf("NodePool::%s [%s]", poolName, builder.targetId)
 		displayName := fmt.Sprintf("NodePool-%s-%s", poolName, builder.targetId)
-		// static group
-		glog.V(3).Infof("Node Pool group: %s belongs to cluster [%s]",
+		glog.V(3).Infof("Creating Node Pool group: %s belonging to cluster [%s]",
 			displayName, builder.cluster.Name)
 
+		// static group
 		dto, err := group.StaticNodePool(groupID).
 			OfType(proto.EntityDTO_VIRTUAL_MACHINE).
 			WithEntities(members).
@@ -51,9 +50,7 @@ func (builder *NodePoolsGroupDTOBuilder) Build() []*proto.GroupDTO {
 			glog.Errorf("Failed to build Node Pool DTO node group %s: %v", groupID, err)
 			continue
 		}
-		dtos = append(dtos, dto)
-		groupDTOs = append(groupDTOs, dtos...)
-
+		groupDTOs = append(groupDTOs, dto)
 	}
 	return groupDTOs
 }
@@ -63,8 +60,13 @@ func (builder *NodePoolsGroupDTOBuilder) getNodePools() map[string][]string {
 	for _, node := range builder.cluster.Nodes {
 		allPools := util.DetectNodePools(node)
 		for _, pool := range allPools.List() {
-			glog.Infof("%s node in node pool %s", node.Name, pool)
 			nodePools[pool] = append(nodePools[pool], string(node.UID))
+		}
+	}
+
+	if glog.V(3) {
+		for poolName, nodes := range nodePools {
+			glog.Infof("%s: %s", poolName, nodes)
 		}
 	}
 	return nodePools

@@ -195,16 +195,16 @@ func DetectNodeRoles(node *api.Node) sets.String {
 func DetectNodePools(node *api.Node) sets.String {
 	allPools := sets.NewString()
 	for k, v := range node.Labels {
-		switch {
-		case k == NodePoolAKS && v != "":
-			allPools.Insert(v)
-		case k == NodePoolGKE && v != "":
-			allPools.Insert(v)
-		case strings.Contains(k, NodePoolEKSIdentifier) && v != "":
+		if isValidNodePoolLabel(k) && v != "" {
 			allPools.Insert(v)
 		}
 	}
 	return allPools
+}
+
+func isValidNodePoolLabel(label string) bool {
+	return label == NodePoolAKS || label == NodePoolGKE ||
+		strings.Contains(label, NodePoolEKSIdentifier)
 }
 
 func DetectHARole(node *api.Node) bool {
