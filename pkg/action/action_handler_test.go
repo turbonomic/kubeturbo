@@ -11,7 +11,8 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
-	policy "k8s.io/api/policy/v1beta1"
+	policyv1 "k8s.io/api/policy/v1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
@@ -222,7 +223,17 @@ func (p *mockPodInterface) Bind(ctx context.Context, binding *api.Binding, co me
 	return nil
 }
 
-func (p *mockPodInterface) Evict(ctx context.Context, eviction *policy.Eviction) error { return nil }
+func (p *mockPodInterface) Evict(ctx context.Context, eviction *policyv1beta1.Eviction) error {
+	return nil
+}
+
+func (p *mockPodInterface) EvictV1(ctx context.Context, eviction *policyv1.Eviction) error {
+	return nil
+}
+
+func (p *mockPodInterface) EvictV1beta1(ctx context.Context, eviction *policyv1beta1.Eviction) error {
+	return nil
+}
 
 func (p *mockPodInterface) GetLogs(name string, opts *api.PodLogOptions) *restclient.Request {
 	return nil
@@ -238,10 +249,6 @@ func (p *mockPodInterface) ApplyStatus(ctx context.Context, pod *corev1.PodApply
 	return nil, nil
 }
 
-func (p *mockPodInterface) GetEphemeralContainers(ctx context.Context, podName string, options metav1.GetOptions) (*api.EphemeralContainers, error) {
-	return nil, nil
-}
-
-func (p *mockPodInterface) UpdateEphemeralContainers(ctx context.Context, podName string, ephemeralContainers *api.EphemeralContainers, opts metav1.UpdateOptions) (*api.EphemeralContainers, error) {
+func (p *mockPodInterface) UpdateEphemeralContainers(ctx context.Context, podName string, pod *api.Pod, opts metav1.UpdateOptions) (*api.Pod, error) {
 	return nil, nil
 }
