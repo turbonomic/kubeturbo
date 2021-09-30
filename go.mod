@@ -96,6 +96,6 @@ replace (
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.21.0
 )
 
-// etcd is also moving to go mod based dependency mgmt and in that processmake
+// etcd is also moving to go mod based dependency mgmt and in that process
 // its clean vendoring seems to be broken. This is to make etcd work.
 replace google.golang.org/grpc => google.golang.org/grpc v1.27.0
