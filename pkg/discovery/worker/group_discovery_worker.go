@@ -81,7 +81,11 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 	NodeRolesGroupDTOs := dtofactory.
 		NewNodeRolesGroupDTOBuilder(worker.cluster, worker.targetId).
 		Build()
+	NodePoolsGroupDTOs := dtofactory.
+		NewNodePoolsGroupDTOBuilder(worker.cluster, worker.targetId).
+		Build()
 	groupDTOs = append(groupDTOs, NodeRolesGroupDTOs...)
+	groupDTOs = append(groupDTOs, NodePoolsGroupDTOs...)
 
 	return groupDTOs, nil
 }

@@ -29,6 +29,13 @@ const (
 	// NodeLabelArch and NodeLabelArchBeta specify the arch of a node
 	NodeLabelArch     = "kubernetes.io/arch"
 	NodeLabelArchBeta = "beta.kubernetes.io/arch"
+
+	// AKS Node pool label
+	NodePoolAKS = "agentpool"
+	// GKE Node pool label
+	NodePoolGKE = "cloud.google.com/gke-nodepool"
+	// EKS Node pool label
+	NodePoolEKSIdentifier = "/nodegroup" //alpha.eksctl.io/nodegroup-name or eks.amazonaws.com/nodegroup
 )
 
 func GetNodeIPForMonitor(node *api.Node, source types.MonitoringSource) (string, error) {
@@ -183,6 +190,21 @@ func DetectNodeRoles(node *api.Node) sets.String {
 
 	// return all the role associated with the node
 	return allRoles
+}
+
+func DetectNodePools(node *api.Node) sets.String {
+	allPools := sets.NewString()
+	for k, v := range node.Labels {
+		if isValidNodePoolLabel(k) && v != "" {
+			allPools.Insert(v)
+		}
+	}
+	return allPools
+}
+
+func isValidNodePoolLabel(label string) bool {
+	return label == NodePoolAKS || label == NodePoolGKE ||
+		strings.Contains(label, NodePoolEKSIdentifier)
 }
 
 func DetectHARole(node *api.Node) bool {
