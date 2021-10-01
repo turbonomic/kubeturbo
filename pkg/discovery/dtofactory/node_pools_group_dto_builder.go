@@ -62,6 +62,10 @@ func (builder *NodePoolsGroupDTOBuilder) getNodePools() map[string][]string {
 		}
 	}
 
+	for capiMachineSetPoolName, nodeUIDs := range builder.cluster.MachineSetToNodeUIDsMap {
+		nodePools[capiMachineSetPoolName] = nodeUIDs
+	}
+
 	if glog.V(3) {
 		for poolName, nodes := range nodePools {
 			glog.Infof("%s: %s", poolName, nodes)

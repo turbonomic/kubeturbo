@@ -192,7 +192,9 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.DiscoverySampleIntervalSec, "discovery-sample-interval", DefaultDiscoverySampleIntervalSec, "The discovery interval in seconds to collect additional resource usage data samples from kubelet. This should be no smaller than 10 seconds.")
 	fs.IntVar(&s.GCIntervalMin, "garbage-collection-interval", DefaultGCIntervalMin, "The garbage collection interval in minutes for possible leaked pods from actions failed because of kubeturbo restarts. Default value is 20 mins.")
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all.")
-	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "default", "The Cluster API namespace.")
+	// So far we have noticed cluster api support only in openshift clusters and our implementation works only for openshift
+	// It thus makes sense to have openshifts machine api namespace as our default cluster api namespace
+	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "openshift-machine-api", "The Cluster API namespace.")
 	fs.StringVar(&s.BusyboxImage, "busybox-image", "busybox", "The complete image uri used for fallback node cpu frequency getter job.")
 	fs.StringVar(&s.BusyboxImagePullSecret, "busybox-image-pull-secret", "", "The name of the secret that stores the image pull credentials for busybox image.")
 	fs.StringVar(&s.CpufreqJobExcludeNodeLabels, "cpufreq-job-exclude-node-labels", "", "The comma separated list of key=value node label pairs for the nodes (for example windows nodes) to be excluded from running job based cpufrequency getter.")

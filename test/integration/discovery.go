@@ -246,7 +246,7 @@ func assertCommoditySame(commI, commJ *proto.CommodityDTO, entityDTO *proto.Enti
 
 func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *kubeletclient.KubeletClient, dynamicClient dynamic.Interface) *configs.ProbeConfig {
 	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(kubeletClient, kubeClient)
-	clusterScraper := cluster.NewClusterScraper(kubeClient, dynamicClient)
+	clusterScraper := cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, "")
 	masterMonitoringConfig := master.NewClusterMonitorConfig(clusterScraper)
 	monitoringConfigs := []monitoring.MonitorWorkerConfig{
 		kubeletMonitoringConfig,

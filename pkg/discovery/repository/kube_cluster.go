@@ -36,6 +36,10 @@ type KubeCluster struct {
 	K8sAppToComponentMap map[K8sApp][]K8sAppComponent
 	ComponentToAppMap    map[K8sAppComponent][]K8sApp
 	ControllerMap        map[string]*K8sController
+
+	// Map listing parent machineSet name for each nodename
+	// This will be filled only if openshift clusterapi is enabled
+	MachineSetToNodeUIDsMap map[string][]string
 }
 
 func NewKubeCluster(clusterName string, nodes []*v1.Node) *KubeCluster {
@@ -49,6 +53,11 @@ func NewKubeCluster(clusterName string, nodes []*v1.Node) *KubeCluster {
 
 func (kc *KubeCluster) WithPods(pods []*v1.Pod) *KubeCluster {
 	kc.Pods = pods
+	return kc
+}
+
+func (kc *KubeCluster) WithMachineSetToNodeUIDsMap(machineSetToNodeUIDsMap map[string][]string) *KubeCluster {
+	kc.MachineSetToNodeUIDsMap = machineSetToNodeUIDsMap
 	return kc
 }
 
