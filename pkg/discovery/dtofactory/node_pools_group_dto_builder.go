@@ -32,8 +32,6 @@ func (builder *NodePoolsGroupDTOBuilder) Build() []*proto.GroupDTO {
 
 	var groupDTOs []*proto.GroupDTO
 	for poolName, members := range nodePools {
-		var err error
-
 		groupID := fmt.Sprintf("NodePool::%s [%s]", poolName, builder.targetId)
 		displayName := fmt.Sprintf("NodePool-%s-%s", poolName, builder.targetId)
 		glog.V(3).Infof("Creating Node Pool group: %s belonging to cluster [%s]",
