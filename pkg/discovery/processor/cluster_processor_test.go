@@ -281,7 +281,8 @@ type MockClusterScrapper struct {
 	mockGetKubernetesServiceID func() (svcID string, err error)
 	mockGetAllPVs              func() ([]*v1.PersistentVolume, error)
 	mockGetAllPVCs             func() ([]*v1.PersistentVolumeClaim, error)
-	mockGetResources           func(schema.GroupVersionResource) (*unstructured.UnstructuredList, error)
+	//mockGetResources               func(schema.GroupVersionResource) (*unstructured.UnstructuredList, error)
+	//mockGetMachineSetToNodeUIDsMap func(nodes []*v1.Node) map[string][]string
 }
 
 func (s *MockClusterScrapper) GetAllNodes() ([]*v1.Node, error) {
@@ -353,6 +354,10 @@ func (s *MockClusterScrapper) GetAllPVCs() ([]*v1.PersistentVolumeClaim, error) 
 
 func (s *MockClusterScrapper) GetResources(schema.GroupVersionResource) (*unstructured.UnstructuredList, error) {
 	return &unstructured.UnstructuredList{}, nil
+}
+
+func (s *MockClusterScrapper) GetMachineSetToNodeUIDsMap(nodes []*v1.Node) map[string][]string {
+	return make(map[string][]string)
 }
 
 // Implements the KubeHttpClientInterface

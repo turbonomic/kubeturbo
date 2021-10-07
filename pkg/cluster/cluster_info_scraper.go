@@ -7,6 +7,8 @@ import (
 
 	"github.com/golang/glog"
 
+	machinev1beta1api "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	capiclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -23,8 +25,9 @@ import (
 )
 
 const (
-	k8sDefaultNamespace   = "default"
-	kubernetesServiceName = "kubernetes"
+	k8sDefaultNamespace      = "default"
+	kubernetesServiceName    = "kubernetes"
+	machineSetNodePoolPrefix = "machineset"
 	// Expiration of cached pod controller info.
 	defaultCacheTTL = 12 * time.Hour
 )
@@ -45,22 +48,32 @@ type ClusterScraperInterface interface {
 	GetAllPVs() ([]*api.PersistentVolume, error)
 	GetAllPVCs() ([]*api.PersistentVolumeClaim, error)
 	GetResources(resource schema.GroupVersionResource) (*unstructured.UnstructuredList, error)
+	GetMachineSetToNodeUIDsMap(nodes []*api.Node) map[string][]string
 }
 
 type ClusterScraper struct {
 	*client.Clientset
+	caClient      *capiclient.Clientset
+	capiNamespace string
 	DynamicClient dynamic.Interface
 	cache         turbostore.ITurboCache
 }
 
-func NewClusterScraper(kclient *client.Clientset, dynamicClient dynamic.Interface) *ClusterScraper {
-	return &ClusterScraper{
+func NewClusterScraper(kclient *client.Clientset, dynamicClient dynamic.Interface, capiEnabled bool,
+	caClient *capiclient.Clientset, capiNamespace string) *ClusterScraper {
+	clusterScraper := &ClusterScraper{
 		Clientset:     kclient,
 		DynamicClient: dynamicClient,
 		// Create cache with expiration duration as defaultCacheTTL, which means the cached data will be cleaned up after
 		// defaultCacheTTL.
 		cache: turbostore.NewTurboCache(defaultCacheTTL).Cache,
 	}
+
+	if capiEnabled {
+		clusterScraper.caClient = caClient
+		clusterScraper.capiNamespace = capiNamespace
+	}
+	return clusterScraper
 }
 
 func (s *ClusterScraper) GetNamespaces() ([]*api.Namespace, error) {
@@ -113,6 +126,71 @@ func (s *ClusterScraper) GetAllNodes() ([]*api.Node, error) {
 		FieldSelector: fieldSelectEverything,
 	}
 	return s.GetNodes(listOption)
+}
+
+func (s *ClusterScraper) GetMachineSetToNodeUIDsMap(nodes []*api.Node) map[string][]string {
+	machineSetToNodeUIDs := make(map[string][]string)
+	if s.caClient == nil {
+		return machineSetToNodeUIDs
+	}
+
+	machineSetList := s.getCApiMachineSets()
+	if machineSetList == nil {
+		return machineSetToNodeUIDs
+	}
+
+	for _, machineSet := range machineSetList.Items {
+		machines := s.getCApiMachinesFiltered(machineSet.Name, metav1.ListOptions{
+			LabelSelector: metav1.FormatLabelSelector(&machineSet.Spec.Selector),
+		})
+		nodeUIDs := []string{}
+		for _, machine := range machines {
+			if machine.Status.NodeRef.Name != "" {
+				if uid := findNodeUID(machine.Status.NodeRef.Name, nodes); uid != "" {
+					nodeUIDs = append(nodeUIDs, uid)
+				}
+			}
+		}
+		machineSetToNodeUIDs[machineSetPoolName(machineSet.Name)] = nodeUIDs
+	}
+	return machineSetToNodeUIDs
+}
+
+func machineSetPoolName(machineSetName string) string {
+	return fmt.Sprintf("%s-%s", machineSetNodePoolPrefix, machineSetName)
+}
+
+func findNodeUID(nodeName string, nodes []*api.Node) string {
+	uid := ""
+	for _, n := range nodes {
+		if n.Name == nodeName {
+			return string(n.UID)
+		}
+	}
+	return uid
+}
+
+func (s *ClusterScraper) getCApiMachineSets() *machinev1beta1api.MachineSetList {
+	machineSetList, err := s.caClient.MachineV1beta1().MachineSets(s.capiNamespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		glog.Errorf("Error retrieving machinesets from cluster: %v", err)
+		return nil
+	}
+
+	return machineSetList
+}
+
+func (s *ClusterScraper) getCApiMachinesFiltered(machinesetName string, listOptions metav1.ListOptions) []machinev1beta1api.Machine {
+	machineList, err := s.caClient.MachineV1beta1().Machines(s.capiNamespace).List(context.TODO(), listOptions)
+	if err != nil {
+		glog.Errorf("Error retrieving machines for machineset %s from cluster: %v", machinesetName, err)
+		return nil
+	}
+	var machines []machinev1beta1api.Machine
+	if machineList != nil {
+		machines = append(machines, machineList.Items...)
+	}
+	return machines
 }
 
 func (s *ClusterScraper) GetNodes(opts metav1.ListOptions) ([]*api.Node, error) {
