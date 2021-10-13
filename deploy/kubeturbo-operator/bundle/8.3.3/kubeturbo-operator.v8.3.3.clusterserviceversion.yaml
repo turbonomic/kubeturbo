@@ -2,7 +2,7 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1","kind":"Kubeturbo","metadata":{"name":"kubeturbo-release"},"spec":{"serverMeta":{"turboServer":"https://Turbo_server_URL"}}}]'
+    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1","kind":"Kubeturbo","metadata":{"name":"kubeturbo-release"},"spec":{"serverMeta":{"turboServer":"https://Turbo_server_URL"},"targetConfig":{"targetName":"Cluster_Name"}}}]'
     capabilities: Basic Install
     categories: Monitoring
     certified: "false"
@@ -11,7 +11,7 @@ metadata:
     description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
     repository: https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo-operator
     support: Turbonomic, Inc.
-  name: kubeturbo-operator.v8.3.0
+  name: kubeturbo-operator.v8.3.3
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -169,21 +169,47 @@ spec:
                   name: kubeturbo-operator
               spec:
                 containers:
-                  - env:
-                      - name: WATCH_NAMESPACE
-                        valueFrom:
-                          fieldRef:
-                            fieldPath: metadata.namespace
-                      - name: POD_NAME
-                        valueFrom:
-                          fieldRef:
-                            fieldPath: metadata.name
-                      - name: OPERATOR_NAME
-                        value: kubeturbo-operator
-                    image: turbonomic/kubeturbo-operator:8.3
-                    imagePullPolicy: Always
-                    name: kubeturbo-operator
+                - name: kubeturbo-operator
+                  image: turbonomic/kubeturbo-operator:8.3
+                  args:
+                  - --leader-elect
+                  - --leader-election-id=kubeturbo-operator
+                  imagePullPolicy: Always
+                  livenessProbe:
+                    httpGet:
+                      path: /healthz
+                      port: 8081
+                    initialDelaySeconds: 15
+                    periodSeconds: 20
+                  readinessProbe:
+                    httpGet:
+                      path: /readyz
+                      port: 8081
+                    initialDelaySeconds: 5
+                    periodSeconds: 10
                     resources: {}
+                  env:
+                  - name: WATCH_NAMESPACE
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.namespace
+                  - name: POD_NAME
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.name
+                  - name: OPERATOR_NAME
+                    value: "kubeturbo-operator"
+                  securityContext:
+                    readOnlyRootFilesystem: true
+                    capabilities:
+                      drop:
+                        - ALL
+                  volumeMounts:
+                  - mountPath: /tmp
+                    name: operator-tmpfs0
+                volumes:
+                - name: operator-tmpfs0
+                  emptyDir: {}
                 serviceAccountName: kubeturbo-operator
     strategy: deployment
   installModes:
@@ -206,5 +232,5 @@ spec:
   maturity: alpha
   provider:
     name: Turbonomic, Inc.
-  replaces: kubeturbo-operator.v8.2.0
-  version: 8.3.0
+  replaces: kubeturbo-operator.v8.3.0
+  version: 8.3.3
