@@ -98,6 +98,11 @@ func GetSupportedResUsingKind(kind, namespace, name string) (schema.GroupVersion
 			Group:    util.K8sAPIDaemonsetGV.Group,
 			Version:  util.K8sAPIDaemonsetGV.Version,
 			Resource: util.DaemonSetResName}
+	case util.KindStatefulSet:
+		res = schema.GroupVersionResource{
+			Group:    util.K8sAPIStatefulsetGV.Group,
+			Version:  util.K8sAPIStatefulsetGV.Version,
+			Resource: util.StatefulSetResName}
 	default:
 		err = fmt.Errorf("unsupport controller type %s for %s/%s", kind, namespace, name)
 	}
