@@ -85,10 +85,7 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 		}
 
 		// service data.
-		serviceData := &proto.EntityDTO_ServiceData{
-			ServiceType: &service.Name,
-		}
-		ebuilder.ServiceData(serviceData)
+		ebuilder.ServiceData(createServiceData(service))
 
 		// set the ip property for stitching
 		ebuilder.WithProperty(getIPProperty(pods)).WithProperty(getUUIDProperty(id))
@@ -106,6 +103,22 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 	}
 
 	return result
+}
+
+func createServiceData(service *api.Service) *proto.EntityDTO_ServiceData {
+	serviceData := &proto.EntityDTO_ServiceData{
+		IpAddress: &service.Spec.ClusterIP,
+	}
+	k8sServiceType := string(service.Spec.Type)
+	if value, ok := proto.EntityDTO_KubernetesServiceData_ServiceType_value[k8sServiceType]; ok {
+		serviceType := proto.EntityDTO_KubernetesServiceData_ServiceType(value)
+		serviceData.ServiceData = &proto.EntityDTO_ServiceData_KubernetesServiceData{
+			KubernetesServiceData: &proto.EntityDTO_KubernetesServiceData{
+				ServiceType: &serviceType,
+			},
+		}
+	}
+	return serviceData
 }
 
 // Create sold commodities for Service entity.
