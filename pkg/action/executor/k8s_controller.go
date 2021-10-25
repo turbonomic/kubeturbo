@@ -36,6 +36,7 @@ type k8sControllerSpec struct {
 }
 
 type parentController struct {
+	dynClient           dynamic.Interface
 	dynNamespacedClient dynamic.ResourceInterface
 	obj                 *unstructured.Unstructured
 	name                string
@@ -97,8 +98,22 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 	if err := unstructured.SetNestedField(c.obj.Object, podSpecUnstructured, "spec", "template", "spec"); err != nil {
 		return fmt.Errorf("error setting podSpec into unstructured %s %s: %v", kind, objName, err)
 	}
+
+	annotations := c.obj.GetAnnotations()
+	gitopsSource, exists := annotations[GitopsSourceAnnotationKey]
+	if exists {
+		// The workload is managed by a pipeline controller which replicates
+		// it from a source of truth
+		cRC := newCRController(c.dynClient)
+		err := cRC.Update(gitopsSource, c.obj)
+		if err != nil {
+			return fmt.Errorf("failed to create a ChangeRequest: %v", err)
+		}
+		return nil
+	}
+
 	controllerOwnerReferences := c.obj.GetOwnerReferences()
-	if controllerOwnerReferences != nil && len(controllerOwnerReferences) == 1 && *controllerOwnerReferences[0].Controller {
+	if len(controllerOwnerReferences) == 1 && *controllerOwnerReferences[0].Controller {
 		// If k8s controller is controlled by custom controller, update the CR using OperatorResourceMapping
 		if c.ormClient == nil {
 			return fmt.Errorf("failed to execute action with nil ORMClient")

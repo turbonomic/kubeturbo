@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	kubeclientset "k8s.io/client-go/kubernetes"
@@ -22,9 +23,12 @@ import (
 	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo"
 
+	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
+
 	"github.com/turbonomic/kubeturbo/pkg/action"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 )
 
 const openShiftDeployerLabel = "openshift.io/deployer-pod-for.name"
@@ -36,6 +40,7 @@ var _ = Describe("Action Executor ", func() {
 	var actionHandler *action.ActionHandler
 	var kubeClient *kubeclientset.Clientset
 	var osClient *osclient.Clientset
+	var dynamicClient dynamic.Interface
 
 	//AfterSuite(f.AfterEach)
 	BeforeEach(func() {
@@ -46,7 +51,8 @@ var _ = Describe("Action Executor ", func() {
 			kubeConfig := f.GetKubeConfig()
 			kubeClient = f.GetKubeClient("action-executor")
 
-			dynamicClient, err := dynamic.NewForConfig(kubeConfig)
+			var err error
+			dynamicClient, err = dynamic.NewForConfig(kubeConfig)
 			if err != nil {
 				framework.Failf("Failed to generate dynamic client for kubernetes test cluster: %v", err)
 			}
@@ -180,6 +186,33 @@ var _ = Describe("Action Executor ", func() {
 		})
 	})
 
+	// TODO: This test as of now assumes that the setup cluster will have the
+	// CRD for ChangeRequest installed. Add this to the kind cluster setup once the
+	// CRD definition is finalised.
+	Describe("executing action resize pod on a gitops updated workload", func() {
+		It("should result in new pod on target node", func() {
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithGitopsAnnotation(namespace, 1))
+			framework.ExpectNoError(err, "Error creating test resources")
+
+			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
+			framework.ExpectNoError(err, "Error getting deployments pod")
+			// This should not happen. We should ideally get a pod.
+			if pod == nil {
+				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
+			}
+
+			_, err = actionHandler.ExecuteAction(newResizeActionExecutionDTO(proto.ActionItemDTO_RIGHT_SIZE,
+				newResizeWorkloadControllerTargetSE(dep), newHostSEFromNodeName(pod.Spec.NodeName),
+				newContainerEntity("test-cont")), nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Resize action failed")
+
+			// As of now validate that the CR with the same name is created
+			// in the same namespace. At some point we will implement validating
+			// the content also.
+			validateCRCreated(dep.Name, namespace, dynamicClient)
+		})
+	})
+
 	// TODO: this particular Describe is currently used as the teardown for this
 	// whole test (not the suite).
 	// This will work only if run sequentially. Find a better way to do this.
@@ -196,6 +229,15 @@ func createDeployResource(client *kubeclientset.Clientset, dep *appsv1.Deploymen
 		return nil, err
 	}
 	return waitForDeployment(client, newDep.Name, newDep.Namespace)
+}
+
+func depSingleContainerWithGitopsAnnotation(namespace string, replicas int32) *appsv1.Deployment {
+	dep := depSingleContainerWithResources(namespace, "", replicas, false, false, false)
+	if dep.Annotations == nil {
+		dep.Annotations = make(map[string]string)
+	}
+	dep.Annotations[executor.GitopsSourceAnnotationKey] = "dummy-path"
+	return dep
 }
 
 // This can also be bootstrapped from a test resource directory
@@ -588,6 +630,36 @@ type mockProgressTrack struct{}
 func (p *mockProgressTrack) UpdateProgress(actionState proto.ActionResponseState, description string, progress int32) {
 }
 
+func newResizeActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targetSE, newHostSE, currentSE *proto.EntityDTO) *proto.ActionExecutionDTO {
+	ai := &proto.ActionItemDTO{}
+	ai.TargetSE = targetSE
+	ai.NewSE = newHostSE
+	ai.ActionType = &actionType
+
+	commType := proto.CommodityDTO_VCPU
+	cap := float64(100)
+	ai.CurrentComm = &proto.CommodityDTO{
+		CommodityType: &commType,
+		Capacity:      &cap,
+	}
+
+	newCap := cap + 100
+	ai.NewComm = &proto.CommodityDTO{
+		CommodityType: &commType,
+		Capacity:      &newCap,
+	}
+
+	csc := true
+	ai.ConsistentScalingCompliance = &csc
+
+	ai.CurrentSE = currentSE
+
+	dto := &proto.ActionExecutionDTO{}
+	dto.ActionItem = []*proto.ActionItemDTO{ai}
+
+	return dto
+}
+
 func newActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targetSE, newHostSE *proto.EntityDTO) *proto.ActionExecutionDTO {
 	ai := &proto.ActionItemDTO{}
 	ai.TargetSE = targetSE
@@ -597,6 +669,26 @@ func newActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targetSE, 
 	dto.ActionItem = []*proto.ActionItemDTO{ai}
 
 	return dto
+}
+
+func newResizeWorkloadControllerTargetSE(dep *appsv1.Deployment) *proto.EntityDTO {
+	entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER, string(dep.UID))
+	entityDTOBuilder.DisplayName(dep.Name)
+
+	entityDTOBuilder.WorkloadControllerData(&proto.EntityDTO_WorkloadControllerData{
+		ControllerType: &proto.EntityDTO_WorkloadControllerData_DeploymentData{
+			DeploymentData: &proto.EntityDTO_DeploymentData{},
+		},
+	})
+	entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
+	entityDTOBuilder.WithProperty(property.BuildWorkloadControllerNSProperty(dep.Namespace))
+
+	se, err := entityDTOBuilder.Create()
+	if err != nil {
+		framework.Failf("failed to build WorkloadController[%s] entityDTO: %v", dep.Name, err)
+	}
+
+	return se
 }
 
 func newTargetSEFromPod(pod *corev1.Pod) *proto.EntityDTO {
@@ -623,6 +715,17 @@ func newHostSEFromNodeName(nodeName string) *proto.EntityDTO {
 	return se
 }
 
+func newContainerEntity(name string) *proto.EntityDTO {
+	entityType := proto.EntityDTO_CONTAINER_SPEC
+	dispName := name
+
+	se := &proto.EntityDTO{}
+	se.EntityType = &entityType
+	se.DisplayName = &dispName
+
+	return se
+}
+
 func getTargetSENodeName(f *framework.TestFramework, pod *corev1.Pod) string {
 	for _, nodeName := range f.GetClusterNodes() {
 		if nodeName != pod.Spec.NodeName {
@@ -635,4 +738,16 @@ func getTargetSENodeName(f *framework.TestFramework, pod *corev1.Pod) string {
 
 func podID(pod *corev1.Pod) string {
 	return fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+}
+
+func validateCRCreated(name, namespace string, client dynamic.Interface) {
+	res := schema.GroupVersionResource{
+		Group:    executor.CRGroup,
+		Version:  executor.CRVersion,
+		Resource: executor.CRResourceName,
+	}
+	_, err := client.Resource(res).Namespace(namespace).Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		framework.Failf("Error getting the created ChangeRequest resource: %v", err)
+	}
 }
