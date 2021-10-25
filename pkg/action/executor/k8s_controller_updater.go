@@ -58,6 +58,7 @@ func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper, ormClient *
 	}
 	return &k8sControllerUpdater{
 		controller: &parentController{
+			dynClient:           clusterScraper.DynamicClient,
 			dynNamespacedClient: clusterScraper.DynamicClient.Resource(res).Namespace(namespace),
 			name:                kind,
 			ormClient:           ormClient,
