@@ -19,6 +19,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/master"
 	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
+	"github.com/turbonomic/kubeturbo/version"
 	"github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/service"
 )
@@ -178,7 +179,7 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 	// Kubernetes Probe Action Execution Client
 	actionHandler := action.NewActionHandler(actionHandlerConfig)
 
-	probeVersion := extractTagFromImage(config.tapSpec.ProbeContainerImage)
+	probeVersion := version.Version
 	probeDisplayName := getProbeDisplayName(config.tapSpec.TargetType, config.tapSpec.TargetIdentifier)
 
 	probeBuilder := probe.NewProbeBuilder(config.tapSpec.TargetType,
@@ -217,16 +218,6 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 	}
 
 	return &K8sTAPService{tapService}, nil
-}
-
-// extractTagFromImage extracts the tag out of the given image string.
-func extractTagFromImage(image string) string {
-	splitsByColon := strings.Split(image, ":")
-	if len(splitsByColon) != 2 {
-		glog.Warningf("Cannot extract a version from the image string %v; return the whole string", image)
-		return image
-	}
-	return splitsByColon[1]
 }
 
 // getProbeDisplayName constructs a display name for the probe based on the input probe type and target id

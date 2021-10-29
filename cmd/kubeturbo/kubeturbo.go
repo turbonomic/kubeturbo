@@ -18,7 +18,6 @@ package main
 
 import (
 	goflag "flag"
-	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -26,6 +25,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
 	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
+	"github.com/turbonomic/kubeturbo/version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
 )
@@ -111,7 +111,8 @@ func main() {
 	defer klog.Flush()
 	defer glog.Flush()
 
-	glog.Infof("Run Kubeturbo service (GIT_COMMIT: %s)", os.Getenv("GIT_COMMIT"))
+	glog.Infof("Running kubeturbo VERSION: %s, GIT_COMMIT: %s, BUILD_TIME: %s",
+		version.Version, version.GitCommit, version.BuildTime)
 
 	s.Run()
 }

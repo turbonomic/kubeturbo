@@ -2,25 +2,38 @@ OUTPUT_DIR=build
 SOURCE_DIRS=cmd pkg
 PACKAGES=go list ./... | grep -v /vendor | grep -v /out
 SHELL='/bin/bash'
+REMOTE=github.com
+USER=turbonomic
+PROJECT=kubeturbo
+BINARY=kubeturbo
+
+GIT_COMMIT=$(shell git rev-parse HEAD)
+BUILD_TIME=$(shell date -R)
+PROJECT_PATH=$(REMOTE)/$(USER)/$(PROJECT)
+KUBETURBO_VERSION?=latest
+LDFLAGS='\
+ -X "$(PROJECT_PATH)/version.GitCommit=$(GIT_COMMIT)" \
+ -X "$(PROJECT_PATH)/version.BuildTime=$(BUILD_TIME)" \
+ -X "$(PROJECT_PATH)/version.Version=$(KUBETURBO_VERSION)"'
 
 LINUX_ARCH=amd64 arm64 ppc64le s390x
 
 $(LINUX_ARCH): clean
-	env GOOS=linux GOARCH=$@ go build -o ${OUTPUT_DIR}/linux/$@/kubeturbo ./cmd/kubeturbo
+	env GOOS=linux GOARCH=$@ go build -ldflags $(LDFLAGS) -o $(OUTPUT_DIR)/linux/$@/$(BINARY) ./cmd/kubeturbo
 
 product: $(LINUX_ARCH)
 
 debug-product: clean
-	env GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -gcflags "-N -l" -o ${OUTPUT_DIR}/kubeturbo.debug ./cmd/kubeturbo
+	env GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LDFLAGS) -gcflags "-N -l" -o $(OUTPUT_DIR)/$(BINARY).debug ./cmd/kubeturbo
 
 build: clean
-	go build ./cmd/kubeturbo
+	go build -ldflags $(LDFLAGS) ./cmd/kubeturbo
 
 integration: clean
-	go test -c -o ${OUTPUT_DIR}/integration.test ./test/integration
+	go test -c -o $(OUTPUT_DIR)/integration.test ./test/integration
 
 docker: product
-	cd build; docker build -t turbonomic/kubeturbo --build-arg GIT_COMMIT=$(shell git rev-parse --short HEAD) .
+	cd build; docker build -t turbonomic/kubeturbo .
 
 delve:
 	docker build -f build/Dockerfile.delve -t delve:staging .
