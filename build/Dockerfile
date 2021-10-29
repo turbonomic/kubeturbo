@@ -1,7 +1,5 @@
 FROM registry.access.redhat.com/ubi8
 MAINTAINER Enlin Xu <enlin.xu@turbonomic.com>
-ARG GIT_COMMIT
-ENV GIT_COMMIT ${GIT_COMMIT}
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
 

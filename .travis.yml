@@ -4,6 +4,7 @@ env:
   global:
     - DOCKER_IMAGE_NAME=$TRAVIS_REPO_SLUG
     - PLATFORM_OS_ARCH_LIST="linux/amd64,linux/arm64,linux/ppc64le,linux/s390x"
+    - KUBETURBO_VERSION=$TRAVIS_TAG
 
 services:
   - docker
@@ -46,10 +47,10 @@ after_success:
         cd build
         if [ -n "$TRAVIS_TAG" ]; then
             # Push a release image triggered by a git tag
-            docker buildx build --platform $PLATFORM_OS_ARCH_LIST --build-arg GIT_COMMIT=$TRAVIS_COMMIT --label "git-version=$TRAVIS_COMMIT" --push -t $DOCKER_IMAGE_NAME:$TRAVIS_TAG .
+            docker buildx build --platform $PLATFORM_OS_ARCH_LIST --label "git-version=$TRAVIS_COMMIT" --push -t $DOCKER_IMAGE_NAME:$TRAVIS_TAG .
         else
             # Push the latest image built from master branch
-            docker buildx build --platform $PLATFORM_OS_ARCH_LIST --build-arg GIT_COMMIT=$TRAVIS_COMMIT --label "git-version=$TRAVIS_COMMIT" --push -t $DOCKER_IMAGE_NAME .
+            docker buildx build --platform $PLATFORM_OS_ARCH_LIST --label "git-version=$TRAVIS_COMMIT" --push -t $DOCKER_IMAGE_NAME .
         fi
       fi
     fi
