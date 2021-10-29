@@ -6,15 +6,16 @@ REMOTE=github.com
 USER=turbonomic
 PROJECT=kubeturbo
 BINARY=kubeturbo
+DEFAULT_VERSION=latest
 
 GIT_COMMIT=$(shell git rev-parse HEAD)
 BUILD_TIME=$(shell date -R)
 PROJECT_PATH=$(REMOTE)/$(USER)/$(PROJECT)
-KUBETURBO_VERSION?=latest
+VERSION=$(or $(KUBETURBO_VERSION), $(DEFAULT_VERSION))
 LDFLAGS='\
  -X "$(PROJECT_PATH)/version.GitCommit=$(GIT_COMMIT)" \
  -X "$(PROJECT_PATH)/version.BuildTime=$(BUILD_TIME)" \
- -X "$(PROJECT_PATH)/version.Version=$(KUBETURBO_VERSION)"'
+ -X "$(PROJECT_PATH)/version.Version=$(VERSION)"'
 
 LINUX_ARCH=amd64 arm64 ppc64le s390x
 

@@ -1,7 +1,7 @@
 package version
 
 var (
-	Version   = "latest"
+	Version   = "undefined"
 	GitCommit = "undefined"
 	BuildTime = "undefined"
 )
