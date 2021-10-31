@@ -37,9 +37,9 @@ spec:
           metadata:
             type: object
           spec:
-            x-kubernetes-preserve-unknown-fields: true
-            properties:
+            description: Spec defines the desired state of Kubeturbo
             type: object
+            x-kubernetes-preserve-unknown-fields: true
   - name: v1
     served: true
     storage: true
@@ -61,9 +61,9 @@ spec:
           metadata:
             type: object
           spec:
-            x-kubernetes-preserve-unknown-fields: true
             description: Spec defines the desired state of Kubeturbo
             type: object
+            x-kubernetes-preserve-unknown-fields: true
             properties:
               roleBinding:
                 description: The name of cluster role binding. Default is turbo-all-binding
