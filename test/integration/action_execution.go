@@ -191,7 +191,7 @@ var _ = Describe("Action Executor ", func() {
 	// CRD definition is finalised.
 	Describe("executing action resize pod on a gitops updated workload", func() {
 		It("should result in new pod on target node", func() {
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithGitopsAnnotation(namespace, 1))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithGitopsAnnotations(namespace, 1))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
@@ -231,12 +231,15 @@ func createDeployResource(client *kubeclientset.Clientset, dep *appsv1.Deploymen
 	return waitForDeployment(client, newDep.Name, newDep.Namespace)
 }
 
-func depSingleContainerWithGitopsAnnotation(namespace string, replicas int32) *appsv1.Deployment {
+func depSingleContainerWithGitopsAnnotations(namespace string, replicas int32) *appsv1.Deployment {
 	dep := depSingleContainerWithResources(namespace, "", replicas, false, false, false)
 	if dep.Annotations == nil {
 		dep.Annotations = make(map[string]string)
 	}
-	dep.Annotations[executor.GitopsSourceAnnotationKey] = "dummy-path"
+	dep.Annotations[executor.GitopsSourceAnnotationKey] = "dummy-source"
+	dep.Annotations[executor.GitopsFilePathAnnotationKey] = "dummy-path"
+	dep.Annotations[executor.GitopsBranchAnnotationKey] = "dummy-branch"
+	dep.Annotations[executor.GitopsSecretNameAnnotationKey] = "dummy-secret-name"
 	return dep
 }
 

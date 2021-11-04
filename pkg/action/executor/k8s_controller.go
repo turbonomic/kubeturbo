@@ -104,11 +104,12 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 
 	annotations := c.obj.GetAnnotations()
 	gitopsSource, exists := annotations[GitopsSourceAnnotationKey]
+	// We will extract other annotations in update
 	if exists {
 		// The workload is managed by a pipeline controller which replicates
 		// it from a source of truth
-		cRC := newCRController(c.dynClient)
-		err := cRC.Update(gitopsSource, c.obj)
+		cRC := newCRController(c.dynClient, c.obj)
+		err := cRC.Update(gitopsSource, int64(*updatedSpec.replicas), podSpecUnstructured)
 		if err != nil {
 			return fmt.Errorf("failed to create a ChangeRequest: %v", err)
 		}

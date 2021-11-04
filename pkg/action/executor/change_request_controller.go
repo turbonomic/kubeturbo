@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ghodss/yaml"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -14,15 +12,19 @@ import (
 )
 
 const (
-	CRGroup        = "turbonomic.kubeturbo.io"
+	CRGroup        = "turbonomic.io"
 	CRVersion      = "v1alpha1"
 	CRResourceName = "changerequests"
 	CRKind         = "ChangeRequest"
 
-	// We currently use the source of truth path as an annotation on the
+	// We currently use the CR related values as an annotation on the
 	// given workload controller. At some point we will need to move this
-	// to a more structured place, for example a CR.
-	GitopsSourceAnnotationKey = "turbonomic.kubeturbo.io/gitops-source"
+	// to a more structured place, ie. a custom resource.
+	GitopsSourceAnnotationKey          = "turbonomic.io/gitops-source"
+	GitopsFilePathAnnotationKey        = "turbonomic.io/gitops-file-path"
+	GitopsBranchAnnotationKey          = "turbonomic.io/gitops-branch"
+	GitopsSecretNameAnnotationKey      = "turbonomic.io/gitops-secret-name"
+	GitopsSecretNamespaceAnnotationKey = "turbonomic.io/gitops-secret-namespace"
 )
 
 type cRController interface {
@@ -32,42 +34,79 @@ type cRController interface {
 	// The creation of ChangeRequest will be observed by the
 	// change reconciler which will update the source path
 	// with the new object
-	Update(sourcePath string, workloadObj *unstructured.Unstructured) error
+	Update(sourcePath string, replicas int64, podSpec map[string]interface{}) error
 }
 
 type cRControllerImpl struct {
 	dynClient dynamic.Interface
-	name      string
+	obj       *unstructured.Unstructured
 }
 
-func newCRController(dynClient dynamic.Interface) cRController {
+func newCRController(dynClient dynamic.Interface, obj *unstructured.Unstructured) cRController {
 	return &cRControllerImpl{
 		dynClient: dynClient,
-		name:      "ChangeRequestController",
+		obj:       obj,
 	}
 }
 
-func (c *cRControllerImpl) Update(sourcePath string, workloadObj *unstructured.Unstructured) error {
-	objJSON, err := workloadObj.MarshalJSON()
-	if err != nil {
-		return fmt.Errorf("Error encoding unstructured object to yaml: %v", err)
+func (cr *cRControllerImpl) Update(source string, replicas int64, podSpec map[string]interface{}) error {
+	annotations := cr.obj.GetAnnotations()
+	filePath, exists := annotations[GitopsFilePathAnnotationKey]
+	if !exists {
+		return fmt.Errorf("annotation %s needed for ChangeRequest creation does not exist", GitopsFilePathAnnotationKey)
+	}
+	branch, exists := annotations[GitopsBranchAnnotationKey]
+	if !exists {
+		return fmt.Errorf("annotation %s needed for ChangeRequest creation does not exist", GitopsBranchAnnotationKey)
+	}
+	secretName, exists := annotations[GitopsSecretNameAnnotationKey]
+	if !exists {
+		return fmt.Errorf("annotation %s needed for ChangeRequest creation does not exist", GitopsSecretNameAnnotationKey)
+	}
+	secretNamespace, exists := annotations[GitopsSecretNamespaceAnnotationKey]
+	if !exists {
+		return fmt.Errorf("annotation %s needed for ChangeRequest creation does not exist", GitopsSecretNamespaceAnnotationKey)
 	}
 
-	data, err := yaml.JSONToYAML(objJSON)
-	if err != nil {
-		return fmt.Errorf("Error encoding json object to yaml: %v", err)
-	}
-
-	cR := newCRResource(workloadObj.GetName(), workloadObj.GetNamespace())
-	err = unstructured.SetNestedField(cR.Object, sourcePath, "spec", "pathname")
+	cR := newCRResource(cr.obj.GetName(), cr.obj.GetNamespace())
+	err := unstructured.SetNestedField(cR.Object, "GitHub", "spec", "type")
 	if err != nil {
 		return err
 	}
-	err = unstructured.SetNestedField(cR.Object, string(data), "spec", "payload")
+	err = unstructured.SetNestedField(cR.Object, source, "spec", "source")
 	if err != nil {
 		return err
 	}
-	err = unstructured.SetNestedField(cR.Object, "GitHub", "spec", "type")
+	err = unstructured.SetNestedField(cR.Object, filePath, "spec", "filePath")
+	if err != nil {
+		return err
+	}
+	err = unstructured.SetNestedField(cR.Object, branch, "spec", "branch")
+	if err != nil {
+		return err
+	}
+	err = unstructured.SetNestedField(cR.Object, secretName, "spec", "secretRef", "name")
+	if err != nil {
+		return err
+	}
+	err = unstructured.SetNestedField(cR.Object, secretNamespace, "spec", "secretRef", "namespace")
+	if err != nil {
+		return err
+	}
+
+	var patches []interface{}
+	patches = append(patches, map[string]interface{}{
+		"op":    "replace",
+		"path":  "/spec/replicas",
+		"value": replicas,
+	})
+	patches = append(patches, map[string]interface{}{
+		"op":    "replace",
+		"path":  "/spec/template/spec",
+		"value": podSpec,
+	})
+
+	err = unstructured.SetNestedSlice(cR.Object, patches, "spec", "patchItems")
 	if err != nil {
 		return err
 	}
@@ -77,7 +116,7 @@ func (c *cRControllerImpl) Update(sourcePath string, workloadObj *unstructured.U
 		Version:  CRVersion,
 		Resource: CRResourceName,
 	}
-	namespacedClient := c.dynClient.Resource(res).Namespace(workloadObj.GetNamespace())
+	namespacedClient := cr.dynClient.Resource(res).Namespace(cr.obj.GetNamespace())
 
 	// We try to create a new CR resource with the update info.
 	// It might be that this action has been executed once and we are trying it
@@ -99,6 +138,9 @@ func (c *cRControllerImpl) Update(sourcePath string, workloadObj *unstructured.U
 			return err
 		}
 
+		// TODO: Reset the status too, because if the status still remains
+		// 'completed' the change-reconciler would not do anything.
+		// Brainstorm a little more on this.
 		_, err = namespacedClient.Update(context.Background(), cR, metav1.UpdateOptions{})
 		if err != nil {
 			return err
@@ -109,7 +151,7 @@ func (c *cRControllerImpl) Update(sourcePath string, workloadObj *unstructured.U
 }
 
 func (c *cRControllerImpl) String() string {
-	return c.name
+	return c.obj.GetName()
 }
 
 func newCRResource(name, namespace string) *unstructured.Unstructured {
