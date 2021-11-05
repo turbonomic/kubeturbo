@@ -72,11 +72,9 @@ subsequent action to decrease capacity will not result in throttling.
   * **Power10 Support** KubeTurbo now supports Kubernetes clusters that run on Linux ppc64le
 (including Power10) architectures. Select the architecture you want from the public Docker Hub repo starting with KubeTurbo image 8.3.1, at
 [turbonomic/kubeturbo:8.3.1](https://hub.docker.com/layers/turbonomic/kubeturbo/8.3.1/images/sha256-f1770480f31b974488e25a5c3c2c4633b480dabe28fde5640fd23aebdb54b91e?context=explore).
-To deploy Kubeturbo via Operator, use the Operator image at [turbonomic/kubeturbo-operator:8.2](https://hub.docker.com/layers/turbonomic/kubeturbo-operator/8.2/images/sha256-f02b7523fd9be7db367fc28a6b9b740e36a87f17121b4cacf3218f8ae0868fb7?context=explore). Note that
+To deploy Kubeturbo via Operator, use the Operator image at [turbonomic/kubeturbo-operator:8.3](https://hub.docker.com/layers/turbonomic/kubeturbo-operator/8.3/images/sha256-084e096b2321b3c872c3c70df749638cbb9b4f5c3fe5c1461e322cade762d06a?context=explore). Note that
 KubeTurbo deployed via the [OpenShift Operator Hub](https://operatorhub.io/operator/kubeturbo) currently only supports x86.
 
 ## [Supported Platforms](https://www.turbonomic.com/platform/integrations/?_integrations_filter_buttons=container-platforms)
 Any upstream compliant Kubernetes distribution, starting with v1.8+ to current GA
 <img width="1320" src="https://github.com/evat-pm/images/blob/aa796457175c77b3954a584c1bd68bd2685eacee/kubeturbo-support.png">
-
-
