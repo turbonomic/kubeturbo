@@ -3,7 +3,9 @@ package executor
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 
 	apicorev1 "k8s.io/api/core/v1"
@@ -12,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 
+	actionutil "github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 )
 
@@ -98,8 +101,9 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		return fmt.Errorf("error setting podSpec into unstructured %s %s: %v", kind, objName, err)
 	}
 	controllerOwnerReferences := c.obj.GetOwnerReferences()
-	if controllerOwnerReferences != nil && len(controllerOwnerReferences) == 1 && *controllerOwnerReferences[0].Controller {
+	if !c.shouldSkipOperator(c.obj) && len(controllerOwnerReferences) == 1 && *controllerOwnerReferences[0].Controller {
 		// If k8s controller is controlled by custom controller, update the CR using OperatorResourceMapping
+		// if SkipOperatorLabel is not set or not true.
 		if c.ormClient == nil {
 			return fmt.Errorf("failed to execute action with nil ORMClient")
 		}
@@ -108,6 +112,23 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		_, err = c.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
 	}
 	return err
+}
+
+// Whether Operator controller should be skipped when executing a resize action on a K8s controller
+// based on the label. If the SkipOperatorLabel is set to true on a K8s controller, resize action
+// will directly update this controller regardless of upper Operator controller.
+func (c *parentController) shouldSkipOperator(controller *unstructured.Unstructured) bool {
+	labels := controller.GetLabels()
+	if labels == nil {
+		return false
+	}
+	labelVal, exists := labels[actionutil.SkipOperatorLabel]
+	if exists && strings.EqualFold(labelVal, "true") {
+		glog.Infof("Directly updating '%s %s/%s' regardless of Operator controller because '%s' label is set to true.",
+			controller.GetKind(), controller.GetNamespace(), controller.GetName(), actionutil.SkipOperatorLabel)
+		return true
+	}
+	return false
 }
 
 func (rc *parentController) String() string {
