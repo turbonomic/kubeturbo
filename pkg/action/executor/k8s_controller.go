@@ -118,7 +118,11 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 // based on the label. If the SkipOperatorLabel is set to true on a K8s controller, resize action
 // will directly update this controller regardless of upper Operator controller.
 func (c *parentController) shouldSkipOperator(controller *unstructured.Unstructured) bool {
-	labelVal, exists := controller.GetLabels()[actionutil.SkipOperatorLabel]
+	labels := controller.GetLabels()
+	if labels == nil {
+		return false
+	}
+	labelVal, exists := labels[actionutil.SkipOperatorLabel]
 	if exists && strings.EqualFold(labelVal, "true") {
 		glog.Infof("Directly updating '%s %s/%s' regardless of Operator controller because '%s' label is set to true.",
 			controller.GetKind(), controller.GetNamespace(), controller.GetName(), actionutil.SkipOperatorLabel)
