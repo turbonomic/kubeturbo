@@ -20,6 +20,9 @@ import (
 const (
 	osSccAnnotation = "openshift.io/scc"
 	osSccAllowAll   = "*"
+	// The label to identify the controllers where resizing action execution will be directly update
+	// controller itself if the label is "true" regardless of its Opeartor controller.
+	SkipOperatorLabel = "kubeturbo.io/skipOperator"
 )
 
 var (
