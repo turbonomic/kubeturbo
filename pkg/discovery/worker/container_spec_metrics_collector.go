@@ -48,7 +48,7 @@ func (collector *ContainerSpecMetricsCollector) CollectContainerSpecMetrics() []
 		if util.HasController(pod) {
 			controllerUID, err := util.GetControllerUID(pod, collector.metricsSink)
 			if err != nil {
-				glog.Errorf("Error getting controller UID from pod %s, %v", pod.Name, err)
+				glog.V(3).Infof("Cannot find controller UID for pod %s/%s, %v", pod.Namespace, pod.Name, err)
 				continue
 			}
 
