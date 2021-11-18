@@ -7,12 +7,20 @@ rules:
       - ""
       - apps
       - extensions
+      - app.k8s.io
     resources:
       - nodes
       - pods
       - deployments
       - replicasets
       - replicationcontrollers
+      - daemonsets
+      - statefulsets
+      - services
+      - endpoints
+      - namespaces
+      - limitranges
+      - resourcequotas
     verbs:
       - '*'
   - apiGroups:
@@ -24,12 +32,10 @@ rules:
       - services
       - endpoints
       - namespaces
-      - limitranges
-      - resourcequotas
-      - daemonsets
       - persistentvolumes
       - persistentvolumeclaims
       - poddisruptionbudget
+      - applications
     verbs:
       - get
       - list
@@ -39,5 +45,7 @@ rules:
     resources:
       - nodes/spec
       - nodes/stats
+      - nodes/metrics
+      - nodes/proxy
     verbs:
       - get
