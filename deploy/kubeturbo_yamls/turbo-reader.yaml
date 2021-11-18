@@ -29,5 +29,7 @@ rules:
     resources:
       - nodes/spec
       - nodes/stats
+      - node/metrics
+      - node/proxy
     verbs:
       - get
