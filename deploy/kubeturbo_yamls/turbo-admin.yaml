@@ -5,37 +5,55 @@ metadata:
 rules:
   - apiGroups:
       - ""
-      - apps
-      - extensions
-      - app.k8s.io
+      - batch
     resources:
-      - nodes
       - pods
-      - deployments
-      - replicasets
-      - replicationcontrollers
-      - daemonsets
-      - statefulsets
-      - services
-      - endpoints
-      - namespaces
-      - limitranges
-      - resourcequotas
+      - jobs
     verbs:
       - '*'
   - apiGroups:
       - ""
       - apps
+      - apps.openshift.io
+      - extensions
+      - machine.openshift.io
+    resources:
+      - deployments
+      - replicasets
+      - replicationcontrollers
+      - statefulsets
+      - daemonsets
+      - deploymentconfigs
+      - machinesets
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+  - apiGroups:
+      - ""
+      - apps
+      - batch
       - extensions
       - policy
+      - app.k8s.io
+      - turbonomic.com
+      - machine.openshift.io
     resources:
+      - nodes
+      - machines
       - services
       - endpoints
       - namespaces
+      - limitranges
+      - resourcequotas
       - persistentvolumes
       - persistentvolumeclaims
       - poddisruptionbudget
+      - cronjobs
       - applications
+      - operatorresourcemappings
     verbs:
       - get
       - list
@@ -47,5 +65,6 @@ rules:
       - nodes/stats
       - nodes/metrics
       - nodes/proxy
+      - pods/log
     verbs:
       - get
