@@ -1,12 +1,13 @@
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: turbo-cluster-reader
 rules:
   - apiGroups:
       - ""
       - apps
+      - app.k8s.io
+      - apps.openshift.io
+      - batch
       - extensions
+      - machine.openshift.io
+      - turbonomic.com
     resources:
       - nodes
       - pods
@@ -20,6 +21,15 @@ rules:
       - resourcequotas
       - persistentvolumes
       - persistentvolumeclaims
+      - applications
+      - jobs
+      - cronjobs
+      - statefulsets
+      - daemonsets
+      - deploymentconfigs
+      - machinesets
+      - machines
+      - operatorresourcemappings
     verbs:
       - get
       - watch
@@ -29,5 +39,7 @@ rules:
     resources:
       - nodes/spec
       - nodes/stats
+      - nodes/metrics
+      - nodes/proxy
     verbs:
       - get
