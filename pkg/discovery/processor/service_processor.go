@@ -62,7 +62,7 @@ func (p *ServiceProcessor) ProcessServices() {
 		}
 		podClusterIDs := findPodEndpoints(service, serviceEndpoint)
 		if len(podClusterIDs) < 1 {
-			glog.V(2).Infof("Service %s does not have any endpoint pod", serviceClusterID)
+			glog.V(3).Infof("Service %s does not have any endpoint pod", serviceClusterID)
 			continue
 		}
 		glog.V(3).Infof("Service %s with pod endpoints %v", serviceClusterID, podClusterIDs)
@@ -94,8 +94,12 @@ func findPodEndpoints(service *v1.Service, serviceEndpoint *v1.Endpoints) []stri
 			}
 
 			if !strings.EqualFold(target.Kind, "Pod") {
-				glog.Warningf("service: %v depends on non-Pod entity with kind %v and name %v",
-					serviceClusterID, target.Kind, target.Name)
+				// No need to log warning message if service endpoint is a node, as it is a valid case, for example:
+				// kube-system/kubelet service
+				if !strings.EqualFold(target.Kind, "Node") {
+					glog.Warningf("service: %v depends on non-Pod entity with kind %v and name %v",
+						serviceClusterID, target.Kind, target.Name)
+				}
 				continue
 			}
 			podName := target.Name

@@ -13,7 +13,7 @@ type OwnerInfo struct {
 	Uid  string
 }
 
-// Get owner info by parsing the ownerReference of an object
+// GetOwnerInfo get owner info by parsing the ownerReference of an object
 // A valid owner must be a managing controller, and have non-empty Kind, Name and Uid
 // If there are multiple valid owners, pick the first one
 func GetOwnerInfo(owners []metav1.OwnerReference) (OwnerInfo, bool) {
@@ -41,7 +41,7 @@ func GetOwnerInfo(owners []metav1.OwnerReference) (OwnerInfo, bool) {
 	return ownerInfo, ownerSet
 }
 
-// Check if the input ownerInfo is empty
+// IsOwnerInfoEmpty check if the input ownerInfo is empty
 func IsOwnerInfoEmpty(ownerInfo OwnerInfo) bool {
 	return ownerInfo.Kind == "" || ownerInfo.Name == "" || ownerInfo.Uid == ""
 }

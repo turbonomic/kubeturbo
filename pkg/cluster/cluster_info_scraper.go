@@ -349,7 +349,7 @@ func (s *ClusterScraper) UpdatePodControllerCache(
 		controller, exists := controllers[ownerInfo.Uid]
 		if !exists {
 			// Could be custom controller. We do not bulk process custom controller.
-			glog.V(2).Infof("Skip updating controller %v/%v for pod %v/%v: controller not cached.",
+			glog.V(3).Infof("Skip updating controller %v/%v for pod %v/%v: controller not cached.",
 				ownerInfo.Kind, ownerInfo.Name, pod.Namespace, pod.Name)
 			custom++
 			continue

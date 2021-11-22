@@ -95,7 +95,7 @@ func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) []*proto.En
 			// Get controllerUID only if Pod is deployed by a K8s controller.
 			controllerUID, err = util.GetControllerUID(pod, builder.metricsSink)
 			if err != nil {
-				glog.Errorf("Error getting controller UID from pod %s, %v", pod.Name, err)
+				glog.V(3).Infof("Cannot find controller UID for pod %s/%s, %v", pod.Namespace, pod.Name, err)
 				continue
 			}
 		}
