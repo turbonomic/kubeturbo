@@ -45,7 +45,7 @@ func (p *BusinessAppProcessor) ProcessBusinessApps() {
 
 	apps, err := dynClient.Resource(res).Namespace("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		glog.Warningf("Error while processing application entities: %v", err)
+		glog.Warningf("Failed to list %v from %v/%v: %v", res.Resource, res.Group, res.Version, err)
 		return
 	}
 

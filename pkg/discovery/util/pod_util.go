@@ -283,18 +283,18 @@ func GetPodParentInfo(pod *api.Pod) (OwnerInfo, error) {
 	return OwnerInfo{}, nil
 }
 
-// Get controller UID from the given pod and metrics sink.
+// GetControllerUID get controller UID from the given pod and metrics sink.
 func GetControllerUID(pod *api.Pod, metricsSink *metrics.EntityMetricSink) (string, error) {
 	podKey := PodKeyFunc(pod)
 	ownerUIDMetricId := metrics.GenerateEntityStateMetricUID(metrics.PodType, podKey, metrics.OwnerUID)
 	ownerUIDMetric, err := metricsSink.GetMetric(ownerUIDMetricId)
 	if err != nil {
-		return "", fmt.Errorf("error getting owner UID for pod %s --> %v", podKey, err)
+		return "", err
 	}
 	ownerUID := ownerUIDMetric.GetValue()
 	controllerUID, ok := ownerUID.(string)
 	if !ok {
-		return "", fmt.Errorf("error getting owner UID for pod %s", podKey)
+		return "", fmt.Errorf("owner UID %v is not a string", ownerUID)
 	}
 	return controllerUID, nil
 }

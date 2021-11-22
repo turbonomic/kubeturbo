@@ -133,8 +133,8 @@ func (client *KubeletClient) ExecuteRequest(ip, nodeName, path string) ([]byte, 
 			return body, err
 		}
 		if err != nil && client.kubeClient != nil {
-			glog.V(2).Infof("The kubelet endpoint query for path %s to node: %s/%s did not work."+
-				"Trying proxy endpoint.", path, nodeName, ip)
+			glog.V(2).Infof("Failed to query kubelet endpoint %s on node %s/%s: %v. "+
+				"Trying proxy endpoint.", path, nodeName, ip, err)
 			body, err = client.callAPIServerProxyEndpoint(nodeName, path)
 			if err != nil {
 				return body, err
