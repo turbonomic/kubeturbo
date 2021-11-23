@@ -4,22 +4,19 @@ import (
 	"context"
 	"testing"
 
+	api "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	client "k8s.io/client-go/kubernetes"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
+
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	api "k8s.io/api/core/v1"
-	policyv1 "k8s.io/api/policy/v1"
-	policyv1beta1 "k8s.io/api/policy/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/watch"
-	corev1 "k8s.io/client-go/applyconfigurations/core/v1"
-	client "k8s.io/client-go/kubernetes"
-	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	restclient "k8s.io/client-go/rest"
 )
 
 const (
@@ -168,17 +165,21 @@ func (p *mockProgressTrack) UpdateProgress(actionState proto.ActionResponseState
 type mockPodsGetter struct{}
 
 func (p *mockPodsGetter) Pods(namespace string) v1.PodInterface {
-	return &mockPodInterface{namespace}
+	return &mockPodInterface{
+		discoveryutil.MockPodInterface{
+			Namespace: namespace,
+		},
+	}
 }
 
 type mockPodInterface struct {
-	namespace string
+	discoveryutil.MockPodInterface
 }
 
 func (p *mockPodInterface) Get(ctx context.Context, name string, opts metav1.GetOptions) (*api.Pod, error) {
 	pod := &api.Pod{}
 	pod.Name = name
-	pod.Namespace = p.namespace
+	pod.Namespace = p.Namespace
 	pod.UID = mockPodId
 	pod.Status.Phase = api.PodRunning
 
@@ -186,70 +187,4 @@ func (p *mockPodInterface) Get(ctx context.Context, name string, opts metav1.Get
 	pod.Spec.Containers = []api.Container{c}
 
 	return pod, nil
-}
-
-func (p *mockPodInterface) List(ctx context.Context, opts metav1.ListOptions) (*api.PodList, error) {
-	return nil, nil
-}
-
-func (p *mockPodInterface) Create(ctx context.Context, pod *api.Pod, opts metav1.CreateOptions) (*api.Pod, error) {
-	return nil, nil
-}
-
-func (p *mockPodInterface) Update(ctx context.Context, pod *api.Pod, opts metav1.UpdateOptions) (*api.Pod, error) {
-	return nil, nil
-}
-
-func (p *mockPodInterface) UpdateStatus(ctx context.Context, pod *api.Pod, opts metav1.UpdateOptions) (*api.Pod, error) {
-	return nil, nil
-}
-
-func (p *mockPodInterface) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	return nil
-}
-
-func (p *mockPodInterface) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	return nil
-}
-
-func (p *mockPodInterface) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	return nil, nil
-}
-
-func (p *mockPodInterface) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *api.Pod, err error) {
-	return nil, nil
-}
-
-func (p *mockPodInterface) Bind(ctx context.Context, binding *api.Binding, co metav1.CreateOptions) error {
-	return nil
-}
-
-func (p *mockPodInterface) Evict(ctx context.Context, eviction *policyv1beta1.Eviction) error {
-	return nil
-}
-
-func (p *mockPodInterface) EvictV1(ctx context.Context, eviction *policyv1.Eviction) error {
-	return nil
-}
-
-func (p *mockPodInterface) EvictV1beta1(ctx context.Context, eviction *policyv1beta1.Eviction) error {
-	return nil
-}
-
-func (p *mockPodInterface) GetLogs(name string, opts *api.PodLogOptions) *restclient.Request {
-	return nil
-}
-
-func (p *mockPodInterface) ProxyGet(scheme, name, port, path string, params map[string]string) restclient.ResponseWrapper {
-	return nil
-}
-func (p *mockPodInterface) Apply(ctx context.Context, pod *corev1.PodApplyConfiguration, opts metav1.ApplyOptions) (result *api.Pod, err error) {
-	return nil, nil
-}
-func (p *mockPodInterface) ApplyStatus(ctx context.Context, pod *corev1.PodApplyConfiguration, opts metav1.ApplyOptions) (result *api.Pod, err error) {
-	return nil, nil
-}
-
-func (p *mockPodInterface) UpdateEphemeralContainers(ctx context.Context, podName string, pod *api.Pod, opts metav1.UpdateOptions) (*api.Pod, error) {
-	return nil, nil
 }
