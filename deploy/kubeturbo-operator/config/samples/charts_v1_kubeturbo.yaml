@@ -17,7 +17,7 @@ spec:
   image:
     pullPolicy: IfNotPresent
     repository: turbonomic/kubeturbo
-    tag: 8.3.2
+    tag: 8.4.0
   replicaCount: 1
   resources: {}
   restAPIConfig:
