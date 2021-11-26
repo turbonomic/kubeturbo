@@ -1,17 +1,18 @@
 package util
 
 import (
+	"encoding/json"
+	"fmt"
+	"reflect"
+	"testing"
+
+	"github.com/golang/glog"
+	"github.com/stretchr/testify/assert"
+
 	k8sapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
-
-	"encoding/json"
-	"fmt"
-	"github.com/golang/glog"
-	"reflect"
-	"testing"
 )
 
 func createPod() *k8sapi.Pod {
@@ -250,5 +251,23 @@ func newPod(name string, podConds ...k8sapi.PodCondition) *k8sapi.Pod {
 		Status: k8sapi.PodStatus{
 			Conditions: podConds,
 		},
+	}
+}
+
+func TestGetPodInPhaseByUid(t *testing.T) {
+	podInterface := &MockPodInterface{}
+
+	// An existing pod should return no error
+	pod, err := GetPodInPhaseByUid(podInterface, testPodUID1, k8sapi.PodRunning)
+	if err != nil {
+		t.Errorf("Failed GetPodInPhaseByUid: %v,", err)
+	}
+	// Found pod should match the UID
+	assert.Equal(t, string(pod.UID), testPodUID1)
+
+	// A non existing pod should return an error
+	_, err = GetPodInPhaseByUid(podInterface, testPodUID3, k8sapi.PodRunning)
+	if err == nil {
+		t.Errorf("GetPodInPhaseByUid should have returned an error.")
 	}
 }

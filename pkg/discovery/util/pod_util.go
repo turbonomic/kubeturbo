@@ -204,21 +204,27 @@ func GetPodInPhase(podClient v1.PodInterface, name string, phase api.PodPhase) (
 // If pod not found, nil pod pointer will be returned without error.
 func GetPodInPhaseByUid(podClient v1.PodInterface, uid string, phase api.PodPhase) (*api.Pod, error) {
 	podList, err := podClient.List(context.TODO(), metav1.ListOptions{
-		FieldSelector: "status.phase=" + string(phase) + ",metadata.uid=" + uid,
+		FieldSelector: "status.phase=" + string(phase),
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("Error to get pod with uid %s: %s", uid, err)
+		return nil, fmt.Errorf("error getting podlist %s", err)
 	}
 
+	err = fmt.Errorf("Pod with uid %s in phase %v not found", uid, phase)
 	if podList == nil || len(podList.Items) == 0 {
-		err = fmt.Errorf("Pod with uid %s in phase %v not found", uid, phase)
 		glog.Error(err.Error())
 		return nil, err
 	}
 
-	glog.V(3).Infof("Found pod in phase %v by uid %s", phase, uid)
-	return &podList.Items[0], nil
+	for _, pod := range podList.Items {
+		if string(pod.UID) == uid {
+			glog.V(3).Infof("Found pod in phase %v by uid %s", phase, uid)
+			return &pod, nil
+		}
+	}
+
+	glog.Error(err.Error())
+	return nil, err
 }
 
 // ParsePodDisplayName parses the pod entity display name to retrieve the namespace and name of the pod.
