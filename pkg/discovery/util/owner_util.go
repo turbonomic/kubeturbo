@@ -20,25 +20,38 @@ func GetOwnerInfo(owners []metav1.OwnerReference) (OwnerInfo, bool) {
 	var ownerInfo OwnerInfo
 	var ownerSet bool
 	for _, owner := range owners {
-		if owner.Controller == nil || !(*owner.Controller) {
-			glog.V(3).Infof("Owner %+v is not a managing controller.", owner)
-			continue
-		}
 		if len(owner.Kind) > 0 && len(owner.Name) > 0 && len(owner.UID) > 0 {
-			// Found a valid controller owner
+			if IsController(owner) {
+				glog.V(3).Infof("Found managing controller %+v.", owner)
+				// This owner is also the controller, so we use this.
+				return OwnerInfo{
+					Kind: owner.Kind,
+					Name: owner.Name,
+					Uid:  string(owner.UID),
+				}, true
+			}
+
 			if ownerSet {
-				glog.V(3).Infof("Multiple controller owners found: %+v", owner)
 				continue
 			}
+			ownerSet = true
 			ownerInfo = OwnerInfo{
 				Kind: owner.Kind,
 				Name: owner.Name,
 				Uid:  string(owner.UID),
 			}
-			ownerSet = true
 		}
 	}
+
+	glog.V(3).Infof("No managing controller was found, picked the first owner in list: %+v.", ownerInfo)
 	return ownerInfo, ownerSet
+}
+
+func IsController(owner metav1.OwnerReference) bool {
+	if owner.Controller != nil && (*owner.Controller) {
+		return true
+	}
+	return false
 }
 
 // IsOwnerInfoEmpty check if the input ownerInfo is empty
