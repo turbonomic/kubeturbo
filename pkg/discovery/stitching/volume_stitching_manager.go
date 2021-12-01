@@ -13,11 +13,32 @@ import (
 	"github.com/golang/glog"
 )
 
+/** Note on volume stitching
+ ** The uuids are picked from the volume resource fields as listed below:
+ ** These are mapped to the cloud specific entity id discovered from specific infra probe.
+ ** Azure:
+ ** k8s -> vol.Spec.AzureDisk.DataDiskURI
+ ** format -> replace `/` with `::`
+ **
+ ** AWS:
+ ** k8s -> vol.Spec.AWSElasticBlockStore.VolumeID
+ ** format -> "aws::%v::VL::%v"
+ **
+ ** Vsphere:
+ ** k8s -> vol.Spec.VsphereVolume.VolumePath
+ ** format -> as is
+ ** Note: we haven't seen a tanzu env yet
+ **
+ ** CSI:
+ ** Decipher aws or azure based on the provider specific strings in driver name
+ ** pick vol.Spec.CSI.VolumeHandle and format it according to AWS or azure stitching
+ ** uuid format as described above.
+**/
+
 const (
 	awsVolPrefix   = "aws://"
 	azureVolPrefix = "azure://"
 	awsVolFormat   = "aws::%v::VL::%v"
-	azureVolFormat = "azure::VL::%v"
 
 	path            = "path"
 	proxyVolumeUUID = "Proxy_Volume_UUID"
@@ -51,6 +72,8 @@ func (s *VolumeStitchingManager) ProcessVolumes(vols []*api.PersistentVolume) er
 			uuidGetter = &vsphereVolumeUUIDGetter{}
 			paths = append(paths, vol.Spec.VsphereVolume.VolumePath)
 			atLeastOneProcessed = true
+		case vol.Spec.CSI != nil:
+			uuidGetter = &csiVolumeUUIDGetter{}
 		default:
 			uuidGetter = &defaultVolumeUUIDGetter{}
 		}
@@ -175,24 +198,27 @@ func (aws *awsVolumeUUIDGetter) GetVolumeUUID(vol *api.PersistentVolume) (string
 		return "", fmt.Errorf("not a valid AWS provisioned volume: %v", vol.Name)
 	}
 
-	volID := vol.Spec.AWSElasticBlockStore.VolumeID
+	return extractAWSVolumeUuid(vol.Spec.AWSElasticBlockStore.VolumeID, vol.Name)
+}
+
+func extractAWSVolumeUuid(volID, volName string) (string, error) {
 	//1. split the suffix into two parts:
 	// aws://us-east-2c/vol-0e4eaa3ef79bcb5a9 -> [us-east-2c, vol-0e4eaa3ef79bcb5a9]
 	suffix := volID[len(awsVolPrefix):]
 	parts := strings.Split(suffix, "/")
 	if len(parts) != 2 {
-		return "", fmt.Errorf("failed to split uuid (%d): %v, for volume %v", len(parts), parts, vol.Name)
+		return "", fmt.Errorf("failed to split uuid (%d): %v, for volume %v", len(parts), parts, volName)
 	}
 
 	//2. get region by removing the zone suffix
 	if len(parts[0]) < 2 {
-		return "", fmt.Errorf("invalid zone Id: %v, for volume: %v", volID, vol.Name)
+		return "", fmt.Errorf("invalid zone Id: %v, for volume: %v", volID, volName)
 	}
 	end := len(parts[0]) - 1
 	region := parts[0][0:end]
 
-	result := fmt.Sprintf(awsVolFormat, region, parts[1])
-	return result, nil
+	//3. aws::us-east-2::VL::vol-0e4eaa3ef79bcb5a9
+	return fmt.Sprintf(awsVolFormat, region, parts[1]), nil
 }
 
 type azureVolumeUUIDGetter struct {
@@ -208,19 +234,19 @@ func (azure *azureVolumeUUIDGetter) GetVolumeUUID(vol *api.PersistentVolume) (st
 	}
 	// TODO: handle azureFile type if and when we come across a k8s environment
 	// which uses that.
+	return extractAzureVolumeUuid(vol.Spec.AzureDisk.DataDiskURI), nil
+}
 
-	diskURI := vol.Spec.AzureDisk.DataDiskURI
+func extractAzureVolumeUuid(diskURI string) string {
 	//1. Get uuid by replacing the '/' with '::' in the path:
 	// /subscriptions/6a5d73a4-e446-4c75-8f18-073b2f60d851/resourceGroups/
 	// mc_adveng_aks-virtual_westus/providers/Microsoft.Compute/disks/
 	// kubernetes-dynamic-pvc-0a2016c8-095c-481e-800d-684e277234e4
 	// ->
-	// ::subscriptions::6a5d73a4-e446-4c75-8f18-073b2f60d851::resourceGroups::
-	//  mc_adveng_aks-virtual_westus::providers::Microsoft.Compute::disks::
+	// ::subscriptions::6a5d73a4-e446-4c75-8f18-073b2f60d851::resourcegroups::
+	//  mc_adveng_aks-virtual_westus::providers::microsoft.compute::disks::
 	//  kubernetes-dynamic-pvc-0a2016c8-095c-481e-800d-684e277234e4
-	stitchingUUID := strings.ToLower(strings.ReplaceAll(diskURI, "/", "::"))
-
-	return stitchingUUID, nil
+	return strings.ToLower(strings.ReplaceAll(diskURI, "/", "::"))
 }
 
 type vsphereVolumeUUIDGetter struct {
@@ -236,4 +262,32 @@ func (azure *vsphereVolumeUUIDGetter) GetVolumeUUID(vol *api.PersistentVolume) (
 	}
 
 	return string(vol.UID), nil
+}
+
+type csiVolumeUUIDGetter struct {
+}
+
+func (csi *csiVolumeUUIDGetter) Name() string {
+	return "CSI"
+}
+
+func (csi *csiVolumeUUIDGetter) GetVolumeUUID(vol *api.PersistentVolume) (string, error) {
+	driverName := strings.ToLower(vol.Spec.CSI.Driver)
+	volumeHandle := vol.Spec.CSI.VolumeHandle
+
+	// The csi based volume driver name for aws generally is ebs.csi.aws.com.
+	// We will need evidence for this name to be something else in some installation.
+	// If we get that then it will become necessary to have this configured with the kuebturbo install.
+	if strings.Contains(driverName, "aws") && strings.Contains(driverName, "csi") {
+		return extractAWSVolumeUuid(volumeHandle, vol.Name)
+	}
+
+	// The csi based volume driver names for azure generally are disk.csi.azure.com.
+	// We will need evidence for this name to be something else in some installation.
+	// If we get that then it will become necessary to have this configured with the kuebturbo install.
+	if strings.Contains(driverName, "azure") && strings.Contains(driverName, "csi") {
+		return extractAzureVolumeUuid(volumeHandle), nil
+	}
+
+	return "", fmt.Errorf("unhandled csi driver %s for volume: %s", driverName, vol.Name)
 }
