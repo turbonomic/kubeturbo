@@ -14,6 +14,7 @@ const (
 	ServerVersion         string = "serverVersion"
 	Image                 string = "image"
 	ImageID               string = "imageID"
+	ProbeVersion          string = "probeVersion"
 	propertyId            string = "id"
 )
 
@@ -87,7 +88,11 @@ func (rClient *K8sRegistrationClient) GetAccountDefinition() (acctDefProps []*pr
 	imageID := builder.NewAccountDefEntryBuilder(ImageID, "Kubeturbo Image ID",
 		"Container Image ID of Kubeturbo Probe", ".*", false, false).Create()
 	acctDefProps = append(acctDefProps, imageID)
-
+	// Probe Version
+	// TODO: Find a good verification regex for probe version
+	probeVersion := builder.NewAccountDefEntryBuilder(ProbeVersion, "Kubeturbo Version",
+		"Release Version of Kubeturbo Probe", ".*", false, false).Create()
+	acctDefProps = append(acctDefProps, probeVersion)
 	return
 }
 
