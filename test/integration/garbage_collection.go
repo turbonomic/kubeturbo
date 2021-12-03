@@ -23,7 +23,7 @@ import (
 
 var _ = Describe("Garbage pod collector ", func() {
 	f := framework.NewTestFramework("garbage-collector")
-	var namespace string
+	var namespace, imagePullSecretName string
 	var kubeClient *kubeclientset.Clientset
 	var dynamicClient dynamic.Interface
 	var kubeConfig *restclient.Config
@@ -70,6 +70,7 @@ spec:
 			}
 		}
 		namespace = f.TestNamespaceName()
+		imagePullSecretName = f.ImagePullSecretName()
 	})
 
 	Describe("periodic garbage collection", func() {
@@ -78,9 +79,9 @@ spec:
 			framework.ExpectNoError(err, "Error creating test pod with kubeturbo GC label")
 			pod2, err := createPodResource(kubeClient, podSingleContainerWithKubeturboGCLabel(namespace))
 			framework.ExpectNoError(err, "Error creating test pod with kubeturbo GC label")
-			dep, err := createDeployment(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, true, true))
+			dep, err := createDeployment(kubeClient, depSingleContainerWithResources(namespace, imagePullSecretName, "", 1, false, true, true))
 			framework.ExpectNoError(err, "Error creating deployment with garbage collection label")
-			rs, err := createReplicaSet(kubeClient, rsSingleContainerWithResources(namespace, 1, true, true))
+			rs, err := createReplicaSet(kubeClient, rsSingleContainerWithResources(namespace, imagePullSecretName, 1, true, true))
 			framework.ExpectNoError(err, "Error creating replicaset with dummy scheduler")
 
 			stretchedQuota := quotaFromYaml(stretchedQuotaYaml)

@@ -26,7 +26,7 @@ import (
 var _ = Describe("Action Execution when quota exists ", func() {
 	f := framework.NewTestFramework("action-executor")
 	var kubeConfig *restclient.Config
-	var namespace string
+	var namespace, imagePullSecretName string
 	var actionHandler *action.ActionHandler
 	var kubeClient *kubeclientset.Clientset
 	var dynamicClient dynamic.Interface
@@ -80,6 +80,7 @@ spec:
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 
 			namespace = f.TestNamespaceName()
+			imagePullSecretName = f.ImagePullSecretName()
 		}
 	})
 
@@ -88,7 +89,7 @@ spec:
 			quota := createQuota(kubeClient, namespace, quotaFromYaml(quotaYaml))
 			defer deleteQuota(kubeClient, quota)
 
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, true, false))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, imagePullSecretName, "", 1, false, true, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 			defer deleteDeploy(kubeClient, dep)
 
@@ -121,7 +122,7 @@ spec:
 			quota := createQuota(kubeClient, namespace, quotaFromYaml(quotaYaml))
 			defer deleteQuota(kubeClient, quota)
 
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, true, false))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, imagePullSecretName, "", 1, false, true, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 			defer deleteDeploy(kubeClient, dep)
 
@@ -154,7 +155,7 @@ spec:
 			defer deleteQuota(kubeClient, quota)
 
 			pvc, err := createVolumeClaim(kubeClient, namespace, "standard")
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, true, false))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, imagePullSecretName, pvc.Name, 1, true, true, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 			defer deleteDeploy(kubeClient, dep)
 
@@ -193,7 +194,7 @@ spec:
 			var deps []*appsv1.Deployment
 			var pods []*corev1.Pod
 			for i := 0; i < parallelMoves; i++ {
-				dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, true, false))
+				dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, imagePullSecretName, "", 1, false, true, false))
 				framework.ExpectNoError(err, "Error creating test resources")
 				defer deleteDeploy(kubeClient, dep)
 

@@ -2,6 +2,7 @@ package framework
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -24,7 +25,8 @@ const (
 )
 
 type TestFramework struct {
-	testNamespaceName string
+	testNamespaceName   string
+	imagePullSecretName string
 
 	Config     *restclient.Config
 	Kubeconfig *clientcmdapi.Config
@@ -47,6 +49,25 @@ func (f *TestFramework) TestNamespaceName() string {
 		f.testNamespaceName = CreateTestNamespace(client, f.BaseName)
 	}
 	return f.testNamespaceName
+}
+
+func (f *TestFramework) ImagePullSecretName() string {
+	if f.testNamespaceName == "" {
+		return ""
+	}
+
+	if f.imagePullSecretName != "" {
+		return f.imagePullSecretName
+	}
+
+	if TestContext.ImagePullUserName == "" || TestContext.ImagePullPassword == "" {
+		return ""
+	}
+
+	client := f.GetKubeClient(fmt.Sprintf("%s-create-namespace", f.BaseName))
+	return CreateDockerImagePullSecret(client, f.testNamespaceName,
+		TestContext.ImagePullUserName, TestContext.ImagePullPassword)
+
 }
 
 // BeforeEach reads the cluster configuration if it has not yet been read.
@@ -160,6 +181,28 @@ func CreateNamespace(client kubeclientset.Interface, generateName string) (strin
 		return "", err
 	}
 	return namespaceName, nil
+}
+
+func CreateDockerImagePullSecret(client kubeclientset.Interface, namespace, username, password string) string {
+	encodedAuthString := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", username, password)))
+	credentialString := fmt.Sprintf(`{"auths":{"https://index.docker.io/v1/":{"username":"%s","password":"%s","auth":"%s"}}}`,
+		username, password, encodedAuthString)
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "test-credentials-",
+			Namespace:    namespace,
+		},
+		Type: "kubernetes.io/dockerconfigjson",
+		Data: map[string][]byte{".dockerconfigjson": []byte(credentialString)},
+	}
+
+	created, err := client.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+	if err != nil || created == nil {
+		Failf("Unexpected error while creating image pull secret: %v", err)
+	}
+
+	return created.Name
 }
 
 func waitForNamespaceDeletion(client kubeclientset.Interface, namespace string) error {

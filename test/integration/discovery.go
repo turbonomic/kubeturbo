@@ -64,7 +64,7 @@ import (
 var _ = Describe("Discover Cluster", func() {
 	f := framework.NewTestFramework("discovery-test")
 	var kubeConfig *restclient.Config
-	var namespace string
+	var namespace, imagePullSecretName string
 	var kubeClient *kubeclientset.Clientset
 	var discoveryClient *discovery.K8sDiscoveryClient
 
@@ -100,6 +100,7 @@ var _ = Describe("Discover Cluster", func() {
 			discoveryClient = discovery.NewK8sDiscoveryClient(discoveryClientConfig)
 		}
 		namespace = f.TestNamespaceName()
+		imagePullSecretName = f.ImagePullSecretName()
 	})
 
 	Describe("discovering with discovery framework", func() {
@@ -109,7 +110,7 @@ var _ = Describe("Discover Cluster", func() {
 			// ii.  deployment with 2 containers
 			// iii. deployment with 2 containers
 			// total of 6 replicas and 10 containers
-			_, err := createResourcesForDiscovery(kubeClient, namespace, 2)
+			_, err := createResourcesForDiscovery(kubeClient, namespace, imagePullSecretName, 2)
 			framework.ExpectNoError(err, "Failed creating test resources")
 
 			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
@@ -268,10 +269,10 @@ func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *
 // run this against any cluster, where some utility test methods will
 // discover all the kubernetes resources and then compare the numbers
 // against the dtos discovered by kubeturbo routines.
-func createResourcesForDiscovery(client *kubeclientset.Clientset, namespace string, replicas int32) ([]*appsv1.Deployment, error) {
+func createResourcesForDiscovery(client *kubeclientset.Clientset, namespace, imagePullSecret string, replicas int32) ([]*appsv1.Deployment, error) {
 	depResources := []*appsv1.Deployment{
 		depMultiContainer(namespace, replicas, false),
-		depSingleContainerWithResources(namespace, "", replicas, false, false, false),
+		depSingleContainerWithResources(namespace, imagePullSecret, "", replicas, false, false, false),
 		deplMultiContainerWithResources(namespace, replicas),
 	}
 

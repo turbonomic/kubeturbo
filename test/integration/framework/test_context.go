@@ -15,6 +15,8 @@ type TestContextType struct {
 	KubeConfig        string
 	KubeContext       string
 	TestNamespace     string
+	ImagePullUserName string
+	ImagePullPassword string
 	SingleCallTimeout time.Duration
 }
 
@@ -27,6 +29,10 @@ func registerFlags(t *TestContextType) {
 		"kubeconfig context to use/override. If unset, will use value from 'current-context'.")
 	flag.StringVar(&t.TestNamespace, "test-namespace", DefaultTestNS,
 		fmt.Sprintf("The namespace that will be used as the seed name for tests.  If unset, will default to %q.", DefaultTestNS))
+	flag.StringVar(&t.ImagePullUserName, "image-pull-user-name", "",
+		"The image registry user name that will be used to create the image pull secret.")
+	flag.StringVar(&t.ImagePullPassword, "image-pull-password", "",
+		"The image registry password that will be used to create the image pull secret.")
 	flag.DurationVar(&t.SingleCallTimeout, "single-call-timeout", DefaultSingleCallTimeout,
 		fmt.Sprintf("The maximum duration of a single call.  If unset, will default to %v", DefaultSingleCallTimeout))
 }

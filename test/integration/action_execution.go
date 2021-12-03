@@ -32,7 +32,7 @@ const openShiftDeployerLabel = "openshift.io/deployer-pod-for.name"
 var _ = Describe("Action Executor ", func() {
 	f := framework.NewTestFramework("action-executor")
 	var kubeConfig *restclient.Config
-	var namespace string
+	var namespace, imagePullSecretName string
 	var actionHandler *action.ActionHandler
 	var kubeClient *kubeclientset.Clientset
 	var osClient *osclient.Clientset
@@ -61,11 +61,12 @@ var _ = Describe("Action Executor ", func() {
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 		}
 		namespace = f.TestNamespaceName()
+		imagePullSecretName = f.ImagePullSecretName()
 	})
 
 	Describe("executing action move pod", func() {
 		It("should result in new pod on target node", func() {
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, imagePullSecretName, "", 1, false, false, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
@@ -95,7 +96,7 @@ var _ = Describe("Action Executor ", func() {
 			// This works against a kind cluster. Ensure to update the storageclass name to the right name when
 			// running against a different cluster.
 			pvc, err := createVolumeClaim(kubeClient, namespace, "standard")
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, false, false))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, imagePullSecretName, pvc.Name, 1, true, false, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
@@ -125,7 +126,7 @@ var _ = Describe("Action Executor ", func() {
 
 			// TODO: The storageclass can be taken as a configurable parameter from commandline
 			// For now this will need to be updated when running against the given cluster
-			dc, err := createDCResource(osClient, dCSingleContainerWithResources(namespace, "", 1, false))
+			dc, err := createDCResource(osClient, dCSingleContainerWithResources(namespace, imagePullSecretName, "", 1, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentConfigsPod(kubeClient, dc.Name, namespace, "")
@@ -156,7 +157,7 @@ var _ = Describe("Action Executor ", func() {
 			// TODO: The storageclass can be taken as a configurable parameter from commandline
 			// For now this will need to be updated when running against the given cluster
 			pvc, err := createVolumeClaim(kubeClient, namespace, "gp2")
-			dc, err := createDCResource(osClient, dCSingleContainerWithResources(namespace, pvc.Name, 1, true))
+			dc, err := createDCResource(osClient, dCSingleContainerWithResources(namespace, imagePullSecretName, pvc.Name, 1, true))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentConfigsPod(kubeClient, dc.Name, namespace, "")
@@ -200,7 +201,7 @@ func createDeployResource(client *kubeclientset.Clientset, dep *appsv1.Deploymen
 
 // This can also be bootstrapped from a test resource directory
 // which holds yaml files.
-func depSingleContainerWithResources(namespace, claimName string, replicas int32, withVolume, withGCLabel, paused bool) *appsv1.Deployment {
+func depSingleContainerWithResources(namespace, imagePullSecret, claimName string, replicas int32, withVolume, withGCLabel, paused bool) *appsv1.Deployment {
 	dep := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "test-",
@@ -220,6 +221,11 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: imagePullSecret,
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:    "test-cont",
@@ -265,7 +271,7 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 	return &dep
 }
 
-func rsSingleContainerWithResources(namespace string, replicas int32, withGCLabel, withDummyScheduler bool) *appsv1.ReplicaSet {
+func rsSingleContainerWithResources(namespace, imagePullSecret string, replicas int32, withGCLabel, withDummyScheduler bool) *appsv1.ReplicaSet {
 	rs := appsv1.ReplicaSet{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "test-",
@@ -285,6 +291,11 @@ func rsSingleContainerWithResources(namespace string, replicas int32, withGCLabe
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: imagePullSecret,
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:    "test-cont",
@@ -338,7 +349,7 @@ func createDCResource(client *osclient.Clientset, dc *osv1.DeploymentConfig) (*o
 
 // This can also be bootstrapped from a test resource directory
 // which holds yaml files.
-func dCSingleContainerWithResources(namespace, claimName string, replicas int32, withVolume bool) *osv1.DeploymentConfig {
+func dCSingleContainerWithResources(namespace, imagePullSecret, claimName string, replicas int32, withVolume bool) *osv1.DeploymentConfig {
 	dc := osv1.DeploymentConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "test-",
@@ -356,6 +367,11 @@ func dCSingleContainerWithResources(namespace, claimName string, replicas int32,
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: imagePullSecret,
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:    "test-cont",
