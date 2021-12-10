@@ -5,12 +5,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
-
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
@@ -18,6 +17,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
+	kubeturboversion "github.com/turbonomic/kubeturbo/version"
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
@@ -177,6 +177,13 @@ func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTargetInfo {
 		accVal = &proto.AccountValue{
 			Key:         &imageID,
 			StringValue: &targetConf.ProbeContainerImageID,
+		}
+		accountValues = append(accountValues, accVal)
+
+		probeVersion := registration.ProbeVersion
+		accVal = &proto.AccountValue{
+			Key:         &probeVersion,
+			StringValue: &kubeturboversion.Version,
 		}
 		accountValues = append(accountValues, accVal)
 	}
