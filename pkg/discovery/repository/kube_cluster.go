@@ -277,6 +277,7 @@ type K8sApp struct {
 	Uid       string
 	Namespace string
 	Name      string
+	Type      string
 }
 
 type K8sAppComponent struct {
