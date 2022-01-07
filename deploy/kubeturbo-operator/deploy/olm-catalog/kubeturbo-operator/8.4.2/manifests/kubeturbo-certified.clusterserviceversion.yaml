@@ -6,17 +6,12 @@ metadata:
     capabilities: Basic Install
     categories: Monitoring
     certified: "false"
-    containerImage: turbonomic/kubeturbo-operator:8.4
+    containerImage: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:879dfbb577866b48ee6c7e77094c6fda4b733accecdb7cc30755a5f579ec246d
     createdAt: 2019-05-01T00:00:00.000Z
     description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
     repository: https://github.com/turbonomic/kubeturbo/tree/master/deploy/kubeturbo-operator
     support: Turbonomic, Inc.
-  labels:
-    operatorframework.io/arch.amd64: supported
-    operatorframework.io/arch.arm64: supported
-    operatorframework.io/arch.ppc64le: supported
-    operatorframework.io/arch.s390x: supported
-  name: kubeturbo-operator.v8.4.0
+  name: kubeturbo-operator.v8.4.2
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -175,7 +170,7 @@ spec:
               spec:
                 containers:
                 - name: kubeturbo-operator
-                  image: turbonomic/kubeturbo-operator:8.4
+                  image: registry.connect.redhat.com/turbonomic/kubeturbo-operator@sha256:879dfbb577866b48ee6c7e77094c6fda4b733accecdb7cc30755a5f579ec246d
                   args:
                   - --leader-elect
                   - --leader-election-id=kubeturbo-operator
@@ -204,6 +199,8 @@ spec:
                         fieldPath: metadata.name
                   - name: OPERATOR_NAME
                     value: "kubeturbo-operator"
+                  - name: RELATED_IMAGE_KUBETURBO
+                    value: registry.connect.redhat.com/turbonomic/kubeturbo@sha256:6d86ff4af4063108e4d9a4546c586bb8df5ad837bfc95a2f40806a2e17fe9474
                   securityContext:
                     readOnlyRootFilesystem: true
                     capabilities:
@@ -237,5 +234,5 @@ spec:
   maturity: alpha
   provider:
     name: Turbonomic, Inc.
-  replaces: kubeturbo-operator.v8.3.6
-  version: 8.4.0
+  replaces: kubeturbo-operator.v8.4.1
+  version: 8.4.2
