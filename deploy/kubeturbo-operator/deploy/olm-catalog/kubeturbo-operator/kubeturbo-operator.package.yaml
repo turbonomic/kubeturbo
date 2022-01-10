@@ -1,7 +1,13 @@
 packageName: kubeturbo-certified
 channels:
   - name: stable
-    currentCSV: kubeturbo-operator.v8.4.0
+    currentCSV: kubeturbo-operator.v8.4.3
+  - name: v8.4.3
+    currentCSV: kubeturbo-operator.v8.4.3
+  - name: v8.4.3
+    currentCSV: kubeturbo-operator.v8.4.2
+  - name: v8.4.2
+    currentCSV: kubeturbo-operator.v8.4.1
   - name: v8.4.0
     currentCSV: kubeturbo-operator.v8.4.0
   - name: v8.3.6
