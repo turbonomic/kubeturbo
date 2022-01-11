@@ -145,7 +145,7 @@ func (s *ClusterScraper) GetMachineSetToNodeUIDsMap(nodes []*api.Node) map[strin
 		})
 		nodeUIDs := []string{}
 		for _, machine := range machines {
-			if machine.Status.NodeRef.Name != "" {
+			if machine.Status.NodeRef != nil && machine.Status.NodeRef.Name != "" {
 				if uid := findNodeUID(machine.Status.NodeRef.Name, nodes); uid != "" {
 					nodeUIDs = append(nodeUIDs, uid)
 				}
