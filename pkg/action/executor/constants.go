@@ -6,7 +6,7 @@ import (
 
 const (
 	// Default Number of Retries for making changes during action execution
-	DefaultExecutionRetry      = 3
+	DefaultExecutionRetry = 3
 	// Default number of Retries for waiting for Pod to be ready during action execution
 	DefaultWaitForPodThreshold = 55
 
