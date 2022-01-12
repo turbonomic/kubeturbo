@@ -56,6 +56,7 @@ const (
 	DefaultDiscoverySamples           = 10
 	DefaultDiscoverySampleIntervalSec = 60
 	DefaultGCIntervalMin              = 10
+	DefaultFailureThreshold           = 60
 )
 
 var (
@@ -147,6 +148,8 @@ type VMTServer struct {
 	containerUtilizationDataAggStrategy string
 	// Strategy to aggregate Container usage data on ContainerSpec entity
 	containerUsageDataAggStrategy string
+	// Total number of retrys. When a pod is not ready, Kubeturbo will try failureThreshold times before giving up
+	failureThreshold int
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -200,6 +203,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.CpufreqJobExcludeNodeLabels, "cpufreq-job-exclude-node-labels", "", "The comma separated list of key=value node label pairs for the nodes (for example windows nodes) to be excluded from running job based cpufrequency getter.")
 	fs.StringVar(&s.containerUtilizationDataAggStrategy, "cnt-utilization-data-agg-strategy", agg.DefaultContainerUtilizationDataAggStrategy, "Container utilization data aggregation strategy.")
 	fs.StringVar(&s.containerUsageDataAggStrategy, "cnt-usage-data-agg-strategy", agg.DefaultContainerUsageDataAggStrategy, "Container usage data aggregation strategy.")
+	fs.IntVar(&s.failureThreshold, "failure-threshold", DefaultFailureThreshold, "When the pod readiness check fails, Kubeturbo will try failureThreshold times before giving up. Defaults to 60.")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -381,7 +385,8 @@ func (s *VMTServer) Run() {
 		WithContainerUsageDataAggStrategy(s.containerUsageDataAggStrategy).
 		WithVolumePodMoveConfig(s.FailVolumePodMoves).
 		WithQuotaUpdateConfig(s.UpdateQuotaToAllowMoves).
-		WithClusterAPIEnabled(clusterAPIEnabled)
+		WithClusterAPIEnabled(clusterAPIEnabled).
+		WithFailureThreshold(s.failureThreshold)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service

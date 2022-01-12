@@ -51,6 +51,9 @@ spec:
           {{- if .Values.args.sccsupport }}
           - --scc-support={{ .Values.args.sccsupport }}
           {{- end }}
+          {{ - if .Values.args.failureThreshold }}
+          - --failure-threshold={{ .Values.args.failureThreshold }}
+          {{- end }}
           {{- if .Values.args.failVolumePodMoves }}
           - --fail-volume-pod-moves={{ .Values.args.failVolumePodMoves }}
           {{- end }}
