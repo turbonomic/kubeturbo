@@ -76,22 +76,25 @@ func (p *BusinessAppProcessor) ProcessAppsOfType(res schema.GroupVersionResource
 
 	for _, item := range apps.Items {
 		var allEntities []repository.K8sAppComponent
+		application := repository.K8sApp{
+			Uid:       string(item.GetUID()),
+			Namespace: item.GetNamespace(),
+			Name:      item.GetName(),
+		}
+
 		switch res.Group {
 		case util.K8sApplicationGV.Group:
 			allEntities = p.getK8sAppEntities(item)
+			application.Type = repository.AppTypeK8s
 		case util.ArgoCDApplicationGV.Group:
 			allEntities, err = p.getArgoCDAppEntities(item)
 			if err != nil {
 				glog.Warningf("Failed to get app entities for %v from %v/%v: %v", res.Resource, res.Group, res.Version, err)
 				return appToComponentMap
 			}
+			application.Type = repository.AppTypeArgoCD
 		}
 
-		application := repository.K8sApp{
-			Uid:       string(item.GetUID()),
-			Namespace: item.GetNamespace(),
-			Name:      item.GetName(),
-		}
 		if len(allEntities) > 0 {
 			appToComponentMap[application] = allEntities
 			glog.V(4).Infof("Discovered %d entities for app:%s/%s, entities: %v", len(allEntities), item.GetNamespace(), item.GetName(), allEntities)
@@ -141,9 +144,15 @@ func (p *BusinessAppProcessor) getArgoCDAppEntities(unstructuredApp unstructured
 			continue
 		}
 		gk := metav1.GroupKind{
-			Group: typedResource["group"].(string),
-			Kind:  typedResource["kind"].(string),
+			Kind: typedResource["kind"].(string),
 		}
+		if _, exists := typedResource["group"]; !exists {
+			// The core group resouces have an empty group
+			gk.Group = ""
+		} else {
+			gk.Group = typedResource["group"].(string)
+		}
+
 		entity, err := p.getEntity(gk, typedResource["name"].(string), typedResource["namespace"].(string))
 		if err != nil {
 			glog.Warningf("Error processing entities for argocd app %s/%s entity %v/%v, %v",
@@ -199,12 +208,14 @@ func renderTypeInfo(gk metav1.GroupKind) (schema.GroupVersionResource, proto.Ent
 			Resource: "jobs"}
 		entityType = proto.EntityDTO_WORKLOAD_CONTROLLER
 	case "Service.v1":
+	case "Service":
 		res = schema.GroupVersionResource{
 			Group:    "",
 			Version:  "v1",
 			Resource: "services"}
 		entityType = proto.EntityDTO_SERVICE
 	case "Pod.v1":
+	case "Pod":
 		res = schema.GroupVersionResource{
 			Group:    "",
 			Version:  "v1",

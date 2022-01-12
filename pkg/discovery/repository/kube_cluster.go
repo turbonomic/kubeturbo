@@ -273,6 +273,11 @@ func parseResourceValue(computeResourceType metrics.ResourceType, resourceList v
 	return DEFAULT_METRIC_VALUE
 }
 
+const (
+	AppTypeK8s    = "k8s"
+	AppTypeArgoCD = "argocd"
+)
+
 type K8sApp struct {
 	Uid       string
 	Namespace string

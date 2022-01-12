@@ -4,9 +4,12 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 const (
@@ -39,9 +42,12 @@ func (k *K8sAppComponentsProcessor) ProcessAppComponentDTOs(entityDTOs []*proto.
 func (k *K8sAppComponentsProcessor) sellCommodities(entityDTO *proto.EntityDTO, component repository.K8sAppComponent,
 	apps []repository.K8sApp) {
 	for _, app := range apps {
+		if app.Type == repository.AppTypeArgoCD {
+			k.addParentAppProperties(app, entityDTO)
+		}
+
 		key := fmt.Sprintf("%s-%s/%s-%s/%s", "App", app.Namespace, app.Name,
 			component.EntityType.String(), component.Name)
-
 		commoditySold, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_APPLICATION).
 			Key(key).
 			Capacity(applicationCommodityDefaultCapacity).
@@ -55,5 +61,14 @@ func (k *K8sAppComponentsProcessor) sellCommodities(entityDTO *proto.EntityDTO, 
 		commoditiesSold := entityDTO.GetCommoditiesSold()
 		commoditiesSold = append(commoditiesSold, commoditySold)
 		entityDTO.CommoditiesSold = commoditiesSold
+	}
+}
+
+func (k *K8sAppComponentsProcessor) addParentAppProperties(app repository.K8sApp, entityDTO *proto.EntityDTO) {
+	properties := property.BuildBusinessAppRelatedProperties(app)
+	if entityDTO.EntityProperties != nil {
+		entityDTO.EntityProperties = append(entityDTO.EntityProperties, properties...)
+	} else {
+		entityDTO.EntityProperties = properties
 	}
 }

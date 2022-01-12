@@ -2,20 +2,10 @@ package property
 
 import (
 	"fmt"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	api "k8s.io/api/core/v1"
-)
 
-const (
-	// TODO currently in the server side only properties in "DEFAULT" namespaces are respected. Ideally we should use "Kubernetes-Pod".
-	k8sPropertyNamespace         = "DEFAULT"
-	VCTagsPropertyNamespace      = "VCTAGS"
-	k8sNamespace                 = "KubernetesNamespace"
-	k8sPodName                   = "KubernetesPodName"
-	k8sNodeName                  = "KubernetesNodeName"
-	k8sContainerIndex            = "Kubernetes-Container-Index"
-	TolerationPropertyNamePrefix = "[k8s toleration]"
-	LabelPropertyNamePrefix      = "[k8s label]"
+	api "k8s.io/api/core/v1"
+
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 // BuildPodProperties builds entity properties of a pod. The properties are consisted of name and namespace of a pod.
