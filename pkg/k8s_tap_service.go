@@ -168,7 +168,7 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		config.DiscoverySamples, config.DiscoverySampleIntervalSec)
 
 	actionHandlerConfig := action.NewActionHandlerConfig(config.CAPINamespace, config.CAClient, config.KubeletClient,
-		probeConfig.ClusterScraper, config.SccSupport, config.ORMClient, config.failVolumePodMoves, config.updateQuotaToAllowMoves, config.failureThreshold)
+		probeConfig.ClusterScraper, config.SccSupport, config.ORMClient, config.failVolumePodMoves, config.updateQuotaToAllowMoves, config.readinessRetryThreshold)
 
 	// Kubernetes Probe Registration Client
 	registrationClient := registration.NewK8sRegistrationClient(registrationClientConfig, config.tapSpec.K8sTargetConfig)
