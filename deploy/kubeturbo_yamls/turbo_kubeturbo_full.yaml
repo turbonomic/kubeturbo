@@ -126,6 +126,8 @@ spec:
           #- --cpufreq-job-exclude-node-labels=kubernetes.io/key=value
           # Uncomment to stitch using IP, or if using Openstack, Hyper-V/VMM
           #- --stitch-uuid=false
+          # Uncomment to customize readiness retry threshold. Kubeturbo will try readiness-retry-threshold times before giving up. Default is 60. The retry interval is 10s.
+          #- --readiness-retry-threshold=60
         volumeMounts:
           # volume will be created, any name will work and must match below
           - name: turbo-volume

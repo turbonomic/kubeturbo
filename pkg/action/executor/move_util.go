@@ -221,7 +221,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 				glog.V(3).Infof("Unpausing pods controller: %s for pod: %s", gPKind, podQualifiedName)
 				// We conservatively try additional 3 times in case of any failure as we don't
 				// want the parent to be left in a bad state.
-				err := commonutil.RetryDuring(DefaultRetryLess, DefaultRetryShortTimeout,
+				err := commonutil.RetryDuring(DefaultExecutionRetry, DefaultRetryShortTimeout,
 					DefaultRetrySleepInterval, func() error {
 						return ResourceRollout(gPClient, grandParent, unpause)
 					})
@@ -250,7 +250,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 			glog.V(3).Infof("Updating scheduler of %s for pod %s back to default.", parentKind, podQualifiedName)
 			// We conservatively try additional 3 times in case of any failure as we don't
 			// want the parent to be left in a bad state.
-			err := commonutil.RetryDuring(DefaultRetryLess, DefaultRetryShortTimeout,
+			err := commonutil.RetryDuring(DefaultExecutionRetry, DefaultRetryShortTimeout,
 				DefaultRetrySleepInterval, func() error {
 					return ChangeScheduler(pClient, parent, valid)
 				})
@@ -277,7 +277,6 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 			return nil, err
 		}
 	}
-
 	//step A2/B5: wait until podC gets ready
 	err = podutil.WaitForPodReady(clusterScraper.Clientset, npod.Namespace, npod.Name, nodeName,
 		retryNum, defaultPodCreateSleep)
@@ -369,7 +368,7 @@ func deleteInvalidPendingPods(parent *unstructured.Unstructured, podClient v1.Po
 	// Find the pods which weren't there and if attributed to invalid
 	// turbo-scheduler, delete them.
 	for _, pod := range newPendingInvalidPods(newPodList, podList) {
-		err := commonutil.RetryDuring(DefaultRetryLess, DefaultRetryShortTimeout,
+		err := commonutil.RetryDuring(DefaultExecutionRetry, DefaultRetryShortTimeout,
 			DefaultRetrySleepInterval, func() error {
 				return podClient.Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 			})

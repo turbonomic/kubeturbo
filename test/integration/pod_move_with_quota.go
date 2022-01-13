@@ -76,7 +76,7 @@ spec:
 			}
 
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""), []string{"*"}, nil, false, true)
+				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""), []string{"*"}, nil, false, true, 60)
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 
 			namespace = f.TestNamespaceName()
@@ -115,7 +115,7 @@ spec:
 
 		It("should fail the action if the quota-update is disabled", func() {
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""), []string{"*"}, nil, false, false)
+				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""), []string{"*"}, nil, false, false, 60)
 			actionHandler := action.NewActionHandler(actionHandlerConfig)
 
 			quota := createQuota(kubeClient, namespace, quotaFromYaml(quotaYaml))

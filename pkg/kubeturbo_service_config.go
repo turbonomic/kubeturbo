@@ -51,6 +51,7 @@ type Config struct {
 	failVolumePodMoves      bool
 	updateQuotaToAllowMoves bool
 	clusterAPIEnabled       bool
+	readinessRetryThreshold int
 }
 
 func NewVMTConfig2() *Config {
@@ -178,5 +179,10 @@ func (c *Config) WithQuotaUpdateConfig(updateQuotaToAllowMoves bool) *Config {
 
 func (c *Config) WithClusterAPIEnabled(clusterAPIEnabled bool) *Config {
 	c.clusterAPIEnabled = clusterAPIEnabled
+	return c
+}
+
+func (c *Config) WithReadinessRetryThreshold(readinessRetryThreshold int) *Config {
+	c.readinessRetryThreshold = readinessRetryThreshold
 	return c
 }

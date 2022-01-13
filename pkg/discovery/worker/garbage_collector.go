@@ -184,7 +184,7 @@ func (g *GarbageCollector) revertControllers() {
 func (g *GarbageCollector) revertSchedulers() {
 	for _, parentRes := range supportedParents {
 		var objList *unstructured.UnstructuredList
-		err := commonutil.RetryDuring(executor.DefaultRetryLess, 0,
+		err := commonutil.RetryDuring(executor.DefaultExecutionRetry, 0,
 			executor.DefaultRetrySleepInterval, func() error {
 				var internalErr error
 				objList, internalErr = g.dynClient.Resource(parentRes).Namespace("").List(context.TODO(), gcListOpts)
@@ -200,7 +200,7 @@ func (g *GarbageCollector) revertSchedulers() {
 		}
 		for _, item := range objList.Items {
 			valid := true
-			err := commonutil.RetryDuring(executor.DefaultRetryLess, 0,
+			err := commonutil.RetryDuring(executor.DefaultExecutionRetry, 0,
 				executor.DefaultRetrySleepInterval, func() error {
 					return executor.ChangeScheduler(g.dynClient.Resource(parentRes).Namespace(item.GetNamespace()), &item, valid)
 				})
@@ -215,7 +215,7 @@ func (g *GarbageCollector) revertSchedulers() {
 func (g *GarbageCollector) unpauseRollouts() {
 	for _, grandParentRes := range supportedGrandParents {
 		var objList *unstructured.UnstructuredList
-		err := commonutil.RetryDuring(executor.DefaultRetryLess, 0,
+		err := commonutil.RetryDuring(executor.DefaultExecutionRetry, 0,
 			executor.DefaultRetrySleepInterval, func() error {
 				var internalErr error
 				objList, internalErr = g.dynClient.Resource(grandParentRes).Namespace("").List(context.TODO(), gcListOpts)
@@ -231,7 +231,7 @@ func (g *GarbageCollector) unpauseRollouts() {
 		}
 		for _, item := range objList.Items {
 			unpause := false
-			err := commonutil.RetryDuring(executor.DefaultRetryLess, 0,
+			err := commonutil.RetryDuring(executor.DefaultExecutionRetry, 0,
 				executor.DefaultRetrySleepInterval, func() error {
 					return executor.ResourceRollout(g.dynClient.Resource(grandParentRes).Namespace(item.GetNamespace()), &item, unpause)
 				})
@@ -244,7 +244,7 @@ func (g *GarbageCollector) unpauseRollouts() {
 
 func (g *GarbageCollector) cleanupQuotas() {
 	var quotaList *api.ResourceQuotaList
-	err := commonutil.RetryDuring(executor.DefaultRetryLess, 0,
+	err := commonutil.RetryDuring(executor.DefaultExecutionRetry, 0,
 		executor.DefaultRetrySleepInterval, func() error {
 			var internalErr error
 			quotaList, internalErr = g.client.CoreV1().ResourceQuotas("").List(context.TODO(), gcListOpts)
@@ -286,7 +286,7 @@ func revertQuota(client *kubernetes.Clientset, quota *api.ResourceQuota) {
 	}
 	executor.RemoveGCLabelFromQuota(quota)
 
-	err = commonutil.RetryDuring(executor.DefaultRetryLess, 0,
+	err = commonutil.RetryDuring(executor.DefaultExecutionRetry, 0,
 		executor.DefaultRetrySleepInterval, func() error {
 			_, err := client.CoreV1().ResourceQuotas(quota.Namespace).Update(context.TODO(), quota, metav1.UpdateOptions{})
 			return err

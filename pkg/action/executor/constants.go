@@ -5,8 +5,10 @@ import (
 )
 
 const (
-	DefaultRetryLess = 3
-	defaultRetryMore = 55
+	// Default Number of Retries for making changes during action execution
+	DefaultExecutionRetry = 3
+	// Default number of Retries for waiting for Pod to be ready during action execution
+	DefaultWaitForPodThreshold = 55
 
 	DefaultRetrySleepInterval = time.Second * 3
 	DefaultRetryShortTimeout  = time.Second * 20
@@ -15,8 +17,7 @@ const (
 	defaultWaitLockTimeOut = time.Second * 300
 	defaultWaitLockSleep   = time.Second * 10
 
-	defaultPodCheckSleep      = time.Second * 10
-	defaultPodCreateSleep     = time.Second * 11
+	defaultPodCreateSleep     = time.Second * 10
 	defaultUpdateReplicaSleep = time.Second * 20
 
 	// this annotation is set for move/Resize actions;

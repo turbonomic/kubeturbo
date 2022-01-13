@@ -52,11 +52,12 @@ type ActionHandlerConfig struct {
 	ormClient               *resourcemapping.ORMClient
 	failVolumePodMoves      bool
 	updateQuotaToAllowMoves bool
+	readinessRetryThreshold int
 }
 
 func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientset, kubeletClient *kubeletclient.KubeletClient,
 	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient,
-	failVolumePodMoves, updateQuotaToAllowMoves bool) *ActionHandlerConfig {
+	failVolumePodMoves, updateQuotaToAllowMoves bool, readinessRetryThreshold int) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
 		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}
@@ -73,6 +74,7 @@ func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientse
 		ormClient:               ormClient,
 		failVolumePodMoves:      failVolumePodMoves,
 		updateQuotaToAllowMoves: updateQuotaToAllowMoves,
+		readinessRetryThreshold: readinessRetryThreshold,
 	}
 
 	return config
@@ -127,7 +129,7 @@ func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
 	ae := executor.NewTurboK8sActionExecutor(c.clusterScraper, c.cApiClient, h.podManager, h.config.ormClient)
 
-	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet, c.failVolumePodMoves, c.updateQuotaToAllowMoves, h.lockMap)
+	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet, c.failVolumePodMoves, c.updateQuotaToAllowMoves, h.lockMap, c.readinessRetryThreshold)
 
 	h.actionExecutors[turboActionPodMove] = reScheduler
 
