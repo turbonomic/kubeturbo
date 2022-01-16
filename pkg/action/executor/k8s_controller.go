@@ -15,6 +15,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	actionutil "github.com/turbonomic/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 )
 
@@ -44,6 +45,7 @@ type parentController struct {
 	obj                 *unstructured.Unstructured
 	name                string
 	ormClient           *resourcemapping.ORMClient
+	managerApp          *repository.K8sApp
 }
 
 func (c *parentController) get(name string) (*k8sControllerSpec, error) {
@@ -102,14 +104,11 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		return fmt.Errorf("error setting podSpec into unstructured %s %s: %v", kind, objName, err)
 	}
 
-	annotations := c.obj.GetAnnotations()
-	gitopsSource, exists := annotations[GitopsSourceAnnotationKey]
-	// We will extract other annotations in update
-	if exists {
-		// The workload is managed by a pipeline controller which replicates
+	if c.managerApp != nil {
+		// The workload is managed by a pipeline controller (argoCD) which replicates
 		// it from a source of truth
-		cRC := newCRController(c.dynClient, c.obj)
-		err := cRC.Update(gitopsSource, int64(*updatedSpec.replicas), podSpecUnstructured)
+		cRC := newCRController(c.dynClient, c.obj, c.managerApp)
+		err := cRC.Update(int64(*updatedSpec.replicas), podSpecUnstructured)
 		if err != nil {
 			return fmt.Errorf("failed to create a ChangeRequest: %v", err)
 		}
