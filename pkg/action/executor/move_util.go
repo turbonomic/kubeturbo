@@ -12,6 +12,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
+	apicorev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -134,6 +135,9 @@ func genNewPodName(oldPod *api.Pod) string {
 // TODO: add support for operator controlled parent or parent's parent.
 func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, parentKind, parentName string,
 	retryNum int, failVolumePodMoves, updateQuotaToAllowMoves bool, lockMap *util.ExpirationMap) (*api.Pod, error) {
+	retryInterval := defaultPodCreateSleep
+	failureThreshold := int32(retryNum)
+	initDelay := int32(0)
 	podClient := clusterScraper.Clientset.CoreV1().Pods(pod.Namespace)
 	podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	podUsingVolume := isPodUsingVolume(pod)
@@ -277,9 +281,31 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 			return nil, err
 		}
 	}
+	unstructuredContainers, found, err := unstructured.NestedSlice(parentForPodSpec.Object, "spec", "template", "spec", "containers")
+	if err != nil || !found {
+		return nil, fmt.Errorf("error retrieving containers because: %v", err)
+	}
+
+	for _, unstructuredContainer := range unstructuredContainers {
+		var container apicorev1.Container
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredContainer.(map[string]interface{}), &container); err != nil {
+			return nil, fmt.Errorf("error converting unstructured containers to typed containers for : %v", err)
+		}
+		readinessFailureThreshold, readinessInitialDelaySec, periodSec := getContainerReadinessProbeDetails(container)
+		duration := time.Second * time.Duration(periodSec)
+		if duration > retryInterval {
+			retryInterval = duration
+		}
+		if readinessFailureThreshold > failureThreshold {
+			failureThreshold = readinessFailureThreshold
+		}
+		if readinessInitialDelaySec > initDelay {
+			initDelay = readinessInitialDelaySec
+		}
+	}
 	//step A2/B5: wait until podC gets ready
-	err = podutil.WaitForPodReady(clusterScraper.Clientset, npod.Namespace, npod.Name, nodeName,
-		retryNum, defaultPodCreateSleep)
+	err = podutil.WaitForPodReady(clusterScraper.Clientset, npod.Namespace, npod.Name, nodeName, time.Second*time.Duration(initDelay),
+		failureThreshold, retryInterval)
 	if err != nil {
 		glog.Errorf("Wait for cloned Pod ready timeout: %v", err)
 		return nil, err
@@ -528,6 +554,15 @@ func getPodOwnersInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
 	// This means that the parent itself is the final owner and there is
 	// no controller controlling the parent, i.e. no grand parent.
 	return parent, nil, nsParentClient, nil, "", nil
+}
+
+func getContainerReadinessProbeDetails(container apicorev1.Container) (failureThreshold int32, initialDelaySec int32, periodSec int32) {
+	probe := container.ReadinessProbe
+	if probe == nil {
+		glog.V(4).Infof("Cannot find readiness probe for Container: %s, use default configuration instead", container.Name)
+		return 0, 0, 0
+	}
+	return probe.FailureThreshold, probe.InitialDelaySeconds, probe.PeriodSeconds
 }
 
 // ResourceRollout pauses/unpauses the rollout of a deployment or a deploymentconfig

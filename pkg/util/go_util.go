@@ -90,11 +90,12 @@ func RetryDuring(attempts int, timeout time.Duration, sleep time.Duration, myfun
 }
 
 //RetrySimple executes a function with retries and a timeout
-func RetrySimple(attempts int, timeout, sleep time.Duration, myfunc func() (bool, error)) error {
+func RetrySimple(attempts int32, timeout, sleep time.Duration, myfunc func() (bool, error)) error {
 	t0 := time.Now()
 
 	var err error
-	for i := 0; ; i++ {
+	var i int32
+	for i = 0; ; i++ {
 		retry := false
 		if retry, err = myfunc(); !retry {
 			return err
