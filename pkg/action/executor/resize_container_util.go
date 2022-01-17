@@ -260,7 +260,7 @@ func resizeSingleContainer(client *kclient.Clientset, originalPod *k8sapi.Pod, s
 	}()
 
 	// wait until the clone pod gets ready
-	err = podutil.WaitForPodReady(client, clonePod.Namespace, clonePod.Name, "", DefaultWaitForPodThreshold, defaultPodCreateSleep)
+	err = podutil.WaitForPodReady(client, clonePod.Namespace, clonePod.Name, "", 0, DefaultWaitForPodThreshold, defaultPodCreateSleep)
 	if err != nil {
 		glog.Errorf("Wait for cloned Pod ready timeout: %v", err)
 		return nil, err

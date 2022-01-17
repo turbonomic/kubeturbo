@@ -311,8 +311,11 @@ func GetControllerUID(pod *api.Pod, metricsSink *metrics.EntityMetricSink) (stri
 //
 // TODO:
 // Use k8s watch API to eliminate the need for polling and improve efficiency
-func WaitForPodReady(client *client.Clientset, namespace, podName, nodeName string,
-	retry int, interval time.Duration) error {
+func WaitForPodReady(client *client.Clientset, namespace, podName, nodeName string, initDelay time.Duration,
+	retry int32, interval time.Duration) error {
+	if initDelay > 0 {
+		time.Sleep(initDelay)
+	}
 	// check pod readiness with retries
 	timeout := time.Duration(retry+1) * interval
 	err := commonutil.RetrySimple(retry, timeout, interval, func() (bool, error) {
