@@ -135,9 +135,6 @@ func genNewPodName(oldPod *api.Pod) string {
 // TODO: add support for operator controlled parent or parent's parent.
 func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, parentKind, parentName string,
 	retryNum int, failVolumePodMoves, updateQuotaToAllowMoves bool, lockMap *util.ExpirationMap) (*api.Pod, error) {
-	retryInterval := defaultPodCreateSleep
-	failureThreshold := int32(retryNum)
-	initDelay := int32(0)
 	podClient := clusterScraper.Clientset.CoreV1().Pods(pod.Namespace)
 	podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	podUsingVolume := isPodUsingVolume(pod)
@@ -283,13 +280,16 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 	}
 	unstructuredContainers, found, err := unstructured.NestedSlice(parentForPodSpec.Object, "spec", "template", "spec", "containers")
 	if err != nil || !found {
-		return nil, fmt.Errorf("error retrieving containers because: %v", err)
+		return nil, fmt.Errorf("error retrieving containers for %s/%s because: %v", pod.Namespace, pod.Name, err)
 	}
+	retryInterval := defaultPodCreateSleep
+	failureThreshold := int32(retryNum)
+	initDelay := int32(0)
 
 	for _, unstructuredContainer := range unstructuredContainers {
 		var container apicorev1.Container
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredContainer.(map[string]interface{}), &container); err != nil {
-			return nil, fmt.Errorf("error converting unstructured containers to typed containers for : %v", err)
+			return nil, fmt.Errorf("error converting unstructured containers to typed containers for %s/%s because : %v", pod.Namespace, pod.Name, err)
 		}
 		readinessFailureThreshold, readinessInitialDelaySec, periodSec := getContainerReadinessProbeDetails(container)
 		duration := time.Second * time.Duration(periodSec)
@@ -559,7 +559,7 @@ func getPodOwnersInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
 func getContainerReadinessProbeDetails(container apicorev1.Container) (failureThreshold int32, initialDelaySec int32, periodSec int32) {
 	probe := container.ReadinessProbe
 	if probe == nil {
-		glog.V(4).Infof("Cannot find readiness probe for Container: %s, use default configuration instead", container.Name)
+		glog.V(4).Infof("Readiness probe not found for Container: %s, use default configuration instead", container.Name)
 		return 0, 0, 0
 	}
 	return probe.FailureThreshold, probe.InitialDelaySeconds, probe.PeriodSeconds
