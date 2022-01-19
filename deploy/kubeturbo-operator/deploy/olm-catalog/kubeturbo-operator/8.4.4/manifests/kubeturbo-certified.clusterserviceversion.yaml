@@ -200,7 +200,7 @@ spec:
                   - name: OPERATOR_NAME
                     value: "kubeturbo-operator"
                   - name: RELATED_IMAGE_KUBETURBO
-                    value: registry.connect.redhat.com/turbonomic/kubeturbo@sha256:e6bdff05ed99cc1d39773fa4943a4804e000e87f1b17701fbaba24160347e48d
+                    value: registry.connect.redhat.com/turbonomic/kubeturbo@sha256:89641d597301fae69fd2085afb641554c31a265703f0ca4fa82c7d71edf3d276
                   securityContext:
                     readOnlyRootFilesystem: true
                     capabilities:
