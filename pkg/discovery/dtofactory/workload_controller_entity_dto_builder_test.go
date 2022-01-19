@@ -85,6 +85,11 @@ func TestBuildDTOs(t *testing.T) {
 			}
 			workloadControllerData1 := entityDTO.GetWorkloadControllerData()
 			assert.EqualValues(t, expectedWorkloadControllerData1, workloadControllerData1)
+
+			// Test Owns connection
+			assert.Equal(t, 2, len(entityDTO.ConnectedEntities))
+			assert.Equal(t, proto.ConnectedEntity_OWNS_CONNECTION, entityDTO.ConnectedEntities[1].GetConnectionType())
+			assert.Equal(t, "controller1-UID/Foo", entityDTO.ConnectedEntities[1].GetConnectedEntityId())
 		} else if entityDTO.GetId() == "controller2-UID" {
 			// cloneable and suspendable is false for WorkloadController
 			actionEligibility := entityDTO.GetActionEligibility()
@@ -159,6 +164,16 @@ func createKubeController(clustername, namespace, name, controllerType, uid stri
 	for _, allocationResource := range testAllocationResources {
 		kubeController.AddAllocationResource(allocationResource.Type, allocationResource.Capacity, allocationResource.Used)
 	}
+	pod := &api.Pod{
+		Spec: api.PodSpec{
+			Containers: []api.Container{
+				{
+					Name: "Foo",
+				},
+			},
+		},
+	}
+	kubeController.Pods = append(kubeController.Pods, pod)
 	return kubeController
 }
 
