@@ -62,11 +62,11 @@ func (builder *workloadControllerDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, er
 				kubeController.GetFullName())
 		}
 
-		// To connect WorkloadController to ContainerSpec entity, WorkloadController consistsOf the associated ContainerSpecs.
-		// The platform will translate this into the following relation:
-		// WorkloadController owns Containers
+		// Connect WorkloadController to ContainerSpec entity, WorkloadController owns the associated ContainerSpecs.
 		containerSpecsIds := builder.getContainerSpecIds(kubeController)
-		entityDTOBuilder.ConsistsOf(containerSpecsIds)
+		for _, containerSpecId := range containerSpecsIds {
+			entityDTOBuilder.Owns(containerSpecId)
+		}
 
 		// Create WorkloadControllerData to store controller type data
 		entityDTOBuilder.WorkloadControllerData(builder.createWorkloadControllerData(kubeController))
