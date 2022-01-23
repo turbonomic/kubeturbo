@@ -11,7 +11,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/util"
-	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
+	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -54,12 +54,12 @@ type ORMSpec struct {
 type ORMClient struct {
 	cacheLock    sync.Mutex
 	dynClient    dynamic.Interface
-	apiExtClient *apiextclient.ApiextensionsV1beta1Client
+	apiExtClient *apiextclient.ApiextensionsV1Client
 	// Cached map data from Operator-managed CustomResource UID to ORMSpec. The cached data is updated each discovery.
 	operatorResourceSpecMap map[string]*ORMSpec
 }
 
-func NewORMClient(dynamicClient dynamic.Interface, apiExtClient *apiextclient.ApiextensionsV1beta1Client) *ORMClient {
+func NewORMClient(dynamicClient dynamic.Interface, apiExtClient *apiextclient.ApiextensionsV1Client) *ORMClient {
 	return &ORMClient{
 		dynClient:               dynamicClient,
 		apiExtClient:            apiExtClient,
