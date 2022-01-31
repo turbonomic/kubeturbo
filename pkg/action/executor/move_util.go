@@ -278,29 +278,25 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 			return nil, err
 		}
 	}
-	unstructuredContainers, found, err := unstructured.NestedSlice(parentForPodSpec.Object, "spec", "template", "spec", "containers")
-	if err != nil || !found {
-		return nil, fmt.Errorf("error retrieving containers for %s/%s because: %v", pod.Namespace, pod.Name, err)
-	}
 	retryInterval := defaultPodCreateSleep
 	failureThreshold := int32(retryNum)
 	initDelay := int32(0)
-
-	for _, unstructuredContainer := range unstructuredContainers {
-		var container apicorev1.Container
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredContainer.(map[string]interface{}), &container); err != nil {
-			return nil, fmt.Errorf("error converting unstructured containers to typed containers for %s/%s because : %v", pod.Namespace, pod.Name, err)
+	if parentForPodSpec != nil {
+		unstructuredContainers, found, err := unstructured.NestedSlice(parentForPodSpec.Object, "spec", "template", "spec", "containers")
+		if err != nil || !found {
+			return nil, fmt.Errorf("error retrieving containers for %s/%s because: %v", pod.Namespace, pod.Name, err)
 		}
-		readinessFailureThreshold, readinessInitialDelaySec, periodSec := getContainerReadinessProbeDetails(container)
-		duration := time.Second * time.Duration(periodSec)
-		if duration > retryInterval {
-			retryInterval = duration
+		for _, unstructuredContainer := range unstructuredContainers {
+			var container apicorev1.Container
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredContainer.(map[string]interface{}), &container); err != nil {
+				return nil, fmt.Errorf("error converting unstructured containers to typed containers for %s/%s because : %v", pod.Namespace, pod.Name, err)
+			}
+			retryInterval, failureThreshold, initDelay = calculateReadinessThreshold(container, retryInterval, failureThreshold, initDelay)
 		}
-		if readinessFailureThreshold > failureThreshold {
-			failureThreshold = readinessFailureThreshold
-		}
-		if readinessInitialDelaySec > initDelay {
-			initDelay = readinessInitialDelaySec
+	} else {
+		containers := pod.Spec.Containers
+		for _, container := range containers {
+			retryInterval, failureThreshold, initDelay = calculateReadinessThreshold(container, retryInterval, failureThreshold, initDelay)
 		}
 	}
 	//step A2/B5: wait until podC gets ready
@@ -343,6 +339,21 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 
 	flag = true
 	return xpod, nil
+}
+
+func calculateReadinessThreshold(container api.Container, retryInterval time.Duration, failureThreshold int32, initDelay int32) (time.Duration, int32, int32) {
+	readinessFailureThreshold, readinessInitialDelaySec, periodSec := getContainerReadinessProbeDetails(container)
+	duration := time.Second * time.Duration(periodSec)
+	if duration > retryInterval {
+		retryInterval = duration
+	}
+	if readinessFailureThreshold > failureThreshold {
+		failureThreshold = readinessFailureThreshold
+	}
+	if readinessInitialDelaySec > initDelay {
+		initDelay = readinessInitialDelaySec
+	}
+	return retryInterval, failureThreshold, initDelay
 }
 
 // checkQuotas checks and updates a quota if need be in the pods namespace
