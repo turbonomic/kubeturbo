@@ -2,6 +2,7 @@ package property
 
 import (
 	api "k8s.io/api/core/v1"
+	"strings"
 
 	"fmt"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -9,12 +10,13 @@ import (
 
 const (
 	// TODO currently in the server side only properties in "DEFAULT" namespaces are respected. Ideally we should use "Kubernetes-Pod".
-	k8sPropertyNamespace    = "DEFAULT"
-	VCTagsPropertyNamespace = "VCTAGS"
-	k8sNamespace            = "KubernetesNamespace"
-	k8sPodName              = "KubernetesPodName"
-	k8sNodeName             = "KubernetesNodeName"
-	k8sContainerIndex       = "Kubernetes-Container-Index"
+	k8sPropertyNamespace          = "DEFAULT"
+	VCTagsPropertyNamespace       = "VCTAGS"
+	k8sNamespace                  = "KubernetesNamespace"
+	k8sPodName                    = "KubernetesPodName"
+	k8sNodeName                   = "KubernetesNodeName"
+	k8sContainerIndex             = "Kubernetes-Container-Index"
+	TolerationPropertyValueSuffix = "[KUBERNETES TOLERATION]"
 )
 
 // Build entity properties of a pod. The properties are consisted of name and namespace of a pod.
@@ -52,6 +54,18 @@ func BuildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
 		properties = append(properties, tagProperty)
 	}
 
+	for _, toleration := range pod.Spec.Tolerations {
+		tagNamePropertyName := toleration.Key
+		tagNamePropertyValue := strings.Join([]string{toleration.Value, string(toleration.Operator),
+			string(toleration.Effect), TolerationPropertyValueSuffix}, " ")
+		tagNamePropertyValue = strings.TrimSpace(tagNamePropertyValue)
+		tagProperty := &proto.EntityDTO_EntityProperty{
+			Namespace: &tagsPropertyNamespace,
+			Name:      &tagNamePropertyName,
+			Value:     &tagNamePropertyValue,
+		}
+		properties = append(properties, tagProperty)
+	}
 	return properties
 }
 

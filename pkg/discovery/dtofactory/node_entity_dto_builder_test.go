@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"fmt"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,21 @@ import (
 	api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	label1Key    = "label1"
+	label1Value  = "value1"
+	label2Key    = "label2"
+	label2Value  = "value2"
+	taintAKey    = "taintA"
+	taintAEffect = api.TaintEffectNoSchedule
+	taintBKey    = "taintB"
+	taintBValue  = "foo"
+	taintBEffect = api.TaintEffectNoExecute
+	taintCKey    = "taintC"
+	taintCValue  = "bar"
+	taintCEffect = api.TaintEffectPreferNoSchedule
 )
 
 func TestQuantity(t *testing.T) {
@@ -113,8 +129,8 @@ func genAddresses() []api.NodeAddress {
 
 func mockNode() *api.Node {
 	labels := make(map[string]string)
-	labels["label1"] = "value1"
-	labels["label2"] = "valuel2"
+	labels[label1Key] = label1Value
+	labels[label2Key] = label2Value
 
 	resCapaicty, resAllocatable := buildNodeResource()
 	addresses := genAddresses()
@@ -135,6 +151,22 @@ func mockNode() *api.Node {
 			//ExternalID: "2272335446120646149",
 			PodCIDR:    "10.4.1.0/24",
 			ProviderID: "gce://turbonomic-eng/us-central1-a/gke-cluster-default-pool-b5fbbce4-1ckk",
+			Taints: []api.Taint{
+				{
+					Key:    taintAKey,
+					Effect: taintAEffect,
+				},
+				{
+					Key:    taintBKey,
+					Value:  taintBValue,
+					Effect: taintBEffect,
+				},
+				{
+					Key:    taintCKey,
+					Value:  taintCValue,
+					Effect: taintCEffect,
+				},
+			},
 		},
 
 		Status: api.NodeStatus{
@@ -170,7 +202,7 @@ func TestGetNodeIPs(t *testing.T) {
 	}
 }
 
-func TestGetNodeNumCPUs(t *testing.T) {
+func TestNodeEntityDTO(t *testing.T) {
 	node := mockNode()
 	nodeKey := util.NodeKeyFunc(node)
 	metricsSink = metrics.NewEntityMetricSink()
@@ -179,9 +211,36 @@ func TestGetNodeNumCPUs(t *testing.T) {
 	kubernetesSvcID := "abcdef"
 	clusterInfo := metrics.NewEntityStateMetric(metrics.ClusterType, "", metrics.Cluster, kubernetesSvcID)
 	metricsSink.AddNewMetricEntries(clusterInfo)
-	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitching.NewStitchingManager(stitching.UUID))
+	stitchingManager := stitching.NewStitchingManager(stitching.UUID)
+	stitchingManager.StoreStitchingValue(node)
+	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitchingManager)
 	nodeEntityDTOs := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node})
 	vmData := nodeEntityDTOs[0].GetVirtualMachineData()
 	// The capacity metric is set in millicores but numcpus is set in cores
 	assert.EqualValues(t, 10, vmData.GetNumCpus())
+
+	// Confirm entity properties are populated and populated properly
+	matches := 0
+	for _, p := range nodeEntityDTOs[0].GetEntityProperties() {
+		if p.GetNamespace() == property.VCTagsPropertyNamespace {
+			var expected string
+			switch p.GetName() {
+			case label1Key:
+				expected = label1Value
+			case label2Key:
+				expected = label2Value
+			case taintAKey:
+				expected = string(taintAEffect) + " " + property.TaintPropertyValueSuffix
+			case taintBKey:
+				expected = taintBValue + " " + string(taintBEffect) + " " + property.TaintPropertyValueSuffix
+			case taintCKey:
+				expected = taintCValue + " " + string(taintCEffect) + " " + property.TaintPropertyValueSuffix
+			default:
+				continue
+			}
+			matches++
+			assert.EqualValues(t, expected, p.GetValue())
+		}
+	}
+	assert.EqualValues(t, 5, matches, "there should be 5 tag properties")
 }
