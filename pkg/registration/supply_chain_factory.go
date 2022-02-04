@@ -249,6 +249,8 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 			f.stitchingPropertyType)
 	}
 
+	mergedEntityMetadataBuilder = mergedEntityMetadataBuilder.WithMergePropertiesStrategy(proto.MergedEntityMetadata_MERGE_IF_NOT_PRESENT)
+
 	return mergedEntityMetadataBuilder.
 		PatchSoldMetadata(proto.CommodityDTO_CLUSTER, fieldsCapactiy).
 		PatchSoldMetadata(proto.CommodityDTO_VMPM_ACCESS, fieldsCapactiy).
