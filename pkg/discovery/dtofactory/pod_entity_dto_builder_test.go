@@ -1,7 +1,6 @@
 package dtofactory
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"reflect"
 	"testing"
 
@@ -132,15 +131,7 @@ func createPodWithReadyCondition() *api.Pod {
 	}
 }
 
-func TestPodEntityDTOBuilder(t *testing.T) {
-	const toleration1Key = "key1"
-	const toleration1Op = api.TolerationOpExists
-	const toleration1Effect = api.TaintEffectNoSchedule
-	const toleration2Key = "foo"
-	const toleration2Op = api.TolerationOpEqual
-	const toleration2Value = "bar"
-	const toleration2Effect = api.TaintEffectNoExecute
-
+func TestContainerMetricsAvailability(t *testing.T) {
 	testPod1 := &api.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -148,13 +139,6 @@ func TestPodEntityDTOBuilder(t *testing.T) {
 		},
 		Spec: api.PodSpec{
 			NodeName: nodeName,
-			Tolerations: []api.Toleration{
-				{
-					Key:      toleration1Key,
-					Operator: toleration1Op,
-					Effect:   toleration1Effect,
-				},
-			},
 		},
 	}
 	testPod2 := &api.Pod{
@@ -164,14 +148,6 @@ func TestPodEntityDTOBuilder(t *testing.T) {
 		},
 		Spec: api.PodSpec{
 			NodeName: nodeName,
-			Tolerations: []api.Toleration{
-				{
-					Key:      toleration2Key,
-					Operator: toleration2Op,
-					Value:    toleration2Value,
-					Effect:   toleration2Effect,
-				},
-			},
 		},
 	}
 	testPod3 := &api.Pod{
@@ -187,28 +163,18 @@ func TestPodEntityDTOBuilder(t *testing.T) {
 	tests := []struct {
 		pod                      *api.Pod
 		expectedMetricsAvailable bool
-		propertyMatches          int
-		propertyKey              string
-		propertyValue            string
 	}{
 		{
 			pod:                      testPod1,
 			expectedMetricsAvailable: true,
-			propertyMatches:          1,
-			propertyKey:              toleration1Key,
-			propertyValue:            string(toleration1Op) + " " + string(toleration1Effect) + " " + property.TolerationPropertyValueSuffix,
 		},
 		{
 			pod:                      testPod2,
 			expectedMetricsAvailable: false,
-			propertyMatches:          0,
-			propertyKey:              toleration2Key,
-			propertyValue:            string(toleration2Op) + " " + toleration2Value + " " + string(toleration2Effect) + " " + property.TolerationPropertyValueSuffix,
 		},
 		{
 			pod:                      testPod3,
 			expectedMetricsAvailable: true,
-			propertyMatches:          0,
 		},
 	}
 	sink := metrics.NewEntityMetricSink()
@@ -222,17 +188,5 @@ func TestPodEntityDTOBuilder(t *testing.T) {
 	podDTOBuilder := NewPodEntityDTOBuilder(sink, nil)
 	for _, test := range tests {
 		assert.Equal(t, podDTOBuilder.isContainerMetricsAvailable(test.pod), test.expectedMetricsAvailable)
-
-		podDto, _ := podDTOBuilder.WithRunningPods([]*api.Pod{test.pod}).BuildEntityDTOs()
-		for _, p := range podDto[0].GetEntityProperties() {
-			matches := 0
-			if p.GetNamespace() == property.VCTagsPropertyNamespace {
-				if p.GetName() == test.propertyKey {
-					assert.Equal(t, test.propertyValue, p.GetValue())
-					matches++
-				}
-			}
-			assert.Equal(t, test.propertyMatches, matches)
-		}
 	}
 }
