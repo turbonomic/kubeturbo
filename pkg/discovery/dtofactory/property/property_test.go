@@ -162,7 +162,7 @@ func TestBuildPodProperties(t *testing.T) {
 			case toleration1Key:
 				expected = string(toleration1Op) + " " + string(toleration1Effect) + " " + TolerationPropertyValueSuffix
 			case toleration2Key:
-				expected = toleration2Value + " " + string(toleration2Op) + " " + string(toleration2Effect) + " " + TolerationPropertyValueSuffix
+				expected = string(toleration2Op) + " " + toleration2Value + " " + string(toleration2Effect) + " " + TolerationPropertyValueSuffix
 			default:
 				continue
 			}
