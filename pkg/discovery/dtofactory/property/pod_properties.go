@@ -1,11 +1,9 @@
 package property
 
 import (
-	api "k8s.io/api/core/v1"
-	"strings"
-
 	"fmt"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	api "k8s.io/api/core/v1"
 )
 
 const (
@@ -56,9 +54,11 @@ func BuildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
 
 	for _, toleration := range pod.Spec.Tolerations {
 		tagNamePropertyName := toleration.Key
-		tagNamePropertyValue := strings.Join([]string{toleration.Value, string(toleration.Operator),
-			string(toleration.Effect), TolerationPropertyValueSuffix}, " ")
-		tagNamePropertyValue = strings.TrimSpace(tagNamePropertyValue)
+		tagNamePropertyValue := string(toleration.Operator)
+		if toleration.Value != "" {
+			tagNamePropertyValue += " " + toleration.Value
+		}
+		tagNamePropertyValue += " " + string(toleration.Effect) + " " + TolerationPropertyValueSuffix
 		tagProperty := &proto.EntityDTO_EntityProperty{
 			Namespace: &tagsPropertyNamespace,
 			Name:      &tagNamePropertyName,
