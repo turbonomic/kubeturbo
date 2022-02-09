@@ -83,9 +83,9 @@ func TestNodeProperty(t *testing.T) {
 		if p.GetNamespace() == VCTagsPropertyNamespace {
 			var expected string
 			switch p.GetName() {
-			case label1Key:
+			case LabelPropertyNamePrefix + " " + label1Key:
 				expected = label1Value
-			case label2Key:
+			case LabelPropertyNamePrefix + " " + label2Key:
 				expected = label2Value
 			case TaintPropertyNamePrefix + " " + string(taintAEffect):
 				expected = taintAKey
@@ -161,9 +161,9 @@ func TestBuildPodProperties(t *testing.T) {
 		if p.GetNamespace() == VCTagsPropertyNamespace {
 			var expected string
 			switch p.GetName() {
-			case label1Key:
+			case LabelPropertyNamePrefix + " " + label1Key:
 				expected = label1Value
-			case label2Key:
+			case LabelPropertyNamePrefix + " " + label2Key:
 				expected = label2Value
 			case TolerationPropertyNamePrefix + " " + string(toleration1Effect):
 				expected = toleration1Key + " " + string(toleration1Op)
