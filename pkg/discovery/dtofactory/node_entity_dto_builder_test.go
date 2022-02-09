@@ -229,12 +229,12 @@ func TestNodeEntityDTO(t *testing.T) {
 				expected = label1Value
 			case label2Key:
 				expected = label2Value
-			case taintAKey:
-				expected = string(taintAEffect) + " " + property.TaintPropertyValueSuffix
-			case taintBKey:
-				expected = taintBValue + " " + string(taintBEffect) + " " + property.TaintPropertyValueSuffix
-			case taintCKey:
-				expected = taintCValue + " " + string(taintCEffect) + " " + property.TaintPropertyValueSuffix
+			case property.TaintPropertyNamePrefix + " " + string(taintAEffect):
+				expected = taintAKey
+			case property.TaintPropertyNamePrefix + " " + string(taintBEffect):
+				expected = taintBKey + "=" + taintBValue
+			case property.TaintPropertyNamePrefix + " " + string(taintCEffect):
+				expected = taintCKey + "=" + taintCValue
 			default:
 				continue
 			}

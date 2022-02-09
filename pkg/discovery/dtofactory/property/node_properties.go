@@ -5,7 +5,7 @@ import (
 	api "k8s.io/api/core/v1"
 )
 
-const TaintPropertyValueSuffix = "[KUBERNETES TAINT]"
+const TaintPropertyNamePrefix = "[k8s taint]"
 
 // BuildNodeProperties builds entity properties for a node. It brings over the following 3 things as properties:
 // 1. The name of the node shown inside Kubernetes cluster; the property name is "KubernetesNodeName".
@@ -36,10 +36,13 @@ func BuildNodeProperties(node *api.Node) []*proto.EntityDTO_EntityProperty {
 		properties = append(properties, tagProperty)
 	}
 	for _, taint := range node.Spec.Taints {
-		tagNamePropertyName := taint.Key
-		tagNamePropertyValue := string(taint.Effect) + " " + TaintPropertyValueSuffix
+		tagNamePropertyName := TaintPropertyNamePrefix
+		if string(taint.Effect) != "" {
+			tagNamePropertyName += " " + string(taint.Effect)
+		}
+		tagNamePropertyValue := taint.Key
 		if taint.Value != "" {
-			tagNamePropertyValue = taint.Value + " " + tagNamePropertyValue
+			tagNamePropertyValue += "=" + taint.Value
 		}
 		tagProperty := &proto.EntityDTO_EntityProperty{
 			Namespace: &tagsPropertyNamespace,
