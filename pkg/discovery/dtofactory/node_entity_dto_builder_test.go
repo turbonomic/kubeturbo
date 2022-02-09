@@ -225,9 +225,9 @@ func TestNodeEntityDTO(t *testing.T) {
 		if p.GetNamespace() == property.VCTagsPropertyNamespace {
 			var expected string
 			switch p.GetName() {
-			case label1Key:
+			case property.LabelPropertyNamePrefix + " " + label1Key:
 				expected = label1Value
-			case label2Key:
+			case property.LabelPropertyNamePrefix + " " + label2Key:
 				expected = label2Value
 			case property.TaintPropertyNamePrefix + " " + string(taintAEffect):
 				expected = taintAKey

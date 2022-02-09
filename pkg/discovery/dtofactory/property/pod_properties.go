@@ -43,7 +43,7 @@ func BuildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
 	tagsPropertyNamespace := VCTagsPropertyNamespace
 	labels := pod.GetLabels()
 	for label, lval := range labels {
-		tagNamePropertyName := label
+		tagNamePropertyName := LabelPropertyNamePrefix + " " + label
 		tagNamePropertyValue := lval
 		tagProperty := &proto.EntityDTO_EntityProperty{
 			Namespace: &tagsPropertyNamespace,

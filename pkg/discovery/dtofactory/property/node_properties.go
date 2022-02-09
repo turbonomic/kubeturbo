@@ -26,7 +26,7 @@ func BuildNodeProperties(node *api.Node) []*proto.EntityDTO_EntityProperty {
 	tagsPropertyNamespace := VCTagsPropertyNamespace
 	labels := node.GetLabels()
 	for label, lval := range labels {
-		tagNamePropertyName := label
+		tagNamePropertyName := LabelPropertyNamePrefix + " " + label
 		tagNamePropertyValue := lval
 		tagProperty := &proto.EntityDTO_EntityProperty{
 			Namespace: &tagsPropertyNamespace,
