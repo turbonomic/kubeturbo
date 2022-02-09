@@ -30,6 +30,8 @@ const (
 	toleration2Op     = api.TolerationOpEqual
 	toleration2Value  = taintBValue
 	toleration2Effect = taintBEffect
+	toleration3Op     = api.TolerationOpExists
+	toleration3Effect = taintCEffect
 )
 
 func TestNodeProperty(t *testing.T) {
@@ -85,12 +87,12 @@ func TestNodeProperty(t *testing.T) {
 				expected = label1Value
 			case label2Key:
 				expected = label2Value
-			case taintAKey:
-				expected = string(taintAEffect) + " " + TaintPropertyValueSuffix
-			case taintBKey:
-				expected = taintBValue + " " + string(taintBEffect) + " " + TaintPropertyValueSuffix
-			case taintCKey:
-				expected = taintCValue + " " + string(taintCEffect) + " " + TaintPropertyValueSuffix
+			case TaintPropertyNamePrefix + " " + string(taintAEffect):
+				expected = taintAKey
+			case TaintPropertyNamePrefix + " " + string(taintBEffect):
+				expected = taintBKey + "=" + taintBValue
+			case TaintPropertyNamePrefix + " " + string(taintCEffect):
+				expected = taintCKey + "=" + taintCValue
 			default:
 				continue
 			}
@@ -131,6 +133,10 @@ func TestBuildPodProperties(t *testing.T) {
 					Value:    toleration2Value,
 					Effect:   toleration2Effect,
 				},
+				{
+					Operator: toleration3Op,
+					Effect:   toleration3Effect,
+				},
 			},
 		},
 	}
@@ -159,10 +165,12 @@ func TestBuildPodProperties(t *testing.T) {
 				expected = label1Value
 			case label2Key:
 				expected = label2Value
-			case toleration1Key:
-				expected = string(toleration1Op) + " " + string(toleration1Effect) + " " + TolerationPropertyValueSuffix
-			case toleration2Key:
-				expected = string(toleration2Op) + " " + toleration2Value + " " + string(toleration2Effect) + " " + TolerationPropertyValueSuffix
+			case TolerationPropertyNamePrefix + " " + string(toleration1Effect):
+				expected = toleration1Key + " " + string(toleration1Op)
+			case TolerationPropertyNamePrefix + " " + string(toleration2Effect):
+				expected = toleration2Key + "=" + toleration2Value
+			case TolerationPropertyNamePrefix + " " + string(toleration3Effect):
+				expected = string(toleration3Op)
 			default:
 				continue
 			}
@@ -170,7 +178,7 @@ func TestBuildPodProperties(t *testing.T) {
 			assert.EqualValues(t, expected, p.GetValue())
 		}
 	}
-	assert.Equal(t, 4, matches, "there should be 4 matches in the test pod properties")
+	assert.Equal(t, 5, matches, "there should be 5 matches in the test pod properties")
 }
 
 func TestAddHostingPodProperties(t *testing.T) {

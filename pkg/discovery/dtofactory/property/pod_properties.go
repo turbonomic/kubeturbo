@@ -8,16 +8,17 @@ import (
 
 const (
 	// TODO currently in the server side only properties in "DEFAULT" namespaces are respected. Ideally we should use "Kubernetes-Pod".
-	k8sPropertyNamespace          = "DEFAULT"
-	VCTagsPropertyNamespace       = "VCTAGS"
-	k8sNamespace                  = "KubernetesNamespace"
-	k8sPodName                    = "KubernetesPodName"
-	k8sNodeName                   = "KubernetesNodeName"
-	k8sContainerIndex             = "Kubernetes-Container-Index"
-	TolerationPropertyValueSuffix = "[KUBERNETES TOLERATION]"
+	k8sPropertyNamespace         = "DEFAULT"
+	VCTagsPropertyNamespace      = "VCTAGS"
+	k8sNamespace                 = "KubernetesNamespace"
+	k8sPodName                   = "KubernetesPodName"
+	k8sNodeName                  = "KubernetesNodeName"
+	k8sContainerIndex            = "Kubernetes-Container-Index"
+	TolerationPropertyNamePrefix = "[k8s toleration]"
+	LabelPropertyNamePrefix      = "[k8s label]"
 )
 
-// Build entity properties of a pod. The properties are consisted of name and namespace of a pod.
+// BuildPodProperties builds entity properties of a pod. The properties are consisted of name and namespace of a pod.
 func BuildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
 	var properties []*proto.EntityDTO_EntityProperty
 	propertyNamespace := k8sPropertyNamespace
@@ -53,12 +54,23 @@ func BuildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
 	}
 
 	for _, toleration := range pod.Spec.Tolerations {
-		tagNamePropertyName := toleration.Key
-		tagNamePropertyValue := string(toleration.Operator)
-		if toleration.Value != "" {
-			tagNamePropertyValue += " " + toleration.Value
+		tagNamePropertyName := TolerationPropertyNamePrefix
+		if string(toleration.Effect) != "" {
+			tagNamePropertyName += " " + string(toleration.Effect)
 		}
-		tagNamePropertyValue += " " + string(toleration.Effect) + " " + TolerationPropertyValueSuffix
+		var tagNamePropertyValue string
+		switch toleration.Operator {
+		case api.TolerationOpEqual:
+			tagNamePropertyValue = toleration.Key + "=" + toleration.Value
+		default:
+			tagNamePropertyValue = string(toleration.Operator)
+			if toleration.Key != "" {
+				tagNamePropertyValue = toleration.Key + " " + tagNamePropertyValue
+			}
+			if toleration.Value != "" {
+				tagNamePropertyValue += " " + toleration.Value
+			}
+		}
 		tagProperty := &proto.EntityDTO_EntityProperty{
 			Namespace: &tagsPropertyNamespace,
 			Name:      &tagNamePropertyName,
