@@ -1,11 +1,12 @@
 package detectors
 
 import (
-	"github.com/golang/glog"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // Master node detection
@@ -42,6 +43,17 @@ type HANodeConfig struct {
 	NodeRoles []string `json:"nodeRoles,omitempty"`
 }
 
+// Annotations whitelists
+var AWContainerSpec string
+var AWNamespace string
+var AWWorkloadController string
+
+type AnnotationWhitelist struct {
+	ContainerSpec      string `json:"containerSpec,omitempty"`
+	Namespace          string `json:"namespace,omitempty"`
+	WorkloadController string `json:"workloadController,omitempty"`
+}
+
 func compileOrDie(pattern string) *regexp.Regexp {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
@@ -52,7 +64,7 @@ func compileOrDie(pattern string) *regexp.Regexp {
 }
 
 func ValidateAndParseDetectors(masterConfig *MasterNodeDetectors,
-	daemonConfig *DaemonPodDetectors, HAConfig *HANodeConfig) {
+	daemonConfig *DaemonPodDetectors, HAConfig *HANodeConfig, AWConfig *AnnotationWhitelist) {
 
 	// Handle default values when sections are missing
 	if masterConfig == nil {
@@ -87,6 +99,16 @@ func ValidateAndParseDetectors(masterConfig *MasterNodeDetectors,
 		}
 	}
 	glog.V(2).Infof("##### HARoles to be detected: %v", HANodeRoles)
+
+	if AWConfig != nil {
+		AWContainerSpec = AWConfig.ContainerSpec
+		AWNamespace = AWConfig.Namespace
+		AWWorkloadController = AWConfig.WorkloadController
+	}
+
+	glog.V(2).Infof("##### Container Spec Annotation Whitelist Regex: %s", AWContainerSpec)
+	glog.V(2).Infof("##### Namespace Annotation Whitelist Regex: %s", AWNamespace)
+	glog.V(2).Infof("##### Workload Controller Annotation Whitelist Regex: %s", AWWorkloadController)
 }
 
 /*
