@@ -6,6 +6,11 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
+const (
+	k8sOrchestratorName  = "orchestrator"
+	k8sOrchestratorValue = "Kubernetes"
+)
+
 // Build entity properties for a node. The name is the name of the node shown inside Kubernetes cluster.
 func BuildNodeProperties(node *api.Node) []*proto.EntityDTO_EntityProperty {
 	var properties []*proto.EntityDTO_EntityProperty
@@ -32,6 +37,16 @@ func BuildNodeProperties(node *api.Node) []*proto.EntityDTO_EntityProperty {
 		properties = append(properties, tagProperty)
 	}
 
+	orchestratorNamespace := VCTagsPropertyNamespace
+	orchestratorName := k8sOrchestratorName
+	orchestratorValue := k8sOrchestratorValue
+	orchestratorProperty := &proto.EntityDTO_EntityProperty{
+		Namespace: &orchestratorNamespace,
+		Name:      &orchestratorName,
+		Value:     &orchestratorValue,
+	}
+
+	properties = append(properties, orchestratorProperty)
 	return properties
 }
 

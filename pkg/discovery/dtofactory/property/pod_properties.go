@@ -1,9 +1,10 @@
 package property
 
 import (
+	"fmt"
+
 	api "k8s.io/api/core/v1"
 
-	"fmt"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
