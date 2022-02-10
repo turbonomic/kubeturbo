@@ -45,5 +45,12 @@ data:
         "namespaces": ["{{ .Values.daemonPodDetectors.daemonPodNamespaces1 }}", "{{ .Values.daemonPodDetectors.daemonPodNamespaces2 }}"],
         "podNamePatterns": ["{{ .Values.daemonPodDetectors.daemonPodNamePatterns }}"]
       {{- end }}
+      {{- if .Values.annotationWhitelist }}
+      }, 
+      "annotationWhitelist": {
+        "containerSpec": "{{ default "" .Values.annotationWhitelist.containerSpec" }},
+        "namespace": "{{ default "" .Values.annotationWhitelist.namespace }}",
+        "workloadController": "{{ default "" .Values.annotationWhitelist.workloadController }}"
+      {{- end }}
       }
     }

@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -60,13 +61,9 @@ func (builder *containerSpecDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 		// ContainerSpec entity is not monitored and will not be sent to Market analysis engine in turbo server
 		entityDTOBuilder.Monitored(false)
 		if builder.clusterSummary != nil {
-			var labelAnnotations []map[string]string
-
 			controller, found := builder.clusterSummary.ControllerMap[containerSpec.ControllerUID]
 			if found {
-				labelAnnotations = append(labelAnnotations, controller.Labels, controller.Annotations)
-				entityDTOBuilder.WithProperties(property.BuildLabelAnnotationProperties(labelAnnotations))
-
+				entityDTOBuilder.WithProperties(property.BuildLabelAnnotationProperties(controller.Labels, controller.Annotations, detectors.AWContainerSpec))
 			}
 		}
 		dto, err := entityDTOBuilder.Create()

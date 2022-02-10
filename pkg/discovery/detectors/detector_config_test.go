@@ -27,6 +27,11 @@ const validFullConfig = `    {
         "daemonPodDetectors": {
            "namespaces": [ "kube-system", "kube-service-catalog", "openshift-.*" ],
            "podNamePatterns": ["monitor-1"]
+        },
+        "annotationWhitelist": {
+            "containerSpec": "&.*$",
+            "namespace": "^.*$",
+            "workloadController": "^.*$"
         }
     }
 `
@@ -159,6 +164,7 @@ type TestConfig struct {
 	*MasterNodeDetectors `json:"masterNodeDetectors,omitempty"`
 	*DaemonPodDetectors  `json:"daemonPodDetectors,omitempty"`
 	*HANodeConfig        `json:"HANodeConfig,omitempty"`
+	*AnnotationWhitelist `json:"AnnotationWhitelist,omitempty"`
 }
 
 func loadConfig(config string) (*TestConfig, error) {
@@ -176,7 +182,7 @@ func setupTest(scenario string) (*TestConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	ValidateAndParseDetectors(spec.MasterNodeDetectors, spec.DaemonPodDetectors, spec.HANodeConfig)
+	ValidateAndParseDetectors(spec.MasterNodeDetectors, spec.DaemonPodDetectors, spec.HANodeConfig, spec.AnnotationWhitelist)
 	return spec, nil
 }
 
