@@ -390,7 +390,8 @@ type KubeNamespace struct {
 	QuotaDefined            map[metrics.ResourceType]bool
 
 	// Stores the labels and annotations on the given namespace
-	TagProperties []map[string]string
+	Labels      map[string]string
+	Annotations map[string]string
 }
 
 func (kubeNamespace *KubeNamespace) String() string {
