@@ -65,6 +65,14 @@ HANodeConfig:
 #   daemonPodNamespaces2: OpenShift
 #   daemonPodNamePatterns: .*ignorePod.*
 
+# The annotationWhitelist allows users to define regular expressions to allow kubeturbo to collect
+# matching annotations for the specified entity type. By default, no annotations are collected. 
+# These regular expressions accept the RE2 syntax (except for \C) as defined here: https://github.com/google/re2/wiki/Syntax
+# annotationWhitelist:
+#   containerSpec: ""
+#   namespace: ""
+#   workloadController: ""
+
 args:
   # logging level
   logginglevel: 2
