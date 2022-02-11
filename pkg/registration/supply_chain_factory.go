@@ -3,13 +3,13 @@ package registration
 import (
 	"fmt"
 
-	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
-
-	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
-
 	"github.com/golang/glog"
+
+	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"github.com/turbonomic/turbo-go-sdk/pkg/supplychain"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 )
 
 var (
@@ -28,6 +28,7 @@ var (
 	vStorageType           = proto.CommodityDTO_VSTORAGE
 	storageAmountType      = proto.CommodityDTO_STORAGE_AMOUNT
 	numberReplicasType     = proto.CommodityDTO_NUMBER_REPLICAS
+	taintType              = proto.CommodityDTO_TAINT
 
 	fakeKey = "fake"
 
@@ -70,6 +71,7 @@ var (
 	vmpmAccessTemplateComm         = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
 	applicationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
 	clusterTemplateCommWithKey     = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
+	taintTemplateCommWithKey       = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &taintType}
 
 	// Resold TemplateCommodity with key
 	vCpuLimitQuotaTemplateCommWithKeyResold   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuLimitQuotaType, IsResold: &commIsResold}
@@ -254,6 +256,7 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 	return mergedEntityMetadataBuilder.
 		PatchSoldMetadata(proto.CommodityDTO_CLUSTER, fieldsCapactiy).
 		PatchSoldMetadata(proto.CommodityDTO_VMPM_ACCESS, fieldsCapactiy).
+		PatchSoldMetadata(proto.CommodityDTO_TAINT, fieldsCapactiy).
 		PatchSoldMetadata(proto.CommodityDTO_VCPU, fieldsUsedCapacityPeak).
 		PatchSoldMetadata(proto.CommodityDTO_VMEM, fieldsUsedCapacityPeak).
 		PatchSoldMetadata(proto.CommodityDTO_VCPU_REQUEST, fieldsUsedCapacity).
@@ -279,8 +282,9 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 		Sells(vMemRequestTemplateComm).        // sells to Pods
 		Sells(vmpmAccessTemplateComm).         // sells to Pods
 		Sells(numPodNumConsumersTemplateComm). // sells to Pods
-		Sells(vStorageTemplateComm)            // sells to Pods
-		// also sells Cluster to Pods
+		Sells(vStorageTemplateComm).           // sells to Pods
+		Sells(taintTemplateCommWithKey)
+	// also sells Cluster to Pods
 
 	return nodeSupplyChainNodeBuilder.Create()
 }
@@ -355,6 +359,7 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Buys(vMemRequestTemplateComm).
 		Buys(numPodNumConsumersTemplateComm).
 		Buys(vStorageTemplateComm).
+		Buys(taintTemplateCommWithKey).
 		ProviderOpt(proto.EntityDTO_WORKLOAD_CONTROLLER, proto.Provider_HOSTING, &isProviderOptional).
 		Buys(vCpuLimitQuotaTemplateCommWithKey).
 		Buys(vMemLimitQuotaTemplateCommWithKey).
