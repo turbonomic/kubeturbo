@@ -1,19 +1,19 @@
 package compliance
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/golang/glog"
 	api "k8s.io/api/core/v1"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
-	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 // k8s marks a node as unschedulable when it sees a taint with below key by setting
 // the field spec.unschedulable: true.
-// we handle the unschedulable nodes by marking them with AvailableForPlacement = false
-// so we don't need taints processor to handle this taint via VMPM_ACCESS saperately.
+// we handle the unschedulable nodes by marking them with AvailableForPlacement = false,
+// so we don't need taints processor to handle this taint via TAINT separately.
 const unschedulableNodeTaintKey string = "node.kubernetes.io/unschedulable"
 
 type NodeAndPodGetter interface {
@@ -21,8 +21,8 @@ type NodeAndPodGetter interface {
 	GetAllPods() ([]*api.Pod, error)
 }
 
-// TaintTolerationProcessor parses taints defined in nodes and tolerations defined in pods and creates access commodity DTOs,
-// sold by VMs and bought by Container Pods.
+// TaintTolerationProcessor parses taints defined in nodes and tolerations defined in pods and creates taint commodity
+// DTOs sold by VMs and bought by Container Pods.
 // See the detail in: https://vmturbo.atlassian.net/wiki/spaces/AE/pages/668598357/Taints+and+Tolerations+in+Kubernetes
 type TaintTolerationProcessor struct {
 	// Map of nodes indexed by node uid
@@ -41,10 +41,8 @@ func NewTaintTolerationProcessor(cluster *repository.ClusterSummary) (*TaintTole
 
 	nodeMap := make(map[string]*api.Node)
 	podMap := make(map[string]*api.Pod)
-
-	nodeNameToUID := cluster.NodeNameUIDMap
-
 	nodeToPodsMap := cluster.NodeToRunningPods
+
 	for nodeName, podList := range nodeToPodsMap {
 		node := cluster.NodeMap[nodeName]
 		nodeMap[node.UID] = node.Node
@@ -57,47 +55,45 @@ func NewTaintTolerationProcessor(cluster *repository.ClusterSummary) (*TaintTole
 	return &TaintTolerationProcessor{
 		nodes:         nodeMap,
 		pods:          podMap,
-		nodeNameToUID: nodeNameToUID,
+		nodeNameToUID: cluster.NodeNameUIDMap,
 		cluster:       cluster,
 	}, nil
 }
 
-// Process takes entityDTOs and add access commodities for VMs and ContainerPods
+// Process takes entityDTOs and add taint commodities for VMs and ContainerPods
 // based on the taints and tolerations, respectively, in nodes and pods.
 func (t *TaintTolerationProcessor) Process(entityDTOs []*proto.EntityDTO) {
-	// Preprocess for node taints to create access commodities for each node later.
+	// Preprocess for node taints to create taint commodities for each node later.
 	taintCollection := getTaintCollection(t.nodes)
 
 	nodeDTOs, podDTOs := retrieveNodeAndPodDTOs(entityDTOs)
 
-	t.createAccessCommoditiesSold(nodeDTOs, t.nodes, taintCollection)
+	t.createTaintCommoditiesSoldByNode(nodeDTOs, t.nodes, taintCollection)
 
-	t.createAccessCommoditiesBought(podDTOs, t.pods, t.nodeNameToUID, taintCollection)
+	t.createTaintCommoditiesBoughtByPod(podDTOs, t.pods, t.nodeNameToUID, taintCollection)
 }
 
-// Creates access commodities sold by VMs.
-func (t *TaintTolerationProcessor) createAccessCommoditiesSold(nodeDTOs []*proto.EntityDTO, nodes map[string]*api.Node,
-	taintCollection map[api.Taint]string) {
+// Creates taint commodities sold by VMs.
+func (t *TaintTolerationProcessor) createTaintCommoditiesSoldByNode(nodeDTOs []*proto.EntityDTO,
+	nodes map[string]*api.Node, taintCollection map[api.Taint]string) {
 	for _, nodeDTO := range nodeDTOs {
 		node, ok := nodes[*nodeDTO.Id]
 		if !ok {
 			glog.Errorf("Unable to find node object with uid %s::%s", *nodeDTO.Id, *nodeDTO.DisplayName)
 			continue
 		}
-
 		// Taints
-		taintAccessComms, err := createTaintAccessComms(node, taintCollection)
+		taintComms, err := createTaintCommsSold(node, taintCollection)
 		if err != nil {
 			glog.Errorf("Error while processing taints for node %s", node.GetName())
 			continue
 		}
-
-		nodeDTO.CommoditiesSold = append(nodeDTO.CommoditiesSold, taintAccessComms...)
+		nodeDTO.CommoditiesSold = append(nodeDTO.CommoditiesSold, taintComms...)
 	}
 }
 
-// Creates access commodities bought by ContainerPods.
-func (t *TaintTolerationProcessor) createAccessCommoditiesBought(podDTOs []*proto.EntityDTO, pods map[string]*api.Pod, nodeNameToUID map[string]string, taintCollection map[api.Taint]string) {
+// Creates taint commodities bought by ContainerPods.
+func (t *TaintTolerationProcessor) createTaintCommoditiesBoughtByPod(podDTOs []*proto.EntityDTO, pods map[string]*api.Pod, nodeNameToUID map[string]string, taintCollection map[api.Taint]string) {
 	for _, podDTO := range podDTOs {
 		pod, ok := pods[*podDTO.Id]
 
@@ -113,17 +109,17 @@ func (t *TaintTolerationProcessor) createAccessCommoditiesBought(podDTOs []*prot
 		}
 
 		// Toleration
-		tolerateAccessComms, err := createTolerationAccessComms(pod, taintCollection)
+		taintComms, err := createTaintCommsBought(pod, taintCollection)
 		if err != nil {
 			glog.Errorf("Error while processing tolerations for pod %s/%s", pod.Namespace, pod.Name)
 			continue
 		}
 
-		podBuysCommodities(podDTO, tolerateAccessComms, providerId)
+		podBuysCommodities(podDTO, taintComms, providerId)
 	}
 }
 
-// Appends accesss commodities to the CommodityBought list in the ContainerPod DTO.
+// Appends taint commodities to the CommodityBought list in the ContainerPod DTO.
 func podBuysCommodities(podDTO *proto.EntityDTO, comms []*proto.CommodityDTO, providerId string) {
 	if len(comms) == 0 {
 		return
@@ -142,8 +138,8 @@ func podBuysCommodities(podDTO *proto.EntityDTO, comms []*proto.CommodityDTO, pr
 
 // Retrieves VM and ContainerPod DTOs from the DTO list.
 func retrieveNodeAndPodDTOs(entityDTOs []*proto.EntityDTO) ([]*proto.EntityDTO, []*proto.EntityDTO) {
-	nodes := []*proto.EntityDTO{}
-	pods := []*proto.EntityDTO{}
+	var nodes []*proto.EntityDTO
+	var pods []*proto.EntityDTO
 
 	for _, dto := range entityDTOs {
 		if dto.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE {
@@ -167,8 +163,10 @@ func getTaintCollection(nodes map[string]*api.Node) map[api.Taint]string {
 		for _, taint := range taints {
 			if !isUnschedulableNodeTaint(taint) && (taint.Effect == api.TaintEffectNoExecute ||
 				taint.Effect == api.TaintEffectNoSchedule) {
-				taintCollection[taint] = taint.Key + "=" + taint.Value + ":" + string(taint.Effect)
-				glog.V(2).Infof("Found taint (comm key = %s): %+v)", taintCollection[taint], taint)
+				glog.V(2).Infof("Found taint %s on node %s)", taintCollection[taint], node.GetName())
+				if _, found := taintCollection[taint]; !found {
+					taintCollection[taint] = taint.Key + "=" + taint.Value + ":" + string(taint.Effect)
+				}
 			}
 		}
 	}
@@ -182,9 +180,9 @@ func isUnschedulableNodeTaint(taint api.Taint) bool {
 	return taint.Key == unschedulableNodeTaintKey
 }
 
-// Creates access commodities sold by VMs based on the taint collection.
-func createTaintAccessComms(node *api.Node, taintCollection map[api.Taint]string) ([]*proto.CommodityDTO, error) {
-	accessComms := []*proto.CommodityDTO{}
+// Creates taint commodities sold by VMs based on the taint collection.
+func createTaintCommsSold(node *api.Node, taintCollection map[api.Taint]string) ([]*proto.CommodityDTO, error) {
+	var taintComms []*proto.CommodityDTO
 
 	taints := node.Spec.Taints
 	nodeTaints := make(map[api.Taint]struct{})
@@ -198,9 +196,9 @@ func createTaintAccessComms(node *api.Node, taintCollection map[api.Taint]string
 			glog.V(4).Infof("Commodity with key %s for taint %v already created for node %s", key, taint, node.Name)
 			continue
 		}
-		// If the node doesn't contain the taint, create access commodity
+		// If the node doesn't contain the taint, create TAINT commodity
 		if _, ok := nodeTaints[taint]; !ok {
-			accessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
+			taintComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_TAINT).
 				Key(key).
 				Capacity(accessCommodityDefaultCapacity).
 				Create()
@@ -209,19 +207,19 @@ func createTaintAccessComms(node *api.Node, taintCollection map[api.Taint]string
 				return nil, err
 			}
 			visited[key] = true
-			glog.V(5).Infof("Created access commodity with key %s for node %s", key, node.GetName())
+			glog.V(4).Infof("Created taint commodity with key %s for node %s", key, node.GetName())
 
-			accessComms = append(accessComms, accessComm)
+			taintComms = append(taintComms, taintComm)
 		}
 	}
 
-	glog.V(4).Infof("Created %d access commodities for node %s", len(accessComms), node.GetName())
-	return accessComms, nil
+	glog.V(4).Infof("Created %d taint commodities for node %s", len(taintComms), node.GetName())
+	return taintComms, nil
 }
 
-// Creates access commodities bought by ContainerPods based on the taint collection and pod tolerations.
-func createTolerationAccessComms(pod *api.Pod, taintCollection map[api.Taint]string) ([]*proto.CommodityDTO, error) {
-	accessComms := []*proto.CommodityDTO{}
+// Creates taint commodities bought by ContainerPods based on the taint collection and pod tolerations.
+func createTaintCommsBought(pod *api.Pod, taintCollection map[api.Taint]string) ([]*proto.CommodityDTO, error) {
+	var taintComms []*proto.CommodityDTO
 
 	visited := make(map[string]bool, 0)
 	for taint, key := range taintCollection {
@@ -229,30 +227,33 @@ func createTolerationAccessComms(pod *api.Pod, taintCollection map[api.Taint]str
 			glog.V(4).Infof("Commodity with key %s for taint %v already created for pod %s.", key, taint, pod.Name)
 			continue
 		}
-		// If the pod doesn't have the proper toleration, create access commodity to buy
-		if !TolerationsTolerateTaint(pod.Spec.Tolerations, &taint) {
-			accessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
+		// If the pod doesn't have the proper toleration, create TAINT to buy
+		if !tolerationsTolerateTaint(pod.Spec.Tolerations, &taint) {
+			taintComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_TAINT).
 				Key(key).
 				Capacity(accessCommodityDefaultCapacity).
 				Create()
-
 			if err != nil {
 				return nil, err
 			}
 			visited[key] = true
-			glog.V(5).Infof("Created access commodity with key %s for pod %s", key, pod.GetName())
-
-			accessComms = append(accessComms, accessComm)
+			glog.V(4).Infof("Created taint commodity with key %s for pod %s", key, pod.GetName())
+			taintComms = append(taintComms, taintComm)
 		}
 	}
-
-	glog.V(4).Infof("Created %d access commodities for pod %s", len(accessComms), pod.GetName())
-
-	return accessComms, nil
+	glog.V(4).Infof("Created %d taint commodities for pod %s", len(taintComms), pod.GetName())
+	return taintComms, nil
 }
 
-// Checks if taint is tolerated by any of the tolerations.
-func TolerationsTolerateTaint(tolerations []api.Toleration, taint *api.Taint) bool {
+// Checks if a taint is tolerated by any of the tolerations.
+// The matching follows the rules below:
+// (1) Empty toleration.effect means to match all taint effects,
+//     otherwise taint effect must equal to toleration.effect.
+// (2) If toleration.operator is 'Exists', it means to match all taint values.
+// (3) Empty toleration.key means to match all taint keys.
+//     If toleration.key is empty, toleration.operator must be 'Exists';
+//     this combination means to match all taint values and all taint keys.
+func tolerationsTolerateTaint(tolerations []api.Toleration, taint *api.Taint) bool {
 	for i := range tolerations {
 		if tolerations[i].ToleratesTaint(taint) {
 			return true
