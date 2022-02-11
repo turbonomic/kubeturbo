@@ -60,8 +60,12 @@ func BuildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
 		}
 		var tagNamePropertyValue string
 		switch toleration.Operator {
-		case api.TolerationOpEqual:
-			tagNamePropertyValue = toleration.Key + "=" + toleration.Value
+		// empty operator means Equal
+		case "", api.TolerationOpEqual:
+			tagNamePropertyValue = toleration.Key
+			if toleration.Value != "" {
+				tagNamePropertyValue += "=" + toleration.Value
+			}
 		default:
 			tagNamePropertyValue = string(toleration.Operator)
 			if toleration.Key != "" {

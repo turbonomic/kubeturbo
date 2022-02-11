@@ -19,8 +19,6 @@ const (
 	taintBKey    = "taintB"
 	taintBValue  = "foo"
 	taintBEffect = api.TaintEffectNoExecute
-	taintCKey    = "taintC"
-	taintCValue  = "bar"
 	taintCEffect = api.TaintEffectPreferNoSchedule
 
 	toleration1Key    = taintAKey
@@ -30,7 +28,6 @@ const (
 	toleration2Op     = api.TolerationOpEqual
 	toleration2Value  = taintBValue
 	toleration2Effect = taintBEffect
-	toleration3Op     = api.TolerationOpExists
 	toleration3Effect = taintCEffect
 )
 
@@ -63,8 +60,6 @@ func TestNodeProperty(t *testing.T) {
 					Effect: taintBEffect,
 				},
 				{
-					Key:    taintCKey,
-					Value:  taintCValue,
 					Effect: taintCEffect,
 				},
 			},
@@ -92,7 +87,7 @@ func TestNodeProperty(t *testing.T) {
 			case TaintPropertyNamePrefix + " " + string(taintBEffect):
 				expected = taintBKey + "=" + taintBValue
 			case TaintPropertyNamePrefix + " " + string(taintCEffect):
-				expected = taintCKey + "=" + taintCValue
+				expected = ""
 			default:
 				continue
 			}
@@ -134,8 +129,7 @@ func TestBuildPodProperties(t *testing.T) {
 					Effect:   toleration2Effect,
 				},
 				{
-					Operator: toleration3Op,
-					Effect:   toleration3Effect,
+					Effect: toleration3Effect,
 				},
 			},
 		},
@@ -170,7 +164,7 @@ func TestBuildPodProperties(t *testing.T) {
 			case TolerationPropertyNamePrefix + " " + string(toleration2Effect):
 				expected = toleration2Key + "=" + toleration2Value
 			case TolerationPropertyNamePrefix + " " + string(toleration3Effect):
-				expected = string(toleration3Op)
+				expected = ""
 			default:
 				continue
 			}
