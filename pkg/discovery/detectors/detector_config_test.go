@@ -29,7 +29,7 @@ const validFullConfig = `    {
            "podNamePatterns": ["monitor-1"]
         },
         "annotationWhitelist": {
-            "containerSpec": "&.*$",
+            "containerSpec": "^.*$",
             "namespace": "^.*$",
             "workloadController": "^.*$"
         }
