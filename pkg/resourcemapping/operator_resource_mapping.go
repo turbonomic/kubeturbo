@@ -3,18 +3,20 @@ package resourcemapping
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
-	"strings"
+	"regexp"
 	"sync"
 	"text/template"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/util"
-	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
+	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 )
 
@@ -26,6 +28,9 @@ const (
 	resourceMappingComponentName = "componentName"
 	resourceMappingSrcPath       = "srcPath"
 	resourceMappingDestPath      = "destPath"
+
+	patchAddOperation     = "add"
+	patchReplaceOperation = "replace"
 )
 
 var (
@@ -54,12 +59,12 @@ type ORMSpec struct {
 type ORMClient struct {
 	cacheLock    sync.Mutex
 	dynClient    dynamic.Interface
-	apiExtClient *apiextclient.ApiextensionsV1beta1Client
+	apiExtClient *apiextclient.ApiextensionsV1Client
 	// Cached map data from Operator-managed CustomResource UID to ORMSpec. The cached data is updated each discovery.
 	operatorResourceSpecMap map[string]*ORMSpec
 }
 
-func NewORMClient(dynamicClient dynamic.Interface, apiExtClient *apiextclient.ApiextensionsV1beta1Client) *ORMClient {
+func NewORMClient(dynamicClient dynamic.Interface, apiExtClient *apiextclient.ApiextensionsV1Client) *ORMClient {
 	return &ORMClient{
 		dynClient:               dynamicClient,
 		apiExtClient:            apiExtClient,
@@ -266,19 +271,34 @@ func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unst
 				updatedControllerObj.GetKind(), updatedControllerObj.GetName(), srcPath, operatorRes)
 			continue
 		}
-		fields := strings.Split(destPath, ".")
-		if len(fields) < 2 {
-			return fmt.Errorf("failed to update %v to CR %s for %s in namespace %s: '%s' is invalid path", newValue, operatorRes, componentKey, resourceNamespace, destPath)
+		origCRValue, found, err := util.NestedField(operatorCR, "destPath", destPath)
+		var patchOperation string
+		if !found && err == nil {
+			// If operatorCR doesn't have existing value set on destPath, use "add" operation
+			patchOperation = patchAddOperation
+		} else if err == nil {
+			// If operatorCR has existing value set on destPath, use "replace" operation
+			patchOperation = patchReplaceOperation
+		} else {
+			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
 		}
-		origCRValue, _, err := util.NestedField(operatorCR, resourceMappingDestPath, destPath)
+		// Construct the operation path for JSON-Patch by replacing "." with "/" as delimiter. The path in JSON-Patch is
+		// interpreted as JSON-Pointer defined in IETF RFC 6901 (https://tools.ietf.org/html/rfc6901#section-3)
+		// For example, destPath `.spec.install.spec.deployments[0].spec.template.spec.containers[0].resources` will be converted to
+		// `/spec/install/spec/deployments/0/spec/template/spec/containers/0/resources`
+		re := regexp.MustCompile(`(\.)|(\[)|(\]\.)`)
+		destPath = re.ReplaceAllString(destPath, "/")
+		patchVal := []util.PatchValue{{
+			Op:    patchOperation,
+			Path:  destPath,
+			Value: newValue,
+		}}
+		patchBytes, err := json.Marshal(patchVal)
 		if err != nil {
 			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
 		}
-		err = unstructured.SetNestedField(operatorCR.Object, newValue, fields[1:]...)
-		if err != nil {
-			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
-		}
-		_, err = dynResourceClient.Update(context.TODO(), operatorCR, metav1.UpdateOptions{})
+
+		_, err = dynResourceClient.Patch(context.TODO(), operatorResName, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
 		}

@@ -2,16 +2,18 @@ package util
 
 import (
 	"fmt"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/util/jsonpath"
 	"strconv"
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/util/jsonpath"
+
 	"github.com/golang/glog"
 )
 
-//  PatchValue specifies a patch operation for a string.
+// patchValue specifies the operation, path and new value to update a JSON document.
+// JSON patch document is defined in https://tools.ietf.org/html/rfc6902#section-3
 type PatchValue struct {
 	Op    string      `json:"op"`
 	Path  string      `json:"path"`
