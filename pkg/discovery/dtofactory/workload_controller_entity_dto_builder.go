@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	discoveryUtil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -78,12 +79,9 @@ func (builder *workloadControllerDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, er
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 		entityDTOBuilder.WithProperty(property.BuildWorkloadControllerNSProperty(kubeController.Namespace))
 		if builder.clusterSummary != nil {
-			var labelAnnotations []map[string]string
-
 			controller, found := builder.clusterSummary.ControllerMap[workloadControllerId]
 			if found {
-				labelAnnotations = append(labelAnnotations, controller.Labels, controller.Annotations)
-				entityDTOBuilder.WithProperties(property.BuildLabelAnnotationProperties(labelAnnotations))
+				entityDTOBuilder.WithProperties(property.BuildLabelAnnotationProperties(controller.Labels, controller.Annotations, detectors.AWWorkloadController))
 
 			}
 		}

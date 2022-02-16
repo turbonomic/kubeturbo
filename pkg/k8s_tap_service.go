@@ -38,6 +38,7 @@ type K8sTAPServiceSpec struct {
 	*detectors.DaemonPodDetectors     `json:"daemonPodDetectors,omitempty"`
 	*detectors.HANodeConfig           `json:"HANodeConfig,omitempty"`
 	*features.FeatureGates            `json:"featureGates,omitempty"`
+	*detectors.AnnotationWhitelist    `json:"annotationWhitelist,omitempty"`
 }
 
 func ParseK8sTAPServiceSpec(configFile string, defaultTargetName string) (*K8sTAPServiceSpec, error) {
@@ -79,7 +80,7 @@ func ParseK8sTAPServiceSpec(configFile string, defaultTargetName string) (*K8sTA
 
 	// This function aborts the program upon fatal error
 	detectors.ValidateAndParseDetectors(tapSpec.MasterNodeDetectors,
-		tapSpec.DaemonPodDetectors, tapSpec.HANodeConfig)
+		tapSpec.DaemonPodDetectors, tapSpec.HANodeConfig, tapSpec.AnnotationWhitelist)
 
 	return tapSpec, nil
 }

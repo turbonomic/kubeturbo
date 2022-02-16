@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
 var (
@@ -69,7 +70,7 @@ func TestProcess(t *testing.T) {
 	entityDTOs := []*proto.EntityDTO{podDTO1, podDTO2, podDTO3, nodeDTO1, nodeDTO2, nodeDTO3, otherDTO1}
 	taintTolerationProcessor.Process(entityDTOs)
 
-	// Check entity DTOs for access commodities created from taints and tolerations
+	// Check entity DTOs for taint commodities created from taints and tolerations
 	checkPodEntity(t, podDTO1, "node-1")
 	checkPodEntity(t, podDTO2, "node-2")
 	checkPodEntity(t, podDTO3, "node-3")
@@ -110,7 +111,7 @@ func (m *mockNodeAndPodGetter) GetAllPods() ([]*api.Pod, error) {
 
 func TestGetTaintCollection(t *testing.T) {
 	// The unschedulable taint with any effect should be skipped from the taints collection
-	// effectively resulting in no access commodity created for the same.
+	// effectively resulting in no taint commodity created for the same.
 	unschedulableNodeTaint1 := newTaint(unschedulableNodeTaintKey, "", api.TaintEffectNoSchedule)
 	unschedulableNodeTaint2 := newTaint(unschedulableNodeTaintKey, "", api.TaintEffectNoExecute)
 	nodes[string(n1.UID)].Spec.Taints = append(nodes[string(n1.UID)].Spec.Taints,
@@ -136,10 +137,10 @@ func TestGetTaintCollection(t *testing.T) {
 	}
 }
 
-func TestCreateTaintAccessComms(t *testing.T) {
+func TestCreateTaintCommsSold(t *testing.T) {
 	taintCollection := getTaintCollection(nodes)
 
-	comms, err := createTaintAccessComms(n1, taintCollection)
+	comms, err := createTaintCommsSold(n1, taintCollection)
 
 	if err != nil {
 		t.Errorf("Error: %v", err)
@@ -153,7 +154,7 @@ func TestCreateTaintAccessComms(t *testing.T) {
 		t.Errorf("Comm %+v has wrong key %s", comms[0], *(comms[0].Key))
 	}
 
-	comms2, err := createTaintAccessComms(n2, taintCollection)
+	comms2, err := createTaintCommsSold(n2, taintCollection)
 
 	if len(comms2) != 1 {
 		t.Errorf("Expected 1 commodity but got %d", len(comms2))
@@ -163,7 +164,7 @@ func TestCreateTaintAccessComms(t *testing.T) {
 		t.Errorf("Comm %+v has wrong key %s", comms2[0], *(comms2[0].Key))
 	}
 
-	comms3, err := createTaintAccessComms(n3, taintCollection)
+	comms3, err := createTaintCommsSold(n3, taintCollection)
 
 	if len(comms3) != 2 {
 		t.Errorf("Expected 2 commodities but got %d", len(comms3))
@@ -178,14 +179,14 @@ func TestCreateTaintAccessComms(t *testing.T) {
 	}
 }
 
-func TestCreateTolerationAccessComms(t *testing.T) {
+func TestCreateTaintCommsBought(t *testing.T) {
 	taintCollection := getTaintCollection(nodes)
 
-	testTolerationAccessComms(t, pod1, taintCollection, []string{key1, key2})
+	testTaintCommsBought(t, pod1, taintCollection, []string{key1, key2})
 
-	testTolerationAccessComms(t, pod2, taintCollection, []string{key2})
+	testTaintCommsBought(t, pod2, taintCollection, []string{key2})
 
-	testTolerationAccessComms(t, pod3, taintCollection, []string{})
+	testTaintCommsBought(t, pod3, taintCollection, []string{})
 }
 
 func newNodeWithTaints(id string, taints []api.Taint) *api.Node {
@@ -238,8 +239,8 @@ func newToleration(key, value string, effect api.TaintEffect, tolerationOp api.T
 	return toleration
 }
 
-func testTolerationAccessComms(t *testing.T, pod *api.Pod, taintCollection map[api.Taint]string, keys []string) {
-	comms, err := createTolerationAccessComms(pod, taintCollection)
+func testTaintCommsBought(t *testing.T, pod *api.Pod, taintCollection map[api.Taint]string, keys []string) {
+	comms, err := createTaintCommsBought(pod, taintCollection)
 
 	if err != nil {
 		t.Errorf("Error: %v", err)

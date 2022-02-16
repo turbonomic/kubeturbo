@@ -111,8 +111,8 @@ func main() {
 	defer klog.Flush()
 	defer glog.Flush()
 
-	glog.Infof("Running kubeturbo VERSION: %s, GIT_COMMIT: %s, BUILD_TIME: %s",
-		version.Version, version.GitCommit, version.BuildTime)
+	glog.Infof("Running kubeturbo VERSION: %s, GIT_COMMIT: %s, BUILD_TIME: %s, GO_VERSION: %s",
+		version.Version, version.GitCommit, version.BuildTime, runtime.Version())
 
 	s.Run()
 }

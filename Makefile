@@ -34,7 +34,7 @@ integration: clean
 	go test -c -o $(OUTPUT_DIR)/integration.test ./test/integration
 
 docker: product
-	cd build; docker build -t turbonomic/kubeturbo .
+	cd build; DOCKER_BUILDKIT=1 docker build -t turbonomic/kubeturbo .
 
 delve:
 	docker build -f build/Dockerfile.delve -t delve:staging .

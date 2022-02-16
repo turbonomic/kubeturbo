@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -70,7 +71,7 @@ func (builder *namespaceEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 
 		// build entityDTO.
 		entityDto, err := entityDTOBuilder.WithProperties(property.
-			BuildLabelAnnotationProperties(namespace.TagProperties)).
+			BuildLabelAnnotationProperties(namespace.Labels, namespace.Annotations, detectors.AWNamespace)).
 			Create()
 		if err != nil {
 			glog.Errorf("Failed to build Namespace entityDTO: %s", err)

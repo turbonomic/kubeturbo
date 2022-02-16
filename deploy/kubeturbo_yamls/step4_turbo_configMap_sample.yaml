@@ -21,6 +21,10 @@ data:
   #
   # Define node groups by node role, and automatically enable placement policies to limit to 1 per host
   # DaemonSets are identified by default. Use daemonPodDetectors to identify by name patterns using regex or by namespace.
+  #
+  # The annotationWhitelist provides a mechanism for discovering annotations for kubernetes objects. 
+  # By default, no annotations are collected. In order to collect annotations, provide a regular 
+  # expression for each entity type for which the annotations are desired.
   turbo.config: |-
     {
         "communicationConfig": {
@@ -38,5 +42,10 @@ data:
         },
         "HANodeConfig": {
             "nodeRoles": [ "master" ]
+        },
+        "annotationWhitelist": {
+            "containerSpec": "<regex>",
+            "namespace": "<regex>",
+            "workloadController": "<regex>"
         }
     }
