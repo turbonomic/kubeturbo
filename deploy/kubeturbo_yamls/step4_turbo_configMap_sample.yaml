@@ -44,7 +44,7 @@ data:
             "nodeRoles": [ "master" ]
         },
         "annotationWhitelist": {
-            "containerSpec": "<regex>"
+            "containerSpec": "<regex>",
             "namespace": "<regex>",
             "workloadController": "<regex>"
         }
