@@ -5,13 +5,14 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 	"sync"
 	"text/template"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/util"
-	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
+	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -54,12 +55,12 @@ type ORMSpec struct {
 type ORMClient struct {
 	cacheLock    sync.Mutex
 	dynClient    dynamic.Interface
-	apiExtClient *apiextclient.ApiextensionsV1beta1Client
+	apiExtClient *apiextclient.ApiextensionsV1Client
 	// Cached map data from Operator-managed CustomResource UID to ORMSpec. The cached data is updated each discovery.
 	operatorResourceSpecMap map[string]*ORMSpec
 }
 
-func NewORMClient(dynamicClient dynamic.Interface, apiExtClient *apiextclient.ApiextensionsV1beta1Client) *ORMClient {
+func NewORMClient(dynamicClient dynamic.Interface, apiExtClient *apiextclient.ApiextensionsV1Client) *ORMClient {
 	return &ORMClient{
 		dynClient:               dynamicClient,
 		apiExtClient:            apiExtClient,
@@ -266,7 +267,9 @@ func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unst
 				updatedControllerObj.GetKind(), updatedControllerObj.GetName(), srcPath, operatorRes)
 			continue
 		}
-		fields := strings.Split(destPath, ".")
+		re := regexp.MustCompile(`(\[)|(\]\.)`)
+		parsedDestPath := re.ReplaceAllString(destPath, ".")
+		fields := strings.Split(parsedDestPath, ".")
 		if len(fields) < 2 {
 			return fmt.Errorf("failed to update %v to CR %s for %s in namespace %s: '%s' is invalid path", newValue, operatorRes, componentKey, resourceNamespace, destPath)
 		}
@@ -274,7 +277,7 @@ func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unst
 		if err != nil {
 			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
 		}
-		err = unstructured.SetNestedField(operatorCR.Object, newValue, fields[1:]...)
+		err = util.SetNestedField(operatorCR.Object, newValue, fields[1:]...)
 		if err != nil {
 			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
 		}

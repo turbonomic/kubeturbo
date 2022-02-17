@@ -101,7 +101,7 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		return fmt.Errorf("error setting podSpec into unstructured %s %s: %v", kind, objName, err)
 	}
 	controllerOwnerReferences := c.obj.GetOwnerReferences()
-	if !c.shouldSkipOperator(c.obj) && len(controllerOwnerReferences) == 1 && *controllerOwnerReferences[0].Controller {
+	if !c.shouldSkipOperator(c.obj) && len(controllerOwnerReferences) > 0 && (*controllerOwnerReferences[0].Controller || "ClusterServiceVersion" == controllerOwnerReferences[0].Kind) {
 		// If k8s controller is controlled by custom controller, update the CR using OperatorResourceMapping
 		// if SkipOperatorLabel is not set or not true.
 		if c.ormClient == nil {

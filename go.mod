@@ -22,7 +22,7 @@ require (
 // k8s and relevant dependencies
 require (
 	k8s.io/api v0.22.2
-	k8s.io/apiextensions-apiserver v0.22.2
+	k8s.io/apiextensions-apiserver v0.23.2
 	k8s.io/apimachinery v0.22.2
 	k8s.io/apiserver v0.22.2
 	// The hash maps to cluster-autoscaler-release-1.22
