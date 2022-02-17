@@ -2,11 +2,12 @@ package util
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 var (
@@ -240,4 +241,96 @@ func TestNestedField_ExpectErr(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.False(t, found)
 	assert.Nil(t, value)
+}
+
+func TestSetNestedFieldWithoutSlice_Update(t *testing.T) {
+	obj := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"foo": map[string]interface{}{
+				"value": "1",
+			},
+		},
+	}
+	fields := []string{"spec", "foo", "value"}
+	unstructured.SetNestedField(obj, "2", fields...)
+	valueUpdated := false
+	if specVal, ok := obj["spec"].(map[string]interface{}); ok {
+		if fooVal, ok := specVal["foo"].(map[string]interface{}); ok {
+			if value, ok := fooVal["value"].(string); ok {
+				valueUpdated = true
+				assert.Equal(t, "2", value)
+			}
+		}
+	}
+	assert.True(t, valueUpdated, "New value is not updated in nested field. Expected '2', actual '1'")
+}
+
+func TestSetNestedFieldWithoutSlice_Add(t *testing.T) {
+	obj := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"bar": map[string]interface{}{
+				"value": "1",
+			},
+		},
+	}
+	fields := []string{"spec", "foo", "value"}
+	SetNestedField(obj, "2", fields...)
+	valueUpdated := false
+	if specVal, ok := obj["spec"].(map[string]interface{}); ok {
+		if fooVal, ok := specVal["foo"].(map[string]interface{}); ok {
+			if value, ok := fooVal["value"].(string); ok {
+				valueUpdated = true
+				assert.Equal(t, "2", value)
+			}
+		}
+	}
+	assert.True(t, valueUpdated, "New value is not updated in nested field. Expected '2', actual '1'")
+}
+
+func TestSetNestedFieldWithSlice(t *testing.T) {
+	obj := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"foo": []interface{}{
+				map[string]interface{}{
+					"value": "1",
+				},
+			},
+		},
+	}
+	fields := []string{"spec", "foo", "0", "value"}
+	SetNestedField(obj, "2", fields...)
+	valueUpdated := false
+	if specVal, ok := obj["spec"].(map[string]interface{}); ok {
+		if fooVal, ok := specVal["foo"].([]interface{}); ok {
+			if valMap, ok := fooVal[0].(map[string]interface{}); ok {
+				valueUpdated = true
+				assert.Equal(t, "2", valMap["value"])
+			}
+		}
+	}
+	assert.True(t, valueUpdated, "New value is not updated in nested field. Expected '2', actual '1'")
+}
+
+func TestSetNestedFieldWithSlice_Add(t *testing.T) {
+	obj := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"foo": []interface{}{
+				map[string]interface{}{
+					"value1": "1",
+				},
+			},
+		},
+	}
+	fields := []string{"spec", "foo", "0", "value2"}
+	SetNestedField(obj, "2", fields...)
+	valueUpdated := false
+	if specVal, ok := obj["spec"].(map[string]interface{}); ok {
+		if fooVal, ok := specVal["foo"].([]interface{}); ok {
+			if valMap, ok := fooVal[0].(map[string]interface{}); ok {
+				assert.Equal(t, "2", valMap["value2"])
+				valueUpdated = true
+			}
+		}
+	}
+	assert.True(t, valueUpdated, "New value is not updated in nested field. Expected '2', actual '1'")
 }

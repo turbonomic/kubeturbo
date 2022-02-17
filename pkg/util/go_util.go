@@ -12,14 +12,6 @@ import (
 	"github.com/golang/glog"
 )
 
-// patchValue specifies the operation, path and new value to update a JSON document.
-// JSON patch document is defined in https://tools.ietf.org/html/rfc6902#section-3
-type PatchValue struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
-	Value interface{} `json:"value"`
-}
-
 // CompareVersion compares two version strings, for example:
 // v1: "1.4.9",  v2: "1.5", then return -1
 // v1: "1.5.0", v2: "1.5", then return 0
@@ -142,6 +134,59 @@ func NestedField(obj *unstructured.Unstructured, name, path string) (interface{}
 	// The input path refers to a unique field, we can assume to have only one result or none.
 	value := results[0][0].Interface()
 	return value, true, nil
+}
+
+// Set nested field in an unstructured object. Certain field in the given fields could be the key
+// of a map of the index of a slice.
+func SetNestedField(obj interface{}, value interface{}, fields ...string) error {
+	m := obj
+
+	for i, field := range fields[:len(fields)-1] {
+		if mMap, ok := m.(map[string]interface{}); ok {
+			if val, ok := mMap[field]; ok {
+				if valMap, ok := val.(map[string]interface{}); ok {
+					m = valMap
+				} else if valSlice, ok := val.([]interface{}); ok {
+					m = valSlice
+				} else {
+					return fmt.Errorf("value cannot be set because %v is not a map[string]interface{} or a slice []interface{}", JSONPath(fields[:i+1]))
+				}
+			} else {
+				newVal := make(map[string]interface{})
+				mMap[field] = newVal
+				m = newVal
+			}
+		} else if mSlice, ok := m.([]interface{}); ok {
+			sliceInd, err := strconv.Atoi(field)
+			if err != nil {
+				return fmt.Errorf("value cannot be set to the slice path %v because field %v is not integer", JSONPath(fields[:i+1]), field)
+			}
+			if sliceInd < len(mSlice) {
+				m = mSlice[sliceInd]
+			} else if sliceInd == len(mSlice) {
+				mSlice = append(mSlice, make(map[string]interface{}))
+				m = mSlice[len(mSlice)-1]
+			} else {
+				return fmt.Errorf("value cannot be set to the slice path %v because index %v exceeds the slice length %v", JSONPath(fields[:i+1]), field, len(mSlice))
+			}
+
+		} else {
+			return fmt.Errorf("value cannot be set because %v is not a map[string]interface{} or a slice []interface{}", JSONPath(fields[:i+1]))
+		}
+	}
+	lastField := fields[len(fields)-1]
+	if mMap, ok := m.(map[string]interface{}); ok {
+		mMap[lastField] = value
+	} else if mSlice, ok := m.([]interface{}); ok {
+		sliceInd, err := strconv.Atoi(lastField)
+		if err != nil {
+			return fmt.Errorf("value cannot be set to the slice because last field %v in path %v is not integer", lastField, fields)
+		}
+		mSlice[sliceInd] = value
+	} else {
+		return fmt.Errorf("value cannot be set because %v is not a map[string]interface{} or a slice []interface{}", JSONPath(fields))
+	}
+	return nil
 }
 
 // JSONPath construct JSON-Path from given slice of fields.
