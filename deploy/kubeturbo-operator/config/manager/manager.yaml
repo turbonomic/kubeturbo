@@ -29,7 +29,7 @@ spec:
         runAsNonRoot: true
       containers:
       - name: kubeturbo-operator
-        image: turbonomic/kubeturbo-operator:8.4
+        image: turbonomic/kubeturbo-operator:8.5
         args:
         - --leader-elect
         - --leader-election-id=kubeturbo-operator
