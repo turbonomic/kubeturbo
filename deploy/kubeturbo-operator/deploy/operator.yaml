@@ -16,7 +16,7 @@ spec:
       containers:
         - name: kubeturbo-operator
           # Replace this with the built image name
-          image: turbonomic/kubeturbo-operator:8.4
+          image: turbonomic/kubeturbo-operator:8.5
           imagePullPolicy: Always
           env:
             - name: WATCH_NAMESPACE
