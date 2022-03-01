@@ -48,7 +48,7 @@ data:
       {{- if .Values.annotationWhitelist }}
       }, 
       "annotationWhitelist": {
-        "containerSpec": "{{ default "" .Values.annotationWhitelist.containerSpec" }},
+        "containerSpec": "{{ default "" .Values.annotationWhitelist.containerSpec }}",
         "namespace": "{{ default "" .Values.annotationWhitelist.namespace }}",
         "workloadController": "{{ default "" .Values.annotationWhitelist.workloadController }}"
       {{- end }}
