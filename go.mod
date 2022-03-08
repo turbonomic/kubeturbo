@@ -35,6 +35,8 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
+	github.com/evanphx/json-patch v5.6.0+incompatible
+	github.com/google/go-github/v42 v42.0.0
 	github.com/openshift/client-go v0.0.0-20210730113412-1811c1b3fc0e
 	// openshift cluster api for cluster-api based node provision and suspend
 	// TODO (fix this): There is an observed problem here:
@@ -44,6 +46,8 @@ require (
 	github.com/openshift/machine-api-operator v0.2.1-0.20210923190431-734dcea054a1
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.28.0
+	golang.org/x/oauth2 v0.0.0-20210622215436-a8dc77f794b6
+	sigs.k8s.io/yaml v1.2.0
 )
 
 replace (

@@ -15,7 +15,8 @@ github.com/deckarep/golang-set
 # github.com/emicklei/go-restful v2.9.5+incompatible
 github.com/emicklei/go-restful
 github.com/emicklei/go-restful/log
-# github.com/evanphx/json-patch v4.11.0+incompatible
+# github.com/evanphx/json-patch v5.6.0+incompatible
+## explicit
 github.com/evanphx/json-patch
 # github.com/fsnotify/fsnotify v1.4.9
 github.com/fsnotify/fsnotify
@@ -44,6 +45,11 @@ github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
 github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
+# github.com/google/go-github/v42 v42.0.0
+## explicit
+github.com/google/go-github/v42/github
+# github.com/google/go-querystring v1.1.0
+github.com/google/go-querystring/query
 # github.com/google/gofuzz v1.1.0
 github.com/google/gofuzz
 # github.com/google/uuid v1.1.2
@@ -185,6 +191,14 @@ github.com/turbonomic/turbo-go-sdk/pkg/proto
 github.com/turbonomic/turbo-go-sdk/pkg/service
 github.com/turbonomic/turbo-go-sdk/pkg/supplychain
 github.com/turbonomic/turbo-go-sdk/pkg/version
+# golang.org/x/crypto v0.0.0-20210817164053-32db794688a5
+golang.org/x/crypto/cast5
+golang.org/x/crypto/openpgp
+golang.org/x/crypto/openpgp/armor
+golang.org/x/crypto/openpgp/elgamal
+golang.org/x/crypto/openpgp/errors
+golang.org/x/crypto/openpgp/packet
+golang.org/x/crypto/openpgp/s2k
 # golang.org/x/net v0.0.0-20210525063256-abc453219eb5
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
@@ -196,6 +210,7 @@ golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 # golang.org/x/oauth2 v0.0.0-20210622215436-a8dc77f794b6
+## explicit
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
 # golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c
@@ -700,6 +715,7 @@ sigs.k8s.io/structured-merge-diff/v4/schema
 sigs.k8s.io/structured-merge-diff/v4/typed
 sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
+## explicit
 sigs.k8s.io/yaml
 # sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20201125052318-b85a18cbf338
 # sigs.k8s.io/cluster-api-provider-azure => github.com/openshift/cluster-api-provider-azure v0.0.0-20210209143830-3442c7a36c1e
