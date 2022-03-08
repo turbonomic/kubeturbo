@@ -75,6 +75,7 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 		namespace,
 		resizeSpecs,
 		managerApp,
+		r.gitConfig,
 	)
 	if err != nil {
 		glog.Errorf("Failed to execute resize action on the workload controller %s/%s: %v", namespace, controllerName, err)
@@ -162,10 +163,10 @@ func (r *WorkloadControllerResizer) getWorkloadControllerSpec(parentKind, namesp
 }
 
 func resizeWorkloadController(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient,
-	kind, controllerName, namespace string, specs []*containerResizeSpec, managerApp *repository.K8sApp) error {
+	kind, controllerName, namespace string, specs []*containerResizeSpec, managerApp *repository.K8sApp, gitConfig GitConfig) error {
 	// prepare controllerUpdater
 	controllerUpdater, err := newK8sControllerUpdater(clusterScraper,
-		ormClient, kind, controllerName, "", namespace, managerApp)
+		ormClient, kind, controllerName, "", namespace, managerApp, gitConfig)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return err

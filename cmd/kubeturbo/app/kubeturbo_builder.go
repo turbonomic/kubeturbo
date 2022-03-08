@@ -150,6 +150,9 @@ type VMTServer struct {
 	containerUsageDataAggStrategy string
 	// Total number of retrys. When a pod is not ready, Kubeturbo will try failureThreshold times before giving up
 	readinessRetryThreshold int
+
+	// Git configuration for gitops based action execution
+	gitConfig executor.GitConfig
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -204,6 +207,11 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.containerUtilizationDataAggStrategy, "cnt-utilization-data-agg-strategy", agg.DefaultContainerUtilizationDataAggStrategy, "Container utilization data aggregation strategy.")
 	fs.StringVar(&s.containerUsageDataAggStrategy, "cnt-usage-data-agg-strategy", agg.DefaultContainerUsageDataAggStrategy, "Container usage data aggregation strategy.")
 	fs.IntVar(&s.readinessRetryThreshold, "readiness-retry-threshold", DefaultReadinessRetryThreshold, "When the pod readiness check fails, Kubeturbo will try readinessRetryThreshold times before giving up. Defaults to 60.")
+	// Flags for gitops based action execution
+	fs.StringVar(&s.gitConfig.GitSecretNamespace, "git-secret-namespace", "", "The namespace of the secret which holds the git credentials.")
+	fs.StringVar(&s.gitConfig.GitSecretName, "git-secret-name", "", "The name of the secret which holds the git credentials.")
+	fs.StringVar(&s.gitConfig.GitUsername, "git-username", "", "The user name to be used to push changes to git.")
+	fs.StringVar(&s.gitConfig.GitEmail, "git-email", "", "The email to be used to push changes to git.")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -386,7 +394,8 @@ func (s *VMTServer) Run() {
 		WithVolumePodMoveConfig(s.FailVolumePodMoves).
 		WithQuotaUpdateConfig(s.UpdateQuotaToAllowMoves).
 		WithClusterAPIEnabled(clusterAPIEnabled).
-		WithReadinessRetryThreshold(s.readinessRetryThreshold)
+		WithReadinessRetryThreshold(s.readinessRetryThreshold).
+		WithGitConfig(s.gitConfig)
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service

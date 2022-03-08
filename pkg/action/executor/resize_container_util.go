@@ -159,10 +159,10 @@ func genMemoryQuantity(newValue float64) (resource.Quantity, error) {
 	return resource.ParseQuantity(fmt.Sprintf("%dKi", tmp))
 }
 
-func resizeContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, spec *containerResizeSpec, consistentResize bool,
-	ormSpec *resourcemapping.ORMClient) (*k8sapi.Pod, error) {
+func resizeContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, spec *containerResizeSpec,
+	consistentResize bool, ormSpec *resourcemapping.ORMClient, gitConfig GitConfig) (*k8sapi.Pod, error) {
 	if consistentResize {
-		return nil, resizeControllerContainer(clusterScraper, pod, spec, ormSpec)
+		return nil, resizeControllerContainer(clusterScraper, pod, spec, ormSpec, gitConfig)
 	}
 	return resizeSingleContainer(clusterScraper.Clientset, pod, spec)
 }
@@ -177,9 +177,10 @@ func resizeContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, sp
 //   resource, all existing pods that belong to the original ReplicaSet and ReplicationController
 //   are not affected. Only newly created pods (through scaling action) will use the updated
 //   resource
-func resizeControllerContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, spec *containerResizeSpec, ormClient *resourcemapping.ORMClient) error {
+func resizeControllerContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, spec *containerResizeSpec,
+	ormClient *resourcemapping.ORMClient, gitConfig GitConfig) error {
 	// prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdaterViaPod(clusterScraper, pod, ormClient)
+	controllerUpdater, err := newK8sControllerUpdaterViaPod(clusterScraper, pod, ormClient, gitConfig)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return err

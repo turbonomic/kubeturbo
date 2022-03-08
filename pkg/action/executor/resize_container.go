@@ -225,6 +225,7 @@ func (r *ContainerResizer) Execute(input *TurboActionExecutorInput) (*TurboActio
 		spec,
 		actionItem.GetConsistentScalingCompliance(),
 		r.ormClient,
+		r.gitConfig,
 	)
 	if err != nil {
 		glog.Errorf("Failed to execute resize action: %v", err)

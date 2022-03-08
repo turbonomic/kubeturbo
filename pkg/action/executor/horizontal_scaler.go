@@ -30,7 +30,7 @@ func (h *HorizontalScaler) Execute(input *TurboActionExecutorInput) (*TurboActio
 		return nil, err
 	}
 	//2. Prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdaterViaPod(h.clusterScraper, pod, h.ormClient)
+	controllerUpdater, err := newK8sControllerUpdaterViaPod(h.clusterScraper, pod, h.ormClient, h.gitConfig)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return &TurboActionExecutorOutput{}, err

@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
+	typedClient "k8s.io/client-go/kubernetes"
 
 	actionutil "github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -39,17 +40,24 @@ type k8sControllerSpec struct {
 	controllerName string
 }
 
-type parentController struct {
-	dynClient           dynamic.Interface
+type kubeClients struct {
+	typedClient *typedClient.Clientset
+	dynClient   dynamic.Interface
+	// TODO: remove the need of this as we have dynClient already
 	dynNamespacedClient dynamic.ResourceInterface
-	obj                 *unstructured.Unstructured
-	name                string
-	ormClient           *resourcemapping.ORMClient
-	managerApp          *repository.K8sApp
+}
+
+type parentController struct {
+	clients    kubeClients
+	obj        *unstructured.Unstructured
+	name       string
+	ormClient  *resourcemapping.ORMClient
+	managerApp *repository.K8sApp
+	gitConfig  GitConfig
 }
 
 func (c *parentController) get(name string) (*k8sControllerSpec, error) {
-	obj, err := c.dynNamespacedClient.Get(context.TODO(), name, metav1.GetOptions{})
+	obj, err := c.clients.dynNamespacedClient.Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -107,8 +115,10 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 	if c.managerApp != nil {
 		// The workload is managed by a pipeline controller (argoCD) which replicates
 		// it from a source of truth
-		cRC := newCRController(c.dynClient, c.obj, c.managerApp)
-		err := cRC.Update(int64(*updatedSpec.replicas), podSpecUnstructured)
+		// TODO: Define a scheme to execute this action optionally via Change Reconciler if need be.
+		// As of now retaining the CR relavant code in change_request_controller.go
+		gitManager := newGitManager(c.gitConfig, c.clients.typedClient, c.clients.dynClient, c.obj, c.managerApp)
+		err := gitManager.update(int64(*updatedSpec.replicas), podSpecUnstructured)
 		if err != nil {
 			return fmt.Errorf("failed to create a ChangeRequest: %v", err)
 		}
@@ -124,7 +134,7 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		}
 		err = c.ormClient.Update(origControllerObj, c.obj, controllerOwnerReferences[0])
 	} else {
-		_, err = c.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
+		_, err = c.clients.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
 	}
 	return err
 }

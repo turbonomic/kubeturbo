@@ -6,6 +6,8 @@ actionexecutionsimulator
 
 .*swp
 
+.DS_Store
+
 _output/
 .idea/
 .vscode/
