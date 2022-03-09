@@ -63,7 +63,8 @@ var _ = Describe("Action Executor ", func() {
 			}
 
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""), []string{"*"}, nil, false, true, 60)
+				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""),
+				[]string{"*"}, nil, false, true, 60, executor.GitConfig{})
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 		}
 		namespace = f.TestNamespaceName()
