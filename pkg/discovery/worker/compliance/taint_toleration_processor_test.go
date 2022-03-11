@@ -22,6 +22,7 @@ var (
 	n1    = newNodeWithTaints("node-1", []api.Taint{t1})
 	n2    = newNodeWithTaints("node-2", []api.Taint{t2})
 	n3    = newNodeWithTaints("node-3", []api.Taint{t3})
+	n4    = newNodeWithTaints("node-4", []api.Taint{})
 	nodes = map[string]*api.Node{
 		string(n1.UID): n1,
 		string(n2.UID): n2,
@@ -34,6 +35,7 @@ var (
 	pod1 = newPodWithTolerations("pod-1", "node-1", []api.Toleration{})
 	pod2 = newPodWithTolerations("pod-2", "node-2", []api.Toleration{tole1})
 	pod3 = newPodWithTolerations("pod-3", "node-3", []api.Toleration{tole1, tole2})
+	pod4 = newPodWithTolerations("pod-4", "node-4", []api.Toleration{})
 
 	podDTO1 = newEntityDTO("pod-1", proto.EntityDTO_CONTAINER_POD, createCommBoughtForPod("node-1"))
 	podDTO2 = newEntityDTO("pod-2", proto.EntityDTO_CONTAINER_POD, createCommBoughtForPod("node-2"))
@@ -59,6 +61,7 @@ func TestProcess(t *testing.T) {
 	clusterSummary.NodeToRunningPods[n1.Name] = []*api.Pod{pod1}
 	clusterSummary.NodeToRunningPods[n2.Name] = []*api.Pod{pod2}
 	clusterSummary.NodeToRunningPods[n3.Name] = []*api.Pod{pod3}
+	clusterSummary.NodeToRunningPods[n4.Name] = []*api.Pod{pod4}
 
 	taintTolerationProcessor, err := NewTaintTolerationProcessor(clusterSummary)
 

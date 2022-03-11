@@ -45,6 +45,9 @@ func NewTaintTolerationProcessor(cluster *repository.ClusterSummary) (*TaintTole
 
 	for nodeName, podList := range nodeToPodsMap {
 		node := cluster.NodeMap[nodeName]
+		if node == nil {
+			continue
+		}
 		nodeMap[node.UID] = node.Node
 
 		for _, pod := range podList {
