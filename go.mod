@@ -37,7 +37,8 @@ require (
 require (
 	// The vendored k8s version 1.22.2 depends on 1.4.4
 	// this is explicitly bumped here to fix a vulnerability
-	github.com/containerd/containerd v1.4.8 // indirect
+	github.com/containerd/containerd v1.4.13 // indirect
+	github.com/opencontainers/runc v1.0.3 // indirect
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
 	github.com/openshift/client-go v0.0.0-20210730113412-1811c1b3fc0e
