@@ -100,12 +100,14 @@ func (r *GitManager) update(replicas int64, podSpec map[string]interface{}) erro
 	}
 	ctx := context.Background()
 	handler := &GitHandler{
-		ctx:        ctx,
-		client:     getClient(ctx, token),
-		user:       pathParts[1],
-		repo:       strings.TrimSuffix(pathParts[2], ".git"),
-		baseBranch: baseBranch,
-		path:       path,
+		ctx:         ctx,
+		client:      getClient(ctx, token),
+		user:        pathParts[1],
+		repo:        strings.TrimSuffix(pathParts[2], ".git"),
+		baseBranch:  baseBranch,
+		path:        path,
+		commitUser:  r.gitConfig.GitUsername,
+		commitEmail: r.gitConfig.GitUsername,
 	}
 
 	var patches []PatchItem
@@ -192,12 +194,14 @@ func getClient(ctx context.Context, token string) *github.Client {
 }
 
 type GitHandler struct {
-	ctx        context.Context
-	client     *github.Client
-	user       string
-	repo       string
-	baseBranch string
-	path       string
+	ctx         context.Context
+	client      *github.Client
+	user        string
+	repo        string
+	baseBranch  string
+	path        string
+	commitUser  string
+	commitEmail string
 }
 
 func (g *GitHandler) getBranchRef() (*github.Reference, error) {
@@ -313,38 +317,37 @@ func (r *GitHandler) updateRemote(resName string, patches []PatchItem) error {
 		return fmt.Errorf("error getting branch ref: %s, %v", r.baseBranch, err)
 	}
 
-	err = r.pushCommit(branchRef, tree)
+	_, err = r.pushCommit(branchRef, tree)
 	if err != nil {
 		return fmt.Errorf("error committing new content to branch %s, %v", r.baseBranch, err)
 	}
 	return nil
 }
 
-func (g *GitHandler) pushCommit(ref *github.Reference, tree *github.Tree) error {
+func (g *GitHandler) pushCommit(ref *github.Reference, tree *github.Tree) (*github.Reference, error) {
 	// Get the parent commit to attach the commit to.
 	parent, _, err := g.client.Repositories.GetCommit(g.ctx, g.user, g.repo, *ref.Object.SHA, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// This is not always populated, but is needed.
 	parent.Commit.SHA = parent.SHA
 
 	// Create the commit using the tree.
-	// TODO: stuff like author, email, etc. should come from reconciler controller config
 	date := time.Now()
-	authorName := "irfanurrehman"
-	authorEmail := "irfan.rehman@turbonomic.com"
-	commitMsg := "ChangeReconciler: auto update yaml file " + g.path
+	authorName := g.commitUser
+	authorEmail := g.commitEmail
+	commitMsg := "Turbonomic Action: update yaml file " + g.path
 	author := &github.CommitAuthor{Date: &date, Name: &authorName, Email: &authorEmail}
 	commit := &github.Commit{Author: author, Message: &commitMsg, Tree: tree, Parents: []*github.Commit{parent.Commit}}
 	newCommit, _, err := g.client.Git.CreateCommit(g.ctx, g.user, g.repo, commit)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	ref.Object.SHA = newCommit.SHA
-	_, _, err = g.client.Git.UpdateRef(g.ctx, g.user, g.repo, ref, false)
-	return err
+	newRef, _, err := g.client.Git.UpdateRef(g.ctx, g.user, g.repo, ref, false)
+	return newRef, err
 }
 
 // TODO: Enhance the support to identify json or yaml content on the fly
