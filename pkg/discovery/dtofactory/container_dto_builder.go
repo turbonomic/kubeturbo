@@ -317,6 +317,15 @@ func (builder *containerDTOBuilder) getCommoditiesBought(podId, containerName, c
 	}
 	result = append(result, podAccessComm)
 
+	// 3. Label
+	labelComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
+		Key(podId).
+		Create()
+	if err != nil {
+		return nil, err
+	}
+	result = append(result, labelComm)
+
 	return result, nil
 }
 

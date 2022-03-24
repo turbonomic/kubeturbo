@@ -338,6 +338,16 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(
 	}
 	commoditiesSold = append(commoditiesSold, podAccessComm)
 
+	// label commodity
+	labelComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
+		Key(string(pod.UID)).
+		Capacity(labelCommodityDefaultCapacity).
+		Create()
+	if err != nil {
+		return nil, err
+	}
+	commoditiesSold = append(commoditiesSold, labelComm)
+
 	return commoditiesSold, nil
 }
 
@@ -386,6 +396,19 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
 		}
 		glog.V(5).Infof("Adding access commodity for Pod %s with key : %s", pod.Name, selector)
 		commoditiesBought = append(commoditiesBought, accessComm)
+	}
+
+	// Label commodities
+	for key, value := range pod.Spec.NodeSelector {
+		selector := key + "=" + value
+		labelComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
+			Key(selector).
+			Create()
+		if err != nil {
+			return nil, err
+		}
+		glog.V(5).Infof("Adding label commodity for Pod %s with key : %s", pod.Name, selector)
+		commoditiesBought = append(commoditiesBought, labelComm)
 	}
 
 	// Cluster commodity.

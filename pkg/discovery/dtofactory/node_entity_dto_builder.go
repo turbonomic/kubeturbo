@@ -19,6 +19,7 @@ import (
 const (
 	accessCommodityDefaultCapacity  = 1e10
 	clusterCommodityDefaultCapacity = 1e10
+	labelCommodityDefaultCapacity   = 1e10
 )
 
 var (
@@ -226,6 +227,20 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clus
 		}
 		glog.V(5).Infof("Adding access commodity for Node %s with key : %s", node.Name, label)
 		commoditiesSold = append(commoditiesSold, accessComm)
+	}
+
+	// Label commodities
+	for key, value := range node.ObjectMeta.Labels {
+		label := key + "=" + value
+		labelComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
+			Key(label).
+			Capacity(labelCommodityDefaultCapacity).
+			Create()
+		if err != nil {
+			return nil, isAvailableForPlacement, err
+		}
+		glog.V(5).Infof("Adding label commodity for Node %s with key : %s", node.Name, label)
+		commoditiesSold = append(commoditiesSold, labelComm)
 	}
 
 	// Cluster commodity.
