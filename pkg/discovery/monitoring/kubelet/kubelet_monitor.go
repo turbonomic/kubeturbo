@@ -16,7 +16,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/features"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/kubernetes"
-	evictionapi "k8s.io/kubernetes/pkg/kubelet/eviction/api"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -280,7 +279,7 @@ func (m *KubeletMonitor) parseNodeCpuFreq(node *api.Node, cpuFrequencyMHz float6
 }
 
 // Parse node stats and put it into sink.
-func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats, thresholds []evictionapi.Threshold, timestamp int64) {
+func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats, thresholds []kubeclient.Threshold, timestamp int64) {
 	var cpuUsageMilliCore, memoryWorkingSetBytes, memoryAvailableBytes, rootfsCapacityBytes,
 		rootfsUsedBytes, rootfsAvailableBytes, imagefsCapacityBytes, imagefsAvailableBytes float64
 	// cpu
@@ -344,16 +343,16 @@ func (m *KubeletMonitor) parseNodeStats(nodeStats stats.NodeStats, thresholds []
 	}
 }
 
-func (m *KubeletMonitor) parseThresholdValues(key string, memoryCapacity, rootfsCapacity, imagefsCapacity float64, thresholds []evictionapi.Threshold) {
+func (m *KubeletMonitor) parseThresholdValues(key string, memoryCapacity, rootfsCapacity, imagefsCapacity float64, thresholds []kubeclient.Threshold) {
 	var memThreshold, rootfsThreshold, imagefsThreshold float64
 
 	for _, threshold := range thresholds {
 		switch threshold.Signal {
-		case evictionapi.SignalMemoryAvailable:
+		case kubeclient.SignalMemoryAvailable:
 			memThreshold = GetThresholdPercentile(threshold.Value, memoryCapacity)
-		case evictionapi.SignalNodeFsAvailable:
+		case kubeclient.SignalNodeFsAvailable:
 			rootfsThreshold = GetThresholdPercentile(threshold.Value, rootfsCapacity)
-		case evictionapi.SignalImageFsAvailable:
+		case kubeclient.SignalImageFsAvailable:
 			imagefsThreshold = GetThresholdPercentile(threshold.Value, imagefsCapacity)
 		default:
 		}
@@ -385,7 +384,7 @@ func (m *KubeletMonitor) parseThresholdValues(key string, memoryCapacity, rootfs
 
 }
 
-func GetThresholdPercentile(value evictionapi.ThresholdValue, capacity float64) float64 {
+func GetThresholdPercentile(value kubeclient.ThresholdValue, capacity float64) float64 {
 	if value.Percentage != 0 {
 		// The percentage value parsed in threshold is in decimal points wrt 1
 		// eg. 20% is represented as .20
