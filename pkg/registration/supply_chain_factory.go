@@ -73,7 +73,7 @@ var (
 	applicationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
 	clusterTemplateCommWithKey     = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
 	taintTemplateCommWithKey       = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &taintType}
-	labelTemplateCommWithKey       = &proto.TemplateCommodity{Key :&fakeKey, CommodityType: &labelType}
+	labelTemplateCommWithKey       = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &labelType}
 
 	// Resold TemplateCommodity with key
 	vCpuLimitQuotaTemplateCommWithKeyResold   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuLimitQuotaType, IsResold: &commIsResold}
