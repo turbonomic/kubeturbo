@@ -23,8 +23,6 @@ import (
 	"k8s.io/client-go/transport"
 	kubeletconfig "k8s.io/kubelet/config/v1beta1"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
-	"k8s.io/kubernetes/pkg/kubelet/eviction"
-	evictionapi "k8s.io/kubernetes/pkg/kubelet/eviction/api"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -245,8 +243,8 @@ type KubeletConfigz struct {
 	KubeletConfig kubeletconfig.KubeletConfiguration `json:"kubeletconfig"`
 }
 
-func (client *KubeletClient) GetKubeletThresholds(ip, nodeName string) ([]evictionapi.Threshold, error) {
-	thresholds := []evictionapi.Threshold{}
+func (client *KubeletClient) GetKubeletThresholds(ip, nodeName string) ([]Threshold, error) {
+	thresholds := []Threshold{}
 
 	kubeCfgz := &KubeletConfigz{}
 	data, err := client.ExecuteRequest(ip, nodeName, configPath)
@@ -261,7 +259,7 @@ func (client *KubeletClient) GetKubeletThresholds(ip, nodeName string) ([]evicti
 	kubeCfg := kubeCfgz.KubeletConfig
 	// We try to consider both hard and soft thresholds for concerned metrics
 	// Soft thresholds if present would also eventually (after a delay) cause the eviction
-	thresholds, err = eviction.ParseThresholdConfig([]string{}, kubeCfg.EvictionHard,
+	thresholds, err = ParseThresholdConfig([]string{}, kubeCfg.EvictionHard,
 		kubeCfg.EvictionSoft, kubeCfg.EvictionSoftGracePeriod, kubeCfg.EvictionMinimumReclaim)
 	if err != nil {
 		return thresholds, err
