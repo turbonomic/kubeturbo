@@ -14,7 +14,6 @@ import (
 	quota "k8s.io/apiserver/pkg/quota/v1"
 	kclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	eval "k8s.io/kubernetes/pkg/quota/v1/evaluator/core"
 )
 
 const QuotaAnnotationKey = "kubeturbo.io/last-good-config"
@@ -28,7 +27,7 @@ type QuotaAccessor interface {
 
 type QuotaAccessorImpl struct {
 	client    *kclient.Clientset
-	evaluator quota.Evaluator
+	evaluator *podEvaluator
 	namespace string
 	quotas    []*corev1.ResourceQuota
 }
@@ -37,7 +36,7 @@ func NewQuotaAccessor(client *kclient.Clientset, namespace string) QuotaAccessor
 	return &QuotaAccessorImpl{
 		client:    client,
 		namespace: namespace,
-		evaluator: eval.NewPodEvaluator(nil, clock.RealClock{}),
+		evaluator: NewPodEvaluator(nil, clock.RealClock{}),
 	}
 }
 
