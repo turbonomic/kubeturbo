@@ -21,19 +21,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	quota "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/apiserver/pkg/quota/v1/generic"
-	"k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/component-base/featuregate"
 )
 
 // the name used for object count quota
 var podObjectCountName = generic.ObjectCountQuotaResourceNameFor(corev1.SchemeGroupVersion.WithResource("pods").GroupResource())
-
-const (
-	// Allow specifying NamespaceSelector in PodAffinityTerm.
-	PodAffinityNamespaceSelector featuregate.Feature = "PodAffinityNamespaceSelector"
-	// Enables PodOverhead, for accounting pod overheads which are specific to a given RuntimeClass
-	PodOverhead featuregate.Feature = "PodOverhead"
-)
 
 // podResources are the set of resources managed by quota associated with pods.
 var podResources = []corev1.ResourceName{
@@ -239,10 +230,9 @@ func PodUsageFunc(obj runtime.Object, clock clock.Clock) (corev1.ResourceList, e
 		limits = quota.Max(limits, pod.Spec.InitContainers[i].Resources.Limits)
 	}
 
-	if feature.DefaultFeatureGate.Enabled(PodOverhead) {
-		requests = quota.Add(requests, pod.Spec.Overhead)
-		limits = quota.Add(limits, pod.Spec.Overhead)
-	}
+	requests = quota.Add(requests, pod.Spec.Overhead)
+	limits = quota.Add(limits, pod.Spec.Overhead)
+
 	result = quota.Add(result, podComputeUsageHelper(requests, limits))
 	return result, nil
 }
@@ -296,9 +286,6 @@ func crossNamespaceWeightedPodAffinityTerms(terms []corev1.WeightedPodAffinityTe
 }
 
 func usesCrossNamespacePodAffinity(pod *corev1.Pod) bool {
-	if !feature.DefaultFeatureGate.Enabled(PodAffinityNamespaceSelector) {
-		return false
-	}
 	if pod == nil || pod.Spec.Affinity == nil {
 		return false
 	}
