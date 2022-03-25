@@ -1,3 +1,7 @@
+/*Copied from
+k8s.io/kubernetes/pkg/kubelet/eviction/helpers.go
+k8s.io/kubernetes/pkg/kubelet/eviction/api/types.go
+*/
 package kubeclient
 
 import (
@@ -55,25 +59,14 @@ const (
 	SignalAllocatableMemoryAvailable Signal = "allocatableMemory.available"
 	// SignalPIDAvailable is amount of PID available for pod allocation
 	SignalPIDAvailable Signal = "pid.available"
-)
 
-const (
 	unsupportedEvictionSignal = "unsupported eviction signal %v"
-
 	// inodes, number. internal to this module, used to account for local disk inode consumption.
 	resourceInodes v1.ResourceName = "inodes"
 	// resourcePids, number. internal to this module, used to account for local pid consumption.
 	resourcePids v1.ResourceName = "pids"
-)
 
-const (
 	NodeAllocatableEnforcementKey = "pods"
-	SystemReservedEnforcementKey  = "system-reserved"
-	KubeReservedEnforcementKey    = "kube-reserved"
-	NodeAllocatableNoneKey        = "none"
-)
-
-const (
 	// OpLessThan is the operator that expresses a less than operator.
 	OpLessThan ThresholdOperator = "LessThan"
 )
@@ -81,24 +74,24 @@ const (
 var (
 	// signalToResource maps a Signal to its associated Resource.
 	signalToResource map[Signal]v1.ResourceName
-)
 
-// OpForSignal maps Signals to ThresholdOperators.
-// Today, the only supported operator is "LessThan". This may change in the future,
-// for example if "consumed" (as opposed to "available") type signals are added.
-// In both cases the directionality of the threshold is implicit to the signal type
-// (for a given signal, the decision to evict will be made when crossing the threshold
-// from either above or below, never both). There is thus no reason to expose the
-// operator in the Kubelet's public API. Instead, we internally map signal types to operators.
-var OpForSignal = map[Signal]ThresholdOperator{
-	SignalMemoryAvailable:            OpLessThan,
-	SignalNodeFsAvailable:            OpLessThan,
-	SignalNodeFsInodesFree:           OpLessThan,
-	SignalImageFsAvailable:           OpLessThan,
-	SignalImageFsInodesFree:          OpLessThan,
-	SignalAllocatableMemoryAvailable: OpLessThan,
-	SignalPIDAvailable:               OpLessThan,
-}
+	// OpForSignal maps Signals to ThresholdOperators.
+	// Today, the only supported operator is "LessThan". This may change in the future,
+	// for example if "consumed" (as opposed to "available") type signals are added.
+	// In both cases the directionality of the threshold is implicit to the signal type
+	// (for a given signal, the decision to evict will be made when crossing the threshold
+	// from either above or below, never both). There is thus no reason to expose the
+	// operator in the Kubelet's public API. Instead, we internally map signal types to operators.
+	OpForSignal = map[Signal]ThresholdOperator{
+		SignalMemoryAvailable:            OpLessThan,
+		SignalNodeFsAvailable:            OpLessThan,
+		SignalNodeFsInodesFree:           OpLessThan,
+		SignalImageFsAvailable:           OpLessThan,
+		SignalImageFsInodesFree:          OpLessThan,
+		SignalAllocatableMemoryAvailable: OpLessThan,
+		SignalPIDAvailable:               OpLessThan,
+	}
+)
 
 func init() {
 	// map signals to resources (and vice-versa)
