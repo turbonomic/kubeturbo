@@ -29,6 +29,7 @@ var (
 	storageAmountType      = proto.CommodityDTO_STORAGE_AMOUNT
 	numberReplicasType     = proto.CommodityDTO_NUMBER_REPLICAS
 	taintType              = proto.CommodityDTO_TAINT
+	labelType              = proto.CommodityDTO_LABEL
 
 	fakeKey = "fake"
 
@@ -72,6 +73,7 @@ var (
 	applicationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
 	clusterTemplateCommWithKey     = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
 	taintTemplateCommWithKey       = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &taintType}
+	labelTemplateCommWithKey       = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &labelType}
 
 	// Resold TemplateCommodity with key
 	vCpuLimitQuotaTemplateCommWithKeyResold   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuLimitQuotaType, IsResold: &commIsResold}
@@ -257,6 +259,7 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 		PatchSoldMetadata(proto.CommodityDTO_CLUSTER, fieldsCapactiy).
 		PatchSoldMetadata(proto.CommodityDTO_VMPM_ACCESS, fieldsCapactiy).
 		PatchSoldMetadata(proto.CommodityDTO_TAINT, fieldsCapactiy).
+		PatchSoldMetadata(proto.CommodityDTO_LABEL, fieldsCapactiy).
 		PatchSoldMetadata(proto.CommodityDTO_VCPU, fieldsUsedCapacityPeak).
 		PatchSoldMetadata(proto.CommodityDTO_VMEM, fieldsUsedCapacityPeak).
 		PatchSoldMetadata(proto.CommodityDTO_VCPU_REQUEST, fieldsUsedCapacity).
@@ -283,7 +286,8 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 		Sells(vmpmAccessTemplateComm).         // sells to Pods
 		Sells(numPodNumConsumersTemplateComm). // sells to Pods
 		Sells(vStorageTemplateComm).           // sells to Pods
-		Sells(taintTemplateCommWithKey)
+		Sells(taintTemplateCommWithKey).
+		Sells(labelTemplateCommWithKey)
 	// also sells Cluster to Pods
 
 	return nodeSupplyChainNodeBuilder.Create()
@@ -360,6 +364,7 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Buys(numPodNumConsumersTemplateComm).
 		Buys(vStorageTemplateComm).
 		Buys(taintTemplateCommWithKey).
+		Buys(labelTemplateCommWithKey).
 		ProviderOpt(proto.EntityDTO_WORKLOAD_CONTROLLER, proto.Provider_HOSTING, &isProviderOptional).
 		Buys(vCpuLimitQuotaTemplateCommWithKey).
 		Buys(vMemLimitQuotaTemplateCommWithKey).
