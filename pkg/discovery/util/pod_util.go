@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	client "k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -93,7 +92,7 @@ func isMirrorPod(pod *api.Pod) bool {
 	if annotations == nil {
 		return false
 	}
-	if _, exist := annotations[kubelettypes.ConfigMirrorAnnotationKey]; exist {
+	if _, exist := annotations[api.MirrorPodAnnotationKey]; exist {
 		glog.V(4).Infof("Find a mirror pod: %s/%s", pod.Namespace, pod.Name)
 		return true
 	}
