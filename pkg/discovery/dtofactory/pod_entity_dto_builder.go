@@ -328,16 +328,6 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(
 	}
 	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
 
-	// vmpmAccess commodity
-	podAccessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
-		Key(string(pod.UID)).
-		Capacity(accessCommodityDefaultCapacity).
-		Create()
-	if err != nil {
-		return nil, err
-	}
-	commoditiesSold = append(commoditiesSold, podAccessComm)
-
 	return commoditiesSold, nil
 }
 
@@ -375,17 +365,17 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
 	}
 	commoditiesBought = append(commoditiesBought, resourceCommoditiesBought...)
 
-	// Access commodities: selectors.
+	// Label commodities
 	for key, value := range pod.Spec.NodeSelector {
 		selector := key + "=" + value
-		accessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
+		labelComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
 			Key(selector).
 			Create()
 		if err != nil {
 			return nil, err
 		}
-		glog.V(5).Infof("Adding access commodity for Pod %s with key : %s", pod.Name, selector)
-		commoditiesBought = append(commoditiesBought, accessComm)
+		glog.V(5).Infof("Adding label commodity for Pod %s with key : %s", pod.Name, selector)
+		commoditiesBought = append(commoditiesBought, labelComm)
 	}
 
 	// Cluster commodity.
