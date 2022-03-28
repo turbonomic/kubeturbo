@@ -12,7 +12,6 @@ import (
 	k8sapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 )
 
 func createPod() *k8sapi.Pod {
@@ -210,7 +209,7 @@ func TestMirroredPod(t *testing.T) {
 		t.Error("Non-mirrored pod should be controllable")
 	}
 
-	pod.ObjectMeta.Annotations[kubelettypes.ConfigMirrorAnnotationKey] = "yes"
+	pod.ObjectMeta.Annotations[k8sapi.MirrorPodAnnotationKey] = "yes"
 	if Controllable(pod) {
 		t.Error("Mirrored pod should not be controllable")
 	}
