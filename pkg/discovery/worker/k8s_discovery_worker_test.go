@@ -1,9 +1,10 @@
 package worker
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"reflect"
 	"testing"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
@@ -30,9 +31,10 @@ func TestBuildDTOsWithMissingMetrics(t *testing.T) {
 
 	currTask := task.NewTask().WithNodes([]*api.Node{node}).WithPods([]*api.Pod{pod})
 
-	_, _ = worker.buildEntityDTOs(currTask)
-	if err != nil {
-		t.Errorf("Error while building DTOs: %v", err)
+	entityDtos, kubePods, _ := worker.buildEntityDTOs(currTask)
+	if len(entityDtos) != 0 || len(kubePods) != 0 {
+		// Nothing is built
+		t.Errorf("Error while building DTOs")
 	}
 }
 

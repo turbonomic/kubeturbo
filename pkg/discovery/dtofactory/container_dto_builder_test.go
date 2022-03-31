@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
@@ -56,8 +57,12 @@ var (
 		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameBar), metrics.Memory, metrics.Used, memUsed)
 	containerBarMemCap = metrics.NewEntityResourceMetric(metrics.ContainerType,
 		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameBar), metrics.Memory, metrics.Capacity, memCap)
-	testCPUFrequency = metrics.NewEntityStateMetric(metrics.NodeType, nodeName, metrics.CpuFrequency, nodeCpuFrequency)
-	ownerUIDMetric   = metrics.NewEntityStateMetric(metrics.PodType, util.PodKeyFunc(testPod), metrics.OwnerUID, controllerUID)
+	testCPUFrequency     = metrics.NewEntityStateMetric(metrics.NodeType, nodeName, metrics.CpuFrequency, nodeCpuFrequency)
+	ownerUIDMetric       = metrics.NewEntityStateMetric(metrics.PodType, util.PodKeyFunc(testPod), metrics.OwnerUID, controllerUID)
+	contFooSidecarMetric = metrics.NewEntityStateMetric(metrics.ContainerType,
+		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameFoo), metrics.IsInjectedSidecar, false)
+	contSidecarSidecarMetric = metrics.NewEntityStateMetric(metrics.ContainerType,
+		util.ContainerMetricId(util.PodMetricIdAPI(testPod), containerNameBar), metrics.IsInjectedSidecar, true)
 )
 
 func TestPodFlags(t *testing.T) {
@@ -115,7 +120,7 @@ func Test_containerDTOBuilder_BuildDTOs_layeredOver(t *testing.T) {
 	}
 
 	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink())
-	containerDTOs := containerDTOBuilder.BuildEntityDTOs([]*api.Pod{testPod})
+	containerDTOs, _ := containerDTOBuilder.BuildEntityDTOs([]*api.Pod{testPod})
 
 	assert.Equal(t, 2, len(containerDTOs))
 	for _, containerDTO := range containerDTOs {
@@ -125,6 +130,26 @@ func Test_containerDTOBuilder_BuildDTOs_layeredOver(t *testing.T) {
 			assert.ElementsMatch(t, containerDTO.ConnectedEntities, []*proto.ConnectedEntity{NewConnectedEntity(controllerUID, containerNameBar)})
 		}
 	}
+}
+
+func Test_containerDTOBuilder_BuildDTOs_sidecars(t *testing.T) {
+	containerFoo := mockContainer(containerNameFoo)
+	containerBar := mockContainer(containerNameBar)
+	testPod.OwnerReferences = []metav1.OwnerReference{mockOwnerReference()}
+	testPod.Spec.Containers = []api.Container{
+		containerFoo,
+		containerBar,
+	}
+
+	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink())
+	containerDTOs, sidecars := containerDTOBuilder.BuildEntityDTOs([]*api.Pod{testPod})
+
+	assert.Equal(t, 1, len(sidecars))
+	assert.Equal(t, 2, len(containerDTOs))
+	sideCarSet := sets.NewString(sidecars...)
+	assert.Equal(t, true, sideCarSet.Has(controllerUID+"/"+containerNameBar))
+	assert.Equal(t, false, sideCarSet.Has(controllerUID+"/"+containerNameFoo))
+
 }
 
 func NewConnectedEntity(controllerUID string, containerName string) *proto.ConnectedEntity {
@@ -147,7 +172,7 @@ func Test_containerDTOBuilder_BuildDTOs_containerData(t *testing.T) {
 		containerBar,
 	}
 	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink())
-	containerDTOs := containerDTOBuilder.BuildEntityDTOs([]*api.Pod{testPod})
+	containerDTOs, _ := containerDTOBuilder.BuildEntityDTOs([]*api.Pod{testPod})
 	assert.Equal(t, 2, len(containerDTOs))
 	// containerFoo DTO has cpu and mem limits set.
 	assert.True(t, containerDTOs[0].GetContainerData().GetHasCpuLimit())
@@ -177,7 +202,8 @@ func mockContainer(name string) api.Container {
 func mockMetricsSink() *metrics.EntityMetricSink {
 	metricsSink = metrics.NewEntityMetricSink()
 	metricsSink.AddNewMetricEntries(containerFooCPUUsed, containerFooMemUsed, containerFooCPUCap, containerFooMemCap,
-		containerBarCPUUsed, containerBarCPUCap, containerBarMemUsed, containerBarMemCap, testCPUFrequency, ownerUIDMetric)
+		containerBarCPUUsed, containerBarCPUCap, containerBarMemUsed, containerBarMemCap, testCPUFrequency,
+		ownerUIDMetric, contFooSidecarMetric, contSidecarSidecarMetric)
 	return metricsSink
 }
 

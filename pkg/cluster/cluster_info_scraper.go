@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/dynamic"
 	client "k8s.io/client-go/kubernetes"
 
@@ -360,11 +361,13 @@ func (s *ClusterScraper) UpdatePodControllerCache(
 			gpOwnerInfo, gpOwnerSet := util.GetOwnerInfo(controller.OwnerReferences)
 			if gpOwnerSet {
 				// Found it
+				gpOwnerInfo.Containers = controller.Containers
 				s.cache.Set(podControllerInfoKey, gpOwnerInfo, 0)
 				added++
 				continue
 			}
 		}
+		ownerInfo.Containers = controller.Containers
 		s.cache.Set(podControllerInfoKey, ownerInfo, 0)
 		added++
 	}
@@ -403,6 +406,7 @@ func (s *ClusterScraper) GetPodControllerInfo(
 	}
 
 	//2. if parent is "ReplicaSet" or "ReplicationController", check parent's parent
+	canHaveGrandParent := false
 	var res schema.GroupVersionResource
 	switch ownerInfo.Kind {
 	case commonutil.KindReplicationController:
@@ -410,29 +414,62 @@ func (s *ClusterScraper) GetPodControllerInfo(
 			Group:    commonutil.K8sAPIReplicationControllerGV.Group,
 			Version:  commonutil.K8sAPIReplicationControllerGV.Version,
 			Resource: commonutil.ReplicationControllerResName}
+		canHaveGrandParent = true
 	case commonutil.KindReplicaSet:
 		res = schema.GroupVersionResource{
 			Group:    commonutil.K8sAPIReplicasetGV.Group,
 			Version:  commonutil.K8sAPIReplicasetGV.Version,
 			Resource: commonutil.ReplicaSetResName}
+		canHaveGrandParent = true
+	case commonutil.KindStatefulSet:
+		res = schema.GroupVersionResource{
+			Group:    commonutil.K8sAPIStatefulsetGV.Group,
+			Version:  commonutil.K8sAPIStatefulsetGV.Version,
+			Resource: commonutil.StatefulSetResName}
+	case commonutil.KindDaemonSet:
+		res = schema.GroupVersionResource{
+			Group:    commonutil.K8sAPIDaemonsetGV.Group,
+			Version:  commonutil.K8sAPIDaemonsetGV.Version,
+			Resource: commonutil.DaemonSetResName}
+	case commonutil.KindJob:
+		res = schema.GroupVersionResource{
+			Group:    commonutil.K8sAPIJobGV.Group,
+			Version:  commonutil.K8sAPIJobGV.Version,
+			Resource: commonutil.JobResName}
+	case commonutil.KindCronJob:
+		res = schema.GroupVersionResource{
+			Group:    commonutil.K8sAPICronJobGV.Group,
+			Version:  commonutil.K8sAPICronJobGV.Version,
+			Resource: commonutil.CronJobResName}
 	default:
+		// Unknown resource, we still return the parent if we found one
 		s.cache.Set(podControllerInfoKey, ownerInfo, 0)
 		return ownerInfo, nil, nil, nil
 	}
 
+	var parent *unstructured.Unstructured
+	var containerNames sets.String
 	namespacedClient := s.DynamicClient.Resource(res).Namespace(pod.Namespace)
-	obj, err := namespacedClient.Get(context.TODO(), ownerInfo.Name, metav1.GetOptions{})
+	parent, err = namespacedClient.Get(context.TODO(), ownerInfo.Name, metav1.GetOptions{})
 	if err != nil {
-		err = fmt.Errorf("failed to get %s[%v/%v]: %v", ownerInfo.Kind, pod.Namespace, ownerInfo.Name, err)
-		glog.Error(err.Error())
-		return util.OwnerInfo{}, nil, nil, err
+		return util.OwnerInfo{}, nil, nil, fmt.Errorf("failed to get %s[%v/%v]: %v", ownerInfo.Kind, pod.Namespace, ownerInfo.Name, err)
 	}
-	//2.2 get parent's parent info by parsing ownerReferences:
-	gpOwnerInfo, gpOwnerSet := util.GetOwnerInfo(obj.GetOwnerReferences())
-	if gpOwnerSet {
-		s.cache.Set(podControllerInfoKey, gpOwnerInfo, 0)
-		return gpOwnerInfo, obj, namespacedClient, nil
+	containerNames, err = util.GetContainerNames(parent)
+	if err != nil {
+		return util.OwnerInfo{}, nil, nil, fmt.Errorf("failed to get container names from parent %s[%v/%v]: %v", ownerInfo.Kind, pod.Namespace, ownerInfo.Name, err)
 	}
+
+	if canHaveGrandParent {
+		//2.2 get parent's parent info by parsing ownerReferences:
+		parentOwnerInfo, gpOwnerSet := util.GetOwnerInfo(parent.GetOwnerReferences())
+		if gpOwnerSet {
+			parentOwnerInfo.Containers = containerNames
+			s.cache.Set(podControllerInfoKey, parentOwnerInfo, 0)
+			return parentOwnerInfo, parent, namespacedClient, nil
+		}
+	}
+
+	ownerInfo.Containers = containerNames
 	s.cache.Set(podControllerInfoKey, ownerInfo, 0)
-	return ownerInfo, obj, namespacedClient, nil
+	return ownerInfo, parent, namespacedClient, nil
 }

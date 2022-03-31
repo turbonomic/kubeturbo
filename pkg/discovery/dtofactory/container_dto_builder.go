@@ -83,9 +83,10 @@ func NewContainerDTOBuilder(sink *metrics.EntityMetricSink) *containerDTOBuilder
 	}
 }
 
-func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) []*proto.EntityDTO {
+func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.EntityDTO, []string) {
 	var result []*proto.EntityDTO
 	var err error
+	var sidecars []string
 
 	for _, pod := range pods {
 		podId := string(pod.UID)
@@ -112,6 +113,10 @@ func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) []*proto.En
 				// To connect Container to ContainerSpec entity, Container is Controlled by the associated ContainerSpec.
 				containerSpecId := util.ContainerSpecIdFunc(controllerUID, container.Name)
 				ebuilder.ControlledBy(containerSpecId)
+				if builder.isInjectedSidecarContainer(containerMId) {
+					// Add the containerSpec id to the set
+					sidecars = append(sidecars, containerSpecId)
+				}
 			}
 
 			//1. commodities sold
@@ -184,7 +189,21 @@ func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) []*proto.En
 		}
 	}
 
-	return result
+	return result, sidecars
+}
+
+// isInjectedSidecarContainer checks the metric "IsInjectedSidecar" which tells if this container exists in the
+// parents pod.template.spec or not.
+// If it does not exist in the parent its an injected sidecar.
+func (builder *containerDTOBuilder) isInjectedSidecarContainer(containerMId string) bool {
+	metricUID := metrics.GenerateEntityStateMetricUID(metrics.ContainerType, containerMId, metrics.IsInjectedSidecar)
+	metric, err := builder.metricsSink.GetMetric(metricUID)
+	if err != nil {
+		glog.Warningf("Failed to get IsInjectedSidecar value for container %s: %v", containerMId, err)
+		// we consider it a normal container on failures
+		return false
+	}
+	return metric.GetValue().(bool)
 }
 
 // vCPU, vMem, vCPURequest, vMemRequest and Application are sold by Container.
