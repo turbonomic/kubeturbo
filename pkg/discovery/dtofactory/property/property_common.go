@@ -4,6 +4,23 @@ import (
 	"regexp"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+)
+
+const (
+	// TODO currently in the server side only properties in "DEFAULT" namespaces are respected. Ideally we should use "Kubernetes-Pod".
+	k8sPropertyNamespace         = "DEFAULT"
+	VCTagsPropertyNamespace      = "VCTAGS"
+	k8sNamespace                 = "KubernetesNamespace"
+	k8sPodName                   = "KubernetesPodName"
+	k8sNodeName                  = "KubernetesNodeName"
+	k8sContainerIndex            = "Kubernetes-Container-Index"
+	k8sAppNamespace              = "KubernetesAppNamespace"
+	k8sAppName                   = "KubernetesAppName"
+	k8sAppType                   = "KubernetesAppType"
+	TolerationPropertyNamePrefix = "[k8s toleration]"
+	LabelPropertyNamePrefix      = "[k8s label]"
 )
 
 func BuildTagProperty(namespace string, name string, value string) *proto.EntityDTO_EntityProperty {
@@ -38,6 +55,38 @@ func BuildLabelAnnotationProperties(labelMap map[string]string, annotationMap ma
 			}
 		}
 	}
+
+	return properties
+}
+
+// Creates the properties identifying mapped application namespace, name and type
+func BuildBusinessAppRelatedProperties(app repository.K8sApp) []*proto.EntityDTO_EntityProperty {
+	var properties []*proto.EntityDTO_EntityProperty
+	propertyNamespace := k8sPropertyNamespace
+
+	appPropertyNamespaceKey := k8sAppNamespace
+	appPropertyNamespaceValue := app.Namespace
+	properties = append(properties, &proto.EntityDTO_EntityProperty{
+		Namespace: &propertyNamespace,
+		Name:      &appPropertyNamespaceKey,
+		Value:     &appPropertyNamespaceValue,
+	})
+
+	appPropertyNameKey := k8sAppName
+	appPropertyNameValue := app.Name
+	properties = append(properties, &proto.EntityDTO_EntityProperty{
+		Namespace: &propertyNamespace,
+		Name:      &appPropertyNameKey,
+		Value:     &appPropertyNameValue,
+	})
+
+	appPropertyTypeKey := k8sAppType
+	appPropertyTypeValue := app.Type
+	properties = append(properties, &proto.EntityDTO_EntityProperty{
+		Namespace: &propertyNamespace,
+		Name:      &appPropertyTypeKey,
+		Value:     &appPropertyTypeValue,
+	})
 
 	return properties
 }
