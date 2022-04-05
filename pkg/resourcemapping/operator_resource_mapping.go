@@ -12,6 +12,8 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/util"
+	v1 "k8s.io/api/core/v1"
+	apix "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -48,6 +50,8 @@ type ORMSpec struct {
 	operatorGVResource schema.GroupVersionResource
 	// Map from componentKey ("controllerKind/componentName") to ORMTemplate
 	ormTemplateMap map[string]ORMTemplate
+	// Is cluster scope or namespace scope
+	isClusterScope bool
 }
 
 // ORMClient builds operator resource mapping templates fetched from OperatorResourceMapping CR in discovery client
@@ -102,7 +106,7 @@ func (ormClient *ORMClient) CacheORMSpecMap() int {
 		crdName := ormCR.GetName()
 		namespace := ormCR.GetNamespace()
 		// Get Operator CRs of the CRD in the same namespace of ORM CR.
-		operatorCRs, gvRes, err := ormClient.getOperatorCRsFromCRD(crdName, namespace)
+		operatorCRs, gvRes, isClusterScope, err := ormClient.getOperatorCRsFromCRD(crdName, namespace)
 		if err != nil {
 			glog.Errorf("Failed to get Operator managed CRs from CRD %s, %v", crdName, err)
 			continue
@@ -122,6 +126,7 @@ func (ormClient *ORMClient) CacheORMSpecMap() int {
 				operatorResourceSpec = &ORMSpec{
 					operatorGVResource: gvRes,
 					ormTemplateMap:     ormTemplateMap,
+					isClusterScope:     isClusterScope,
 				}
 				ormClient.operatorResourceSpecMap[crUID] = operatorResourceSpec
 			}
@@ -143,22 +148,30 @@ func (ormClient *ORMClient) getORMCRList() ([]unstructured.Unstructured, error) 
 	return ormCRs.Items, nil
 }
 
-func (ormClient *ORMClient) getOperatorCRsFromCRD(crdName, namespace string) ([]unstructured.Unstructured, schema.GroupVersionResource, error) {
+func (ormClient *ORMClient) getOperatorCRsFromCRD(crdName, namespace string) ([]unstructured.Unstructured, schema.GroupVersionResource, bool, error) {
 	crds := ormClient.apiExtClient.CustomResourceDefinitions()
 	crd, err := crds.Get(context.TODO(), crdName, metav1.GetOptions{})
+	var isClusterScope bool
 	if err != nil {
-		return nil, schema.GroupVersionResource{}, err
+		return nil, schema.GroupVersionResource{}, isClusterScope, err
 	}
 	groupVersionRes := schema.GroupVersionResource{
 		Group:    crd.Spec.Group,
 		Version:  crd.Spec.Versions[0].Name,
 		Resource: crd.Spec.Names.Plural,
 	}
-	crs, err := ormClient.dynClient.Resource(groupVersionRes).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return nil, groupVersionRes, err
+	var crs *unstructured.UnstructuredList
+	if crd.Spec.Scope == apix.NamespaceScoped {
+		crs, err = ormClient.dynClient.Resource(groupVersionRes).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
+	} else {
+		crs, err = ormClient.dynClient.Resource(groupVersionRes).Namespace(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+		isClusterScope = true
 	}
-	return crs.Items, groupVersionRes, nil
+
+	if err != nil {
+		return nil, groupVersionRes, isClusterScope, err
+	}
+	return crs.Items, groupVersionRes, isClusterScope, nil
 }
 
 func (ormClient *ORMClient) populateORMTemplateMap(ormCR unstructured.Unstructured) (map[string]ORMTemplate, error) {
@@ -238,6 +251,9 @@ func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unst
 	operatorRes := operatorResKind + "/" + operatorResName
 
 	resourceNamespace := updatedControllerObj.GetNamespace()
+	if operatorResourceSpec.isClusterScope {
+		resourceNamespace = v1.NamespaceAll
+	}
 	dynResourceClient := ormClient.dynClient.Resource(operatorResourceSpec.operatorGVResource).Namespace(resourceNamespace)
 	operatorCR, err := dynResourceClient.Get(context.TODO(), operatorResName, metav1.GetOptions{})
 	if err != nil {
