@@ -168,48 +168,56 @@ func (builder *workloadControllerDTOBuilder) getContainerSpecIds(kubeController 
 
 func (builder *workloadControllerDTOBuilder) createWorkloadControllerData(kubeController *repository.KubeController) *proto.EntityDTO_WorkloadControllerData {
 	controllerType := kubeController.ControllerType
+	replicaCount := int32(len(kubeController.Pods))
 	switch controllerType {
 	case util.KindCronJob:
 		return &proto.EntityDTO_WorkloadControllerData{
 			ControllerType: &proto.EntityDTO_WorkloadControllerData_CronJobData{
 				CronJobData: &proto.EntityDTO_CronJobData{},
 			},
+			ReplicaCount: &replicaCount,
 		}
 	case util.KindDaemonSet:
 		return &proto.EntityDTO_WorkloadControllerData{
 			ControllerType: &proto.EntityDTO_WorkloadControllerData_DaemonSetData{
 				DaemonSetData: &proto.EntityDTO_DaemonSetData{},
 			},
+			ReplicaCount: &replicaCount,
 		}
 	case util.KindDeployment:
 		return &proto.EntityDTO_WorkloadControllerData{
 			ControllerType: &proto.EntityDTO_WorkloadControllerData_DeploymentData{
 				DeploymentData: &proto.EntityDTO_DeploymentData{},
 			},
+			ReplicaCount: &replicaCount,
 		}
 	case util.KindJob:
 		return &proto.EntityDTO_WorkloadControllerData{
 			ControllerType: &proto.EntityDTO_WorkloadControllerData_JobData{
 				JobData: &proto.EntityDTO_JobData{},
 			},
+			ReplicaCount: &replicaCount,
 		}
 	case util.KindReplicaSet:
 		return &proto.EntityDTO_WorkloadControllerData{
 			ControllerType: &proto.EntityDTO_WorkloadControllerData_ReplicaSetData{
 				ReplicaSetData: &proto.EntityDTO_ReplicaSetData{},
 			},
+			ReplicaCount: &replicaCount,
 		}
 	case util.KindReplicationController:
 		return &proto.EntityDTO_WorkloadControllerData{
 			ControllerType: &proto.EntityDTO_WorkloadControllerData_ReplicationControllerData{
 				ReplicationControllerData: &proto.EntityDTO_ReplicationControllerData{},
 			},
+			ReplicaCount: &replicaCount,
 		}
 	case util.KindStatefulSet:
 		return &proto.EntityDTO_WorkloadControllerData{
 			ControllerType: &proto.EntityDTO_WorkloadControllerData_StatefulSetData{
 				StatefulSetData: &proto.EntityDTO_StatefulSetData{},
 			},
+			ReplicaCount: &replicaCount,
 		}
 	default:
 		return &proto.EntityDTO_WorkloadControllerData{
@@ -218,6 +226,7 @@ func (builder *workloadControllerDTOBuilder) createWorkloadControllerData(kubeCo
 					CustomControllerType: &controllerType,
 				},
 			},
+			ReplicaCount: &replicaCount,
 		}
 	}
 }

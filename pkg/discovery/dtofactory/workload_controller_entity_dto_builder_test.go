@@ -78,10 +78,12 @@ func TestBuildDTOs(t *testing.T) {
 			assert.ElementsMatch(t, expectedCommoditiesBought, commoditiesBought.GetBought())
 
 			// Test create WorkloadControllerData with DeploymentData
+			deploymentReplicaCount := int32(1)
 			expectedWorkloadControllerData1 := &proto.EntityDTO_WorkloadControllerData{
 				ControllerType: &proto.EntityDTO_WorkloadControllerData_DeploymentData{
 					DeploymentData: &proto.EntityDTO_DeploymentData{},
 				},
+				ReplicaCount: &deploymentReplicaCount,
 			}
 			workloadControllerData1 := entityDTO.GetWorkloadControllerData()
 			assert.EqualValues(t, expectedWorkloadControllerData1, workloadControllerData1)
@@ -97,12 +99,14 @@ func TestBuildDTOs(t *testing.T) {
 			assert.False(t, actionEligibility.GetSuspendable())
 
 			// Test create WorkloadControllerData with CustomControllerData
+			customControllerReplicaCount := int32(0)
 			expectedWorkloadControllerData2 := &proto.EntityDTO_WorkloadControllerData{
 				ControllerType: &proto.EntityDTO_WorkloadControllerData_CustomControllerData{
 					CustomControllerData: &proto.EntityDTO_CustomControllerData{
 						CustomControllerType: &testCustomControllerType,
 					},
 				},
+				ReplicaCount: &customControllerReplicaCount,
 			}
 			workloadControllerData2 := entityDTO.GetWorkloadControllerData()
 			assert.EqualValues(t, expectedWorkloadControllerData2, workloadControllerData2)
