@@ -2,13 +2,14 @@ package dtofactory
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
-	"testing"
 )
 
 var (
@@ -175,6 +176,9 @@ func createKubeController(clustername, namespace, name, controllerType, uid stri
 					Name: "Foo",
 				},
 			},
+		},
+		Status: api.PodStatus{
+			Phase: api.PodRunning,
 		},
 	}
 	kubeController.Pods = append(kubeController.Pods, pod)

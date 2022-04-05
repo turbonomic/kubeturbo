@@ -9,6 +9,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	v1 "k8s.io/api/core/v1"
 )
 
 type workloadControllerDTOBuilder struct {
@@ -166,9 +167,19 @@ func (builder *workloadControllerDTOBuilder) getContainerSpecIds(kubeController 
 	return containerSpecIds
 }
 
+func getActiveReplicaCount(kubeController *repository.KubeController) int32 {
+	replicaCount := 0
+	for _, pod := range kubeController.Pods {
+		if pod.Status.Phase == v1.PodRunning {
+			replicaCount++
+		}
+	}
+	return int32(replicaCount)
+}
+
 func (builder *workloadControllerDTOBuilder) createWorkloadControllerData(kubeController *repository.KubeController) *proto.EntityDTO_WorkloadControllerData {
 	controllerType := kubeController.ControllerType
-	replicaCount := int32(len(kubeController.Pods))
+	replicaCount := getActiveReplicaCount(kubeController)
 	switch controllerType {
 	case util.KindCronJob:
 		return &proto.EntityDTO_WorkloadControllerData{
