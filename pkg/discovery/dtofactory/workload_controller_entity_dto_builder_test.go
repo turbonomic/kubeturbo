@@ -2,13 +2,14 @@ package dtofactory
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
-	"testing"
 )
 
 var (
@@ -78,10 +79,12 @@ func TestBuildDTOs(t *testing.T) {
 			assert.ElementsMatch(t, expectedCommoditiesBought, commoditiesBought.GetBought())
 
 			// Test create WorkloadControllerData with DeploymentData
+			deploymentReplicaCount := int32(1)
 			expectedWorkloadControllerData1 := &proto.EntityDTO_WorkloadControllerData{
 				ControllerType: &proto.EntityDTO_WorkloadControllerData_DeploymentData{
 					DeploymentData: &proto.EntityDTO_DeploymentData{},
 				},
+				ReplicaCount: &deploymentReplicaCount,
 			}
 			workloadControllerData1 := entityDTO.GetWorkloadControllerData()
 			assert.EqualValues(t, expectedWorkloadControllerData1, workloadControllerData1)
@@ -97,12 +100,14 @@ func TestBuildDTOs(t *testing.T) {
 			assert.False(t, actionEligibility.GetSuspendable())
 
 			// Test create WorkloadControllerData with CustomControllerData
+			customControllerReplicaCount := int32(0)
 			expectedWorkloadControllerData2 := &proto.EntityDTO_WorkloadControllerData{
 				ControllerType: &proto.EntityDTO_WorkloadControllerData_CustomControllerData{
 					CustomControllerData: &proto.EntityDTO_CustomControllerData{
 						CustomControllerType: &testCustomControllerType,
 					},
 				},
+				ReplicaCount: &customControllerReplicaCount,
 			}
 			workloadControllerData2 := entityDTO.GetWorkloadControllerData()
 			assert.EqualValues(t, expectedWorkloadControllerData2, workloadControllerData2)
@@ -171,6 +176,9 @@ func createKubeController(clustername, namespace, name, controllerType, uid stri
 					Name: "Foo",
 				},
 			},
+		},
+		Status: api.PodStatus{
+			Phase: api.PodRunning,
 		},
 	}
 	kubeController.Pods = append(kubeController.Pods, pod)
