@@ -12,6 +12,7 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 )
 
@@ -101,12 +102,17 @@ func (cp *ControllerProcessor) cacheAllControllers() {
 			kind := item.GetKind()
 			name := item.GetName()
 			namespace := item.GetNamespace()
+			containerNames, err := discoveryutil.GetContainerNames(&item)
+			if err != nil {
+				glog.Warningf("Could not find containers in %s %s/%s: %s", kind, namespace, name, err)
+			}
 			// insert into the map
 			k8sController := repository.
 				NewK8sController(kind, name, namespace, uid).
 				WithLabels(item.GetLabels()).
 				WithAnnotations(item.GetAnnotations()).
-				WithOwnerReferences(item.GetOwnerReferences())
+				WithOwnerReferences(item.GetOwnerReferences()).
+				WithContainerNames(containerNames)
 			replicas, found, err := unstructured.NestedInt64(item.Object, "spec", "replicas")
 			if err != nil {
 				glog.Warningf("The spec.replicas of %s %s/%s is not an integer.", kind, namespace, name)

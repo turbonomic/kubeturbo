@@ -147,16 +147,32 @@ func (p *BusinessAppProcessor) getArgoCDAppEntities(unstructuredApp unstructured
 			Kind: typedResource["kind"].(string),
 		}
 		if _, exists := typedResource["group"]; !exists {
-			// The core group resouces have an empty group
+			// Handle core group resources. The core group resouces have an empty group
 			gk.Group = ""
 		} else {
 			gk.Group = typedResource["group"].(string)
 		}
 
-		entity, err := p.getEntity(gk, typedResource["name"].(string), typedResource["namespace"].(string))
+		namespace := ""
+		if ns, exists := typedResource["namespace"]; exists {
+			// Handle cluster wide resources. The cluster wide resouces have an empty ns
+			namespace = ns.(string)
+		}
+
+		name := ""
+		if n, exists := typedResource["name"]; exists {
+			name = n.(string)
+		} else {
+			// As a safeguard lets expect that argocd can list a resource without name
+			glog.Warningf("Error processing entities for argocd app %s/%s entity %v, %v",
+				unstructuredApp.GetNamespace(), unstructuredApp.GetName(), typedResource, err)
+			continue
+		}
+
+		entity, err := p.getEntity(gk, name, namespace)
 		if err != nil {
-			glog.Warningf("Error processing entities for argocd app %s/%s entity %v/%v, %v",
-				unstructuredApp.GetNamespace(), unstructuredApp.GetName(), typedResource["group"], typedResource["group"], err)
+			glog.Warningf("Error processing entities for argocd app %s/%s entity %v, %v",
+				unstructuredApp.GetNamespace(), unstructuredApp.GetName(), typedResource, err)
 			continue
 		}
 		allEntities = append(allEntities, *entity)
@@ -221,6 +237,12 @@ func renderTypeInfo(gk metav1.GroupKind) (schema.GroupVersionResource, proto.Ent
 			Version:  "v1",
 			Resource: "pods"}
 		entityType = proto.EntityDTO_CONTAINER_POD
+	case "Namespace":
+		res = schema.GroupVersionResource{
+			Group:    "",
+			Version:  "v1",
+			Resource: "namespaces"}
+		entityType = proto.EntityDTO_NAMESPACE
 	default:
 		return res, entityType, fmt.Errorf("unsupport group kind type %s", gk.String())
 	}

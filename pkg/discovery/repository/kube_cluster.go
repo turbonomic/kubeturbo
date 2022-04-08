@@ -9,6 +9,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -325,7 +326,8 @@ type K8sController struct {
 	Annotations     map[string]string
 	OwnerReferences []metav1.OwnerReference
 	// May not exist in all controllers. For Daemonset, defaults to number of nodes in the cluster.
-	Replicas *int64
+	Replicas   *int64
+	Containers sets.String
 }
 
 func NewK8sController(kind, name, namespace, uid string) *K8sController {
@@ -354,6 +356,11 @@ func (kc *K8sController) WithOwnerReferences(owners []metav1.OwnerReference) *K8
 
 func (kc *K8sController) WithReplicas(replicas int64) *K8sController {
 	kc.Replicas = &replicas
+	return kc
+}
+
+func (kc *K8sController) WithContainerNames(names sets.String) *K8sController {
+	kc.Containers = names
 	return kc
 }
 

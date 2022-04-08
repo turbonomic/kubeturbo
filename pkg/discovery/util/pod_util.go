@@ -11,6 +11,9 @@ import (
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	client "k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
@@ -279,7 +282,7 @@ func GetPodParentInfo(pod *api.Pod) (OwnerInfo, error) {
 				return OwnerInfo{}, err
 			}
 
-			return OwnerInfo{ref.Reference.Kind, ref.Reference.Name, string(ref.Reference.UID)}, nil
+			return OwnerInfo{ref.Reference.Kind, ref.Reference.Name, string(ref.Reference.UID), nil}, nil
 		}
 	}
 
@@ -431,4 +434,22 @@ func GetPodEvents(kubeClient *client.Clientset, namespace, name string) (podEven
 		})
 	}
 	return
+}
+
+func GetContainerNames(parent *unstructured.Unstructured) (sets.String, error) {
+	podSpecUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "spec", "template", "spec")
+	if err != nil || !found {
+		return nil, fmt.Errorf("error retrieving podSpec from %s %s: %v", parent.GetKind(), parent.GetName(), err)
+	}
+
+	podSpec := api.PodSpec{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(podSpecUnstructured.(map[string]interface{}), &podSpec); err != nil {
+		return nil, fmt.Errorf("error converting unstructured pod spec to typed pod spec for %s %s: %v", parent.GetKind(), parent.GetName(), err)
+	}
+
+	names := []string{}
+	for _, container := range podSpec.Containers {
+		names = append(names, container.Name)
+	}
+	return sets.NewString(names...), nil
 }

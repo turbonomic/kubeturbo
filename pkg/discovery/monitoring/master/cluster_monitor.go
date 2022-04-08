@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
@@ -291,11 +292,21 @@ func (m *ClusterMonitor) genContainerMetrics(pod *api.Pod, podCPUMillicore, podM
 		//3. Owner
 		podOwner, exists := m.podOwners[podKey]
 		if exists {
+			m.genContainerSidecarMetric(containerMId, IsInjectedSidecar(container.Name, podOwner.Containers))
 			m.genOwnerMetrics(metrics.ContainerType, containerMId, podOwner.Kind, podOwner.Name, podOwner.Uid)
 		}
 	}
 
 	return totalCPURequest, totalMemRequest
+}
+
+func IsInjectedSidecar(name string, containers sets.String) bool {
+	return containers != nil && !containers.Has(name)
+}
+
+func (m *ClusterMonitor) genContainerSidecarMetric(key string, IsInjectedSidecar bool) {
+	sidecarMetric := metrics.NewEntityStateMetric(metrics.ContainerType, key, metrics.IsInjectedSidecar, IsInjectedSidecar)
+	m.sink.AddNewMetricEntries(sidecarMetric)
 }
 
 func (m *ClusterMonitor) genOwnerMetrics(etype metrics.DiscoveredEntityType, key, kind, parentName, uid string) {
