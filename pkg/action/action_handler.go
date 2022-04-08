@@ -11,6 +11,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	api "k8s.io/api/core/v1"
 
@@ -175,7 +176,7 @@ func (h *ActionHandler) ExecuteAction(actionExecutionDTO *proto.ActionExecutionD
 	glog.V(3).Infof("Now wait for action result")
 	err := h.execute(actionExecutionDTO.GetActionItem())
 	if err != nil {
-		glog.Errorf("action execution error %++v", err)
+		glog.Errorf("action execution error: %++v", err)
 		return h.failedResult(err.Error()), err
 	}
 
@@ -354,9 +355,10 @@ func (h *ActionHandler) checkActionExecutionDTO(actionExecutionDTO *proto.Action
 	if targetSE == nil {
 		return fmt.Errorf("no target SE found")
 	}
+	namespace, _ := property.GetWorkloadNamespaceFromProperty(targetSE.GetEntityProperties())
 
-	glog.V(2).Infof("Received an action %v for entity %v [%v]",
-		actionType, targetSE.GetEntityType(), targetSE.GetDisplayName())
+	glog.V(2).Infof("Received an action %v for entity %v [%v] in namespace [%v]",
+		actionType, targetSE.GetEntityType(), targetSE.GetDisplayName(), namespace)
 
 	// Check if action is supported
 	turboActionType := turboActionType{
