@@ -44,6 +44,7 @@ const (
 	Owner               ResourceType = "Owner"
 	OwnerType           ResourceType = "OwnerType"
 	OwnerUID            ResourceType = "OwnerUID"
+	IsInjectedSidecar   ResourceType = "IsInjectedSidecar"
 	MetricsAvailability ResourceType = "MetricsAvailability"
 )
 

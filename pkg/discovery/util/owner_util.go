@@ -3,6 +3,7 @@ package util
 import (
 	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // Utilities to handle operations related to OwnerReference
@@ -11,6 +12,8 @@ type OwnerInfo struct {
 	Kind string
 	Name string
 	Uid  string
+	// Stores the name of containers in the parents pod template spec
+	Containers sets.String
 }
 
 // GetOwnerInfo get owner info by parsing the ownerReference of an object

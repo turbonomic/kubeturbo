@@ -1,9 +1,15 @@
 package worker
 
 import (
+	"fmt"
+
 	"github.com/golang/glog"
+
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/turbo-go-sdk/pkg/builder/group"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
@@ -31,7 +37,7 @@ func Newk8sEntityGroupDiscoveryWorker(cluster *repository.ClusterSummary,
 // It merges the group members belonging to the same group but discovered by different discovery workers.
 // Then it creates DTOs for the pod/container groups to be sent to the server.
 func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.EntityGroup,
-) ([]*proto.GroupDTO, error) {
+	sidecarContainerSpecs []string) ([]*proto.GroupDTO, error) {
 	var groupDTOs []*proto.GroupDTO
 
 	// Entity groups per Owner type and instance
@@ -73,9 +79,7 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 
 	// Create DTO for cluster
 	clusterGroupDTOs := dtofactory.NewClusterDTOBuilder(worker.cluster, worker.targetId).BuildGroup()
-	for _, clusterGroupDTO := range clusterGroupDTOs {
-		groupDTOs = append(groupDTOs, clusterGroupDTO)
-	}
+	groupDTOs = append(groupDTOs, clusterGroupDTOs...)
 
 	// Create static groups for HA Nodes
 	NodeRolesGroupDTOs := dtofactory.
@@ -86,6 +90,48 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 		Build()
 	groupDTOs = append(groupDTOs, NodeRolesGroupDTOs...)
 	groupDTOs = append(groupDTOs, NodePoolsGroupDTOs...)
+	groupDTOs = append(groupDTOs, worker.buildSidecarContainerSpecGroup(sidecarContainerSpecs)...)
 
 	return groupDTOs, nil
+}
+
+func (worker *k8sEntityGroupDiscoveryWorker) buildSidecarContainerSpecGroup(sidecarContainerSpecs []string) []*proto.GroupDTO {
+	var groupsDTOs []*proto.GroupDTO
+	if len(sidecarContainerSpecs) <= 0 {
+		return groupsDTOs
+	}
+	id := fmt.Sprintf("Injected Sidecars/All-ContainerSpecs-%s", worker.targetId)
+	displayName := "Injected Sidecars/All ContainerSpecs"
+
+	settings := group.NewSettingsBuilder().
+		AddSetting(group.NewResizeAutomationPolicySetting("RECOMMEND")).
+		Build()
+
+	settingPolicy, err := group.NewSettingPolicyBuilder().
+		WithDisplayName(displayName + " Resize Recommend Only " + "[" + worker.targetId + "]").
+		WithName(id).
+		WithSettings(settings).
+		Build()
+	if err != nil {
+		glog.Errorf("Error creating setting policy dto  %s: %s", id, err)
+		return groupsDTOs
+	}
+
+	uniqueSpecs := sets.NewString(sidecarContainerSpecs...)
+	// static group
+	groupBuilder := group.StaticRegularGroup(id).
+		OfType(proto.EntityDTO_CONTAINER_SPEC).
+		WithEntities(uniqueSpecs.UnsortedList()).
+		WithDisplayName(displayName).
+		WithSettingPolicy(settingPolicy)
+
+	// build group
+	groupDTO, err := groupBuilder.Build()
+	if err != nil {
+		glog.Errorf("Error creating group dto  %s::%s", id, err)
+		return groupsDTOs
+	}
+	groupsDTOs = append(groupsDTOs, groupDTO)
+
+	return groupsDTOs
 }

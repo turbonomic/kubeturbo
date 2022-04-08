@@ -130,16 +130,17 @@ type TaskResultState string
 // A TaskResult contains a state, indicate whether the task is finished successfully; a err if there is any; a list of
 // EntityDTO.
 type TaskResult struct {
-	workerID             string
-	state                TaskResultState
-	err                  error
-	content              []*proto.EntityDTO
-	namespaceMetrics     []*repository.NamespaceMetrics
-	entityGroups         []*repository.EntityGroup
-	podEntities          []*repository.KubePod
-	kubeControllers      []*repository.KubeController
-	containerSpecMetrics []*repository.ContainerSpecMetrics
-	podVolumeMetrics     []*repository.PodVolumeMetrics
+	workerID              string
+	state                 TaskResultState
+	err                   error
+	content               []*proto.EntityDTO
+	namespaceMetrics      []*repository.NamespaceMetrics
+	entityGroups          []*repository.EntityGroup
+	podEntities           []*repository.KubePod
+	kubeControllers       []*repository.KubeController
+	containerSpecMetrics  []*repository.ContainerSpecMetrics
+	podVolumeMetrics      []*repository.PodVolumeMetrics
+	sidecarContainerSpecs []string
 }
 
 func NewTaskResult(workerID string, state TaskResultState) *TaskResult {
@@ -185,6 +186,10 @@ func (r *TaskResult) PodVolumeMetrics() []*repository.PodVolumeMetrics {
 	return r.podVolumeMetrics
 }
 
+func (r *TaskResult) SidecarContainerSpecs() []string {
+	return r.sidecarContainerSpecs
+}
+
 func (r *TaskResult) Err() error {
 	return r.err
 }
@@ -226,5 +231,10 @@ func (r *TaskResult) WithContainerSpecMetrics(containerSpecMetrics []*repository
 
 func (r *TaskResult) WithPodVolumeMetrics(podVolumeMetrics []*repository.PodVolumeMetrics) *TaskResult {
 	r.podVolumeMetrics = podVolumeMetrics
+	return r
+}
+
+func (r *TaskResult) WithSidecarContainerSpecs(sidecarContainerSpecs []string) *TaskResult {
+	r.sidecarContainerSpecs = sidecarContainerSpecs
 	return r
 }

@@ -15,15 +15,16 @@ type ResultCollector struct {
 }
 
 type DiscoveryResult struct {
-	EntityDTOs           []*proto.EntityDTO
-	NamespaceMetrics     []*repository.NamespaceMetrics
-	EntityGroups         []*repository.EntityGroup
-	KubeControllers      []*repository.KubeController
-	ContainerSpecMetrics []*repository.ContainerSpecMetrics
-	PodVolumeMetrics     []*repository.PodVolumeMetrics
-	PodEntitiesMap       map[string]*repository.KubePod
-	SuccessCount         int
-	ErrorCount           int
+	EntityDTOs            []*proto.EntityDTO
+	NamespaceMetrics      []*repository.NamespaceMetrics
+	EntityGroups          []*repository.EntityGroup
+	KubeControllers       []*repository.KubeController
+	ContainerSpecMetrics  []*repository.ContainerSpecMetrics
+	PodVolumeMetrics      []*repository.PodVolumeMetrics
+	PodEntitiesMap        map[string]*repository.KubePod
+	SidecarContainerSpecs []string
+	SuccessCount          int
+	ErrorCount            int
 }
 
 func NewResultCollector(maxWorkerNumber int) *ResultCollector {
@@ -71,6 +72,7 @@ func (rc *ResultCollector) Collect(count int) *DiscoveryResult {
 					result.KubeControllers = append(result.KubeControllers, taskResult.KubeControllers()...)
 					// ContainerSpecs with individual container replica commodities data from different discovery workers
 					result.ContainerSpecMetrics = append(result.ContainerSpecMetrics, taskResult.ContainerSpecMetrics()...)
+					result.SidecarContainerSpecs = append(result.SidecarContainerSpecs, taskResult.SidecarContainerSpecs()...)
 				}
 				wg.Done()
 			}
