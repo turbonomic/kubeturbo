@@ -228,11 +228,12 @@ func (h *ActionHandler) execute(actionItems []*proto.ActionItemDTO) error {
 
 	actionType := getTurboActionType(actionItem)
 	worker := h.actionExecutors[actionType]
+	namespace, _ := property.GetWorkloadNamespaceFromProperty(actionItem.GetTargetSE().GetEntityProperties())
 	output, err := worker.Execute(input)
 	if err != nil {
-		glog.Errorf("Failed to execute action %v on %v [%v]: %v",
+		glog.Errorf("Failed to execute action %v on %v [%v/%v]: %v",
 			actionType.actionType, actionItem.GetTargetSE().GetEntityType(),
-			actionItem.GetTargetSE().GetDisplayName(), err)
+			namespace, actionItem.GetTargetSE().GetDisplayName(), err)
 		return err
 	}
 	// Process the action execution output, including caching the pod name change.

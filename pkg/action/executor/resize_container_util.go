@@ -38,7 +38,7 @@ func updateRequests(container *k8sapi.Container, patchRequests k8sapi.ResourceLi
 	}
 
 	if changed {
-		glog.V(2).Infof("Try to update container %v for the workload controller [%v] resource request from %+v to %+v",
+		glog.V(2).Infof("Try to update container %v in the workload controller [%v] resource request from %+v to %+v",
 			container.Name, objectID, container.Resources.Requests, result)
 		container.Resources.Requests = result
 	}
@@ -66,7 +66,7 @@ func updateLimits(container *k8sapi.Container, patchCapacity k8sapi.ResourceList
 	}
 
 	if changed {
-		glog.V(2).Infof("Try to update container %v for the workload controller [%v] resource limit from %+v to %v",
+		glog.V(2).Infof("Try to update container %v in the workload controller [%v] resource limit from %+v to %v",
 			container.Name, objectID, container.Resources.Limits, result)
 		container.Resources.Limits = result
 	}

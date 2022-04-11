@@ -169,7 +169,7 @@ func (r *ContainerResizer) setZeroRequest(resizerName string, podSpec *k8sapi.Po
 
 func (r *ContainerResizer) buildResizeSpec(actionItem *proto.ActionItemDTO, resizerName string, podSpec *k8sapi.PodSpec, containerIndex int) (*containerResizeSpec, error) {
 	if containerIndex < 0 || containerIndex > len(podSpec.Containers) {
-		return nil, fmt.Errorf("invalid containerIndex %d", containerIndex)
+		return nil, fmt.Errorf("cannot find the container <%v> with the index <%v> in the parents pod spec", actionItem.GetCurrentSE().GetDisplayName(), containerIndex)
 	}
 
 	// build the new resource requirements

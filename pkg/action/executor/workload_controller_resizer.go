@@ -56,9 +56,9 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 		// build resize specification
 		spec, err := cr.buildResizeSpec(item, controllerName, podSpec, getContainerIndex(podSpec, item.GetCurrentSE().GetDisplayName()))
 		if err != nil {
-			glog.Errorf("Failed to build resize spec for the container %v of the workload controller %v/%v as the reason: %v",
+			glog.Errorf("Failed to build resize spec for the container %v of the workload controller %v/%v due to: %v",
 				item.GetCurrentSE().GetDisplayName(), namespace, controllerName, err)
-			return &TurboActionExecutorOutput{}, fmt.Errorf("%v, the container has the name %v and is in the namespace %v", err, item.GetCurrentSE().GetDisplayName(), namespace)
+			return &TurboActionExecutorOutput{}, fmt.Errorf("could not find container %v in parents pod template spec. It is likely an injected sidecar", item.GetCurrentSE().GetDisplayName())
 
 		}
 
