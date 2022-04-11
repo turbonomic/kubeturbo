@@ -178,7 +178,7 @@ func (c *k8sControllerUpdater) reconcile(current *k8sControllerSpec, desired *co
 	}
 	glog.V(4).Infof("Try to update resources for container indexes: %s in pod template spec of %v %s/%s .",
 		indexes, c.controller, c.namespace, c.name)
-	updated, err := updateResourceAmount(current.podSpec, desired.resizeSpecs, current.controllerName)
+	updated, err := updateResourceAmount(current.podSpec, desired.resizeSpecs, fmt.Sprintf("%s/%s", c.namespace, c.name))
 	if err != nil {
 		return false, err
 	}

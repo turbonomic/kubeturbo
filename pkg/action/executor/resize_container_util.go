@@ -18,7 +18,7 @@ import (
 )
 
 // update the Pod.Containers[index]'s Resources.Requests
-func updateRequests(container *k8sapi.Container, patchRequests k8sapi.ResourceList) bool {
+func updateRequests(container *k8sapi.Container, patchRequests k8sapi.ResourceList, objectID string) bool {
 	glog.V(4).Infof("Begin to update Request.")
 	changed := false
 
@@ -38,15 +38,15 @@ func updateRequests(container *k8sapi.Container, patchRequests k8sapi.ResourceLi
 	}
 
 	if changed {
-		glog.V(2).Infof("Try to update container %v resource request from %+v to %+v",
-			container.Name, container.Resources.Requests, result)
+		glog.V(2).Infof("Try to update container %v in the workload controller [%v] resource request from %+v to %+v",
+			container.Name, objectID, container.Resources.Requests, result)
 		container.Resources.Requests = result
 	}
 	return changed
 }
 
 // update the Pod.Containers[index]'s Resources.Limits
-func updateLimits(container *k8sapi.Container, patchCapacity k8sapi.ResourceList) bool {
+func updateLimits(container *k8sapi.Container, patchCapacity k8sapi.ResourceList, objectID string) bool {
 	glog.V(4).Infof("Begin to update Capacity.")
 	changed := false
 
@@ -66,8 +66,8 @@ func updateLimits(container *k8sapi.Container, patchCapacity k8sapi.ResourceList
 	}
 
 	if changed {
-		glog.V(2).Infof("Try to update container %v resource limit from %+v to %v",
-			container.Name, container.Resources.Limits, result)
+		glog.V(2).Infof("Try to update container %v in the workload controller [%v] resource limit from %+v to %v",
+			container.Name, objectID, container.Resources.Limits, result)
 		container.Resources.Limits = result
 	}
 
@@ -112,12 +112,12 @@ func updateResourceAmount(podSpec *k8sapi.PodSpec, specs []*containerResizeSpec,
 
 		//2. update Limits
 		if spec.NewCapacity != nil && len(spec.NewCapacity) > 0 {
-			thisSpecChanged = thisSpecChanged || updateLimits(container, spec.NewCapacity)
+			thisSpecChanged = thisSpecChanged || updateLimits(container, spec.NewCapacity, objectID)
 		}
 
 		//3. update Requests
 		if spec.NewRequest != nil && len(spec.NewRequest) > 0 {
-			thisSpecChanged = thisSpecChanged || updateRequests(container, spec.NewRequest)
+			thisSpecChanged = thisSpecChanged || updateRequests(container, spec.NewRequest, objectID)
 		}
 
 		//4. check the new Limits vs. Requests, make sure Limits >= Requests
