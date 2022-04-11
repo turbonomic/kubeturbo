@@ -15,6 +15,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	typedClient "k8s.io/client-go/kubernetes"
 
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	actionutil "github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/util"
@@ -53,7 +54,7 @@ type parentController struct {
 	name       string
 	ormClient  *resourcemapping.ORMClient
 	managerApp *repository.K8sApp
-	gitConfig  GitConfig
+	gitConfig  gitops.GitConfig
 }
 
 func (c *parentController) get(name string) (*k8sControllerSpec, error) {
@@ -113,14 +114,18 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 	}
 
 	if c.managerApp != nil {
-		// The workload is managed by a pipeline controller (argoCD) which replicates
-		// it from a source of truth
-		// TODO: Define a scheme to execute this action optionally via Change Reconciler if need be.
-		// As of now retaining the CR relavant code in change_request_controller.go
-		gitManager := newGitManager(c.gitConfig, c.clients.typedClient, c.clients.dynClient, c.obj, c.managerApp)
-		err := gitManager.update(int64(*updatedSpec.replicas), podSpecUnstructured)
+		var manager gitops.GitopsManager
+		switch c.managerApp.Type {
+		case repository.AppTypeArgoCD:
+			// The workload is managed by a pipeline controller (argoCD) which replicates
+			// it from a source of truth
+			manager = gitops.NewGitHubManager(c.gitConfig, c.clients.typedClient, c.clients.dynClient, c.obj, c.managerApp)
+		default:
+			return fmt.Errorf("unsupported gitops manager type: %v", c.managerApp.Type)
+		}
+		manager.Update(int64(*updatedSpec.replicas), podSpecUnstructured)
 		if err != nil {
-			return fmt.Errorf("failed to create a ChangeRequest: %v", err)
+			return fmt.Errorf("failed to update the gitops managed source of truth: %v", err)
 		}
 		return nil
 	}

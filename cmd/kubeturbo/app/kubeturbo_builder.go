@@ -32,6 +32,7 @@ import (
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	nodeUtil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
@@ -152,7 +153,7 @@ type VMTServer struct {
 	readinessRetryThreshold int
 
 	// Git configuration for gitops based action execution
-	gitConfig executor.GitConfig
+	gitConfig gitops.GitConfig
 }
 
 // NewVMTServer creates a new VMTServer with default parameters

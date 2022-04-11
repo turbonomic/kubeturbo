@@ -7,14 +7,16 @@ import (
 
 	"github.com/golang/glog"
 
-	"github.com/turbonomic/kubeturbo/pkg/action/util"
-	"github.com/turbonomic/kubeturbo/pkg/cluster"
-	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	k8sapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "k8s.io/client-go/kubernetes"
+
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
+	"github.com/turbonomic/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 )
 
 // update the Pod.Containers[index]'s Resources.Requests
@@ -160,7 +162,7 @@ func genMemoryQuantity(newValue float64) (resource.Quantity, error) {
 }
 
 func resizeContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, spec *containerResizeSpec,
-	consistentResize bool, ormSpec *resourcemapping.ORMClient, gitConfig GitConfig) (*k8sapi.Pod, error) {
+	consistentResize bool, ormSpec *resourcemapping.ORMClient, gitConfig gitops.GitConfig) (*k8sapi.Pod, error) {
 	if consistentResize {
 		return nil, resizeControllerContainer(clusterScraper, pod, spec, ormSpec, gitConfig)
 	}
@@ -178,7 +180,7 @@ func resizeContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, sp
 //   are not affected. Only newly created pods (through scaling action) will use the updated
 //   resource
 func resizeControllerContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, spec *containerResizeSpec,
-	ormClient *resourcemapping.ORMClient, gitConfig GitConfig) error {
+	ormClient *resourcemapping.ORMClient, gitConfig gitops.GitConfig) error {
 	// prepare controllerUpdater
 	controllerUpdater, err := newK8sControllerUpdaterViaPod(clusterScraper, pod, ormClient, gitConfig)
 	if err != nil {

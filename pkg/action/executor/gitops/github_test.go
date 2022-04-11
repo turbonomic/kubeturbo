@@ -1,4 +1,4 @@
-package executor
+package gitops
 
 import (
 	"net/http"

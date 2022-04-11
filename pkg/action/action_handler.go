@@ -18,6 +18,7 @@ import (
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	kubeletclient "github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 )
@@ -54,12 +55,12 @@ type ActionHandlerConfig struct {
 	failVolumePodMoves      bool
 	updateQuotaToAllowMoves bool
 	readinessRetryThreshold int
-	gitConfig               executor.GitConfig
+	gitConfig               gitops.GitConfig
 }
 
 func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientset, kubeletClient *kubeletclient.KubeletClient,
 	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient,
-	failVolumePodMoves, updateQuotaToAllowMoves bool, readinessRetryThreshold int, gitConfig executor.GitConfig) *ActionHandlerConfig {
+	failVolumePodMoves, updateQuotaToAllowMoves bool, readinessRetryThreshold int, gitConfig gitops.GitConfig) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
 		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}

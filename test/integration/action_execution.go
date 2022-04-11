@@ -11,7 +11,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	kubeclientset "k8s.io/client-go/kubernetes"
@@ -27,6 +26,7 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/action"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 )
@@ -64,7 +64,7 @@ var _ = Describe("Action Executor ", func() {
 
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
 				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""),
-				[]string{"*"}, nil, false, true, 60, executor.GitConfig{})
+				[]string{"*"}, nil, false, true, 60, gitops.GitConfig{})
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 		}
 		namespace = f.TestNamespaceName()
@@ -187,33 +187,6 @@ var _ = Describe("Action Executor ", func() {
 		})
 	})
 
-	// TODO: This test as of now assumes that the setup cluster will have the
-	// CRD for ChangeRequest installed. Add this to the kind cluster setup once the
-	// CRD definition is finalised.
-	Describe("executing action resize pod on a gitops updated workload", func() {
-		It("should result in new pod on target node", func() {
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithGitopsAnnotations(namespace, 1))
-			framework.ExpectNoError(err, "Error creating test resources")
-
-			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
-			framework.ExpectNoError(err, "Error getting deployments pod")
-			// This should not happen. We should ideally get a pod.
-			if pod == nil {
-				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
-			}
-
-			_, err = actionHandler.ExecuteAction(newResizeActionExecutionDTO(proto.ActionItemDTO_RIGHT_SIZE,
-				newResizeWorkloadControllerTargetSE(dep), newHostSEFromNodeName(pod.Spec.NodeName),
-				newContainerEntity("test-cont")), nil, &mockProgressTrack{})
-			framework.ExpectNoError(err, "Resize action failed")
-
-			// As of now validate that the CR with the same name is created
-			// in the same namespace. At some point we will implement validating
-			// the content also.
-			validateCRCreated(dep.Name, namespace, dynamicClient)
-		})
-	})
-
 	// TODO: this particular Describe is currently used as the teardown for this
 	// whole test (not the suite).
 	// This will work only if run sequentially. Find a better way to do this.
@@ -230,18 +203,6 @@ func createDeployResource(client *kubeclientset.Clientset, dep *appsv1.Deploymen
 		return nil, err
 	}
 	return waitForDeployment(client, newDep.Name, newDep.Namespace)
-}
-
-func depSingleContainerWithGitopsAnnotations(namespace string, replicas int32) *appsv1.Deployment {
-	dep := depSingleContainerWithResources(namespace, "", replicas, false, false, false)
-	if dep.Annotations == nil {
-		dep.Annotations = make(map[string]string)
-	}
-	dep.Annotations[executor.GitopsSourceAnnotationKey] = "dummy-source"
-	dep.Annotations[executor.GitopsFilePathAnnotationKey] = "dummy-path"
-	dep.Annotations[executor.GitopsBranchAnnotationKey] = "dummy-branch"
-	dep.Annotations[executor.GitopsSecretNameAnnotationKey] = "dummy-secret-name"
-	return dep
 }
 
 // This can also be bootstrapped from a test resource directory
@@ -742,16 +703,4 @@ func getTargetSENodeName(f *framework.TestFramework, pod *corev1.Pod) string {
 
 func podID(pod *corev1.Pod) string {
 	return fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
-}
-
-func validateCRCreated(name, namespace string, client dynamic.Interface) {
-	res := schema.GroupVersionResource{
-		Group:    executor.CRGroup,
-		Version:  executor.CRVersion,
-		Resource: executor.CRResourceName,
-	}
-	_, err := client.Resource(res).Namespace(namespace).Get(context.Background(), name, metav1.GetOptions{})
-	if err != nil {
-		framework.Failf("Error getting the created ChangeRequest resource: %v", err)
-	}
 }

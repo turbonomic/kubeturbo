@@ -6,7 +6,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	kubeclient "k8s.io/client-go/kubernetes"
 
-	"github.com/turbonomic/kubeturbo/pkg/action/executor"
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	kubeletclient "github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
@@ -55,7 +55,7 @@ type Config struct {
 	updateQuotaToAllowMoves bool
 	clusterAPIEnabled       bool
 	readinessRetryThreshold int
-	gitConfig               executor.GitConfig
+	gitConfig               gitops.GitConfig
 }
 
 func NewVMTConfig2() *Config {
@@ -191,7 +191,7 @@ func (c *Config) WithReadinessRetryThreshold(readinessRetryThreshold int) *Confi
 	return c
 }
 
-func (c *Config) WithGitConfig(gitConfig executor.GitConfig) *Config {
+func (c *Config) WithGitConfig(gitConfig gitops.GitConfig) *Config {
 	c.gitConfig = gitConfig
 	return c
 }

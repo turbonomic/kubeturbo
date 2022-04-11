@@ -16,11 +16,13 @@ import (
 
 	. "github.com/onsi/ginkgo"
 
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+
 	"github.com/turbonomic/kubeturbo/pkg/action"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/test/integration/framework"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 var _ = Describe("Action Execution when quota exists ", func() {
@@ -77,7 +79,7 @@ spec:
 
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
 				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""),
-				[]string{"*"}, nil, false, true, 60, executor.GitConfig{})
+				[]string{"*"}, nil, false, true, 60, gitops.GitConfig{})
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 
 			namespace = f.TestNamespaceName()
@@ -117,7 +119,7 @@ spec:
 		It("should fail the action if the quota-update is disabled", func() {
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
 				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""),
-				[]string{"*"}, nil, false, false, 60, executor.GitConfig{})
+				[]string{"*"}, nil, false, false, 60, gitops.GitConfig{})
 			actionHandler := action.NewActionHandler(actionHandlerConfig)
 
 			quota := createQuota(kubeClient, namespace, quotaFromYaml(quotaYaml))

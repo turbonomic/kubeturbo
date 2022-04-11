@@ -1,10 +1,11 @@
-package executor
+package gitops
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -24,6 +25,8 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/util"
 )
 
+const kubeturboNamespaceEnv = "KUBETURBO_NAMESPACE"
+
 type GitConfig struct {
 	// Namespace which holds the git secret that stores the git credential token
 	GitSecretNamespace string
@@ -41,7 +44,7 @@ type PatchItem struct {
 	Value interface{} `json:"value,omitempty"`
 }
 
-type GitManager struct {
+type GitHubManager struct {
 	gitConfig   GitConfig
 	typedClient *typedClient.Clientset
 	dynClient   dynamic.Interface
@@ -49,9 +52,9 @@ type GitManager struct {
 	managerApp  *repository.K8sApp
 }
 
-func newGitManager(gitConfig GitConfig, typedClient *typedClient.Clientset, dynClient dynamic.Interface,
-	obj *unstructured.Unstructured, managerApp *repository.K8sApp) *GitManager {
-	return &GitManager{
+func NewGitHubManager(gitConfig GitConfig, typedClient *typedClient.Clientset, dynClient dynamic.Interface,
+	obj *unstructured.Unstructured, managerApp *repository.K8sApp) GitopsManager {
+	return &GitHubManager{
 		gitConfig:   gitConfig,
 		typedClient: typedClient,
 		dynClient:   dynClient,
@@ -60,7 +63,7 @@ func newGitManager(gitConfig GitConfig, typedClient *typedClient.Clientset, dynC
 	}
 }
 
-func (r *GitManager) update(replicas int64, podSpec map[string]interface{}) error {
+func (r *GitHubManager) Update(replicas int64, podSpec map[string]interface{}) error {
 	token, err := r.getAuthTokenFromSecret()
 	if err != nil {
 		return err
@@ -90,7 +93,7 @@ func (r *GitManager) update(replicas int64, podSpec map[string]interface{}) erro
 	// pathParts[2] = "kubeturbo"
 	if len(pathParts) != 3 {
 		return fmt.Errorf("source url: %s in manager app of workload controller: %s is not valid. "+
-			"It should have 2 sections in path.", repo, r)
+			"It should have 2 sections in path", repo, r)
 	}
 
 	baseBranch := revision
@@ -107,34 +110,42 @@ func (r *GitManager) update(replicas int64, podSpec map[string]interface{}) erro
 		baseBranch:  baseBranch,
 		path:        path,
 		commitUser:  r.gitConfig.GitUsername,
-		commitEmail: r.gitConfig.GitUsername,
+		commitEmail: r.gitConfig.GitEmail,
 	}
 
-	var patches []PatchItem
-	patches = append(patches,
-		PatchItem{
+	patches := []PatchItem{
+		{
 			Op:    "replace",
 			Path:  "/spec/replicas",
 			Value: replicas,
 		},
-		PatchItem{
+		{
 			Op:   "replace",
 			Path: "/spec/template/spec",
 			// TODO: update only specific fields of each container in the pod
 			// rather then the whole pod spec
 			Value: podSpec,
-		})
+		},
+	}
 
 	return handler.updateRemote(r.obj.GetName(), patches)
 
 }
 
-func (r *GitManager) getAuthTokenFromSecret() (string, error) {
+func (r *GitHubManager) getAuthTokenFromSecret() (string, error) {
 	name := r.gitConfig.GitSecretName
 	namespace := r.gitConfig.GitSecretNamespace
+	if namespace == "" {
+		// try getting the namespace env var set as downstream API value in deployment spec
+		namespace = os.Getenv(kubeturboNamespaceEnv)
+	}
+	if namespace == "" {
+		namespace = "default"
+	}
+
 	if r.gitConfig.GitSecretName == "" {
-		return "", fmt.Errorf("secret name empty. It is necessary to get github auth token."+
-			"Updating workload controller %s", r)
+		return "", fmt.Errorf("secret name found empty while updating the github repo for workload controller %s. "+
+			"It is necessary to get github auth token", r)
 	}
 	secret, err := r.typedClient.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
@@ -142,13 +153,13 @@ func (r *GitManager) getAuthTokenFromSecret() (string, error) {
 	}
 	token, exists := secret.Data["token"]
 	if !exists {
-		return "", fmt.Errorf("wrong data in secret: %s/%s. Key with name 'token' not found."+
-			"Updating workload controller %s", namespace, name, r)
+		return "", fmt.Errorf("wrong data in secret: %s/%s while updating the github repo for workload controller %s. "+
+			"Key with name 'token' not found", namespace, name, r)
 	}
 	return strings.TrimSpace(string(token)), nil
 }
 
-func (r *GitManager) getFieldsFromManagerApp() (string, string, string, error) {
+func (r *GitHubManager) getFieldsFromManagerApp() (string, string, string, error) {
 	if r.managerApp == nil {
 		return "", "", "", fmt.Errorf("workload controller not managed by gitops pipeline: %s", r)
 	}
@@ -181,7 +192,7 @@ func (r *GitManager) getFieldsFromManagerApp() (string, string, string, error) {
 	return path, repo, revision, nil
 }
 
-func (r *GitManager) String() string {
+func (r *GitHubManager) String() string {
 	return fmt.Sprintf("%s/%s", r.obj.GetNamespace(), r.obj.GetName())
 }
 

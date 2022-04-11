@@ -10,13 +10,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 const openShiftDeployerLabel = "openshift.io/deployer-pod-for.name"
@@ -163,7 +165,7 @@ func (r *WorkloadControllerResizer) getWorkloadControllerSpec(parentKind, namesp
 }
 
 func resizeWorkloadController(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient,
-	kind, controllerName, namespace string, specs []*containerResizeSpec, managerApp *repository.K8sApp, gitConfig GitConfig) error {
+	kind, controllerName, namespace string, specs []*containerResizeSpec, managerApp *repository.K8sApp, gitConfig gitops.GitConfig) error {
 	// prepare controllerUpdater
 	controllerUpdater, err := newK8sControllerUpdater(clusterScraper,
 		ormClient, kind, controllerName, "", namespace, managerApp, gitConfig)
