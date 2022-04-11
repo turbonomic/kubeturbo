@@ -45,6 +45,7 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 	// use the node frequency of the queried pod.
 	controllerName, kind, namespace, podSpec, err := r.getWorkloadControllerDetails(actionItems[0])
 	if err != nil {
+		glog.Errorf("Failed to get workload controller %s/%s details: %v", namespace, controllerName, err)
 		return nil, err
 	}
 
@@ -55,8 +56,10 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 		// build resize specification
 		spec, err := cr.buildResizeSpec(item, controllerName, podSpec, getContainerIndex(podSpec, item.GetCurrentSE().GetDisplayName()))
 		if err != nil {
-			glog.Errorf("Failed to execute resize action: %v", err)
-			return &TurboActionExecutorOutput{}, err
+			glog.Errorf("Failed to build resize spec for the container %v of the workload controller %v/%v due to: %v",
+				item.GetCurrentSE().GetDisplayName(), namespace, controllerName, err)
+			return &TurboActionExecutorOutput{}, fmt.Errorf("could not find container %v in parents pod template spec. It is likely an injected sidecar", item.GetCurrentSE().GetDisplayName())
+
 		}
 
 		resizeSpecs = append(resizeSpecs, spec)
@@ -72,8 +75,10 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 		resizeSpecs,
 	)
 	if err != nil {
+		glog.Errorf("Failed to execute resize action on the workload controller %s/%s: %v", namespace, controllerName, err)
 		return &TurboActionExecutorOutput{}, err
 	}
+	glog.V(2).Infof("Successfully execute resize action on the workload controller %s/%s.", namespace, controllerName)
 
 	return &TurboActionExecutorOutput{
 		Succeeded: true,
