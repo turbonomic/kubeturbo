@@ -328,6 +328,16 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesSold(
 	}
 	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
 
+	// vmpmAccess commodity
+	podAccessComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_VMPM_ACCESS).
+		Key(string(pod.UID)).
+		Capacity(accessCommodityDefaultCapacity).
+		Create()
+	if err != nil {
+		return nil, err
+	}
+	commoditiesSold = append(commoditiesSold, podAccessComm)
+
 	return commoditiesSold, nil
 }
 
