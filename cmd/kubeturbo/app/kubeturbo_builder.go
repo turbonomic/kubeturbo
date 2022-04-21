@@ -36,6 +36,7 @@ import (
 	nodeUtil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
@@ -335,20 +336,11 @@ func (s *VMTServer) Run() {
 		glog.Fatalf("Failed to generate correct TAP config: %v", err.Error())
 	}
 
-	featureFlags := ""
 	if k8sTAPSpec.FeatureGates != nil {
-		for _, f := range k8sTAPSpec.FeatureGates.DisabledFeatures {
-			featureFlag := fmt.Sprintf("%s=%s", f, "false")
-			if featureFlags == "" {
-				featureFlags = featureFlag
-			} else {
-				featureFlags = fmt.Sprintf("%s,%s", featureFlags, featureFlag)
-			}
+		err = utilfeature.DefaultMutableFeatureGate.SetFromMap(k8sTAPSpec.FeatureGates)
+		if err != nil {
+			glog.Fatalf("Invalid Feature Gates: %v", err)
 		}
-	}
-	err = utilfeature.DefaultMutableFeatureGate.Set(featureFlags)
-	if err != nil {
-		glog.Fatalf("Invalid Feature Gates: %v", err)
 	}
 
 	// Collect target and probe info such as master host, server version, probe container image, etc
@@ -395,8 +387,20 @@ func (s *VMTServer) Run() {
 		WithVolumePodMoveConfig(s.FailVolumePodMoves).
 		WithQuotaUpdateConfig(s.UpdateQuotaToAllowMoves).
 		WithClusterAPIEnabled(clusterAPIEnabled).
-		WithReadinessRetryThreshold(s.readinessRetryThreshold).
-		WithGitConfig(s.gitConfig)
+		WithReadinessRetryThreshold(s.readinessRetryThreshold)
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.GitopsApps) {
+		vmtConfig.WithGitConfig(s.gitConfig)
+	} else {
+		if s.gitConfig.GitEmail != "" ||
+			s.gitConfig.GitSecretName != "" ||
+			s.gitConfig.GitSecretNamespace != "" ||
+			s.gitConfig.GitUsername != "" {
+			glog.V(2).Infof("Feature: %v is not enabled, arg values set for git-email: %s, git-username: %s "+
+				"git-secret-name: %s, git-secret-namespace: %s will be ignored.", features.GitopsApps,
+				s.gitConfig.GitEmail, s.gitConfig.GitUsername, s.gitConfig.GitSecretName, s.gitConfig.GitSecretNamespace)
+		}
+	}
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service

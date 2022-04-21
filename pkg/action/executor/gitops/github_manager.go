@@ -10,6 +10,7 @@ import (
 	"time"
 
 	jsonpatch "github.com/evanphx/json-patch"
+	"github.com/golang/glog"
 	"github.com/google/go-github/v42/github"
 	"golang.org/x/oauth2"
 	k8sapiyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -128,8 +129,8 @@ func (r *GitHubManager) Update(replicas int64, podSpec map[string]interface{}) e
 		},
 	}
 
+	glog.Infof("Updating the source of truth at: %s on branch: %s and path: %s.", url.Path, baseBranch, path)
 	return handler.updateRemote(r.obj.GetName(), patches)
-
 }
 
 func (r *GitHubManager) getAuthTokenFromSecret() (string, error) {
