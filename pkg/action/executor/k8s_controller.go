@@ -12,9 +12,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/dynamic"
+	typedClient "k8s.io/client-go/kubernetes"
 
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	actionutil "github.com/turbonomic/kubeturbo/pkg/action/util"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 )
 
@@ -38,15 +43,24 @@ type k8sControllerSpec struct {
 	controllerName string
 }
 
-type parentController struct {
+type kubeClients struct {
+	typedClient *typedClient.Clientset
+	dynClient   dynamic.Interface
+	// TODO: remove the need of this as we have dynClient already
 	dynNamespacedClient dynamic.ResourceInterface
-	obj                 *unstructured.Unstructured
-	name                string
-	ormClient           *resourcemapping.ORMClient
+}
+
+type parentController struct {
+	clients    kubeClients
+	obj        *unstructured.Unstructured
+	name       string
+	ormClient  *resourcemapping.ORMClient
+	managerApp *repository.K8sApp
+	gitConfig  gitops.GitConfig
 }
 
 func (c *parentController) get(name string) (*k8sControllerSpec, error) {
-	obj, err := c.dynNamespacedClient.Get(context.TODO(), name, metav1.GetOptions{})
+	obj, err := c.clients.dynNamespacedClient.Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -100,6 +114,27 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 	if err := unstructured.SetNestedField(c.obj.Object, podSpecUnstructured, "spec", "template", "spec"); err != nil {
 		return fmt.Errorf("error setting podSpec into unstructured %s %s: %v", kind, objName, err)
 	}
+
+	if c.managerApp != nil &&
+		c.managerApp.Type != repository.AppTypeK8s &&
+		utilfeature.DefaultFeatureGate.Enabled(features.GitopsApps) {
+		var manager gitops.GitopsManager
+		switch c.managerApp.Type {
+		case repository.AppTypeArgoCD:
+			// The workload is managed by a pipeline controller (argoCD) which replicates
+			// it from a source of truth
+			manager = gitops.NewGitHubManager(c.gitConfig, c.clients.typedClient, c.clients.dynClient, c.obj, c.managerApp)
+			glog.Infof("Gitops pipeline detected.")
+		default:
+			return fmt.Errorf("unsupported gitops manager type: %v", c.managerApp.Type)
+		}
+		err := manager.Update(int64(*updatedSpec.replicas), podSpecUnstructured)
+		if err != nil {
+			return fmt.Errorf("failed to update the gitops managed source of truth: %v", err)
+		}
+		return nil
+	}
+
 	controllerOwnerReferences := c.obj.GetOwnerReferences()
 	if !c.shouldSkipOperator(c.obj) && len(controllerOwnerReferences) > 0 && (*controllerOwnerReferences[0].Controller || "ClusterServiceVersion" == controllerOwnerReferences[0].Kind) {
 		// If k8s controller is controlled by custom controller, update the CR using OperatorResourceMapping
@@ -109,7 +144,7 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		}
 		err = c.ormClient.Update(origControllerObj, c.obj, controllerOwnerReferences[0])
 	} else {
-		_, err = c.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
+		_, err = c.clients.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
 	}
 	return err
 }

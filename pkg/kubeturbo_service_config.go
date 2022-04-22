@@ -2,11 +2,14 @@ package kubeturbo
 
 import (
 	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
+
+	"k8s.io/client-go/dynamic"
+	kubeclient "k8s.io/client-go/kubernetes"
+
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	kubeletclient "github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
-	"k8s.io/client-go/dynamic"
-	kubeclient "k8s.io/client-go/kubernetes"
 )
 
 // Configuration created using the parameters passed to the kubeturbo service container.
@@ -52,6 +55,7 @@ type Config struct {
 	updateQuotaToAllowMoves bool
 	clusterAPIEnabled       bool
 	readinessRetryThreshold int
+	gitConfig               gitops.GitConfig
 }
 
 func NewVMTConfig2() *Config {
@@ -184,5 +188,10 @@ func (c *Config) WithClusterAPIEnabled(clusterAPIEnabled bool) *Config {
 
 func (c *Config) WithReadinessRetryThreshold(readinessRetryThreshold int) *Config {
 	c.readinessRetryThreshold = readinessRetryThreshold
+	return c
+}
+
+func (c *Config) WithGitConfig(gitConfig gitops.GitConfig) *Config {
+	c.gitConfig = gitConfig
 	return c
 }

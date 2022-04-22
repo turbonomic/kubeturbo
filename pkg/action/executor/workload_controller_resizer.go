@@ -10,12 +10,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 const openShiftDeployerLabel = "openshift.io/deployer-pod-for.name"
@@ -43,7 +46,7 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 	// subsequently is needed to get the cpufrequency.
 	// TODO(irfanurrehman): This can be slightly erratic as the value conversions will
 	// use the node frequency of the queried pod.
-	controllerName, kind, namespace, podSpec, err := r.getWorkloadControllerDetails(actionItems[0])
+	controllerName, kind, namespace, podSpec, managerApp, err := r.getWorkloadControllerDetails(actionItems[0])
 	if err != nil {
 		glog.Errorf("Failed to get workload controller %s/%s details: %v", namespace, controllerName, err)
 		return nil, err
@@ -73,6 +76,8 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 		controllerName,
 		namespace,
 		resizeSpecs,
+		managerApp,
+		r.gitConfig,
 	)
 	if err != nil {
 		glog.Errorf("Failed to execute resize action on the workload controller %s/%s: %v", namespace, controllerName, err)
@@ -85,14 +90,15 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 	}, nil
 }
 
-func (r *WorkloadControllerResizer) getWorkloadControllerDetails(actionItem *proto.ActionItemDTO) (string, string, string, *k8sapi.PodSpec, error) {
+func (r *WorkloadControllerResizer) getWorkloadControllerDetails(actionItem *proto.ActionItemDTO) (string,
+	string, string, *k8sapi.PodSpec, *repository.K8sApp, error) {
 	targetSE := actionItem.GetTargetSE()
 	if targetSE == nil {
-		return "", "", "", nil, fmt.Errorf("workload controller action item does not have a valid target entity, %v", actionItem.Uuid)
+		return "", "", "", nil, nil, fmt.Errorf("workload controller action item does not have a valid target entity, %v", actionItem.Uuid)
 	}
 	workloadCntrldata := targetSE.GetWorkloadControllerData()
 	if workloadCntrldata == nil {
-		return "", "", "", nil, fmt.Errorf("workload controller action item missing controller data, %v", actionItem.Uuid)
+		return "", "", "", nil, nil, fmt.Errorf("workload controller action item missing controller data, %v", actionItem.Uuid)
 	}
 
 	kind := ""
@@ -113,24 +119,24 @@ func (r *WorkloadControllerResizer) getWorkloadControllerDetails(actionItem *pro
 	case *proto.EntityDTO_WorkloadControllerData_CustomControllerData:
 		kind = workloadCntrldata.GetCustomControllerData().GetCustomControllerType()
 		if kind != util.KindDeploymentConfig {
-			return "", "", "", nil, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData, custom controller type is: %s", cntrlType, kind)
+			return "", "", "", nil, nil, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData, custom controller type is: %s", cntrlType, kind)
 		}
 	default:
-		return "", "", "", nil, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData", cntrlType)
+		return "", "", "", nil, nil, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData", cntrlType)
 	}
 
 	namespace, error := property.GetWorkloadNamespaceFromProperty(targetSE.GetEntityProperties())
 	if error != nil {
-		return "", "", "", nil, error
+		return "", "", "", nil, nil, error
 	}
 
 	controllerName := targetSE.GetDisplayName()
 	podSpec, err := r.getWorkloadControllerSpec(kind, namespace, controllerName)
 	if err != nil {
-		return "", "", "", nil, err
+		return "", "", "", nil, nil, err
 	}
 
-	return controllerName, kind, namespace, podSpec, nil
+	return controllerName, kind, namespace, podSpec, property.GetManagerAppFromProperties(targetSE.GetEntityProperties()), nil
 }
 
 func (r *WorkloadControllerResizer) getWorkloadControllerSpec(parentKind, namespace, name string) (*k8sapi.PodSpec, error) {
@@ -159,9 +165,10 @@ func (r *WorkloadControllerResizer) getWorkloadControllerSpec(parentKind, namesp
 }
 
 func resizeWorkloadController(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient,
-	kind, controllerName, namespace string, specs []*containerResizeSpec) error {
+	kind, controllerName, namespace string, specs []*containerResizeSpec, managerApp *repository.K8sApp, gitConfig gitops.GitConfig) error {
 	// prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdater(clusterScraper, ormClient, kind, controllerName, "", namespace)
+	controllerUpdater, err := newK8sControllerUpdater(clusterScraper,
+		ormClient, kind, controllerName, "", namespace, managerApp, gitConfig)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return err

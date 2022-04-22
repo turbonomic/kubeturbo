@@ -4,16 +4,19 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/golang/glog"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	appv1beta1 "sigs.k8s.io/application/api/v1beta1"
 
-	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	util "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
@@ -38,11 +41,14 @@ func (p *BusinessAppProcessor) ProcessBusinessApps() {
 			Version:  util.K8sApplicationGV.Version,
 			Resource: util.ApplicationResName,
 		},
-		{
+	}
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.GitopsApps) {
+		resources = append(resources, schema.GroupVersionResource{
 			Group:    util.ArgoCDApplicationGV.Group,
 			Version:  util.ArgoCDApplicationGV.Version,
 			Resource: util.ApplicationResName,
-		},
+		})
 	}
 
 	for _, res := range resources {
