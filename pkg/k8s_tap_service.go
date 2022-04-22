@@ -17,7 +17,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/master"
-	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
 	"github.com/turbonomic/kubeturbo/version"
 	"github.com/turbonomic/turbo-go-sdk/pkg/probe"
@@ -37,8 +36,8 @@ type K8sTAPServiceSpec struct {
 	*detectors.MasterNodeDetectors    `json:"masterNodeDetectors,omitempty"`
 	*detectors.DaemonPodDetectors     `json:"daemonPodDetectors,omitempty"`
 	*detectors.HANodeConfig           `json:"HANodeConfig,omitempty"`
-	*features.FeatureGates            `json:"featureGates,omitempty"`
 	*detectors.AnnotationWhitelist    `json:"annotationWhitelist,omitempty"`
+	FeatureGates                      map[string]bool `json:"featureGates,omitempty"`
 }
 
 func ParseK8sTAPServiceSpec(configFile string, defaultTargetName string) (*K8sTAPServiceSpec, error) {
@@ -169,7 +168,8 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		config.DiscoverySamples, config.DiscoverySampleIntervalSec)
 
 	actionHandlerConfig := action.NewActionHandlerConfig(config.CAPINamespace, config.CAClient, config.KubeletClient,
-		probeConfig.ClusterScraper, config.SccSupport, config.ORMClient, config.failVolumePodMoves, config.updateQuotaToAllowMoves, config.readinessRetryThreshold)
+		probeConfig.ClusterScraper, config.SccSupport, config.ORMClient, config.failVolumePodMoves,
+		config.updateQuotaToAllowMoves, config.readinessRetryThreshold, config.gitConfig)
 
 	// Kubernetes Probe Registration Client
 	registrationClient := registration.NewK8sRegistrationClient(registrationClientConfig, config.tapSpec.K8sTargetConfig)

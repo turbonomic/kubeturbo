@@ -13,7 +13,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	kclient "k8s.io/client-go/kubernetes"
 
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
@@ -38,7 +40,8 @@ type controllerSpec struct {
 }
 
 // newK8sControllerUpdaterViaPod returns a k8sControllerUpdater based on the parent kind of a pod
-func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, ormClient *resourcemapping.ORMClient) (*k8sControllerUpdater, error) {
+func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
+	ormClient *resourcemapping.ORMClient, gitConfig gitops.GitConfig) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
 	ownerInfo, _, _, err := clusterScraper.GetPodControllerInfo(pod, true)
 	if err != nil {
@@ -47,20 +50,34 @@ func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *
 	if discoveryutil.IsOwnerInfoEmpty(ownerInfo) {
 		return nil, fmt.Errorf("pod %s/%s does not have controller", pod.Namespace, pod.Name)
 	}
-	return newK8sControllerUpdater(clusterScraper, ormClient, ownerInfo.Kind, ownerInfo.Name, pod.Name, pod.Namespace)
+	// TODO: For an action on a parent workload controller of this pod managed by gitops (argoCD) we will need
+	// some information to be available on the entity we get in the action (pod here).
+	// We currently put the info about the argoCD manager app on the workload controller it manages.
+	// Copy that data on to the pod also to ensure we can rightly identify if this pods parent is managed
+	// by a specific argoCD app. (or find a better way of doing this)
+	// As of now scale up and down actions wont work with argoCD.
+	return newK8sControllerUpdater(clusterScraper, ormClient, ownerInfo.Kind, ownerInfo.Name,
+		pod.Name, pod.Namespace, nil, gitConfig)
 }
 
 // newK8sControllerUpdater returns a k8sControllerUpdater based on the controller kind
-func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient, kind, controllerName, podName, namespace string) (*k8sControllerUpdater, error) {
+func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient, kind,
+	controllerName, podName, namespace string, managerApp *repository.K8sApp, gitConfig gitops.GitConfig) (*k8sControllerUpdater, error) {
 	res, err := GetSupportedResUsingKind(kind, namespace, controllerName)
 	if err != nil {
 		return nil, err
 	}
 	return &k8sControllerUpdater{
 		controller: &parentController{
-			dynNamespacedClient: clusterScraper.DynamicClient.Resource(res).Namespace(namespace),
-			name:                kind,
-			ormClient:           ormClient,
+			clients: kubeClients{
+				typedClient:         clusterScraper.Clientset,
+				dynClient:           clusterScraper.DynamicClient,
+				dynNamespacedClient: clusterScraper.DynamicClient.Resource(res).Namespace(namespace),
+			},
+			name:       kind,
+			ormClient:  ormClient,
+			managerApp: managerApp,
+			gitConfig:  gitConfig,
 		},
 		client:    clusterScraper.Clientset,
 		name:      controllerName,

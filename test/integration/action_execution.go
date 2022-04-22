@@ -22,9 +22,13 @@ import (
 	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo"
 
+	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
+
 	"github.com/turbonomic/kubeturbo/pkg/action"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 )
 
 const openShiftDeployerLabel = "openshift.io/deployer-pod-for.name"
@@ -36,6 +40,7 @@ var _ = Describe("Action Executor ", func() {
 	var actionHandler *action.ActionHandler
 	var kubeClient *kubeclientset.Clientset
 	var osClient *osclient.Clientset
+	var dynamicClient dynamic.Interface
 
 	//AfterSuite(f.AfterEach)
 	BeforeEach(func() {
@@ -46,7 +51,8 @@ var _ = Describe("Action Executor ", func() {
 			kubeConfig := f.GetKubeConfig()
 			kubeClient = f.GetKubeClient("action-executor")
 
-			dynamicClient, err := dynamic.NewForConfig(kubeConfig)
+			var err error
+			dynamicClient, err = dynamic.NewForConfig(kubeConfig)
 			if err != nil {
 				framework.Failf("Failed to generate dynamic client for kubernetes test cluster: %v", err)
 			}
@@ -57,7 +63,8 @@ var _ = Describe("Action Executor ", func() {
 			}
 
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""), []string{"*"}, nil, false, true, 60)
+				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""),
+				[]string{"*"}, nil, false, true, 60, gitops.GitConfig{})
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 		}
 		namespace = f.TestNamespaceName()
@@ -588,6 +595,36 @@ type mockProgressTrack struct{}
 func (p *mockProgressTrack) UpdateProgress(actionState proto.ActionResponseState, description string, progress int32) {
 }
 
+func newResizeActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targetSE, newHostSE, currentSE *proto.EntityDTO) *proto.ActionExecutionDTO {
+	ai := &proto.ActionItemDTO{}
+	ai.TargetSE = targetSE
+	ai.NewSE = newHostSE
+	ai.ActionType = &actionType
+
+	commType := proto.CommodityDTO_VCPU
+	cap := float64(100)
+	ai.CurrentComm = &proto.CommodityDTO{
+		CommodityType: &commType,
+		Capacity:      &cap,
+	}
+
+	newCap := cap + 100
+	ai.NewComm = &proto.CommodityDTO{
+		CommodityType: &commType,
+		Capacity:      &newCap,
+	}
+
+	csc := true
+	ai.ConsistentScalingCompliance = &csc
+
+	ai.CurrentSE = currentSE
+
+	dto := &proto.ActionExecutionDTO{}
+	dto.ActionItem = []*proto.ActionItemDTO{ai}
+
+	return dto
+}
+
 func newActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targetSE, newHostSE *proto.EntityDTO) *proto.ActionExecutionDTO {
 	ai := &proto.ActionItemDTO{}
 	ai.TargetSE = targetSE
@@ -597,6 +634,26 @@ func newActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targetSE, 
 	dto.ActionItem = []*proto.ActionItemDTO{ai}
 
 	return dto
+}
+
+func newResizeWorkloadControllerTargetSE(dep *appsv1.Deployment) *proto.EntityDTO {
+	entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER, string(dep.UID))
+	entityDTOBuilder.DisplayName(dep.Name)
+
+	entityDTOBuilder.WorkloadControllerData(&proto.EntityDTO_WorkloadControllerData{
+		ControllerType: &proto.EntityDTO_WorkloadControllerData_DeploymentData{
+			DeploymentData: &proto.EntityDTO_DeploymentData{},
+		},
+	})
+	entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
+	entityDTOBuilder.WithProperty(property.BuildWorkloadControllerNSProperty(dep.Namespace))
+
+	se, err := entityDTOBuilder.Create()
+	if err != nil {
+		framework.Failf("failed to build WorkloadController[%s] entityDTO: %v", dep.Name, err)
+	}
+
+	return se
 }
 
 func newTargetSEFromPod(pod *corev1.Pod) *proto.EntityDTO {
@@ -619,6 +676,17 @@ func newHostSEFromNodeName(nodeName string) *proto.EntityDTO {
 	se := &proto.EntityDTO{}
 	se.EntityType = &entityType
 	se.DisplayName = &nodeDispName
+
+	return se
+}
+
+func newContainerEntity(name string) *proto.EntityDTO {
+	entityType := proto.EntityDTO_CONTAINER_SPEC
+	dispName := name
+
+	se := &proto.EntityDTO{}
+	se.EntityType = &entityType
+	se.DisplayName = &dispName
 
 	return se
 }

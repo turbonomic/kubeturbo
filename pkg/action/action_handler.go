@@ -18,6 +18,7 @@ import (
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	kubeletclient "github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 )
@@ -54,11 +55,12 @@ type ActionHandlerConfig struct {
 	failVolumePodMoves      bool
 	updateQuotaToAllowMoves bool
 	readinessRetryThreshold int
+	gitConfig               gitops.GitConfig
 }
 
 func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientset, kubeletClient *kubeletclient.KubeletClient,
 	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient,
-	failVolumePodMoves, updateQuotaToAllowMoves bool, readinessRetryThreshold int) *ActionHandlerConfig {
+	failVolumePodMoves, updateQuotaToAllowMoves bool, readinessRetryThreshold int, gitConfig gitops.GitConfig) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
 		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}
@@ -76,6 +78,7 @@ func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientse
 		failVolumePodMoves:      failVolumePodMoves,
 		updateQuotaToAllowMoves: updateQuotaToAllowMoves,
 		readinessRetryThreshold: readinessRetryThreshold,
+		gitConfig:               gitConfig,
 	}
 
 	return config
@@ -128,9 +131,11 @@ func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 // As action executor is stateless, they can be safely reused.
 func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
-	ae := executor.NewTurboK8sActionExecutor(c.clusterScraper, c.cApiClient, h.podManager, h.config.ormClient)
+	ae := executor.NewTurboK8sActionExecutor(c.clusterScraper, c.cApiClient, h.podManager,
+		h.config.ormClient, c.gitConfig)
 
-	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet, c.failVolumePodMoves, c.updateQuotaToAllowMoves, h.lockMap, c.readinessRetryThreshold)
+	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet, c.failVolumePodMoves,
+		c.updateQuotaToAllowMoves, h.lockMap, c.readinessRetryThreshold)
 
 	h.actionExecutors[turboActionPodMove] = reScheduler
 

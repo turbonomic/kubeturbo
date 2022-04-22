@@ -32,9 +32,11 @@ import (
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
+	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	nodeUtil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
@@ -150,6 +152,9 @@ type VMTServer struct {
 	containerUsageDataAggStrategy string
 	// Total number of retrys. When a pod is not ready, Kubeturbo will try failureThreshold times before giving up
 	readinessRetryThreshold int
+
+	// Git configuration for gitops based action execution
+	gitConfig gitops.GitConfig
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -204,6 +209,11 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.containerUtilizationDataAggStrategy, "cnt-utilization-data-agg-strategy", agg.DefaultContainerUtilizationDataAggStrategy, "Container utilization data aggregation strategy.")
 	fs.StringVar(&s.containerUsageDataAggStrategy, "cnt-usage-data-agg-strategy", agg.DefaultContainerUsageDataAggStrategy, "Container usage data aggregation strategy.")
 	fs.IntVar(&s.readinessRetryThreshold, "readiness-retry-threshold", DefaultReadinessRetryThreshold, "When the pod readiness check fails, Kubeturbo will try readinessRetryThreshold times before giving up. Defaults to 60.")
+	// Flags for gitops based action execution
+	fs.StringVar(&s.gitConfig.GitSecretNamespace, "git-secret-namespace", "", "The namespace of the secret which holds the git credentials.")
+	fs.StringVar(&s.gitConfig.GitSecretName, "git-secret-name", "", "The name of the secret which holds the git credentials.")
+	fs.StringVar(&s.gitConfig.GitUsername, "git-username", "", "The user name to be used to push changes to git.")
+	fs.StringVar(&s.gitConfig.GitEmail, "git-email", "", "The email to be used to push changes to git.")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -326,20 +336,11 @@ func (s *VMTServer) Run() {
 		glog.Fatalf("Failed to generate correct TAP config: %v", err.Error())
 	}
 
-	featureFlags := ""
 	if k8sTAPSpec.FeatureGates != nil {
-		for _, f := range k8sTAPSpec.FeatureGates.DisabledFeatures {
-			featureFlag := fmt.Sprintf("%s=%s", f, "false")
-			if featureFlags == "" {
-				featureFlags = featureFlag
-			} else {
-				featureFlags = fmt.Sprintf("%s,%s", featureFlags, featureFlag)
-			}
+		err = utilfeature.DefaultMutableFeatureGate.SetFromMap(k8sTAPSpec.FeatureGates)
+		if err != nil {
+			glog.Fatalf("Invalid Feature Gates: %v", err)
 		}
-	}
-	err = utilfeature.DefaultMutableFeatureGate.Set(featureFlags)
-	if err != nil {
-		glog.Fatalf("Invalid Feature Gates: %v", err)
 	}
 
 	// Collect target and probe info such as master host, server version, probe container image, etc
@@ -387,6 +388,19 @@ func (s *VMTServer) Run() {
 		WithQuotaUpdateConfig(s.UpdateQuotaToAllowMoves).
 		WithClusterAPIEnabled(clusterAPIEnabled).
 		WithReadinessRetryThreshold(s.readinessRetryThreshold)
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.GitopsApps) {
+		vmtConfig.WithGitConfig(s.gitConfig)
+	} else {
+		if s.gitConfig.GitEmail != "" ||
+			s.gitConfig.GitSecretName != "" ||
+			s.gitConfig.GitSecretNamespace != "" ||
+			s.gitConfig.GitUsername != "" {
+			glog.V(2).Infof("Feature: %v is not enabled, arg values set for git-email: %s, git-username: %s "+
+				"git-secret-name: %s, git-secret-namespace: %s will be ignored.", features.GitopsApps,
+				s.gitConfig.GitEmail, s.gitConfig.GitUsername, s.gitConfig.GitSecretName, s.gitConfig.GitSecretNamespace)
+		}
+	}
 	glog.V(3).Infof("Finished creating turbo configuration: %+v", vmtConfig)
 
 	// The KubeTurbo TAP service

@@ -25,6 +25,14 @@ const (
 	//
 	// Throttling Metrics support.
 	ThrottlingMetrics featuregate.Feature = "ThrottlingMetrics"
+
+	// owner: @irfanurrehman
+	// alpha:
+	//
+	// Gitops application support.
+	// This gate will enable discovery of gitops pipeline applications and
+	// the action execution based on the same.
+	GitopsApps featuregate.Feature = "GitopsApps"
 )
 
 func init() {
@@ -41,4 +49,5 @@ func init() {
 var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	PersistentVolumes: {Default: true, PreRelease: featuregate.Beta},
 	ThrottlingMetrics: {Default: true, PreRelease: featuregate.Beta},
+	GitopsApps:        {Default: false, PreRelease: featuregate.Alpha},
 }

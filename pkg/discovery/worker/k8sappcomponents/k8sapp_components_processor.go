@@ -5,11 +5,14 @@ import (
 
 	"github.com/golang/glog"
 
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 )
 
 const (
@@ -42,7 +45,8 @@ func (k *K8sAppComponentsProcessor) ProcessAppComponentDTOs(entityDTOs []*proto.
 func (k *K8sAppComponentsProcessor) sellCommodities(entityDTO *proto.EntityDTO, component repository.K8sAppComponent,
 	apps []repository.K8sApp) {
 	for _, app := range apps {
-		if app.Type == repository.AppTypeArgoCD {
+		if app.Type == repository.AppTypeArgoCD &&
+			utilfeature.DefaultFeatureGate.Enabled(features.GitopsApps) {
 			k.addParentAppProperties(app, entityDTO)
 		}
 
