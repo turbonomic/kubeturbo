@@ -136,13 +136,20 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 	}
 
 	controllerOwnerReferences := c.obj.GetOwnerReferences()
-	if !c.shouldSkipOperator(c.obj) && len(controllerOwnerReferences) > 0 && (*controllerOwnerReferences[0].Controller || "ClusterServiceVersion" == controllerOwnerReferences[0].Kind) {
-		// If k8s controller is controlled by custom controller, update the CR using OperatorResourceMapping
-		// if SkipOperatorLabel is not set or not true.
-		if c.ormClient == nil {
-			return fmt.Errorf("failed to execute action with nil ORMClient")
+	if !c.shouldSkipOperator(c.obj) {
+		/*There is 2 situation to determine whether to use orm
+		1)the current work-contoller has an owner and the owner has the controller field which is set to true
+		2)the current work-controller has an owner and the kind of the owner is ClusterServiceVersion
+		*/
+		isControlledByOwner := (controllerOwnerReferences[0].Controller != nil && *controllerOwnerReferences[0].Controller) || "ClusterServiceVersion" == controllerOwnerReferences[0].Kind
+		if isControlledByOwner {
+			// If k8s controller is controlled by custom controller, update the CR using OperatorResourceMapping
+			// if SkipOperatorLabel is not set or not true.
+			if c.ormClient == nil {
+				return fmt.Errorf("failed to execute action with nil ORMClient")
+			}
+			err = c.ormClient.Update(origControllerObj, c.obj, controllerOwnerReferences[0])
 		}
-		err = c.ormClient.Update(origControllerObj, c.obj, controllerOwnerReferences[0])
 	} else {
 		_, err = c.clients.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
 	}
