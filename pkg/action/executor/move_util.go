@@ -35,7 +35,7 @@ func copyPodInfo(oldPod, newPod *api.Pod, copySpec bool) {
 	newPod.TypeMeta = oldPod.TypeMeta
 
 	//2. objectMeta
-	newPod.ObjectMeta = oldPod.ObjectMeta
+	newPod.ObjectMeta.SetNamespace(oldPod.ObjectMeta.GetNamespace())
 	newPod.SelfLink = ""
 	newPod.ResourceVersion = ""
 	newPod.Generation = 0
