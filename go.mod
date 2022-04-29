@@ -36,6 +36,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
 	github.com/evanphx/json-patch v5.6.0+incompatible
+	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v42 v42.0.0
 	github.com/openshift/client-go v0.0.0-20210730113412-1811c1b3fc0e
 	// openshift cluster api for cluster-api based node provision and suspend
@@ -51,6 +52,7 @@ require (
 )
 
 replace (
+	golang.org/x/crypto => golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
 	sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20201125052318-b85a18cbf338
 	sigs.k8s.io/cluster-api-provider-azure => github.com/openshift/cluster-api-provider-azure v0.0.0-20210209143830-3442c7a36c1e
 )
