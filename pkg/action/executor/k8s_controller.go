@@ -19,6 +19,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	actionutil "github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 )
@@ -135,14 +136,14 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		return nil
 	}
 
-	controllerOwnerReferences := c.obj.GetOwnerReferences()
-	if !c.shouldSkipOperator(c.obj) && c.shouldUseOrm(c.obj) {
+	ownerInfo, isOwnerSet := discoveryutil.GetOwnerInfo(c.obj.GetOwnerReferences())
+	if !c.shouldSkipOperator(c.obj) && isOwnerSet {
 		// If k8s controller is controlled by custom controller, update the CR using OperatorResourceMapping
 		// if SkipOperatorLabel is not set or not true.
 		if c.ormClient == nil {
 			return fmt.Errorf("failed to execute action with nil ORMClient")
 		}
-		err = c.ormClient.Update(origControllerObj, c.obj, controllerOwnerReferences[0])
+		err = c.ormClient.Update(origControllerObj, c.obj, ownerInfo)
 	} else {
 		_, err = c.clients.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
 	}
@@ -168,68 +169,4 @@ func (c *parentController) shouldSkipOperator(controller *unstructured.Unstructu
 
 func (rc *parentController) String() string {
 	return rc.name
-}
-
-//To determine if ORM should be used or not in terms of the owner reference of the work load controller
-func (c *parentController) shouldUseOrm(controller *unstructured.Unstructured) bool {
-	if controller == nil {
-		glog.V(3).Infof("Workload controller pointer is nil, shouldUseOrm return false")
-		return false
-	}
-	controllerOwnerReferences := c.obj.GetOwnerReferences()
-	if len(controllerOwnerReferences) <= 0 {
-		glog.V(3).Infof("Workload controller <%v/%v> doesn't have an owner reference, shouldUseOrm return false", controller.GetNamespace(), controller.GetName())
-		return false
-	}
-	/*
-		In the following 3 situations, we use trigger ORM to update the CR
-	*/
-	//Case 1: The owner of the controller has the kind as ClusterServiceVersion
-	/*
-		ownerReferences:
-		- apiVersion: operators.coreos.com/v1alpha1
-		  blockOwnerDeletion: false
-		  controller: false
-		  kind: ClusterServiceVersion
-		  name: ibm-licensing-operator.v1.14.0
-		  uid: bfd3d22d-99f9-473d-bea6-dd81b8d763ff
-		resourceVersion: "438731373"
-		uid: 6e58b1e7-dd29-41d5-8b77-194797b4fe9e
-	*/
-	if "ClusterServiceVersion" == controllerOwnerReferences[0].Kind {
-		glog.V(2).Infof("Workload controller <%v/%v> has the owner with ClusterServiceVersion kind, shouldUseOrm return true", controller.GetNamespace(), controller.GetName())
-		return true
-	}
-
-	//Case 2: The owner has the controller field and the value of the filed is set to True
-	/*
-	  ownerReferences:
-	  - apiVersion: operator.ibm.com/v1alpha1
-	    blockOwnerDeletion: true
-	    controller: true
-	    kind: IBMLicensing
-	    name: instance
-	    uid: 5882b63f-bd56-4d3b-83c7-b38405bf3429
-	*/
-	if controllerOwnerReferences[0].Controller != nil && *controllerOwnerReferences[0].Controller {
-		glog.V(2).Infof("Workload controller <%v/%v> has the owner controller set to true, shouldUseOrm return true", controller.GetNamespace(), controller.GetName())
-		return true
-	}
-
-	//Case 3: The owner doesn't even have the controller filed
-	/*
-		ownerReferences:
-		- apiVersion: icp4a.ibm.com/v1
-		  kind: ICP4ACluster
-		  name: icp4adeploy
-		  uid: d411a4bc-29bf-4086-9c5c-c65345256dcf
-		resourceVersion: "228138709"
-		uid: 21c125c3-4b5d-4037-8088-4b00c241e16e
-	*/
-	if controllerOwnerReferences[0].Controller == nil {
-		glog.V(2).Infof("Workload controller <%v/%v> has the owner but the owner doesn't have controller field, shouldUseOrm return true", controller.GetNamespace(), controller.GetName())
-		return true
-	}
-
-	return false
 }
