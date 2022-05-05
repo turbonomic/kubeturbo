@@ -214,6 +214,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.gitConfig.GitSecretName, "git-secret-name", "", "The name of the secret which holds the git credentials.")
 	fs.StringVar(&s.gitConfig.GitUsername, "git-username", "", "The user name to be used to push changes to git.")
 	fs.StringVar(&s.gitConfig.GitEmail, "git-email", "", "The email to be used to push changes to git.")
+	fs.StringVar(&s.gitConfig.CommitMode, "git-commit-mode", "direct", "The commit mode that should be used for git action executions. One of pr|direct. Defaults to direct.")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
