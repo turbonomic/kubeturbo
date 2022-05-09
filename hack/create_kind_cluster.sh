@@ -49,6 +49,6 @@ EOF
 
 echo "Creating kind cluster"
 create-cluster
-kubectl config use-context kind-kind
+${kubectl_path} config use-context kind-kind
 
 echo "Cluster creation complete."
