@@ -19,6 +19,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	actionutil "github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 )
@@ -135,21 +136,14 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		return nil
 	}
 
-	controllerOwnerReferences := c.obj.GetOwnerReferences()
-	/*There are 2 conditions to determine whether to use ORM to update the workload controller or directly update it
-	1)the current workload contoller has the ownerReference and the owner has the controller field which is set to true
-	2)the current workload controller has the ownerReference and the kind of the owner is ClusterServiceVersion
-	*/
-	if !c.shouldSkipOperator(c.obj) && // Check if the label kubeturbo.io/skipOperator is set or not
-		len(controllerOwnerReferences) > 0 && // Check if the workcontroller has the owner
-		((controllerOwnerReferences[0].Controller != nil && *controllerOwnerReferences[0].Controller) || // case 1: owner exists and has a true controller field
-			"ClusterServiceVersion" == controllerOwnerReferences[0].Kind) { // case 2: owner exists and its kind is ClusterServiceVersion
+	ownerInfo, isOwnerSet := discoveryutil.GetOwnerInfo(c.obj.GetOwnerReferences())
+	if !c.shouldSkipOperator(c.obj) && isOwnerSet {
 		// If k8s controller is controlled by custom controller, update the CR using OperatorResourceMapping
 		// if SkipOperatorLabel is not set or not true.
 		if c.ormClient == nil {
 			return fmt.Errorf("failed to execute action with nil ORMClient")
 		}
-		err = c.ormClient.Update(origControllerObj, c.obj, controllerOwnerReferences[0])
+		err = c.ormClient.Update(origControllerObj, c.obj, ownerInfo)
 	} else {
 		_, err = c.clients.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
 	}
