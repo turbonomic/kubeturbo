@@ -31,7 +31,10 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 )
 
-const openShiftDeployerLabel = "openshift.io/deployer-pod-for.name"
+const (
+	openShiftDeployerLabel = "openshift.io/deployer-pod-for.name"
+	cpuIncrement           = 100
+)
 
 var _ = Describe("Action Executor ", func() {
 	f := framework.NewTestFramework("action-executor")
@@ -184,6 +187,26 @@ var _ = Describe("Action Executor ", func() {
 
 			validateMovedPod(kubeClient, dc.Name, "deploymentconfig", namespace, targetNodeName)
 
+		})
+	})
+
+	// Test resize action execution
+	Describe("executing resize action on a deployment", func() {
+		It("should match the expected resource cpu reuqest after resize", func() {
+
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false))
+			framework.ExpectNoError(err, "Error creating test resources")
+
+			targetSE := newResizeWorkloadControllerTargetSE(dep)
+			currentSE := newContainerEntity("test-cont")
+
+			_, err = actionHandler.ExecuteAction(newResizeActionExecutionDTO(proto.ActionItemDTO_RIGHT_SIZE, targetSE, nil, currentSE), nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Resize action failed")
+
+			_, err = waitForDeploymentToUpdateResource(kubeClient, dep)
+			if err != nil {
+				framework.Failf("Failed to check the resource request in the new deployment: %s", err)
+			}
 		})
 	})
 
@@ -490,6 +513,27 @@ func waitForDeployment(client kubeclientset.Interface, depName, namespace string
 	return newDep, nil
 }
 
+func waitForDeploymentToUpdateResource(client kubeclientset.Interface, dep *appsv1.Deployment) (*appsv1.Deployment, error) {
+	var newDep *appsv1.Deployment
+	var err error
+	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
+		newDep, err = client.AppsV1().Deployments(dep.Namespace).Get(context.TODO(), dep.Name, metav1.GetOptions{})
+		if err != nil {
+			glog.Errorf("Unexpected error while getting deployment: %v", err)
+			return false, nil
+		}
+		oldCpuReq := dep.Spec.Template.Spec.Containers[0].Resources.Limits["cpu"]
+		newCpuReq := newDep.Spec.Template.Spec.Containers[0].Resources.Limits["cpu"]
+		if newCpuReq.MilliValue()-oldCpuReq.MilliValue() == cpuIncrement {
+			return true, nil
+		}
+		return false, nil
+	}); err != nil {
+		return nil, err
+	}
+	return newDep, nil
+}
+
 // We create a deployment with only 1 replica, so we should be able to get
 // the only pod using the name as prefix
 func getDeploymentsPod(client kubeclientset.Interface, depName, namespace, targetNodeName string) (*corev1.Pod, error) {
@@ -602,13 +646,13 @@ func newResizeActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targ
 	ai.ActionType = &actionType
 
 	commType := proto.CommodityDTO_VCPU
-	cap := float64(100)
+	cap := float64(cpuIncrement)
 	ai.CurrentComm = &proto.CommodityDTO{
 		CommodityType: &commType,
 		Capacity:      &cap,
 	}
 
-	newCap := cap + 100
+	newCap := cap + cpuIncrement
 	ai.NewComm = &proto.CommodityDTO{
 		CommodityType: &commType,
 		Capacity:      &newCap,
