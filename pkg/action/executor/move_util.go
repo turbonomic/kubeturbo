@@ -118,20 +118,23 @@ func genNewPodName(oldPod *api.Pod) string {
 	return newPodName
 }
 
-// Move pod to node nodeName in four steps:
-//  stepA1: create a clone pod of the original pod (without labels)
-//  stepA2: wait until the cloned pod is ready
-//  stepA3: delete the original pod
-//  stepA4: add the labels to the cloned pod
+// Move pod to node nodeName in below steps:
 // If a pod has a persistent volume attached the steps are different:
-//  stepB1: create a clone pod of the original pod (without labels)
-//  stepB2: if the parent has parent (rs has deployment) pause the rollout
-//  stepB3: change the scheduler of parent to non-default (turbo-scheduler)
-//  stepB4: delete the original pod
-//  stepB5: wait until the cloned pod is ready
-//  stepB6: add the labels to the cloned pod
-//  stepB7: change the scheduler of parent back to to default-scheduler
-//  stepB8: if the parent has parent, unpause the rollout
+//  step 1: create a clone pod of the original pod (without labels)
+//  step 2: if the parent has parent (rs has deployment) pause the rollout
+//  step 3: change the scheduler of parent to non-default (turbo-scheduler)
+// If a pod HAS a persistent volume attached
+// {
+//  step 4: delete the original pod
+// }
+//  step 5: wait until the cloned pod is ready
+// If the pod does NOT have persistent volume attached
+// {
+//	 step 4: delete the original pod
+// }
+//  step 6: add the labels to the cloned pod
+//  step 7: change the scheduler of parent back to to default-scheduler
+//  step 8: if the parent has parent, unpause the rollout
 // TODO: add support for operator controlled parent or parent's parent.
 func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, parentKind, parentName string,
 	retryNum int, failVolumePodMoves, updateQuotaToAllowMoves bool, lockMap *util.ExpirationMap) (*api.Pod, error) {
@@ -185,7 +188,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 		}
 	}
 
-	//step A1/B1. create a clone pod--podC of the original pod--podA
+	//step 1. create a clone pod--podC of the original pod--podA
 	npod, err := createClonePod(clusterScraper.Clientset, pod, parentForPodSpec, updateQuotaToAllowMoves, nodeName)
 	if err != nil {
 		glog.Errorf("Move pod failed: failed to create a clone pod: %v", err)
@@ -200,74 +203,71 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 			glog.Errorf("Move pod failed, begin to delete cloned pod: %v/%v", npod.Namespace, npod.Name)
 			podClient.Delete(context.TODO(), npod.Name, metav1.DeleteOptions{})
 		}
-		if podUsingVolume {
-			// A failure can leave a pod (or pods) in pending state, delete them.
-			// This can happen in case the newly created pod did fail to reach ready
-			// state for whatever reason. After timeout we will end up deleting the
-			// newly created pod. The invalid pod (or pods) would have been created
-			// for when the parent's scheduler was set to invalid scheduler (turbo-scheduler)
-			// and at exactly the same time the total replica count dropped below
-			// desired count (for  whatever reason).
-			deleteInvalidPendingPods(parent, podClient, podList)
-		}
+		// A failure can leave a pod (or pods) in pending state, delete them.
+		// This can happen in case the newly created pod did fail to reach ready
+		// state for whatever reason. After timeout we will end up deleting the
+		// newly created pod. The invalid pod (or pods) would have been created
+		// for when the parent's scheduler was set to invalid scheduler (turbo-scheduler)
+		// and at exactly the same time the total replica count dropped below
+		// desired count (for  whatever reason).
+		deleteInvalidPendingPods(parent, podClient, podList)
 	}()
 
-	// Special handling for pods with volumes
-	if podUsingVolume {
-		if grandParent != nil {
-			pause := true
-			unpause := false
-			// step B8: (via defer)
-			defer func() {
-				glog.V(3).Infof("Unpausing pods controller: %s for pod: %s", gPKind, podQualifiedName)
-				// We conservatively try additional 3 times in case of any failure as we don't
-				// want the parent to be left in a bad state.
-				err := commonutil.RetryDuring(DefaultExecutionRetry, DefaultRetryShortTimeout,
-					DefaultRetrySleepInterval, func() error {
-						return ResourceRollout(gPClient, grandParent, unpause)
-					})
-				if err != nil {
-					glog.Errorf("Move pod warning: %v", err)
-				}
-			}()
-
-			// step B2:
-			glog.V(3).Infof("Pausing pods controller: %s for pod: %s", gPKind, podQualifiedName)
-			err := ResourceRollout(gPClient, grandParent, pause)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		podList, err = parentsPods(parent, podClient)
-		if err != nil {
-			return nil, err
-		}
-
-		valid := true
-		invalid := false
-		// step B7: (via defer)
+	if grandParent != nil {
+		pause := true
+		unpause := false
+		// step 8: (via defer)
 		defer func() {
-			glog.V(3).Infof("Updating scheduler of %s for pod %s back to default.", parentKind, podQualifiedName)
+			glog.V(3).Infof("Unpausing pods controller: %s for pod: %s", gPKind, podQualifiedName)
 			// We conservatively try additional 3 times in case of any failure as we don't
 			// want the parent to be left in a bad state.
 			err := commonutil.RetryDuring(DefaultExecutionRetry, DefaultRetryShortTimeout,
 				DefaultRetrySleepInterval, func() error {
-					return ChangeScheduler(pClient, parent, valid)
+					return ResourceRollout(gPClient, grandParent, unpause)
 				})
 			if err != nil {
 				glog.Errorf("Move pod warning: %v", err)
 			}
-
 		}()
-		// step B3:
-		glog.V(3).Infof("Updating scheduler of %s for pod %s to unknown (turbo-scheduler).", parentKind, pod.Name)
-		err = ChangeScheduler(pClient, parent, invalid)
+
+		// step 2:
+		glog.V(3).Infof("Pausing pods controller: %s for pod: %s", gPKind, podQualifiedName)
+		err := ResourceRollout(gPClient, grandParent, pause)
 		if err != nil {
 			return nil, err
 		}
+	}
 
-		// step A3/B4:
+	podList, err = parentsPods(parent, podClient)
+	if err != nil {
+		return nil, err
+	}
+
+	valid := true
+	invalid := false
+	// step 7: (via defer)
+	defer func() {
+		glog.V(3).Infof("Updating scheduler of %s for pod %s back to default.", parentKind, podQualifiedName)
+		// We conservatively try additional 3 times in case of any failure as we don't
+		// want the parent to be left in a bad state.
+		err := commonutil.RetryDuring(DefaultExecutionRetry, DefaultRetryShortTimeout,
+			DefaultRetrySleepInterval, func() error {
+				return ChangeScheduler(pClient, parent, valid)
+			})
+		if err != nil {
+			glog.Errorf("Move pod warning: %v", err)
+		}
+
+	}()
+	// step 3:
+	glog.V(3).Infof("Updating scheduler of %s for pod %s to unknown (turbo-scheduler).", parentKind, pod.Name)
+	err = ChangeScheduler(pClient, parent, invalid)
+	if err != nil {
+		return nil, err
+	}
+
+	if podUsingVolume {
+		// step 4:
 		// We optimistically delete the original pod (PodA), so that the new pod can
 		// bind to the volume.
 		// TODO: This is not an ideal way of doing things, and users should be
@@ -299,7 +299,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 			retryInterval, failureThreshold, initDelay = calculateReadinessThreshold(container, retryInterval, failureThreshold, initDelay)
 		}
 	}
-	//step A2/B5: wait until podC gets ready
+	//step 5: wait until podC gets ready
 	err = podutil.WaitForPodReady(clusterScraper.Clientset, npod.Namespace, npod.Name, nodeName, time.Second*time.Duration(initDelay),
 		failureThreshold, retryInterval)
 	if err != nil {
@@ -308,14 +308,14 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 	}
 
 	if !podUsingVolume {
-		// step A3: delete the original pod--podA
+		// step 4: delete the original pod--podA
 		if err := podClient.Delete(context.TODO(), pod.Name, metav1.DeleteOptions{}); err != nil {
 			glog.Errorf("Move pod warning: failed to delete original pod: %v", err)
 			return nil, err
 		}
 	}
 
-	// step A4/B6: add labels to podC and remove garbage collection annotation
+	// step 6: add labels to podC and remove garbage collection annotation
 	xpod, err := podClient.Get(context.TODO(), npod.Name, metav1.GetOptions{})
 	if err != nil {
 		glog.Errorf("Move pod failed: failed to get the cloned pod: %v", err)
