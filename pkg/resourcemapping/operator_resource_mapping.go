@@ -11,6 +11,7 @@ import (
 	"text/template"
 
 	"github.com/golang/glog"
+	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	v1 "k8s.io/api/core/v1"
 	apix "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -232,8 +233,8 @@ func (ormClient *ORMClient) populateORMTemplateMap(ormCR unstructured.Unstructur
 // updatedControllerObj -- updated K8s controller object based on Turbo actionItem, from which the resource value is fetched
 //                         and will be set to the corresponding CR
 // controllerOwnerReference -- ownerReference of a K8s controller, which contains metadata of a Operator CR
-func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unstructured.Unstructured, controllerOwnerReference metav1.OwnerReference) error {
-	operatorCRUID := string(controllerOwnerReference.UID)
+func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unstructured.Unstructured, controllerOwnerReference discoveryutil.OwnerInfo) error {
+	operatorCRUID := string(controllerOwnerReference.Uid)
 	componentKey := updatedControllerObj.GetKind() + "/" + updatedControllerObj.GetName()
 	ormClient.cacheLock.Lock()
 	defer ormClient.cacheLock.Unlock()
