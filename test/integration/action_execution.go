@@ -201,7 +201,7 @@ var _ = Describe("Action Executor ", func() {
 	})
 
 	// Test resize action execution
-	Describe("executing resize action on a deployment", func() {
+	Describe("executing resize action on a deployment with a single container", func() {
 		It("should match the expected resource request/limit after resizing on both of cpu and memory", func() {
 
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false))
@@ -209,7 +209,7 @@ var _ = Describe("Action Executor ", func() {
 
 			targetSE := newResizeWorkloadControllerTargetSE(dep)
 
-			// Resize on limit, increasing cpu/memory limit by 100m/100Mi
+			// Resize up cpu and memory on resource/limit
 			_, err = actionHandler.ExecuteAction(newResizeActionExecutionDTO(proto.ActionItemDTO_RIGHT_SIZE, targetSE, LIMIT_SINGLE_CONTAINER), nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Resize action on limit failed")
 
@@ -218,7 +218,7 @@ var _ = Describe("Action Executor ", func() {
 				framework.Failf("Failed to check the change of resource/limit in the new deployment: %s", err)
 			}
 
-			// Resize on request, increasing cpu/memory request by 100m/100Mi
+			// Resize up cpu and memory on resource/request
 			_, err = actionHandler.ExecuteAction(newResizeActionExecutionDTO(proto.ActionItemDTO_RIGHT_SIZE, targetSE, REQUEST_SINGLE_CONTAINER), nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Resize action on request failed")
 
@@ -563,7 +563,7 @@ func waitForDeploymentToUpdateResource(client kubeclientset.Interface, dep *apps
 				return true, nil
 			}
 		default:
-			framework.Errorf("The change type<%d> doesn't get supported", changeType)
+			framework.Errorf("The change type<%d> isn't supported", changeType)
 		}
 
 		return false, nil
@@ -684,83 +684,55 @@ func newResizeActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targ
 	switch changeType {
 	case REQUEST_SINGLE_CONTAINER:
 		currentSE := newContainerEntity("test-cont")
-		// Build action item on Cpu
-		aiOnCpu := &proto.ActionItemDTO{}
-		aiOnCpu.TargetSE = targetSE
-		aiOnCpu.ActionType = &actionType
-		commCpuType := proto.CommodityDTO_VCPU_REQUEST
-		oldCpuCap := float64(cpuRequest)
-		aiOnCpu.CurrentComm = &proto.CommodityDTO{
-			CommodityType: &commCpuType,
-			Capacity:      &oldCpuCap,
-		}
-		newCpuCap := oldCpuCap + cpuIncrement
-		aiOnCpu.NewComm = &proto.CommodityDTO{
-			CommodityType: &commCpuType,
-			Capacity:      &newCpuCap,
-		}
-		aiOnCpu.CurrentSE = currentSE
 
-		// Build action item on Memory
-		aiOnMem := &proto.ActionItemDTO{}
-		aiOnMem.TargetSE = targetSE
-		aiOnMem.ActionType = &actionType
-		commMemType := proto.CommodityDTO_VMEM_REQUEST
-		oldMemCap := float64(memoryRequest * 1024)
-		aiOnMem.CurrentComm = &proto.CommodityDTO{
-			CommodityType: &commMemType,
-			Capacity:      &oldMemCap,
-		}
+		// Build the action item on cpu
+		oldCpuCap := cpuRequest
+		newCpuCap := oldCpuCap + cpuIncrement
+		aiOnCpu := newActionItemDTO(actionType, proto.CommodityDTO_VCPU_REQUEST, oldCpuCap, newCpuCap, currentSE, targetSE)
+
+		// Build the action item on memory
+		oldMemCap := memoryRequest * 1024
 		newMemCap := oldMemCap + memIncrement*1024
-		aiOnMem.NewComm = &proto.CommodityDTO{
-			CommodityType: &commMemType,
-			Capacity:      &newMemCap,
-		}
-		aiOnMem.CurrentSE = currentSE
+		aiOnMem := newActionItemDTO(actionType, proto.CommodityDTO_VMEM_REQUEST, oldMemCap, newMemCap, currentSE, targetSE)
 
 		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu, aiOnMem}
 	case LIMIT_SINGLE_CONTAINER:
 		currentSE := newContainerEntity("test-cont")
-		// Build action item on Cpu
-		aiOnCpu := &proto.ActionItemDTO{}
-		aiOnCpu.TargetSE = targetSE
-		aiOnCpu.ActionType = &actionType
-		commCpuType := proto.CommodityDTO_VCPU
-		oldCpuCap := float64(cpuLimit)
-		aiOnCpu.CurrentComm = &proto.CommodityDTO{
-			CommodityType: &commCpuType,
-			Capacity:      &oldCpuCap,
-		}
-		newCpuCap := oldCpuCap + cpuIncrement
-		aiOnCpu.NewComm = &proto.CommodityDTO{
-			CommodityType: &commCpuType,
-			Capacity:      &newCpuCap,
-		}
-		aiOnCpu.CurrentSE = currentSE
 
-		// Build action item on Memory
-		aiOnMem := &proto.ActionItemDTO{}
-		aiOnMem.TargetSE = targetSE
-		aiOnMem.ActionType = &actionType
-		commMemType := proto.CommodityDTO_VMEM
-		oldMemCap := float64(memoryLimit * 1024)
-		aiOnMem.CurrentComm = &proto.CommodityDTO{
-			CommodityType: &commMemType,
-			Capacity:      &oldMemCap,
-		}
+		// Build the action item on cpu
+		oldCpuCap := cpuLimit
+		newCpuCap := oldCpuCap + cpuIncrement
+		aiOnCpu := newActionItemDTO(actionType, proto.CommodityDTO_VCPU, oldCpuCap, newCpuCap, currentSE, targetSE)
+
+		// Build the action item on memory
+		oldMemCap := memoryLimit * 1024
 		newMemCap := oldMemCap + memIncrement*1024
-		aiOnMem.NewComm = &proto.CommodityDTO{
-			CommodityType: &commMemType,
-			Capacity:      &newMemCap,
-		}
-		aiOnMem.CurrentSE = currentSE
+		aiOnMem := newActionItemDTO(actionType, proto.CommodityDTO_VMEM, oldMemCap, newMemCap, currentSE, targetSE)
 
 		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu, aiOnMem}
 	default:
-		framework.Errorf("The change type<%d> doesn't get supported", changeType)
+		framework.Errorf("The change type<%d> isn't supported", changeType)
 	}
 
 	return dto
+}
+
+func newActionItemDTO(actionType proto.ActionItemDTO_ActionType, commType proto.CommodityDTO_CommodityType, oldValue, newValue int, currentSE, targetSE *proto.EntityDTO) *proto.ActionItemDTO {
+	ai := &proto.ActionItemDTO{}
+	ai.ActionType = &actionType
+	ai.CurrentSE = currentSE
+	ai.TargetSE = targetSE
+	oldCap := float64(oldValue)
+	ai.CurrentComm = &proto.CommodityDTO{
+		CommodityType: &commType,
+		Capacity:      &oldCap,
+	}
+	newCap := float64(newValue)
+	ai.NewComm = &proto.CommodityDTO{
+		CommodityType: &commType,
+		Capacity:      &newCap,
+	}
+	return ai
 }
 
 func newActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targetSE, newHostSE *proto.EntityDTO) *proto.ActionExecutionDTO {
