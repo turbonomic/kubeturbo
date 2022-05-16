@@ -39,11 +39,14 @@ const (
 	memoryLimit            = 200
 	cpuIncrement           = 100
 	memIncrement           = 100
+	cpuDecrement           = 25
+	memoryDecrement        = 25
 )
 
 const (
 	REQUEST_SINGLE_CONTAINER = iota
 	LIMIT_SINGLE_CONTAINER
+	REQLIM_MULTI_CONTAINER
 )
 
 var _ = Describe("Action Executor ", func() {
@@ -200,7 +203,7 @@ var _ = Describe("Action Executor ", func() {
 		})
 	})
 
-	// Test resize action execution
+	// Single container resize up cpu and memory on resource request/limit
 	Describe("executing resize action on a deployment with a single container", func() {
 		It("should match the expected resource request/limit after resizing on both of cpu and memory", func() {
 
@@ -225,6 +228,24 @@ var _ = Describe("Action Executor ", func() {
 			_, err = waitForDeploymentToUpdateResource(kubeClient, dep, REQUEST_SINGLE_CONTAINER)
 			if err != nil {
 				framework.Failf("Failed to check the change of the resource/request in the new deployment: %s", err)
+			}
+		})
+	})
+
+	// Multi container resize down cpu and memory on resource request/limit
+	Describe("executing resize action on a deployment with 2 containers", func() {
+		It("should match the expected resource request/limit after resizing on both of cpu and memory", func() {
+
+			dep, err := createDeployResource(kubeClient, depMultiContainerWithResources(namespace, "", 1))
+			framework.ExpectNoError(err, "Error creating test resources")
+
+			targetSE := newResizeWorkloadControllerTargetSE(dep)
+			_, err = actionHandler.ExecuteAction(newResizeActionExecutionDTO(proto.ActionItemDTO_RIGHT_SIZE, targetSE, REQLIM_MULTI_CONTAINER), nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Resize action on multiple container failed")
+
+			_, err = waitForDeploymentToUpdateResource(kubeClient, dep, REQLIM_MULTI_CONTAINER)
+			if err != nil {
+				framework.Failf("Failed to check the change of the resource/request in the new deployment with multiple containers: %s", err)
 			}
 		})
 	})
@@ -309,6 +330,68 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 	}
 	if paused {
 		dep.Spec.Paused = true
+	}
+
+	return &dep
+}
+
+func depMultiContainerWithResources(namespace, claimName string, replicas int32) *appsv1.Deployment {
+	dep := appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "test-",
+			Namespace:    namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "test-app",
+				},
+			},
+			Replicas: &replicas,
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": "test-app",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:    "test-cont-1",
+							Image:   "busybox",
+							Command: []string{"/bin/sh"},
+							Args:    []string{"-c", "while true; do sleep 30; done;"},
+							Resources: corev1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", cpuLimit)),
+									corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%dMi", memoryLimit)),
+								},
+								Requests: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", cpuRequest)),
+									corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%dMi", memoryRequest)),
+								},
+							},
+						},
+						{
+							Name:    "test-cont-2",
+							Image:   "busybox",
+							Command: []string{"/bin/sh"},
+							Args:    []string{"-c", "while true; do sleep 30; done;"},
+							Resources: corev1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", cpuLimit)),
+									corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%dMi", memoryLimit)),
+								},
+								Requests: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", cpuRequest)),
+									corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%dMi", memoryRequest)),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	return &dep
@@ -562,6 +645,33 @@ func waitForDeploymentToUpdateResource(client kubeclientset.Interface, dep *apps
 				newMemLimit.Value()-oldMemLimit.Value() == memIncrement*1024*1024 {
 				return true, nil
 			}
+		case REQLIM_MULTI_CONTAINER:
+			//check on the first container
+			checkContainer1 := false
+			checkContainer2 := false
+			oldCpuReq := dep.Spec.Template.Spec.Containers[0].Resources.Requests["cpu"]
+			newCpuReq := newDep.Spec.Template.Spec.Containers[0].Resources.Requests["cpu"]
+			oldMemReq := dep.Spec.Template.Spec.Containers[0].Resources.Requests["memory"]
+			newMemReq := newDep.Spec.Template.Spec.Containers[0].Resources.Requests["memory"]
+
+			if oldCpuReq.MilliValue()-newCpuReq.MilliValue() == cpuDecrement &&
+				oldMemReq.Value()-newMemReq.Value() == memoryDecrement*1024*1024 {
+				checkContainer1 = true
+			}
+
+			//check on the second container
+			oldCpuLimit := dep.Spec.Template.Spec.Containers[1].Resources.Limits["cpu"]
+			newCpuLimit := newDep.Spec.Template.Spec.Containers[1].Resources.Limits["cpu"]
+			oldMemLimit := dep.Spec.Template.Spec.Containers[1].Resources.Limits["memory"]
+			newMemLimit := newDep.Spec.Template.Spec.Containers[1].Resources.Limits["memory"]
+
+			if oldCpuLimit.MilliValue()-newCpuLimit.MilliValue() == cpuDecrement &&
+				oldMemLimit.Value()-newMemLimit.Value() == memoryDecrement*1024*1024 {
+				checkContainer2 = true
+			}
+			if checkContainer1 && checkContainer2 {
+				return true, nil
+			}
 		default:
 			framework.Errorf("The change type<%d> isn't supported", changeType)
 		}
@@ -710,6 +820,26 @@ func newResizeActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targ
 		aiOnMem := newActionItemDTO(actionType, proto.CommodityDTO_VMEM, oldMemCap, newMemCap, currentSE, targetSE)
 
 		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu, aiOnMem}
+	case REQLIM_MULTI_CONTAINER:
+		containerSE1 := newContainerEntity("test-cont-1")
+		// Build the resize down action item on request for the first container
+		oldCpuCap1 := cpuRequest
+		newCpuCap1 := oldCpuCap1 - cpuDecrement
+		aiOnCpu1 := newActionItemDTO(actionType, proto.CommodityDTO_VCPU_REQUEST, oldCpuCap1, newCpuCap1, containerSE1, targetSE)
+		oldMemCap1 := memoryRequest * 1024
+		newMemCap1 := oldMemCap1 - memoryDecrement*1024
+		aiOnMem1 := newActionItemDTO(actionType, proto.CommodityDTO_VMEM_REQUEST, oldMemCap1, newMemCap1, containerSE1, targetSE)
+
+		// Build the resize down action item on limit for the second container
+		containerSE2 := newContainerEntity("test-cont-2")
+		oldCpuCap2 := cpuLimit
+		newCpuCap2 := oldCpuCap2 - cpuDecrement
+		aiOnCpu2 := newActionItemDTO(actionType, proto.CommodityDTO_VCPU, oldCpuCap2, newCpuCap2, containerSE2, targetSE)
+		oldMemCap2 := memoryLimit * 1024
+		newMemCap2 := oldMemCap2 - memoryDecrement*1024
+		aiOnMem2 := newActionItemDTO(actionType, proto.CommodityDTO_VMEM, oldMemCap2, newMemCap2, containerSE2, targetSE)
+
+		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu1, aiOnMem1, aiOnCpu2, aiOnMem2}
 	default:
 		framework.Errorf("The change type<%d> isn't supported", changeType)
 	}
