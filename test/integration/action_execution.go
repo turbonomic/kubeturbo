@@ -93,7 +93,7 @@ var _ = Describe("Action Executor ", func() {
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 
-			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
+			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
 			framework.ExpectNoError(err, "Error getting deployments pod")
 			// This should not happen. We should ideally get a pod.
 			if pod == nil {
@@ -123,7 +123,7 @@ var _ = Describe("Action Executor ", func() {
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, false, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 
-			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
+			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
 			framework.ExpectNoError(err, "Error getting deployments pod")
 			// This should not happen. We should ideally get a pod.
 			if pod == nil {
@@ -201,6 +201,27 @@ var _ = Describe("Action Executor ", func() {
 			framework.ExpectNoError(err, "Move action failed")
 
 			validateMovedPod(kubeClient, dc.Name, "deploymentconfig", namespace, targetNodeName)
+
+		})
+	})
+
+	// Test bare pod move
+	Describe("executing action move bare pod with volum attached", func() {
+		It("should result in new pod on target node", func() {
+			pvc, err := createVolumeClaim(kubeClient, namespace, "standard")
+			pod, err := createBarePod(kubeClient, genBarePodWithResources(namespace, pvc.Name, 1, true))
+			framework.ExpectNoError(err, "Error creating test resources")
+
+			targetNodeName := getTargetSENodeName(f, pod)
+			if targetNodeName == "" {
+				framework.Failf("Failed to find a new node for the bare pod: %s", pod.Name)
+			}
+
+			_, err = actionHandler.ExecuteAction(newActionExecutionDTO(proto.ActionItemDTO_MOVE,
+				newTargetSEFromPod(pod), newHostSEFromNodeName(targetNodeName)), nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Bare pod move action failed")
+
+			validateMovedPod(kubeClient, pod.Name, "barepod", namespace, targetNodeName)
 
 		})
 	})
@@ -400,6 +421,68 @@ func depMultiContainerWithResources(namespace, claimName string, replicas int32)
 	}
 
 	return &dep
+}
+
+func createBarePod(client *kubeclientset.Clientset, pod *corev1.Pod) (*corev1.Pod, error) {
+	var errInternal error
+	var barepod *corev1.Pod
+	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
+		barepod, errInternal = client.CoreV1().Pods(pod.Namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
+		if errInternal != nil {
+			glog.Errorf("Unexpected error while creating pod: %v", errInternal)
+			return false, errInternal
+		}
+		return true, nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return waitForBarePod(client, barepod.Name, barepod.Namespace)
+}
+
+func genBarePodWithResources(namespace, claimName string, replicas int32, withVolume bool) *corev1.Pod {
+	barePod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "test-",
+			Namespace:    namespace,
+		},
+
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:    "test-cont",
+					Image:   "busybox",
+					Command: []string{"/bin/sh"},
+					Args:    []string{"-c", "while true; do sleep 30; done;"},
+					Resources: corev1.ResourceRequirements{
+						Limits: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("200Mi"),
+						},
+						Requests: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceCPU:    resource.MustParse("50m"),
+							corev1.ResourceMemory: resource.MustParse("100Mi"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if withVolume {
+		barePod.Spec.Volumes = []corev1.Volume{
+			{
+				Name: "pod-move-test",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: claimName,
+					},
+				},
+			},
+		}
+	}
+
+	return &barePod
 }
 
 func rsSingleContainerWithResources(namespace string, replicas int32, withGCLabel, withDummyScheduler bool) *appsv1.ReplicaSet {
@@ -641,15 +724,34 @@ func waitForDeploymentToUpdateResource(client kubeclientset.Interface, dep *apps
 	return newDep, nil
 }
 
+func waitForBarePod(client kubeclientset.Interface, podName, namespace string) (*corev1.Pod, error) {
+	var barePod *corev1.Pod
+	var err error
+	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
+		barePod, err = client.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+		if err != nil {
+			glog.Errorf("Unexpected error while getting pod: %v", err)
+			return false, nil
+		}
+		if barePod.Status.Phase == corev1.PodRunning {
+			return true, nil
+		}
+		return false, nil
+	}); err != nil {
+		return nil, err
+	}
+	return barePod, nil
+}
+
 // We create a deployment with only 1 replica, so we should be able to get
 // the only pod using the name as prefix
-func getDeploymentsPod(client kubeclientset.Interface, depName, namespace, targetNodeName string) (*corev1.Pod, error) {
+func getPodWithNamePrefix(client kubeclientset.Interface, podPrefix, namespace, targetNodeName string) (*corev1.Pod, error) {
 	pods, err := client.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 	for _, pod := range pods.Items {
-		if strings.HasPrefix(pod.Name, depName) {
+		if strings.HasPrefix(pod.Name, podPrefix) {
 			if targetNodeName != "" && targetNodeName != pod.Spec.NodeName {
 				continue
 			}
@@ -657,7 +759,7 @@ func getDeploymentsPod(client kubeclientset.Interface, depName, namespace, targe
 		}
 	}
 
-	return nil, nil
+	return nil, fmt.Errorf("Can't find the right pod that with the prefix %s running on the node %s", podPrefix, targetNodeName)
 }
 
 func createDeploymentConfig(client osclient.Interface, dc *osv1.DeploymentConfig) (*osv1.DeploymentConfig, error) {
@@ -711,7 +813,7 @@ func getDeploymentConfigsPod(client kubeclientset.Interface, dcName, namespace, 
 		}
 	}
 
-	return nil, nil
+	return nil, fmt.Errorf("Can't find the right pod that with the prefix %s running on the node %s", dcName, targetNodeName)
 }
 
 func isOpenShiftDeployerPod(labels map[string]string) bool {
@@ -727,8 +829,8 @@ func validateMovedPod(client kubeclientset.Interface, parentName, parentType, na
 	var pod *corev1.Pod
 	var err error
 
-	if parentType == "deployment" {
-		pod, err = getDeploymentsPod(client, parentName, namespace, targetNodeName)
+	if parentType == "deployment" || parentType == "barepod" {
+		pod, err = getPodWithNamePrefix(client, parentName, namespace, targetNodeName)
 	} else if parentType == "deploymentconfig" {
 		pod, err = getDeploymentConfigsPod(client, parentName, namespace, targetNodeName)
 	}
