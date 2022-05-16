@@ -95,7 +95,7 @@ spec:
 			framework.ExpectNoError(err, "Error creating test resources")
 			defer deleteDeploy(kubeClient, dep)
 
-			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
+			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
 			framework.ExpectNoError(err, "Error getting deployments pod")
 			// This should not happen. We should ideally get a pod.
 			if pod == nil {
@@ -129,7 +129,7 @@ spec:
 			framework.ExpectNoError(err, "Error creating test resources")
 			defer deleteDeploy(kubeClient, dep)
 
-			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
+			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
 			framework.ExpectNoError(err, "Error getting deployments pod")
 			// This should not happen. We should ideally get a pod.
 			if pod == nil {
@@ -162,7 +162,7 @@ spec:
 			framework.ExpectNoError(err, "Error creating test resources")
 			defer deleteDeploy(kubeClient, dep)
 
-			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
+			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
 			framework.ExpectNoError(err, "Error getting deployments pod")
 			// This should not happen. We should ideally get a pod.
 			if pod == nil {
@@ -201,7 +201,7 @@ spec:
 				framework.ExpectNoError(err, "Error creating test resources")
 				defer deleteDeploy(kubeClient, dep)
 
-				pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
+				pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
 				framework.ExpectNoError(err, "Error getting deployments pod")
 				// This should not happen. We should ideally get a pod.
 				if pod == nil {
