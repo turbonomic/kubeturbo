@@ -37,16 +37,21 @@ const (
 	memoryRequest          = 100
 	cpuLimit               = 100
 	memoryLimit            = 200
-	cpuIncrement           = 100
-	memIncrement           = 100
+	cpuIncrement           = 50
+	memIncrement           = 75
 	cpuDecrement           = 25
-	memoryDecrement        = 25
+	memoryDecrement        = 50
 )
 
 const (
 	REQUEST_SINGLE_CONTAINER = iota
 	LIMIT_SINGLE_CONTAINER
 	REQLIM_MULTI_CONTAINER
+)
+
+const (
+	RESOURCE_REQUEST = iota
+	RESOURCE_LIMIT
 )
 
 var _ = Describe("Action Executor ", func() {
@@ -626,47 +631,31 @@ func waitForDeploymentToUpdateResource(client kubeclientset.Interface, dep *apps
 		}
 		switch changeType {
 		case REQUEST_SINGLE_CONTAINER:
-			oldCpuReq := dep.Spec.Template.Spec.Containers[0].Resources.Requests["cpu"]
-			newCpuReq := newDep.Spec.Template.Spec.Containers[0].Resources.Requests["cpu"]
-			oldMemReq := dep.Spec.Template.Spec.Containers[0].Resources.Requests["memory"]
-			newMemReq := newDep.Spec.Template.Spec.Containers[0].Resources.Requests["memory"]
-
-			if newCpuReq.MilliValue()-oldCpuReq.MilliValue() == cpuIncrement &&
-				newMemReq.Value()-oldMemReq.Value() == memIncrement*1024*1024 {
+			oldCpuReq, newCpuReq, oldMemReq, newMemReq := getResourceQuantity(dep, newDep, RESOURCE_REQUEST, 0)
+			if validateIncrement(newCpuReq.MilliValue(), oldCpuReq.MilliValue(), cpuIncrement) &&
+				validateIncrement(newMemReq.Value(), oldMemReq.Value(), memIncrement*1024*1024) {
 				return true, nil
 			}
 		case LIMIT_SINGLE_CONTAINER:
-			oldCpuLimit := dep.Spec.Template.Spec.Containers[0].Resources.Limits["cpu"]
-			newCpuLimit := newDep.Spec.Template.Spec.Containers[0].Resources.Limits["cpu"]
-			oldMemLimit := dep.Spec.Template.Spec.Containers[0].Resources.Limits["memory"]
-			newMemLimit := newDep.Spec.Template.Spec.Containers[0].Resources.Limits["memory"]
-
-			if newCpuLimit.MilliValue()-oldCpuLimit.MilliValue() == cpuIncrement &&
-				newMemLimit.Value()-oldMemLimit.Value() == memIncrement*1024*1024 {
+			oldCpuLimit, newCpuLimit, oldMemLimit, newMemLimit := getResourceQuantity(dep, newDep, RESOURCE_LIMIT, 0)
+			if validateIncrement(newCpuLimit.MilliValue(), oldCpuLimit.MilliValue(), cpuIncrement) &&
+				validateIncrement(newMemLimit.Value(), oldMemLimit.Value(), memIncrement*1024*1024) {
 				return true, nil
 			}
 		case REQLIM_MULTI_CONTAINER:
-			//check on the first container
 			checkContainer1 := false
 			checkContainer2 := false
-			oldCpuReq := dep.Spec.Template.Spec.Containers[0].Resources.Requests["cpu"]
-			newCpuReq := newDep.Spec.Template.Spec.Containers[0].Resources.Requests["cpu"]
-			oldMemReq := dep.Spec.Template.Spec.Containers[0].Resources.Requests["memory"]
-			newMemReq := newDep.Spec.Template.Spec.Containers[0].Resources.Requests["memory"]
-
-			if oldCpuReq.MilliValue()-newCpuReq.MilliValue() == cpuDecrement &&
-				oldMemReq.Value()-newMemReq.Value() == memoryDecrement*1024*1024 {
+			//check on the first container
+			oldCpuReq, newCpuReq, oldMemReq, newMemReq := getResourceQuantity(dep, newDep, RESOURCE_REQUEST, 0)
+			if validateIncrement(newCpuReq.MilliValue(), oldCpuReq.MilliValue(), cpuIncrement) &&
+				validateIncrement(oldMemReq.Value(), newMemReq.Value(), memoryDecrement*1024*1024) {
 				checkContainer1 = true
 			}
 
 			//check on the second container
-			oldCpuLimit := dep.Spec.Template.Spec.Containers[1].Resources.Limits["cpu"]
-			newCpuLimit := newDep.Spec.Template.Spec.Containers[1].Resources.Limits["cpu"]
-			oldMemLimit := dep.Spec.Template.Spec.Containers[1].Resources.Limits["memory"]
-			newMemLimit := newDep.Spec.Template.Spec.Containers[1].Resources.Limits["memory"]
-
-			if oldCpuLimit.MilliValue()-newCpuLimit.MilliValue() == cpuDecrement &&
-				oldMemLimit.Value()-newMemLimit.Value() == memoryDecrement*1024*1024 {
+			oldCpuLimit, newCpuLimit, oldMemLimit, newMemLimit := getResourceQuantity(dep, newDep, RESOURCE_LIMIT, 1)
+			if validateIncrement(oldCpuLimit.MilliValue(), newCpuLimit.MilliValue(), cpuDecrement) &&
+				validateIncrement(newMemLimit.Value(), oldMemLimit.Value(), memIncrement*1024*1024) {
 				checkContainer2 = true
 			}
 			if checkContainer1 && checkContainer2 {
@@ -681,6 +670,34 @@ func waitForDeploymentToUpdateResource(client kubeclientset.Interface, dep *apps
 		return nil, err
 	}
 	return newDep, nil
+}
+
+func getResourceQuantity(dep *appsv1.Deployment, newDep *appsv1.Deployment, resourceType int, containerIndex int) (resource.Quantity, resource.Quantity, resource.Quantity, resource.Quantity) {
+	var oldCpuQuan, newCpuQuan, oldMemQuan, newMemQuan resource.Quantity
+	if containerIndex >= len(dep.Spec.Template.Spec.Containers) || containerIndex >= len(newDep.Spec.Template.Spec.Containers) {
+		framework.Errorf("The container index<%d> is out of the bound", containerIndex)
+		return oldCpuQuan, newCpuQuan, oldMemQuan, newMemQuan
+	}
+	switch resourceType {
+	case RESOURCE_REQUEST:
+		oldCpuQuan = dep.Spec.Template.Spec.Containers[containerIndex].Resources.Requests["cpu"]
+		newCpuQuan = newDep.Spec.Template.Spec.Containers[containerIndex].Resources.Requests["cpu"]
+		oldMemQuan = dep.Spec.Template.Spec.Containers[containerIndex].Resources.Requests["memory"]
+		newMemQuan = newDep.Spec.Template.Spec.Containers[containerIndex].Resources.Requests["memory"]
+	case RESOURCE_LIMIT:
+		oldCpuQuan = dep.Spec.Template.Spec.Containers[containerIndex].Resources.Limits["cpu"]
+		newCpuQuan = newDep.Spec.Template.Spec.Containers[containerIndex].Resources.Limits["cpu"]
+		oldMemQuan = dep.Spec.Template.Spec.Containers[containerIndex].Resources.Limits["memory"]
+		newMemQuan = newDep.Spec.Template.Spec.Containers[containerIndex].Resources.Limits["memory"]
+	default:
+		framework.Errorf("The resource type<%d> isn't supported", resourceType)
+	}
+
+	return oldCpuQuan, newCpuQuan, oldMemQuan, newMemQuan
+}
+
+func validateIncrement(val1, val2, increment int64) bool {
+	return val1-val2 == increment
 }
 
 // We create a deployment with only 1 replica, so we should be able to get
@@ -822,21 +839,21 @@ func newResizeActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targ
 		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu, aiOnMem}
 	case REQLIM_MULTI_CONTAINER:
 		containerSE1 := newContainerEntity("test-cont-1")
-		// Build the resize down action item on request for the first container
+		// Build the resize up action item on request/cpu and resize down action on request/memory for the first container
 		oldCpuCap1 := cpuRequest
-		newCpuCap1 := oldCpuCap1 - cpuDecrement
+		newCpuCap1 := oldCpuCap1 + cpuIncrement
 		aiOnCpu1 := newActionItemDTO(actionType, proto.CommodityDTO_VCPU_REQUEST, oldCpuCap1, newCpuCap1, containerSE1, targetSE)
 		oldMemCap1 := memoryRequest * 1024
 		newMemCap1 := oldMemCap1 - memoryDecrement*1024
 		aiOnMem1 := newActionItemDTO(actionType, proto.CommodityDTO_VMEM_REQUEST, oldMemCap1, newMemCap1, containerSE1, targetSE)
 
-		// Build the resize down action item on limit for the second container
+		// Build the resize down action item on limit/cpu and resize up action on limit/memory for the second container
 		containerSE2 := newContainerEntity("test-cont-2")
 		oldCpuCap2 := cpuLimit
 		newCpuCap2 := oldCpuCap2 - cpuDecrement
 		aiOnCpu2 := newActionItemDTO(actionType, proto.CommodityDTO_VCPU, oldCpuCap2, newCpuCap2, containerSE2, targetSE)
 		oldMemCap2 := memoryLimit * 1024
-		newMemCap2 := oldMemCap2 - memoryDecrement*1024
+		newMemCap2 := oldMemCap2 + memIncrement*1024
 		aiOnMem2 := newActionItemDTO(actionType, proto.CommodityDTO_VMEM, oldMemCap2, newMemCap2, containerSE2, targetSE)
 
 		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu1, aiOnMem1, aiOnCpu2, aiOnMem2}
