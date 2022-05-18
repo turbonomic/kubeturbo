@@ -33,7 +33,17 @@ import (
 
 const (
 	openShiftDeployerLabel = "openshift.io/deployer-pod-for.name"
+	cpuRequest             = 50
+	memoryRequest          = 100
+	cpuLimit               = 100
+	memoryLimit            = 200
 	cpuIncrement           = 100
+	memIncrement           = 100
+)
+
+const (
+	REQUEST_SINGLE_CONTAINER = iota
+	LIMIT_SINGLE_CONTAINER
 )
 
 var _ = Describe("Action Executor ", func() {
@@ -191,21 +201,30 @@ var _ = Describe("Action Executor ", func() {
 	})
 
 	// Test resize action execution
-	Describe("executing resize action on a deployment", func() {
-		It("should match the expected resource cpu reuqest after resize", func() {
+	Describe("executing resize action on a deployment with a single container", func() {
+		It("should match the expected resource request/limit after resizing on both of cpu and memory", func() {
 
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			targetSE := newResizeWorkloadControllerTargetSE(dep)
-			currentSE := newContainerEntity("test-cont")
 
-			_, err = actionHandler.ExecuteAction(newResizeActionExecutionDTO(proto.ActionItemDTO_RIGHT_SIZE, targetSE, nil, currentSE), nil, &mockProgressTrack{})
-			framework.ExpectNoError(err, "Resize action failed")
+			// Resize up cpu and memory on resource/limit
+			_, err = actionHandler.ExecuteAction(newResizeActionExecutionDTO(proto.ActionItemDTO_RIGHT_SIZE, targetSE, LIMIT_SINGLE_CONTAINER), nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Resize action on limit failed")
 
-			_, err = waitForDeploymentToUpdateResource(kubeClient, dep)
+			_, err = waitForDeploymentToUpdateResource(kubeClient, dep, LIMIT_SINGLE_CONTAINER)
 			if err != nil {
-				framework.Failf("Failed to check the resource request in the new deployment: %s", err)
+				framework.Failf("Failed to check the change of resource/limit in the new deployment: %s", err)
+			}
+
+			// Resize up cpu and memory on resource/request
+			_, err = actionHandler.ExecuteAction(newResizeActionExecutionDTO(proto.ActionItemDTO_RIGHT_SIZE, targetSE, REQUEST_SINGLE_CONTAINER), nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Resize action on request failed")
+
+			_, err = waitForDeploymentToUpdateResource(kubeClient, dep, REQUEST_SINGLE_CONTAINER)
+			if err != nil {
+				framework.Failf("Failed to check the change of the resource/request in the new deployment: %s", err)
 			}
 		})
 	})
@@ -258,12 +277,12 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 							Args:    []string{"-c", "while true; do sleep 30; done;"},
 							Resources: corev1.ResourceRequirements{
 								Limits: map[corev1.ResourceName]resource.Quantity{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
+									corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", cpuLimit)),
+									corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%dMi", memoryLimit)),
 								},
 								Requests: map[corev1.ResourceName]resource.Quantity{
-									corev1.ResourceCPU:    resource.MustParse("50m"),
-									corev1.ResourceMemory: resource.MustParse("100Mi"),
+									corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", cpuRequest)),
+									corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%dMi", memoryRequest)),
 								},
 							},
 						},
@@ -513,7 +532,7 @@ func waitForDeployment(client kubeclientset.Interface, depName, namespace string
 	return newDep, nil
 }
 
-func waitForDeploymentToUpdateResource(client kubeclientset.Interface, dep *appsv1.Deployment) (*appsv1.Deployment, error) {
+func waitForDeploymentToUpdateResource(client kubeclientset.Interface, dep *appsv1.Deployment, changeType int) (*appsv1.Deployment, error) {
 	var newDep *appsv1.Deployment
 	var err error
 	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
@@ -522,11 +541,31 @@ func waitForDeploymentToUpdateResource(client kubeclientset.Interface, dep *apps
 			glog.Errorf("Unexpected error while getting deployment: %v", err)
 			return false, nil
 		}
-		oldCpuReq := dep.Spec.Template.Spec.Containers[0].Resources.Limits["cpu"]
-		newCpuReq := newDep.Spec.Template.Spec.Containers[0].Resources.Limits["cpu"]
-		if newCpuReq.MilliValue()-oldCpuReq.MilliValue() == cpuIncrement {
-			return true, nil
+		switch changeType {
+		case REQUEST_SINGLE_CONTAINER:
+			oldCpuReq := dep.Spec.Template.Spec.Containers[0].Resources.Requests["cpu"]
+			newCpuReq := newDep.Spec.Template.Spec.Containers[0].Resources.Requests["cpu"]
+			oldMemReq := dep.Spec.Template.Spec.Containers[0].Resources.Requests["memory"]
+			newMemReq := newDep.Spec.Template.Spec.Containers[0].Resources.Requests["memory"]
+
+			if newCpuReq.MilliValue()-oldCpuReq.MilliValue() == cpuIncrement &&
+				newMemReq.Value()-oldMemReq.Value() == memIncrement*1024*1024 {
+				return true, nil
+			}
+		case LIMIT_SINGLE_CONTAINER:
+			oldCpuLimit := dep.Spec.Template.Spec.Containers[0].Resources.Limits["cpu"]
+			newCpuLimit := newDep.Spec.Template.Spec.Containers[0].Resources.Limits["cpu"]
+			oldMemLimit := dep.Spec.Template.Spec.Containers[0].Resources.Limits["memory"]
+			newMemLimit := newDep.Spec.Template.Spec.Containers[0].Resources.Limits["memory"]
+
+			if newCpuLimit.MilliValue()-oldCpuLimit.MilliValue() == cpuIncrement &&
+				newMemLimit.Value()-oldMemLimit.Value() == memIncrement*1024*1024 {
+				return true, nil
+			}
+		default:
+			framework.Errorf("The change type<%d> isn't supported", changeType)
 		}
+
 		return false, nil
 	}); err != nil {
 		return nil, err
@@ -639,34 +678,61 @@ type mockProgressTrack struct{}
 func (p *mockProgressTrack) UpdateProgress(actionState proto.ActionResponseState, description string, progress int32) {
 }
 
-func newResizeActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targetSE, newHostSE, currentSE *proto.EntityDTO) *proto.ActionExecutionDTO {
-	ai := &proto.ActionItemDTO{}
-	ai.TargetSE = targetSE
-	ai.NewSE = newHostSE
-	ai.ActionType = &actionType
+func newResizeActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targetSE *proto.EntityDTO, changeType int) *proto.ActionExecutionDTO {
+	dto := &proto.ActionExecutionDTO{}
 
-	commType := proto.CommodityDTO_VCPU
-	cap := float64(cpuIncrement)
-	ai.CurrentComm = &proto.CommodityDTO{
-		CommodityType: &commType,
-		Capacity:      &cap,
+	switch changeType {
+	case REQUEST_SINGLE_CONTAINER:
+		currentSE := newContainerEntity("test-cont")
+
+		// Build the action item on cpu
+		oldCpuCap := cpuRequest
+		newCpuCap := oldCpuCap + cpuIncrement
+		aiOnCpu := newActionItemDTO(actionType, proto.CommodityDTO_VCPU_REQUEST, oldCpuCap, newCpuCap, currentSE, targetSE)
+
+		// Build the action item on memory
+		oldMemCap := memoryRequest * 1024
+		newMemCap := oldMemCap + memIncrement*1024
+		aiOnMem := newActionItemDTO(actionType, proto.CommodityDTO_VMEM_REQUEST, oldMemCap, newMemCap, currentSE, targetSE)
+
+		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu, aiOnMem}
+	case LIMIT_SINGLE_CONTAINER:
+		currentSE := newContainerEntity("test-cont")
+
+		// Build the action item on cpu
+		oldCpuCap := cpuLimit
+		newCpuCap := oldCpuCap + cpuIncrement
+		aiOnCpu := newActionItemDTO(actionType, proto.CommodityDTO_VCPU, oldCpuCap, newCpuCap, currentSE, targetSE)
+
+		// Build the action item on memory
+		oldMemCap := memoryLimit * 1024
+		newMemCap := oldMemCap + memIncrement*1024
+		aiOnMem := newActionItemDTO(actionType, proto.CommodityDTO_VMEM, oldMemCap, newMemCap, currentSE, targetSE)
+
+		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu, aiOnMem}
+	default:
+		framework.Errorf("The change type<%d> isn't supported", changeType)
 	}
 
-	newCap := cap + cpuIncrement
+	return dto
+}
+
+func newActionItemDTO(actionType proto.ActionItemDTO_ActionType, commType proto.CommodityDTO_CommodityType, oldValue, newValue int, currentSE, targetSE *proto.EntityDTO) *proto.ActionItemDTO {
+	ai := &proto.ActionItemDTO{}
+	ai.ActionType = &actionType
+	ai.CurrentSE = currentSE
+	ai.TargetSE = targetSE
+	oldCap := float64(oldValue)
+	ai.CurrentComm = &proto.CommodityDTO{
+		CommodityType: &commType,
+		Capacity:      &oldCap,
+	}
+	newCap := float64(newValue)
 	ai.NewComm = &proto.CommodityDTO{
 		CommodityType: &commType,
 		Capacity:      &newCap,
 	}
-
-	csc := true
-	ai.ConsistentScalingCompliance = &csc
-
-	ai.CurrentSE = currentSE
-
-	dto := &proto.ActionExecutionDTO{}
-	dto.ActionItem = []*proto.ActionItemDTO{ai}
-
-	return dto
+	return ai
 }
 
 func newActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targetSE, newHostSE *proto.EntityDTO) *proto.ActionExecutionDTO {
