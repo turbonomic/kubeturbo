@@ -58,6 +58,9 @@ spec:
 
 	//AfterSuite(f.AfterEach)
 	BeforeEach(func() {
+		if framework.TestContext.IsOpenShiftTest {
+			Skip("Ignoring all of garbage collection cases.")
+		}
 		var err error
 		f.BeforeEach()
 		// The following setup is shared across tests here

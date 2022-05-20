@@ -65,6 +65,9 @@ spec:
 `
 
 	BeforeEach(func() {
+		if framework.TestContext.IsOpenShiftTest {
+			Skip("Ignoring pod move with quota cases.")
+		}
 		f.BeforeEach()
 		// The following setup is shared across tests here
 		if kubeConfig == nil {
