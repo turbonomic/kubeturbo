@@ -16,6 +16,8 @@ kind_bin_name="kind-${OS}-${ARCH}"
 kind_path="${dest_dir}/kind"
 #kubectl
 kubectl_path="${dest_dir}/kubectl"
+#oc
+oc_path="${dest_dir}/oc"
 
 # Utility Functions
 #
