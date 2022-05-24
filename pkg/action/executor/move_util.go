@@ -444,6 +444,9 @@ func newPendingInvalidPods(newList, oldList *api.PodList) []*api.Pod {
 }
 
 func parentsPods(parent *unstructured.Unstructured, podClient v1.PodInterface) (*api.PodList, error) {
+	if parent == nil {
+		return nil, nil
+	}
 	kind, objName := parent.GetKind(), parent.GetName()
 	selectorUnstructured, found, err := unstructured.NestedFieldCopy(parent.Object, "spec", "selector")
 	if err != nil || !found {
@@ -614,6 +617,9 @@ func ResourceRollout(client dynamic.ResourceInterface, obj *unstructured.Unstruc
 // ChangeScheduler sets the scheduler value to default or unsets it to an invalid one
 // This additionally adds or removes the garbage collection label on the resource
 func ChangeScheduler(client dynamic.ResourceInterface, obj *unstructured.Unstructured, valid bool) error {
+	if obj == nil {
+		return nil
+	}
 	kind := obj.GetKind()
 	name := obj.GetName()
 	// This takes care of conflicting updates for example by operator
