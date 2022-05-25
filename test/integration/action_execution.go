@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/turbonomic/kubeturbo/test/integration/framework"
@@ -33,17 +34,21 @@ import (
 
 const (
 	openShiftDeployerLabel = "openshift.io/deployer-pod-for.name"
-	cpuRequest             = 50
-	memoryRequest          = 100
-	cpuLimit               = 100
-	memoryLimit            = 200
-	cpuIncrement           = 100
-	memIncrement           = 100
+	cpuIncrement           = 50
+	memoryIncrement        = 75
+	cpuDecrement           = 25
+	memoryDecrement        = 50
 )
 
 const (
 	REQUEST_SINGLE_CONTAINER = iota
 	LIMIT_SINGLE_CONTAINER
+	REQLIM_MULTI_CONTAINER
+)
+
+const (
+	RESIZE_UP = iota
+	RESIZE_DOWN
 )
 
 var _ = Describe("Action Executor ", func() {
@@ -200,7 +205,7 @@ var _ = Describe("Action Executor ", func() {
 		})
 	})
 
-	// Test resize action execution
+	// Single container resize up cpu and memory on resource request/limit
 	Describe("executing resize action on a deployment with a single container", func() {
 		It("should match the expected resource request/limit after resizing on both of cpu and memory", func() {
 
@@ -210,21 +215,42 @@ var _ = Describe("Action Executor ", func() {
 			targetSE := newResizeWorkloadControllerTargetSE(dep)
 
 			// Resize up cpu and memory on resource/limit
-			_, err = actionHandler.ExecuteAction(newResizeActionExecutionDTO(proto.ActionItemDTO_RIGHT_SIZE, targetSE, LIMIT_SINGLE_CONTAINER), nil, &mockProgressTrack{})
+			resizeAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, LIMIT_SINGLE_CONTAINER, &dep.Spec.Template.Spec)
+			_, err = actionHandler.ExecuteAction(resizeAction, nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Resize action on limit failed")
 
-			_, err = waitForDeploymentToUpdateResource(kubeClient, dep, LIMIT_SINGLE_CONTAINER)
+			dep, err = waitForDeploymentToUpdateResource(kubeClient, dep, desiredPodSpec)
 			if err != nil {
 				framework.Failf("Failed to check the change of resource/limit in the new deployment: %s", err)
 			}
 
 			// Resize up cpu and memory on resource/request
-			_, err = actionHandler.ExecuteAction(newResizeActionExecutionDTO(proto.ActionItemDTO_RIGHT_SIZE, targetSE, REQUEST_SINGLE_CONTAINER), nil, &mockProgressTrack{})
+			resizeAction, desiredPodSpec = newResizeActionExecutionDTO(targetSE, REQUEST_SINGLE_CONTAINER, &dep.Spec.Template.Spec)
+			_, err = actionHandler.ExecuteAction(resizeAction, nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Resize action on request failed")
 
-			_, err = waitForDeploymentToUpdateResource(kubeClient, dep, REQUEST_SINGLE_CONTAINER)
+			_, err = waitForDeploymentToUpdateResource(kubeClient, dep, desiredPodSpec)
 			if err != nil {
 				framework.Failf("Failed to check the change of the resource/request in the new deployment: %s", err)
+			}
+		})
+	})
+
+	// Multi container resize down cpu and memory on resource request/limit
+	Describe("executing resize action on a deployment with 2 containers", func() {
+		It("should match the expected resource request/limit after resizing on both of cpu and memory", func() {
+
+			dep, err := createDeployResource(kubeClient, depMultiContainerWithResources(namespace, "", 1))
+			framework.ExpectNoError(err, "Error creating test resources")
+
+			targetSE := newResizeWorkloadControllerTargetSE(dep)
+			resizeAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, REQLIM_MULTI_CONTAINER, &dep.Spec.Template.Spec)
+			_, err = actionHandler.ExecuteAction(resizeAction, nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Resize action on multiple container failed")
+
+			_, err = waitForDeploymentToUpdateResource(kubeClient, dep, desiredPodSpec)
+			if err != nil {
+				framework.Failf("Failed to check the change of the resource/request in the new deployment with multiple containers: %s", err)
 			}
 		})
 	})
@@ -277,12 +303,12 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 							Args:    []string{"-c", "while true; do sleep 30; done;"},
 							Resources: corev1.ResourceRequirements{
 								Limits: map[corev1.ResourceName]resource.Quantity{
-									corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", cpuLimit)),
-									corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%dMi", memoryLimit)),
+									corev1.ResourceCPU:    resource.MustParse("100m"),
+									corev1.ResourceMemory: resource.MustParse("200Mi"),
 								},
 								Requests: map[corev1.ResourceName]resource.Quantity{
-									corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", cpuRequest)),
-									corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%dMi", memoryRequest)),
+									corev1.ResourceCPU:    resource.MustParse("50m"),
+									corev1.ResourceMemory: resource.MustParse("100Mi"),
 								},
 							},
 						},
@@ -309,6 +335,68 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 	}
 	if paused {
 		dep.Spec.Paused = true
+	}
+
+	return &dep
+}
+
+func depMultiContainerWithResources(namespace, claimName string, replicas int32) *appsv1.Deployment {
+	dep := appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "test-",
+			Namespace:    namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "test-app",
+				},
+			},
+			Replicas: &replicas,
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": "test-app",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:    "test-cont-1",
+							Image:   "busybox",
+							Command: []string{"/bin/sh"},
+							Args:    []string{"-c", "while true; do sleep 30; done;"},
+							Resources: corev1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    resource.MustParse("100m"),
+									corev1.ResourceMemory: resource.MustParse("200Mi"),
+								},
+								Requests: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    resource.MustParse("50m"),
+									corev1.ResourceMemory: resource.MustParse("100Mi"),
+								},
+							},
+						},
+						{
+							Name:    "test-cont-2",
+							Image:   "busybox",
+							Command: []string{"/bin/sh"},
+							Args:    []string{"-c", "while true; do sleep 30; done;"},
+							Resources: corev1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    resource.MustParse("100m"),
+									corev1.ResourceMemory: resource.MustParse("200Mi"),
+								},
+								Requests: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    resource.MustParse("50m"),
+									corev1.ResourceMemory: resource.MustParse("100Mi"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	return &dep
@@ -532,7 +620,7 @@ func waitForDeployment(client kubeclientset.Interface, depName, namespace string
 	return newDep, nil
 }
 
-func waitForDeploymentToUpdateResource(client kubeclientset.Interface, dep *appsv1.Deployment, changeType int) (*appsv1.Deployment, error) {
+func waitForDeploymentToUpdateResource(client kubeclientset.Interface, dep *appsv1.Deployment, desiredPodSpec *corev1.PodSpec) (*appsv1.Deployment, error) {
 	var newDep *appsv1.Deployment
 	var err error
 	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
@@ -541,29 +629,9 @@ func waitForDeploymentToUpdateResource(client kubeclientset.Interface, dep *apps
 			glog.Errorf("Unexpected error while getting deployment: %v", err)
 			return false, nil
 		}
-		switch changeType {
-		case REQUEST_SINGLE_CONTAINER:
-			oldCpuReq := dep.Spec.Template.Spec.Containers[0].Resources.Requests["cpu"]
-			newCpuReq := newDep.Spec.Template.Spec.Containers[0].Resources.Requests["cpu"]
-			oldMemReq := dep.Spec.Template.Spec.Containers[0].Resources.Requests["memory"]
-			newMemReq := newDep.Spec.Template.Spec.Containers[0].Resources.Requests["memory"]
 
-			if newCpuReq.MilliValue()-oldCpuReq.MilliValue() == cpuIncrement &&
-				newMemReq.Value()-oldMemReq.Value() == memIncrement*1024*1024 {
-				return true, nil
-			}
-		case LIMIT_SINGLE_CONTAINER:
-			oldCpuLimit := dep.Spec.Template.Spec.Containers[0].Resources.Limits["cpu"]
-			newCpuLimit := newDep.Spec.Template.Spec.Containers[0].Resources.Limits["cpu"]
-			oldMemLimit := dep.Spec.Template.Spec.Containers[0].Resources.Limits["memory"]
-			newMemLimit := newDep.Spec.Template.Spec.Containers[0].Resources.Limits["memory"]
-
-			if newCpuLimit.MilliValue()-oldCpuLimit.MilliValue() == cpuIncrement &&
-				newMemLimit.Value()-oldMemLimit.Value() == memIncrement*1024*1024 {
-				return true, nil
-			}
-		default:
-			framework.Errorf("The change type<%d> isn't supported", changeType)
+		if reflect.DeepEqual(&newDep.Spec.Template.Spec, desiredPodSpec) {
+			return true, nil
 		}
 
 		return false, nil
@@ -678,46 +746,82 @@ type mockProgressTrack struct{}
 func (p *mockProgressTrack) UpdateProgress(actionState proto.ActionResponseState, description string, progress int32) {
 }
 
-func newResizeActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targetSE *proto.EntityDTO, changeType int) *proto.ActionExecutionDTO {
+func newResizeActionExecutionDTO(targetSE *proto.EntityDTO, changeType int, podSpec *corev1.PodSpec) (*proto.ActionExecutionDTO, *corev1.PodSpec) {
 	dto := &proto.ActionExecutionDTO{}
+	actionType := proto.ActionItemDTO_RIGHT_SIZE
+	desiredPodSpec := podSpec.DeepCopy()
 
 	switch changeType {
 	case REQUEST_SINGLE_CONTAINER:
 		currentSE := newContainerEntity("test-cont")
 
 		// Build the action item on cpu
-		oldCpuCap := cpuRequest
+		oldCpuCap := podSpec.Containers[0].Resources.Requests.Cpu().MilliValue()
 		newCpuCap := oldCpuCap + cpuIncrement
 		aiOnCpu := newActionItemDTO(actionType, proto.CommodityDTO_VCPU_REQUEST, oldCpuCap, newCpuCap, currentSE, targetSE)
 
 		// Build the action item on memory
-		oldMemCap := memoryRequest * 1024
-		newMemCap := oldMemCap + memIncrement*1024
+		oldMemCap := podSpec.Containers[0].Resources.Requests.Memory().Value() / 1024
+		newMemCap := oldMemCap + memoryIncrement*1024
 		aiOnMem := newActionItemDTO(actionType, proto.CommodityDTO_VMEM_REQUEST, oldMemCap, newMemCap, currentSE, targetSE)
 
 		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu, aiOnMem}
+
+		// Update the desired podSpec
+		updatePodSpec(desiredPodSpec, 0, "requests", "cpu", RESIZE_UP, cpuIncrement)
+		updatePodSpec(desiredPodSpec, 0, "requests", "memory", RESIZE_UP, memoryIncrement)
 	case LIMIT_SINGLE_CONTAINER:
 		currentSE := newContainerEntity("test-cont")
 
 		// Build the action item on cpu
-		oldCpuCap := cpuLimit
+		oldCpuCap := podSpec.Containers[0].Resources.Limits.Cpu().MilliValue()
 		newCpuCap := oldCpuCap + cpuIncrement
 		aiOnCpu := newActionItemDTO(actionType, proto.CommodityDTO_VCPU, oldCpuCap, newCpuCap, currentSE, targetSE)
 
 		// Build the action item on memory
-		oldMemCap := memoryLimit * 1024
-		newMemCap := oldMemCap + memIncrement*1024
+		oldMemCap := podSpec.Containers[0].Resources.Limits.Memory().Value() / 1024
+		newMemCap := oldMemCap + memoryIncrement*1024
 		aiOnMem := newActionItemDTO(actionType, proto.CommodityDTO_VMEM, oldMemCap, newMemCap, currentSE, targetSE)
 
 		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu, aiOnMem}
+
+		// Update the desired podSpec
+		updatePodSpec(desiredPodSpec, 0, "limits", "cpu", RESIZE_UP, cpuIncrement)
+		updatePodSpec(desiredPodSpec, 0, "limits", "memory", RESIZE_UP, memoryIncrement)
+	case REQLIM_MULTI_CONTAINER:
+		containerSE1 := newContainerEntity("test-cont-1")
+		// Build the resize up action item on request/cpu and resize down action on request/memory for the first container
+		oldCpuCap1 := podSpec.Containers[0].Resources.Requests.Cpu().MilliValue()
+		newCpuCap1 := oldCpuCap1 + cpuIncrement
+		aiOnCpu1 := newActionItemDTO(actionType, proto.CommodityDTO_VCPU_REQUEST, oldCpuCap1, newCpuCap1, containerSE1, targetSE)
+		oldMemCap1 := podSpec.Containers[0].Resources.Requests.Memory().Value() / 1024
+		newMemCap1 := oldMemCap1 - memoryDecrement*1024
+		aiOnMem1 := newActionItemDTO(actionType, proto.CommodityDTO_VMEM_REQUEST, oldMemCap1, newMemCap1, containerSE1, targetSE)
+
+		// Build the resize down action item on limit/cpu and resize up action on limit/memory for the second container
+		containerSE2 := newContainerEntity("test-cont-2")
+		oldCpuCap2 := podSpec.Containers[1].Resources.Limits.Cpu().MilliValue()
+		newCpuCap2 := oldCpuCap2 - cpuDecrement
+		aiOnCpu2 := newActionItemDTO(actionType, proto.CommodityDTO_VCPU, oldCpuCap2, newCpuCap2, containerSE2, targetSE)
+		oldMemCap2 := podSpec.Containers[1].Resources.Limits.Memory().Value() / 1024
+		newMemCap2 := oldMemCap2 + memoryIncrement*1024
+		aiOnMem2 := newActionItemDTO(actionType, proto.CommodityDTO_VMEM, oldMemCap2, newMemCap2, containerSE2, targetSE)
+
+		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu1, aiOnMem1, aiOnCpu2, aiOnMem2}
+
+		// Update the desired podSpec
+		updatePodSpec(desiredPodSpec, 0, "requests", "cpu", RESIZE_UP, cpuIncrement)
+		updatePodSpec(desiredPodSpec, 0, "requests", "memory", RESIZE_DOWN, memoryDecrement)
+		updatePodSpec(desiredPodSpec, 1, "limits", "cpu", RESIZE_DOWN, cpuDecrement)
+		updatePodSpec(desiredPodSpec, 1, "limits", "memory", RESIZE_UP, memoryIncrement)
 	default:
 		framework.Errorf("The change type<%d> isn't supported", changeType)
 	}
 
-	return dto
+	return dto, desiredPodSpec
 }
 
-func newActionItemDTO(actionType proto.ActionItemDTO_ActionType, commType proto.CommodityDTO_CommodityType, oldValue, newValue int, currentSE, targetSE *proto.EntityDTO) *proto.ActionItemDTO {
+func newActionItemDTO(actionType proto.ActionItemDTO_ActionType, commType proto.CommodityDTO_CommodityType, oldValue, newValue int64, currentSE, targetSE *proto.EntityDTO) *proto.ActionItemDTO {
 	ai := &proto.ActionItemDTO{}
 	ai.ActionType = &actionType
 	ai.CurrentSE = currentSE
@@ -813,4 +917,57 @@ func getTargetSENodeName(f *framework.TestFramework, pod *corev1.Pod) string {
 
 func podID(pod *corev1.Pod) string {
 	return fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+}
+
+func updatePodSpec(podSpec *corev1.PodSpec, containerIdx int, resourceType, resourceName string, resizeType, delta int) {
+	switch resourceType {
+	case "requests":
+		switch resourceName {
+		case "cpu":
+			deltaQuan := resource.MustParse(fmt.Sprintf("%dm", delta))
+			cpuQuan := podSpec.Containers[containerIdx].Resources.Requests.Cpu()
+			if resizeType == RESIZE_UP {
+				cpuQuan.Add(deltaQuan)
+			} else if resizeType == RESIZE_DOWN {
+				cpuQuan.Sub(deltaQuan)
+			}
+			// fill in the `s` field in the Quantity struct,otherwise the reflect.DeepEqual will return false
+			_ = cpuQuan.String()
+			podSpec.Containers[containerIdx].Resources.Requests["cpu"] = *cpuQuan
+		case "memory":
+			deltaQuan := resource.MustParse(fmt.Sprintf("%dMi", delta))
+			memQuan := podSpec.Containers[containerIdx].Resources.Requests.Memory()
+			if resizeType == RESIZE_UP {
+				memQuan.Add(deltaQuan)
+			} else if resizeType == RESIZE_DOWN {
+				memQuan.Sub(deltaQuan)
+			}
+			_ = memQuan.String()
+			podSpec.Containers[containerIdx].Resources.Requests["memory"] = *memQuan
+		}
+	case "limits":
+		switch resourceName {
+		case "cpu":
+			deltaQuan := resource.MustParse(fmt.Sprintf("%dm", delta))
+			cpuQuan := podSpec.Containers[containerIdx].Resources.Limits.Cpu()
+			if resizeType == RESIZE_UP {
+				cpuQuan.Add(deltaQuan)
+			} else if resizeType == RESIZE_DOWN {
+				cpuQuan.Sub(deltaQuan)
+			}
+			_ = cpuQuan.String()
+			podSpec.Containers[containerIdx].Resources.Limits["cpu"] = *cpuQuan
+		case "memory":
+			deltaQuan := resource.MustParse(fmt.Sprintf("%dMi", delta))
+			memQuan := podSpec.Containers[containerIdx].Resources.Limits.Memory()
+			if resizeType == RESIZE_UP {
+				memQuan.Add(deltaQuan)
+			} else if resizeType == RESIZE_DOWN {
+				memQuan.Sub(deltaQuan)
+			}
+			_ = memQuan.String()
+			podSpec.Containers[containerIdx].Resources.Limits["memory"] = *memQuan
+		}
+	}
+
 }
