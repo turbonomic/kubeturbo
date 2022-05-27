@@ -82,7 +82,7 @@ spec:
 
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
 				cluster.NewClusterScraper(kubeClient, dynamicClient, nil, false, nil, ""),
-				[]string{"*"}, nil, false, true, 60, gitops.GitConfig{})
+				[]string{"*"}, nil, false, true, 60, gitops.GitConfig{}, "test-cluster-id")
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 
 			namespace = f.TestNamespaceName()
@@ -123,7 +123,7 @@ spec:
 		It("should fail the action if the quota-update is disabled", func() {
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
 				cluster.NewClusterScraper(kubeClient, dynamicClient, nil, false, nil, ""),
-				[]string{"*"}, nil, false, false, 60, gitops.GitConfig{})
+				[]string{"*"}, nil, false, false, 60, gitops.GitConfig{}, "test-cluster-id")
 			actionHandler := action.NewActionHandler(actionHandlerConfig)
 
 			quota := createQuota(kubeClient, namespace, quotaFromYaml(quotaYaml))
