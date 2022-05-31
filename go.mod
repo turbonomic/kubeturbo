@@ -48,6 +48,7 @@ require (
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.28.0
 	golang.org/x/oauth2 v0.0.0-20210622215436-a8dc77f794b6
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/yaml v1.2.0
 )
 
