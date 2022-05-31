@@ -283,15 +283,10 @@ var _ = Describe("Action Executor ", func() {
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 2, false, false, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 
-			pod, err := getDeploymentsPod(kubeClient, dep.Name, namespace, "")
+			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
 			framework.ExpectNoError(err, "Error getting deployments pod")
 			// This should not happen. We should ideally get a pod.
 			if pod == nil {
-				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
-			}
-
-			targetNodeName := getTargetSENodeName(f, pod)
-			if targetNodeName == "" {
 				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
 			}
 
@@ -300,9 +295,9 @@ var _ = Describe("Action Executor ", func() {
 				newTargetSEFromPod(pod), nil), nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Failed to execute provision action")
 
-			newDep, err := waitForDeployment(kubeClient, dep.Name, dep.Namespace)
-			// As the current replica is 2, the replica should be 3 after the provision action
-			if *newDep.Spec.Replicas != 3 {
+			// As the current replica is 2, new replica should be 3 after the provision action
+			_, err = waitForDeploymentToUpdateReplica(kubeClient, dep.Name, dep.Namespace, 3)
+			if err != nil {
 				framework.Failf("The replica number is incorrect after executing provision action")
 			}
 
@@ -310,10 +305,10 @@ var _ = Describe("Action Executor ", func() {
 			_, err = actionHandler.ExecuteAction(newActionExecutionDTO(proto.ActionItemDTO_SUSPEND,
 				newTargetSEFromPod(pod), nil), nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Failed to execute suspend action")
-			newDep, err = waitForDeployment(kubeClient, newDep.Name, newDep.Namespace)
-			// As the current replica is 3, the replica should be 2 after the suspend action
-			if *newDep.Spec.Replicas != 2 {
-				framework.Failf("The replica number is incorrect after executing provision action")
+			// As the current replica is 3, new replica should be 2 after the suspend action
+			_, err = waitForDeploymentToUpdateReplica(kubeClient, dep.Name, dep.Namespace, 2)
+			if err != nil {
+				framework.Failf("The replica number is incorrect after executing suspend action")
 			}
 		})
 	})
@@ -736,6 +731,25 @@ func waitForDeployment(client kubeclientset.Interface, depName, namespace string
 			return false, nil
 		}
 		if newDep.Status.AvailableReplicas == *newDep.Spec.Replicas {
+			return true, nil
+		}
+		return false, nil
+	}); err != nil {
+		return nil, err
+	}
+	return newDep, nil
+}
+
+func waitForDeploymentToUpdateReplica(client kubeclientset.Interface, depName, namespace string, expectedReplica int32) (*appsv1.Deployment, error) {
+	var newDep *appsv1.Deployment
+	var err error
+	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
+		newDep, err = client.AppsV1().Deployments(namespace).Get(context.TODO(), depName, metav1.GetOptions{})
+		if err != nil {
+			glog.Errorf("Unexpected error while getting deployment: %v", err)
+			return false, nil
+		}
+		if *newDep.Spec.Replicas == expectedReplica {
 			return true, nil
 		}
 		return false, nil
