@@ -81,6 +81,9 @@ spec:
                 turboServer:
                   description: URL for Turbo Server endpoint
                   type: string
+                proxy:
+                  description: Proxy server address
+                  type: string
             restAPIConfig:
               type: object
               description: Credentials to register probe with Turbo Server
