@@ -46,6 +46,8 @@ const (
 	REQUEST_SINGLE_CONTAINER = iota
 	LIMIT_SINGLE_CONTAINER
 	REQLIM_MULTI_CONTAINER
+	ORM_RESIZE_UP
+	ORM_RESIZE_DOWN
 )
 
 const (
@@ -1018,6 +1020,47 @@ func newResizeActionExecutionDTO(targetSE *proto.EntityDTO, changeType int, podS
 		updatePodSpec(desiredPodSpec, 0, "requests", "memory", RESIZE_DOWN, memoryDecrement)
 		updatePodSpec(desiredPodSpec, 1, "limits", "cpu", RESIZE_DOWN, cpuDecrement)
 		updatePodSpec(desiredPodSpec, 1, "limits", "memory", RESIZE_UP, memoryIncrement)
+	case ORM_RESIZE_UP:
+		currentSE := newContainerEntity(namespacescope_operand_container_name)
+		containerIdx, _ := findContainerIdxInPodSpecByName(podSpec, namespacescope_operand_container_name)
+		if containerIdx != -1 {
+			// Build the action item on cpu
+			oldCpuCap := podSpec.Containers[containerIdx].Resources.Limits.Cpu().MilliValue()
+			newCpuCap := oldCpuCap + cpuIncrement
+			aiOnCpu := newActionItemDTO(actionType, proto.CommodityDTO_VCPU, oldCpuCap, newCpuCap, currentSE, targetSE)
+
+			// Build the action item on memory
+			oldMemCap := podSpec.Containers[containerIdx].Resources.Limits.Memory().Value() / 1024
+			newMemCap := oldMemCap + memoryIncrement*1024
+			aiOnMem := newActionItemDTO(actionType, proto.CommodityDTO_VMEM, oldMemCap, newMemCap, currentSE, targetSE)
+
+			dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu, aiOnMem}
+
+			// Update the desired podSpec
+			updatePodSpec(desiredPodSpec, containerIdx, "limits", "cpu", RESIZE_UP, cpuIncrement)
+			updatePodSpec(desiredPodSpec, containerIdx, "limits", "memory", RESIZE_UP, memoryIncrement)
+		}
+	case ORM_RESIZE_DOWN:
+		currentSE := newContainerEntity(clusterscope_operand_container_name)
+		containerIdx, _ := findContainerIdxInPodSpecByName(podSpec, clusterscope_operand_container_name)
+		if containerIdx != -1 {
+			// Build the action item on cpu
+			oldCpuCap := podSpec.Containers[containerIdx].Resources.Limits.Cpu().MilliValue()
+			newCpuCap := oldCpuCap - cpuDecrement
+			aiOnCpu := newActionItemDTO(actionType, proto.CommodityDTO_VCPU, oldCpuCap, newCpuCap, currentSE, targetSE)
+
+			// Build the action item on memory
+			oldMemCap := podSpec.Containers[containerIdx].Resources.Limits.Memory().Value() / 1024
+			newMemCap := oldMemCap - memoryDecrement*1024
+			aiOnMem := newActionItemDTO(actionType, proto.CommodityDTO_VMEM, oldMemCap, newMemCap, currentSE, targetSE)
+
+			dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu, aiOnMem}
+
+			// Update the desired podSpec
+			updatePodSpec(desiredPodSpec, containerIdx, "limits", "cpu", RESIZE_DOWN, cpuDecrement)
+			updatePodSpec(desiredPodSpec, containerIdx, "limits", "memory", RESIZE_DOWN, memoryDecrement)
+		}
+
 	default:
 		framework.Errorf("The change type<%d> isn't supported", changeType)
 	}
