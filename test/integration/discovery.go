@@ -69,6 +69,9 @@ var _ = Describe("Discover Cluster", func() {
 	var discoveryClient *discovery.K8sDiscoveryClient
 
 	BeforeEach(func() {
+		if framework.TestContext.IsOpenShiftTest {
+			Skip("Ignoring all of discovery cases against openshift target.")
+		}
 		f.BeforeEach()
 		// The following setup is shared across tests here
 		if kubeConfig == nil {

@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	kubeclientset "k8s.io/client-go/kubernetes"
@@ -90,6 +91,9 @@ var _ = Describe("Action Executor ", func() {
 
 	Describe("executing action move pod", func() {
 		It("should result in new pod on target node", func() {
+			if framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring pod move case for the deployment against openshift target.")
+			}
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 
@@ -116,6 +120,9 @@ var _ = Describe("Action Executor ", func() {
 
 	Describe("executing action move pod with volume attached", func() {
 		It("should result in new pod on target node", func() {
+			if framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring volume based pod move case for the deployment against openshift target.")
+			}
 			// TODO: The storageclass can be taken as a configurable parameter from commandline
 			// This works against a kind cluster. Ensure to update the storageclass name to the right name when
 			// running against a different cluster.
@@ -146,11 +153,13 @@ var _ = Describe("Action Executor ", func() {
 
 	Describe("executing action move pod on deploymentconfig ", func() {
 		It("should result in new pod on target node", func() {
-			Skip("Ignoring volume based pod move for deploymentconfig. Remove skipping to execute this against an openshift cluster.")
+			if !framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring pod move case for the deploymentconfig.")
+			}
 
 			// TODO: The storageclass can be taken as a configurable parameter from commandline
 			// For now this will need to be updated when running against the given cluster
-			dc, err := createDCResource(osClient, dCSingleContainerWithResources(namespace, "", 1, false))
+			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, "", 1, 1, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentConfigsPod(kubeClient, dc.Name, namespace, "")
@@ -176,12 +185,14 @@ var _ = Describe("Action Executor ", func() {
 
 	Describe("executing action move deploymentconfig's pod with volume attached ", func() {
 		It("should result in new pod on target node", func() {
-			Skip("Ignoring volume based pod move for deploymentconfig. Remove skipping to execute this against an openshift cluster.")
+			if !framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring volume based pod move case for the deploymentconfig.")
+			}
 
 			// TODO: The storageclass can be taken as a configurable parameter from commandline
 			// For now this will need to be updated when running against the given cluster
 			pvc, err := createVolumeClaim(kubeClient, namespace, "gp2")
-			dc, err := createDCResource(osClient, dCSingleContainerWithResources(namespace, pvc.Name, 1, true))
+			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, pvc.Name, 1, 1, true))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentConfigsPod(kubeClient, dc.Name, namespace, "")
@@ -205,9 +216,33 @@ var _ = Describe("Action Executor ", func() {
 		})
 	})
 
+	// Multiple container resize down cpu and memory on resource request/limit for deploymentconfig
+	Describe("executing resize action on a deploymentconfig with 2 containers", func() {
+		It("should match the expected resource request/limit after resizing on both of cpu and memory", func() {
+			if !framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring resize multiple containers for the deploymentconfig.")
+			}
+			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, "", 2, 1, false))
+			framework.ExpectNoError(err, "Error creating test resources")
+
+			targetSE := newResizeWorkloadControllerTargetSE(dc)
+			resizeAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, REQLIM_MULTI_CONTAINER, &dc.Spec.Template.Spec)
+			_, err = actionHandler.ExecuteAction(resizeAction, nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Resize action on multiple container failed")
+
+			_, err = waitForWorkloadControllerToUpdateResource(osClient, dc, desiredPodSpec)
+			if err != nil {
+				framework.Failf("Failed to check the change of the resource/request in the new deploymentconfig with multiple containers: %s", err)
+			}
+		})
+	})
+
 	// Test bare pod move
 	Describe("executing action move bare pod with volum attached", func() {
 		It("should result in new pod on target node", func() {
+			if framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring bare pod move against openshift target.")
+			}
 			pvc, err := createVolumeClaim(kubeClient, namespace, "standard")
 			pod, err := createBarePod(kubeClient, genBarePodWithResources(namespace, pvc.Name, 1, true))
 			framework.ExpectNoError(err, "Error creating test resources")
@@ -229,7 +264,9 @@ var _ = Describe("Action Executor ", func() {
 	// Single container resize up cpu and memory on resource request/limit
 	Describe("executing resize action on a deployment with a single container", func() {
 		It("should match the expected resource request/limit after resizing on both of cpu and memory", func() {
-
+			if framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring resize case for the deployment with single container against openshift target.")
+			}
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 
@@ -240,17 +277,18 @@ var _ = Describe("Action Executor ", func() {
 			_, err = actionHandler.ExecuteAction(resizeAction, nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Resize action on limit failed")
 
-			dep, err = waitForDeploymentToUpdateResource(kubeClient, dep, desiredPodSpec)
+			controllerObj, err := waitForWorkloadControllerToUpdateResource(kubeClient, dep, desiredPodSpec)
 			if err != nil {
 				framework.Failf("Failed to check the change of resource/limit in the new deployment: %s", err)
 			}
 
 			// Resize up cpu and memory on resource/request
+			dep = controllerObj.(*appsv1.Deployment)
 			resizeAction, desiredPodSpec = newResizeActionExecutionDTO(targetSE, REQUEST_SINGLE_CONTAINER, &dep.Spec.Template.Spec)
 			_, err = actionHandler.ExecuteAction(resizeAction, nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Resize action on request failed")
 
-			_, err = waitForDeploymentToUpdateResource(kubeClient, dep, desiredPodSpec)
+			_, err = waitForWorkloadControllerToUpdateResource(kubeClient, dep, desiredPodSpec)
 			if err != nil {
 				framework.Failf("Failed to check the change of the resource/request in the new deployment: %s", err)
 			}
@@ -260,8 +298,10 @@ var _ = Describe("Action Executor ", func() {
 	// Multi container resize down cpu and memory on resource request/limit
 	Describe("executing resize action on a deployment with 2 containers", func() {
 		It("should match the expected resource request/limit after resizing on both of cpu and memory", func() {
-
-			dep, err := createDeployResource(kubeClient, depMultiContainerWithResources(namespace, "", 1))
+			if framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring resize case for the deployment with multiple containers against openshift target.")
+			}
+			dep, err := createDeployResource(kubeClient, depMultiContainerWithResources(namespace, "", 2, 1))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			targetSE := newResizeWorkloadControllerTargetSE(dep)
@@ -269,7 +309,7 @@ var _ = Describe("Action Executor ", func() {
 			_, err = actionHandler.ExecuteAction(resizeAction, nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Resize action on multiple container failed")
 
-			_, err = waitForDeploymentToUpdateResource(kubeClient, dep, desiredPodSpec)
+			_, err = waitForWorkloadControllerToUpdateResource(kubeClient, dep, desiredPodSpec)
 			if err != nil {
 				framework.Failf("Failed to check the change of the resource/request in the new deployment with multiple containers: %s", err)
 			}
@@ -279,6 +319,9 @@ var _ = Describe("Action Executor ", func() {
 	// Horizontal scale test
 	Describe("Executing horizontal scale action on a deployment", func() {
 		It("should match the expected replica number", func() {
+			if framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring horizontal scal test against openshift target.")
+			}
 			// create a deployment with 2 replicas
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 2, false, false, false))
 			framework.ExpectNoError(err, "Error creating test resources")
@@ -354,22 +397,7 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
-						{
-							Name:    "test-cont",
-							Image:   "busybox",
-							Command: []string{"/bin/sh"},
-							Args:    []string{"-c", "while true; do sleep 30; done;"},
-							Resources: corev1.ResourceRequirements{
-								Limits: map[corev1.ResourceName]resource.Quantity{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
-								},
-								Requests: map[corev1.ResourceName]resource.Quantity{
-									corev1.ResourceCPU:    resource.MustParse("50m"),
-									corev1.ResourceMemory: resource.MustParse("100Mi"),
-								},
-							},
-						},
+						genContainerSpec("test-cont", "50m", "100Mi", "100m", "200Mi"),
 					},
 				},
 			},
@@ -398,7 +426,11 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 	return &dep
 }
 
-func depMultiContainerWithResources(namespace, claimName string, replicas int32) *appsv1.Deployment {
+func depMultiContainerWithResources(namespace, claimName string, containerNum, replicas int32) *appsv1.Deployment {
+	containerlst := []corev1.Container{}
+	for i := 0; i < int(containerNum); i++ {
+		containerlst = append(containerlst, genContainerSpec(fmt.Sprintf("test-cont-%d", i+1), "50m", "100Mi", "100m", "200Mi"))
+	}
 	dep := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "test-",
@@ -418,40 +450,7 @@ func depMultiContainerWithResources(namespace, claimName string, replicas int32)
 					},
 				},
 				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:    "test-cont-1",
-							Image:   "busybox",
-							Command: []string{"/bin/sh"},
-							Args:    []string{"-c", "while true; do sleep 30; done;"},
-							Resources: corev1.ResourceRequirements{
-								Limits: map[corev1.ResourceName]resource.Quantity{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
-								},
-								Requests: map[corev1.ResourceName]resource.Quantity{
-									corev1.ResourceCPU:    resource.MustParse("50m"),
-									corev1.ResourceMemory: resource.MustParse("100Mi"),
-								},
-							},
-						},
-						{
-							Name:    "test-cont-2",
-							Image:   "busybox",
-							Command: []string{"/bin/sh"},
-							Args:    []string{"-c", "while true; do sleep 30; done;"},
-							Resources: corev1.ResourceRequirements{
-								Limits: map[corev1.ResourceName]resource.Quantity{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
-								},
-								Requests: map[corev1.ResourceName]resource.Quantity{
-									corev1.ResourceCPU:    resource.MustParse("50m"),
-									corev1.ResourceMemory: resource.MustParse("100Mi"),
-								},
-							},
-						},
-					},
+					Containers: containerlst,
 				},
 			},
 		},
@@ -543,12 +542,7 @@ func rsSingleContainerWithResources(namespace string, replicas int32, withGCLabe
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
-						{
-							Name:    "test-cont",
-							Image:   "busybox",
-							Command: []string{"/bin/sh"},
-							Args:    []string{"-c", "while true; do sleep 30; done;"},
-						},
+						genContainerSpec("test-cont", "50m", "100Mi", "100m", "200Mi"),
 					},
 				},
 			},
@@ -593,9 +587,11 @@ func createDCResource(client *osclient.Clientset, dc *osv1.DeploymentConfig) (*o
 	return waitForDeploymentConfig(client, newDc.Name, newDc.Namespace)
 }
 
-// This can also be bootstrapped from a test resource directory
-// which holds yaml files.
-func dCSingleContainerWithResources(namespace, claimName string, replicas int32, withVolume bool) *osv1.DeploymentConfig {
+func genDeploymentConfigWithResources(namespace, claimName string, containerNum, replicas int32, withVolume bool) *osv1.DeploymentConfig {
+	containerlst := []corev1.Container{}
+	for i := 0; i < int(containerNum); i++ {
+		containerlst = append(containerlst, genContainerSpec(fmt.Sprintf("test-cont-%d", i+1), "50m", "100Mi", "100m", "200Mi"))
+	}
 	dc := osv1.DeploymentConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "test-",
@@ -613,24 +609,7 @@ func dCSingleContainerWithResources(namespace, claimName string, replicas int32,
 					},
 				},
 				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:    "test-cont",
-							Image:   "busybox",
-							Command: []string{"/bin/sh"},
-							Args:    []string{"-c", "while true; do sleep 30; done;"},
-							Resources: corev1.ResourceRequirements{
-								Limits: map[corev1.ResourceName]resource.Quantity{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
-								},
-								Requests: map[corev1.ResourceName]resource.Quantity{
-									corev1.ResourceCPU:    resource.MustParse("50m"),
-									corev1.ResourceMemory: resource.MustParse("100Mi"),
-								},
-							},
-						},
-					},
+					Containers: containerlst,
 				},
 			},
 		},
@@ -650,6 +629,25 @@ func dCSingleContainerWithResources(namespace, claimName string, replicas int32,
 	}
 
 	return &dc
+}
+
+func genContainerSpec(name, cpuRequest, memRequest, cpuLimit, memLimit string) corev1.Container {
+	return corev1.Container{
+		Name:    name,
+		Image:   "busybox",
+		Command: []string{"/bin/sh"},
+		Args:    []string{"-c", "while true; do sleep 30; done;"},
+		Resources: corev1.ResourceRequirements{
+			Requests: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse(cpuRequest),
+				corev1.ResourceMemory: resource.MustParse(memRequest),
+			},
+			Limits: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse(cpuLimit),
+				corev1.ResourceMemory: resource.MustParse(memLimit),
+			},
+		},
+	}
 }
 
 func createVolumeClaim(client kubeclientset.Interface, namespace, storageClassName string) (*corev1.PersistentVolumeClaim, error) {
@@ -759,25 +757,43 @@ func waitForDeploymentToUpdateReplica(client kubeclientset.Interface, depName, n
 	return newDep, nil
 }
 
-func waitForDeploymentToUpdateResource(client kubeclientset.Interface, dep *appsv1.Deployment, desiredPodSpec *corev1.PodSpec) (*appsv1.Deployment, error) {
-	var newDep *appsv1.Deployment
-	var err error
-	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
-		newDep, err = client.AppsV1().Deployments(dep.Namespace).Get(context.TODO(), dep.Name, metav1.GetOptions{})
-		if err != nil {
-			glog.Errorf("Unexpected error while getting deployment: %v", err)
-			return false, nil
-		}
-
-		if reflect.DeepEqual(&newDep.Spec.Template.Spec, desiredPodSpec) {
-			return true, nil
+func waitForWorkloadControllerToUpdateResource(client interface{}, workloadController runtime.Object, desiredPodSpec *corev1.PodSpec) (runtime.Object, error) {
+	var newControllerObj runtime.Object
+	if waitErr := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
+		switch workloadController.(type) {
+		case *appsv1.Deployment:
+			dep := workloadController.(*appsv1.Deployment)
+			cli := client.(kubeclientset.Interface)
+			newDep, err := cli.AppsV1().Deployments(dep.Namespace).Get(context.TODO(), dep.Name, metav1.GetOptions{})
+			newControllerObj = newDep
+			if err != nil {
+				glog.Errorf("Unexpected error while getting deployment: %v", err)
+				return false, err
+			}
+			if reflect.DeepEqual(&newDep.Spec.Template.Spec, desiredPodSpec) {
+				return true, nil
+			}
+		case *osv1.DeploymentConfig:
+			dc := workloadController.(*osv1.DeploymentConfig)
+			cli := client.(osclient.Interface)
+			newDc, err := cli.AppsV1().DeploymentConfigs(dc.Namespace).Get(context.TODO(), dc.Name, metav1.GetOptions{})
+			newControllerObj = newDc
+			if err != nil {
+				glog.Errorf("Unexpected error while getting deployment: %v", err)
+				return false, err
+			}
+			if reflect.DeepEqual(&newDc.Spec.Template.Spec, desiredPodSpec) {
+				return true, nil
+			}
+		default:
+			framework.Errorf("The type <%T> of the workload controller is not supported!", workloadController)
 		}
 
 		return false, nil
-	}); err != nil {
-		return nil, err
+	}); waitErr != nil {
+		return nil, waitErr
 	}
-	return newDep, nil
+	return newControllerObj, nil
 }
 
 func waitForBarePod(client kubeclientset.Interface, podName, namespace string) (*corev1.Pod, error) {
@@ -824,7 +840,7 @@ func createDeploymentConfig(client osclient.Interface, dc *osv1.DeploymentConfig
 	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
 		newDc, errInternal = client.AppsV1().DeploymentConfigs(dc.Namespace).Create(context.TODO(), dc, metav1.CreateOptions{})
 		if errInternal != nil {
-			glog.Errorf("Unexpected error while creating deployment: %v", errInternal)
+			glog.Errorf("Unexpected error while creating deploymentconfig: %v", errInternal)
 			return false, nil
 		}
 		return true, nil
@@ -1008,21 +1024,46 @@ func newActionExecutionDTO(actionType proto.ActionItemDTO_ActionType, targetSE, 
 	return dto
 }
 
-func newResizeWorkloadControllerTargetSE(dep *appsv1.Deployment) *proto.EntityDTO {
-	entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER, string(dep.UID))
-	entityDTOBuilder.DisplayName(dep.Name)
+func newResizeWorkloadControllerTargetSE(workloadController runtime.Object) *proto.EntityDTO {
+	var entityDTOBuilder *sdkbuilder.EntityDTOBuilder
+	var name, namespace string
+	switch workloadController.(type) {
+	case *appsv1.Deployment:
+		dep := workloadController.(*appsv1.Deployment)
+		name = dep.Name
+		namespace = dep.Namespace
+		entityDTOBuilder = sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER, string(dep.UID))
 
-	entityDTOBuilder.WorkloadControllerData(&proto.EntityDTO_WorkloadControllerData{
-		ControllerType: &proto.EntityDTO_WorkloadControllerData_DeploymentData{
-			DeploymentData: &proto.EntityDTO_DeploymentData{},
-		},
-	})
+		entityDTOBuilder.WorkloadControllerData(&proto.EntityDTO_WorkloadControllerData{
+			ControllerType: &proto.EntityDTO_WorkloadControllerData_DeploymentData{
+				DeploymentData: &proto.EntityDTO_DeploymentData{},
+			},
+		})
+	case *osv1.DeploymentConfig:
+		dc := workloadController.(*osv1.DeploymentConfig)
+		controllerType := "DeploymentConfig"
+		name = dc.Name
+		namespace = dc.Namespace
+		entityDTOBuilder = sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER, string(dc.UID))
+		entityDTOBuilder.DisplayName(dc.Name)
+
+		entityDTOBuilder.WorkloadControllerData(&proto.EntityDTO_WorkloadControllerData{
+			ControllerType: &proto.EntityDTO_WorkloadControllerData_CustomControllerData{
+				CustomControllerData: &proto.EntityDTO_CustomControllerData{
+					CustomControllerType: &controllerType,
+				},
+			},
+		})
+	default:
+		framework.Errorf("The type <%T> of the workload controller is not supported!", workloadController)
+
+	}
+	entityDTOBuilder.DisplayName(name)
 	entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
-	entityDTOBuilder.WithProperty(property.BuildWorkloadControllerNSProperty(dep.Namespace))
-
+	entityDTOBuilder.WithProperty(property.BuildWorkloadControllerNSProperty(namespace))
 	se, err := entityDTOBuilder.Create()
 	if err != nil {
-		framework.Failf("failed to build WorkloadController[%s] entityDTO: %v", dep.Name, err)
+		framework.Failf("failed to build WorkloadController[%s] entityDTO: %v", namespace+"/"+name, err)
 	}
 
 	return se

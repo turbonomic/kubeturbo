@@ -22,5 +22,13 @@ curl -Lo "${kind_path}" "${kind_url}" && chmod +x "${kind_path}"
 #kubectl
 curl -Lo ${kubectl_path} "https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/${OS}/${ARCH}/kubectl" && chmod +x "${kubectl_path}"
 
+#oc
+curl -Lo openshift-client-linux.tar.gz https://mirror.openshift.com/pub/openshift-v4/${ARCH}/clients/ocp/latest/openshift-client-linux.tar.gz
+tar -C ${dest_dir}  -zxvf openshift-client-linux.tar.gz oc
+chmod +x ${oc_path}
+
 echo -n "#   kind:           "; "${kind_path}" version
 echo -n "#   kubectl:        "; "${kubectl_path}" version --client --short
+echo -n "#   oc:             "; "${oc_path}" version --client --short
+
+
