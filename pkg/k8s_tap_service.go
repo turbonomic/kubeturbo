@@ -24,10 +24,12 @@ import (
 )
 
 const (
-	defaultUsername  = "defaultUser"
-	defaultPassword  = "defaultPassword"
-	usernameFilePath = "/etc/turbonomic-credentials/username"
-	passwordFilePath = "/etc/turbonomic-credentials/password"
+	defaultUsername      = "defaultUser"
+	defaultPassword      = "defaultPassword"
+	usernameFilePath     = "/etc/turbonomic-credentials/username"
+	passwordFilePath     = "/etc/turbonomic-credentials/password"
+	clientIdFilePath     = "/etc/turbonomic-credentials/clientid"
+	clientSecretFilePath = "/etc/turbonomic-credentials/clientsecret"
 )
 
 type K8sTAPServiceSpec struct {
@@ -69,6 +71,9 @@ func ParseK8sTAPServiceSpec(configFile string, defaultTargetName string) (*K8sTA
 		return nil, err
 	}
 
+	if err := loadClientIdSecretFromSecret(tapSpec); err != nil {
+		return nil, err
+	}
 	if err := tapSpec.ValidateTurboCommunicationConfig(); err != nil {
 		return nil, err
 	}
@@ -108,6 +113,32 @@ func loadOpsMgrCredentialsFromSecret(tapSpec *K8sTAPServiceSpec) error {
 	tapSpec.OpsManagerUsername = strings.TrimSpace(string(username))
 	tapSpec.OpsManagerPassword = strings.TrimSpace(string(password))
 
+	return nil
+}
+
+func loadClientIdSecretFromSecret(tapSpec *K8sTAPServiceSpec) error {
+	// Return unchanged if the mounted file isn't present
+	// for backward compatibility.
+	if _, err := os.Stat(clientIdFilePath); os.IsNotExist(err) {
+		glog.V(3).Infof("credentials from secret unavailable. Checked path: %s", clientIdFilePath)
+		return nil
+	}
+	if _, err := os.Stat(clientSecretFilePath); os.IsNotExist(err) {
+		glog.V(3).Infof("credentials from secret unavailable. Checked path: %s", clientSecretFilePath)
+		return nil
+	}
+
+	clientId, err := ioutil.ReadFile(clientIdFilePath)
+	if err != nil {
+		return fmt.Errorf("error reading credentials from secret: clientId: %v", err)
+	}
+	clientSecret, err := ioutil.ReadFile(clientSecretFilePath)
+	if err != nil {
+		return fmt.Errorf("error reading credentials from secret: clientSecret: %v", err)
+	}
+
+	tapSpec.ClientId = strings.TrimSpace(string(clientId))
+	tapSpec.ClientSecret = strings.TrimSpace(string(clientSecret))
 	return nil
 }
 
