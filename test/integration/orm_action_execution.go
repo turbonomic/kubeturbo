@@ -2,7 +2,9 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
@@ -18,6 +20,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/ginkgo"
 
@@ -63,9 +66,11 @@ var _ = Describe("Action Executor ", func() {
 	var kubeClient *kubeclientset.Clientset
 	var dynamicClient dynamic.Interface
 	var origCRValue4NsScope, origCRValue4ClusterScope interface{}
-	var needRevertCR4NsScope, needRevertCR4ClusterScope bool
 
 	BeforeEach(func() {
+		if !framework.TestContext.IsOpenShiftTest {
+			Skip("Ignoring the case for ORM test.")
+		}
 		f.BeforeEach()
 		// The following setup is shared across tests here
 		if kubeConfig == nil {
@@ -85,20 +90,25 @@ var _ = Describe("Action Executor ", func() {
 			if err != nil {
 				glog.Fatalf("Failed to generate apiExtensions client for kubernetes target: %v", err)
 			}
+			runtimeClient, err := runtimeclient.New(kubeConfig, runtimeclient.Options{})
+			if err != nil {
+				glog.Fatalf("Failed to create controller runtime client: %v.", err)
+			}
 			ormClient := resourcemapping.NewORMClient(dynamicClient, apiExtClient)
-
-			probeConfig := createProbeConfigOrDie(kubeClient, kubeletClient, dynamicClient)
+			probeConfig := createProbeConfigOrDie(kubeClient, kubeletClient, dynamicClient, runtimeClient)
 
 			discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, nil, app.DefaultValidationWorkers,
 				app.DefaultValidationTimeout, aggregation.DefaultContainerUtilizationDataAggStrategy,
 				aggregation.DefaultContainerUsageDataAggStrategy, ormClient, app.DefaultDiscoveryWorkers, app.DefaultDiscoveryTimeoutSec,
 				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec)
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""),
+				cluster.NewClusterScraper(kubeClient, dynamicClient, nil, false, nil, ""),
 				[]string{"*"}, ormClient, false, true, 60, gitops.GitConfig{})
+
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 
 			// Kubernetes Probe Discovery Client
+			defer TimeCost("DiscoverWithNewFramework", time.Now())
 			discoveryClient := discovery.NewK8sDiscoveryClient(discoveryClientConfig)
 			_, _, err = discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
 			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
@@ -114,8 +124,9 @@ var _ = Describe("Action Executor ", func() {
 
 			// 2. Get the CR and backup the resource value
 			operatorCR, err := dynamicClient.Resource(groupVersionRes4nsscope).Namespace(ormtest_namespace).Get(context.TODO(), namespacescope_operator_cr_name, metav1.GetOptions{})
-			framework.ExpectNoError(err, "Error gettting the operator CR")
+			framework.ExpectNoError(err, "Error getting the operator CR")
 			origCRValue4NsScope, _, err = util.NestedField(operatorCR, "destPath", namespacescope_operand_path_in_cr)
+			framework.ExpectNoError(err, "Error getting the original value from the CR")
 
 			// 3. Build and execute resize action on the deployment
 			targetSE := newResizeWorkloadControllerTargetSE(dep)
@@ -125,10 +136,7 @@ var _ = Describe("Action Executor ", func() {
 				framework.Failf("Failed to execute resizing action for ORM namespace case")
 			}
 
-			// 4. Set the revert flag for afterEach
-			needRevertCR4NsScope = true
-
-			// 5. Wait and check the result
+			// 4. Wait and check the result
 			containerIdx, err := findContainerIdxInPodSpecByName(desiredPodSpec, namespacescope_operand_container_name)
 			framework.ExpectNoError(err, "Can't find the container in the pod's spec")
 			waitForOperatorCRToUpdateResource(dynamicClient, groupVersionRes4nsscope, ormtest_namespace, namespacescope_operator_cr_name, namespacescope_operand_path_in_cr, &desiredPodSpec.Containers[containerIdx].Resources)
@@ -145,8 +153,9 @@ var _ = Describe("Action Executor ", func() {
 
 			// 2. Get the CR and backup the resource value
 			operatorCR, err := dynamicClient.Resource(groupVersionRes4clusterscope).Namespace(v1.NamespaceAll).Get(context.TODO(), clusterscope_operator_cr_name, metav1.GetOptions{})
-			framework.ExpectNoError(err, "Error gettting the operator CR")
+			framework.ExpectNoError(err, "Error getting the operator CR")
 			origCRValue4ClusterScope, _, err = util.NestedField(operatorCR, "destPath", clusterscope_operand_path_in_cr)
+			framework.ExpectNoError(err, "Error getting the original value from the CR")
 
 			// 3. Build and execute resize action on the deployment
 			targetSE := newResizeWorkloadControllerTargetSE(dep)
@@ -156,10 +165,7 @@ var _ = Describe("Action Executor ", func() {
 				framework.Failf("Failed to execute resizing action for ORM cluster case")
 			}
 
-			// 4. Set the revert flag for afterEach
-			needRevertCR4ClusterScope = true
-
-			// 5. Wait and check the result
+			// 4. Wait and check the result
 			containerIdx, err := findContainerIdxInPodSpecByName(desiredPodSpec, clusterscope_operand_container_name)
 			framework.ExpectNoError(err, "Can't find the container in the pod's spec")
 			waitForOperatorCRToUpdateResource(dynamicClient, groupVersionRes4clusterscope, v1.NamespaceAll, clusterscope_operator_cr_name, clusterscope_operand_path_in_cr, &desiredPodSpec.Containers[containerIdx].Resources)
@@ -167,11 +173,11 @@ var _ = Describe("Action Executor ", func() {
 	})
 
 	AfterEach(func() {
-		if needRevertCR4NsScope {
+		if origCRValue4NsScope != nil {
 			err := revertOperatorCR(dynamicClient, groupVersionRes4nsscope, ormtest_namespace, namespacescope_operator_cr_name, namespacescope_operand_path_in_cr, origCRValue4NsScope)
 			framework.ExpectNoError(err, "Error reverting the namespace scope operator CR")
 		}
-		if needRevertCR4ClusterScope {
+		if origCRValue4ClusterScope != nil {
 			err := revertOperatorCR(dynamicClient, groupVersionRes4clusterscope, v1.NamespaceAll, clusterscope_operator_cr_name, clusterscope_operand_path_in_cr, origCRValue4ClusterScope)
 			framework.ExpectNoError(err, "Error reverting the cluster scope operator CR")
 		}
@@ -183,8 +189,7 @@ func revertOperatorCR(client dynamic.Interface, groupVersionRes schema.GroupVers
 	framework.ExpectNoError(err, "Error gettting the operator CR")
 	fields := strings.Split(destPath, ".")
 	err = util.SetNestedField(operatorCR.Object, value, fields[1:]...)
-	dynResourceClient := client.Resource(groupVersionRes).Namespace(nsName)
-	_, err = dynResourceClient.Update(context.TODO(), operatorCR, metav1.UpdateOptions{})
+	_, err = client.Resource(groupVersionRes).Namespace(nsName).Update(context.TODO(), operatorCR, metav1.UpdateOptions{})
 	return err
 }
 
@@ -199,8 +204,8 @@ func waitForOperatorCRToUpdateResource(client dynamic.Interface, groupVersionRes
 		newCRValue, _, err := util.NestedField(operatorCR, "destPath", resPath)
 		if resVal, ok := newCRValue.(map[string]interface{}); ok {
 			if limVal, ok := resVal["limits"].(map[string]interface{}); ok {
-				cpuVal, _ = limVal["cpu"].(string)
-				memVal, _ = limVal["memory"].(string)
+				cpuVal = limVal["cpu"].(string)
+				memVal = limVal["memory"].(string)
 			}
 		}
 		cpuQuan, _ := resource.ParseQuantity(cpuVal)
@@ -213,4 +218,9 @@ func waitForOperatorCRToUpdateResource(client dynamic.Interface, groupVersionRes
 		return nil, waitErr
 	}
 	return nil, nil
+}
+
+func TimeCost(funcname string, starttime time.Time) {
+	interval := time.Since(starttime)
+	fmt.Printf("Function name<%v>,Run time<%v>\n", funcname, interval)
 }
