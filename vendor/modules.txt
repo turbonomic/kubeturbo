@@ -178,10 +178,10 @@ github.com/spf13/pflag
 # github.com/stretchr/testify v1.7.0
 ## explicit
 github.com/stretchr/testify/assert
-# github.com/turbonomic/turbo-api v0.0.0-20210715215202-c125bbe789ca
+# github.com/turbonomic/turbo-api v0.0.0-20220606151638-bcdf1d7b4ab8
 github.com/turbonomic/turbo-api/pkg/api
 github.com/turbonomic/turbo-api/pkg/client
-# github.com/turbonomic/turbo-go-sdk v0.0.0-20220405155252-eb6acce31600
+# github.com/turbonomic/turbo-go-sdk v0.0.0-20220607022735-161ae61e0587
 ## explicit
 github.com/turbonomic/turbo-go-sdk/pkg
 github.com/turbonomic/turbo-go-sdk/pkg/builder
