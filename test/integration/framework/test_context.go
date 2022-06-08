@@ -17,6 +17,8 @@ type TestContextType struct {
 	TestNamespace     string
 	SingleCallTimeout time.Duration
 	IsOpenShiftTest   bool
+	DockerUserName    string
+	DockerUserPwd     string
 }
 
 var TestContext *TestContextType = &TestContextType{}
@@ -32,6 +34,10 @@ func registerFlags(t *TestContextType) {
 		fmt.Sprintf("The maximum duration of a single call.  If unset, will default to %v", DefaultSingleCallTimeout))
 	flag.BoolVar(&t.IsOpenShiftTest, "openshift-tests", false,
 		"If set, the test will only run the Openshift case. By default, it's set to false, only the non-Openshift cases get run")
+	flag.StringVar(&t.DockerUserName, "docker-user-name", "",
+		"The docker user name used to generate the pull secret.")
+	flag.StringVar(&t.DockerUserPwd, "docker-user-password", "",
+		"The docker user password used to generate the pull secret.")
 }
 
 func validateFlags(t *TestContextType) {

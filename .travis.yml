@@ -26,8 +26,8 @@ script:
   - ./hack/create_kind_cluster.sh
   - ./hack/generate_ocp_context.sh
   - make integration
-  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=kind-kind
-  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=ocp47 --openshift-tests=true
+  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=kind-kind --docker-user-name=${DOCKER_USERNAME} --docker-user-password=${DOCKER_PASSWORD}
+  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=ocp47 --openshift-tests=true --docker-user-name=${DOCKER_USERNAME} --docker-user-password=${DOCKER_PASSWORD}
   - make product
 
 after_success:
