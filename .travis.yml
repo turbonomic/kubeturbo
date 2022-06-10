@@ -28,6 +28,7 @@ script:
   - make integration
   - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=kind-kind
   - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=ocp47 --openshift-tests=true
+  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=ocp311 --openshift-tests=true -ginkgo.focus="executing resize action on a deploymentconfig"
   - make product
 
 after_success:

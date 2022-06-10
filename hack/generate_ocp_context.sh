@@ -14,3 +14,6 @@ echo "Log in the OpenShift cluster"
 ${oc_path} login --server=${OCP47_SERVER_ADDR} --username=${OCP47_USERNAME} --password=${OCP47_PASSWORD} --insecure-skip-tls-verify=true
 check-cluster-ready
 ${oc_path} config rename-context $(${oc_path} config current-context) ocp47
+${oc_path} login --server=${OCP311_SERVER_ADDR} --username=${OCP311_USERNAME} --password=${OCP311_PASSWORD} --insecure-skip-tls-verify=true
+check-cluster-ready
+${oc_path} config rename-context $(${oc_path} config current-context) ocp311
