@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
@@ -90,9 +91,12 @@ var _ = Describe("Discover Cluster", func() {
 			if err != nil {
 				glog.Fatalf("Failed to generate apiExtensions client for kubernetes target: %v", err)
 			}
+			runtimeClient, err := runtimeclient.New(kubeConfig, runtimeclient.Options{})
+			if err != nil {
+				glog.Fatalf("Failed to create controller runtime client: %v.", err)
+			}
 			ormClient := resourcemapping.NewORMClient(dynamicClient, apiExtClient)
-
-			probeConfig := createProbeConfigOrDie(kubeClient, kubeletClient, dynamicClient)
+			probeConfig := createProbeConfigOrDie(kubeClient, kubeletClient, dynamicClient, runtimeClient)
 
 			discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, nil, app.DefaultValidationWorkers,
 				app.DefaultValidationTimeout, aggregation.DefaultContainerUtilizationDataAggStrategy,
@@ -247,9 +251,10 @@ func assertCommoditySame(commI, commJ *proto.CommodityDTO, entityDTO *proto.Enti
 	}
 }
 
-func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *kubeletclient.KubeletClient, dynamicClient dynamic.Interface) *configs.ProbeConfig {
+func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *kubeletclient.KubeletClient,
+	dynamicClient dynamic.Interface, runtimeClient runtimeclient.Client) *configs.ProbeConfig {
 	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(kubeletClient, kubeClient)
-	clusterScraper := cluster.NewClusterScraper(kubeClient, dynamicClient, nil, false, nil, "")
+	clusterScraper := cluster.NewClusterScraper(kubeClient, dynamicClient, runtimeClient, false, nil, "")
 	masterMonitoringConfig := master.NewClusterMonitorConfig(clusterScraper)
 	monitoringConfigs := []monitoring.MonitorWorkerConfig{
 		kubeletMonitoringConfig,
