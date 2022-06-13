@@ -182,10 +182,14 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.ClusterSummary, error)
 	// Discover Services
 	NewServiceProcessor(p.clusterInfoScraper, kubeCluster).ProcessServices()
 
-	// Discover volumes
+	// Discover Volumes
 	NewVolumeProcessor(p.clusterInfoScraper, kubeCluster).ProcessVolumes()
 
+	// Discover Business Apps
 	NewBusinessAppProcessor(p.clusterInfoScraper, kubeCluster).ProcessBusinessApps()
+
+	// Discover Turbo Policies
+	NewTurbolicyProcessor(p.clusterInfoScraper, kubeCluster).ProcessTurboPolicies()
 
 	// Update the pod to controller cache
 	if clusterScraper, ok := p.clusterInfoScraper.(*cluster.ClusterScraper); ok {
