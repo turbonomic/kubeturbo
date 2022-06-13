@@ -19,6 +19,7 @@ type TestContextType struct {
 	IsOpenShiftTest   bool
 	DockerUserName    string
 	DockerUserPwd     string
+	IsIstioEnabled    bool
 }
 
 var TestContext *TestContextType = &TestContextType{}
@@ -38,6 +39,8 @@ func registerFlags(t *TestContextType) {
 		"The docker user name used to generate the pull secret.")
 	flag.StringVar(&t.DockerUserPwd, "docker-user-password", "",
 		"The docker user password used to generate the pull secret.")
+	flag.BoolVar(&t.IsIstioEnabled, "istio-enabled", false,
+		"If set, the namespace will be patched with label [istio-injection: enabled]. By default, it's set to false.")
 }
 
 func validateFlags(t *TestContextType) {

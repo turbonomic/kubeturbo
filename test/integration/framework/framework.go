@@ -7,6 +7,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
@@ -46,6 +47,9 @@ func (f *TestFramework) TestNamespaceName() string {
 	if f.testNamespaceName == "" {
 		client := f.GetKubeClient(fmt.Sprintf("%s-create-namespace", f.BaseName))
 		f.testNamespaceName = CreateTestNamespace(client, f.BaseName)
+		if TestContext.IsIstioEnabled {
+			patchIstioInjectionLabelToNamespace(client, f.testNamespaceName)
+		}
 	}
 	return f.testNamespaceName
 }
@@ -203,5 +207,10 @@ func dockerConfigSecret(secName, nsName, dockerUserName, dockerUserPassword stri
 		},
 		Type: corev1.SecretTypeDockerConfigJson,
 	}
+}
 
+func patchIstioInjectionLabelToNamespace(client kubeclientset.Interface, nsName string) error {
+	injectedLabel := `{"metadata": {"labels": {"istio-injection": "enabled"}}}`
+	_, err := client.CoreV1().Namespaces().Patch(context.TODO(), nsName, types.MergePatchType, []byte(injectedLabel), metav1.PatchOptions{})
+	return err
 }

@@ -18,6 +18,9 @@ kind_path="${dest_dir}/kind"
 kubectl_path="${dest_dir}/kubectl"
 #oc
 oc_path="${dest_dir}/oc"
+#istioctl
+istio_version="1.11.8"
+istioctl_path="${dest_dir}/istioctl"
 
 # Utility Functions
 #
