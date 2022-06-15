@@ -18,7 +18,9 @@ import (
 	"github.com/spf13/pflag"
 	apiv1 "k8s.io/api/core/v1"
 	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	versionhelper "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/server/healthz"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -29,6 +31,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
@@ -41,6 +44,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/kubeturbo/test/flag"
+	policyv1alpha1 "github.com/turbonomic/turbo-crd/api/v1alpha1"
 )
 
 const (
@@ -67,9 +71,17 @@ var (
 	// these variables will be deprecated. Keep it here for backward compatibility only
 	k8sVersion        = "1.8"
 	noneSchedulerName = "turbo-no-scheduler"
+
+	// custom resource scheme for controller runtime client
+	customScheme = runtime.NewScheme()
 )
 
 type disconnectFromTurboFunc func()
+
+func init() {
+	// Add registered custom types to the custom scheme
+	utilruntime.Must(policyv1alpha1.AddToScheme(customScheme))
+}
 
 // VMTServer has all the context and params needed to run a Scheduler
 // TODO: leaderElection is disabled now because of dependency problems.
@@ -308,11 +320,19 @@ func (s *VMTServer) Run() {
 
 	kubeClient := s.createKubeClientOrDie(kubeConfig)
 
+	// Create controller runtime client that support custom resources
+	runtimeClient, err := runtimeclient.New(kubeConfig, runtimeclient.Options{Scheme: customScheme})
+	if err != nil {
+		glog.Fatalf("Failed to create controller runtime client: %v.", err)
+	}
+
+	// TODO: Replace dynamicClient with runtimeClient
 	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
 	if err != nil {
 		glog.Fatalf("Failed to generate dynamic client for kubernetes target: %v", err)
 	}
 
+	// TODO: Replace apiExtClient with runtimeClient
 	apiExtClient, err := apiextclient.NewForConfig(kubeConfig)
 	if err != nil {
 		glog.Fatalf("Failed to generate apiExtensions client for kubernetes target: %v", err)
@@ -368,6 +388,7 @@ func (s *VMTServer) Run() {
 	vmtConfig.WithTapSpec(k8sTAPSpec).
 		WithKubeClient(kubeClient).
 		WithDynamicClient(dynamicClient).
+		WithControllerRuntimeClient(runtimeClient).
 		WithORMClient(ormClient).
 		WithKubeletClient(kubeletClient).
 		WithClusterAPIClient(caClient).

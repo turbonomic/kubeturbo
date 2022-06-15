@@ -8,6 +8,7 @@ import (
 	cadvisorapi "github.com/google/cadvisor/info/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	policyv1alpha1 "github.com/turbonomic/turbo-crd/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -283,6 +284,14 @@ type MockClusterScrapper struct {
 	mockGetAllPVCs             func() ([]*v1.PersistentVolumeClaim, error)
 	//mockGetResources               func(schema.GroupVersionResource) (*unstructured.UnstructuredList, error)
 	//mockGetMachineSetToNodeUIDsMap func(nodes []*v1.Node) map[string][]string
+}
+
+func (s *MockClusterScrapper) GetAllTurboSLOScalings() ([]policyv1alpha1.SLOHorizontalScale, error) {
+	return nil, fmt.Errorf("GetAllTurboSLOScalings Not implemented")
+}
+
+func (s *MockClusterScrapper) GetAllTurboPolicyBindings() ([]policyv1alpha1.PolicyBinding, error) {
+	return nil, fmt.Errorf("GetAllTurboPolicyBindings Not implemented")
 }
 
 func (s *MockClusterScrapper) GetAllNodes() ([]*v1.Node, error) {

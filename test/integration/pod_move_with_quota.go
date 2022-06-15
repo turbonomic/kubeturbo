@@ -81,7 +81,7 @@ spec:
 			}
 
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""),
+				cluster.NewClusterScraper(kubeClient, dynamicClient, nil, false, nil, ""),
 				[]string{"*"}, nil, false, true, 60, gitops.GitConfig{})
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 
@@ -121,7 +121,7 @@ spec:
 
 		It("should fail the action if the quota-update is disabled", func() {
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeClient, dynamicClient, false, nil, ""),
+				cluster.NewClusterScraper(kubeClient, dynamicClient, nil, false, nil, ""),
 				[]string{"*"}, nil, false, false, 60, gitops.GitConfig{})
 			actionHandler := action.NewActionHandler(actionHandlerConfig)
 
