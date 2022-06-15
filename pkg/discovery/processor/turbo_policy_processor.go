@@ -21,7 +21,7 @@ var (
 	}
 )
 
-func NewTurbolicyProcessor(clusterScraper cluster.ClusterScraperInterface,
+func NewTurboPolicyProcessor(clusterScraper cluster.ClusterScraperInterface,
 	kubeCluster *repository.KubeCluster) *TurboPolicyProcessor {
 	return &TurboPolicyProcessor{
 		ClusterScraper: clusterScraper,
