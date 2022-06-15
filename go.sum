@@ -875,8 +875,8 @@ github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5/go.mod h1
 github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/turbonomic/turbo-api v0.0.0-20220606151638-bcdf1d7b4ab8 h1:KNqHTUIunOPSHyO8FHgrMq8KMzgXpxHe7nW0dCnkfic=
 github.com/turbonomic/turbo-api v0.0.0-20220606151638-bcdf1d7b4ab8/go.mod h1:L3eNZzTD3Iw8GV+cfeJD/lfDaEGPbZZGQrtml71yG10=
-github.com/turbonomic/turbo-go-sdk v0.0.0-20220607022735-161ae61e0587 h1:uHIB7mk0vGpDFgZ8uV+TbItM6eRyXeTNjDsCqk3xvjs=
-github.com/turbonomic/turbo-go-sdk v0.0.0-20220607022735-161ae61e0587/go.mod h1:8KDYKAtQ/0IfWEJ34N/vfZ1U0fbSEUKyv4Pf/WciNds=
+github.com/turbonomic/turbo-go-sdk v0.0.0-20220615185854-e83d053b2725 h1:oN5Melvu/6Tmvb5+tJBuDIYbIYBZmSMkWXlrAK8dztM=
+github.com/turbonomic/turbo-go-sdk v0.0.0-20220615185854-e83d053b2725/go.mod h1:8KDYKAtQ/0IfWEJ34N/vfZ1U0fbSEUKyv4Pf/WciNds=
 github.com/ugorji/go v1.1.4/go.mod h1:uQMGLiO92mf5W77hV/PUCpI3pbzQx3CRekS0kk+RGrc=
 github.com/ugorji/go/codec v0.0.0-20181204163529-d75b2dcb6bc8/go.mod h1:VFNgLljTbGfSG7qAOspJ7OScBnGdDN/yBr0sguwnwf0=
 github.com/urfave/cli v1.20.0/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijbERA=

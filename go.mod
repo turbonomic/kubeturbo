@@ -16,7 +16,7 @@ require (
 	github.com/prometheus/client_golang v1.11.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
-	github.com/turbonomic/turbo-go-sdk v0.0.0-20220607022735-161ae61e0587
+	github.com/turbonomic/turbo-go-sdk v0.0.0-20220615185854-e83d053b2725
 )
 
 // k8s and relevant dependencies
