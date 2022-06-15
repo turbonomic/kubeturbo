@@ -18,11 +18,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/dynamic"
 	client "k8s.io/client-go/kubernetes"
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
+	policyv1alpha1 "github.com/turbonomic/turbo-crd/api/v1alpha1"
 )
 
 const (
@@ -36,6 +38,9 @@ const (
 var (
 	labelSelectEverything = labels.Everything().String()
 	fieldSelectEverything = fields.Everything().String()
+	listOptions           = runtimeclient.ListOptions{
+		Namespace: api.NamespaceAll,
+	}
 )
 
 type ClusterScraperInterface interface {
@@ -50,21 +55,25 @@ type ClusterScraperInterface interface {
 	GetAllPVCs() ([]*api.PersistentVolumeClaim, error)
 	GetResources(resource schema.GroupVersionResource) (*unstructured.UnstructuredList, error)
 	GetMachineSetToNodeUIDsMap(nodes []*api.Node) map[string][]string
+	GetAllTurboSLOScalings() ([]policyv1alpha1.SLOHorizontalScale, error)
+	GetAllTurboPolicyBindings() ([]policyv1alpha1.PolicyBinding, error)
 }
 
 type ClusterScraper struct {
 	*client.Clientset
-	caClient      *capiclient.Clientset
-	capiNamespace string
-	DynamicClient dynamic.Interface
-	cache         turbostore.ITurboCache
+	caClient                *capiclient.Clientset
+	capiNamespace           string
+	DynamicClient           dynamic.Interface
+	ControllerRuntimeClient runtimeclient.Client
+	cache                   turbostore.ITurboCache
 }
 
-func NewClusterScraper(kclient *client.Clientset, dynamicClient dynamic.Interface, capiEnabled bool,
-	caClient *capiclient.Clientset, capiNamespace string) *ClusterScraper {
+func NewClusterScraper(kclient *client.Clientset, dynamicClient dynamic.Interface, rtClient runtimeclient.Client,
+	capiEnabled bool, caClient *capiclient.Clientset, capiNamespace string) *ClusterScraper {
 	clusterScraper := &ClusterScraper{
-		Clientset:     kclient,
-		DynamicClient: dynamicClient,
+		Clientset:               kclient,
+		DynamicClient:           dynamicClient,
+		ControllerRuntimeClient: rtClient,
 		// Create cache with expiration duration as defaultCacheTTL, which means the cached data will be cleaned up after
 		// defaultCacheTTL.
 		cache: turbostore.NewTurboCache(defaultCacheTTL).Cache,
@@ -472,4 +481,22 @@ func (s *ClusterScraper) GetPodControllerInfo(
 	ownerInfo.Containers = containerNames
 	s.cache.Set(podControllerInfoKey, ownerInfo, 0)
 	return ownerInfo, parent, namespacedClient, nil
+}
+
+// GetAllTurboSLOScalings gets the custom SLOHorizontalScale resource from all namespaces
+func (s *ClusterScraper) GetAllTurboSLOScalings() ([]policyv1alpha1.SLOHorizontalScale, error) {
+	sloScaleList := &policyv1alpha1.SLOHorizontalScaleList{}
+	if err := s.ControllerRuntimeClient.List(context.TODO(), sloScaleList, &listOptions); err != nil {
+		return nil, err
+	}
+	return sloScaleList.Items, nil
+}
+
+// GetAllTurboPolicyBindings gets the custom PolicyBinding resource from all namespaces
+func (s *ClusterScraper) GetAllTurboPolicyBindings() ([]policyv1alpha1.PolicyBinding, error) {
+	policyBindingList := &policyv1alpha1.PolicyBindingList{}
+	if err := s.ControllerRuntimeClient.List(context.TODO(), policyBindingList, &listOptions); err != nil {
+		return nil, err
+	}
+	return policyBindingList.Items, nil
 }

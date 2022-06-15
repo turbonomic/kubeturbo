@@ -6,8 +6,8 @@ require (
 	github.com/golang/glog v1.0.0
 	github.com/google/cadvisor v0.39.2
 	github.com/mitchellh/hashstructure v0.0.0-20170609045927-2bca23e0e452
-	github.com/onsi/ginkgo v1.16.4
-	github.com/onsi/gomega v1.14.0
+	github.com/onsi/ginkgo v1.16.5
+	github.com/onsi/gomega v1.17.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/openshift/api v0.0.0-20210816181336-8ff39b776da3
 	github.com/patrickmn/go-cache v2.1.0+incompatible
@@ -17,16 +17,17 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	github.com/turbonomic/turbo-go-sdk v0.0.0-20220615185854-e83d053b2725
+	github.com/turbonomic/turbo-crd v0.0.0-20220615151509-531ffe7c2a6c
 )
 
 // k8s and relevant dependencies
 require (
-	k8s.io/api v0.22.2
-	k8s.io/apiextensions-apiserver v0.22.2
-	k8s.io/apimachinery v0.22.2
-	k8s.io/apiserver v0.22.2
-	k8s.io/client-go v0.22.2
-	k8s.io/component-base v0.22.2
+	k8s.io/api v0.23.5
+	k8s.io/apiextensions-apiserver v0.23.5
+	k8s.io/apimachinery v0.23.5
+	k8s.io/apiserver v0.23.5
+	k8s.io/client-go v0.23.5
+	k8s.io/component-base v0.23.5
 	k8s.io/klog v1.0.0
 	k8s.io/kubelet v0.22.2
 	sigs.k8s.io/application v0.8.3
@@ -47,9 +48,10 @@ require (
 	github.com/openshift/machine-api-operator v0.2.1-0.20210923190431-734dcea054a1
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.28.0
-	golang.org/x/oauth2 v0.0.0-20210622215436-a8dc77f794b6
+	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	sigs.k8s.io/yaml v1.2.0
+	sigs.k8s.io/controller-runtime v0.11.2
+	sigs.k8s.io/yaml v1.3.0
 )
 
 replace (

@@ -2,9 +2,9 @@ package kubeturbo
 
 import (
 	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
-
 	"k8s.io/client-go/dynamic"
 	kubeclient "k8s.io/client-go/kubernetes"
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
@@ -12,7 +12,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 )
 
-// Configuration created using the parameters passed to the kubeturbo service container.
+// Config created using the parameters passed to the kubeturbo service container.
 type Config struct {
 	tapSpec *K8sTAPServiceSpec
 
@@ -30,7 +30,8 @@ type Config struct {
 	// ORMClient builds operator resource mapping templates fetched from OperatorResourceMapping CR in discovery client
 	// and provides the capability to update the corresponding CR for an Operator managed resource in action execution client.
 	ORMClient *resourcemapping.ORMClient
-
+	// Controller Runtime Client
+	ControllerRuntimeClient runtimeclient.Client
 	// Close this to stop all reflectors
 	StopEverything chan struct{}
 
@@ -91,12 +92,17 @@ func (c *Config) WithORMClient(client *resourcemapping.ORMClient) *Config {
 	return c
 }
 
+func (c *Config) WithControllerRuntimeClient(client runtimeclient.Client) *Config {
+	c.ControllerRuntimeClient = client
+	return c
+}
+
 func (c *Config) WithTapSpec(spec *K8sTAPServiceSpec) *Config {
 	c.tapSpec = spec
 	return c
 }
 
-// Create the StitchingPropertyType for reconciling the kubernetes cluster nodes with the infrastructure VMs
+// UsingUUIDStitch creates the StitchingPropertyType for reconciling the kubernetes cluster nodes with the infrastructure VMs
 func (c *Config) UsingUUIDStitch(useUUID bool) *Config {
 	stitchingPropType := stitching.IP
 	if useUUID {

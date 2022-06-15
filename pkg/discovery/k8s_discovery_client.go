@@ -240,7 +240,7 @@ func (dc *K8sDiscoveryClient) Validate(
 	return
 }
 
-// DiscoverTopology receives a discovery request from server and start probing the k8s.
+// Discover topology receives a discovery request from server and start probing the k8s.
 // This is a part of the interface that gets registered with and is invoked asynchronously by the GO SDK Probe.
 func (dc *K8sDiscoveryClient) Discover(
 	accountValues []*proto.AccountValue) (discoveryResponse *proto.DiscoveryResponse, err error) {
