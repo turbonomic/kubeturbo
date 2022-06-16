@@ -48,7 +48,7 @@ type DiscoveryClientConfig struct {
 	containerUsageDataAggStrategy string
 	// ORMClient builds operator resource mapping templates fetched from OperatorResourceMapping CR so that action
 	// execution client will be able to execute action on operator-managed resources based on resource mapping templates.
-	ormClient *resourcemapping.ORMClient
+	OrmClient *resourcemapping.ORMClient
 }
 
 func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
@@ -84,7 +84,7 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 		ValidationTimeoutSec:                ValidationTimeoutSec,
 		containerUtilizationDataAggStrategy: containerUtilizationDataAggStrategy,
 		containerUsageDataAggStrategy:       containerUsageDataAggStrategy,
-		ormClient:                           ormClient,
+		OrmClient:                           ormClient,
 		DiscoveryWorkers:                    discoveryWorkers,
 		DiscoveryTimeoutSec:                 discoveryTimeoutMin,
 		DiscoverySamples:                    discoverySamples,
@@ -94,7 +94,7 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 
 // Implements the go sdk discovery client interface
 type K8sDiscoveryClient struct {
-	config                 *DiscoveryClientConfig
+	Config                 *DiscoveryClientConfig
 	k8sClusterScraper      *cluster.ClusterScraper
 	clusterProcessor       *processor.ClusterProcessor
 	dispatcher             *worker.Dispatcher
@@ -127,7 +127,7 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	dataSamplingDispatcher.InitSamplingDiscoveryWorkers()
 
 	dc := &K8sDiscoveryClient{
-		config:                 config,
+		Config:                 config,
 		k8sClusterScraper:      k8sClusterScraper,
 		clusterProcessor:       clusterProcessor,
 		dispatcher:             dispatcher,
@@ -140,7 +140,7 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 
 func (dc *K8sDiscoveryClient) GetAccountValues() *sdkprobe.TurboTargetInfo {
 	var accountValues []*proto.AccountValue
-	targetConf := dc.config.targetConfig
+	targetConf := dc.Config.targetConfig
 	// Convert all parameters in clientConf to AccountValue list
 	targetID := registration.TargetIdentifierField
 	accVal := &proto.AccountValue{
@@ -291,7 +291,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	}
 
 	// Cache operatorResourceSpecMap in ormClient
-	numCRs := dc.config.ormClient.CacheORMSpecMap()
+	numCRs := dc.Config.OrmClient.CacheORMSpecMap()
 	if numCRs > 0 {
 		glog.Infof("Discovered %v Operator managed Custom Resources in cluster %s.", numCRs, targetID)
 	}
@@ -299,7 +299,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	// Multiple discovery workers to create node and pod DTOs
 	nodes := clusterSummary.Nodes
 	// Call cache cleanup
-	dc.config.probeConfig.NodeClient.CleanupCache(nodes)
+	dc.Config.probeConfig.NodeClient.CleanupCache(nodes)
 	// Stops scheduling dispatcher to assign sampling discovery tasks.
 	dc.samplingDispatcher.FinishSampling()
 
@@ -315,7 +315,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	dc.samplingDispatcher.ScheduleDispatch(nodes)
 
 	// Namespace discovery worker to create namespace DTOs
-	stitchType := dc.config.probeConfig.StitchingPropertyType
+	stitchType := dc.Config.probeConfig.StitchingPropertyType
 	namespacesDiscoveryWorker := worker.Newk8sNamespaceDiscoveryWorker(clusterSummary, stitchType)
 	namespaceDtos, err := namespacesDiscoveryWorker.Do(result.NamespaceMetrics)
 	if err != nil {
@@ -339,8 +339,8 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	// replicas. ContainerSpec is an entity type which represents a certain type of container replicas deployed by a
 	// K8s controller.
 	containerSpecDiscoveryWorker := worker.NewK8sContainerSpecDiscoveryWorker()
-	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(clusterSummary, result.ContainerSpecMetrics, dc.config.containerUtilizationDataAggStrategy,
-		dc.config.containerUsageDataAggStrategy)
+	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(clusterSummary, result.ContainerSpecMetrics, dc.Config.containerUtilizationDataAggStrategy,
+		dc.Config.containerUsageDataAggStrategy)
 	if err != nil {
 		glog.Errorf("Failed to discover ContainerSpecs from current Kubernetes cluster with the new discovery framework: %s", err)
 	} else {

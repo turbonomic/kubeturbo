@@ -110,8 +110,8 @@ var _ = Describe("Action Executor ", func() {
 			// Kubernetes Probe Discovery Client
 			defer TimeCost("DiscoverWithNewFramework", time.Now())
 			discoveryClient := discovery.NewK8sDiscoveryClient(discoveryClientConfig)
-			_, _, err = discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
-			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
+			// Cache operatorResourceSpecMap in ormClient
+			discoveryClient.Config.OrmClient.CacheORMSpecMap()
 		}
 
 	})
