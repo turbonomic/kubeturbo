@@ -2,9 +2,7 @@ package integration
 
 import (
 	"context"
-	"fmt"
 	"strings"
-	"time"
 
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
@@ -103,12 +101,11 @@ var _ = Describe("Action Executor ", func() {
 				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec)
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
 				cluster.NewClusterScraper(kubeClient, dynamicClient, nil, false, nil, ""),
-				[]string{"*"}, ormClient, false, true, 60, gitops.GitConfig{})
+				[]string{"*"}, ormClient, false, true, 60, gitops.GitConfig{}, "test-cluster-id")
 
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 
 			// Kubernetes Probe Discovery Client
-			defer TimeCost("DiscoverWithNewFramework", time.Now())
 			discoveryClient := discovery.NewK8sDiscoveryClient(discoveryClientConfig)
 			// Cache operatorResourceSpecMap in ormClient
 			discoveryClient.Config.OrmClient.CacheORMSpecMap()
@@ -130,7 +127,7 @@ var _ = Describe("Action Executor ", func() {
 
 			// 3. Build and execute resize action on the deployment
 			targetSE := newResizeWorkloadControllerTargetSE(dep)
-			resizeupAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, ORM_RESIZE_UP, &dep.Spec.Template.Spec)
+			resizeupAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, &dep.Spec.Template.Spec, namespacescope_operand_container_name)
 			_, err = actionHandler.ExecuteAction(resizeupAction, nil, &mockProgressTrack{})
 			if err != nil {
 				framework.Failf("Failed to execute resizing action for ORM namespace case")
@@ -159,7 +156,7 @@ var _ = Describe("Action Executor ", func() {
 
 			// 3. Build and execute resize action on the deployment
 			targetSE := newResizeWorkloadControllerTargetSE(dep)
-			resizeupAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, ORM_RESIZE_DOWN, &dep.Spec.Template.Spec)
+			resizeupAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, &dep.Spec.Template.Spec, clusterscope_operand_container_name)
 			_, err = actionHandler.ExecuteAction(resizeupAction, nil, &mockProgressTrack{})
 			if err != nil {
 				framework.Failf("Failed to execute resizing action for ORM cluster case")
@@ -218,9 +215,4 @@ func waitForOperatorCRToUpdateResource(client dynamic.Interface, groupVersionRes
 		return nil, waitErr
 	}
 	return nil, nil
-}
-
-func TimeCost(funcname string, starttime time.Time) {
-	interval := time.Since(starttime)
-	fmt.Printf("Function name<%v>,Run time<%v>\n", funcname, interval)
 }
