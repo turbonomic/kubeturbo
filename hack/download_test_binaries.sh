@@ -27,8 +27,14 @@ curl -Lo openshift-client-linux.tar.gz https://mirror.openshift.com/pub/openshif
 tar -C ${dest_dir}  -zxvf openshift-client-linux.tar.gz oc
 chmod +x ${oc_path}
 
+#istioctl
+curl -L https://istio.io/downloadIstio | ISTIO_VERSION=${istio_version} TARGET_ARCH=x86_64 sh -
+cp istio-${istio_version}/bin/istioctl ${istioctl_path}
+chmod +x ${istioctl_path}
+
 echo -n "#   kind:           "; "${kind_path}" version
 echo -n "#   kubectl:        "; "${kubectl_path}" version --client --short
 echo -n "#   oc:             "; "${oc_path}" version --client --short
+echo -n "#   istioctl:       "; "${istioctl_path}" version --short
 
 

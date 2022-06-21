@@ -34,11 +34,12 @@ import (
 )
 
 const (
-	openShiftDeployerLabel = "openshift.io/deployer-pod-for.name"
-	cpuIncrement           = 50
-	memoryIncrement        = 75
-	cpuDecrement           = 25
-	memoryDecrement        = 50
+	openShiftDeployerLabel       = "openshift.io/deployer-pod-for.name"
+	cpuIncrement                 = 50
+	memoryIncrement              = 75
+	cpuDecrement                 = 25
+	memoryDecrement              = 50
+	injectedSidecarContainerName = "istio-proxy"
 )
 
 const (
@@ -119,7 +120,7 @@ var _ = Describe("Action Executor ", func() {
 		})
 	})
 
-	Describe("executing action move pod with volume attached", func() {
+	Describe("executing action move pod with volume attached, will also be tested in Istio environment", func() {
 		It("should result in new pod on target node", func() {
 			if framework.TestContext.IsOpenShiftTest {
 				Skip("Ignoring volume based pod move case for the deployment against openshift target.")
@@ -136,6 +137,14 @@ var _ = Describe("Action Executor ", func() {
 			// This should not happen. We should ideally get a pod.
 			if pod == nil {
 				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
+			}
+
+			// Validate if the pod has the injected sidecar container if istio is enabled
+			if framework.TestContext.IsIstioEnabled {
+				_, err = findContainerIdxInPodSpecByName(&pod.Spec, injectedSidecarContainerName)
+				if err != nil {
+					framework.Failf("The pod %v isn't injected", podID(pod))
+				}
 			}
 
 			targetNodeName := getTargetSENodeName(f, pod)
@@ -297,13 +306,23 @@ var _ = Describe("Action Executor ", func() {
 	})
 
 	// Multi container resize down cpu and memory on resource request/limit
-	Describe("executing resize action on a deployment with 2 containers", func() {
+	Describe("executing resize action on a deployment with 2 containers, will also be tested in Istio environment", func() {
 		It("should match the expected resource request/limit after resizing on both of cpu and memory", func() {
 			if framework.TestContext.IsOpenShiftTest {
 				Skip("Ignoring resize case for the deployment with multiple containers against openshift target.")
 			}
 			dep, err := createDeployResource(kubeClient, depMultiContainerWithResources(namespace, "", 2, 1))
 			framework.ExpectNoError(err, "Error creating test resources")
+
+			// Validate if the pod has the injected sidecar container if istio is enabled
+			if framework.TestContext.IsIstioEnabled {
+				pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
+				framework.ExpectNoError(err, "Error getting deployments pod")
+				_, err = findContainerIdxInPodSpecByName(&pod.Spec, injectedSidecarContainerName)
+				if err != nil {
+					framework.Failf("The pod %v isn't injected", podID(pod))
+				}
+			}
 
 			targetSE := newResizeWorkloadControllerTargetSE(dep)
 			resizeAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, REQLIM_MULTI_CONTAINER, &dep.Spec.Template.Spec)
@@ -360,7 +379,7 @@ var _ = Describe("Action Executor ", func() {
 	// TODO: this particular Describe is currently used as the teardown for this
 	// whole test (not the suite).
 	// This will work only if run sequentially. Find a better way to do this.
-	Describe("test teardowon", func() {
+	Describe("test teardown", func() {
 		It(fmt.Sprintf("Deleting framework namespace: %s", namespace), func() {
 			f.AfterEach()
 		})
@@ -1180,4 +1199,16 @@ func updatePodSpec(podSpec *corev1.PodSpec, containerIdx int, resourceType, reso
 		}
 	}
 
+}
+
+func findContainerIdxInPodSpecByName(podSpec *corev1.PodSpec, containerName string) (int, error) {
+	if podSpec == nil {
+		return -1, fmt.Errorf("podSpec is nil")
+	}
+	for i, cont := range podSpec.Containers {
+		if cont.Name == containerName {
+			return i, nil
+		}
+	}
+	return -1, fmt.Errorf("can't find the right container with the name %s", containerName)
 }
