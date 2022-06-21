@@ -86,6 +86,7 @@ spec:
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 
 			namespace = f.TestNamespaceName()
+			f.GenerateCustomImagePullSecret(namespace)
 		}
 	})
 

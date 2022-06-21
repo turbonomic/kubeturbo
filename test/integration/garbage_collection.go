@@ -73,6 +73,7 @@ spec:
 			}
 		}
 		namespace = f.TestNamespaceName()
+		f.GenerateCustomImagePullSecret(namespace)
 	})
 
 	Describe("periodic garbage collection", func() {
@@ -163,6 +164,11 @@ func podSingleContainerWithKubeturboGCLabel(namespace string) *corev1.Pod {
 			},
 		},
 		Spec: corev1.PodSpec{
+			ImagePullSecrets: []corev1.LocalObjectReference{
+				{
+					Name: framework.DockerImagePullSecretName,
+				},
+			},
 			Containers: []corev1.Container{
 				{
 					Name:    "test-cont",

@@ -87,6 +87,7 @@ var _ = Describe("Action Executor ", func() {
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 		}
 		namespace = f.TestNamespaceName()
+		f.GenerateCustomImagePullSecret(namespace)
 	})
 
 	Describe("executing action move pod", func() {
@@ -396,6 +397,11 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: framework.DockerImagePullSecretName,
+						},
+					},
 					Containers: []corev1.Container{
 						genContainerSpec("test-cont", "50m", "100Mi", "100m", "200Mi"),
 					},
@@ -450,6 +456,11 @@ func depMultiContainerWithResources(namespace, claimName string, containerNum, r
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: framework.DockerImagePullSecretName,
+						},
+					},
 					Containers: containerlst,
 				},
 			},
@@ -484,23 +495,13 @@ func genBarePodWithResources(namespace, claimName string, replicas int32, withVo
 		},
 
 		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
+			ImagePullSecrets: []corev1.LocalObjectReference{
 				{
-					Name:    "test-cont",
-					Image:   "busybox",
-					Command: []string{"/bin/sh"},
-					Args:    []string{"-c", "while true; do sleep 30; done;"},
-					Resources: corev1.ResourceRequirements{
-						Limits: map[corev1.ResourceName]resource.Quantity{
-							corev1.ResourceCPU:    resource.MustParse("100m"),
-							corev1.ResourceMemory: resource.MustParse("200Mi"),
-						},
-						Requests: map[corev1.ResourceName]resource.Quantity{
-							corev1.ResourceCPU:    resource.MustParse("50m"),
-							corev1.ResourceMemory: resource.MustParse("100Mi"),
-						},
-					},
+					Name: framework.DockerImagePullSecretName,
 				},
+			},
+			Containers: []corev1.Container{
+				genContainerSpec("test-cont", "50m", "100Mi", "100m", "200Mi"),
 			},
 		},
 	}
@@ -541,6 +542,11 @@ func rsSingleContainerWithResources(namespace string, replicas int32, withGCLabe
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: framework.DockerImagePullSecretName,
+						},
+					},
 					Containers: []corev1.Container{
 						genContainerSpec("test-cont", "50m", "100Mi", "100m", "200Mi"),
 					},
@@ -609,6 +615,11 @@ func genDeploymentConfigWithResources(namespace, claimName string, containerNum,
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: framework.DockerImagePullSecretName,
+						},
+					},
 					Containers: containerlst,
 				},
 			},

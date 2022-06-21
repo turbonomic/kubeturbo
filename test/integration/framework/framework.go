@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	testConfigQPS   = 80
-	testConfigBurst = 100
+	testConfigQPS             = 80
+	testConfigBurst           = 100
+	DockerImagePullSecretName = "integration-test"
 )
 
 type TestFramework struct {
@@ -176,4 +177,31 @@ func waitForNamespaceDeletion(client kubeclientset.Interface, namespace string) 
 		return errors.Errorf("Namespace %q was not deleted after %v", namespace, TestContext.SingleCallTimeout)
 	}
 	return nil
+}
+
+func (f *TestFramework) GenerateCustomImagePullSecret(nsName string) error {
+	if TestContext.DockerUserName != "" && TestContext.DockerUserPwd != "" {
+		client := f.GetKubeClient(fmt.Sprintf("%s-create-namespace", f.BaseName))
+		_, err := client.CoreV1().Secrets(nsName).Create(context.TODO(), dockerConfigSecret(DockerImagePullSecretName, nsName, TestContext.DockerUserName, TestContext.DockerUserPwd), metav1.CreateOptions{})
+		if err != nil {
+			Logf("Failed to create secret in the namespace <%s>: %v", nsName, err)
+			return err
+		}
+	}
+	return nil
+}
+
+func dockerConfigSecret(secName, nsName, dockerUserName, dockerUserPassword string) *corev1.Secret {
+	dockerConfig := fmt.Sprintf(`{"auths":{"docker.io":{"username":"%s","password":"%s"}}}`, dockerUserName, dockerUserPassword)
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secName,
+			Namespace: nsName,
+		},
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: []byte(dockerConfig),
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+	}
+
 }
