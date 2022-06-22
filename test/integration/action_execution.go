@@ -91,7 +91,7 @@ var _ = Describe("Action Executor ", func() {
 		f.GenerateCustomImagePullSecret(namespace)
 	})
 
-	Describe("executing action move pod", func() {
+	Describe("executing action move pod, will also be tested in Istio environment", func() {
 		It("should result in new pod on target node", func() {
 			if framework.TestContext.IsOpenShiftTest {
 				Skip("Ignoring pod move case for the deployment against openshift target.")
@@ -104,6 +104,14 @@ var _ = Describe("Action Executor ", func() {
 			// This should not happen. We should ideally get a pod.
 			if pod == nil {
 				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
+			}
+
+			// Validate if the pod has the injected sidecar container if istio is enabled
+			if framework.TestContext.IsIstioEnabled {
+				_, err = findContainerIdxInPodSpecByName(&pod.Spec, injectedSidecarContainerName)
+				if err != nil {
+					framework.Failf("The pod %v isn't injected", podID(pod))
+				}
 			}
 
 			targetNodeName := getTargetSENodeName(f, pod)
