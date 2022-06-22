@@ -250,7 +250,7 @@ func TestGitHandler_NewPR(t *testing.T) {
 	path := "p"
 
 	expectedReceivedPR := &github.NewPullRequest{
-		Title: String("Turbonomic Action: update yaml file `p`"),
+		Title: String("Turbonomic Action: update yaml file p for resource test-cluster-id/test-ns/test-res"),
 		Head:  String("test-branch"),
 		Base:  String("b"),
 		Body: String("This PR is automatically created via `Turbonomic action execution` \n\n" +
@@ -288,7 +288,7 @@ func TestGitHandler_NewPR(t *testing.T) {
 		Number: Int(1),
 	}
 
-	createdPR, err := handler.newPR("test-res", "test-branch")
+	createdPR, err := handler.newPR("test-res", "test-ns", "test-cluster-id", "test-branch")
 	if err != nil {
 		t.Errorf("Git Handler newPR returned error: %v", err)
 	}

@@ -59,21 +59,23 @@ type gitWaitData struct {
 }
 
 type GitHubManager struct {
-	gitConfig   GitConfig
-	typedClient *typedClient.Clientset
-	dynClient   dynamic.Interface
-	obj         *unstructured.Unstructured
-	managerApp  *repository.K8sApp
+	gitConfig    GitConfig
+	typedClient  *typedClient.Clientset
+	dynClient    dynamic.Interface
+	obj          *unstructured.Unstructured
+	managerApp   *repository.K8sApp
+	k8sClusterId string
 }
 
 func NewGitHubManager(gitConfig GitConfig, typedClient *typedClient.Clientset, dynClient dynamic.Interface,
-	obj *unstructured.Unstructured, managerApp *repository.K8sApp) GitopsManager {
+	obj *unstructured.Unstructured, managerApp *repository.K8sApp, clusterId string) GitopsManager {
 	return &GitHubManager{
-		gitConfig:   gitConfig,
-		typedClient: typedClient,
-		dynClient:   dynClient,
-		obj:         obj,
-		managerApp:  managerApp,
+		gitConfig:    gitConfig,
+		typedClient:  typedClient,
+		dynClient:    dynClient,
+		obj:          obj,
+		managerApp:   managerApp,
+		k8sClusterId: clusterId,
 	}
 }
 
@@ -143,8 +145,8 @@ func (r *GitHubManager) Update(replicas int64, podSpec map[string]interface{}) (
 		},
 	}
 
-	glog.Infof("Updating the source of truth at: %s on branch: %s and path: %s.", url.Path, baseBranch, path)
-	return handler.updateRemote(r.obj.GetName(), patches)
+	glog.Infof("Updating the source of truth at: %s and path: %s.", url.Path, path)
+	return handler.updateRemote(r.obj.GetName(), r.obj.GetName(), r.k8sClusterId, patches)
 }
 
 func (r *GitHubManager) WaitForActionCompletion(completionData interface{}) error {
@@ -265,17 +267,17 @@ type GitHandler struct {
 	commitMode  string
 }
 
-func (g *GitHandler) getBaseBranchRef() (*github.Reference, error) {
-	baseRef, _, err := g.client.Git.GetRef(g.ctx, g.user, g.repo, "refs/heads/"+g.baseBranch)
+func (g *GitHandler) getBranchRef(branchName string) (*github.Reference, error) {
+	baseRef, _, err := g.client.Git.GetRef(g.ctx, g.user, g.repo, "refs/heads/"+branchName)
 	if err != nil {
 		return nil, err
 	}
 	return baseRef, err
 }
 
-func (g *GitHandler) getRemoteFileContent(resName, path string) (string, error) {
+func (g *GitHandler) getRemoteFileContent(resName, path, branchRef string) (string, error) {
 	opts := github.RepositoryContentGetOptions{
-		Ref: g.baseBranch,
+		Ref: branchRef,
 	}
 	fileContent, dirContent, _, err := g.client.Repositories.GetContents(g.ctx, g.user, g.repo, path, &opts)
 	if err != nil {
@@ -288,7 +290,7 @@ func (g *GitHandler) getRemoteFileContent(resName, path string) (string, error) 
 	}
 
 	if dirContent != nil {
-		fileData, path, err := g.fileContentFromDirContent(resName, dirContent)
+		fileData, path, err := g.fileContentFromDirContent(resName, branchRef, dirContent)
 		if err != nil {
 			return "", err
 		}
@@ -313,9 +315,9 @@ func decodeAndMatchName(fileData, name string) (bool, error) {
 	return false, nil
 }
 
-func (g *GitHandler) fileContentFromDirContent(resName string, dirContent []*github.RepositoryContent) (string, string, error) {
+func (g *GitHandler) fileContentFromDirContent(resName, branchRef string, dirContent []*github.RepositoryContent) (string, string, error) {
 	opts := github.RepositoryContentGetOptions{
-		Ref: g.baseBranch,
+		Ref: branchRef,
 	}
 	for _, repoContent := range dirContent {
 		fileContent, dirContent, _, err := g.client.Repositories.GetContents(g.ctx, g.user, g.repo, *repoContent.Path, &opts)
@@ -335,14 +337,15 @@ func (g *GitHandler) fileContentFromDirContent(resName string, dirContent []*git
 				return fileData, *repoContent.Path, nil
 			}
 		} else if dirContent != nil {
-			return g.fileContentFromDirContent(resName, dirContent)
+			return g.fileContentFromDirContent(resName, branchRef, dirContent)
 		}
 	}
 
 	return "", "", fmt.Errorf("file with metadata.name %s not found in remote repo %s,", resName, g.repo)
 }
 
-func (g *GitHandler) getTree(ref *github.Reference, fileContent []byte) (tree *github.Tree, err error) {
+// createTree works for both creating a new tree and updating an existing one.
+func (g *GitHandler) createTree(ref *github.Reference, fileContent []byte) (tree *github.Tree, err error) {
 	// Create a tree with what to commit.
 	entries := []*github.TreeEntry{
 		{
@@ -353,58 +356,129 @@ func (g *GitHandler) getTree(ref *github.Reference, fileContent []byte) (tree *g
 		},
 	}
 
+	// If both a tree and a nested path modifying that tree are specified, this endpoint
+	// will overwrite the contents of the tree with the new path contents, and create
+	// a new tree structure, in effect causing an update tree semantics.
+
+	// ref.Object.SHA
+	// The SHA1 of an existing Git tree object which will be used as the base for the new tree.
+	// If provided, a new Git tree object will be created from entries in the Git tree object
+	// pointed to by base_tree and entries defined in the tree parameter. Entries defined in the
+	// tree parameter will overwrite items from base_tree with the same path. If you're creating
+	// new changes on a branch, then normally you'd set base_tree to the SHA1 of the Git tree
+	// object of the current latest commit on the branch you're working on. If not provided,
+	// GitHub will create a new Git tree object from only the entries defined in the tree
+	// parameter. If you create a new commit pointing to such a tree, then all files which
+	// were a part of the parent commit's tree and were not defined in the tree parameter
+	// will be listed as deleted by the new commit.
 	tree, _, err = g.client.Git.CreateTree(g.ctx, g.user, g.repo, *ref.Object.SHA, entries)
 	return tree, err
 }
 
-func (g *GitHandler) updateRemote(resName string, patches []PatchItem) (interface{}, error) {
-	yamlContent, err := g.getRemoteFileContent(resName, g.path)
+func (g *GitHandler) updateRemote(resName, resNamespace, clusterId string, patches []PatchItem) (interface{}, error) {
+	var commitBranchName string
+	var commitBranchRef *github.Reference
+	var pr *github.PullRequest
+	var err error
+	if g.commitMode == commitModePR {
+		pr, err = g.checkPrExists(resName, resNamespace, clusterId)
+		if err != nil {
+			return nil, err
+		}
+		if pr != nil {
+			glog.V(2).Infof("Found an existing PR #%d while executing action for "+
+				clusterId+"/"+resNamespace+"/"+resName, pr.GetNumber())
+			commitBranchName = pr.GetHead().GetRef()
+			commitBranchRef, err = g.getBranchRef(commitBranchName)
+			if err != nil {
+				return nil, fmt.Errorf("error getting branch ref %s, %v", g.baseBranch, err)
+			}
+		} else {
+			// create a new branch and get its ref
+			commitBranchName = g.baseBranch + "-" + strconv.FormatInt(time.Now().UnixNano(), 32)
+			glog.V(3).Infof("Creating new branch %s.", commitBranchName)
+			commitBranchRef, err = g.createNewBranch(commitBranchName)
+			if err != nil {
+				return nil, fmt.Errorf("error creating new branch %s, %v", commitBranchName, err)
+			}
+		}
+	} else {
+		commitBranchName = g.baseBranch
+		glog.V(3).Infof("Will use branch %s to directly commit changes on.", commitBranchName)
+		commitBranchRef, err = g.getBranchRef(commitBranchName)
+		if err != nil {
+			return nil, fmt.Errorf("error getting branch ref %s, %v", commitBranchName, err)
+		}
+	}
+
+	needsUpdate, patchedYamlContent, err := g.patchYamlContent(resName, commitBranchName, patches)
 	if err != nil {
 		return nil, err
 	}
-
-	patchedYamlContent, err := ApplyPatch([]byte(yamlContent), patches)
-	if err != nil {
-		return nil, fmt.Errorf("error applying patches to file %s: patches: %v, err: %v", g.path, patches, err)
+	if !needsUpdate {
+		if pr != nil {
+			// We have an existing PR with this action
+			// We should now wait on the existing PR to be merged
+			glog.Infof("The open pr #%d content is already aligned to desired state. "+
+				"Will now wait for the PR to be merged to complete the action.", pr.GetNumber())
+			return gitWaitData{
+				handler: g,
+				prNum:   pr.GetNumber(),
+			}, nil
+		}
+		// Its commit mode, we simply log and succeed the action
+		glog.Infof("The base branch %s is already aligned to desired state. "+
+			"Nothing to commit. Action will be considered successful.", commitBranchName)
+		return nil, nil
 	}
 
-	var branchRef *github.Reference
-	newBranchName := g.baseBranch + "-" + strconv.FormatInt(time.Now().UnixNano(), 32)
-	if g.commitMode == commitModePR {
-		branchRef, err = g.createNewBranch(newBranchName)
-		if err != nil {
-			return nil, fmt.Errorf("error creating new branch %s, %v", newBranchName, err)
-		}
-	} else {
-		branchRef, err = g.getBaseBranchRef()
-		if err != nil {
-			return nil, fmt.Errorf("error getting branch ref %s, %v", g.baseBranch, err)
-		}
-	}
-
-	tree, err := g.getTree(branchRef, patchedYamlContent)
+	// If pr != nil, commitBranchRef is actually the existing PRs branch, rather
+	// then a new branch. Also, if we are here and pr != nil, that means the
+	// desired state has drifted from the existing PR. We will push a new commit
+	// on the existing PRs branch.
+	tree, err := g.createTree(commitBranchRef, patchedYamlContent)
 	if err != nil {
 		return nil, fmt.Errorf("error getting branch ref: %s, %v", g.baseBranch, err)
 	}
 
-	_, err = g.pushCommit(branchRef, tree)
+	_, err = g.pushCommit(commitBranchRef, tree)
 	if err != nil {
 		return nil, fmt.Errorf("error committing new content to branch %s, %v", g.baseBranch, err)
 	}
 
 	if g.commitMode == commitModePR {
-		pr, err := g.newPR(resName, newBranchName)
-		if err != nil {
-			return nil, err
+		if pr == nil {
+			pr, err = g.newPR(resName, resNamespace, clusterId, commitBranchName)
+			if err != nil {
+				return nil, err
+			}
 		}
-		// TODO: check if we need to validate if the pr number is set in response
-		// after the create request
+		glog.Infof("PR #%d created. "+
+			"Will now wait for the PR to be merged to complete the action.", pr.GetNumber())
 		return gitWaitData{
 			handler: g,
 			prNum:   pr.GetNumber(),
 		}, nil
 	}
+
 	return nil, nil
+}
+
+func (g *GitHandler) patchYamlContent(resName, branchName string, patches []PatchItem) (bool, []byte, error) {
+	yamlContent, err := g.getRemoteFileContent(resName, g.path, branchName)
+	if err != nil {
+		return false, nil, err
+	}
+	patchedYamlContent, err := ApplyPatch([]byte(yamlContent), patches)
+	if err != nil {
+		return false, nil, fmt.Errorf("error applying patches to file %s: patches: %v, err: %v", g.path, patches, err)
+	}
+
+	// TODO: find a better way to compare yamls. As patching can reorganise the
+	// yaml content, even if there is no change and the source yaml is not
+	// alphabetically arranged we will end up creating a commit.
+	needsUpdate := strings.Compare(yamlContent, string(patchedYamlContent)) != 0
+	return needsUpdate, patchedYamlContent, nil
 }
 
 func (g *GitHandler) pushCommit(ref *github.Reference, tree *github.Tree) (*github.Reference, error) {
@@ -443,8 +517,9 @@ func (g *GitHandler) createNewBranch(newBranch string) (ref *github.Reference, e
 	return ref, err
 }
 
-func (g *GitHandler) newPR(resName string, newBranch string) (*github.PullRequest, error) {
-	prTitle := fmt.Sprintf("Turbonomic Action: update yaml file `%s`", g.path)
+func (g *GitHandler) newPR(resName, resNamespace, clusterId string, newBranch string) (*github.PullRequest, error) {
+	prTitle := fmt.Sprintf("Turbonomic Action: update yaml file %s for resource %s/%s/%s",
+		g.path, clusterId, resNamespace, resName)
 	prDescription := "This PR is automatically created via `Turbonomic action execution` \n\n" +
 		"This PR intends to update pod template resources or replicas of resource `" + resName + "`"
 	baseBranch := g.baseBranch
@@ -462,6 +537,26 @@ func (g *GitHandler) newPR(resName string, newBranch string) (*github.PullReques
 		return nil, err
 	}
 	return pr, nil
+}
+
+func (g *GitHandler) checkPrExists(resName, resNamespace, clusterId string) (*github.PullRequest, error) {
+	options := &github.PullRequestListOptions{
+		Base: g.baseBranch,
+		Head: g.commitUser, // ex head=turbonomic or head=turbonomic: or head=turbonomic:<branch-name>
+	}
+	prList, _, err := g.client.PullRequests.List(g.ctx, g.user, g.repo, options)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, pr := range prList {
+		if pr.Title != nil &&
+			strings.HasSuffix(*pr.Title, clusterId+"/"+resNamespace+"/"+resName) &&
+			pr.Number != nil {
+			return pr, nil
+		}
+	}
+	return nil, nil
 }
 
 // TODO: Enhance the support to identify json or yaml content on the fly
