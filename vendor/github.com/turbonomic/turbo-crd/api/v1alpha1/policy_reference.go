@@ -20,12 +20,8 @@ package v1alpha1
 type PolicyReference struct {
 	// The kind of the policy referent
 	// +kubebuilder:validation:Enum=SLOHorizontalScale
-	Kind string `json:"kind,omitempty"`
+	Kind string `json:"kind"`
 
 	// The name of the policy referent
-	Name string `json:"name,omitempty"`
-
-	// The namespace of the policy referent
-	// +optional
-	Namespace string `json:"namespace,omitempty"`
+	Name string `json:"name"`
 }
