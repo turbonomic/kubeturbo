@@ -52,12 +52,13 @@ type kubeClients struct {
 }
 
 type parentController struct {
-	clients    kubeClients
-	obj        *unstructured.Unstructured
-	name       string
-	ormClient  *resourcemapping.ORMClient
-	managerApp *repository.K8sApp
-	gitConfig  gitops.GitConfig
+	clients      kubeClients
+	obj          *unstructured.Unstructured
+	name         string
+	ormClient    *resourcemapping.ORMClient
+	managerApp   *repository.K8sApp
+	gitConfig    gitops.GitConfig
+	k8sClusterId string
 }
 
 func (c *parentController) get(name string) (*k8sControllerSpec, error) {
@@ -125,7 +126,7 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 			// The workload is managed by a pipeline controller (argoCD) which replicates
 			// it from a source of truth
 			manager = gitops.NewGitHubManager(c.gitConfig, c.clients.typedClient,
-				c.clients.dynClient, c.obj, c.managerApp)
+				c.clients.dynClient, c.obj, c.managerApp, c.k8sClusterId)
 			glog.Infof("Gitops pipeline detected.")
 		default:
 			return fmt.Errorf("unsupported gitops manager type: %v", c.managerApp.Type)

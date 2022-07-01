@@ -162,9 +162,9 @@ func genMemoryQuantity(newValue float64) (resource.Quantity, error) {
 }
 
 func resizeContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, spec *containerResizeSpec,
-	consistentResize bool, ormSpec *resourcemapping.ORMClient, gitConfig gitops.GitConfig) (*k8sapi.Pod, error) {
+	consistentResize bool, ormSpec *resourcemapping.ORMClient, gitConfig gitops.GitConfig, clusterId string) (*k8sapi.Pod, error) {
 	if consistentResize {
-		return nil, resizeControllerContainer(clusterScraper, pod, spec, ormSpec, gitConfig)
+		return nil, resizeControllerContainer(clusterScraper, pod, spec, ormSpec, gitConfig, clusterId)
 	}
 	return resizeSingleContainer(clusterScraper.Clientset, pod, spec)
 }
@@ -180,9 +180,9 @@ func resizeContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, sp
 //   are not affected. Only newly created pods (through scaling action) will use the updated
 //   resource
 func resizeControllerContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, spec *containerResizeSpec,
-	ormClient *resourcemapping.ORMClient, gitConfig gitops.GitConfig) error {
+	ormClient *resourcemapping.ORMClient, gitConfig gitops.GitConfig, clusterId string) error {
 	// prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdaterViaPod(clusterScraper, pod, ormClient, gitConfig)
+	controllerUpdater, err := newK8sControllerUpdaterViaPod(clusterScraper, pod, ormClient, gitConfig, clusterId)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return err

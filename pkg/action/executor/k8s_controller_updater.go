@@ -41,7 +41,7 @@ type controllerSpec struct {
 
 // newK8sControllerUpdaterViaPod returns a k8sControllerUpdater based on the parent kind of a pod
 func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
-	ormClient *resourcemapping.ORMClient, gitConfig gitops.GitConfig) (*k8sControllerUpdater, error) {
+	ormClient *resourcemapping.ORMClient, gitConfig gitops.GitConfig, clusterId string) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
 	ownerInfo, _, _, err := clusterScraper.GetPodControllerInfo(pod, true)
 	if err != nil {
@@ -57,12 +57,12 @@ func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *
 	// by a specific argoCD app. (or find a better way of doing this)
 	// As of now scale up and down actions wont work with argoCD.
 	return newK8sControllerUpdater(clusterScraper, ormClient, ownerInfo.Kind, ownerInfo.Name,
-		pod.Name, pod.Namespace, nil, gitConfig)
+		pod.Name, pod.Namespace, clusterId, nil, gitConfig)
 }
 
 // newK8sControllerUpdater returns a k8sControllerUpdater based on the controller kind
 func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient, kind,
-	controllerName, podName, namespace string, managerApp *repository.K8sApp, gitConfig gitops.GitConfig) (*k8sControllerUpdater, error) {
+	controllerName, podName, namespace, clusterId string, managerApp *repository.K8sApp, gitConfig gitops.GitConfig) (*k8sControllerUpdater, error) {
 	res, err := GetSupportedResUsingKind(kind, namespace, controllerName)
 	if err != nil {
 		return nil, err
@@ -74,10 +74,11 @@ func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper, ormClient *
 				dynClient:           clusterScraper.DynamicClient,
 				dynNamespacedClient: clusterScraper.DynamicClient.Resource(res).Namespace(namespace),
 			},
-			name:       kind,
-			ormClient:  ormClient,
-			managerApp: managerApp,
-			gitConfig:  gitConfig,
+			name:         kind,
+			ormClient:    ormClient,
+			managerApp:   managerApp,
+			gitConfig:    gitConfig,
+			k8sClusterId: clusterId,
 		},
 		client:    clusterScraper.Clientset,
 		name:      controllerName,

@@ -199,9 +199,13 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		config.containerUsageDataAggStrategy, config.ORMClient, config.DiscoveryWorkers, config.DiscoveryTimeoutSec,
 		config.DiscoverySamples, config.DiscoverySampleIntervalSec)
 
+	k8sSvcId, err := probeConfig.ClusterScraper.GetKubernetesServiceID()
+	if err != nil {
+		glog.Fatalf("Error retrieving the Kubernetes service id: %v", err)
+	}
 	actionHandlerConfig := action.NewActionHandlerConfig(config.CAPINamespace, config.CAClient, config.KubeletClient,
 		probeConfig.ClusterScraper, config.SccSupport, config.ORMClient, config.failVolumePodMoves,
-		config.updateQuotaToAllowMoves, config.readinessRetryThreshold, config.gitConfig)
+		config.updateQuotaToAllowMoves, config.readinessRetryThreshold, config.gitConfig, k8sSvcId)
 
 	// Kubernetes Probe Registration Client
 	registrationClient := registration.NewK8sRegistrationClient(registrationClientConfig, config.tapSpec.K8sTargetConfig)
@@ -236,10 +240,6 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		probeBuilder = probeBuilder.WithDiscoveryClient(discoveryClient)
 	}
 
-	k8sSvcId, err := probeConfig.ClusterScraper.GetKubernetesServiceID()
-	if err != nil {
-		glog.Fatalf("Error retrieving the Kubernetes service id: %v", err)
-	}
 	tapService, err :=
 		service.NewTAPServiceBuilder().
 			WithCommunicationBindingChannel(k8sSvcId).

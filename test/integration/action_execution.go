@@ -34,17 +34,12 @@ import (
 )
 
 const (
-	openShiftDeployerLabel = "openshift.io/deployer-pod-for.name"
-	cpuIncrement           = 50
-	memoryIncrement        = 75
-	cpuDecrement           = 25
-	memoryDecrement        = 50
-)
-
-const (
-	REQUEST_SINGLE_CONTAINER = iota
-	LIMIT_SINGLE_CONTAINER
-	REQLIM_MULTI_CONTAINER
+	openShiftDeployerLabel       = "openshift.io/deployer-pod-for.name"
+	cpuIncrement                 = 50
+	memoryIncrement              = 75
+	cpuDecrement                 = 25
+	memoryDecrement              = 10
+	injectedSidecarContainerName = "istio-proxy"
 )
 
 const (
@@ -83,10 +78,11 @@ var _ = Describe("Action Executor ", func() {
 
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
 				cluster.NewClusterScraper(kubeClient, dynamicClient, nil, false, nil, ""),
-				[]string{"*"}, nil, false, true, 60, gitops.GitConfig{})
+				[]string{"*"}, nil, false, true, 60, gitops.GitConfig{}, "test-cluster-id")
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 		}
 		namespace = f.TestNamespaceName()
+		f.GenerateCustomImagePullSecret(namespace)
 	})
 
 	Describe("executing action move pod", func() {
@@ -118,7 +114,7 @@ var _ = Describe("Action Executor ", func() {
 		})
 	})
 
-	Describe("executing action move pod with volume attached", func() {
+	Describe("executing action move pod with volume attached, will also be tested in Istio environment", func() {
 		It("should result in new pod on target node", func() {
 			if framework.TestContext.IsOpenShiftTest {
 				Skip("Ignoring volume based pod move case for the deployment against openshift target.")
@@ -135,6 +131,14 @@ var _ = Describe("Action Executor ", func() {
 			// This should not happen. We should ideally get a pod.
 			if pod == nil {
 				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
+			}
+
+			// Validate if the pod has the injected sidecar container if istio is enabled
+			if framework.TestContext.IsIstioEnabled {
+				_, err = findContainerIdxInPodSpecByName(&pod.Spec, injectedSidecarContainerName)
+				if err != nil {
+					framework.Failf("The pod %v isn't injected", podID(pod))
+				}
 			}
 
 			targetNodeName := getTargetSENodeName(f, pod)
@@ -226,7 +230,7 @@ var _ = Describe("Action Executor ", func() {
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			targetSE := newResizeWorkloadControllerTargetSE(dc)
-			resizeAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, REQLIM_MULTI_CONTAINER, &dc.Spec.Template.Spec)
+			resizeAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, &dc.Spec.Template.Spec, "test-cont-1", "test-cont-2")
 			_, err = actionHandler.ExecuteAction(resizeAction, nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Resize action on multiple container failed")
 
@@ -272,31 +276,20 @@ var _ = Describe("Action Executor ", func() {
 
 			targetSE := newResizeWorkloadControllerTargetSE(dep)
 
-			// Resize up cpu and memory on resource/limit
-			resizeAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, LIMIT_SINGLE_CONTAINER, &dep.Spec.Template.Spec)
+			// Resize up cpu and memory
+			resizeAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, &dep.Spec.Template.Spec, "test-cont")
 			_, err = actionHandler.ExecuteAction(resizeAction, nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Resize action on limit failed")
 
-			controllerObj, err := waitForWorkloadControllerToUpdateResource(kubeClient, dep, desiredPodSpec)
-			if err != nil {
-				framework.Failf("Failed to check the change of resource/limit in the new deployment: %s", err)
-			}
-
-			// Resize up cpu and memory on resource/request
-			dep = controllerObj.(*appsv1.Deployment)
-			resizeAction, desiredPodSpec = newResizeActionExecutionDTO(targetSE, REQUEST_SINGLE_CONTAINER, &dep.Spec.Template.Spec)
-			_, err = actionHandler.ExecuteAction(resizeAction, nil, &mockProgressTrack{})
-			framework.ExpectNoError(err, "Resize action on request failed")
-
 			_, err = waitForWorkloadControllerToUpdateResource(kubeClient, dep, desiredPodSpec)
 			if err != nil {
-				framework.Failf("Failed to check the change of the resource/request in the new deployment: %s", err)
+				framework.Failf("Failed to check the change of resource/limit in the new deployment: %s", err)
 			}
 		})
 	})
 
 	// Multi container resize down cpu and memory on resource request/limit
-	Describe("executing resize action on a deployment with 2 containers", func() {
+	Describe("executing resize action on a deployment with 2 containers, will also be tested in Istio environment", func() {
 		It("should match the expected resource request/limit after resizing on both of cpu and memory", func() {
 			if framework.TestContext.IsOpenShiftTest {
 				Skip("Ignoring resize case for the deployment with multiple containers against openshift target.")
@@ -304,8 +297,18 @@ var _ = Describe("Action Executor ", func() {
 			dep, err := createDeployResource(kubeClient, depMultiContainerWithResources(namespace, "", 2, 1))
 			framework.ExpectNoError(err, "Error creating test resources")
 
+			// Validate if the pod has the injected sidecar container if istio is enabled
+			if framework.TestContext.IsIstioEnabled {
+				pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
+				framework.ExpectNoError(err, "Error getting deployments pod")
+				_, err = findContainerIdxInPodSpecByName(&pod.Spec, injectedSidecarContainerName)
+				if err != nil {
+					framework.Failf("The pod %v isn't injected", podID(pod))
+				}
+			}
+
 			targetSE := newResizeWorkloadControllerTargetSE(dep)
-			resizeAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, REQLIM_MULTI_CONTAINER, &dep.Spec.Template.Spec)
+			resizeAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, &dep.Spec.Template.Spec, "test-cont-1", "test-cont-2")
 			_, err = actionHandler.ExecuteAction(resizeAction, nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Resize action on multiple container failed")
 
@@ -359,7 +362,7 @@ var _ = Describe("Action Executor ", func() {
 	// TODO: this particular Describe is currently used as the teardown for this
 	// whole test (not the suite).
 	// This will work only if run sequentially. Find a better way to do this.
-	Describe("test teardowon", func() {
+	Describe("test teardown", func() {
 		It(fmt.Sprintf("Deleting framework namespace: %s", namespace), func() {
 			f.AfterEach()
 		})
@@ -396,6 +399,11 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: framework.DockerImagePullSecretName,
+						},
+					},
 					Containers: []corev1.Container{
 						genContainerSpec("test-cont", "50m", "100Mi", "100m", "200Mi"),
 					},
@@ -450,6 +458,11 @@ func depMultiContainerWithResources(namespace, claimName string, containerNum, r
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: framework.DockerImagePullSecretName,
+						},
+					},
 					Containers: containerlst,
 				},
 			},
@@ -484,23 +497,13 @@ func genBarePodWithResources(namespace, claimName string, replicas int32, withVo
 		},
 
 		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
+			ImagePullSecrets: []corev1.LocalObjectReference{
 				{
-					Name:    "test-cont",
-					Image:   "busybox",
-					Command: []string{"/bin/sh"},
-					Args:    []string{"-c", "while true; do sleep 30; done;"},
-					Resources: corev1.ResourceRequirements{
-						Limits: map[corev1.ResourceName]resource.Quantity{
-							corev1.ResourceCPU:    resource.MustParse("100m"),
-							corev1.ResourceMemory: resource.MustParse("200Mi"),
-						},
-						Requests: map[corev1.ResourceName]resource.Quantity{
-							corev1.ResourceCPU:    resource.MustParse("50m"),
-							corev1.ResourceMemory: resource.MustParse("100Mi"),
-						},
-					},
+					Name: framework.DockerImagePullSecretName,
 				},
+			},
+			Containers: []corev1.Container{
+				genContainerSpec("test-cont", "50m", "100Mi", "100m", "200Mi"),
 			},
 		},
 	}
@@ -541,6 +544,11 @@ func rsSingleContainerWithResources(namespace string, replicas int32, withGCLabe
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: framework.DockerImagePullSecretName,
+						},
+					},
 					Containers: []corev1.Container{
 						genContainerSpec("test-cont", "50m", "100Mi", "100m", "200Mi"),
 					},
@@ -609,6 +617,11 @@ func genDeploymentConfigWithResources(namespace, claimName string, containerNum,
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: framework.DockerImagePullSecretName,
+						},
+					},
 					Containers: containerlst,
 				},
 			},
@@ -920,78 +933,43 @@ type mockProgressTrack struct{}
 func (p *mockProgressTrack) UpdateProgress(actionState proto.ActionResponseState, description string, progress int32) {
 }
 
-func newResizeActionExecutionDTO(targetSE *proto.EntityDTO, changeType int, podSpec *corev1.PodSpec) (*proto.ActionExecutionDTO, *corev1.PodSpec) {
+func newResizeActionExecutionDTO(targetSE *proto.EntityDTO, podSpec *corev1.PodSpec, containerNames ...string) (*proto.ActionExecutionDTO, *corev1.PodSpec) {
 	dto := &proto.ActionExecutionDTO{}
 	actionType := proto.ActionItemDTO_RIGHT_SIZE
 	desiredPodSpec := podSpec.DeepCopy()
+	for _, containerName := range containerNames {
+		currentSE := newContainerEntity(containerName)
+		containerIdx, err := findContainerIdxInPodSpecByName(podSpec, containerName)
+		framework.ExpectNoError(err, "Can't find the container<%v> in the pod's spec", containerName)
 
-	switch changeType {
-	case REQUEST_SINGLE_CONTAINER:
-		currentSE := newContainerEntity("test-cont")
+		// Build the action item on limits/cpu
+		oldLimCpuCap := podSpec.Containers[containerIdx].Resources.Limits.Cpu().MilliValue()
+		newLimCpuCap := oldLimCpuCap + cpuIncrement
+		aiOnLimCpu := newActionItemDTO(actionType, proto.CommodityDTO_VCPU, oldLimCpuCap, newLimCpuCap, currentSE, targetSE)
 
-		// Build the action item on cpu
-		oldCpuCap := podSpec.Containers[0].Resources.Requests.Cpu().MilliValue()
-		newCpuCap := oldCpuCap + cpuIncrement
-		aiOnCpu := newActionItemDTO(actionType, proto.CommodityDTO_VCPU_REQUEST, oldCpuCap, newCpuCap, currentSE, targetSE)
+		// Build the action item on limits/memory
+		oldLimMemCap := podSpec.Containers[containerIdx].Resources.Limits.Memory().Value() / 1024
+		newLimMemCap := oldLimMemCap - memoryDecrement*1024
+		aiOnLimMem := newActionItemDTO(actionType, proto.CommodityDTO_VMEM, oldLimMemCap, newLimMemCap, currentSE, targetSE)
 
-		// Build the action item on memory
-		oldMemCap := podSpec.Containers[0].Resources.Requests.Memory().Value() / 1024
-		newMemCap := oldMemCap + memoryIncrement*1024
-		aiOnMem := newActionItemDTO(actionType, proto.CommodityDTO_VMEM_REQUEST, oldMemCap, newMemCap, currentSE, targetSE)
+		// Build the action item on requests/cpu
+		oldReqCpuCap := podSpec.Containers[containerIdx].Resources.Requests.Cpu().MilliValue()
+		newReqCpuCap := oldReqCpuCap + cpuIncrement
+		aiOnReqCpu := newActionItemDTO(actionType, proto.CommodityDTO_VCPU_REQUEST, oldReqCpuCap, newReqCpuCap, currentSE, targetSE)
 
-		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu, aiOnMem}
+		// Build the action item on requests/memory
+		oldReqMemCap := podSpec.Containers[containerIdx].Resources.Requests.Memory().Value() / 1024
+		newReqMemCap := oldReqMemCap - memoryDecrement*1024
+		aiOnReqMem := newActionItemDTO(actionType, proto.CommodityDTO_VMEM_REQUEST, oldReqMemCap, newReqMemCap, currentSE, targetSE)
 
-		// Update the desired podSpec
-		updatePodSpec(desiredPodSpec, 0, "requests", "cpu", RESIZE_UP, cpuIncrement)
-		updatePodSpec(desiredPodSpec, 0, "requests", "memory", RESIZE_UP, memoryIncrement)
-	case LIMIT_SINGLE_CONTAINER:
-		currentSE := newContainerEntity("test-cont")
-
-		// Build the action item on cpu
-		oldCpuCap := podSpec.Containers[0].Resources.Limits.Cpu().MilliValue()
-		newCpuCap := oldCpuCap + cpuIncrement
-		aiOnCpu := newActionItemDTO(actionType, proto.CommodityDTO_VCPU, oldCpuCap, newCpuCap, currentSE, targetSE)
-
-		// Build the action item on memory
-		oldMemCap := podSpec.Containers[0].Resources.Limits.Memory().Value() / 1024
-		newMemCap := oldMemCap + memoryIncrement*1024
-		aiOnMem := newActionItemDTO(actionType, proto.CommodityDTO_VMEM, oldMemCap, newMemCap, currentSE, targetSE)
-
-		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu, aiOnMem}
+		dto.ActionItem = append(dto.ActionItem, aiOnLimCpu, aiOnLimMem, aiOnReqCpu, aiOnReqMem)
 
 		// Update the desired podSpec
-		updatePodSpec(desiredPodSpec, 0, "limits", "cpu", RESIZE_UP, cpuIncrement)
-		updatePodSpec(desiredPodSpec, 0, "limits", "memory", RESIZE_UP, memoryIncrement)
-	case REQLIM_MULTI_CONTAINER:
-		containerSE1 := newContainerEntity("test-cont-1")
-		// Build the resize up action item on request/cpu and resize down action on request/memory for the first container
-		oldCpuCap1 := podSpec.Containers[0].Resources.Requests.Cpu().MilliValue()
-		newCpuCap1 := oldCpuCap1 + cpuIncrement
-		aiOnCpu1 := newActionItemDTO(actionType, proto.CommodityDTO_VCPU_REQUEST, oldCpuCap1, newCpuCap1, containerSE1, targetSE)
-		oldMemCap1 := podSpec.Containers[0].Resources.Requests.Memory().Value() / 1024
-		newMemCap1 := oldMemCap1 - memoryDecrement*1024
-		aiOnMem1 := newActionItemDTO(actionType, proto.CommodityDTO_VMEM_REQUEST, oldMemCap1, newMemCap1, containerSE1, targetSE)
-
-		// Build the resize down action item on limit/cpu and resize up action on limit/memory for the second container
-		containerSE2 := newContainerEntity("test-cont-2")
-		oldCpuCap2 := podSpec.Containers[1].Resources.Limits.Cpu().MilliValue()
-		newCpuCap2 := oldCpuCap2 - cpuDecrement
-		aiOnCpu2 := newActionItemDTO(actionType, proto.CommodityDTO_VCPU, oldCpuCap2, newCpuCap2, containerSE2, targetSE)
-		oldMemCap2 := podSpec.Containers[1].Resources.Limits.Memory().Value() / 1024
-		newMemCap2 := oldMemCap2 + memoryIncrement*1024
-		aiOnMem2 := newActionItemDTO(actionType, proto.CommodityDTO_VMEM, oldMemCap2, newMemCap2, containerSE2, targetSE)
-
-		dto.ActionItem = []*proto.ActionItemDTO{aiOnCpu1, aiOnMem1, aiOnCpu2, aiOnMem2}
-
-		// Update the desired podSpec
-		updatePodSpec(desiredPodSpec, 0, "requests", "cpu", RESIZE_UP, cpuIncrement)
-		updatePodSpec(desiredPodSpec, 0, "requests", "memory", RESIZE_DOWN, memoryDecrement)
-		updatePodSpec(desiredPodSpec, 1, "limits", "cpu", RESIZE_DOWN, cpuDecrement)
-		updatePodSpec(desiredPodSpec, 1, "limits", "memory", RESIZE_UP, memoryIncrement)
-	default:
-		framework.Errorf("The change type<%d> isn't supported", changeType)
+		updatePodSpec(desiredPodSpec, containerIdx, "limits", "cpu", RESIZE_UP, cpuIncrement)
+		updatePodSpec(desiredPodSpec, containerIdx, "limits", "memory", RESIZE_DOWN, memoryDecrement)
+		updatePodSpec(desiredPodSpec, containerIdx, "requests", "cpu", RESIZE_UP, cpuIncrement)
+		updatePodSpec(desiredPodSpec, containerIdx, "requests", "memory", RESIZE_DOWN, memoryDecrement)
 	}
-
 	return dto, desiredPodSpec
 }
 
@@ -1169,4 +1147,16 @@ func updatePodSpec(podSpec *corev1.PodSpec, containerIdx int, resourceType, reso
 		}
 	}
 
+}
+
+func findContainerIdxInPodSpecByName(podSpec *corev1.PodSpec, containerName string) (int, error) {
+	if podSpec == nil {
+		return -1, fmt.Errorf("podSpec is nil")
+	}
+	for i, cont := range podSpec.Containers {
+		if cont.Name == containerName {
+			return i, nil
+		}
+	}
+	return -1, fmt.Errorf("can't find the right container with the name %s", containerName)
 }

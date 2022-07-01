@@ -107,6 +107,7 @@ var _ = Describe("Discover Cluster", func() {
 			discoveryClient = discovery.NewK8sDiscoveryClient(discoveryClientConfig)
 		}
 		namespace = f.TestNamespaceName()
+		f.GenerateCustomImagePullSecret(namespace)
 	})
 
 	Describe("discovering with discovery framework", func() {
@@ -329,6 +330,11 @@ func depMultiContainer(namespace string, replicas int32, withDuplicateAffinityRu
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: framework.DockerImagePullSecretName,
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:    "cont-test-app-mc-1",
@@ -399,6 +405,11 @@ func deplMultiContainerWithResources(namespace string, replicas int32) *appsv1.D
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{
+							Name: framework.DockerImagePullSecretName,
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:    "cont-test-app-mc-wr-1",

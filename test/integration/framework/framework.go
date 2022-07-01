@@ -7,6 +7,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
@@ -19,8 +20,9 @@ import (
 )
 
 const (
-	testConfigQPS   = 80
-	testConfigBurst = 100
+	testConfigQPS             = 80
+	testConfigBurst           = 100
+	DockerImagePullSecretName = "integration-test"
 )
 
 type TestFramework struct {
@@ -45,6 +47,9 @@ func (f *TestFramework) TestNamespaceName() string {
 	if f.testNamespaceName == "" {
 		client := f.GetKubeClient(fmt.Sprintf("%s-create-namespace", f.BaseName))
 		f.testNamespaceName = CreateTestNamespace(client, f.BaseName)
+		if TestContext.IsIstioEnabled {
+			patchIstioInjectionLabelToNamespace(client, f.testNamespaceName)
+		}
 	}
 	return f.testNamespaceName
 }
@@ -176,4 +181,36 @@ func waitForNamespaceDeletion(client kubeclientset.Interface, namespace string) 
 		return errors.Errorf("Namespace %q was not deleted after %v", namespace, TestContext.SingleCallTimeout)
 	}
 	return nil
+}
+
+func (f *TestFramework) GenerateCustomImagePullSecret(nsName string) error {
+	if TestContext.DockerUserName != "" && TestContext.DockerUserPwd != "" {
+		client := f.GetKubeClient(fmt.Sprintf("%s-create-namespace", f.BaseName))
+		_, err := client.CoreV1().Secrets(nsName).Create(context.TODO(), dockerConfigSecret(DockerImagePullSecretName, nsName, TestContext.DockerUserName, TestContext.DockerUserPwd), metav1.CreateOptions{})
+		if err != nil {
+			Logf("Failed to create secret in the namespace <%s>: %v", nsName, err)
+			return err
+		}
+	}
+	return nil
+}
+
+func dockerConfigSecret(secName, nsName, dockerUserName, dockerUserPassword string) *corev1.Secret {
+	dockerConfig := fmt.Sprintf(`{"auths":{"docker.io":{"username":"%s","password":"%s"}}}`, dockerUserName, dockerUserPassword)
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secName,
+			Namespace: nsName,
+		},
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: []byte(dockerConfig),
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+	}
+}
+
+func patchIstioInjectionLabelToNamespace(client kubeclientset.Interface, nsName string) error {
+	injectedLabel := `{"metadata": {"labels": {"istio-injection": "enabled"}}}`
+	_, err := client.CoreV1().Namespaces().Patch(context.TODO(), nsName, types.MergePatchType, []byte(injectedLabel), metav1.PatchOptions{})
+	return err
 }

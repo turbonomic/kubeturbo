@@ -56,11 +56,12 @@ type ActionHandlerConfig struct {
 	updateQuotaToAllowMoves bool
 	readinessRetryThreshold int
 	gitConfig               gitops.GitConfig
+	k8sClusterId            string
 }
 
 func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientset, kubeletClient *kubeletclient.KubeletClient,
 	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient,
-	failVolumePodMoves, updateQuotaToAllowMoves bool, readinessRetryThreshold int, gitConfig gitops.GitConfig) *ActionHandlerConfig {
+	failVolumePodMoves, updateQuotaToAllowMoves bool, readinessRetryThreshold int, gitConfig gitops.GitConfig, clusterId string) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
 		sccAllowedSet[strings.TrimSpace(sccAllowed)] = struct{}{}
@@ -79,6 +80,7 @@ func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientse
 		updateQuotaToAllowMoves: updateQuotaToAllowMoves,
 		readinessRetryThreshold: readinessRetryThreshold,
 		gitConfig:               gitConfig,
+		k8sClusterId:            clusterId,
 	}
 
 	return config
@@ -132,7 +134,7 @@ func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
 	ae := executor.NewTurboK8sActionExecutor(c.clusterScraper, c.cApiClient, h.podManager,
-		h.config.ormClient, c.gitConfig)
+		h.config.ormClient, c.gitConfig, c.k8sClusterId)
 
 	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet, c.failVolumePodMoves,
 		c.updateQuotaToAllowMoves, h.lockMap, c.readinessRetryThreshold)
