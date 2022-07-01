@@ -6,17 +6,17 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
-
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/turbo-crd/api/v1alpha1"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
-// Kube Cluster represents the Kubernetes cluster. This object is immutable between discoveries.
+// KubeCluster defines the Kubernetes cluster. This object is immutable between discoveries.
 // New discovery will bring in changes to the nodes and namespaces
 // Aggregate structure for nodes, namespaces and quotas
 type KubeCluster struct {
@@ -41,6 +41,9 @@ type KubeCluster struct {
 	// Map listing parent machineSet name for each nodename
 	// This will be filled only if openshift clusterapi is enabled
 	MachineSetToNodeUIDsMap map[string][]string
+
+	// Data structures related to Turbo policy
+	TurboPolicyBindings []*TurboPolicyBinding
 }
 
 func NewKubeCluster(clusterName string, nodes []*v1.Node) *KubeCluster {
@@ -62,7 +65,7 @@ func (kc *KubeCluster) WithMachineSetToNodeUIDsMap(machineSetToNodeUIDsMap map[s
 	return kc
 }
 
-// Summary object to get the nodes, quotas and namespaces in the cluster
+// ClusterSummary defines a summary object to get the nodes, quotas and namespaces in the cluster
 type ClusterSummary struct {
 	*KubeCluster
 	// Computed
@@ -189,13 +192,12 @@ func (summary *ClusterSummary) computePodToServiceMap() {
 	}
 }
 
-// =================================================================================================
 const (
 	DEFAULT_METRIC_VALUE          float64 = 0.0
 	DEFAULT_METRIC_CAPACITY_VALUE         = 1e12
 )
 
-// The node in the cluster
+// KubeNode defines the node in the cluster
 type KubeNode struct {
 	*KubeEntity
 	*v1.Node
@@ -204,7 +206,7 @@ type KubeNode struct {
 	NodeCpuFrequency float64 // Set by the metrics collector which processes this node
 }
 
-// Create a KubeNode entity with compute resources to represent a node in the cluster
+// NewKubeNode create a KubeNode entity with compute resources to represent a node in the cluster
 func NewKubeNode(apiNode *v1.Node, clusterName string) *KubeNode {
 	entity := NewKubeEntity(metrics.NodeType, clusterName,
 		apiNode.ObjectMeta.Namespace, apiNode.ObjectMeta.Name,
@@ -236,7 +238,7 @@ func (nodeEntity *KubeNode) updateResources(apiNode *v1.Node) {
 	}
 }
 
-// Parse the Node instances returned by the kubernetes API to get the IP address
+// ParseNodeIP parses the Node instances returned by the kubernetes API to get the IP address
 func ParseNodeIP(apiNode *v1.Node, addressType v1.NodeAddressType) string {
 	nodeAddresses := apiNode.Status.Addresses
 	for _, nodeAddress := range nodeAddresses {
@@ -305,7 +307,7 @@ type MountedVolume struct {
 	MountName  string
 }
 
-// Volume metrics reported for a given pod
+// PodVolumeMetrics defines volume metrics reported for a given pod
 type PodVolumeMetrics struct {
 	Volume   *v1.PersistentVolume
 	Capacity float64
@@ -313,9 +315,10 @@ type PodVolumeMetrics struct {
 	PodVolume
 }
 
-// An immutable snapshot of a k8s workload controller. This is used by ControllerProcessor
-// to temporarily cache the critical information of a k8s controller for efficient lookup.
-// This is different than the KubeController object which can be incrementally updated or
+// K8sController defins an immutable snapshot of a k8s workload controller.
+// This is used by ControllerProcessor to temporarily cache the critical information of a k8s controller
+// for efficient lookup.
+// This is different from the KubeController object which can be incrementally updated or
 // aggregated during discovery to fill in list of pods, resource usage, etc.
 type K8sController struct {
 	Kind            string
@@ -364,7 +367,7 @@ func (kc *K8sController) WithContainerNames(names sets.String) *K8sController {
 	return kc
 }
 
-// K8s controller in the cluster
+// KubeController defines K8s controller in the cluster
 type KubeController struct {
 	*KubeEntity
 	ControllerType string
@@ -380,7 +383,7 @@ func NewKubeController(clusterName, namespace, name, controllerType, uid string)
 	}
 }
 
-// Construct controller full name by: "namespace/controllerType/controllerName"
+// GetFullName constructs controller full name by: "namespace/controllerType/controllerName"
 func (kubeController *KubeController) GetFullName() string {
 	return kubeController.Namespace + "/" + kubeController.ControllerType + "/" + kubeController.Name
 }
@@ -393,8 +396,7 @@ func (kubeController *KubeController) String() string {
 	return buffer.String()
 }
 
-// =================================================================================================
-// The namespace in the cluster
+// KubeNamespace defines the namespace in the cluster
 type KubeNamespace struct {
 	*KubeEntity
 	// List of quotas defined for a namespace
@@ -433,7 +435,7 @@ func (kubeNamespace *KubeNamespace) String() string {
 	return buffer.String()
 }
 
-// Create default KubeNamespace object.
+// CreateDefaultKubeNamespace creates default KubeNamespace object.
 // Set default resource quota limits and requests capacity to infinity (1e9) because when quota is not configured on namespace
 // we want quota commodities sold by namespace have least impact on Market analysis results of containers and pods.
 // Will update resource quota capacity when calling ReconcileQuotas func if ResourceQuota is configured on the namespace.
@@ -455,7 +457,7 @@ func CreateDefaultKubeNamespace(clusterName, namespace, uuid string) *KubeNamesp
 	return kubeNamespace
 }
 
-// Combining the quota limits for various resource quota objects defined in the namespace.
+// ReconcileQuotas combinds the quota limits for various resource quota objects defined in the namespace.
 // Multiple quota limits for the same resource, if any, are reconciled by selecting the
 // most restrictive limit value.
 func (kubeNamespace *KubeNamespace) ReconcileQuotas(quotas []*v1.ResourceQuota) {
@@ -522,4 +524,64 @@ func parseAllocationResourceValue(resource v1.ResourceName, allocationResourceTy
 		return memoryKiloBytes
 	}
 	return DEFAULT_METRIC_VALUE
+}
+
+type TurboPolicy struct {
+	SLOHorizontalScale *v1alpha1.SLOHorizontalScale
+}
+
+func NewTurboPolicy() *TurboPolicy {
+	return &TurboPolicy{}
+}
+
+func (p *TurboPolicy) WithSLOHorizontalScale(policy *v1alpha1.SLOHorizontalScale) *TurboPolicy {
+	p.SLOHorizontalScale = policy
+	return p
+}
+
+type TurboPolicyBinding struct {
+	PolicyBinding *v1alpha1.PolicyBinding
+	TurboPolicy
+}
+
+func NewTurboPolicyBinding(policyBinding *v1alpha1.PolicyBinding) *TurboPolicyBinding {
+	return &TurboPolicyBinding{
+		PolicyBinding: policyBinding,
+	}
+}
+
+func (b *TurboPolicyBinding) WithTurboPolicy(policy *TurboPolicy) *TurboPolicyBinding {
+	b.TurboPolicy = *policy
+	return b
+}
+
+func (b *TurboPolicyBinding) GetUID() string {
+	return string(b.PolicyBinding.GetUID())
+}
+
+func (b *TurboPolicyBinding) GetNamespace() string {
+	return b.PolicyBinding.GetNamespace()
+}
+
+func (b *TurboPolicyBinding) GetName() string {
+	return b.PolicyBinding.GetName()
+}
+
+func (b *TurboPolicyBinding) GetPolicyType() string {
+	return b.PolicyBinding.Spec.PolicyRef.Kind
+}
+
+func (b *TurboPolicyBinding) GetSLOHorizontalScaleSpec() *v1alpha1.SLOHorizontalScaleSpec {
+	if b.SLOHorizontalScale == nil {
+		return nil
+	}
+	return &b.SLOHorizontalScale.Spec
+}
+
+func (b *TurboPolicyBinding) GetTargets() []v1alpha1.PolicyTargetReference {
+	return b.PolicyBinding.Spec.Targets
+}
+
+func (b *TurboPolicyBinding) String() string {
+	return b.GetNamespace() + "/" + b.GetName()
 }
