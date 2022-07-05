@@ -18,15 +18,12 @@ package v1alpha1
 
 type PolicyTargetReference struct {
 	// The Kind of the target referent
-	Kind string `json:"kind,omitempty"`
+	Kind string `json:"kind"`
 
 	// The Name of the target referent
-	Name string `json:"name,omitempty"`
+	Name string `json:"name"`
 
 	// The API version of the target referent
-	APIVersion string `json:"apiVersion,omitempty"`
-
-	// The Namespace of the target referent
 	// +optional
-	Namespace string `json:"namespace,omitempty"`
+	APIVersion string `json:"apiVersion,omitempty"`
 }
