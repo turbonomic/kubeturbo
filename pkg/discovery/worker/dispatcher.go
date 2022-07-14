@@ -57,7 +57,7 @@ type SamplingDispatcher struct {
 	// Timestamp when starting to schedule sampling discovery tasks in each full discovery cycle
 	timestamp time.Time
 	// Whether previous sampling discoveries are done
-	samplingDone chan bool
+	finishSampling chan bool
 	// Collected data samples since last full discovery
 	collectedSamples int
 }
@@ -69,7 +69,7 @@ func NewSamplingDispatcher(config *DispatcherConfig, globalMetricSink *metrics.E
 			workerPool:       make(chan chan *task.Task, config.workerCount),
 			globalMetricSink: globalMetricSink,
 		},
-		samplingDone:     make(chan bool),
+		finishSampling:   make(chan bool),
 		collectedSamples: 0,
 	}
 }
@@ -146,13 +146,14 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSumm
 func (d *SamplingDispatcher) FinishSampling() {
 	if !d.timestamp.IsZero() {
 		// Finish previous sampling discoveries
-		d.samplingDone <- true
+		d.finishSampling <- true
 	}
 }
 
-// Create Task objects to discover multiple resource usage data samples for each node, and the pods and containers on that
-// node from kubelet. Schedule dispatching tasks to the pool based on given sampling interval, tasks will be picked by
-// the sampling discovery workers.
+// ScheduleDispatch creates Task objects to discover multiple resource usage data samples for each node, and the pods
+// and containers on that node from kubelet.
+// Schedule dispatching tasks to the pool based on given sampling interval, tasks will be picked by the sampling
+// discovery workers.
 func (d *SamplingDispatcher) ScheduleDispatch(nodes []*api.Node) {
 	glog.V(2).Info("Start scheduling sampling discovery tasks.")
 	d.timestamp = time.Now()
@@ -163,7 +164,8 @@ func (d *SamplingDispatcher) ScheduleDispatch(nodes []*api.Node) {
 		defer ticker.Stop()
 		for {
 			select {
-			case <-d.samplingDone:
+			case <-d.finishSampling:
+				// Sampling is stopped by main discovery
 				elapsedTime := time.Now().Sub(d.timestamp).Seconds()
 				var samples int
 				if d.config.samples < d.collectedSamples {
@@ -171,7 +173,8 @@ func (d *SamplingDispatcher) ScheduleDispatch(nodes []*api.Node) {
 				} else {
 					samples = d.collectedSamples
 				}
-				glog.V(2).Infof("Collected %v usage data samples from kubelet in %v seconds since last full discovery.", samples, elapsedTime)
+				glog.V(2).Infof("Completed %v sampling cycles (%v nodes per cycle) in %v seconds since "+
+					"last full discovery.", samples, len(nodes), elapsedTime)
 				d.collectedSamples = 0
 				return
 			case <-ticker.C:
@@ -184,17 +187,18 @@ func (d *SamplingDispatcher) ScheduleDispatch(nodes []*api.Node) {
 // Dispatch sampling discovery tasks. Each task to discover one node will be picked up by an available sampling discovery
 // worker. Set the timeout of finish assigning tasks of all nodes as given samplingInterval to avoid goroutine pile up.
 func (d *SamplingDispatcher) dispatchSamplingDiscoveries(nodes []*api.Node, samplingInterval time.Duration) {
-	finishCh := make(chan struct{})
-	stopCh := make(chan struct{})
-	defer close(finishCh)
-	defer close(stopCh)
+	// done channel indicates that a round of sampling is done
+	done := make(chan struct{})
+	// abort channel indicates that a round of sampling is aborted due to timeout
+	abort := make(chan struct{})
 	t := time.NewTimer(samplingInterval)
+	defer t.Stop()
 	// Dispatch tasks to the pool, which will be picked up by available sampling discovery workers
 	go func() {
 		for i, node := range nodes {
 			select {
-			case <-stopCh:
-				glog.Warningf("Dispatching sampling discovery tasks timeout. Collected data for %v out of %v nodes in this sampling cycle",
+			case <-abort:
+				glog.Warningf("Timeout dispatching sampling discovery tasks to %v out of %v nodes in this sampling cycle.",
 					i+1, len(nodes))
 				return
 			default:
@@ -203,18 +207,18 @@ func (d *SamplingDispatcher) dispatchSamplingDiscoveries(nodes []*api.Node, samp
 			glog.V(3).Infof("Dispatching sampling discovery task %v", currTask)
 			d.assignTask(currTask)
 		}
-		t.Stop()
-		finishCh <- struct{}{}
+		// Successfully dispatched sampling tasks to all nodes, notify the parent function
+		close(done)
 	}()
 	select {
-	case <-finishCh:
+	case <-done:
 		d.collectedSamples++
 		return
 	case <-t.C:
-		glog.Errorf("Dispatching sampling discovery tasks for %v nodes with %v workers exceeds the max time limit: %v",
-			len(nodes), d.config.workerCount, samplingInterval)
-		stopCh <- struct{}{}
-		return
+		glog.Warningf("Timeout (in %v) while dispatching sampling discovery tasks to %v nodes with %v workers.",
+			samplingInterval, len(nodes), 2*d.config.workerCount)
+		// Timeout occurred, notify the child goroutine to quit
+		close(abort)
 	}
 }
 
