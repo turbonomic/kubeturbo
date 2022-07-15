@@ -198,7 +198,7 @@ func (d *SamplingDispatcher) dispatchSamplingDiscoveries(nodes []*api.Node, samp
 		for i, node := range nodes {
 			select {
 			case <-abort:
-				glog.Warningf("Timeout dispatching sampling discovery tasks to %v out of %v nodes in this sampling cycle.",
+				glog.Warningf("Timed out dispatching sampling discovery tasks to %v out of %v nodes in this sampling cycle.",
 					i+1, len(nodes))
 				return
 			default:
@@ -215,7 +215,7 @@ func (d *SamplingDispatcher) dispatchSamplingDiscoveries(nodes []*api.Node, samp
 		d.collectedSamples++
 		return
 	case <-t.C:
-		glog.Warningf("Timeout (in %v) while dispatching sampling discovery tasks to %v nodes with %v workers.",
+		glog.Warningf("Timed out (in %v) while dispatching sampling discovery tasks to %v nodes with %v workers.",
 			samplingInterval, len(nodes), 2*d.config.workerCount)
 		// Timeout occurred, notify the child goroutine to quit
 		close(abort)
