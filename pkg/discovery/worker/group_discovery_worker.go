@@ -109,7 +109,7 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 	groupDTOs = append(groupDTOs, worker.buildSidecarContainerSpecGroup(sidecarContainerSpecs)...)
 
 	// Create dynamic groups for discovered Turbo policies
-	groupDTOs = append(groupDTOs, worker.buildTurboPolicyDTOsFromPolicyBindings()...)
+	groupDTOs = append(groupDTOs, worker.BuildTurboPolicyDTOsFromPolicyBindings()...)
 
 	return groupDTOs, nil
 }
@@ -155,7 +155,7 @@ func (worker *k8sEntityGroupDiscoveryWorker) buildSidecarContainerSpecGroup(side
 	return groupsDTOs
 }
 
-func (worker *k8sEntityGroupDiscoveryWorker) buildTurboPolicyDTOsFromPolicyBindings() []*proto.GroupDTO {
+func (worker *k8sEntityGroupDiscoveryWorker) BuildTurboPolicyDTOsFromPolicyBindings() []*proto.GroupDTO {
 	var groupDTOs []*proto.GroupDTO
 	for _, policyBinding := range worker.cluster.TurboPolicyBindings {
 		switch policyType := policyBinding.GetPolicyType(); policyType {
@@ -259,6 +259,10 @@ func (worker *k8sEntityGroupDiscoveryWorker) createSLOPolicy(
 	for _, setting := range spec.Objectives {
 		if err := json.Unmarshal(setting.Value.Raw, &settingValue); err != nil {
 			return nil, err
+		}
+		if settingValue <= 0 {
+			return nil, fmt.Errorf("setting %v has a non-positive value %v",
+				setting.Name, settingValue)
 		}
 		switch setting.Name {
 		case v1alpha1.ResponseTime:
