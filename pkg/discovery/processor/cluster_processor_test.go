@@ -273,24 +273,30 @@ func TestConnectClusterReachableAndUnreachableNodes(t *testing.T) {
 // Implements the ClusterScrapperInterface.
 // Method implementation will check to see if the test has provided the mockXXX method function
 type MockClusterScrapper struct {
-	mockGetAllNodes            func() ([]*v1.Node, error)
-	mockGetNamespaces          func() ([]*v1.Namespace, error)
-	mockGetNamespaceQuotas     func() (map[string][]*v1.ResourceQuota, error)
-	mockGetAllPods             func() ([]*v1.Pod, error)
-	mockGetAllEndpoints        func() ([]*v1.Endpoints, error)
-	mockGetAllServices         func() ([]*v1.Service, error)
-	mockGetKubernetesServiceID func() (svcID string, err error)
-	mockGetAllPVs              func() ([]*v1.PersistentVolume, error)
-	mockGetAllPVCs             func() ([]*v1.PersistentVolumeClaim, error)
-	//mockGetResources               func(schema.GroupVersionResource) (*unstructured.UnstructuredList, error)
-	//mockGetMachineSetToNodeUIDsMap func(nodes []*v1.Node) map[string][]string
+	mockGetAllNodes               func() ([]*v1.Node, error)
+	mockGetNamespaces             func() ([]*v1.Namespace, error)
+	mockGetNamespaceQuotas        func() (map[string][]*v1.ResourceQuota, error)
+	mockGetAllPods                func() ([]*v1.Pod, error)
+	mockGetAllEndpoints           func() ([]*v1.Endpoints, error)
+	mockGetAllServices            func() ([]*v1.Service, error)
+	mockGetKubernetesServiceID    func() (svcID string, err error)
+	mockGetAllPVs                 func() ([]*v1.PersistentVolume, error)
+	mockGetAllPVCs                func() ([]*v1.PersistentVolumeClaim, error)
+	mockGetAllTurboSLOScalings    func() ([]policyv1alpha1.SLOHorizontalScale, error)
+	mockGetAllTurboPolicyBindings func() ([]policyv1alpha1.PolicyBinding, error)
 }
 
 func (s *MockClusterScrapper) GetAllTurboSLOScalings() ([]policyv1alpha1.SLOHorizontalScale, error) {
+	if s.mockGetAllTurboSLOScalings != nil {
+		return s.mockGetAllTurboSLOScalings()
+	}
 	return nil, fmt.Errorf("GetAllTurboSLOScalings Not implemented")
 }
 
 func (s *MockClusterScrapper) GetAllTurboPolicyBindings() ([]policyv1alpha1.PolicyBinding, error) {
+	if s.mockGetAllTurboPolicyBindings != nil {
+		return s.mockGetAllTurboPolicyBindings()
+	}
 	return nil, fmt.Errorf("GetAllTurboPolicyBindings Not implemented")
 }
 

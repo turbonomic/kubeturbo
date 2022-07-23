@@ -23,10 +23,11 @@ import (
 // PolicyBindingSpec defines the desired state of PolicyBinding
 type PolicyBindingSpec struct {
 	// The reference to a policy
-	PolicyRef PolicyReference `json:"policyRef,omitempty"`
+	PolicyRef PolicyReference `json:"policyRef"`
 
 	// The target objects that the policy is applied to
-	Targets []PolicyTargetReference `json:"targets,omitempty"`
+	// +kubebuilder:validation:MinItems:=1
+	Targets []PolicyTargetReference `json:"targets"`
 }
 
 // PolicyBindingStatus defines the observed state of PolicyBinding

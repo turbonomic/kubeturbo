@@ -30,10 +30,10 @@ type ActionBehavior struct {
 	// The Action mode of HorizontalScaleUp action
 	// +kubebuilder:validation:Enum=Automatic;Manual;Recommend;Disabled
 	// +optional
-	HorizontalScaleUp ActionMode `json:"scaleUp,omitempty"`
+	HorizontalScaleUp *ActionMode `json:"scaleUp,omitempty"`
 
 	// The Action mode of HorizontalScaleDown action
-	// +kubebuilder:validation:Enum=Automatic;Manual;Disabled
+	// +kubebuilder:validation:Enum=Automatic;Manual;Recommend;Disabled
 	// +optional
-	HorizontalScaleDown ActionMode `json:"scaleDown,omitempty"`
+	HorizontalScaleDown *ActionMode `json:"scaleDown,omitempty"`
 }

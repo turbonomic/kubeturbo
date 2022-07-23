@@ -27,18 +27,18 @@ type SLOHorizontalScaleSpec struct {
 	// +kubebuilder:validation:Maximum=10000
 	// +kubebuilder:default:=1
 	// +optional
-	MinReplicas int32 `json:"minReplicas,omitempty"`
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
 
 	// The maximum number of replicas of a service
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=10000
 	// +kubebuilder:default:=10000
 	// +optional
-	MaxReplicas int32 `json:"maxReplicas,omitempty"`
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
 
 	// The objectives of this SLOHorizontalScale policy
 	// +kubebuilder:default:={{name:ResponseTime,value:2000},{name:Transaction,value:10}}
-	// +optional
+	// +kubebuilder:validation:MinItems:=1
 	Objectives []PolicySetting `json:"objectives,omitempty"`
 
 	// The behavior of SLO driven horizontal scale actions
