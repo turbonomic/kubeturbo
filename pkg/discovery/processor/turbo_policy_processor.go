@@ -46,7 +46,8 @@ func (p *TurboPolicyProcessor) ProcessTurboPolicies() {
 	glog.V(2).Infof("Discovered %v PolicyBindings.", len(turboPolicyBindings))
 
 	policyMap := make(map[string]*repository.TurboPolicy)
-	for _, turboSloScaling := range turboSloScalings {
+	for _, sloScale := range turboSloScalings {
+		turboSloScaling := sloScale
 		gvk := turboSloScaling.GetObjectKind().GroupVersionKind()
 		if gvk.Empty() {
 			continue
@@ -59,22 +60,23 @@ func (p *TurboPolicyProcessor) ProcessTurboPolicies() {
 
 	var policyBindings []*repository.TurboPolicyBinding
 	for _, policyBinding := range turboPolicyBindings {
-		targets := policyBinding.Spec.Targets
+		turboPolicyBinding := policyBinding
+		targets := turboPolicyBinding.Spec.Targets
 		if len(targets) == 0 {
 			glog.Warningf("PolicyBinding %v/%v has no targets defined. Skip.",
-				policyBinding.Namespace, policyBinding.Name)
+				turboPolicyBinding.Namespace, turboPolicyBinding.Name)
 			continue
 		}
-		policyRef := policyBinding.Spec.PolicyRef
-		policyId := createPolicyId(policyRef.Kind, policyBinding.GetNamespace(), policyRef.Name)
+		policyRef := turboPolicyBinding.Spec.PolicyRef
+		policyId := createPolicyId(policyRef.Kind, turboPolicyBinding.GetNamespace(), policyRef.Name)
 		if policy, found := policyMap[policyId]; found {
 			policyBindings = append(policyBindings, repository.
-				NewTurboPolicyBinding(&policyBinding).
+				NewTurboPolicyBinding(&turboPolicyBinding).
 				WithTurboPolicy(policy))
 		} else {
 			glog.Warningf("PolicyBinding %v/%v refers to %v policy %v/%v which does not exist. Skip.",
-				policyBinding.Namespace, policyBinding.Name, policyRef.Kind,
-				policyBinding.Namespace, policyRef.Name)
+				turboPolicyBinding.Namespace, turboPolicyBinding.Name, policyRef.Kind,
+				turboPolicyBinding.Namespace, policyRef.Name)
 		}
 	}
 	glog.V(2).Infof("Discovered %v valid PolicyBindings.", len(policyBindings))
