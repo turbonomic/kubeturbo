@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	mapset "github.com/deckarep/golang-set"
 	"github.com/stretchr/testify/assert"
 	policyv1alpha1 "github.com/turbonomic/turbo-crd/api/v1alpha1"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -78,6 +79,11 @@ var (
 		Name:      "policy-binding-sample",
 		Namespace: "turbonomic",
 		UID:       "ca723a93-f224-43e9-9a4e-c80ebecc09f5",
+	}
+	pbObjMeta1 = v1.ObjectMeta{
+		Name:      "policy-binding-sample1",
+		Namespace: "turbonomic",
+		UID:       "ca723a93-f224-43e9-9a4e-c80ebecc09f6",
 	}
 	pbTargets = []policyv1alpha1.PolicyTargetReference{
 		{
@@ -175,12 +181,48 @@ func createValidTurboPolicyBinding() policyv1alpha1.PolicyBinding {
 	}
 }
 
+func createValidTurboPolicyBinding1() policyv1alpha1.PolicyBinding {
+	return policyv1alpha1.PolicyBinding{
+		TypeMeta:   pbTypeMeta,
+		ObjectMeta: pbObjMeta1,
+		Spec:       pbSpec,
+	}
+}
+
 func createTurboPolicyBindingsWithNoTarget() policyv1alpha1.PolicyBinding {
 	return policyv1alpha1.PolicyBinding{
 		TypeMeta:   pbTypeMeta,
 		ObjectMeta: pbObjMeta,
 		Spec:       pbSpecNoTarget,
 	}
+}
+
+func TestProcessTwoPolicyBindingsWithTheSamePolicy(t *testing.T) {
+	clusterScrapper := &MockClusterScrapper{
+		mockGetAllTurboSLOScalings: func() ([]policyv1alpha1.SLOHorizontalScale, error) {
+			return []policyv1alpha1.SLOHorizontalScale{
+				createValidSLOHorizontalScale(),
+			}, nil
+		},
+		mockGetAllTurboPolicyBindings: func() ([]policyv1alpha1.PolicyBinding, error) {
+			return []policyv1alpha1.PolicyBinding{
+				createValidTurboPolicyBinding(),
+				createValidTurboPolicyBinding1(),
+			}, nil
+		},
+	}
+	turboPolicyProcessor := &TurboPolicyProcessor{
+		ClusterScraper: clusterScrapper,
+		KubeCluster:    kubeCluster,
+	}
+	turboPolicyProcessor.ProcessTurboPolicies()
+	policyBindings := kubeCluster.TurboPolicyBindings
+	assert.Equal(t, 2, len(policyBindings))
+	pbNames := mapset.NewSet()
+	for _, pb := range policyBindings {
+		pbNames.Add(pb.GetName())
+	}
+	assert.Equal(t, 2, pbNames.Cardinality())
 }
 
 func TestProcessValidTurboPolicy(t *testing.T) {
