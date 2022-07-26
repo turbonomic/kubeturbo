@@ -47,36 +47,38 @@ func (p *TurboPolicyProcessor) ProcessTurboPolicies() {
 
 	policyMap := make(map[string]*repository.TurboPolicy)
 	for _, sloScale := range turboSloScalings {
-		turboSloScaling := sloScale
-		gvk := turboSloScaling.GetObjectKind().GroupVersionKind()
+		// Create a copy as sloScale variable is reused during range loop
+		sloScaleCopy := sloScale
+		gvk := sloScaleCopy.GetObjectKind().GroupVersionKind()
 		if gvk.Empty() {
 			continue
 		}
-		policyId := createPolicyId(gvk.Kind, turboSloScaling.GetNamespace(), turboSloScaling.GetName())
+		policyId := createPolicyId(gvk.Kind, sloScaleCopy.GetNamespace(), sloScaleCopy.GetName())
 		policyMap[policyId] = repository.
 			NewTurboPolicy().
-			WithSLOHorizontalScale(&turboSloScaling)
+			WithSLOHorizontalScale(&sloScaleCopy)
 	}
 
 	var policyBindings []*repository.TurboPolicyBinding
 	for _, policyBinding := range turboPolicyBindings {
-		turboPolicyBinding := policyBinding
-		targets := turboPolicyBinding.Spec.Targets
+		// Create a copy as policyBinding variable is reused during range loop
+		policyBindingCopy := policyBinding
+		targets := policyBindingCopy.Spec.Targets
 		if len(targets) == 0 {
 			glog.Warningf("PolicyBinding %v/%v has no targets defined. Skip.",
-				turboPolicyBinding.Namespace, turboPolicyBinding.Name)
+				policyBindingCopy.Namespace, policyBindingCopy.Name)
 			continue
 		}
-		policyRef := turboPolicyBinding.Spec.PolicyRef
-		policyId := createPolicyId(policyRef.Kind, turboPolicyBinding.GetNamespace(), policyRef.Name)
+		policyRef := policyBindingCopy.Spec.PolicyRef
+		policyId := createPolicyId(policyRef.Kind, policyBindingCopy.GetNamespace(), policyRef.Name)
 		if policy, found := policyMap[policyId]; found {
 			policyBindings = append(policyBindings, repository.
-				NewTurboPolicyBinding(&turboPolicyBinding).
+				NewTurboPolicyBinding(&policyBindingCopy).
 				WithTurboPolicy(policy))
 		} else {
 			glog.Warningf("PolicyBinding %v/%v refers to %v policy %v/%v which does not exist. Skip.",
-				turboPolicyBinding.Namespace, turboPolicyBinding.Name, policyRef.Kind,
-				turboPolicyBinding.Namespace, policyRef.Name)
+				policyBindingCopy.Namespace, policyBindingCopy.Name, policyRef.Kind,
+				policyBindingCopy.Namespace, policyRef.Name)
 		}
 	}
 	glog.V(2).Infof("Discovered %v valid PolicyBindings.", len(policyBindings))
