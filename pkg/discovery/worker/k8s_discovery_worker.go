@@ -214,7 +214,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 					}
 					// glog.Infof("%s has finished", w.GetMonitoringSource())
 					t.Stop()
-					if err != nil {
+					if err == nil {
 						// Don't do any filtering
 						worker.sink.MergeSink(monitoringSink, nil)
 						if worker.isFullDiscoveryWorker {
