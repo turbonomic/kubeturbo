@@ -11,7 +11,7 @@ import (
 
 // Collects allocation metrics for quotas, nodes and pods using the compute resource usages for pods
 type MetricsCollector struct {
-	NodeList    []*v1.Node
+	Node        *v1.Node
 	PodList     []*v1.Pod
 	MetricsSink *metrics.EntityMetricSink
 	Cluster     *repository.ClusterSummary
@@ -20,7 +20,7 @@ type MetricsCollector struct {
 
 func NewMetricsCollector(discoveryWorker *k8sDiscoveryWorker, currTask *task.Task) *MetricsCollector {
 	metricsCollector := &MetricsCollector{
-		NodeList:    currTask.NodeList(),
+		Node:        currTask.Node(),
 		PodList:     currTask.PodList(),
 		Cluster:     currTask.Cluster(),
 		MetricsSink: discoveryWorker.sink,
@@ -274,29 +274,29 @@ func (collector *MetricsCollector) CollectNamespaceMetrics(podCollection PodMetr
 	for namespace := range collector.Cluster.NamespaceMap {
 		namespaceMetrics := repository.CreateDefaultNamespaceMetrics(namespace)
 		// create quota sold used for each namespace handled by this metric collector
-		for _, node := range collector.NodeList {
+		node := collector.Node
 
-			// list of pods on this namespace on this node
-			podMetricsList, exists := podCollection[node.Name][namespace]
-			if !exists {
-				glog.V(4).Infof("No pod metrics for namespace %s on node %s",
-					namespace, node.Name)
-				continue
-			}
-
-			glog.V(4).Infof("Collecting metrics for "+
-				"Namespace: %s on Node: %s with Pods: %s",
-				namespace, node.Name, podMetricsList.getPodNames())
-
-			// sum the usages for all the pods in this namespace and node
-			podQuotaUsed := podMetricsList.SumQuotaUsage()
-			podUsed := podMetricsList.SumUsage()
-
-			// usages for the quota sold from this node
-			// is added to the usages from other nodes
-			namespaceMetrics.AggregateQuotaUsed(podQuotaUsed)
-			namespaceMetrics.AggregateUsed(podUsed)
+		// list of pods on this namespace on this node
+		podMetricsList, exists := podCollection[node.Name][namespace]
+		if !exists {
+			glog.V(4).Infof("No pod metrics for namespace %s on node %s",
+				namespace, node.Name)
+			continue
 		}
+
+		glog.V(4).Infof("Collecting metrics for "+
+			"Namespace: %s on Node: %s with Pods: %s",
+			namespace, node.Name, podMetricsList.getPodNames())
+
+		// sum the usages for all the pods in this namespace and node
+		podQuotaUsed := podMetricsList.SumQuotaUsage()
+		podUsed := podMetricsList.SumUsage()
+
+		// usages for the quota sold from this node
+		// is added to the usages from other nodes
+		namespaceMetrics.AggregateQuotaUsed(podQuotaUsed)
+		namespaceMetrics.AggregateUsed(podUsed)
+
 		namespaceMetricsList = append(namespaceMetricsList, namespaceMetrics)
 	}
 	return namespaceMetricsList
@@ -305,24 +305,24 @@ func (collector *MetricsCollector) CollectNamespaceMetrics(podCollection PodMetr
 // Get the CPU processor frequency values for the nodes from the Metrics sink
 func (collector *MetricsCollector) collectNodeFrequencies() {
 	kubeNodes := collector.Cluster.NodeMap
-	for _, node := range collector.NodeList {
-		key := util.NodeKeyFunc(node)
-		cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
-		cpuFrequencyMetric, err := collector.MetricsSink.GetMetric(cpuFrequencyUID)
-		if err != nil {
-			glog.Errorf("Failed to get cpu frequency from sink for node %s: %v", key, err)
-			continue
-		}
-		if cpuFrequencyMetric == nil {
-			glog.Errorf("null cpu frequency from sink for node %s", key)
-			continue
-		}
-		cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
-		kubeNode := kubeNodes[node.Name]
-		kubeNode.NodeCpuFrequency = cpuFrequency
-		glog.V(4).Infof("Node %s cpu frequency is %f",
-			kubeNode.Name, kubeNode.NodeCpuFrequency)
+	node := collector.Node
+	key := util.NodeKeyFunc(node)
+	cpuFrequencyUID := metrics.GenerateEntityStateMetricUID(metrics.NodeType, key, metrics.CpuFrequency)
+	cpuFrequencyMetric, err := collector.MetricsSink.GetMetric(cpuFrequencyUID)
+	if err != nil {
+		glog.Errorf("Failed to get cpu frequency from sink for node %s: %v", key, err)
+		return
 	}
+	if cpuFrequencyMetric == nil {
+		glog.Errorf("null cpu frequency from sink for node %s", key)
+		return
+	}
+	cpuFrequency := cpuFrequencyMetric.GetValue().(float64)
+	kubeNode := kubeNodes[node.Name]
+	kubeNode.NodeCpuFrequency = cpuFrequency
+	glog.V(4).Infof("Node %s cpu frequency is %f",
+		kubeNode.Name, kubeNode.NodeCpuFrequency)
+
 }
 
 func (collector *MetricsCollector) collectNodeFrequency(node *v1.Node) {

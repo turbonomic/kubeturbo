@@ -177,9 +177,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	}
 
 	if glog.V(4) {
-		for _, node := range currTask.NodeList() {
-			glog.Infof("Worker %s: Node %s with %d pods", worker.id, node.Name, len(currTask.PodList()))
-		}
+		glog.Infof("Worker %s: Node %s with %d pods", worker.id, currTask.Node().Name, len(currTask.PodList()))
 	}
 	// wait group to make sure metrics scraping finishes.
 	var wg sync.WaitGroup
@@ -197,7 +195,6 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 			wg.Add(1)
 			go func(w monitoring.MonitoringWorker) {
 				finishCh := make(chan struct{})
-				stopCh := make(chan struct{})
 				timeoutCh := make(chan struct{}, 1)
 				defer close(finishCh)
 				defer close(timeoutCh)
@@ -209,7 +206,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 					glog.V(3).Infof("A %s monitoring worker from discovery worker %v is invoked for task %s.",
 						w.GetMonitoringSource(), worker.id, resourceMonitorTask)
 					// Assign task to monitoring worker.
-					monitoringSink := w.Do(stopCh)
+					monitoringSink := w.Do()
 					select {
 					case <-timeoutCh:
 						// glog.Infof("Calling thread: %s monitoring worker timeout!", w.GetMonitoringSource())
@@ -239,7 +236,6 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 					timeout = true
 					timeoutCh <- struct{}{}
 					// glog.Infof("%s stop", w.GetMonitoringSource())
-					close(stopCh)
 					return
 				}
 			}(rmWorker)
@@ -348,7 +344,7 @@ func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto
 	[]*repository.KubePod, []string) {
 	var entityDTOs []*proto.EntityDTO
 	// Build entity DTOs for nodes
-	nodeDTOs := worker.buildNodeDTOs(currTask.NodeList())
+	nodeDTOs := worker.buildNodeDTOs([]*api.Node{currTask.Node()})
 	glog.V(3).Infof("Worker %s built %d node DTOs.", worker.id, len(nodeDTOs))
 	if len(nodeDTOs) == 0 {
 		return nil, nil, nil

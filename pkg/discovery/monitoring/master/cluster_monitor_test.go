@@ -152,7 +152,7 @@ func TestGenNodeResourceMetrics(t *testing.T) {
 	clusterMonitor.clusterClient = cluster.NewClusterScraper(&client.Clientset{}, nil, nil,
 		false, nil, "")
 	clusterMonitor.sink = metrics.NewEntityMetricSink()
-	clusterMonitor.nodeList = []*api.Node{node}
+	clusterMonitor.node = node
 	clusterMonitor.nodePodMap = make(map[string][]*api.Pod)
 	clusterMonitor.nodePodMap["mynode"] = pods
 	// Collect node/pod/container metrics

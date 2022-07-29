@@ -82,6 +82,7 @@ func getDispatcherAndCollector(workerCount, taskRunTimeSec int) (*Dispatcher, *R
 		MonitoringConfigs: []monitoring.MonitorWorkerConfig{&monitoring.DummyMonitorConfig{
 			TaskRunTime: taskRunTimeSec,
 		}},
+		StitchingPropertyType: "IP",
 	}
 	dispatcherConfig := NewDispatcherConfig(clusterScraper, probeConfig, workerCount, 10, 1, 1)
 	dispatcher := NewDispatcher(dispatcherConfig, metrics.NewEntityMetricSink())
@@ -108,7 +109,8 @@ func TestDispatcher_Dispatch_1000_Tasks_With_100_Workers(t *testing.T) {
 		var nodes = make([]struct{}, taskCount)
 		go func() {
 			for range nodes {
-				currTask := task.NewTask().WithNodes([]*v1.Node{}).WithCluster(clusterSummary)
+				node := new(v1.Node)
+				currTask := task.NewTask().WithNode(node).WithCluster(clusterSummary)
 				dispatcher.assignTask(currTask)
 			}
 		}()

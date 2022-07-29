@@ -25,7 +25,7 @@ import (
 
 // KubeletMonitor is a resource monitoring worker.
 type KubeletMonitor struct {
-	nodeList []*api.Node
+	node *api.Node
 
 	kubeletClient *kubeclient.KubeletClient
 
@@ -59,12 +59,12 @@ func (m *KubeletMonitor) GetMonitoringSource() types.MonitoringSource {
 
 func (m *KubeletMonitor) ReceiveTask(task *task.Task) {
 	m.reset()
-	m.nodeList = task.NodeList()
+	m.node = task.Node()
 }
 
-func (m *KubeletMonitor) Do(stopChan <-chan struct{}) *metrics.EntityMetricSink {
+func (m *KubeletMonitor) Do() *metrics.EntityMetricSink {
 	glog.V(4).Infof("%s has started task.", m.GetMonitoringSource())
-	err := m.RetrieveResourceStat(stopChan)
+	err := m.RetrieveResourceStat()
 	if err != nil {
 		glog.Errorf("Failed to execute task: %s", err)
 	}
@@ -72,26 +72,12 @@ func (m *KubeletMonitor) Do(stopChan <-chan struct{}) *metrics.EntityMetricSink 
 	return m.metricSink
 }
 
-// RetrieveResourceStat retrieves resource stats for the received list of nodes.
-func (m *KubeletMonitor) RetrieveResourceStat(stopChan <-chan struct{}) error {
-	if m.nodeList == nil || len(m.nodeList) == 0 {
-		return errors.New("empty node list")
+// RetrieveResourceStat retrieves resource stats for the received node.
+func (m *KubeletMonitor) RetrieveResourceStat() error {
+	if m.node == nil {
+		return errors.New("empty node")
 	}
-
-	m.wg.Add(len(m.nodeList))
-	for _, node := range m.nodeList {
-		go func(n *api.Node) {
-			defer m.wg.Done()
-			select {
-			case <-stopChan:
-				return
-			default:
-				m.scrapeKubelet(n)
-			}
-		}(node)
-	}
-	m.wg.Wait()
-
+	m.scrapeKubelet(m.node)
 	return nil
 }
 

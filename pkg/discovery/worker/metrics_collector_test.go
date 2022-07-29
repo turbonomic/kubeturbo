@@ -255,7 +255,7 @@ func TestAccumulatingOverPodMetricsList(t *testing.T) {
 func TestPodMetricsCollectionNullCluster(t *testing.T) {
 	collector := &MetricsCollector{
 		MetricsSink: metricsSink,
-		NodeList:    []*v1.Node{n1},
+		Node:        n1,
 		PodList:     nodeToPodsMap[node1],
 	}
 
@@ -280,7 +280,7 @@ func TestPodMetricsCollectionUnknownNamespace(t *testing.T) {
 		Cluster:     clusterSummary,
 		MetricsSink: metricsSink,
 		PodList:     []*v1.Pod{pod1, pod2},
-		NodeList:    []*v1.Node{n1},
+		Node:        n1,
 	}
 
 	podCollection := collector.CollectPodMetrics()
@@ -323,7 +323,7 @@ func TestPodMetricsCollectionSingleNode(t *testing.T) {
 		Cluster:     clusterSummary,
 		MetricsSink: metricsSink,
 		PodList:     nodeToPodsMap[node1],
-		NodeList:    []*v1.Node{n1},
+		Node:        n1,
 	}
 
 	podCollection := collector.CollectPodMetrics()

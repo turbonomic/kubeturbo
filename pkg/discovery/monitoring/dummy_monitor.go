@@ -49,9 +49,9 @@ func (m *DummyMonitor) ReceiveTask(task *task.Task) {
 	m.reset()
 }
 
-func (m *DummyMonitor) Do(stopChan <-chan struct{}) *metrics.EntityMetricSink {
+func (m *DummyMonitor) Do() *metrics.EntityMetricSink {
 	glog.V(4).Infof("%s has started task.", m.GetMonitoringSource())
-	err := m.ActualDummyWork(stopChan)
+	err := m.ActualDummyWork()
 	if err != nil {
 		glog.Errorf("Failed to execute task: %s", err)
 	}
@@ -59,18 +59,13 @@ func (m *DummyMonitor) Do(stopChan <-chan struct{}) *metrics.EntityMetricSink {
 	return m.metricSink
 }
 
-func (m *DummyMonitor) ActualDummyWork(stopChan <-chan struct{}) error {
+func (m *DummyMonitor) ActualDummyWork() error {
 	numWorkers := 4 // some arbitrary number of parallel routines
 	for i := 0; i < numWorkers; i++ {
 		m.wg.Add(1)
 		go func() {
 			defer m.wg.Done()
-			select {
-			case <-stopChan:
-				return
-			default:
-				time.Sleep(time.Second * time.Duration(m.config.TaskRunTime))
-			}
+			time.Sleep(time.Second * time.Duration(m.config.TaskRunTime))
 		}()
 	}
 	m.wg.Wait()

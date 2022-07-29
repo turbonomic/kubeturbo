@@ -26,7 +26,7 @@ type ClusterMonitor struct {
 	// an Add() interface without lock should be provided.
 	sink *metrics.EntityMetricSink
 
-	nodeList []*api.Node
+	node *api.Node
 
 	nodePodMap map[string][]*api.Pod
 	podOwners  map[string]util.OwnerInfo
@@ -46,13 +46,13 @@ func (m *ClusterMonitor) GetMonitoringSource() types.MonitoringSource {
 
 func (m *ClusterMonitor) ReceiveTask(task *task.Task) {
 	m.reset()
-	m.nodeList = task.NodeList()
+	m.node = task.Node()
 	m.nodePodMap = util.GroupPodsByNode(task.PodList())
 }
 
-func (m *ClusterMonitor) Do(stopChan <-chan struct{}) *metrics.EntityMetricSink {
+func (m *ClusterMonitor) Do() *metrics.EntityMetricSink {
 	glog.V(4).Infof("%s has started task.", m.GetMonitoringSource())
-	err := m.RetrieveClusterStat(stopChan)
+	err := m.RetrieveClusterStat()
 	if err != nil {
 		glog.Errorf("Failed to execute task: %s", err)
 	}
@@ -60,29 +60,17 @@ func (m *ClusterMonitor) Do(stopChan <-chan struct{}) *metrics.EntityMetricSink 
 	return m.sink
 }
 
-// RetrieveClusterStat retrieves resource stats for the received list of nodes.
-func (m *ClusterMonitor) RetrieveClusterStat(stopChan <-chan struct{}) error {
-	if m.nodeList == nil {
-		return errors.New("invalid nodeList or empty nodeList. Nothing to monitor")
+// RetrieveClusterStat retrieves resource stats for the received node.
+func (m *ClusterMonitor) RetrieveClusterStat() error {
+	if m.node == nil {
+		return errors.New("invalid node or empty node. Nothing to monitor")
 	}
-
-	select {
-	case <-stopChan:
-		return nil
-	default:
-		err := m.findClusterID()
-		if err != nil {
-			return fmt.Errorf("failed to find cluster ID based on Kubernetes service: %v", err)
-		}
-		select {
-		case <-stopChan:
-			return nil
-		default:
-			m.findNodeStates()
-		}
-
-		return nil
+	err := m.findClusterID()
+	if err != nil {
+		return fmt.Errorf("failed to find cluster ID based on Kubernetes service: %v", err)
 	}
+	m.findNodeStates()
+	return nil
 }
 
 func (m *ClusterMonitor) reset() {
@@ -107,22 +95,20 @@ func (m *ClusterMonitor) findClusterID() error {
 
 // ----------------------------------------- Node State --------------------------------------------
 func (m *ClusterMonitor) findNodeStates() {
-	for _, node := range m.nodeList {
-		key := util.NodeKeyFunc(node)
-		if key == "" {
-			glog.Warning("Invalid node")
-			continue
-		}
-		// node/pod/container cpu/mem resource capacities
-		m.genNodeResourceMetrics(node, key)
-
-		// node labels
-		labelMetrics := parseNodeLabels(node)
-		m.sink.AddNewMetricEntries(labelMetrics)
-		glog.V(3).Infof("Successfully generated label metrics for node %s", key)
-		// owner labels - TODO:
-
+	key := util.NodeKeyFunc(m.node)
+	if key == "" {
+		glog.Warning("Invalid node")
+		return
 	}
+	// node/pod/container cpu/mem resource capacities
+	m.genNodeResourceMetrics(m.node, key)
+
+	// node labels
+	labelMetrics := parseNodeLabels(m.node)
+	m.sink.AddNewMetricEntries(labelMetrics)
+	glog.V(3).Infof("Successfully generated label metrics for node %s", key)
+	// owner labels - TODO:
+
 }
 
 // Generate resource metrics of a node:

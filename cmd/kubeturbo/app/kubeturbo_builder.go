@@ -57,7 +57,7 @@ const (
 	defaultDiscoveryIntervalSec       = 600
 	DefaultValidationWorkers          = 10
 	DefaultValidationTimeout          = 60
-	DefaultDiscoveryWorkers           = 4
+	DefaultDiscoveryWorkers           = 10
 	DefaultDiscoveryTimeoutSec        = 180
 	DefaultDiscoverySamples           = 10
 	DefaultDiscoverySampleIntervalSec = 60
