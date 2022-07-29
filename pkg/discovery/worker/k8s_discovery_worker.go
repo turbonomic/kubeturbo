@@ -196,7 +196,6 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 			go func(w monitoring.MonitoringWorker) {
 				finishCh := make(chan struct{})
 				timeoutCh := make(chan struct{}, 1)
-				defer close(finishCh)
 				defer close(timeoutCh)
 				defer wg.Done()
 
@@ -206,7 +205,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 					glog.V(3).Infof("A %s monitoring worker from discovery worker %v is invoked for task %s.",
 						w.GetMonitoringSource(), worker.id, resourceMonitorTask)
 					// Assign task to monitoring worker.
-					monitoringSink := w.Do()
+					monitoringSink, err := w.Do()
 					select {
 					case <-timeoutCh:
 						// glog.Infof("Calling thread: %s monitoring worker timeout!", w.GetMonitoringSource())
@@ -215,14 +214,17 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 					}
 					// glog.Infof("%s has finished", w.GetMonitoringSource())
 					t.Stop()
-					// Don't do any filtering
-					worker.sink.MergeSink(monitoringSink, nil)
-					if worker.isFullDiscoveryWorker {
-						// Merge metrics from global metrics sink into the metrics sink of each full discovery worker
-						worker.sink.MergeSink(worker.globalMetricSink, nil)
+					if err != nil {
+						// Don't do any filtering
+						worker.sink.MergeSink(monitoringSink, nil)
+						if worker.isFullDiscoveryWorker {
+							// Merge metrics from global metrics sink into the metrics sink of each full discovery worker
+							worker.sink.MergeSink(worker.globalMetricSink, nil)
+						}
+
 					}
 					// glog.Infof("send to finish channel %p", finishCh)
-					finishCh <- struct{}{}
+					close(finishCh)
 				}()
 
 				// either finish as expected or timeout.

@@ -50,14 +50,15 @@ func (m *ClusterMonitor) ReceiveTask(task *task.Task) {
 	m.nodePodMap = util.GroupPodsByNode(task.PodList())
 }
 
-func (m *ClusterMonitor) Do() *metrics.EntityMetricSink {
+func (m *ClusterMonitor) Do() (*metrics.EntityMetricSink, error) {
 	glog.V(4).Infof("%s has started task.", m.GetMonitoringSource())
 	err := m.RetrieveClusterStat()
 	if err != nil {
 		glog.Errorf("Failed to execute task: %s", err)
+		return m.sink, err
 	}
 	glog.V(4).Infof("%s monitor has finished task.", m.GetMonitoringSource())
-	return m.sink
+	return m.sink, nil
 }
 
 // RetrieveClusterStat retrieves resource stats for the received node.

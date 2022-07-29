@@ -49,14 +49,15 @@ func (m *DummyMonitor) ReceiveTask(task *task.Task) {
 	m.reset()
 }
 
-func (m *DummyMonitor) Do() *metrics.EntityMetricSink {
+func (m *DummyMonitor) Do() (*metrics.EntityMetricSink, error) {
 	glog.V(4).Infof("%s has started task.", m.GetMonitoringSource())
 	err := m.ActualDummyWork()
 	if err != nil {
 		glog.Errorf("Failed to execute task: %s", err)
+		return m.metricSink, err
 	}
 	glog.V(4).Infof("%s monitor has finished task.", m.GetMonitoringSource())
-	return m.metricSink
+	return m.metricSink, nil
 }
 
 func (m *DummyMonitor) ActualDummyWork() error {
