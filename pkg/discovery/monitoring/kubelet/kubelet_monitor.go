@@ -118,7 +118,7 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) error {
 		} else {
 			// It's a valid case if a node is available from the full discovery but not available during sampling discoveries.
 			// Need to wait for a full discovery to fetch the available nodes.
-			glog.Warningf("Failed to get resource metrics summary sample from %s. Waiting for the next full discovery.", node.Name)
+			return fmt.Errorf("failed to get resource metrics summary sample from %s", node.Name)
 		}
 	}
 

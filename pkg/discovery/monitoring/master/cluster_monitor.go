@@ -70,7 +70,10 @@ func (m *ClusterMonitor) RetrieveClusterStat() error {
 	if err != nil {
 		return fmt.Errorf("failed to find cluster ID based on Kubernetes service: %v", err)
 	}
-	m.findNodeStates()
+	err = m.findNodeStates()
+	if err != nil {
+		return fmt.Errorf("failed to find node states: %v", err)
+	}
 	return nil
 }
 
@@ -95,11 +98,10 @@ func (m *ClusterMonitor) findClusterID() error {
 }
 
 // ----------------------------------------- Node State --------------------------------------------
-func (m *ClusterMonitor) findNodeStates() {
+func (m *ClusterMonitor) findNodeStates() error {
 	key := util.NodeKeyFunc(m.node)
 	if key == "" {
-		glog.Warning("Invalid node")
-		return
+		return fmt.Errorf("invalid node")
 	}
 	// node/pod/container cpu/mem resource capacities
 	m.genNodeResourceMetrics(m.node, key)
@@ -108,8 +110,8 @@ func (m *ClusterMonitor) findNodeStates() {
 	labelMetrics := parseNodeLabels(m.node)
 	m.sink.AddNewMetricEntries(labelMetrics)
 	glog.V(3).Infof("Successfully generated label metrics for node %s", key)
+	return nil
 	// owner labels - TODO:
-
 }
 
 // Generate resource metrics of a node:
