@@ -63,6 +63,9 @@ func (m *KubeletMonitor) ReceiveTask(task *task.Task) {
 }
 
 func (m *KubeletMonitor) Do() (*metrics.EntityMetricSink, error) {
+	if m.node == nil {
+		return m.metricSink, errors.New("empty node")
+	}
 	glog.V(4).Infof("%s has started task.", m.GetMonitoringSource())
 	err := m.RetrieveResourceStat()
 	if err != nil {
@@ -75,9 +78,6 @@ func (m *KubeletMonitor) Do() (*metrics.EntityMetricSink, error) {
 
 // RetrieveResourceStat retrieves resource stats for the received node.
 func (m *KubeletMonitor) RetrieveResourceStat() error {
-	if m.node == nil {
-		return errors.New("empty node")
-	}
 	err := m.scrapeKubelet(m.node)
 	if err != nil {
 		return err
