@@ -26,7 +26,6 @@ import (
 
 const (
 	minDiscoveryWorker = 1
-	maxDiscoveryWorker = 10
 	// Max number of data samples to be collected for each resource metric
 	maxDataSamples = 60
 	// Min sampling discovery interval
@@ -60,10 +59,6 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 		glog.Warningf("Invalid number of discovery workers %v, set it to %v.",
 			discoveryWorkers, minDiscoveryWorker)
 		discoveryWorkers = minDiscoveryWorker
-	} else if discoveryWorkers > maxDiscoveryWorker {
-		glog.Warningf("Discovery workers %v is higher than %v, set it to %v.", discoveryWorkers,
-			maxDiscoveryWorker, maxDiscoveryWorker)
-		discoveryWorkers = maxDiscoveryWorker
 	} else {
 		glog.Infof("Number of discovery workers: %v.", discoveryWorkers)
 	}

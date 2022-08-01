@@ -25,7 +25,7 @@ import (
 
 // KubeletMonitor is a resource monitoring worker.
 type KubeletMonitor struct {
-	nodeList []*api.Node
+	node *api.Node
 
 	kubeletClient *kubeclient.KubeletClient
 
@@ -59,44 +59,34 @@ func (m *KubeletMonitor) GetMonitoringSource() types.MonitoringSource {
 
 func (m *KubeletMonitor) ReceiveTask(task *task.Task) {
 	m.reset()
-	m.nodeList = task.NodeList()
+	m.node = task.Node()
 }
 
-func (m *KubeletMonitor) Do(stopChan <-chan struct{}) *metrics.EntityMetricSink {
+func (m *KubeletMonitor) Do() (*metrics.EntityMetricSink, error) {
+	if m.node == nil {
+		return m.metricSink, errors.New("empty node")
+	}
 	glog.V(4).Infof("%s has started task.", m.GetMonitoringSource())
-	err := m.RetrieveResourceStat(stopChan)
+	err := m.RetrieveResourceStat()
 	if err != nil {
 		glog.Errorf("Failed to execute task: %s", err)
+		return m.metricSink, err
 	}
 	glog.V(4).Infof("%s monitor has finished task.", m.GetMonitoringSource())
-	return m.metricSink
+	return m.metricSink, nil
 }
 
-// RetrieveResourceStat retrieves resource stats for the received list of nodes.
-func (m *KubeletMonitor) RetrieveResourceStat(stopChan <-chan struct{}) error {
-	if m.nodeList == nil || len(m.nodeList) == 0 {
-		return errors.New("empty node list")
+// RetrieveResourceStat retrieves resource stats for the received node.
+func (m *KubeletMonitor) RetrieveResourceStat() error {
+	err := m.scrapeKubelet(m.node)
+	if err != nil {
+		return err
 	}
-
-	m.wg.Add(len(m.nodeList))
-	for _, node := range m.nodeList {
-		go func(n *api.Node) {
-			defer m.wg.Done()
-			select {
-			case <-stopChan:
-				return
-			default:
-				m.scrapeKubelet(n)
-			}
-		}(node)
-	}
-	m.wg.Wait()
-
 	return nil
 }
 
 // Retrieve resource metrics for the given node.
-func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
+func (m *KubeletMonitor) scrapeKubelet(node *api.Node) error {
 	kc := m.kubeletClient
 
 	// Collect node cpu frequency metric only in full discovery not in sampling discovery
@@ -104,7 +94,7 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 		nodefreq, err := kc.GetNodeCpuFrequency(node)
 		if err != nil {
 			glog.Errorf("Failed to get resource metrics (cpufreq) from %s: %s", node.Name, err)
-			return
+			return err
 		}
 		m.parseNodeCpuFreq(node, nodefreq)
 	}
@@ -112,13 +102,13 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 	ip, err := util.GetNodeIPForMonitor(node, types.KubeletSource)
 	if err != nil {
 		glog.Errorf("Failed to get resource metrics summary from %s: %s", node.Name, err)
-		return
+		return err
 	}
 	// get summary information about the given node and the pods running on it.
 	summary, err := kc.GetSummary(ip, node.Name)
 	if err != nil {
 		glog.Errorf("Failed to get resource metrics summary from %s: %s", node.Name, err)
-		return
+		return err
 	}
 	// Indicate that we have used the cache last time we've asked for some of the info.
 	if kc.HasCacheBeenUsed(ip) {
@@ -128,13 +118,14 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 		} else {
 			// It's a valid case if a node is available from the full discovery but not available during sampling discoveries.
 			// Need to wait for a full discovery to fetch the available nodes.
-			glog.Warningf("Failed to get resource metrics summary sample from %s. Waiting for the next full discovery.", node.Name)
-			return
+			return fmt.Errorf("failed to get resource metrics summary sample from %s", node.Name)
 		}
 	}
 
 	thresholds, err := kc.GetKubeletThresholds(ip, node.Name)
 	if err != nil {
+		// We may want to continue the logic even the kubelet threshold request has errors
+		// In the case of err not nil, the thresholds will be empty array, and it's safe to continue
 		glog.Warningf("Failed to get kubelet thresholds for %s, %v.", node.Name, err)
 	}
 
@@ -155,6 +146,7 @@ func (m *KubeletMonitor) scrapeKubelet(node *api.Node) {
 	m.parsePodStats(summary.Pods, currentMilliSec)
 
 	glog.V(4).Infof("Finished scrape node %s.", node.Name)
+	return nil
 }
 
 func (m *KubeletMonitor) generateThrottlingMetrics(metricFamilies map[string]*dto.MetricFamily, timestamp int64) {

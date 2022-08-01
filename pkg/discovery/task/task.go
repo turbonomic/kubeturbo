@@ -19,7 +19,7 @@ const (
 type Task struct {
 	uid         string
 	name        string
-	nodes       []*api.Node
+	node        *api.Node
 	pendingPods []*api.Pod
 	runningPods []*api.Pod
 	pods        []*api.Pod
@@ -38,14 +38,8 @@ func NewTask() *Task {
 	}
 }
 
-// Assign nodes to the task.
-func (t *Task) WithNodes(nodes []*api.Node) *Task {
-	t.nodes = nodes
-	return t
-}
-
 func (t *Task) WithNode(node *api.Node) *Task {
-	t.nodes = append(t.nodes, node)
+	t.node = node
 	return t
 }
 
@@ -85,9 +79,9 @@ func (t *Task) WithCluster(cluster *repository.ClusterSummary) *Task {
 	return t
 }
 
-// Get node list from the task.
-func (t *Task) NodeList() []*api.Node {
-	return t.nodes
+// Get node from the task.
+func (t *Task) Node() *api.Node {
+	return t.node
 }
 
 // Get pod list from the task.
@@ -118,11 +112,7 @@ func (t *Task) Cluster() *repository.ClusterSummary {
 }
 
 func (t *Task) String() string {
-	var nodes []string
-	for _, node := range t.nodes {
-		nodes = append(nodes, node.GetName())
-	}
-	return "[id: " + t.name + ", node: " + strings.Join(nodes, ",") + "]"
+	return "[id: " + t.name + ", node: " + t.node.GetName() + "]"
 }
 
 type TaskResultState string
