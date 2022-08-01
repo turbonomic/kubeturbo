@@ -155,9 +155,14 @@ func (client *KubeletClient) callKubeletEndpoint(ip, path string) ([]byte, error
 		return nil, err
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), defaultConnTimeOut)
+	defer cancel()
+	req = req.WithContext(ctx)
+
 	httpClient := client.client
 	response, err := httpClient.Do(req)
 	if err != nil {
+		glog.V(3).Infof("Failed to query kubelet via httpClient for the node %v on the path %v as the error:%v", ip, path, err)
 		return nil, fmt.Errorf("failed to execute the request: %s", err)
 	}
 
@@ -178,8 +183,9 @@ func (client *KubeletClient) callKubeletEndpoint(ip, path string) ([]byte, error
 func (client *KubeletClient) callAPIServerProxyEndpoint(nodeName, path string) ([]byte, error) {
 	var statusCode int
 	fullPath := fmt.Sprintf("%s%s%s%s", "/api/v1/nodes/", nodeName, "/proxy", path)
-	body, err := client.kubeClient.CoreV1().RESTClient().Get().AbsPath(fullPath).Do(context.TODO()).StatusCode(&statusCode).Raw()
+	body, err := client.kubeClient.CoreV1().RESTClient().Get().Timeout(defaultConnTimeOut).AbsPath(fullPath).Do(context.TODO()).StatusCode(&statusCode).Raw()
 	if err != nil {
+		glog.V(3).Infof("Failed to query kubelet via RestClient for the node %v on the path %v as the error:%v", nodeName, path, err)
 		return nil, err
 	}
 
