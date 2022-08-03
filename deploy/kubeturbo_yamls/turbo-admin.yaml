@@ -68,3 +68,12 @@ rules:
       - pods/log
     verbs:
       - get
+  - apiGroups:
+      - policy.turbonomic.io
+    resources:
+      - slohorizontalscales
+      - policybindings
+    verbs:
+      - get
+      - list
+      - watch
