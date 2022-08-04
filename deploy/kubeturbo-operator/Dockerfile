@@ -9,7 +9,7 @@ LABEL name="Kubeturbo Operator" \
       description="This operator will deploy an instance of kubeturbo." \
 ### Required labels above - recommended below
       url="https://www.turbonomic.com" \
-      run='docker run -tdi --name ${NAME} turbonomic/kubeturbo-operator:8.6' \
+      run='docker run -tdi --name ${NAME} turbonomic/kubeturbo-operator:8.6.1' \
       io.k8s.description="Turbonomic Workload Automation Platform simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.  " \
       io.k8s.display-name="Kubeturbo Operator" \
       io.openshift.expose-services="" \
