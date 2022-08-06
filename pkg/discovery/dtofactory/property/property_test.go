@@ -1,6 +1,8 @@
 package property
 
 import (
+	"strconv"
+
 	"github.com/stretchr/testify/assert"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -194,4 +196,64 @@ func TestAddHostingPodProperties(t *testing.T) {
 	if idx != index {
 		t.Error("Appliction property test failed: container index is wrong.")
 	}
+}
+
+func TestAddVolumeProperties(t *testing.T) {
+	vls := []api.Volume{
+		{
+			Name: "my-pvc-1",
+			VolumeSource: api.VolumeSource{
+				PersistentVolumeClaim: &api.PersistentVolumeClaimVolumeSource{
+					ClaimName: "my-pvc-1",
+				},
+			},
+		},
+		{
+			Name: "my-pvc-2",
+			VolumeSource: api.VolumeSource{
+				PersistentVolumeClaim: &api.PersistentVolumeClaimVolumeSource{
+					ClaimName: "my-pvc-2",
+				},
+			},
+		},
+	}
+	pod := &api.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-pod1",
+			Namespace: "my-namespace",
+			UID:       "my-pod-1-UID",
+		},
+		Spec: api.PodSpec{
+			Volumes: vls,
+		},
+	}
+
+	ps := BuildPodProperties(pod)
+	ps = AddVolumeProperties(ps)
+	ns, name, err := GetPodInfoFromProperty(ps)
+	if err != nil {
+		t.Errorf("Add volume property test failed: %v", err)
+		return
+	}
+
+	if ns != pod.Namespace {
+		t.Errorf("Add volume property test failed: namespace is wrong (%v) Vs. (%v)", ns, pod.Namespace)
+	}
+
+	if name != pod.Name {
+		t.Errorf("Add volume property test: pod name is wrong: (%v) Vs. (%v)", name, pod.Name)
+	}
+	expected := strconv.FormatBool(true)
+	for _, p := range ps {
+		if p.GetNamespace() == VCTagsPropertyNamespace && p.GetName() == k8sVolumeAttached {
+			assert.EqualValues(t, expected, p.GetValue())
+			return
+		}
+	}
+	assert.Fail(t, "Can't find volume property in the pod's properties")
 }
