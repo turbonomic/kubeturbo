@@ -287,7 +287,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	entityGroups := NewGroupMetricsCollector(worker, currTask).CollectGroupMetrics()
 
 	// Build DTOs after getting the metrics
-	entityDTOs, podEntities, sidecarContainerSpecs := worker.buildEntityDTOs(currTask)
+	entityDTOs, podEntities, sidecarContainerSpecs, podsWithVolumes := worker.buildEntityDTOs(currTask)
 
 	// Uncomment this to dump the topology to a file for later use by the unit tests
 	// util.DumpTopology(currTask, "test-topology.dat")
@@ -310,7 +310,9 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		// Volume metrics
 		WithPodVolumeMetrics(podVolumeMetricsCollection).
 		// List of sidecar containerSpecIds
-		WithSidecarContainerSpecs(sidecarContainerSpecs)
+		WithSidecarContainerSpecs(sidecarContainerSpecs).
+		// List of pods with volumes
+		WithPodsWithVolumes(podsWithVolumes)
 }
 
 func (worker *k8sDiscoveryWorker) addPodQuotaMetrics(podMetricsCollection PodMetricsByNodeAndNamespace) {
@@ -343,20 +345,20 @@ func (worker *k8sDiscoveryWorker) addPodQuotaMetrics(podMetricsCollection PodMet
 }
 
 func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto.EntityDTO,
-	[]*repository.KubePod, []string) {
+	[]*repository.KubePod, []string, []string) {
 	var entityDTOs []*proto.EntityDTO
 	// Build entity DTOs for nodes
 	nodeDTOs := worker.buildNodeDTOs([]*api.Node{currTask.Node()})
 	glog.V(3).Infof("Worker %s built %d node DTOs.", worker.id, len(nodeDTOs))
 	if len(nodeDTOs) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	entityDTOs = append(entityDTOs, nodeDTOs...)
 	// Build entity DTOs for pods
-	podDTOs, runningPods := worker.buildPodDTOs(currTask)
+	podDTOs, runningPods, podWithVolumes := worker.buildPodDTOs(currTask)
 	glog.V(3).Infof("Worker %s built %d pod DTOs.", worker.id, len(podDTOs))
 	if len(podDTOs) == 0 {
-		return entityDTOs, nil, nil
+		return entityDTOs, nil, nil, nil
 	}
 	entityDTOs = append(entityDTOs, podDTOs...)
 	// Build entity DTOs for containers from running pods
@@ -372,7 +374,7 @@ func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto
 		entityDTOs = append(entityDTOs, appEntityDTOs...)
 	}
 	glog.V(2).Infof("Worker %s built %d entity DTOs in total.", worker.id, len(entityDTOs))
-	return entityDTOs, podEntities, sidecarContainerSpecs
+	return entityDTOs, podEntities, sidecarContainerSpecs, podWithVolumes
 }
 
 func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node) []*proto.EntityDTO {
@@ -391,15 +393,15 @@ func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node) []*proto.Enti
 }
 
 // Build DTOs for running pods
-func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) (podDTOs []*proto.EntityDTO, runningPods []*api.Pod) {
+func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*api.Pod, []string) {
 	glog.V(3).Infof("Worker %s received %d pods.", worker.id, len(currTask.PodList()))
 	cluster := currTask.Cluster()
 	if cluster == nil {
 		// This should not happen, guard anyway
 		glog.Errorf("Failed to build pod DTOs: cluster summary object is null for worker %s", worker.id)
-		return
+		return nil, nil, nil
 	}
-	runningPodDTOs, pendingPodDTOs := dtofactory.
+	runningPodDTOs, pendingPodDTOs, podsWithVolumes := dtofactory.
 		NewPodEntityDTOBuilder(worker.sink, worker.stitchingManager).
 		// Node providers
 		WithNodeNameUIDMap(cluster.NodeNameUIDMap).
@@ -412,6 +414,9 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) (podDTOs []*
 		// Pending pods
 		WithPendingPods(currTask.PendingPodList()).
 		BuildEntityDTOs()
+
+	var podDTOs []*proto.EntityDTO
+	var runningPods []*api.Pod
 	if len(runningPodDTOs) > 0 {
 		podDTOs = append(podDTOs, runningPodDTOs...)
 		// Filter out pods that build DTO failed so
@@ -421,7 +426,7 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) (podDTOs []*
 	if len(pendingPodDTOs) > 0 {
 		podDTOs = append(podDTOs, pendingPodDTOs...)
 	}
-	return
+	return podDTOs, runningPods, podsWithVolumes
 }
 
 // Build DTOs for containers

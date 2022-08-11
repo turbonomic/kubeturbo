@@ -131,6 +131,7 @@ type TaskResult struct {
 	containerSpecMetrics  []*repository.ContainerSpecMetrics
 	podVolumeMetrics      []*repository.PodVolumeMetrics
 	sidecarContainerSpecs []string
+	podsWithVolumes       []string
 }
 
 func NewTaskResult(workerID string, state TaskResultState) *TaskResult {
@@ -180,6 +181,10 @@ func (r *TaskResult) SidecarContainerSpecs() []string {
 	return r.sidecarContainerSpecs
 }
 
+func (r *TaskResult) PodWithVolumes() []string {
+	return r.podsWithVolumes
+}
+
 func (r *TaskResult) Err() error {
 	return r.err
 }
@@ -226,5 +231,10 @@ func (r *TaskResult) WithPodVolumeMetrics(podVolumeMetrics []*repository.PodVolu
 
 func (r *TaskResult) WithSidecarContainerSpecs(sidecarContainerSpecs []string) *TaskResult {
 	r.sidecarContainerSpecs = sidecarContainerSpecs
+	return r
+}
+
+func (r *TaskResult) WithPodsWithVolumes(podsWithVolumes []string) *TaskResult {
+	r.podsWithVolumes = podsWithVolumes
 	return r
 }
