@@ -287,7 +287,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	entityGroups := NewGroupMetricsCollector(worker, currTask).CollectGroupMetrics()
 
 	// Build DTOs after getting the metrics
-	entityDTOs, podEntities, sidecarContainerSpecs, podsWithVolumes := worker.buildEntityDTOs(currTask)
+	entityDTOs, podEntities, sidecarContainerSpecs, podsWithVolumes, unknownStateNodes := worker.buildEntityDTOs(currTask)
 
 	// Uncomment this to dump the topology to a file for later use by the unit tests
 	// util.DumpTopology(currTask, "test-topology.dat")
@@ -311,8 +311,13 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		WithPodVolumeMetrics(podVolumeMetricsCollection).
 		// List of sidecar containerSpecIds
 		WithSidecarContainerSpecs(sidecarContainerSpecs).
+
 		// List of pods with volumes
-		WithPodsWithVolumes(podsWithVolumes)
+		WithPodsWithVolumes(podsWithVolumes).
+
+		// List of unknown nodes
+		WithUnknownStateNodes(unknownStateNodes)
+
 }
 
 func (worker *k8sDiscoveryWorker) addPodQuotaMetrics(podMetricsCollection PodMetricsByNodeAndNamespace) {
@@ -345,20 +350,22 @@ func (worker *k8sDiscoveryWorker) addPodQuotaMetrics(podMetricsCollection PodMet
 }
 
 func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto.EntityDTO,
-	[]*repository.KubePod, []string, []string) {
+	[]*repository.KubePod, []string, []string, []string) {
 	var entityDTOs []*proto.EntityDTO
+	var unknownStateNodes []string
 	// Build entity DTOs for nodes
-	nodeDTOs := worker.buildNodeDTOs([]*api.Node{currTask.Node()})
+	nodeDTOs, unknownStateNodes := worker.buildNodeDTOs([]*api.Node{currTask.Node()})
+
 	glog.V(3).Infof("Worker %s built %d node DTOs.", worker.id, len(nodeDTOs))
 	if len(nodeDTOs) == 0 {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 	entityDTOs = append(entityDTOs, nodeDTOs...)
 	// Build entity DTOs for pods
 	podDTOs, runningPods, podWithVolumes := worker.buildPodDTOs(currTask)
 	glog.V(3).Infof("Worker %s built %d pod DTOs.", worker.id, len(podDTOs))
 	if len(podDTOs) == 0 {
-		return entityDTOs, nil, nil, nil
+		return entityDTOs, nil, nil, nil, nil
 	}
 	entityDTOs = append(entityDTOs, podDTOs...)
 	// Build entity DTOs for containers from running pods
@@ -374,10 +381,10 @@ func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto
 		entityDTOs = append(entityDTOs, appEntityDTOs...)
 	}
 	glog.V(2).Infof("Worker %s built %d entity DTOs in total.", worker.id, len(entityDTOs))
-	return entityDTOs, podEntities, sidecarContainerSpecs, podWithVolumes
+	return entityDTOs, podEntities, sidecarContainerSpecs, podWithVolumes, unknownStateNodes
 }
 
-func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node) []*proto.EntityDTO {
+func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node) ([]*proto.EntityDTO, []string) {
 	// SetUp nodeName to nodeId mapping
 	stitchingManager := worker.stitchingManager
 	for _, node := range nodes {

@@ -24,6 +24,7 @@ type DiscoveryResult struct {
 	PodEntitiesMap        map[string]*repository.KubePod
 	SidecarContainerSpecs []string
 	PodsWithVolumes       []string
+	UnknownStateNodes     []string
 	SuccessCount          int
 	ErrorCount            int
 }
@@ -75,6 +76,7 @@ func (rc *ResultCollector) Collect(count int) *DiscoveryResult {
 					result.ContainerSpecMetrics = append(result.ContainerSpecMetrics, taskResult.ContainerSpecMetrics()...)
 					result.SidecarContainerSpecs = append(result.SidecarContainerSpecs, taskResult.SidecarContainerSpecs()...)
 					result.PodsWithVolumes = append(result.PodsWithVolumes, taskResult.PodWithVolumes()...)
+					result.UnknownStateNodes = append(result.UnknownStateNodes, taskResult.UnknownStateNodes()...)
 				}
 				wg.Done()
 			}
