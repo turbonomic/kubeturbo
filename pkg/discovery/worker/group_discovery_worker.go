@@ -51,7 +51,7 @@ func Newk8sEntityGroupDiscoveryWorker(cluster *repository.ClusterSummary,
 // It merges the group members belonging to the same group but discovered by different discovery workers.
 // Then it creates DTOs for the pod/container groups to be sent to the server.
 func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.EntityGroup,
-	sidecarContainerSpecs []string) ([]*proto.GroupDTO, error) {
+	sidecarContainerSpecs, podsWithVolumes []string) ([]*proto.GroupDTO, error) {
 	var groupDTOs []*proto.GroupDTO
 
 	// Entity groups per Owner type and instance
@@ -107,6 +107,8 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 
 	// Create static groups for sidecar containerSpecs
 	groupDTOs = append(groupDTOs, worker.buildSidecarContainerSpecGroup(sidecarContainerSpecs)...)
+	// Create static groups for all pods that use volumes
+	groupDTOs = append(groupDTOs, worker.buildPodsWithVolumesGroup(podsWithVolumes)...)
 
 	// Create dynamic groups for discovered Turbo policies
 	groupDTOs = append(groupDTOs, worker.BuildTurboPolicyDTOsFromPolicyBindings()...)
@@ -143,6 +145,32 @@ func (worker *k8sEntityGroupDiscoveryWorker) buildSidecarContainerSpecGroup(side
 		WithEntities(uniqueSpecs.UnsortedList()).
 		WithDisplayName(displayName).
 		WithSettingPolicy(settingPolicy)
+
+	// build group
+	groupDTO, err := groupBuilder.Build()
+	if err != nil {
+		glog.Errorf("Error creating group dto  %s::%s", id, err)
+		return groupsDTOs
+	}
+	groupsDTOs = append(groupsDTOs, groupDTO)
+
+	return groupsDTOs
+}
+
+func (worker *k8sEntityGroupDiscoveryWorker) buildPodsWithVolumesGroup(podsWithVolumes []string) []*proto.GroupDTO {
+	var groupsDTOs []*proto.GroupDTO
+	if len(podsWithVolumes) <= 0 {
+		return groupsDTOs
+	}
+	id := fmt.Sprintf("All-Pods-Using-Volumes-%s", worker.targetId)
+	displayName := "All Pods Using Volumes"
+
+	uniqueSpecs := sets.NewString(podsWithVolumes...)
+	// static group
+	groupBuilder := group.StaticRegularGroup(id).
+		OfType(proto.EntityDTO_CONTAINER_POD).
+		WithEntities(uniqueSpecs.UnsortedList()).
+		WithDisplayName(displayName)
 
 	// build group
 	groupDTO, err := groupBuilder.Build()
