@@ -498,6 +498,8 @@ func (builder *podEntityDTOBuilder) getPodProperties(pod *api.Pod, vols []reposi
 		if err == nil {
 			properties = append(properties, m.BuildDTOProperties(false)...)
 		}
+		// Add volume property if the pod has volumes attached
+		properties = property.AddVolumeProperties(properties)
 	}
 
 	return properties, nil

@@ -109,3 +109,17 @@ func GetPodInfoFromProperty(properties []*proto.EntityDTO_EntityProperty) (strin
 
 	return podNamespace, podName, nil
 }
+
+// Add volume property to a pod's properties
+func AddVolumeProperties(properties []*proto.EntityDTO_EntityProperty) []*proto.EntityDTO_EntityProperty {
+	volumePropertyNamespace := VCTagsPropertyNamespace
+	volumePropertyName := k8sVolumeAttached
+	volumePropertyValue := "true"
+	volumeProperty := &proto.EntityDTO_EntityProperty{
+		Namespace: &volumePropertyNamespace,
+		Name:      &volumePropertyName,
+		Value:     &volumePropertyValue,
+	}
+	properties = append(properties, volumeProperty)
+	return properties
+}
