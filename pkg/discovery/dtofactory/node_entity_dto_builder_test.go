@@ -2,8 +2,9 @@ package dtofactory
 
 import (
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"testing"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -214,7 +215,7 @@ func TestNodeEntityDTO(t *testing.T) {
 	stitchingManager := stitching.NewStitchingManager(stitching.UUID)
 	stitchingManager.StoreStitchingValue(node)
 	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitchingManager)
-	nodeEntityDTOs := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node})
+	nodeEntityDTOs, _ := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node})
 	vmData := nodeEntityDTOs[0].GetVirtualMachineData()
 	// The capacity metric is set in millicores but numcpus is set in cores
 	assert.EqualValues(t, 10, vmData.GetNumCpus())
