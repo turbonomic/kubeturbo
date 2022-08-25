@@ -190,7 +190,7 @@ github.com/turbonomic/turbo-api/pkg/client
 # github.com/turbonomic/turbo-crd v0.0.0-20220630232025-77ff549647ec
 ## explicit
 github.com/turbonomic/turbo-crd/api/v1alpha1
-# github.com/turbonomic/turbo-go-sdk v0.0.0-20220725163105-e668b90f8813
+# github.com/turbonomic/turbo-go-sdk v0.0.0-20220810133707-7c9850a6c67e
 ## explicit
 github.com/turbonomic/turbo-go-sdk/pkg
 github.com/turbonomic/turbo-go-sdk/pkg/builder

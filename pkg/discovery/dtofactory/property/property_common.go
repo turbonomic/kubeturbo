@@ -21,6 +21,7 @@ const (
 	k8sAppType                   = "KubernetesAppType"
 	TolerationPropertyNamePrefix = "[k8s toleration]"
 	LabelPropertyNamePrefix      = "[k8s label]"
+	k8sVolumeAttached            = "PersistentVolumeAttached"
 )
 
 func BuildTagProperty(namespace string, name string, value string) *proto.EntityDTO_EntityProperty {

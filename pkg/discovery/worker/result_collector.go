@@ -23,6 +23,8 @@ type DiscoveryResult struct {
 	PodVolumeMetrics      []*repository.PodVolumeMetrics
 	PodEntitiesMap        map[string]*repository.KubePod
 	SidecarContainerSpecs []string
+	PodsWithVolumes       []string
+	UnknownStateNodes     []string
 	SuccessCount          int
 	ErrorCount            int
 }
@@ -73,6 +75,8 @@ func (rc *ResultCollector) Collect(count int) *DiscoveryResult {
 					// ContainerSpecs with individual container replica commodities data from different discovery workers
 					result.ContainerSpecMetrics = append(result.ContainerSpecMetrics, taskResult.ContainerSpecMetrics()...)
 					result.SidecarContainerSpecs = append(result.SidecarContainerSpecs, taskResult.SidecarContainerSpecs()...)
+					result.PodsWithVolumes = append(result.PodsWithVolumes, taskResult.PodWithVolumes()...)
+					result.UnknownStateNodes = append(result.UnknownStateNodes, taskResult.UnknownStateNodes()...)
 				}
 				wg.Done()
 			}

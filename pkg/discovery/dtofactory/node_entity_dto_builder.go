@@ -61,12 +61,13 @@ func NewNodeEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *s
 }
 
 // Build entityDTOs based on the given node list.
-func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto.EntityDTO {
+func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*proto.EntityDTO, []string) {
 	var result []*proto.EntityDTO
+	var unknownStateNodes []string
 
 	clusterId, err := builder.getClusterId()
 	if err != nil {
-		return result
+		return result, nil
 	}
 
 	for _, node := range nodes {
@@ -138,6 +139,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 		} else {
 			glog.Warningf("Node %s has unknown power state", node.GetName())
 			entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERSTATE_UNKNOWN)
+			unknownStateNodes = append(unknownStateNodes, nodeID)
 		}
 
 		// Get CPU capacity in cores.
@@ -179,7 +181,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) []*proto
 		glog.V(4).Infof("Node DTO : %+v", entityDto)
 	}
 
-	return result
+	return result, unknownStateNodes
 }
 
 // Build the sold commodityDTO by each node. They include:

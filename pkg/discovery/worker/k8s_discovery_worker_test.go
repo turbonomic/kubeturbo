@@ -31,7 +31,7 @@ func TestBuildDTOsWithMissingMetrics(t *testing.T) {
 
 	currTask := task.NewTask().WithNode(node).WithPods([]*api.Pod{pod})
 
-	entityDtos, kubePods, _ := worker.buildEntityDTOs(currTask)
+	entityDtos, kubePods, _, _, _ := worker.buildEntityDTOs(currTask)
 	if len(entityDtos) != 0 || len(kubePods) != 0 {
 		// Nothing is built
 		t.Errorf("Error while building DTOs")

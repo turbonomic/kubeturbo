@@ -106,22 +106,24 @@ func (builder *podEntityDTOBuilder) WithPendingPods(pendingPods []*api.Pod) *pod
 	return builder
 }
 
-func (builder *podEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, []*proto.EntityDTO) {
+func (builder *podEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, []*proto.EntityDTO, []string) {
 	glog.V(3).Infof("Building DTOs for running pods...")
-	runningPodDTOs := builder.buildDTOs(
+	runningPodDTOs, runningPodsWithVolumes := builder.buildDTOs(
 		builder.runningPods, runningPodResCommTypeSold, runningPodResCommTypeBoughtFromNode)
 	glog.V(3).Infof("Built %d running pod DTOs.", len(runningPodDTOs))
 	glog.V(3).Infof("Building DTOs for pending pods...")
-	pendingPodDTOs := builder.buildDTOs(
+	pendingPodDTOs, pendingPodsWithVolumes := builder.buildDTOs(
 		builder.pendingPods, pendingPodResCommTypeSold, pendingPodResCommTypeBoughtFromNode)
 	glog.V(3).Infof("Built %d pending pod DTOs.", len(pendingPodDTOs))
-	return runningPodDTOs, pendingPodDTOs
+	podsWithVolumes := append(runningPodsWithVolumes, pendingPodsWithVolumes...)
+	return runningPodDTOs, pendingPodDTOs, podsWithVolumes
 }
 
 // Build entityDTOs based on the given pod list.
 func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
-	resCommTypeBoughtFromNode []metrics.ResourceType) []*proto.EntityDTO {
+	resCommTypeBoughtFromNode []metrics.ResourceType) ([]*proto.EntityDTO, []string) {
 	var result []*proto.EntityDTO
+	var podsWithVolumes []string
 
 	for _, pod := range pods {
 		// id.
@@ -272,6 +274,9 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 			continue
 		}
 
+		if len(mounts) > 0 {
+			podsWithVolumes = append(podsWithVolumes, podID)
+		}
 		result = append(result, entityDto)
 
 		if daemon {
@@ -281,7 +286,7 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 		}
 	}
 
-	return result
+	return result, podsWithVolumes
 }
 
 func (builder *podEntityDTOBuilder) isContainerMetricsAvailable(pod *api.Pod) bool {
@@ -493,6 +498,8 @@ func (builder *podEntityDTOBuilder) getPodProperties(pod *api.Pod, vols []reposi
 		if err == nil {
 			properties = append(properties, m.BuildDTOProperties(false)...)
 		}
+		// Add volume property if the pod has volumes attached
+		properties = property.AddVolumeProperties(properties)
 	}
 
 	return properties, nil
