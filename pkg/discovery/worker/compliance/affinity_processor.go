@@ -14,9 +14,10 @@ import (
 // Affinity processor parses each affinity rule defined in pod and creates commodityDTOs for nodes and pods.
 type AffinityProcessor struct {
 	*ComplianceProcessor
-	commManager *AffinityCommodityManager
-	nodes       []*api.Node
-	pods        []*api.Pod
+	commManager     *AffinityCommodityManager
+	nodes           []*api.Node
+	pods            []*api.Pod
+	podToVolumesMap map[string][]repository.MountedVolume
 }
 
 func NewAffinityProcessor(cluster *repository.ClusterSummary) (*AffinityProcessor, error) {
@@ -25,6 +26,7 @@ func NewAffinityProcessor(cluster *repository.ClusterSummary) (*AffinityProcesso
 		commManager:         NewAffinityCommodityManager(),
 		nodes:               cluster.Nodes,
 		pods:                cluster.GetReadyPods(),
+		podToVolumesMap:     cluster.PodToVolumesMap,
 	}, nil
 }
 
@@ -41,11 +43,13 @@ func (am *AffinityProcessor) ProcessAffinityRules(entityDTOs []*proto.EntityDTO)
 
 func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod, podsNodesMap map[*api.Pod]*api.Node) {
 	affinity := pod.Spec.Affinity
-	if affinity == nil {
-		return
-	}
-
+	// Honor the nodeAffinity from the pod's nodeAffinity
 	nodeSelectorTerms := getAllNodeSelectors(affinity)
+	// Also honor the nodeAffinity from the PVs of the pod if the pod have the PV attached
+	pvNodeSelectorTerms := am.getAllPvAffinityTerms(pod)
+
+	nodeSelectorTerms = append(nodeSelectorTerms, pvNodeSelectorTerms...)
+
 	nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought, err := am.commManager.GetAccessCommoditiesForNodeAffinity(nodeSelectorTerms)
 	if err != nil {
 		glog.Errorf("Failed to build commodity: %s", err)
@@ -61,7 +65,7 @@ func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod, podsNodesMap ma
 
 	hostNode := podsNodesMap[pod]
 	for _, node := range am.nodes {
-		if matchesNodeSelector(pod, node) && matchesNodeAffinity(pod, node) {
+		if matchesNodeAffinity(pod, node) && matchesPvNodeAffinity(pvNodeSelectorTerms, node) {
 			am.addAffinityAccessCommodities(pod, node, hostNode, nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought)
 		}
 		if interPodAffinityMatches(pod, node, podsNodesMap) {
@@ -72,7 +76,7 @@ func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod, podsNodesMap ma
 
 func getAllNodeSelectors(affinity *api.Affinity) []api.NodeSelectorTerm {
 	// TODO we only parse RequiredDuringSchedulingIgnoredDuringExecution for now.
-	if affinity.NodeAffinity == nil || affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+	if affinity == nil || affinity.NodeAffinity == nil || affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
 		return []api.NodeSelectorTerm{}
 	}
 	return affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
@@ -81,11 +85,11 @@ func getAllNodeSelectors(affinity *api.Affinity) []api.NodeSelectorTerm {
 func getAllPodAffinityTerms(affinity *api.Affinity) []api.PodAffinityTerm {
 	podAffinityTerms := []api.PodAffinityTerm{}
 	// TODO we only parse RequiredDuringSchedulingIgnoredDuringExecution for now.
-	if affinity.PodAffinity != nil && affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+	if affinity != nil && affinity.PodAffinity != nil && affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
 		podAffinityTerms = append(podAffinityTerms, affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution...)
 	}
 	// TODO we only parse RequiredDuringSchedulingIgnoredDuringExecution for now.
-	if affinity.PodAntiAffinity != nil && affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+	if affinity != nil && affinity.PodAntiAffinity != nil && affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
 		podAffinityTerms = append(podAffinityTerms, affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution...)
 	}
 	//glog.Infof("pod selector terms are %++v", podAffinityTerms)
@@ -161,6 +165,20 @@ func (am *AffinityProcessor) addCommodityBoughtByPod(pod *api.Pod, node *api.Nod
 	if err != nil {
 		glog.Errorf("Failed to add commodityDTOs to %s: %s", util.GetPodClusterID(pod), err)
 	}
+}
+
+func (am *AffinityProcessor) getAllPvAffinityTerms(pod *api.Pod) []api.NodeSelectorTerm {
+	nodeSelectorTerms := []api.NodeSelectorTerm{}
+	displayName := util.GetPodClusterID(pod)
+	mounts := am.podToVolumesMap[displayName]
+	for _, amt := range mounts {
+		if amt.UsedVolume != nil && amt.UsedVolume.Spec.NodeAffinity != nil && amt.UsedVolume.Spec.NodeAffinity.Required != nil {
+			for _, req := range amt.UsedVolume.Spec.NodeAffinity.Required.NodeSelectorTerms {
+				nodeSelectorTerms = append(nodeSelectorTerms, req)
+			}
+		}
+	}
+	return nodeSelectorTerms
 }
 
 func buildPodsNodesMap(nodes []*api.Node, pods []*api.Pod) map[*api.Pod]*api.Node {
