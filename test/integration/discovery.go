@@ -151,6 +151,7 @@ var _ = Describe("Discover Cluster", func() {
 	Describe("Discovering affects of node with unknown state", func() {
 		var entities []*proto.EntityDTO = nil
 		var groups []*proto.GroupDTO = nil
+		var unknownNamespace = f.TestNamespaceName()
 		testName := "discovery-integration-test"
 		nodeName := "kind-worker3"
 
@@ -160,7 +161,7 @@ var _ = Describe("Discover Cluster", func() {
 			}
 
 			// create a pod to test and attach to the node soon to be in a NotReady state
-			_, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, nodeName))
+			_, err := createDeployResource(kubeClient, depSingleContainerWithResources(unknownNamespace, "", 1, false, false, false, nodeName))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			// stop running node worker to simulate node in NotReady state
@@ -226,6 +227,10 @@ var _ = Describe("Discover Cluster", func() {
 					return commBought.GetProviderId() == node.GetId()
 				}) != nil
 			}, len(entities))
+
+			if len(podsWithUnknownNode) == 0 {
+				framework.Failf("unknown node should have pods")
+			}
 
 			for _, pod := range podsWithUnknownNode {
 				if pod.GetPowerState() != proto.EntityDTO_POWERSTATE_UNKNOWN {
