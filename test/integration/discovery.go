@@ -3,6 +3,7 @@ package integration
 import (
 	"fmt"
 	"math"
+	"os/exec"
 	"strings"
 
 	set "github.com/deckarep/golang-set"
@@ -147,6 +148,94 @@ var _ = Describe("Discover Cluster", func() {
 		})
 	})
 
+	Describe("Discovering affects of node with unknown state", func() {
+		var entities []*proto.EntityDTO = nil
+		var groups []*proto.GroupDTO = nil
+		testName := "discovery-integration-test"
+		nodeName := "kind-worker3"
+
+		BeforeEach(func() {
+			if f.Kubeconfig.CurrentContext != "kind-kind" {
+				Skip("Skipping cluster that isn't using context kind-kind")
+			}
+
+			// create a pod to test and attach to the node soon to be in a NotReady state
+			_, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, nodeName))
+			framework.ExpectNoError(err, "Error creating test resources")
+
+			// stop running node worker to simulate node in NotReady state
+			execute("./hack/stop_kind_node.sh", nodeName)
+			entityDTOs, groupDTOs, err := discoveryClient.DiscoverWithNewFramework(testName)
+			if err != nil {
+				framework.Failf("error")
+			}
+
+			entities = entityDTOs
+			groups = groupDTOs
+		})
+
+		AfterEach(func() {
+			// restart node once finished with the test
+			execute("./hack/start_kind_node.sh", nodeName)
+		})
+
+		It("unknown node should be detected", func() {
+			found := getUnknownNode(entities)
+			if found == nil {
+				framework.Failf("Node with unknown state not found")
+			}
+
+			if found.GetDisplayName() == "" {
+				framework.Failf("unknown nodes should have a node name")
+			}
+
+		})
+
+		It("unknown nodes should be listed in the unknown node group", func() {
+			unknownNode := getUnknownNode(entities)
+			unknownGroup := getUnknownNodeGroup(groups)
+
+			if unknownGroup == nil {
+				framework.Failf("Could not find Unknown Node group")
+			}
+
+			if unknownGroup.GetEntityType() != proto.EntityDTO_VIRTUAL_MACHINE {
+				framework.Failf("Unknown node group as incorrect entity type")
+			}
+
+			if unknownGroup.GetDisplayName() != "All Nodes (State Unknown)" {
+				framework.Failf("Unknown node group display name has been changed")
+			}
+
+			nodeInGroup := false
+			for _, uuid := range unknownGroup.GetMemberList().GetMember() {
+				if uuid == unknownNode.GetId() {
+					nodeInGroup = true
+				}
+			}
+
+			if !nodeInGroup {
+				framework.Failf("Unknown node was not found in node group")
+			}
+		})
+
+		It("should check that pods on unknown nodes also have status uknown", func() {
+			node := getUnknownNode(entities)
+			podsWithUnknownNode := findEntities(entities, func(entity *proto.EntityDTO) bool {
+				return entity.GetEntityType() == proto.EntityDTO_CONTAINER_POD && findOneCommodityBought(entity.CommoditiesBought, func(commBought *proto.EntityDTO_CommodityBought) bool {
+					return commBought.GetProviderId() == node.GetId()
+				}) != nil
+			}, len(entities))
+
+			for _, pod := range podsWithUnknownNode {
+				if pod.GetPowerState() != proto.EntityDTO_POWERSTATE_UNKNOWN {
+					framework.Failf("All pods with unknown Node provider should be in an unknown state")
+				}
+			}
+		})
+
+	})
+
 	// TODO: this particular Describe is currently used as the teardown for this
 	// whole test (not the suite).
 	// This will work only if run sequentially. Find a better way to do this.
@@ -156,6 +245,106 @@ var _ = Describe("Discover Cluster", func() {
 		})
 	})
 })
+
+func findEntities(vals []*proto.EntityDTO, condition func(v *proto.EntityDTO) bool, howMany int) []*proto.EntityDTO {
+	found := []*proto.EntityDTO{}
+	for _, v := range vals {
+		if howMany == 0 {
+			break
+		}
+
+		if condition(v) {
+			found = append(found, v)
+			howMany--
+		}
+	}
+	return found
+}
+
+func findGroups(vals []*proto.GroupDTO, condition func(v *proto.GroupDTO) bool, howMany int) []*proto.GroupDTO {
+	found := []*proto.GroupDTO{}
+	for _, v := range vals {
+		if howMany == 0 {
+			break
+		}
+
+		if condition(v) {
+			found = append(found, v)
+			howMany--
+		}
+	}
+	return found
+}
+
+func findCommoditiesBought(vals []*proto.EntityDTO_CommodityBought, condition func(v *proto.EntityDTO_CommodityBought) bool, howMany int) []*proto.EntityDTO_CommodityBought {
+	found := []*proto.EntityDTO_CommodityBought{}
+	for _, v := range vals {
+		if howMany == 0 {
+			break
+		}
+
+		if condition(v) {
+			found = append(found, v)
+			howMany--
+		}
+	}
+	return found
+}
+
+func findOneEntity(values []*proto.EntityDTO, condition func(v *proto.EntityDTO) bool) *proto.EntityDTO {
+	found := findEntities(values, condition, 1)
+	if len(found) == 0 {
+		return nil
+	}
+	return found[0]
+}
+
+func findOneGroup(values []*proto.GroupDTO, condition func(v *proto.GroupDTO) bool) *proto.GroupDTO {
+	found := findGroups(values, condition, 1)
+	if len(found) == 0 {
+		return nil
+	}
+	return found[0]
+}
+
+func findOneCommodityBought(values []*proto.EntityDTO_CommodityBought, condition func(v *proto.EntityDTO_CommodityBought) bool) *proto.EntityDTO_CommodityBought {
+	found := findCommoditiesBought(values, condition, 1)
+	if len(found) == 0 {
+		return nil
+	}
+	return found[0]
+}
+
+func execute(name string, arg ...string) {
+	stdout, err := exec.Command(name, arg...).Output()
+	if err != nil {
+		framework.Failf(err.Error())
+	}
+	glog.Info(string(stdout))
+}
+
+func getUnknownNode(entities []*proto.EntityDTO) *proto.EntityDTO {
+	unknownNode := findOneEntity(entities, func(entity *proto.EntityDTO) bool {
+		return entity.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE && entity.GetPowerState() == proto.EntityDTO_POWERSTATE_UNKNOWN
+	})
+	if unknownNode != nil {
+		framework.Logf("Successfully found Node with unknown power state.")
+	}
+
+	return unknownNode
+}
+
+func getUnknownNodeGroup(groups []*proto.GroupDTO) *proto.GroupDTO {
+	unknownNodeGroup := findOneGroup(groups, func(group *proto.GroupDTO) bool {
+		return strings.Contains(group.GetGroupName(), "All-Nodes-State-Unknown-")
+	})
+
+	if unknownNodeGroup != nil {
+		framework.Logf("Successfully found Unknown Node Group")
+	}
+
+	return unknownNodeGroup
+}
 
 func validateNumbers(entityDTOs []*proto.EntityDTO, groupDTOs []*proto.GroupDTO, totalEntities, totalGroups int) {
 	if len(entityDTOs) < totalEntities {
@@ -280,7 +469,7 @@ func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *
 func createResourcesForDiscovery(client *kubeclientset.Clientset, namespace string, replicas int32) ([]*appsv1.Deployment, error) {
 	depResources := []*appsv1.Deployment{
 		depMultiContainer(namespace, replicas, false),
-		depSingleContainerWithResources(namespace, "", replicas, false, false, false),
+		depSingleContainerWithResources(namespace, "", replicas, false, false, false, ""),
 		deplMultiContainerWithResources(namespace, replicas),
 	}
 

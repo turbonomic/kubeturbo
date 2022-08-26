@@ -82,7 +82,7 @@ spec:
 			framework.ExpectNoError(err, "Error creating test pod with kubeturbo GC label")
 			pod2, err := createPodResource(kubeClient, podSingleContainerWithKubeturboGCLabel(namespace))
 			framework.ExpectNoError(err, "Error creating test pod with kubeturbo GC label")
-			dep, err := createDeployment(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, true, true))
+			dep, err := createDeployment(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, true, true, ""))
 			framework.ExpectNoError(err, "Error creating deployment with garbage collection label")
 			rs, err := createReplicaSet(kubeClient, rsSingleContainerWithResources(namespace, 1, true, true))
 			framework.ExpectNoError(err, "Error creating replicaset with dummy scheduler")
