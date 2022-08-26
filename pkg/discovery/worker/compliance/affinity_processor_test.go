@@ -8,14 +8,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
 func TestProcessAffinityPerPod(t *testing.T) {
-	nodes, pods := generateTopology()
+	nodes, pods, pvs := generateTopology()
 	table := []struct {
-		nodes []*api.Node
-		pods  []*api.Pod
+		nodes     []*api.Node
+		pods      []*api.Pod
+		pod2PvMap map[string][]repository.MountedVolume
 
 		// process affinity rules on the given pod.
 		currPod  *api.Pod
@@ -80,11 +83,36 @@ func TestProcessAffinityPerPod(t *testing.T) {
 
 			text: "test node matches pod affinity rules by having the same topology key.",
 		},
+		{
+			nodes: nodes,
+			pods:  pods,
+			pod2PvMap: map[string][]repository.MountedVolume{
+				util.GetPodClusterID(pods[3]): {
+					{
+						MountName:  "mount-point-name",
+						UsedVolume: pvs[0],
+					},
+				},
+			},
+
+			currPod:  pods[3],
+			currNode: nodes[1],
+			expectedMatchingNodes: []*api.Node{
+				nodes[1],
+			},
+			expectedNonMatchingNodes: []*api.Node{
+				nodes[0],
+				nodes[2],
+			},
+			expectedAffinityCommoditiesNumber: 1,
+
+			text: "test node matches PV affinity rules.",
+		},
 	}
 
 	for i, item := range table {
 		entityDTOs := generateAllBasicEntityDTOs(item.nodes, item.pods)
-		ap := newAffinityProcessorForTest(item.nodes, item.pods)
+		ap := newAffinityProcessorForTest(item.nodes, item.pods, item.pod2PvMap)
 		ap.GroupEntityDTOs(entityDTOs)
 		podsNodesMap := buildPodsNodesMap(item.nodes, item.pods)
 
@@ -191,7 +219,7 @@ func getAccessCommoditiesMap(accessCommodities []*proto.CommodityDTO) map[string
 	return mm
 }
 
-func generateTopology() ([]*api.Node, []*api.Pod) {
+func generateTopology() ([]*api.Node, []*api.Pod, []*api.PersistentVolume) {
 	nodeName1 := "node1"
 	nodeLabel1 := map[string]string{
 		"zone":   "zone_value1",
@@ -235,6 +263,7 @@ func generateTopology() ([]*api.Node, []*api.Pod) {
 	podName1 := "pod1"
 	podName2 := "pod2"
 	podName3 := "pod3"
+	podName4 := "pod4"
 
 	allPods := []*api.Pod{
 		{
@@ -318,9 +347,45 @@ func generateTopology() ([]*api.Node, []*api.Pod) {
 				NodeName: nodeName1,
 			},
 		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: podName4,
+				UID:  types.UID(podName4),
+			},
+			Spec: api.PodSpec{
+				NodeName: nodeName2,
+			},
+		},
 	}
 
-	return allNodes, allPods
+	pvName1 := "pv1"
+	allPVs := []*api.PersistentVolume{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: pvName1,
+				UID:  types.UID(pvName1),
+			},
+			Spec: api.PersistentVolumeSpec{
+				NodeAffinity: &api.VolumeNodeAffinity{
+					Required: &api.NodeSelector{
+						NodeSelectorTerms: []api.NodeSelectorTerm{
+							{
+								MatchExpressions: []api.NodeSelectorRequirement{
+									{
+										Key:      "zone",
+										Operator: api.NodeSelectorOpIn,
+										Values:   []string{"zone_value2"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return allNodes, allPods, allPVs
 }
 
 func generateAllBasicEntityDTOs(allNodes []*api.Node, allPods []*api.Pod) []*proto.EntityDTO {
@@ -341,12 +406,13 @@ func generateAllBasicEntityDTOs(allNodes []*api.Node, allPods []*api.Pod) []*pro
 	return allEntityDTOs
 }
 
-func newAffinityProcessorForTest(allNodes []*api.Node, allPods []*api.Pod) *AffinityProcessor {
+func newAffinityProcessorForTest(allNodes []*api.Node, allPods []*api.Pod, pod2PVs map[string][]repository.MountedVolume) *AffinityProcessor {
 	return &AffinityProcessor{
 		ComplianceProcessor: NewComplianceProcessor(),
 		commManager:         NewAffinityCommodityManager(),
 
-		nodes: allNodes,
-		pods:  allPods,
+		nodes:           allNodes,
+		pods:            allPods,
+		podToVolumesMap: pod2PVs,
 	}
 }
