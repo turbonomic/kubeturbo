@@ -2,14 +2,17 @@ package dtofactory
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
@@ -188,5 +191,77 @@ func TestContainerMetricsAvailability(t *testing.T) {
 	podDTOBuilder := NewPodEntityDTOBuilder(sink, nil)
 	for _, test := range tests {
 		assert.Equal(t, podDTOBuilder.isContainerMetricsAvailable(test.pod), test.expectedMetricsAvailable)
+	}
+}
+
+func TestGetRegionZoneLabelCommodity(t *testing.T) {
+	testPod1 := &api.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "pod1",
+		},
+		Spec: api.PodSpec{
+			NodeName: nodeName,
+		},
+	}
+
+	nodeLabel1 := map[string]string{
+		zoneLabelName:   "zone_value1",
+		regionLabelName: "region_value1",
+	}
+
+	testNode1 := &api.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   nodeName,
+			UID:    types.UID(nodeName),
+			Labels: nodeLabel1,
+		},
+	}
+
+	pvName1 := "pv1"
+	testPv1 := &api.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: pvName1,
+			UID:  types.UID(pvName1),
+		},
+	}
+
+	pod2PvMap := map[string][]repository.MountedVolume{
+		util.GetPodClusterID(testPod1): {
+			{
+				MountName:  "mount-point-name",
+				UsedVolume: testPv1,
+			},
+		},
+	}
+	nodeNameToNodeMap := map[string]*repository.KubeNode{
+		nodeName: {
+			KubeEntity: nil,
+			Node:       testNode1,
+		},
+	}
+
+	sink := metrics.NewEntityMetricSink()
+	podDTOBuilder := NewPodEntityDTOBuilder(sink, nil).WithPodToVolumesMap(pod2PvMap).WithNodeNameToNodeMap(nodeNameToNodeMap)
+	var commoditiesBought []*proto.CommodityDTO
+	var err error
+	commoditiesBought, err = podDTOBuilder.getRegionZoneLabelCommodity(testPod1, commoditiesBought)
+	if err != nil {
+		t.Errorf("Failed to get region/zone label commodity")
+	}
+	var foundZoneComm, foundRegionComm bool
+	for _, comm := range commoditiesBought {
+		if comm.GetCommodityType() == proto.CommodityDTO_LABEL {
+			if strings.Contains(comm.GetKey(), zoneLabelName) {
+				foundZoneComm = true
+			}
+			if strings.Contains(comm.GetKey(), regionLabelName) {
+				foundRegionComm = true
+			}
+		}
+	}
+
+	if !foundRegionComm || !foundZoneComm {
+		t.Errorf("Can't find region/zone commodity")
 	}
 }

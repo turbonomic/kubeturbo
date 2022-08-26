@@ -23,6 +23,8 @@ import (
 
 const (
 	applicationCommodityDefaultCapacity = 1e10
+	zoneLabelName                       = "topology.kubernetes.io/zone"
+	regionLabelName                     = "topology.kubernetes.io/region"
 )
 
 var (
@@ -63,21 +65,23 @@ var (
 
 type podEntityDTOBuilder struct {
 	generalBuilder
-	stitchingManager *stitching.StitchingManager
-	nodeNameUIDMap   map[string]string
-	namespaceUIDMap  map[string]string
-	podToVolumesMap  map[string][]repository.MountedVolume
-	runningPods      []*api.Pod
-	pendingPods      []*api.Pod
+	stitchingManager  *stitching.StitchingManager
+	nodeNameUIDMap    map[string]string
+	namespaceUIDMap   map[string]string
+	podToVolumesMap   map[string][]repository.MountedVolume
+	nodeNameToNodeMap map[string]*repository.KubeNode
+	runningPods       []*api.Pod
+	pendingPods       []*api.Pod
 }
 
 func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager) *podEntityDTOBuilder {
 	return &podEntityDTOBuilder{
-		generalBuilder:   newGeneralBuilder(sink),
-		stitchingManager: stitchingManager,
-		nodeNameUIDMap:   make(map[string]string),
-		namespaceUIDMap:  make(map[string]string),
-		podToVolumesMap:  make(map[string][]repository.MountedVolume),
+		generalBuilder:    newGeneralBuilder(sink),
+		stitchingManager:  stitchingManager,
+		nodeNameUIDMap:    make(map[string]string),
+		namespaceUIDMap:   make(map[string]string),
+		podToVolumesMap:   make(map[string][]repository.MountedVolume),
+		nodeNameToNodeMap: make(map[string]*repository.KubeNode),
 	}
 }
 
@@ -93,6 +97,11 @@ func (builder *podEntityDTOBuilder) WithNameSpaceUIDMap(namespaceUIDMap map[stri
 
 func (builder *podEntityDTOBuilder) WithPodToVolumesMap(podToVolumesMap map[string][]repository.MountedVolume) *podEntityDTOBuilder {
 	builder.podToVolumesMap = podToVolumesMap
+	return builder
+}
+
+func (builder *podEntityDTOBuilder) WithNodeNameToNodeMap(nodeNameNodeMap map[string]*repository.KubeNode) *podEntityDTOBuilder {
+	builder.nodeNameToNodeMap = nodeNameNodeMap
 	return builder
 }
 
@@ -393,6 +402,17 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
 		commoditiesBought = append(commoditiesBought, labelComm)
 	}
 
+	// Label commodities
+	// To honor the region/zone label on th node that the pod is running on if the pod has any PV attached
+	if utilfeature.DefaultFeatureGate.Enabled(features.HonorRegionZoneLabels) {
+		var anerr error
+		commoditiesBought, anerr = builder.getRegionZoneLabelCommodity(pod, commoditiesBought)
+		if anerr != nil {
+			glog.Errorf("Failed to append the region/zone label commodity")
+			return nil, anerr
+		}
+	}
+
 	// Cluster commodity.
 	clusterMetricUID := metrics.GenerateEntityStateMetricUID(metrics.ClusterType, "", metrics.Cluster)
 	clusterInfo, err := builder.metricsSink.GetMetric(clusterMetricUID)
@@ -532,4 +552,45 @@ func (builder *podEntityDTOBuilder) createContainerPodData(pod *api.Pod) *proto.
 		glog.Errorf("No IP found for pod %s", fullName)
 	}
 	return podData
+}
+
+func (builder *podEntityDTOBuilder) getRegionZoneLabelCommodity(pod *api.Pod, commoditiesBought []*proto.CommodityDTO) ([]*proto.CommodityDTO, error) {
+	if pod == nil {
+		return nil, fmt.Errorf("The pod's pointer is nil")
+	}
+	var err error
+	displayName := util.GetPodClusterID(pod)
+	mounts := builder.podToVolumesMap[displayName]
+	if len(mounts) > 0 {
+		if node, ok := builder.nodeNameToNodeMap[pod.Spec.NodeName]; ok {
+			if value, isFound := node.Labels[regionLabelName]; isFound {
+				selector := regionLabelName + "=" + value
+				commoditiesBought, err = AppendNewLabelCommodityToList(commoditiesBought, selector)
+				if err != nil {
+					return nil, err
+				}
+				glog.V(4).Infof("Added label commodity for Pod %s with key : %s", pod.Name, selector)
+			}
+			if value, isFound := node.Labels[zoneLabelName]; isFound {
+				selector := zoneLabelName + "=" + value
+				commoditiesBought, err = AppendNewLabelCommodityToList(commoditiesBought, selector)
+				if err != nil {
+					return nil, err
+				}
+				glog.V(4).Infof("Added label commodity for Pod %s with key : %s", pod.Name, selector)
+			}
+		}
+	}
+	return commoditiesBought, nil
+}
+
+func AppendNewLabelCommodityToList(commoditiesList []*proto.CommodityDTO, key string) ([]*proto.CommodityDTO, error) {
+	labelComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
+		Key(key).
+		Create()
+	if err != nil {
+		return nil, err
+	}
+	commoditiesList = append(commoditiesList, labelComm)
+	return commoditiesList, nil
 }

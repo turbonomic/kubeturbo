@@ -416,6 +416,8 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 		WithNameSpaceUIDMap(cluster.NamespaceUIDMap).
 		// Pod to volume map
 		WithPodToVolumesMap(cluster.PodToVolumesMap).
+		// Node Name to KubeNode map
+		WithNodeNameToNodeMap(cluster.NodeMap).
 		// Running pods
 		WithRunningPods(currTask.RunningPodList()).
 		// Pending pods
