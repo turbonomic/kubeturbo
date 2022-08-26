@@ -320,7 +320,7 @@ func execute(name string, arg ...string) {
 	if err != nil {
 		framework.Failf(err.Error())
 	}
-	glog.Info(string(stdout))
+	framework.Logf(string(stdout))
 }
 
 func getUnknownNode(entities []*proto.EntityDTO) *proto.EntityDTO {
