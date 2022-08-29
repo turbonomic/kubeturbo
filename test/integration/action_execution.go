@@ -399,13 +399,16 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 					},
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: pullSecrets,
 					Containers: []corev1.Container{
 						genContainerSpec("test-cont", "50m", "100Mi", "100m", "200Mi"),
 					},
 				},
 			},
 		},
+	}
+
+	if pullSecrets != nil {
+		dep.Spec.Template.Spec.ImagePullSecrets = pullSecrets
 	}
 
 	if withVolume {

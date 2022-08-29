@@ -163,7 +163,7 @@ var _ = Describe("Discover Cluster", func() {
 			// create a pod to test and attach to the node soon to be in a NotReady state
 			if deps == nil {
 				var err error = nil
-				deps, err = createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, nodeName, []corev1.LocalObjectReference{}))
+				deps, err = createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, nodeName, nil))
 				framework.ExpectNoError(err, "Error creating test resources")
 			}
 			// stop running node worker to simulate node in NotReady state
@@ -222,7 +222,7 @@ var _ = Describe("Discover Cluster", func() {
 			}
 		})
 
-		It("should check that pods on unknown nodes also have status uknown", func() {
+		It("should check that pods on unknown nodes also have status unknown", func() {
 			node := getUnknownNode(entities)
 			podsWithUnknownNode := findEntities(entities, func(entity *proto.EntityDTO) bool {
 				return entity.GetEntityType() == proto.EntityDTO_CONTAINER_POD && findOneCommodityBought(entity.CommoditiesBought, func(commBought *proto.EntityDTO_CommodityBought) bool {
