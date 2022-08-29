@@ -131,6 +131,7 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		default:
 			return fmt.Errorf("unsupported gitops manager type: %v", c.managerApp.Type)
 		}
+
 		completionData, err := manager.Update(int64(*updatedSpec.replicas), podSpecUnstructured)
 		if err != nil {
 			return fmt.Errorf("failed to update the gitops managed source of truth: %v", err)
