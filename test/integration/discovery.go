@@ -118,7 +118,7 @@ var _ = Describe("Discover Cluster", func() {
 			// ii.  deployment with 2 containers
 			// iii. deployment with 2 containers
 			// total of 6 replicas and 10 containers
-			_, err := createResourcesForDiscovery(kubeClient, namespace, 2)
+			_, err := createResourcesForDiscovery(kubeClient, namespace, 2, f.DockerImagePullSecretNames())
 			framework.ExpectNoError(err, "Failed creating test resources")
 
 			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
@@ -151,7 +151,7 @@ var _ = Describe("Discover Cluster", func() {
 	Describe("Discovering affects of node with unknown state", func() {
 		var entities []*proto.EntityDTO = nil
 		var groups []*proto.GroupDTO = nil
-		var unknownNamespace = f.TestNamespaceName()
+		var deps *appsv1.Deployment = nil
 		testName := "discovery-integration-test"
 		nodeName := "kind-worker3"
 
@@ -161,9 +161,11 @@ var _ = Describe("Discover Cluster", func() {
 			}
 
 			// create a pod to test and attach to the node soon to be in a NotReady state
-			_, err := createDeployResource(kubeClient, depSingleContainerWithResources(unknownNamespace, "", 1, false, false, false, nodeName))
-			framework.ExpectNoError(err, "Error creating test resources")
-
+			if deps == nil {
+				var err error = nil
+				deps, err = createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, nodeName, []corev1.LocalObjectReference{}))
+				framework.ExpectNoError(err, "Error creating test resources")
+			}
 			// stop running node worker to simulate node in NotReady state
 			execute("./hack/stop_kind_node.sh", nodeName)
 			entityDTOs, groupDTOs, err := discoveryClient.DiscoverWithNewFramework(testName)
@@ -471,10 +473,10 @@ func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *
 // run this against any cluster, where some utility test methods will
 // discover all the kubernetes resources and then compare the numbers
 // against the dtos discovered by kubeturbo routines.
-func createResourcesForDiscovery(client *kubeclientset.Clientset, namespace string, replicas int32) ([]*appsv1.Deployment, error) {
+func createResourcesForDiscovery(client *kubeclientset.Clientset, namespace string, replicas int32, pullSecrets []corev1.LocalObjectReference) ([]*appsv1.Deployment, error) {
 	depResources := []*appsv1.Deployment{
 		depMultiContainer(namespace, replicas, false),
-		depSingleContainerWithResources(namespace, "", replicas, false, false, false, ""),
+		depSingleContainerWithResources(namespace, "", replicas, false, false, false, "", pullSecrets),
 		deplMultiContainerWithResources(namespace, replicas),
 	}
 

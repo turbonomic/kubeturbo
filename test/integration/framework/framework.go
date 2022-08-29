@@ -54,6 +54,14 @@ func (f *TestFramework) TestNamespaceName() string {
 	return f.testNamespaceName
 }
 
+func (f *TestFramework) DockerImagePullSecretNames() []corev1.LocalObjectReference {
+	return []corev1.LocalObjectReference{
+		{
+			Name: DockerImagePullSecretName,
+		},
+	}
+}
+
 // BeforeEach reads the cluster configuration if it has not yet been read.
 func (f *TestFramework) BeforeEach() {
 	if f.Config == nil {
@@ -69,7 +77,6 @@ func (f *TestFramework) AfterEach() {
 	userAgent := fmt.Sprintf("%s-teardown", f.BaseName)
 	client := f.GetKubeClient(userAgent)
 	DeleteNamespace(client, f.testNamespaceName)
-
 }
 
 func (f *TestFramework) GetKubeConfig() *restclient.Config {
