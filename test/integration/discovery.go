@@ -173,6 +173,7 @@ var _ = Describe("Discover Cluster", func() {
 			execute("ls", "../")
 			execute("ls", ".")
 			execute("docker", "stop", nodeName)
+			glog.Info(os.Getenv("kubectl_path"))
 			execute(os.Getenv("kubectl_path"), "wait", "--for=condition=Ready=Unknown", "node/"+nodeName)
 			entityDTOs, groupDTOs, err := discoveryClient.DiscoverWithNewFramework(testName)
 			if err != nil {
