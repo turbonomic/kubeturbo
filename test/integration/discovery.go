@@ -107,8 +107,10 @@ var _ = Describe("Discover Cluster", func() {
 			// Kubernetes Probe Discovery Client
 			discoveryClient = discovery.NewK8sDiscoveryClient(discoveryClientConfig)
 		}
-		namespace = f.TestNamespaceName()
-		f.GenerateCustomImagePullSecret(namespace)
+		if namespace == "" {
+			namespace = f.TestNamespaceName()
+			f.GenerateCustomImagePullSecret(namespace)
+		}
 	})
 
 	Describe("discovering with discovery framework", func() {
