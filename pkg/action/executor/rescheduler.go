@@ -129,9 +129,9 @@ func (r *ReScheduler) preActionCheck(pod *api.Pod, node *api.Node) error {
 	fullName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 
 	// Check if the pod privilege is supported
-	if !util.SupportPrivilegePod(pod, r.sccAllowedSet) {
-		err := fmt.Errorf("Pod %s has unsupported SCC", fullName)
-		glog.Errorf("%v.", err)
+	supported, err := util.SupportPrivilegePod(pod, r.sccAllowedSet)
+	if !supported {
+		glog.Errorf("Failed to execute move action: %v", err)
 		return err
 	}
 
