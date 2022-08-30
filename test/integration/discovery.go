@@ -3,6 +3,7 @@ package integration
 import (
 	"fmt"
 	"math"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -169,7 +170,7 @@ var _ = Describe("Discover Cluster", func() {
 				framework.ExpectNoError(err, "Error creating test resources")
 			}
 			// stop running node worker to simulate node in NotReady state
-			execute("./hack/stop_kind_node.sh", nodeName)
+			execute(os.ExpandEnv("$HOME")+"/kubeturbo/hack/stop_kind_node.sh", nodeName)
 			entityDTOs, groupDTOs, err := discoveryClient.DiscoverWithNewFramework(testName)
 			if err != nil {
 				framework.Failf("error")
@@ -181,7 +182,7 @@ var _ = Describe("Discover Cluster", func() {
 
 		AfterEach(func() {
 			// restart node once finished with the test
-			execute("./hack/start_kind_node.sh", nodeName)
+			execute(os.ExpandEnv("$HOME")+"/kubeturbo/hack/start_kind_node.sh", nodeName)
 		})
 
 		It("unknown node should be detected", func() {
