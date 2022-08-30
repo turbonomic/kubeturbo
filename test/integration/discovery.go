@@ -169,6 +169,9 @@ var _ = Describe("Discover Cluster", func() {
 				framework.ExpectNoError(err, "Error creating test resources")
 			}
 			// stop running node worker to simulate node in NotReady state
+			execute("docker", "--version")
+			execute("./kubectl", "version")
+			execute("kubectl", "version")
 			execute("./hack/stop_kind_node.sh", nodeName)
 			entityDTOs, groupDTOs, err := discoveryClient.DiscoverWithNewFramework(testName)
 			if err != nil {
