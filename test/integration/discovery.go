@@ -170,6 +170,8 @@ var _ = Describe("Discover Cluster", func() {
 				framework.ExpectNoError(err, "Error creating test resources")
 			}
 			// stop running node worker to simulate node in NotReady state
+			glog.Info(os.ExpandEnv("$HOME"))
+			execute("pwd")
 			execute(os.ExpandEnv("$HOME")+"/kubeturbo/hack/stop_kind_node.sh", nodeName)
 			entityDTOs, groupDTOs, err := discoveryClient.DiscoverWithNewFramework(testName)
 			if err != nil {
@@ -328,9 +330,10 @@ func findOneCommodityBought(values []*proto.EntityDTO_CommodityBought, condition
 func execute(name string, arg ...string) {
 	stdout, err := exec.Command(name, arg...).Output()
 	if err != nil {
-		framework.Failf(err.Error())
+		glog.Error(err)
+		glog.Error(err.Error())
 	}
-	framework.Logf(string(stdout))
+	glog.Info(string(stdout))
 }
 
 func getUnknownNode(entities []*proto.EntityDTO) *proto.EntityDTO {
