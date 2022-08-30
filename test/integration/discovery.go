@@ -3,7 +3,6 @@ package integration
 import (
 	"fmt"
 	"math"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -170,12 +169,10 @@ var _ = Describe("Discover Cluster", func() {
 				framework.ExpectNoError(err, "Error creating test resources")
 			}
 			// stop running node worker to simulate node in NotReady state
-			glog.Info(os.ExpandEnv("$HOME"))
-			execute("pwd")
-			execute(os.ExpandEnv("$HOME")+"/kubeturbo/hack/stop_kind_node.sh", nodeName)
+			execute("./hack/stop_kind_node.sh", nodeName)
 			entityDTOs, groupDTOs, err := discoveryClient.DiscoverWithNewFramework(testName)
 			if err != nil {
-				framework.Failf("error")
+				framework.Failf(err.Error())
 			}
 
 			entities = entityDTOs
@@ -184,7 +181,7 @@ var _ = Describe("Discover Cluster", func() {
 
 		AfterEach(func() {
 			// restart node once finished with the test
-			execute(os.ExpandEnv("$HOME")+"/kubeturbo/hack/start_kind_node.sh", nodeName)
+			execute("./hack/start_kind_node.sh", nodeName)
 		})
 
 		It("unknown node should be detected", func() {
@@ -331,7 +328,7 @@ func execute(name string, arg ...string) {
 	stdout, err := exec.Command(name, arg...).Output()
 	if err != nil {
 		glog.Error(err)
-		glog.Error(err.Error())
+		framework.Failf(err.Error())
 	}
 	glog.Info(string(stdout))
 }
