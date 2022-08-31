@@ -196,8 +196,8 @@ func (r *ContainerResizer) Execute(input *TurboActionExecutorInput) (*TurboActio
 	pod := input.Pod
 
 	// check if the pod privilege is supported
-	if !util.SupportPrivilegePod(pod, r.sccAllowedSet) {
-		err := fmt.Errorf("pod %s/%s has unsupported SCC", pod.Namespace, pod.Name)
+	supported, err := util.SupportPrivilegePod(pod, r.sccAllowedSet)
+	if !supported {
 		glog.Errorf("Failed to execute resize action: %v", err)
 		return &TurboActionExecutorOutput{}, err
 	}

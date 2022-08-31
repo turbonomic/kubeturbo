@@ -1,9 +1,10 @@
 package util
 
 import (
+	"testing"
+
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 func TestAddAnnotation(t *testing.T) {
@@ -179,7 +180,8 @@ func testSupportPrivilegePod(t *testing.T, sccAllowedSet map[string]struct{}, wa
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := SupportPrivilegePod(tt.pod, sccAllowedSet); got != tt.want {
+			got, _ := SupportPrivilegePod(tt.pod, sccAllowedSet)
+			if got != tt.want {
 				t.Errorf("SupportPrivilegePod() = %v, want %v", got, tt.want)
 			}
 		})
