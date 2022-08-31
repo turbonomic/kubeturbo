@@ -178,6 +178,7 @@ var _ = Describe("Discover Cluster", func() {
 					glog.Errorf("Unexpected error while finding Node %s: %v", nodeName, errInternal)
 					return false, nil
 				}
+
 				found := findOneNodeCondition(node.Status.Conditions, func(cond corev1.NodeCondition) bool {
 					return cond.Type == "Ready" && cond.Status == "Unknown"
 				})
@@ -383,9 +384,8 @@ func execute(name string, arg ...string) {
 	stdout, err := exec.Command(name, arg...).Output()
 	if err != nil {
 		glog.Error(err)
-		//framework.Failf(err.Error())
 	}
-	glog.Info(string(stdout))
+	glog.Info("command output: " + string(stdout))
 }
 
 func getUnknownNode(entities []*proto.EntityDTO) *proto.EntityDTO {
