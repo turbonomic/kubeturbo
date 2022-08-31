@@ -1,9 +1,9 @@
 package integration
 
 import (
+	"context"
 	"fmt"
 	"math"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -15,6 +15,7 @@ import (
 	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
@@ -170,11 +171,22 @@ var _ = Describe("Discover Cluster", func() {
 				framework.ExpectNoError(err, "Error creating test resources")
 			}
 			// stop running node worker to simulate node in NotReady state
-			execute("ls", "../")
-			execute("ls", ".")
 			execute("docker", "stop", nodeName)
-			glog.Info(os.Getenv("kubectl_path"))
-			execute(os.Getenv("kubectl_path"), "wait", "--for=condition=Ready=Unknown", "node/"+nodeName)
+			if err := wait.PollImmediate(framework.PollInterval, framework.DefaultSingleCallTimeout, func() (bool, error) {
+				node, errInternal := kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+				if errInternal != nil {
+					glog.Errorf("Unexpected error while finding Node %s: %v", nodeName, errInternal)
+					return false, nil
+				}
+				found := findOneNodeCondition(node.Status.Conditions, func(cond corev1.NodeCondition) bool {
+					return cond.Type == "Ready" && cond.Status == "Unknown"
+				})
+
+				return found != nil, nil
+			}); err != nil {
+				framework.Failf("Failed to put node in a NotReady state. %v", err)
+			}
+
 			entityDTOs, groupDTOs, err := discoveryClient.DiscoverWithNewFramework(testName)
 			if err != nil {
 				framework.Failf(err.Error())
@@ -187,8 +199,21 @@ var _ = Describe("Discover Cluster", func() {
 		AfterEach(func() {
 			// restart node once finished with the test
 			execute("docker", "start", nodeName)
-			execute(os.Getenv("kubectl_path"), "wait", "--for=condition=Ready", "node/"+nodeName)
-			execute("sudo ./hack/start_kind_node.sh")
+			if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
+				node, errInternal := kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+				if errInternal != nil {
+					glog.Errorf("Unexpected error while finding Node %s: %v", nodeName, errInternal)
+					return false, nil
+				}
+				found := findOneNodeCondition(node.Status.Conditions, func(cond corev1.NodeCondition) bool {
+					return cond.Type == "Ready" && cond.Reason == "KubeletReady"
+				})
+
+				return found != nil, nil
+			}); err != nil {
+				framework.Failf("Failed to put node in a Ready state. %v", err)
+			}
+
 		})
 
 		It("unknown node should be detected", func() {
@@ -307,6 +332,21 @@ func findCommoditiesBought(vals []*proto.EntityDTO_CommodityBought, condition fu
 	return found
 }
 
+func findNodeConditions(vals []corev1.NodeCondition, condition func(v corev1.NodeCondition) bool, howMany int) []corev1.NodeCondition {
+	found := []corev1.NodeCondition{}
+	for _, v := range vals {
+		if howMany == 0 {
+			break
+		}
+
+		if condition(v) {
+			found = append(found, v)
+			howMany--
+		}
+	}
+	return found
+}
+
 func findOneEntity(values []*proto.EntityDTO, condition func(v *proto.EntityDTO) bool) *proto.EntityDTO {
 	found := findEntities(values, condition, 1)
 	if len(found) == 0 {
@@ -329,6 +369,14 @@ func findOneCommodityBought(values []*proto.EntityDTO_CommodityBought, condition
 		return nil
 	}
 	return found[0]
+}
+
+func findOneNodeCondition(values []corev1.NodeCondition, condition func(v corev1.NodeCondition) bool) *corev1.NodeCondition {
+	found := findNodeConditions(values, condition, 1)
+	if len(found) == 0 {
+		return nil
+	}
+	return &found[0]
 }
 
 func execute(name string, arg ...string) {
