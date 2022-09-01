@@ -7,57 +7,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestMatchesSelector(t *testing.T) {
-	table := []struct {
-		node *api.Node
-		pod  *api.Pod
-
-		expectMatches bool
-	}{
-		{
-			node: &api.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"foo": "bar",
-					},
-				},
-			},
-			pod: &api.Pod{
-				Spec: api.PodSpec{
-					NodeSelector: map[string]string{
-						"foo": "bar",
-					},
-				},
-			},
-			expectMatches: true,
-		},
-		{
-			node: &api.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"foo": "bar",
-					},
-				},
-			},
-			pod: &api.Pod{
-				Spec: api.PodSpec{
-					NodeSelector: map[string]string{
-						"foo": "tar",
-					},
-				},
-			},
-			expectMatches: false,
-		},
-	}
-
-	for i, item := range table {
-		matches := matchesNodeSelector(item.pod, item.node)
-		if matches != item.expectMatches {
-			t.Errorf("Test case %d failed. Expected matches %t, got %t", i, item.expectMatches, matches)
-		}
-	}
-}
-
 func TestMatchesNodeAffinity(t *testing.T) {
 	table := []struct {
 		node *api.Node
@@ -883,6 +832,127 @@ func TestInterPodAffinityMatches(t *testing.T) {
 		matches := interPodAffinityMatches(item.pod, item.node, item.podsNodesMap)
 		if matches != item.expectsMatches {
 			t.Errorf("Test case %d failed. Expects %t, got %t.", i, item.expectsMatches, matches)
+		}
+	}
+}
+
+func TestMatchesPvNodeAffinity(t *testing.T) {
+	table := []struct {
+		node              *api.Node
+		nodeSelectorTerms []api.NodeSelectorTerm
+
+		expectsMatches bool
+	}{
+		{
+			node: &api.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"foo":  "bar",
+						"key1": "value1",
+					},
+				},
+			},
+			nodeSelectorTerms: []api.NodeSelectorTerm{
+				{
+					MatchExpressions: []api.NodeSelectorRequirement{
+						{
+							Key:      "foo",
+							Operator: api.NodeSelectorOpIn,
+							Values:   []string{"bar"},
+						},
+					},
+				},
+			},
+
+			expectsMatches: true,
+		},
+		{
+			node: &api.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"foo":  "bar",
+						"key1": "value1",
+					},
+				},
+			},
+			nodeSelectorTerms: []api.NodeSelectorTerm{
+				{
+					MatchExpressions: []api.NodeSelectorRequirement{
+						{
+							Key:      "foo",
+							Operator: api.NodeSelectorOpIn,
+							Values:   []string{"bar"},
+						},
+						{
+							Key:      "key1",
+							Operator: api.NodeSelectorOpIn,
+							Values:   []string{"value1"},
+						},
+					},
+				},
+			},
+
+			expectsMatches: true,
+		},
+		{
+			// doesn't match.
+			node: &api.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"foo":  "bar",
+						"key1": "value1",
+					},
+				},
+			},
+			nodeSelectorTerms: []api.NodeSelectorTerm{
+				{
+					MatchExpressions: []api.NodeSelectorRequirement{
+						{
+							Key:      "foo",
+							Operator: api.NodeSelectorOpIn,
+							Values:   []string{"bar"},
+						},
+						{
+							Key:      "key1",
+							Operator: api.NodeSelectorOpIn,
+							Values:   []string{"value2"},
+						},
+					},
+				},
+			},
+
+			expectsMatches: false,
+		},
+		{
+			// invalid operator.
+			node: &api.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"foo":  "bar",
+						"key1": "value1",
+					},
+				},
+			},
+			nodeSelectorTerms: []api.NodeSelectorTerm{
+				{
+					MatchExpressions: []api.NodeSelectorRequirement{
+						{
+							Key:      "foo",
+							Operator: api.NodeSelectorOperator("invalid"),
+							Values:   []string{"bar"},
+						},
+					},
+				},
+			},
+
+			expectsMatches: false,
+		},
+	}
+
+	for i, item := range table {
+		matches := matchesPvNodeAffinity(item.nodeSelectorTerms, item.node)
+		if matches != item.expectsMatches {
+			t.Errorf("Test case %d failed. Expects %t, got %t", i, item.expectsMatches, matches)
 		}
 	}
 }
