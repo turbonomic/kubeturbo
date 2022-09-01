@@ -29,6 +29,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/master"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
 	kubeletclient "github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
@@ -122,7 +123,7 @@ var _ = Describe("Discover Cluster", func() {
 			// ii.  deployment with 2 containers
 			// iii. deployment with 2 containers
 			// total of 6 replicas and 10 containers
-			_, err := createResourcesForDiscovery(kubeClient, namespace, 2, f.DockerImagePullSecretNames())
+			_, err := createResourcesForDiscovery(kubeClient, namespace, 2)
 			framework.ExpectNoError(err, "Failed creating test resources")
 
 			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
@@ -167,7 +168,7 @@ var _ = Describe("Discover Cluster", func() {
 			// create a pod to test and attach to the node soon to be in a NotReady state
 			if deps == nil {
 				var err error = nil
-				deps, err = createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, nodeName, nil))
+				deps, err = createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, nodeName))
 				framework.ExpectNoError(err, "Error creating test resources")
 			}
 			// stop running node worker to simulate node in NotReady state
@@ -179,11 +180,7 @@ var _ = Describe("Discover Cluster", func() {
 					return false, nil
 				}
 
-				found := findOneNodeCondition(node.Status.Conditions, func(cond corev1.NodeCondition) bool {
-					return cond.Type == "Ready" && cond.Status == "Unknown"
-				})
-
-				return found != nil, nil
+				return !util.NodeIsReady(node), nil
 			}); err != nil {
 				framework.Failf("Failed to put node in a NotReady state. %v", err)
 			}
@@ -206,11 +203,7 @@ var _ = Describe("Discover Cluster", func() {
 					glog.Errorf("Unexpected error while finding Node %s: %v", nodeName, errInternal)
 					return false, nil
 				}
-				found := findOneNodeCondition(node.Status.Conditions, func(cond corev1.NodeCondition) bool {
-					return cond.Type == "Ready" && cond.Reason == "KubeletReady"
-				})
-
-				return found != nil, nil
+				return util.NodeIsReady(node), nil
 			}); err != nil {
 				framework.Failf("Failed to put node in a Ready state. %v", err)
 			}
@@ -333,21 +326,6 @@ func findCommoditiesBought(vals []*proto.EntityDTO_CommodityBought, condition fu
 	return found
 }
 
-func findNodeConditions(vals []corev1.NodeCondition, condition func(v corev1.NodeCondition) bool, howMany int) []corev1.NodeCondition {
-	found := []corev1.NodeCondition{}
-	for _, v := range vals {
-		if howMany == 0 {
-			break
-		}
-
-		if condition(v) {
-			found = append(found, v)
-			howMany--
-		}
-	}
-	return found
-}
-
 func findOneEntity(values []*proto.EntityDTO, condition func(v *proto.EntityDTO) bool) *proto.EntityDTO {
 	found := findEntities(values, condition, 1)
 	if len(found) == 0 {
@@ -370,14 +348,6 @@ func findOneCommodityBought(values []*proto.EntityDTO_CommodityBought, condition
 		return nil
 	}
 	return found[0]
-}
-
-func findOneNodeCondition(values []corev1.NodeCondition, condition func(v corev1.NodeCondition) bool) *corev1.NodeCondition {
-	found := findNodeConditions(values, condition, 1)
-	if len(found) == 0 {
-		return nil
-	}
-	return &found[0]
 }
 
 func execute(name string, arg ...string) {
@@ -531,10 +501,10 @@ func createProbeConfigOrDie(kubeClient *kubeclientset.Clientset, kubeletClient *
 // run this against any cluster, where some utility test methods will
 // discover all the kubernetes resources and then compare the numbers
 // against the dtos discovered by kubeturbo routines.
-func createResourcesForDiscovery(client *kubeclientset.Clientset, namespace string, replicas int32, pullSecrets []corev1.LocalObjectReference) ([]*appsv1.Deployment, error) {
+func createResourcesForDiscovery(client *kubeclientset.Clientset, namespace string, replicas int32) ([]*appsv1.Deployment, error) {
 	depResources := []*appsv1.Deployment{
 		depMultiContainer(namespace, replicas, false),
-		depSingleContainerWithResources(namespace, "", replicas, false, false, false, "", pullSecrets),
+		depSingleContainerWithResources(namespace, "", replicas, false, false, false, ""),
 		deplMultiContainerWithResources(namespace, replicas),
 	}
 
