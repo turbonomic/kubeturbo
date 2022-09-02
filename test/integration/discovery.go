@@ -160,30 +160,35 @@ var _ = Describe("Discover Cluster", func() {
 		testName := "discovery-integration-test"
 		nodeName := "kind-worker3"
 
-		// Create a pod to test and attach to the node soon to be in a NotReady state
-		_, deployErr := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, nodeName))
-		framework.ExpectNoError(deployErr, "Error creating test resources")
+		It("Unknown node discovery setup", func() {
+			// Create a pod to test and attach to the node soon to be in a NotReady state
+			_, deployErr := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, nodeName))
+			framework.ExpectNoError(deployErr, "Error creating test resources")
 
-		// Stop running node worker to simulate node in NotReady state
-		_, dockerErr := execute("docker", "stop", nodeName)
-		framework.ExpectNoError(dockerErr, "Error running docker stop")
+			// Stop running node worker to simulate node in NotReady state
+			_, dockerErr := execute("docker", "stop", nodeName)
+			framework.ExpectNoError(dockerErr, "Error running docker stop")
 
-		if nodeStopErr := wait.PollImmediate(framework.PollInterval, framework.DefaultSingleCallTimeout, func() (bool, error) {
-			node, errInternal := kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-			if errInternal != nil {
-				glog.Errorf("Unexpected error while finding Node %s: %v", nodeName, errInternal)
-				return false, nil
+			if nodeStopErr := wait.PollImmediate(framework.PollInterval, framework.DefaultSingleCallTimeout, func() (bool, error) {
+				node, errInternal := kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+				if errInternal != nil {
+					glog.Errorf("Unexpected error while finding Node %s: %v", nodeName, errInternal)
+					return false, nil
+				}
+
+				return !util.NodeIsReady(node), nil
+			}); nodeStopErr != nil {
+				framework.Failf("Failed to put node in a NotReady state. %v", nodeStopErr)
 			}
 
-			return !util.NodeIsReady(node), nil
-		}); nodeStopErr != nil {
-			framework.Failf("Failed to put node in a NotReady state. %v", nodeStopErr)
-		}
+			entityDTOs, groupDTOs, discoverErr := discoveryClient.DiscoverWithNewFramework(testName)
+			if discoverErr != nil {
+				framework.Failf(discoverErr.Error())
+			}
 
-		entities, groups, discoverErr := discoveryClient.DiscoverWithNewFramework(testName)
-		if discoverErr != nil {
-			framework.Failf(discoverErr.Error())
-		}
+			entities = entityDTOs
+			groups = groupDTOs
+		})
 
 		BeforeEach(func() {
 			if f.Kubeconfig.CurrentContext != "kind-kind" {
@@ -247,20 +252,21 @@ var _ = Describe("Discover Cluster", func() {
 			}
 		})
 
-		// Restart node once finished with the test
-		_, dokerStartErr := execute("docker", "start", nodeName)
-		framework.ExpectNoError(dokerStartErr, "Error running docker start")
-		if nodeStartErr := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
-			node, errInternal := kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-			if errInternal != nil {
-				glog.Errorf("Unexpected error while finding Node %s: %v", nodeName, errInternal)
-				return false, nil
+		It("Reset kind-worker node", func() {
+			// Restart node once finished with the test
+			_, dokerStartErr := execute("docker", "start", nodeName)
+			framework.ExpectNoError(dokerStartErr, "Error running docker start")
+			if nodeStartErr := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
+				node, errInternal := kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+				if errInternal != nil {
+					glog.Errorf("Unexpected error while finding Node %s: %v", nodeName, errInternal)
+					return false, nil
+				}
+				return util.NodeIsReady(node), nil
+			}); nodeStartErr != nil {
+				framework.Failf("Failed to put node in a Ready state. %v", nodeStartErr)
 			}
-			return util.NodeIsReady(node), nil
-		}); nodeStartErr != nil {
-			framework.Failf("Failed to put node in a Ready state. %v", nodeStartErr)
-		}
-
+		})
 	})
 
 	// TODO: this particular Describe is currently used as the teardown for this
