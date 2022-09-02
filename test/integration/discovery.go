@@ -156,78 +156,57 @@ var _ = Describe("Discover Cluster", func() {
 	Describe("Discovering affects of node with unknown state", func() {
 		var entities []*proto.EntityDTO = nil
 		var groups []*proto.GroupDTO = nil
-		var deps *appsv1.Deployment = nil
+		var unknownNode *proto.EntityDTO = nil
 		testName := "discovery-integration-test"
 		nodeName := "kind-worker3"
+
+		// Create a pod to test and attach to the node soon to be in a NotReady state
+		_, deployErr := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, nodeName))
+		framework.ExpectNoError(deployErr, "Error creating test resources")
+
+		// Stop running node worker to simulate node in NotReady state
+		_, dockerErr := execute("docker", "stop", nodeName)
+		framework.ExpectNoError(dockerErr, "Error running docker stop")
+
+		if nodeStopErr := wait.PollImmediate(framework.PollInterval, framework.DefaultSingleCallTimeout, func() (bool, error) {
+			node, errInternal := kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+			if errInternal != nil {
+				glog.Errorf("Unexpected error while finding Node %s: %v", nodeName, errInternal)
+				return false, nil
+			}
+
+			return !util.NodeIsReady(node), nil
+		}); nodeStopErr != nil {
+			framework.Failf("Failed to put node in a NotReady state. %v", nodeStopErr)
+		}
+
+		entities, groups, discoverErr := discoveryClient.DiscoverWithNewFramework(testName)
+		if discoverErr != nil {
+			framework.Failf(discoverErr.Error())
+		}
 
 		BeforeEach(func() {
 			if f.Kubeconfig.CurrentContext != "kind-kind" {
 				Skip("Skipping cluster that isn't using context kind-kind")
 			}
-
-			// create a pod to test and attach to the node soon to be in a NotReady state
-			if deps == nil {
-				var err error = nil
-				deps, err = createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, nodeName))
-				framework.ExpectNoError(err, "Error creating test resources")
-			}
-			// stop running node worker to simulate node in NotReady state
-			execute("docker", "stop", nodeName)
-			if err := wait.PollImmediate(framework.PollInterval, framework.DefaultSingleCallTimeout, func() (bool, error) {
-				node, errInternal := kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-				if errInternal != nil {
-					glog.Errorf("Unexpected error while finding Node %s: %v", nodeName, errInternal)
-					return false, nil
-				}
-
-				return !util.NodeIsReady(node), nil
-			}); err != nil {
-				framework.Failf("Failed to put node in a NotReady state. %v", err)
-			}
-
-			entityDTOs, groupDTOs, err := discoveryClient.DiscoverWithNewFramework(testName)
-			if err != nil {
-				framework.Failf(err.Error())
-			}
-
-			entities = entityDTOs
-			groups = groupDTOs
 		})
 
-		AfterEach(func() {
-			// restart node once finished with the test
-			execute("docker", "start", nodeName)
-			if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
-				node, errInternal := kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-				if errInternal != nil {
-					glog.Errorf("Unexpected error while finding Node %s: %v", nodeName, errInternal)
-					return false, nil
-				}
-				return util.NodeIsReady(node), nil
-			}); err != nil {
-				framework.Failf("Failed to put node in a Ready state. %v", err)
-			}
-
-		})
-
-		It("unknown node should be detected", func() {
-			found := getUnknownNode(entities)
-			if found == nil {
+		It("Unknown node should be detected", func() {
+			unknownNode = getUnknownNode(entities)
+			if unknownNode == nil {
 				framework.Failf("Node with unknown state not found")
 			}
 
-			if found.GetDisplayName() == "" {
-				framework.Failf("unknown nodes should have a node name")
+			if unknownNode.GetDisplayName() == "" {
+				framework.Failf("Unknown nodes should have display names")
 			}
-
 		})
 
-		It("unknown nodes should be listed in the unknown node group", func() {
-			unknownNode := getUnknownNode(entities)
-			unknownGroup := getUnknownNodeGroup(groups)
+		It("Unknown nodes should be listed in the unknown node group", func() {
 
+			unknownGroup := getUnknownNodeGroup(groups)
 			if unknownGroup == nil {
-				framework.Failf("Could not find Unknown Node group")
+				framework.Failf("Could not find unknown Node group")
 			}
 
 			if unknownGroup.GetEntityType() != proto.EntityDTO_VIRTUAL_MACHINE {
@@ -250,16 +229,15 @@ var _ = Describe("Discover Cluster", func() {
 			}
 		})
 
-		It("should check that pods on unknown nodes also have status unknown", func() {
-			node := getUnknownNode(entities)
+		It("Should check that pods on unknown nodes also have status unknown", func() {
 			podsWithUnknownNode := findEntities(entities, func(entity *proto.EntityDTO) bool {
 				return entity.GetEntityType() == proto.EntityDTO_CONTAINER_POD && findOneCommodityBought(entity.CommoditiesBought, func(commBought *proto.EntityDTO_CommodityBought) bool {
-					return commBought.GetProviderId() == node.GetId()
+					return commBought.GetProviderId() == unknownNode.GetId()
 				}) != nil
 			}, len(entities))
 
 			if len(podsWithUnknownNode) == 0 {
-				framework.Failf("unknown node should have pods")
+				framework.Failf("Unknown node should have pods")
 			}
 
 			for _, pod := range podsWithUnknownNode {
@@ -268,6 +246,20 @@ var _ = Describe("Discover Cluster", func() {
 				}
 			}
 		})
+
+		// Restart node once finished with the test
+		_, dokerStartErr := execute("docker", "start", nodeName)
+		framework.ExpectNoError(dokerStartErr, "Error running docker start")
+		if nodeStartErr := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
+			node, errInternal := kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+			if errInternal != nil {
+				glog.Errorf("Unexpected error while finding Node %s: %v", nodeName, errInternal)
+				return false, nil
+			}
+			return util.NodeIsReady(node), nil
+		}); nodeStartErr != nil {
+			framework.Failf("Failed to put node in a Ready state. %v", nodeStartErr)
+		}
 
 	})
 
@@ -350,12 +342,14 @@ func findOneCommodityBought(values []*proto.EntityDTO_CommodityBought, condition
 	return found[0]
 }
 
-func execute(name string, arg ...string) {
+func execute(name string, arg ...string) (string, error) {
 	stdout, err := exec.Command(name, arg...).Output()
 	if err != nil {
 		glog.Error(err)
 	}
-	glog.Info("command output: " + string(stdout))
+	output := string(stdout)
+	glog.Info("command output: " + output)
+	return output, err
 }
 
 func getUnknownNode(entities []*proto.EntityDTO) *proto.EntityDTO {
