@@ -18,17 +18,6 @@ import (
 
 //----------------------------------------- Node Affinity -------------------------------------------------------
 
-func matchesNodeSelector(pod *api.Pod, node *api.Node) bool {
-	// Check if node.Labels match pod.Spec.NodeSelector.
-	if len(pod.Spec.NodeSelector) > 0 {
-		selector := labels.SelectorFromSet(pod.Spec.NodeSelector)
-		if !selector.Matches(labels.Set(node.Labels)) {
-			return false
-		}
-	}
-	return true
-}
-
 // The pod can only schedule onto nodes that satisfy requirements in both NodeAffinity and nodeSelector.
 func matchesNodeAffinity(pod *api.Pod, node *api.Node) bool {
 	nodeAffinityMatches := true
@@ -46,6 +35,14 @@ func matchesNodeAffinity(pod *api.Pod, node *api.Node) bool {
 			glog.V(10).Infof("Match for RequiredDuringSchedulingIgnoredDuringExecution node selector terms %+v", nodeSelectorTerms)
 			nodeAffinityMatches = nodeAffinityMatches && nodeMatchesNodeSelectorTerms(node, nodeSelectorTerms)
 		}
+	}
+	return nodeAffinityMatches
+}
+
+func matchesPvNodeAffinity(pvNodeAffinitySelectorTerms []api.NodeSelectorTerm, node *api.Node) bool {
+	nodeAffinityMatches := true
+	if len(pvNodeAffinitySelectorTerms) > 0 {
+		nodeAffinityMatches = nodeMatchesNodeSelectorTerms(node, pvNodeAffinitySelectorTerms)
 	}
 	return nodeAffinityMatches
 }

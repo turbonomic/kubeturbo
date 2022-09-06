@@ -158,21 +158,20 @@ func AddLabel(pod *api.Pod, key, value string) {
 // Openshift SCC (openshift.io/scc). Kubeturbo supports the restricted (default) SCC and rejects
 // other non-empty SCC's if the annotation is set.
 // See details on https://docs.openshift.org/latest/admin_guide/manage_scc.html.
-func SupportPrivilegePod(pod *api.Pod, sccAllowedSet map[string]struct{}) bool {
+func SupportPrivilegePod(pod *api.Pod, sccAllowedSet map[string]struct{}) (bool, error) {
 	if pod == nil || pod.Annotations == nil || pod.Annotations[osSccAnnotation] == "" {
-		return true
+		return true, nil
 	}
 
 	if _, ok := sccAllowedSet[osSccAllowAll]; ok {
-		return true
+		return true, nil
 	}
 
 	podScc := pod.Annotations[osSccAnnotation]
 	if _, ok := sccAllowedSet[podScc]; !ok {
-		glog.Warningf("Target pod %s has unsupported SCC %s. Please add the SCC to "+
-			"--scc-support argument in kubeturbo yaml to allow execution.", pod.Name, podScc)
-		return false
+		return false, fmt.Errorf("pod %s/%s has unsupported SCC %s. Please add the SCC level to "+
+			"--scc-support cmd line argument in kubeturbo deployment yaml to allow execution", pod.Namespace, pod.Name, podScc)
 	}
 
-	return true
+	return true, nil
 }
