@@ -237,7 +237,6 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 		builder.PropertyResizable: {},
 	}
 	mergedEntityMetadataBuilder := builder.NewMergedEntityMetadataBuilder()
-
 	mergedEntityMetadataBuilder.PatchField(ActionEligibilityField, []string{})
 	mergedEntityMetadataBuilder.PatchField(availableForPlacementField, []string{providerPolicyPath})
 	mergedEntityMetadataBuilder.PatchField(controllableField, []string{consumerPolicyPath})
