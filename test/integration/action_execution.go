@@ -90,7 +90,7 @@ var _ = Describe("Action Executor ", func() {
 			if framework.TestContext.IsOpenShiftTest {
 				Skip("Ignoring pod move case for the deployment against openshift target.")
 			}
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, ""))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
@@ -123,7 +123,7 @@ var _ = Describe("Action Executor ", func() {
 			// This works against a kind cluster. Ensure to update the storageclass name to the right name when
 			// running against a different cluster.
 			pvc, err := createVolumeClaim(kubeClient, namespace, "standard")
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, false, false))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, false, false, ""))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
@@ -271,7 +271,7 @@ var _ = Describe("Action Executor ", func() {
 			if framework.TestContext.IsOpenShiftTest {
 				Skip("Ignoring resize case for the deployment with single container against openshift target.")
 			}
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, ""))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			targetSE := newResizeWorkloadControllerTargetSE(dep)
@@ -326,7 +326,7 @@ var _ = Describe("Action Executor ", func() {
 				Skip("Ignoring horizontal scal test against openshift target.")
 			}
 			// create a deployment with 2 replicas
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 2, false, false, false))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 2, false, false, false, ""))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
@@ -379,7 +379,7 @@ func createDeployResource(client *kubeclientset.Clientset, dep *appsv1.Deploymen
 
 // This can also be bootstrapped from a test resource directory
 // which holds yaml files.
-func depSingleContainerWithResources(namespace, claimName string, replicas int32, withVolume, withGCLabel, paused bool) *appsv1.Deployment {
+func depSingleContainerWithResources(namespace, claimName string, replicas int32, withVolume, withGCLabel, paused bool, nodeName string) *appsv1.Deployment {
 	dep := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "test-",
@@ -429,6 +429,10 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 	}
 	if paused {
 		dep.Spec.Paused = true
+	}
+
+	if nodeName != "" {
+		dep.Spec.Template.Spec.NodeName = nodeName
 	}
 
 	return &dep
