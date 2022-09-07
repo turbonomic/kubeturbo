@@ -95,7 +95,9 @@ var (
 	path                       = "path"
 	ActionEligibilityField     = "actionEligibility"
 	providerPolicyPath         = "providerPolicy"
+	consumerPolicyPath         = "consumerPolicy"
 	availableForPlacementField = "availableForPlacement"
+	controllableField          = "controllable"
 	powerStateField            = "powerState"
 )
 
@@ -235,9 +237,9 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 		builder.PropertyResizable: {},
 	}
 	mergedEntityMetadataBuilder := builder.NewMergedEntityMetadataBuilder()
-
 	mergedEntityMetadataBuilder.PatchField(ActionEligibilityField, []string{})
 	mergedEntityMetadataBuilder.PatchField(availableForPlacementField, []string{providerPolicyPath})
+	mergedEntityMetadataBuilder.PatchField(controllableField, []string{consumerPolicyPath})
 	// Set up matching criteria based on stitching type
 	switch f.stitchingPropertyType {
 	case stitching.UUID:
