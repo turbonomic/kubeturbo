@@ -96,3 +96,30 @@ function util::wait-for-condition() {
   fi
 }
 readonly -f util::wait-for-condition
+
+# util::stop-container stops a running docker container
+#
+# Arguments:
+#  - 1: container name for quering docker.
+function util::stop-container() {
+  local container_name
+  container_name=$1
+  echo "Stopping container: ${container_name}"
+  docker stop "${container_name}"
+}
+
+readonly -f util::stop-container
+
+
+# util::start-container start a stopped docker container
+# 
+# Arguments:
+#  1: container name
+function util::start-container() {
+  local container_name
+  container_name=$1
+  echo "Starting container: ${container_name}"
+  docker start "${container_name}"
+} 
+
+readonly -f util::start-container

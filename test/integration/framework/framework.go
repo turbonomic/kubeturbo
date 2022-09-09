@@ -69,7 +69,6 @@ func (f *TestFramework) AfterEach() {
 	userAgent := fmt.Sprintf("%s-teardown", f.BaseName)
 	client := f.GetKubeClient(userAgent)
 	DeleteNamespace(client, f.testNamespaceName)
-
 }
 
 func (f *TestFramework) GetKubeConfig() *restclient.Config {
