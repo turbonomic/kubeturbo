@@ -109,10 +109,6 @@ func (r *GitHubManager) Update(replicas int64, podSpec map[string]interface{}) (
 	}
 
 	baseBranch := revision
-	// TODO: Figure out how to resolve HEAD while getting the refs from remote repo
-	if baseBranch == "HEAD" {
-		baseBranch = "master"
-	}
 	ctx := context.Background()
 	handler := &GitHandler{
 		ctx:         ctx,
@@ -124,6 +120,15 @@ func (r *GitHubManager) Update(replicas int64, podSpec map[string]interface{}) (
 		commitUser:  r.gitConfig.GitUsername,
 		commitEmail: r.gitConfig.GitEmail,
 		commitMode:  r.gitConfig.CommitMode,
+	}
+
+	if baseBranch == "HEAD" {
+		baseBranch, err = handler.getHeadBranch()
+		if err != nil || baseBranch == "" {
+			return nil, fmt.Errorf("problem retrieving HEAD branch for %s. Found %s with error: %v",
+				repo, baseBranch, err)
+		}
+		handler.baseBranch = baseBranch
 	}
 
 	glog.Infof("Updating the source of truth at: %s and path: %s.", url.Path, path)
@@ -268,6 +273,15 @@ type GitHandler struct {
 	commitUser  string
 	commitEmail string
 	commitMode  string
+}
+
+func (g *GitHandler) getHeadBranch() (string, error) {
+	repo, _, err := g.client.Repositories.Get(g.ctx, g.user, g.repo)
+	if err != nil {
+		return "", err
+	}
+
+	return repo.GetDefaultBranch(), err
 }
 
 func (g *GitHandler) getBranchRef(branchName string) (*github.Reference, error) {
