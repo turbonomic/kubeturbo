@@ -151,14 +151,36 @@ func (r *GitHubManager) WaitForActionCompletion(completionData interface{}) erro
 	// TODO: At some point we will need a better strategy to handle long running actions.
 	return wait.PollImmediate(20*time.Second, 24*7*time.Hour, func() (bool, error) {
 		handler := waitData.handler
-		isMerged, _, err := handler.client.PullRequests.IsMerged(handler.ctx, handler.user, handler.repo, waitData.prNum)
-		if err != nil {
-			return false, err
+		// Find out the status of the PR via the PR details and the isMerge API
+		pr, _, err := handler.client.PullRequests.Get(handler.ctx, handler.user, handler.repo, waitData.prNum)
+		if err != nil || pr == nil {
+			// We do not return error and exit here to ensure we keep retrying
+			// in case of transient network issues
+			glog.Errorf("Waiting on action completion for PR number %d. "+
+				"Error accessing github API: %v", waitData.prNum, err)
+			return false, nil
 		}
-		if isMerged {
-			return true, nil
+		switch pr.GetState() {
+		case "open":
+			return false, nil
+		case "closed":
+			isMerged, _, err := handler.client.PullRequests.IsMerged(handler.ctx, handler.user, handler.repo, waitData.prNum)
+			if err != nil {
+				glog.Errorf("Waiting on action completion for PR number %d. "+
+					"Error accessing github API: %v.", waitData.prNum, err)
+				return false, nil
+			}
+			if isMerged {
+				return true, nil
+			}
+			return false, fmt.Errorf("the PR #%d was closed without merging", waitData.prNum)
+		default:
+			// We will retry in case of invalid PR state received
+			// TODO: a really rare scenario, but if we hit it implement a timeout expiry
+			// for this case
+			glog.Errorf("Waiting on action completion for PR number %d. "+
+				"Received invalid PR state (%s) in API response.", waitData.prNum, pr.GetState())
 		}
-
 		// Retry
 		return false, nil
 	})
