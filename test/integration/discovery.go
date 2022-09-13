@@ -269,6 +269,44 @@ var _ = Describe("Discover Cluster", func() {
 		})
 	})
 
+	Describe("discovering pod with pv having affinity rules", func() {
+		It("discovering with pv with affinity rules", func() {
+			//Add Storage Class
+			newStorage, err := createStorageClass(kubeClient)
+			_, err = createPV(kubeClient, namespace, newStorage.Name)
+			pvc, err := createVolumeClaim(kubeClient, namespace, newStorage.Name)
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, false, false, ""))
+			framework.ExpectNoError(err, "Error creating test resources")
+
+			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
+			framework.ExpectNoError(err, "Error getting deployments pod")
+			// This should not happen. We should ideally get a pod.
+			if pod == nil {
+				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
+			}
+
+			var bCommodityRegistered bool
+			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
+			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
+			for _, entityDTO := range entityDTOs {
+				if strings.Contains(*entityDTO.DisplayName, pod.Name) {
+					for _, commI := range entityDTO.GetCommoditiesBought() {
+						for _, commI := range commI.Bought {
+							if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
+								strings.Contains(*commI.Key, "kubernetes.io/hostname") {
+								bCommodityRegistered = true
+
+							}
+						}
+						if !bCommodityRegistered {
+							framework.Failf("PV affinity is not honored")
+						}
+					}
+				}
+			}
+		})
+	})
+
 	// TODO: this particular Describe is currently used as the teardown for this
 	// whole test (not the suite).
 	// This will work only if run sequentially. Find a better way to do this.
