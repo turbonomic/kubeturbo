@@ -113,6 +113,9 @@ func loadOpsMgrCredentialsFromSecret(tapSpec *K8sTAPServiceSpec) error {
 	tapSpec.OpsManagerUsername = strings.TrimSpace(string(username))
 	tapSpec.OpsManagerPassword = strings.TrimSpace(string(password))
 
+	glog.V(3).Infof("Username: %s, Password: %s",
+							tapSpec.OpsManagerUsername, tapSpec.OpsManagerPassword)
+
 	return nil
 }
 
@@ -207,14 +210,16 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		probeConfig.ClusterScraper, config.SccSupport, config.ORMClient, config.failVolumePodMoves,
 		config.updateQuotaToAllowMoves, config.readinessRetryThreshold, config.gitConfig, k8sSvcId)
 
-	// Kubernetes Probe Registration Client
-	registrationClient := registration.NewK8sRegistrationClient(registrationClientConfig, config.tapSpec.K8sTargetConfig)
-
 	// Kubernetes Probe Discovery Client
 	discoveryClient := discovery.NewK8sDiscoveryClient(discoveryClientConfig)
+	targetAccountValues := discoveryClient.GetAccountValues()
 
 	// Kubernetes Probe Action Execution Client
 	actionHandler := action.NewActionHandler(actionHandlerConfig)
+
+	// Kubernetes Probe Registration Client
+	registrationClient := registration.NewK8sRegistrationClient(registrationClientConfig,
+		config.tapSpec.K8sTargetConfig, targetAccountValues.AccountValues(), k8sSvcId)
 
 	probeVersion := version.Version
 	probeDisplayName := getProbeDisplayName(config.tapSpec.TargetType, config.tapSpec.TargetIdentifier)
@@ -228,23 +233,32 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		WithActionPolicies(registrationClient).
 		WithEntityMetadata(registrationClient).
 		WithActionMergePolicies(registrationClient).
+		WithSecureTargetProvider(registrationClient).
 		ExecutesActionsBy(actionHandler)
 
-	if len(config.tapSpec.TargetIdentifier) > 0 {
+	if len(config.tapSpec.TargetIdentifier) < 0 {
+		//TODO: Error if TargetIdentifier is not provided ??
+		config.tapSpec.TargetIdentifier = "Secure-K8s-Target"
+	}
+	glog.Infof("ADDING SECURE TARGET %s", config.tapSpec.TargetIdentifier);
+	//probeBuilder = probeBuilder.DiscoversSecureTarget(config.tapSpec.TargetIdentifier, k8sSvcId, discoveryClient)
+	//TODO: targetId => config.tapSpec.TargetIdentifier
+	//if len(config.tapSpec.TargetIdentifier) > 0 {
 		// The KubeTurbo TAP Service that will register the kubernetes target with the
 		// Turbonomic server and await for validation, discovery, action execution requests
 		glog.Infof("Should discover target %s", config.tapSpec.TargetIdentifier)
 		probeBuilder = probeBuilder.DiscoversTarget(config.tapSpec.TargetIdentifier, discoveryClient)
-	} else {
-		glog.Infof("Not discovering target")
-		probeBuilder = probeBuilder.WithDiscoveryClient(discoveryClient)
-	}
+	//}
+	//else {
+	//	glog.Infof("Not discovering target")
+	//	probeBuilder = probeBuilder.WithDiscoveryClient(discoveryClient)
+	//}
 
 	tapService, err :=
 		service.NewTAPServiceBuilder().
 			WithCommunicationBindingChannel(k8sSvcId).
 			WithTurboCommunicator(config.tapSpec.TurboCommunicationConfig).
-			WithTurboProbe(probeBuilder).
+			WithTurboProbe(probeBuilder). //Turbo Probe is Probe + Target
 			Create()
 	if err != nil {
 		return nil, err
