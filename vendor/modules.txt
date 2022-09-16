@@ -5,7 +5,7 @@ github.com/argoproj/gitops-engine/internal/kubernetes_vendor/pkg/util/hash
 github.com/argoproj/gitops-engine/pkg/diff
 github.com/argoproj/gitops-engine/pkg/utils/json
 github.com/argoproj/gitops-engine/pkg/utils/kube/scheme
-# github.com/avast/retry-go v2.6.0+incompatible
+# github.com/avast/retry-go v3.0.0+incompatible
 github.com/avast/retry-go
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
@@ -190,7 +190,7 @@ github.com/turbonomic/turbo-api/pkg/client
 # github.com/turbonomic/turbo-crd v0.0.0-20220630232025-77ff549647ec
 ## explicit
 github.com/turbonomic/turbo-crd/api/v1alpha1
-# github.com/turbonomic/turbo-go-sdk v0.0.0-20220810133707-7c9850a6c67e
+# github.com/turbonomic/turbo-go-sdk v0.0.0-20220914191815-14796bf3cddd
 ## explicit
 github.com/turbonomic/turbo-go-sdk/pkg
 github.com/turbonomic/turbo-go-sdk/pkg/builder
