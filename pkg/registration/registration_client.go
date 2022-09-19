@@ -37,18 +37,18 @@ func NewRegistrationClientConfig(pType stitching.StitchingPropertyType, p int32,
 }
 
 type K8sRegistrationClient struct {
-	config       *RegistrationConfig
-	targetConfig *configs.K8sTargetConfig
-	accountValues []*proto.AccountValue
+	config                 *RegistrationConfig
+	targetConfig           *configs.K8sTargetConfig
+	accountValues          []*proto.AccountValue
 	communicationChannelId string
 }
 
 func NewK8sRegistrationClient(config *RegistrationConfig, targetConfig *configs.K8sTargetConfig,
 	accountValues []*proto.AccountValue, k8sSvcId string) *K8sRegistrationClient {
 	return &K8sRegistrationClient{
-		config:       config,
-		targetConfig: targetConfig,
-		accountValues: accountValues,
+		config:                 config,
+		targetConfig:           targetConfig,
+		accountValues:          accountValues,
 		communicationChannelId: k8sSvcId,
 	}
 }
@@ -279,22 +279,22 @@ func (rClient *K8sRegistrationClient) newIdMetaData(etype proto.EntityDTO_Entity
 
 	return result
 }
-func (rClient *K8sRegistrationClient) GetTargetIdentifier()  string {
+func (rClient *K8sRegistrationClient) GetTargetIdentifier() string {
 	if rClient.targetConfig.TargetIdentifier == "" {
 		glog.Warning("Cannot build default secure probe target, target identifier is not provided")
 	}
-	return rClient.targetConfig.TargetIdentifier;
+	return rClient.targetConfig.TargetIdentifier
 }
 
-func (rClient *K8sRegistrationClient) GetSecureProbeTarget()  *proto.ProbeTargetInfo {
+func (rClient *K8sRegistrationClient) GetSecureProbeTarget() *proto.ProbeTargetInfo {
 	// Do not register the following account definitions if no target has been defined
 	// in kubeturbo configuration. The target will be added manually.
 	if rClient.targetConfig.TargetIdentifier == "" {
-		return  &proto.ProbeTargetInfo{}
+		return &proto.ProbeTargetInfo{}
 	}
 	glog.V(2).Infof("Begin to build default secure probe target")
 	return &proto.ProbeTargetInfo{
-		InputValues: rClient.accountValues,
+		InputValues:                 rClient.accountValues,
 		CommunicationBindingChannel: &rClient.communicationChannelId,
 	}
 }

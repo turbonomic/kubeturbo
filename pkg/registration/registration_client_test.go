@@ -35,7 +35,9 @@ func xcheck(expected map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_Ac
 func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	conf := NewRegistrationClientConfig(stitching.UUID, 0, true, true)
 	targetConf := &configs.K8sTargetConfig{}
-	reg := NewK8sRegistrationClient(conf, targetConf)
+	accountValues := []*proto.AccountValue{}
+	k8sSvcId := "k8s-cluster"
+	reg := NewK8sRegistrationClient(conf, targetConf, accountValues, k8sSvcId)
 
 	supported := proto.ActionPolicyDTO_SUPPORTED
 	recommend := proto.ActionPolicyDTO_NOT_EXECUTABLE
@@ -138,7 +140,9 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
 	conf := NewRegistrationClientConfig(stitching.UUID, 0, true, true)
 	targetConf := &configs.K8sTargetConfig{}
-	reg := NewK8sRegistrationClient(conf, targetConf)
+	accountValues := []*proto.AccountValue{}
+	k8sSvcId := "k8s-cluster"
+	reg := NewK8sRegistrationClient(conf, targetConf, accountValues, k8sSvcId)
 
 	//1. all the entity types
 	entities := []proto.EntityDTO_EntityType{
