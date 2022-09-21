@@ -695,7 +695,7 @@ func createVolumeClaim(client kubeclientset.Interface, namespace, storageClassNa
 		newPvc, errInternal = client.CoreV1().PersistentVolumeClaims(namespace).Create(context.TODO(), pvc, metav1.CreateOptions{})
 		if errInternal != nil {
 			glog.Errorf("Unexpected error while creating PVC for test: %v", errInternal)
-			return false, nil
+			return false, errInternal
 		}
 		return true, nil
 	}); err != nil {
@@ -751,7 +751,7 @@ func createPV(client kubeclientset.Interface, namespace, storageClassName string
 		newPV, errInternal = client.CoreV1().PersistentVolumes().Create(context.TODO(), pv, metav1.CreateOptions{})
 		if errInternal != nil {
 			glog.Errorf("Unexpected error while creating PV for test: %v", errInternal)
-			return false, nil
+			return false, errInternal
 		}
 		return true, nil
 	}); err != nil {
@@ -767,7 +767,7 @@ func createDeployment(client kubeclientset.Interface, dep *appsv1.Deployment) (*
 		newDep, errInternal = client.AppsV1().Deployments(dep.Namespace).Create(context.TODO(), dep, metav1.CreateOptions{})
 		if errInternal != nil {
 			glog.Errorf("Unexpected error while creating deployment: %v", errInternal)
-			return false, nil
+			return false, errInternal
 		}
 		return true, nil
 	}); err != nil {
@@ -783,7 +783,7 @@ func createReplicaSet(client kubeclientset.Interface, rs *appsv1.ReplicaSet) (*a
 		newRS, errInternal = client.AppsV1().ReplicaSets(rs.Namespace).Create(context.TODO(), rs, metav1.CreateOptions{})
 		if errInternal != nil {
 			glog.Errorf("Unexpected error while creating replicaset: %v", errInternal)
-			return false, nil
+			return false, errInternal
 		}
 		return true, nil
 	}); err != nil {
@@ -805,7 +805,7 @@ func createStorageClass(client kubeclientset.Interface) (*storagev1.StorageClass
 		localStorage, errInternal = client.StorageV1().StorageClasses().Create(context.TODO(), storageC, metav1.CreateOptions{})
 		if errInternal != nil {
 			glog.Errorf("Unexpected error while creating PVC for test: %v", errInternal)
-			return false, nil
+			return false, errInternal
 		}
 		return true, nil
 	}); err != nil {
@@ -823,7 +823,7 @@ func waitForDeployment(client kubeclientset.Interface, depName, namespace string
 		newDep, err = client.AppsV1().Deployments(namespace).Get(context.TODO(), depName, metav1.GetOptions{})
 		if err != nil {
 			glog.Errorf("Unexpected error while getting deployment: %v", err)
-			return false, nil
+			return false, err
 		}
 		if newDep.Status.AvailableReplicas == *newDep.Spec.Replicas {
 			return true, nil
