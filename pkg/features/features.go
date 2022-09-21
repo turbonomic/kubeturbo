@@ -33,6 +33,14 @@ const (
 	// This gate will enable discovery of gitops pipeline applications and
 	// the action execution based on the same.
 	GitopsApps featuregate.Feature = "GitopsApps"
+
+	// owner: @kevinwang
+	// alpha:
+	//
+	// Honor the region/zone labels of the node.
+	// This gate will enable honorinig the labels topology.kubernetes.io/region and "topology.kubernetes.io/zone
+	// of the node which the pod is currently running on
+	HonorRegionZoneLabels featuregate.Feature = "HonorRegionZoneLabels"
 )
 
 func init() {
@@ -47,7 +55,8 @@ func init() {
 // Ref: https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/
 // Note: We use the config to feed the values, not the command line params.
 var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	PersistentVolumes: {Default: true, PreRelease: featuregate.Beta},
-	ThrottlingMetrics: {Default: true, PreRelease: featuregate.Beta},
-	GitopsApps:        {Default: false, PreRelease: featuregate.Alpha},
+	PersistentVolumes:     {Default: true, PreRelease: featuregate.Beta},
+	ThrottlingMetrics:     {Default: true, PreRelease: featuregate.Beta},
+	GitopsApps:            {Default: false, PreRelease: featuregate.Alpha},
+	HonorRegionZoneLabels: {Default: false, PreRelease: featuregate.Alpha},
 }
