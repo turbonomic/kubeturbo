@@ -243,10 +243,10 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		glog.Infof("Discovering target %s", config.tapSpec.TargetIdentifier)
 		probeBuilder = probeBuilder.DiscoversTarget(config.tapSpec.TargetIdentifier, discoveryClient)
 	} else {
-		// Target is auto-added if an identifier is not provided.
+		// Target is NOT auto-added if TargetIdentifier is not configured.
 		// In this case, users can still add target via the UI.
 		// To ensure that the target added via the UI can communication with the server, it is necessary to configure
-		// 'TargetType' to uniquely identify the kubernetes cluster this probe going to monitor.
+		// 'TargetType' to uniquely identify the kubernetes cluster this probe is going to monitor.
 		// Not configuring 'TargetType' is error-prone and not lead to correct discovery results.
 		if len(config.tapSpec.TargetType) > 0 {
 			glog.Infof("Not discovering target, add target via API or UI for target type %s", config.tapSpec.TargetType)
