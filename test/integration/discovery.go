@@ -273,8 +273,14 @@ var _ = Describe("Discover Cluster", func() {
 		It("discovering with pv with affinity rules", func() {
 			//Add Storage Class
 			newStorage, err := createStorageClass(kubeClient)
+			if newStorage == nil && err != nil {
+				framework.Failf("Failed to create Storage Class %s with the error %s", newStorage, err)
+			}
 			_, err = createPV(kubeClient, namespace, newStorage.Name)
 			pvc, err := createVolumeClaim(kubeClient, namespace, newStorage.Name)
+			if pvc == nil && err != nil {
+				framework.Failf("Failed to create PVC %s with the error %s", pvc, err)
+			}
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, false, false, ""))
 			framework.ExpectNoError(err, "Error creating test resources")
 
@@ -286,23 +292,30 @@ var _ = Describe("Discover Cluster", func() {
 			}
 
 			var bCommodityRegistered bool
+			var podEntityDTO *proto.EntityDTO
 			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
 			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
 			for _, entityDTO := range entityDTOs {
 				if strings.Contains(*entityDTO.DisplayName, pod.Name) {
-					for _, commI := range entityDTO.GetCommoditiesBought() {
-						for _, commI := range commI.Bought {
-							if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
-								strings.Contains(*commI.Key, "kubernetes.io/hostname") {
-								bCommodityRegistered = true
-
-							}
-						}
-						if !bCommodityRegistered {
-							framework.Failf("PV affinity is not honored")
-						}
+					podEntityDTO = entityDTO
+					glog.Infof("EntityDTO for Pod with PV %+v", podEntityDTO)
+					
+				}
+			}
+			for _, commI := range podEntityDTO.GetCommoditiesBought() {
+				for _, commI := range commI.Bought {
+					if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
+						strings.Contains(*commI.Key, "kubernetes.io/hostname") {
+						bCommodityRegistered = true
+						break
 					}
 				}
+				if bCommodityRegistered {
+					break
+				}
+			}
+			if !bCommodityRegistered {
+				framework.Failf("PV affinity is not honored")
 			}
 		})
 	})
