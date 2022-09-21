@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"runtime"
 	"testing"
 	"time"
 
@@ -158,4 +159,93 @@ func TestDispatcher_Dispatch_With_Task_Timeout(t *testing.T) {
 	case <-done:
 	}
 	assert.Equal(t, taskCount, result.ErrorCount)
+}
+
+func getSamplingDispatcherAndCollector(workerCount, workerTimeout, taskRunTimeSec int) (*SamplingDispatcher, *ResultCollector) {
+	clusterScraper := &cluster.ClusterScraper{}
+	probeConfig := &configs.ProbeConfig{
+		MonitoringConfigs: []monitoring.MonitorWorkerConfig{&monitoring.DummyMonitorConfig{
+			TaskRunTime: taskRunTimeSec,
+		}},
+		StitchingPropertyType: "IP",
+	}
+	dispatcherConfig := NewDispatcherConfig(clusterScraper, probeConfig, workerCount, workerTimeout, 1, 1)
+	dispatcher := NewSamplingDispatcher(dispatcherConfig, metrics.NewEntityMetricSink())
+	resultCollector := NewResultCollector(workerCount * 2)
+	dispatcher.Init(resultCollector)
+	return dispatcher, resultCollector
+}
+
+func TestSamplingDispatcher_Dispatch_1000_Tasks_With_100_Workers(t *testing.T) {
+	taskCount := 1000
+	workerCount := 100
+	workerTimeout := 10
+	taskRunTimeSec := 1 //shorter than workerTimeout, the task will finish before worker timeout
+	expectedRunSec := taskCount / workerCount * taskRunTimeSec
+	testTimeout := time.After(time.Duration(2*expectedRunSec) * time.Second)
+	done := make(chan bool)
+	start := time.Now()
+	var result *DiscoveryResult
+	go func() {
+		// Actual testing
+		kubeCluster := repository.NewKubeCluster("MyCluster", []*v1.Node{})
+		clusterSummary := repository.CreateClusterSummary(kubeCluster)
+		dispatcher, resultCollector := getSamplingDispatcherAndCollector(workerCount, workerTimeout, taskRunTimeSec)
+		var nodes = make([]struct{}, taskCount)
+		go func() {
+			for range nodes {
+				node := new(v1.Node)
+				currTask := task.NewTask().WithNode(node).WithCluster(clusterSummary)
+				dispatcher.assignTask(currTask)
+			}
+		}()
+		result = resultCollector.Collect(len(nodes))
+		done <- true
+	}()
+
+	select {
+	case <-testTimeout:
+		t.Fatal("Test didn't finish in time")
+	case <-done:
+	}
+	assert.Equal(t, taskCount, result.SuccessCount)
+	assert.True(t, time.Since(start) > time.Duration(expectedRunSec)*time.Second)
+}
+
+func TestSamplingDispatcher_Dispatch_With_Task_Timeout(t *testing.T) {
+	taskCount := 40
+	workerCount := 20
+	workerTimeout := 10
+	taskRunTimeSec := 15 //longer than workerTimeout, the task will timeout and genearte a orphaned thread
+	expectedRunSec := taskCount / workerCount * workerTimeout
+	testTimeout := time.After(time.Duration(4*expectedRunSec) * time.Second)
+	done := make(chan bool)
+	var result *DiscoveryResult
+	var threadCountAtBegin, threadCountAtEnd int = 0, 0
+	threadCountAtBegin = runtime.NumGoroutine()
+	go func() {
+		// Actual testing
+		dispatcher, resultCollector := getSamplingDispatcherAndCollector(workerCount, workerTimeout, taskRunTimeSec)
+		var nodes = make([]struct{}, taskCount)
+		go func() {
+			for range nodes {
+				currTask := task.NewTask()
+				dispatcher.assignTask(currTask)
+			}
+		}()
+		result = resultCollector.Collect(len(nodes))
+		// Wait extra taskRunTimeSec to make sure all of the orphaned timeout thread finish their work
+		time.Sleep(time.Duration(taskRunTimeSec) * time.Second)
+		done <- true
+	}()
+	select {
+	case <-testTimeout:
+		t.Fatal("Test didn't finish in time")
+	case <-done:
+		threadCountAtEnd = runtime.NumGoroutine()
+	}
+	assert.Equal(t, taskCount, result.ErrorCount)
+	// After all of orphaned thread is done, the total number of goroutine should be
+	// less or equal to the number at the begining plus the workerCount
+	assert.LessOrEqual(t, threadCountAtEnd, threadCountAtBegin+workerCount)
 }
