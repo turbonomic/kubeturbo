@@ -296,10 +296,9 @@ var _ = Describe("Discover Cluster", func() {
 			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
 			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
 			for _, entityDTO := range entityDTOs {
-				if strings.Contains(*entityDTO.DisplayName, pod.Name) {
+				if *entityDTO.EntityType == proto.EntityDTO_CONTAINER_POD &&
+					strings.Contains(*entityDTO.DisplayName, pod.Name) {
 					podEntityDTO = entityDTO
-					glog.Infof("EntityDTO for Pod with PV %+v", podEntityDTO)
-					
 				}
 			}
 			for _, commI := range podEntityDTO.GetCommoditiesBought() {
