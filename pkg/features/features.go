@@ -58,5 +58,5 @@ var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSp
 	PersistentVolumes:     {Default: true, PreRelease: featuregate.Beta},
 	ThrottlingMetrics:     {Default: true, PreRelease: featuregate.Beta},
 	GitopsApps:            {Default: false, PreRelease: featuregate.Alpha},
-	HonorRegionZoneLabels: {Default: false, PreRelease: featuregate.Alpha},
+	HonorRegionZoneLabels: {Default: true, PreRelease: featuregate.Alpha},
 }
