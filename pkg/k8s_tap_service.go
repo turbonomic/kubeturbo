@@ -139,6 +139,7 @@ func loadClientIdSecretFromSecret(tapSpec *K8sTAPServiceSpec) error {
 
 	tapSpec.ClientId = strings.TrimSpace(string(clientId))
 	tapSpec.ClientSecret = strings.TrimSpace(string(clientSecret))
+	glog.V(4).Infof("Obtained credentials to set up secure probe communication")
 	return nil
 }
 
