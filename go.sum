@@ -859,8 +859,8 @@ github.com/turbonomic/turbo-api v0.0.0-20220725155952-ec41db73695d h1:msuY0XieGE
 github.com/turbonomic/turbo-api v0.0.0-20220725155952-ec41db73695d/go.mod h1:L3eNZzTD3Iw8GV+cfeJD/lfDaEGPbZZGQrtml71yG10=
 github.com/turbonomic/turbo-crd v0.0.0-20220630232025-77ff549647ec h1:AmQY0cCtDy28QkzPcyHNjMmY54agR87FPZ5EluG7ChY=
 github.com/turbonomic/turbo-crd v0.0.0-20220630232025-77ff549647ec/go.mod h1:yUpUS3CIq74nyG/OmIYFu4Uw8eKg5om58cOk2dz4xMA=
-github.com/turbonomic/turbo-go-sdk v0.0.0-20220914191815-14796bf3cddd h1:tr0ZizVQQuKBhS9r6pK/CvlMoRTWHtyISjh6CuZxQMQ=
-github.com/turbonomic/turbo-go-sdk v0.0.0-20220914191815-14796bf3cddd/go.mod h1:KK+4Lb4OSx+R+6YkeTEspcuJGX/2RMaw1ImhwEtNsM0=
+github.com/turbonomic/turbo-go-sdk v0.0.0-20220921150744-f1925181c839 h1:qc3YNax4s2d+dVSYCiLOBZDUNNnfyAkp+PUoNm3gl54=
+github.com/turbonomic/turbo-go-sdk v0.0.0-20220921150744-f1925181c839/go.mod h1:KK+4Lb4OSx+R+6YkeTEspcuJGX/2RMaw1ImhwEtNsM0=
 github.com/ugorji/go v1.1.4/go.mod h1:uQMGLiO92mf5W77hV/PUCpI3pbzQx3CRekS0kk+RGrc=
 github.com/ugorji/go/codec v0.0.0-20181204163529-d75b2dcb6bc8/go.mod h1:VFNgLljTbGfSG7qAOspJ7OScBnGdDN/yBr0sguwnwf0=
 github.com/urfave/cli v1.20.0/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijbERA=
