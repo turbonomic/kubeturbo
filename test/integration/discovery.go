@@ -299,6 +299,7 @@ var _ = Describe("Discover Cluster", func() {
 				if *entityDTO.EntityType == proto.EntityDTO_CONTAINER_POD &&
 					strings.Contains(*entityDTO.DisplayName, pod.Name) {
 					podEntityDTO = entityDTO
+					break
 				}
 			}
 			for _, commI := range podEntityDTO.GetCommoditiesBought() {
