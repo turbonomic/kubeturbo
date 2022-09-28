@@ -271,51 +271,46 @@ var _ = Describe("Discover Cluster", func() {
 
 	Describe("discovering pod with pv having affinity rules", func() {
 		It("discovering with pv with affinity rules", func() {
+
+			var nodeNameForPod string
+			var podFullName string
+
 			//Add Storage Class
 			newStorage, err := createStorageClass(kubeClient)
 			if newStorage == nil && err != nil {
 				framework.Failf("Failed to create Storage Class %s with the error %s", newStorage, err)
 			}
+			//Add PV with affinity foo=bar
 			_, err = createPV(kubeClient, namespace, newStorage.Name)
+			if err != nil {
+				framework.Failf("Failed to create PV with the error %s", err)
+			}
+			//Add PVC
 			pvc, err := createVolumeClaim(kubeClient, namespace, newStorage.Name)
 			if pvc == nil && err != nil {
 				framework.Failf("Failed to create PVC %s with the error %s", pvc, err)
 			}
+			//Create deployment and validate pod creation
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, false, false, ""))
 			framework.ExpectNoError(err, "Error creating test resources")
-
 			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
 			framework.ExpectNoError(err, "Error getting deployments pod")
 			// This should not happen. We should ideally get a pod.
 			if pod == nil {
 				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
 			}
-			var bCommodityRegistered bool
-			var podEntityDTO *proto.EntityDTO
+
+			nodeNameForPod = pod.Spec.NodeName
+			podFullName = namespace + "/" + pod.Name
+
 			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
 			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
-			for _, entityDTO := range entityDTOs {
-				if *entityDTO.EntityType == proto.EntityDTO_CONTAINER_POD &&
-					strings.Contains(*entityDTO.DisplayName, pod.Name) {
-					podEntityDTO = entityDTO
-					break
-				}
-			}
-			for _, commI := range podEntityDTO.GetCommoditiesBought() {
-				for _, commI := range commI.Bought {
-					if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
-						strings.Contains(*commI.Key, "foo in (bar)") {
-						bCommodityRegistered = true
-						break
-					}
-				}
-				if bCommodityRegistered {
-					break
-				}
-			}
-			if !bCommodityRegistered {
+
+			//Validation logic
+			if !validateBuyerSellerCommodity(entityDTOs, nodeNameForPod, podFullName, proto.CommodityDTO_VMPM_ACCESS) {
 				framework.Failf("PV affinity is not honored")
 			}
+
 		})
 	})
 
@@ -328,6 +323,58 @@ var _ = Describe("Discover Cluster", func() {
 		})
 	})
 })
+
+func validateBuyerSellerCommodity(entityDTOs []*proto.EntityDTO, nodeName string, podName string, commodityType proto.CommodityDTO_CommodityType) bool {
+
+	var buyerRegsitered bool
+	var sellerRegistered bool
+	var podEntityDTO *proto.EntityDTO
+	var nodeEntityDTO *proto.EntityDTO
+
+	for _, entityDTO := range entityDTOs {
+		if *entityDTO.EntityType == proto.EntityDTO_CONTAINER_POD &&
+			*entityDTO.DisplayName == podName {
+			podEntityDTO = entityDTO
+			buyerRegsitered = true
+
+		} else if *entityDTO.EntityType == proto.EntityDTO_VIRTUAL_MACHINE &&
+			*entityDTO.DisplayName == nodeName {
+			nodeEntityDTO = entityDTO
+			sellerRegistered = true
+		}
+		if buyerRegsitered && sellerRegistered {
+			break
+		}
+	}
+	buyerRegsitered = false
+	sellerRegistered = false
+	for _, commI := range podEntityDTO.GetCommoditiesBought() {
+		for _, commI := range commI.Bought {
+			if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
+				strings.Contains(*commI.Key, "foo in (bar)") {
+				buyerRegsitered = true
+				break
+			}
+		}
+		if buyerRegsitered {
+			break
+		}
+	}
+	for _, commI := range nodeEntityDTO.GetCommoditiesSold() {
+		if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
+			strings.Contains(*commI.Key, "foo in (bar)") {
+			sellerRegistered = true
+			break
+		}
+		if sellerRegistered {
+			break
+		}
+	}
+	if !buyerRegsitered && !sellerRegistered {
+		return false
+	}
+	return true
+}
 
 func findEntities(vals []*proto.EntityDTO, condition func(v *proto.EntityDTO) bool, howMany int) []*proto.EntityDTO {
 	found := []*proto.EntityDTO{}
