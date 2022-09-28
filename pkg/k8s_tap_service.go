@@ -208,14 +208,16 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		probeConfig.ClusterScraper, config.SccSupport, config.ORMClient, config.failVolumePodMoves,
 		config.updateQuotaToAllowMoves, config.readinessRetryThreshold, config.gitConfig, k8sSvcId)
 
-	// Kubernetes Probe Registration Client
-	registrationClient := registration.NewK8sRegistrationClient(registrationClientConfig, config.tapSpec.K8sTargetConfig)
-
 	// Kubernetes Probe Discovery Client
 	discoveryClient := discovery.NewK8sDiscoveryClient(discoveryClientConfig)
+	targetAccountValues := discoveryClient.GetAccountValues()
 
 	// Kubernetes Probe Action Execution Client
 	actionHandler := action.NewActionHandler(actionHandlerConfig)
+
+	// Kubernetes Probe Registration Client
+	registrationClient := registration.NewK8sRegistrationClient(registrationClientConfig,
+		config.tapSpec.K8sTargetConfig, targetAccountValues.AccountValues(), k8sSvcId)
 
 	probeVersion := version.Version
 	probeDisplayName := getProbeDisplayName(config.tapSpec.TargetType, config.tapSpec.TargetIdentifier)
@@ -232,12 +234,26 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		ExecutesActionsBy(actionHandler)
 
 	if len(config.tapSpec.TargetIdentifier) > 0 {
+		// Target will be added as part of probe registration only when communicating with the server
+		// on a secure websocket, else secret containing Turbo server admin user must be configured
+		// to auto-add the target using API
+		probeBuilder.WithSecureTargetProvider(registrationClient)
+
 		// The KubeTurbo TAP Service that will register the kubernetes target with the
 		// Turbonomic server and await for validation, discovery, action execution requests
-		glog.Infof("Should discover target %s", config.tapSpec.TargetIdentifier)
+		glog.Infof("Discovering target %s", config.tapSpec.TargetIdentifier)
 		probeBuilder = probeBuilder.DiscoversTarget(config.tapSpec.TargetIdentifier, discoveryClient)
 	} else {
-		glog.Infof("Not discovering target")
+		// Target is NOT auto-added if TargetIdentifier is not configured.
+		// In this case, users can still add target via the UI.
+		// To ensure that the target added via the UI can communication with the server, it is necessary to configure
+		// 'TargetType' to uniquely identify the kubernetes cluster this probe is going to monitor.
+		// Not configuring 'TargetType' is error-prone and not lead to correct discovery results.
+		if len(config.tapSpec.TargetType) > 0 {
+			glog.Infof("Not discovering target, add target via API or UI for target type %s", config.tapSpec.TargetType)
+		} else {
+			glog.Infof("Not discovering target, target type is not configured and discovery may not work correctly")
+		}
 		probeBuilder = probeBuilder.WithDiscoveryClient(discoveryClient)
 	}
 
@@ -245,7 +261,7 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		service.NewTAPServiceBuilder().
 			WithCommunicationBindingChannel(k8sSvcId).
 			WithTurboCommunicator(config.tapSpec.TurboCommunicationConfig).
-			WithTurboProbe(probeBuilder).
+			WithTurboProbe(probeBuilder). //Turbo Probe is Probe + Target
 			Create()
 	if err != nil {
 		return nil, err
