@@ -304,7 +304,7 @@ var _ = Describe("Discover Cluster", func() {
 			for _, commI := range podEntityDTO.GetCommoditiesBought() {
 				for _, commI := range commI.Bought {
 					if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
-						strings.Contains(*commI.Key, "foo") {
+						strings.Contains(*commI.Key, "foo in (bar)") {
 						bCommodityRegistered = true
 						break
 					}
