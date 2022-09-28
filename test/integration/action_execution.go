@@ -734,9 +734,10 @@ func createPV(client kubeclientset.Interface, namespace, storageClassName string
 						{
 							MatchExpressions: []corev1.NodeSelectorRequirement{
 								{
-									Key:      "kubernetes.io/hostname",
-									Operator: "In",
-									Values:   []string{"kind-worker"},
+
+									Key:      "foo",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"bar"},
 								},
 							},
 						},
@@ -745,6 +746,7 @@ func createPV(client kubeclientset.Interface, namespace, storageClassName string
 			},
 		},
 	}
+
 	var newPV *corev1.PersistentVolume
 	var errInternal error
 	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {

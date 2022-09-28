@@ -290,7 +290,6 @@ var _ = Describe("Discover Cluster", func() {
 			if pod == nil {
 				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
 			}
-
 			var bCommodityRegistered bool
 			var podEntityDTO *proto.EntityDTO
 			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
@@ -305,7 +304,7 @@ var _ = Describe("Discover Cluster", func() {
 			for _, commI := range podEntityDTO.GetCommoditiesBought() {
 				for _, commI := range commI.Bought {
 					if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
-						strings.Contains(*commI.Key, "kubernetes.io/hostname") {
+						strings.Contains(*commI.Key, "foo") {
 						bCommodityRegistered = true
 						break
 					}
