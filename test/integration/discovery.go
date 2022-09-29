@@ -269,6 +269,50 @@ var _ = Describe("Discover Cluster", func() {
 		})
 	})
 
+	Describe("discovering pod with pv having affinity rules", func() {
+		It("discovering with pv with affinity rules", func() {
+
+			var nodeNameForPod string
+			var podFullName string
+
+			//Add Storage Class
+			newStorage, err := createStorageClass(kubeClient)
+			if newStorage == nil && err != nil {
+				framework.Failf("Failed to create Storage Class %s with the error %s", newStorage, err)
+			}
+			//Add PV with affinity foo=bar
+			_, err = createPV(kubeClient, namespace, newStorage.Name)
+			if err != nil {
+				framework.Failf("Failed to create PV with the error %s", err)
+			}
+			//Add PVC
+			pvc, err := createVolumeClaim(kubeClient, namespace, newStorage.Name)
+			if pvc == nil && err != nil {
+				framework.Failf("Failed to create PVC %s with the error %s", pvc, err)
+			}
+			//Create deployment and validate pod creation
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, false, false, ""))
+			framework.ExpectNoError(err, "Error creating test resources")
+			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
+			framework.ExpectNoError(err, "Error getting deployments pod")
+			// This should not happen. We should ideally get a pod.
+			if pod == nil {
+				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
+			}
+
+			nodeNameForPod = pod.Spec.NodeName
+			podFullName = namespace + "/" + pod.Name
+
+			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
+			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
+
+			//Validation logic
+			if !validateBuyerSellerCommodity(entityDTOs, nodeNameForPod, podFullName, proto.CommodityDTO_VMPM_ACCESS, "foo in (bar)") {
+				framework.Failf("PV affinity is not honored")
+			}
+		})
+	})
+
 	// TODO: this particular Describe is currently used as the teardown for this
 	// whole test (not the suite).
 	// This will work only if run sequentially. Find a better way to do this.
@@ -278,6 +322,63 @@ var _ = Describe("Discover Cluster", func() {
 		})
 	})
 })
+
+func validateBuyerSellerCommodity(entityDTOs []*proto.EntityDTO, nodeName string, podName string,
+	commodityType proto.CommodityDTO_CommodityType, commodityValue string) bool {
+
+	var buyerRegsitered bool
+	var sellerRegistered bool
+	var podEntityDTO *proto.EntityDTO
+	var nodeEntityDTO []*proto.EntityDTO
+
+	//Identify the pod with pv and all nodes and create respective dto variable and list respectively
+	for _, entityDTO := range entityDTOs {
+		if *entityDTO.EntityType == proto.EntityDTO_CONTAINER_POD &&
+			*entityDTO.DisplayName == podName {
+			podEntityDTO = entityDTO
+
+		} else if *entityDTO.EntityType == proto.EntityDTO_VIRTUAL_MACHINE {
+			nodeEntityDTO = append(nodeEntityDTO, entityDTO)
+		}
+	}
+
+	buyerRegsitered = false
+	sellerRegistered = false
+	// Validate pod BoughtCommodity list to contain VMPM_ACCESS commodity with key foo in (bar)
+	for _, commI := range podEntityDTO.GetCommoditiesBought() {
+		if *commI.ProviderType == proto.EntityDTO_VIRTUAL_MACHINE {
+			for _, commI := range commI.Bought {
+				if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
+					strings.Contains(*commI.Key, commodityValue) {
+					buyerRegsitered = true
+					break
+				}
+			}
+		}
+		if buyerRegsitered {
+			break
+		}
+	}
+	// Validate correct node to have VMPM_ACCESS commodity of type foo in (bar)
+	for _, nDTO := range nodeEntityDTO {
+		for _, commI := range nDTO.GetCommoditiesSold() {
+			if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
+				strings.Contains(*commI.Key, commodityValue) {
+				if *nDTO.DisplayName == nodeName { //Make sure no node other than kind-worker has the VMPM_ACCESS commodity
+					sellerRegistered = true
+				} else {
+					framework.Failf(commodityValue+" commodity is present in another node %s", *nDTO.DisplayName)
+				}
+				break
+			}
+		}
+	}
+	// If either of buyer or seller commodity list is not expected return false
+	if buyerRegsitered && sellerRegistered {
+		return true
+	}
+	return false
+}
 
 func findEntities(vals []*proto.EntityDTO, condition func(v *proto.EntityDTO) bool, howMany int) []*proto.EntityDTO {
 	found := []*proto.EntityDTO{}
