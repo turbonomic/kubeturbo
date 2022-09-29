@@ -307,10 +307,9 @@ var _ = Describe("Discover Cluster", func() {
 			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
 
 			//Validation logic
-			if !validateBuyerSellerCommodity(entityDTOs, nodeNameForPod, podFullName, proto.CommodityDTO_VMPM_ACCESS) {
+			if !validateBuyerSellerCommodity(entityDTOs, nodeNameForPod, podFullName, proto.CommodityDTO_VMPM_ACCESS, "foo in (bar)") {
 				framework.Failf("PV affinity is not honored")
 			}
-
 		})
 	})
 
@@ -324,52 +323,57 @@ var _ = Describe("Discover Cluster", func() {
 	})
 })
 
-func validateBuyerSellerCommodity(entityDTOs []*proto.EntityDTO, nodeName string, podName string, commodityType proto.CommodityDTO_CommodityType) bool {
+func validateBuyerSellerCommodity(entityDTOs []*proto.EntityDTO, nodeName string, podName string,
+	commodityType proto.CommodityDTO_CommodityType, commodityValue string) bool {
 
 	var buyerRegsitered bool
 	var sellerRegistered bool
 	var podEntityDTO *proto.EntityDTO
-	var nodeEntityDTO *proto.EntityDTO
+	var nodeEntityDTO []*proto.EntityDTO
 
+	//Identify the pod with pv and all nodes and create respective dto variable and list respectively
 	for _, entityDTO := range entityDTOs {
 		if *entityDTO.EntityType == proto.EntityDTO_CONTAINER_POD &&
 			*entityDTO.DisplayName == podName {
 			podEntityDTO = entityDTO
-			buyerRegsitered = true
 
-		} else if *entityDTO.EntityType == proto.EntityDTO_VIRTUAL_MACHINE &&
-			*entityDTO.DisplayName == nodeName {
-			nodeEntityDTO = entityDTO
-			sellerRegistered = true
-		}
-		if buyerRegsitered && sellerRegistered {
-			break
+		} else if *entityDTO.EntityType == proto.EntityDTO_VIRTUAL_MACHINE {
+			nodeEntityDTO = append(nodeEntityDTO, entityDTO)
 		}
 	}
+
 	buyerRegsitered = false
 	sellerRegistered = false
+	// Validate pod BoughtCommodity list to contain VMPM_ACCESS commodity with key foo in (bar)
 	for _, commI := range podEntityDTO.GetCommoditiesBought() {
-		for _, commI := range commI.Bought {
-			if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
-				strings.Contains(*commI.Key, "foo in (bar)") {
-				buyerRegsitered = true
-				break
+		if *commI.ProviderType == proto.EntityDTO_VIRTUAL_MACHINE {
+			for _, commI := range commI.Bought {
+				if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
+					strings.Contains(*commI.Key, commodityValue) {
+					buyerRegsitered = true
+					break
+				}
 			}
 		}
 		if buyerRegsitered {
 			break
 		}
 	}
-	for _, commI := range nodeEntityDTO.GetCommoditiesSold() {
-		if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
-			strings.Contains(*commI.Key, "foo in (bar)") {
-			sellerRegistered = true
-			break
-		}
-		if sellerRegistered {
-			break
+	// Validate correct node to have VMPM_ACCESS commodity of type foo in (bar)
+	for _, nDTO := range nodeEntityDTO {
+		for _, commI := range nDTO.GetCommoditiesSold() {
+			if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
+				strings.Contains(*commI.Key, commodityValue) {
+				if *nDTO.DisplayName == nodeName { //Make sure no node other than kind-worker has the VMPM_ACCESS commodity
+					sellerRegistered = true
+				} else {
+					framework.Failf(commodityValue+" commodity is present in another node %s", *nDTO.DisplayName)
+				}
+				break
+			}
 		}
 	}
+	// If either of buyer or seller commodity list is not expected return false
 	if !buyerRegsitered && !sellerRegistered {
 		return false
 	}
