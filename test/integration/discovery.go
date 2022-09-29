@@ -374,10 +374,10 @@ func validateBuyerSellerCommodity(entityDTOs []*proto.EntityDTO, nodeName string
 		}
 	}
 	// If either of buyer or seller commodity list is not expected return false
-	if !buyerRegsitered && !sellerRegistered {
-		return false
+	if buyerRegsitered && sellerRegistered {
+		return true
 	}
-	return true
+	return false
 }
 
 func findEntities(vals []*proto.EntityDTO, condition func(v *proto.EntityDTO) bool, howMany int) []*proto.EntityDTO {
