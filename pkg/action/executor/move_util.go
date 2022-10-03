@@ -27,7 +27,7 @@ import (
 	kclient "k8s.io/client-go/kubernetes"
 )
 
-//TODO: if pod is from controller, then copy pod in the way as
+// TODO: if pod is from controller, then copy pod in the way as
 // kubernetes/pkg/controller/controller_utils.go#GetPodFromTemplate
 // https://github.com/kubernetes/kubernetes/blob/0c7e7ae1d9cccd0cca7313ee5a8ae3c313b72139/pkg/controller/controller_utils.go#L553
 func copyPodInfo(oldPod, newPod *api.Pod, copySpec bool) {
@@ -120,21 +120,29 @@ func genNewPodName(oldPod *api.Pod) string {
 
 // Move pod to node nodeName in below steps:
 // If a pod has a persistent volume attached the steps are different:
-//  step 1: create a clone pod of the original pod (without labels)
-//  step 2: if the parent has parent (rs has deployment) pause the rollout
-//  step 3: change the scheduler of parent to non-default (turbo-scheduler)
+//
+//	step 1: create a clone pod of the original pod (without labels)
+//	step 2: if the parent has parent (rs has deployment) pause the rollout
+//	step 3: change the scheduler of parent to non-default (turbo-scheduler)
+//
 // If a pod HAS a persistent volume attached
-// {
-//  step 4: delete the original pod
-// }
-//  step 5: wait until the cloned pod is ready
-// If the pod does NOT have persistent volume attached
-// {
+//
+//	{
 //	 step 4: delete the original pod
-// }
-//  step 6: add the labels to the cloned pod
-//  step 7: change the scheduler of parent back to to default-scheduler
-//  step 8: if the parent has parent, unpause the rollout
+//	}
+//
+//	step 5: wait until the cloned pod is ready
+//
+// If the pod does NOT have persistent volume attached
+//
+//	{
+//		 step 4: delete the original pod
+//	}
+//
+//	step 6: add the labels to the cloned pod
+//	step 7: change the scheduler of parent back to to default-scheduler
+//	step 8: if the parent has parent, unpause the rollout
+//
 // TODO: add support for operator controlled parent or parent's parent.
 func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, parentKind, parentName string,
 	retryNum int, failVolumePodMoves, updateQuotaToAllowMoves bool, lockMap *util.ExpirationMap) (*api.Pod, error) {

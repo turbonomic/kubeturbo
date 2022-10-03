@@ -38,8 +38,8 @@ const (
 // the lock is used by other action item.
 // The key used to acquire the lock is as follows:
 //
-// 1. If the action item is associated to a container pod (meaning, the function podFunc returns a pod),
-//    the key is the "container name" + "image name" for bare-pod cases and its parent controller id for non-bare-pod cases.
+//  1. If the action item is associated to a container pod (meaning, the function podFunc returns a pod),
+//     the key is the "container name" + "image name" for bare-pod cases and its parent controller id for non-bare-pod cases.
 //
 // 2. Otherwise, the key is the id of the target SE of the action item.
 func (a *ActionLockStore) getLock(actionItem *proto.ActionItemDTO) (*util.LockHelper, error) {

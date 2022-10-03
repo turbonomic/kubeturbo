@@ -98,7 +98,7 @@ func (s *ExpirationMap) Touch(key string, version int64) bool {
 	return false
 }
 
-//getExpiredKeys: gather all the keys that already expire.
+// getExpiredKeys: gather all the keys that already expire.
 func (s *ExpirationMap) getExpiredKeys() []string {
 	keys := []string{}
 	s.lock.Lock()
@@ -113,7 +113,7 @@ func (s *ExpirationMap) getExpiredKeys() []string {
 	return keys
 }
 
-//expireItem: call the callBack function, and delete the item
+// expireItem: call the callBack function, and delete the item
 func (s *ExpirationMap) expireItem(key string) bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -130,8 +130,9 @@ func (s *ExpirationMap) expireItem(key string) bool {
 }
 
 // expireItems: expire one item a time for a lock & unlock,
-//   as each item's callBack function is called synchronistically,
-//   we don't want the whole store to be freezen too long.
+//
+//	as each item's callBack function is called synchronistically,
+//	we don't want the whole store to be freezen too long.
 func (s *ExpirationMap) expireItems() int {
 	keys := s.getExpiredKeys()
 
@@ -143,7 +144,7 @@ func (s *ExpirationMap) expireItems() int {
 	return result
 }
 
-//Run: periodically check and delete the expired items
+// Run: periodically check and delete the expired items
 func (s *ExpirationMap) Run(stop <-chan struct{}) {
 	interval := s.ttl / 2
 	if interval < time.Second {

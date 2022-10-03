@@ -100,7 +100,7 @@ func RetryDuring(attempts int, timeout time.Duration, sleep time.Duration, myfun
 	return err
 }
 
-//RetrySimple executes a function with retries and a timeout
+// RetrySimple executes a function with retries and a timeout
 func RetrySimple(attempts int32, timeout, sleep time.Duration, myfunc func() (bool, error)) error {
 	t0 := time.Now()
 

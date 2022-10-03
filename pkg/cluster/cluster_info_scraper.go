@@ -388,7 +388,9 @@ func (s *ClusterScraper) UpdatePodControllerCache(
 // GetPodControllerInfo gets grandParent (parent's parent) information of a pod: kind, name, uid
 // If parent does not have parent, then return parent info.
 // Note: if parent kind is "ReplicaSet", then its parent's parent can be a "Deployment"
-//       or if its a "ReplicationController" its parent could be "DeploymentConfig" (as in openshift).
+//
+//	or if its a "ReplicationController" its parent could be "DeploymentConfig" (as in openshift).
+//
 // The function also returns the retrieved parent and parents crud interface for use by the callers.
 // If ignoreCache is set to false, this function will first try to get pod's controller info from the cache
 // maintained by the ClusterScraper.

@@ -83,8 +83,8 @@ func (m *ClusterMonitor) reset() {
 
 // ----------------------------------------------- Cluster State -------------------------------------------------
 // TODO: Getting repeated by cluster worker
-//// Get the cluster ID of the Kubernetes cluster.
-//// Use Kubernetes service UID as the key for cluster commodity
+// // Get the cluster ID of the Kubernetes cluster.
+// // Use Kubernetes service UID as the key for cluster commodity
 func (m *ClusterMonitor) findClusterID() error {
 	kubernetesSvcID, err := m.config.clusterInfoScraper.GetKubernetesServiceID()
 	if err != nil {
@@ -115,8 +115,9 @@ func (m *ClusterMonitor) findNodeStates() error {
 }
 
 // Generate resource metrics of a node:
-// 	CPU             capacity
-// 	Memory          capacity
+//
+//	CPU             capacity
+//	Memory          capacity
 //	CPURequest      capacity, used
 //	MemoryRequest   capacity, used
 func (m *ClusterMonitor) genNodeResourceMetrics(node *api.Node, key string) {

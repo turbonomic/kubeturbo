@@ -137,9 +137,10 @@ func (s *StitchingManager) GetStitchingValue(nodeName string) (string, error) {
 }
 
 // Build the stitching node property for entity based on the given node name, and purpose.
-//   two purposes: "stitching" and "reconcile".
-//       stitching: is to stitch Pod to the real-VM;
-//       reconcile: is to merge the proxy-VM to the real-VM;
+//
+//	two purposes: "stitching" and "reconcile".
+//	    stitching: is to stitch Pod to the real-VM;
+//	    reconcile: is to merge the proxy-VM to the real-VM;
 func (s *StitchingManager) BuildDTOProperty(nodeName string, isForReconcile bool) (*proto.EntityDTO_EntityProperty, error) {
 	propertyNamespace := DefaultPropertyNamespace
 	propertyName := s.getPropertyName(isForReconcile)

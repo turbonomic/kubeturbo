@@ -77,20 +77,22 @@ func NewORMClient(dynamicClient dynamic.Interface, apiExtClient *apiextclient.Ap
 // managed CRs.
 // The map is from Operator managed CustomResource UID to ORMSpec object. Here's an example of the map:
 // {
-//  "b4ce6060-93be-11ea-9406-005056b83d00": {
-//    operatorGVResource  schema.GroupVersionResource
-//    "Deployment/group": {
-//      "componentName": "group",
-//      "resourceMappingTemplates":
-//        [
-//         {
-//           "srcPath": ".spec.template.spec.containers[?(@.name=="{{.componentName}}")].resources"
-//           "destPath": ".spec.{{.componentName}}.resources"
-//         },
-//        ]
-//    }
-//  }
-//}
+//
+//	  "b4ce6060-93be-11ea-9406-005056b83d00": {
+//	   operatorGVResource  schema.GroupVersionResource
+//
+//     "Deployment/group": {
+//       "componentName": "group",
+//       "resourceMappingTemplates":
+//         [
+//          {
+//            "srcPath": ".spec.template.spec.containers[?(@.name=="{{.componentName}}")].resources"
+//            "destPath": ".spec.{{.componentName}}.resources"
+//          },
+//         ]
+//     }
+//   }
+// }
 func (ormClient *ORMClient) CacheORMSpecMap() int {
 	ormCRs, err := ormClient.getORMCRList()
 	if err != nil {
@@ -231,7 +233,9 @@ func (ormClient *ORMClient) populateORMTemplateMap(ormCR unstructured.Unstructur
 // Update updates the corresponding CR for an Operator manged resource based on OperatorResourceMapping
 // origControllerObj -- original K8s controller object
 // updatedControllerObj -- updated K8s controller object based on Turbo actionItem, from which the resource value is fetched
-//                         and will be set to the corresponding CR
+//
+//	and will be set to the corresponding CR
+//
 // controllerOwnerReference -- ownerReference of a K8s controller, which contains metadata of a Operator CR
 func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unstructured.Unstructured, controllerOwnerReference discoveryutil.OwnerInfo) error {
 	operatorCRUID := string(controllerOwnerReference.Uid)

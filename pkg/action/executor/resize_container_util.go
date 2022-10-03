@@ -171,14 +171,14 @@ func resizeContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, sp
 
 // resizeControllerContainer updates the pod template of the controller that this container pod
 // belongs to. The behavior is different for different controllers:
-// - For Deployment, after pod template is successfully updated, a new ReplicaSet will be created
-//   and associated with this Deployment. After the new ReplicaSet scales to the desired number of
-//   pods, the original ReplicaSet associated with this Deployment is then scaled to 0, effectively
-//   terminating all original pods
-// - For ReplicaSet and ReplicationController, only pod template will be updated with the new
-//   resource, all existing pods that belong to the original ReplicaSet and ReplicationController
-//   are not affected. Only newly created pods (through scaling action) will use the updated
-//   resource
+//   - For Deployment, after pod template is successfully updated, a new ReplicaSet will be created
+//     and associated with this Deployment. After the new ReplicaSet scales to the desired number of
+//     pods, the original ReplicaSet associated with this Deployment is then scaled to 0, effectively
+//     terminating all original pods
+//   - For ReplicaSet and ReplicationController, only pod template will be updated with the new
+//     resource, all existing pods that belong to the original ReplicaSet and ReplicationController
+//     are not affected. Only newly created pods (through scaling action) will use the updated
+//     resource
 func resizeControllerContainer(clusterScraper *cluster.ClusterScraper, pod *k8sapi.Pod, spec *containerResizeSpec,
 	ormClient *resourcemapping.ORMClient, gitConfig gitops.GitConfig, clusterId string) error {
 	// prepare controllerUpdater
