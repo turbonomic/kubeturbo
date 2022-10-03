@@ -38,9 +38,9 @@ const (
 	// alpha:
 	//
 	// Honor the region/zone labels of the node.
-	// This gate will enable honorinig the labels topology.kubernetes.io/region and "topology.kubernetes.io/zone
-	// of the node which the pod is currently running on
-	HonorRegionZoneLabels featuregate.Feature = "HonorRegionZoneLabels"
+	// This gate will enable honorinig the labels topology.kubernetes.io/region and topology.kubernetes.io/zone
+	// of the node which the pod is currently running on and also enable honoring the PV affninity on a pod move
+	HonorAzLabelPvAffinity featuregate.Feature = "HonorAzLabelPvAffinity"
 
 	// GoMemLimit owner: @mengding
 	// alpha:
@@ -63,9 +63,9 @@ func init() {
 // Ref: https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/
 // Note: We use the config to feed the values, not the command line params.
 var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	PersistentVolumes:     {Default: true, PreRelease: featuregate.Beta},
-	ThrottlingMetrics:     {Default: true, PreRelease: featuregate.Beta},
-	GitopsApps:            {Default: false, PreRelease: featuregate.Alpha},
-	HonorRegionZoneLabels: {Default: true, PreRelease: featuregate.Alpha},
-	GoMemLimit:            {Default: false, PreRelease: featuregate.Alpha},
+	PersistentVolumes:      {Default: true, PreRelease: featuregate.Beta},
+	ThrottlingMetrics:      {Default: true, PreRelease: featuregate.Beta},
+	GitopsApps:             {Default: false, PreRelease: featuregate.Alpha},
+	HonorAzLabelPvAffinity: {Default: true, PreRelease: featuregate.Alpha},
+	GoMemLimit:             {Default: false, PreRelease: featuregate.Alpha},
 }

@@ -404,7 +404,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
 
 	// Label commodities
 	// To honor the region/zone label on th node that the pod is running on if the pod has any PV attached
-	if utilfeature.DefaultFeatureGate.Enabled(features.HonorRegionZoneLabels) {
+	if utilfeature.DefaultFeatureGate.Enabled(features.HonorAzLabelPvAffinity) {
 		var anerr error
 		commoditiesBought, anerr = builder.getRegionZoneLabelCommodity(pod, commoditiesBought)
 		if anerr != nil {

@@ -35,6 +35,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/test/integration/framework"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 /*
@@ -274,6 +275,14 @@ var _ = Describe("Discover Cluster", func() {
 
 			var nodeNameForPod string
 			var podFullName string
+
+			// Enable the feature gate
+			honorAzPvFlag := make(map[string]bool)
+			honorAzPvFlag["HonorAzLabelPvAffinity"] = true
+			err := utilfeature.DefaultMutableFeatureGate.SetFromMap(honorAzPvFlag)
+			if err != nil {
+				glog.Fatalf("Invalid Feature Gates: %v", err)
+			}
 
 			//Add Storage Class
 			newStorage, err := createStorageClass(kubeClient)
