@@ -10,7 +10,7 @@ services:
   - docker
 
 go:
-  - 1.17.6
+  - 1.19.1
  
 go_import_path: github.com/turbonomic/kubeturbo
 

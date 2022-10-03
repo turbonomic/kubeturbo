@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/KimMachineGun/automemlimit/memlimit"
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
 	clusterclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
@@ -362,6 +363,22 @@ func (s *VMTServer) Run() {
 		if err != nil {
 			glog.Fatalf("Invalid Feature Gates: %v", err)
 		}
+	}
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.GoMemLimit) {
+		glog.V(2).Info("GoMemLimit feature is enabled.")
+		// Set Go runtime soft memory limit: https://pkg.go.dev/runtime/debug#SetMemoryLimit
+		// Set Go runtime soft memory limit through the AUTOMEMLIMIT environment variable.
+		// AUTOMEMLIMIT configures how much memory of the cgroup's memory limit should be set as Go runtime
+		// soft memory limit in the half-open range (0.0,1.0].
+		// If AUTOMEMLIMIT is not set, it defaults to 0.9. This means 10% is the headroom for memory sources
+		// that the Go runtime is unaware of and unable to control.
+		// If GOMEMLIMIT environment variable is already set or AUTOMEMLIMIT=off, this function does nothing.
+		// AUTOMEMLIMIT_DEBUG environment variable enables debug logging of AUTOMEMLIMIT
+		_ = os.Setenv("AUTOMEMLIMIT_DEBUG", "true")
+		memlimit.SetGoMemLimitWithEnv()
+	} else {
+		glog.V(2).Info("GoMemLimit feature is not enabled.")
 	}
 
 	// Collect target and probe info such as master host, server version, probe container image, etc

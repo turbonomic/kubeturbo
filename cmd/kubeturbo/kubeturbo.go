@@ -24,10 +24,11 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
-	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
-	"github.com/turbonomic/kubeturbo/version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
+
+	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
+	"github.com/turbonomic/kubeturbo/version"
 )
 
 // Initialize logs with the following steps:
@@ -35,8 +36,9 @@ import (
 // - Add the above merged goflag set into pflag CommandLine FlagSet
 // - Add kubeturbo flags into pflag CommandLine FlagSet
 // - Parse pflag FlagSet:
-//     - goflag FlagSet will be parsed first
-//     - pflag FlagSet will be parsed next
+//   - goflag FlagSet will be parsed first
+//   - pflag FlagSet will be parsed next
+//
 // - Sync those glog flags that also appear in klog flags
 //
 // Return log flush frequency
