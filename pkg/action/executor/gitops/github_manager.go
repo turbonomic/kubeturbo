@@ -180,7 +180,7 @@ func (r *GitHubManager) WaitForActionCompletion(completionData interface{}) erro
 				glog.V(4).Infof("Found PR number #%d merged. Send action success to server", waitData.prNum)
 				return true, nil
 			}
-			return false, fmt.Errorf("the PR #%d was closed without merging", waitData.prNum)
+			return false, util.NewSkipRetryError(fmt.Sprintf("the PR #%d was closed without merging", waitData.prNum))
 		default:
 			// We will retry in case of invalid PR state received
 			// TODO: a really rare scenario, but if we hit it implement a timeout expiry
