@@ -14,19 +14,19 @@ const (
 	// // alpha:
 	// MyFeature featuregate.Feature = "MyFeature"
 
-	// owner: @irfanurrehman
+	// PersistentVolumes owner: @irfanurrehman
 	// beta:
 	//
 	// Persistent volumes support.
 	PersistentVolumes featuregate.Feature = "PersistentVolumes"
 
-	// owner: @irfanurrehman
+	// ThrottlingMetrics owner: @irfanurrehman
 	// beta:
 	//
 	// Throttling Metrics support.
 	ThrottlingMetrics featuregate.Feature = "ThrottlingMetrics"
 
-	// owner: @irfanurrehman
+	// GitopsApps owner: @irfanurrehman
 	// alpha:
 	//
 	// Gitops application support.
@@ -34,13 +34,21 @@ const (
 	// the action execution based on the same.
 	GitopsApps featuregate.Feature = "GitopsApps"
 
-	// owner: @kevinwang
+	// HonorRegionZoneLabels owner: @kevinwang
 	// alpha:
 	//
 	// Honor the region/zone labels of the node.
 	// This gate will enable honorinig the labels topology.kubernetes.io/region and "topology.kubernetes.io/zone
 	// of the node which the pod is currently running on
 	HonorRegionZoneLabels featuregate.Feature = "HonorRegionZoneLabels"
+
+	// GoMemLimit owner: @mengding
+	// alpha:
+	//
+	// Go runtime soft memory limit support
+	// This gate enables Go runtime soft memory limit as explained in
+	// https://pkg.go.dev/runtime/debug#SetMemoryLimit
+	GoMemLimit featuregate.Feature = "GoMemLimit"
 )
 
 func init() {
@@ -59,4 +67,5 @@ var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSp
 	ThrottlingMetrics:     {Default: true, PreRelease: featuregate.Beta},
 	GitopsApps:            {Default: false, PreRelease: featuregate.Alpha},
 	HonorRegionZoneLabels: {Default: true, PreRelease: featuregate.Alpha},
+	GoMemLimit:            {Default: false, PreRelease: featuregate.Alpha},
 }

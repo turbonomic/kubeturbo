@@ -10,7 +10,8 @@ import (
 
 // Find the appType (TODO the name is TBD) of the given pod.
 // NOTE This function is highly depend on the name of different kinds of pod.
-// 	If a pod is created by a kubelet, then the name is like name-nodeName
+//
+//	If a pod is created by a kubelet, then the name is like name-nodeName
 //	If a pod is created by a replication controller, then the name is like name-random
 //	if a pod is created by a deployment, then the name is like name-generated-random
 func GetAppType(pod *api.Pod) string {

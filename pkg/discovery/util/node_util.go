@@ -103,8 +103,9 @@ func NodeIsReady(node *api.Node) bool {
 // LabelMapFromNodeSelectorString constructs a map of labels from the label selector string specified in the command
 // line arguments.
 // Example input label selector strings:
-//   "kubernetes.io/arch=s390x,beta.kubernetes.io/arch=s390x"
-//   "kubernetes.io/arch=s390x,kubernetes.io/arch=arm64"
+//
+//	"kubernetes.io/arch=s390x,beta.kubernetes.io/arch=s390x"
+//	"kubernetes.io/arch=s390x,kubernetes.io/arch=arm64"
 func LabelMapFromNodeSelectorString(selector string) (map[string]set.Set, error) {
 	labelsMap := make(map[string]set.Set)
 

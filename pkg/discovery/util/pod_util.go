@@ -361,6 +361,7 @@ func checkPodNode(kubeClient *client.Clientset, namespace, podName, nodeName str
 //   - Pod states and reasons
 //   - Pod conditions and reasons (false conditions only)
 //   - Container states and reasons (abnormal states only)
+//
 // https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-and-container-status
 func getPodWarnings(pod *api.Pod, podName string) (warnings []string) {
 	warnings = []string{}

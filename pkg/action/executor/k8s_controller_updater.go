@@ -139,10 +139,10 @@ func (c *k8sControllerUpdater) updateWithRetry(ctlrSpec *controllerSpec) error {
 }
 
 // update updates a specific k8s controller in the following steps:
-// - Get and save the current controller object from the server
-// - Reconcile the current specification with the desired specification, and
-//   update the current specification in place if the changes are valid
-// - Update the controller object with the server after a successful reconciliation
+//   - Get and save the current controller object from the server
+//   - Reconcile the current specification with the desired specification, and
+//     update the current specification in place if the changes are valid
+//   - Update the controller object with the server after a successful reconciliation
 func (c *k8sControllerUpdater) update(desired *controllerSpec) error {
 	glog.V(4).Infof("Begin to update %v %s/%s",
 		c.controller, c.namespace, c.name)

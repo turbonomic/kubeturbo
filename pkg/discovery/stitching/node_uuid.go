@@ -26,15 +26,17 @@ type NodeUUIDGetter interface {
 	Name() string
 }
 
-/**
-  Input k8s.Node info
-    spec:
-      externalID: osp-node-1.eng.vmturbo.com
-    nodeInfo:
-      systemUUID: 4200979A-4EF9-E49B-6BD6-FDBAD2BE7252
+/*
+*
 
-  Output: 4200979a-4ef9-e49b-6bd6-fdbad2be7252
-  (lower case of the systemUUID)
+	Input k8s.Node info
+	  spec:
+	    externalID: osp-node-1.eng.vmturbo.com
+	  nodeInfo:
+	    systemUUID: 4200979A-4EF9-E49B-6BD6-FDBAD2BE7252
+
+	Output: 4200979a-4ef9-e49b-6bd6-fdbad2be7252
+	(lower case of the systemUUID)
 */
 type defaultNodeUUIDGetter struct {
 }

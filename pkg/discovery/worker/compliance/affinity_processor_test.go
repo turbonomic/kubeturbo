@@ -196,7 +196,6 @@ func getCommoditiesOfGivenType(commodities []*proto.CommodityDTO, cType proto.Co
 	return comms
 }
 
-//
 func getCommoditiesBoughtFromGivenProvider(consumer *proto.EntityDTO, providerID string) []*proto.CommodityDTO {
 	boughtCommodityTypes := consumer.GetCommoditiesBought()
 	for _, bc := range boughtCommodityTypes {
