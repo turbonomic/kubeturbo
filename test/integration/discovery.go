@@ -16,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/dynamic"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
@@ -272,21 +271,21 @@ var _ = Describe("Discover Cluster", func() {
 	})
 
 	Describe("discovering pod with pv having affinity rules", func() {
-		It("discovering with pv with affinity rules", func() {
+		//Create test resources
+		var err error
+		var podFullName string
+		var nodeName string
+		var podNode *corev1.Node
+		var podEntityDTO *proto.EntityDTO
+		var nodeEntityDTO []*proto.EntityDTO
+		var zoneLabelKey = "topology.kubernetes.io/zone"
+		var regionLabelKey = "topology.kubernetes.io/region"
+		var zoneLabelValue = "us-west-1"
+		var regionLabelValue = "us-west-1"
+		var commodityZoneValue = zoneLabelKey + "=" + zoneLabelValue
+		var commodityRegionValue = regionLabelKey + "=" + regionLabelValue
 
-			var nodeNameForPod string
-			var podFullName string
-			var podEntityDTO *proto.EntityDTO
-			var nodeEntityDTO []*proto.EntityDTO
-
-			// Enable the feature gate
-			honorAzPvFlag := make(map[string]bool)
-			honorAzPvFlag["HonorAzLabelPvAffinity"] = true
-			err := utilfeature.DefaultMutableFeatureGate.SetFromMap(honorAzPvFlag)
-			if err != nil {
-				glog.Fatalf("Invalid Feature Gates: %v", err)
-			}
-
+		It("create test resources", func() {
 			//Add Storage Class
 			newStorage, err := createStorageClass(kubeClient)
 			if newStorage == nil && err != nil {
@@ -302,6 +301,9 @@ var _ = Describe("Discover Cluster", func() {
 			if pvc == nil && err != nil {
 				framework.Failf("Failed to create PVC %s with the error %s", pvc, err)
 			}
+
+			// Update kind-worker node with foo=bar to create node compliant to pv-affinity
+			podNode, err = updateNodeWithLabel(kubeClient, "foo", "bar", "kind-worker")
 			//Create deployment and validate pod creation
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, false, false, ""))
 			framework.ExpectNoError(err, "Error creating test resources")
@@ -312,103 +314,85 @@ var _ = Describe("Discover Cluster", func() {
 				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
 			}
 
-			nodeNameForPod = pod.Spec.NodeName
+			nodeName = pod.Spec.NodeName
 			podFullName = namespace + "/" + pod.Name
+		})
+
+		It("discovering with pv with affinity rules", func() {
+
+			//Use Caase 1 : Validate whether VMPM_ACCESS is present in the pod commodity bought list
+			//and no OTHER node has VMPM_ACCESS commodity in sold list with feature gate default value
 
 			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
 			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
-
 			podEntityDTO, nodeEntityDTO = getPodNodeDTO(entityDTOs, podFullName)
 
-			//Validation logic
-			if !validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeNameForPod, proto.CommodityDTO_VMPM_ACCESS, "foo in (bar)") {
+			if !validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_VMPM_ACCESS, "foo in (bar)") {
 				framework.Failf("PV affinity is not honored")
 			}
 		})
-	})
 
-	Describe("discovering pod with pv having node with zone label", func() {
-		var podFullName string
-		var nodeName string
-		var zoneNode *corev1.Node
-		var podEntityDTO *proto.EntityDTO
-		var nodeEntityDTO []*proto.EntityDTO
-		var zoneLabelKey = "topology.kubernetes.io/zone"
-		var regionLabelKey = "topology.kubernetes.io/region"
-		var zoneLabelValue = "us-west-1"
-		var regionLabelValue = "us-west-1"
-		var commodityZoneValue = zoneLabelKey + "=" + zoneLabelValue
-		var commodityRegionValue = regionLabelKey + "=" + regionLabelValue
-
-		It("discovering pod with pv having node with zone label with default featureGate value true", func() {
-			var err error
-			pvc, err := createVolumeClaim(kubeClient, namespace, "standard")
-			if pvc == nil && err != nil {
-				framework.Failf("Failed to create PVC %s with the error %s", pvc, err)
-			}
-
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, false, false, ""))
-			framework.ExpectNoError(err, "Error creating test resources")
-
-			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
-			framework.ExpectNoError(err, "Error getting deployments pod")
-			// This should not happen. We should ideally get a pod.
-			if pod == nil {
-				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
-			}
-
-			//Label node with zone and region labels
-			nodeName = pod.Spec.NodeName
-			zoneNode, err = updateNodeWithLabel(kubeClient, zoneLabelKey, regionLabelKey, zoneLabelValue, regionLabelValue, nodeName)
+		It("pod with pv to honor zone label when feature gate is default(true)", func() {
+			//User Case 2 : Test zone label in node and featureGate default value
+			podNode, err = updateNodeWithLabel(kubeClient, zoneLabelKey, zoneLabelValue, nodeName)
+			podNode, err = updateNodeWithLabel(kubeClient, regionLabelKey, regionLabelValue, nodeName)
 
 			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
 			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
 
-			podFullName = namespace + "/" + pod.Name
 			//Verify zone label in the commodity list
 			podEntityDTO, nodeEntityDTO = getPodNodeDTO(entityDTOs, podFullName)
 
+			// Verify zone label is honored for pod with pv
 			if !validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_LABEL, commodityZoneValue) {
 				framework.Failf("Zone label in node for pod with PV is not honored")
 			}
 			if !validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_LABEL, commodityRegionValue) {
 				framework.Failf("Region label in node for pod with PV is not honored")
 			}
+
 		})
 
-		It("discovering pod with pv having node with zone label with featureGate disabled", func() {
-			var err error
+		It("discovering with pv with affinity rules with featureGate disabled", func() {
 
-			zoneFlag := make(map[string]bool)
-			zoneFlag["HonorRegionZoneLabels"] = false
-			err = utilfeature.DefaultMutableFeatureGate.SetFromMap(zoneFlag)
+			// Disable  the feature gate
+			honorAzPvFlag := make(map[string]bool)
+			honorAzPvFlag["HonorAzLabelPvAffinity"] = false
+			err = utilfeature.DefaultMutableFeatureGate.SetFromMap(honorAzPvFlag)
 			if err != nil {
 				glog.Fatalf("Invalid Feature Gates: %v", err)
 			}
 
-			pvc, err := createVolumeClaim(kubeClient, namespace, "standard")
-			if pvc == nil && err != nil {
-				framework.Failf("Failed to create PVC %s with the error %s", pvc, err)
+			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
+			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
+			podEntityDTO, nodeEntityDTO = getPodNodeDTO(entityDTOs, podFullName)
+
+			var delNode *corev1.Node = getNodewithNodeName(nodeName, kubeClient)
+			if validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_VMPM_ACCESS, "foo in (bar)") {
+				podNode = deleteLabelsFromNode(delNode, "foo", kubeClient)
+				framework.Failf("PV affinity is not honored")
+			}
+			//Manual deletion of foo=bar
+			podNode = deleteLabelsFromNode(delNode, "foo", kubeClient)
+		})
+
+		It("pod with pv to honor zone label when feature gate is default(false)", func() {
+
+			//Use Case 3 : Test zone label in node and featureGate value false
+
+			// Disable the feature gate
+			honorAzPvFlag := make(map[string]bool)
+			honorAzPvFlag["HonorAzLabelPvAffinity"] = false
+			err = utilfeature.DefaultMutableFeatureGate.SetFromMap(honorAzPvFlag)
+			if err != nil {
+				glog.Fatalf("Invalid Feature Gates: %v", err)
 			}
 
-			//Create a deployment with volume
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, false, false, ""))
-			framework.ExpectNoError(err, "Error creating test resources")
-
-			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
-			framework.ExpectNoError(err, "Error getting deployments pod")
-			// This should not happen. We should ideally get a pod.
-			if pod == nil {
-				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
-			}
-
-			nodeName = pod.Spec.NodeName
-			zoneNode, err = updateNodeWithLabel(kubeClient, zoneLabelKey, regionLabelKey, zoneLabelValue, regionLabelValue, nodeName)
+			podNode, err = updateNodeWithLabel(kubeClient, zoneLabelKey, zoneLabelValue, nodeName)
+			podNode, err = updateNodeWithLabel(kubeClient, regionLabelKey, regionLabelValue, nodeName)
 
 			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
 			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
-
-			podFullName = namespace + "/" + pod.Name
 
 			podEntityDTO, nodeEntityDTO = getPodNodeDTO(entityDTOs, podFullName)
 
@@ -422,10 +406,8 @@ var _ = Describe("Discover Cluster", func() {
 
 		})
 		AfterEach(func() {
-			//Teardown remove both labels
-			fmt.Printf("INSIDE PAPARAZZI")
-			deleteNode := deleteTopologyLabels(zoneNode, zoneLabelKey, kubeClient)
-			_ = deleteTopologyLabels(deleteNode, regionLabelKey, kubeClient)
+			delNode := deleteLabelsFromNode(podNode, zoneLabelKey, kubeClient)
+			delNode = deleteLabelsFromNode(delNode, regionLabelKey, kubeClient)
 		})
 	})
 
@@ -434,42 +416,48 @@ var _ = Describe("Discover Cluster", func() {
 	// This will work only if run sequentially. Find a better way to do this.
 	Describe("test teardowon", func() {
 		It(fmt.Sprintf("Deleting framework namespace: %s", namespace), func() {
-			fmt.Printf("INSIDE MAIN PAPARAZZI")
 			f.AfterEach()
 		})
 	})
 })
 
-func updateNodeWithLabel(kubeClient *kubeclientset.Clientset, zoneLabelKey string, regionLabelKey string,
-	zoneLabelValue string, regionLabelValue string, nodeName string) (*corev1.Node, error) {
-	var err error
+func getNodewithNodeName(nodeName string, kubeClient *kubeclientset.Clientset) *corev1.Node {
 	var zoneNode *corev1.Node
-	zoneNode, err = kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	zoneNode, err := kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 	if err != nil {
 		framework.Failf("Failed to retrieve node with error %s", err)
 	}
-	zoneNode.Labels[zoneLabelKey] = zoneLabelValue //Label node with zone labels
-	zoneNode.Labels[regionLabelKey] = regionLabelValue
-	zoneNode, err = kubeClient.CoreV1().Nodes().Update(context.TODO(), zoneNode, metav1.UpdateOptions{})
-	if err != nil {
-		framework.Failf("Failed to update node %s with zone label: %s %s", zoneNode, zoneLabelKey+":"+zoneLabelValue, err)
-	}
-	return zoneNode, err
+	return zoneNode
 }
 
-func deleteTopologyLabels(delNode *corev1.Node, zoneKey string, kubeClient *kubeclientset.Clientset) *corev1.Node {
-	//Delete topology label from node
+func updateNodeWithLabel(kubeClient *kubeclientset.Clientset, labelKey string,
+	labelValue string, nodeName string) (*corev1.Node, error) {
+
+	var nodeToUpdate *corev1.Node
+	var err error
+	nodeToUpdate = getNodewithNodeName(nodeName, kubeClient)
+
+	nodeToUpdate.Labels[labelKey] = labelValue //Label node w
+	nodeToUpdate, err = kubeClient.CoreV1().Nodes().Update(context.TODO(), nodeToUpdate, metav1.UpdateOptions{})
+	if err != nil {
+		framework.Failf("Failed to update node %s with zone label: %s %s", nodeToUpdate, labelKey+":"+labelValue, err)
+	}
+	return nodeToUpdate, err
+}
+
+func deleteLabelsFromNode(delNode *corev1.Node, labelKey string, kubeClient *kubeclientset.Clientset) *corev1.Node {
+	//Iterate to support case labelKey is not present in the nodelabels
 	for label := range delNode.Labels {
-		if strings.Contains(label, zoneKey) {
+		if strings.Contains(label, labelKey) {
 			delete(delNode.Labels, label)
 		}
 	}
 	var err error
-	zoneNode, err := kubeClient.CoreV1().Nodes().Update(context.TODO(), delNode, metav1.UpdateOptions{})
+	podNode, err := kubeClient.CoreV1().Nodes().Update(context.TODO(), delNode, metav1.UpdateOptions{})
 	if err != nil {
-		framework.Failf("Failed to remove label %s from node %s. Error %s", zoneKey, zoneNode, err)
+		framework.Failf("Failed to remove label %s from node %s. Error %s", labelKey, podNode, err)
 	}
-	return zoneNode
+	return podNode
 }
 
 func getPodNodeDTO(entityDTOs []*proto.EntityDTO, podName string) (*proto.EntityDTO, []*proto.EntityDTO) {
