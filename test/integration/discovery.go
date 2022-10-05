@@ -328,20 +328,20 @@ var _ = Describe("Discover Cluster", func() {
 	})
 
 	Describe("discovering pod with pv having node with zone label", func() {
+		var podFullName string
+		var nodeName string
+		var zoneNode *corev1.Node
+		var podEntityDTO *proto.EntityDTO
+		var nodeEntityDTO []*proto.EntityDTO
+		var zoneLabelKey = "topology.kubernetes.io/zone"
+		var regionLabelKey = "topology.kubernetes.io/region"
+		var zoneLabelValue = "us-west-1"
+		var regionLabelValue = "us-west-1"
+		var commodityZoneValue = zoneLabelKey + "=" + zoneLabelValue
+		var commodityRegionValue = regionLabelKey + "=" + regionLabelValue
+
 		It("discovering pod with pv having node with zone label with default featureGate value true", func() {
 			var err error
-			var podFullName string
-			var nodeName string
-			var commodityZoneValue string
-			var commodityRegionValue string
-			var zoneNode *corev1.Node
-			var podEntityDTO *proto.EntityDTO
-			var nodeEntityDTO []*proto.EntityDTO
-			var zoneLabelKey = "topology.kubernetes.io/zone"
-			var regionLabelKey = "topology.kubernetes.io/region"
-			var zoneLabelValue = "us-west-1"
-			var regionLabelValue = "us-west-1"
-
 			pvc, err := createVolumeClaim(kubeClient, namespace, "standard")
 			if pvc == nil && err != nil {
 				framework.Failf("Failed to create PVC %s with the error %s", pvc, err)
@@ -359,57 +359,25 @@ var _ = Describe("Discover Cluster", func() {
 
 			//Label node with zone and region labels
 			nodeName = pod.Spec.NodeName
-			zoneNode, err = kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-			if err != nil {
-				framework.Failf("Failed to retrieve node with error %s", err)
-			}
-			zoneNode.Labels[zoneLabelKey] = zoneLabelValue //Label node with zone labels
-			zoneNode.Labels[regionLabelKey] = regionLabelValue
-			zoneNode, err = kubeClient.CoreV1().Nodes().Update(context.TODO(), zoneNode, metav1.UpdateOptions{})
-			if err != nil {
-				framework.Failf("Failed to update node %s with label %s or %s. Error : %s", zoneNode, zoneLabelKey, regionLabelKey, err)
-			}
+			zoneNode, err = updateNodeWithLabel(kubeClient, zoneLabelKey, regionLabelKey, zoneLabelValue, regionLabelValue, nodeName)
 
 			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
 			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
 
 			podFullName = namespace + "/" + pod.Name
-			commodityZoneValue = zoneLabelKey + "=" + zoneLabelValue
-			commodityRegionValue = regionLabelKey + "=" + regionLabelValue
-
 			//Verify zone label in the commodity list
 			podEntityDTO, nodeEntityDTO = getPodNodeDTO(entityDTOs, podFullName)
 
 			if !validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_LABEL, commodityZoneValue) {
-				//Teardown remove both labels
-				deleteNode := deleteTopologyLabels(zoneNode, zoneLabelKey, kubeClient)
-				_ = deleteTopologyLabels(deleteNode, regionLabelKey, kubeClient)
 				framework.Failf("Zone label in node for pod with PV is not honored")
 			}
 			if !validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_LABEL, commodityRegionValue) {
-				//Teardown remove both labels
-				deleteNode := deleteTopologyLabels(zoneNode, zoneLabelKey, kubeClient)
-				_ = deleteTopologyLabels(deleteNode, regionLabelKey, kubeClient)
 				framework.Failf("Region label in node for pod with PV is not honored")
 			}
-			//Teardown remove both labels
-			deleteNode := deleteTopologyLabels(zoneNode, zoneLabelKey, kubeClient)
-			_ = deleteTopologyLabels(deleteNode, regionLabelKey, kubeClient)
 		})
 
 		It("discovering pod with pv having node with zone label with featureGate disabled", func() {
 			var err error
-			var podFullName string
-			var nodeName string
-			var commodityZoneValue string
-			var commodityRegionValue string
-			var zoneNode *corev1.Node
-			var podEntityDTO *proto.EntityDTO
-			var nodeEntityDTO []*proto.EntityDTO
-			var zoneLabelKey = "topology.kubernetes.io/zone"
-			var regionLabelKey = "topology.kubernetes.io/region"
-			var zoneLabelValue = "us-west-2"
-			var regionLabelValue = "us-west-2"
 
 			zoneFlag := make(map[string]bool)
 			zoneFlag["HonorRegionZoneLabels"] = false
@@ -435,39 +403,27 @@ var _ = Describe("Discover Cluster", func() {
 			}
 
 			nodeName = pod.Spec.NodeName
-			zoneNode, err = kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-			if err != nil {
-				framework.Failf("Failed to retrieve node with error %s", err)
-			}
-			zoneNode.Labels[zoneLabelKey] = zoneLabelValue //Label node with zone labels
-			zoneNode.Labels[regionLabelKey] = regionLabelValue
-			zoneNode, err = kubeClient.CoreV1().Nodes().Update(context.TODO(), zoneNode, metav1.UpdateOptions{})
-			if err != nil {
-				framework.Failf("Failed to update node %s with zone label: %s %s", zoneNode, zoneLabelKey+":"+zoneLabelValue, err)
-			}
+			zoneNode, err = updateNodeWithLabel(kubeClient, zoneLabelKey, regionLabelKey, zoneLabelValue, regionLabelValue, nodeName)
 
 			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
 			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
 
 			podFullName = namespace + "/" + pod.Name
-			commodityZoneValue = zoneLabelKey + "=" + zoneLabelValue
-			commodityRegionValue = regionLabelKey + "=" + regionLabelValue
 
 			podEntityDTO, nodeEntityDTO = getPodNodeDTO(entityDTOs, podFullName)
 
 			//Verify zone/region label in the commodity list
 			if validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_LABEL, commodityZoneValue) {
-				//Teardown Remove both labels
-				deleteNode := deleteTopologyLabels(zoneNode, zoneLabelKey, kubeClient)
-				_ = deleteTopologyLabels(deleteNode, regionLabelKey, kubeClient)
 				framework.Failf("Zone label in node for pod with PV is not honored")
 			}
 			if validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_LABEL, commodityRegionValue) {
-				deleteNode := deleteTopologyLabels(zoneNode, zoneLabelKey, kubeClient)
-				_ = deleteTopologyLabels(deleteNode, regionLabelKey, kubeClient)
 				framework.Failf("Region label in node for pod with PV is not honored")
 			}
-			//Teardown Remove both labels
+
+		})
+		AfterEach(func() {
+			//Teardown remove both labels
+			fmt.Printf("INSIDE PAPARAZZI")
 			deleteNode := deleteTopologyLabels(zoneNode, zoneLabelKey, kubeClient)
 			_ = deleteTopologyLabels(deleteNode, regionLabelKey, kubeClient)
 		})
@@ -478,10 +434,28 @@ var _ = Describe("Discover Cluster", func() {
 	// This will work only if run sequentially. Find a better way to do this.
 	Describe("test teardowon", func() {
 		It(fmt.Sprintf("Deleting framework namespace: %s", namespace), func() {
+			fmt.Printf("INSIDE MAIN PAPARAZZI")
 			f.AfterEach()
 		})
 	})
 })
+
+func updateNodeWithLabel(kubeClient *kubeclientset.Clientset, zoneLabelKey string, regionLabelKey string,
+	zoneLabelValue string, regionLabelValue string, nodeName string) (*corev1.Node, error) {
+	var err error
+	var zoneNode *corev1.Node
+	zoneNode, err = kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		framework.Failf("Failed to retrieve node with error %s", err)
+	}
+	zoneNode.Labels[zoneLabelKey] = zoneLabelValue //Label node with zone labels
+	zoneNode.Labels[regionLabelKey] = regionLabelValue
+	zoneNode, err = kubeClient.CoreV1().Nodes().Update(context.TODO(), zoneNode, metav1.UpdateOptions{})
+	if err != nil {
+		framework.Failf("Failed to update node %s with zone label: %s %s", zoneNode, zoneLabelKey+":"+zoneLabelValue, err)
+	}
+	return zoneNode, err
+}
 
 func deleteTopologyLabels(delNode *corev1.Node, zoneKey string, kubeClient *kubeclientset.Clientset) *corev1.Node {
 	//Delete topology label from node
