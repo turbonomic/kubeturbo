@@ -17,6 +17,7 @@ const (
 	KindReplicationController = "ReplicationController"
 	KindStatefulSet           = "StatefulSet"
 	KindClusterRole           = "ClusterRole"
+	KindRole                  = "Role"
 
 	K8sExtensionsGroupName     = "extensions"
 	K8sAppsGroupName           = "apps"

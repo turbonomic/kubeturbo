@@ -661,16 +661,20 @@ func manageSCCs(dynClient dynamic.Interface, kubeClient kubernetes.Interface) {
 		sccName := scc.GetName()
 		saName, err := createSCCServiceAccount(ns, sccName, kubeClient)
 		if err != nil {
-			// We have no option but to abort halfway and cleanup in case of any errors.
+			// We have no option but to abort halfway and cleanup in case of persistent errors.
 			// We already retry couple of times in case of an error.
+			// We also log warning in the called function
 			return
 		}
 
-		saNames = append(saNames, saName)
-
-		err = addUserToSCC(util.SCCUserFullName(ns, saName), sccName, dynClient)
+		roleName, err := createSCCRole(ns, sccName, kubeClient)
 		if err != nil {
-			glog.Errorf("Error adding scc user: %s to scc: %s: %v.", saName, sccName, err)
+			// Warning logged in the called function
+			return
+		}
+
+		if err := createSCCRoleBinding(saName, ns, sccName, roleName, kubeClient); err != nil {
+			// Warning logged in the called function
 			return
 		}
 
@@ -681,10 +685,9 @@ func manageSCCs(dynClient dynamic.Interface, kubeClient kubernetes.Interface) {
 		// Ignoring this as of now because this can be no better then facing transient API errors
 		// while deleting resources at exit, which will also leak resources behind.
 		// Leaking resources is ok to some extent, because we use constant names and everything is
-		// created within a namespace (except the updated user name in scc). Any leaked resources will
-		// automatically be cleaned up when the kubeturbo namespace is deleted. The username updated in
-		// the scc can potentially be left behind, but does not pose any security risk if the user
-		// service account does not exist any more.
+		// created within a namespace. Any leaked resources will automatically be cleaned up when
+		// the kubeturbo namespace is deleted.
+		// Also in case of kubeturbo restarts if there are leaked resources, kubeturbo will adopt them.
 		util.SCCMapping[sccName] = saName
 	}
 
@@ -693,8 +696,7 @@ func manageSCCs(dynClient dynamic.Interface, kubeClient kubernetes.Interface) {
 		return
 	}
 
-	err = createSCCClusterRoleBinding(saNames, ns, clusterRoleName, kubeClient)
-	if err != nil {
+	if err := createSCCClusterRoleBinding(saNames, ns, clusterRoleName, kubeClient); err != nil {
 		return
 	}
 
@@ -748,6 +750,48 @@ func createSCCServiceAccount(namespace, sccName string, kubeClient kubernetes.In
 	return saName, err
 }
 
+func createSCCRole(namespace, sccName string, kubeClient kubernetes.Interface) (string, error) {
+	role := util.GetRoleForSCC(sccName)
+	roleName := role.Name
+
+	err := util.RetryDuring(util.TransientRetryTimes, 0,
+		util.QuickRetryInterval, func() error {
+			_, err := kubeClient.RbacV1().Roles(namespace).Create(context.TODO(), role, metav1.CreateOptions{})
+			if apierrors.IsAlreadyExists(err) {
+				glog.V(3).Infof("SCC Role: %s already exists.", roleName)
+				return nil
+			}
+
+			if err != nil {
+				glog.Errorf("Error creating SCC Role: %s, %s.", roleName, err)
+				return err
+			}
+			return nil
+		})
+
+	return roleName, err
+}
+
+func createSCCRoleBinding(saName, namespace, sccName, roleName string, kubeClient kubernetes.Interface) error {
+	rb := util.GetRoleBindingForSCC(saName, namespace, sccName, roleName)
+	return util.RetryDuring(util.TransientRetryTimes, 0,
+		util.QuickRetryInterval, func() error {
+			_, err := kubeClient.RbacV1().RoleBindings(namespace).Create(context.TODO(), rb, metav1.CreateOptions{})
+			if apierrors.IsAlreadyExists(err) {
+				// TODO: We ignore the case where a new scc might appear between kubeturbo runs
+				// That means a new scc definition will be picked across restarts only.
+				glog.V(3).Infof("SCC RoleBinding: %s already exists.", rb.Name)
+				return nil
+			}
+
+			if err != nil {
+				glog.Errorf("Error creating SCC RoleBinding: %s, %s.", rb.Name, err)
+				return err
+			}
+			return nil
+		})
+}
+
 func createSCCClusterRole(kubeClient kubernetes.Interface) (string, error) {
 	clusterRole := util.GetClusterRoleForSCC()
 	clusterRoleName := clusterRole.Name
@@ -776,8 +820,8 @@ func createSCCClusterRoleBinding(saNames []string, namespace, roleName string, k
 		util.QuickRetryInterval, func() error {
 			_, err := kubeClient.RbacV1().ClusterRoleBindings().Create(context.TODO(), crb, metav1.CreateOptions{})
 			if apierrors.IsAlreadyExists(err) {
-				// We ignore the case where a new scc might appear between kubeturbo runs
-				// That means a new scc definition will be picked across restarts.
+				// TODO: We ignore the case where a new scc might appear between kubeturbo runs
+				// That means a new scc definition will be picked across restarts only.
 				glog.V(3).Infof("SCC ClusterRoleBinding: %s already exists.", crb.Name)
 				return nil
 			}
@@ -799,13 +843,12 @@ func cleanUpSCCMgmtResources(dynClient dynamic.Interface, kubeClient kubernetes.
 	glog.V(2).Infof("SCC management resource cleanup started.")
 
 	for sccName, saName := range util.SCCMapping {
-		err := removeUserFromSCC(util.SCCUserFullName(ns, saName), sccName, dynClient)
-		if err != nil {
-			glog.Errorf("Error removing sa(user): %s from scc: %s, %v", saName, sccName, err)
-			// We still continue to try to cleanup rest of them.
-		}
-
-		err = util.RetryDuring(util.TransientRetryTimes, 0,
+		// Errors are found and logged in the called methods.
+		// We retry couple of times on errors but continue to delete other
+		// resources on persistent error on a particular resource.
+		deleteSCCRole(ns, sccName, kubeClient)
+		deleteSCCRoleBinding(ns, sccName, kubeClient)
+		if err := util.RetryDuring(util.TransientRetryTimes, 0,
 			util.QuickRetryInterval, func() error {
 				err := kubeClient.CoreV1().ServiceAccounts(ns).Delete(context.TODO(), saName, metav1.DeleteOptions{})
 				if apierrors.IsNotFound(err) {
@@ -819,12 +862,56 @@ func cleanUpSCCMgmtResources(dynClient dynamic.Interface, kubeClient kubernetes.
 				}
 
 				return nil
-			})
+			}); err != nil {
+			glog.Error(err)
+		}
+
 	}
 
+	// Errors are found and logged in the called methods.
 	deleteSCCClusterRoleBinding(ns, kubeClient)
 	deleteSCCClusterRole(ns, kubeClient)
 	glog.V(2).Infof("SCC management resource cleanup completed.")
+}
+
+func deleteSCCRole(namespace, sccName string, kubeClient kubernetes.Interface) {
+	roleName := util.RoleNameForSCC(sccName)
+	err := util.RetryDuring(util.TransientRetryTimes, 0,
+		util.QuickRetryInterval, func() error {
+			err := kubeClient.RbacV1().Roles(namespace).Delete(context.TODO(), roleName, metav1.DeleteOptions{})
+			if apierrors.IsNotFound(err) {
+				glog.V(3).Infof("SCC Role: %s already deleted.", roleName)
+				return nil
+			}
+
+			if err != nil {
+				glog.Errorf("Error deleting SCC Role: %s, %s.", roleName, err)
+				return err
+			}
+			return nil
+		})
+	if err != nil {
+		glog.Errorf("Error deleting SCC role. %v", err)
+	}
+}
+
+func deleteSCCRoleBinding(namespace, sccName string, kubeClient kubernetes.Interface) {
+	roleBindingName := util.RoleBindingNameForSCC(sccName)
+	err := util.RetryDuring(util.TransientRetryTimes, 0,
+		util.QuickRetryInterval, func() error {
+			err := kubeClient.RbacV1().RoleBindings(namespace).Delete(context.TODO(), roleBindingName, metav1.DeleteOptions{})
+			if apierrors.IsNotFound(err) {
+				glog.V(3).Infof("SCC RoleBinding: %s already deleted.", roleBindingName)
+			}
+
+			if err != nil {
+				glog.Errorf("Error deleting SCC RoleBinding: %s, %s.", roleBindingName, err)
+			}
+			return nil
+		})
+	if err != nil {
+		glog.Errorf("Error deleting SCC role binding. %v", err)
+	}
 }
 
 func deleteSCCClusterRole(namespace string, kubeClient kubernetes.Interface) {
@@ -845,7 +932,7 @@ func deleteSCCClusterRole(namespace string, kubeClient kubernetes.Interface) {
 		})
 
 	if err != nil {
-		glog.Errorf("Error deleting SCC cluster role.")
+		glog.Errorf("Error deleting SCC cluster role. %v", err)
 	}
 }
 
@@ -865,7 +952,7 @@ func deleteSCCClusterRoleBinding(namespace string, kubeClient kubernetes.Interfa
 		})
 
 	if err != nil {
-		glog.Errorf("Error deleting SCC cluster role binding.")
+		glog.Errorf("Error deleting SCC cluster role binding. %v", err)
 	}
 }
 
@@ -888,122 +975,4 @@ func reviewSCCAccess(namespace string, kubeClient kubernetes.Interface) bool {
 	}
 
 	return true
-}
-
-func addUserToSCC(userFullName, sccName string, client dynamic.Interface) error {
-	res := schema.GroupVersionResource{
-		Group:    util.OpenShiftAPISCCGV.Group,
-		Version:  util.OpenShiftAPISCCGV.Version,
-		Resource: util.OpenShiftSCCResName,
-	}
-
-	var scc *unstructured.Unstructured
-	err := util.RetryDuring(util.TransientRetryTimes, 0,
-		util.QuickRetryInterval, func() error {
-			var err error
-			scc, err = client.Resource(res).Get(context.TODO(), sccName, metav1.GetOptions{})
-			if err != nil {
-				// retry
-				return err
-			}
-			return nil
-		})
-
-	users, ok, err := unstructured.NestedStringSlice(scc.Object, "users")
-	if err != nil {
-		return err
-	}
-	if !ok {
-		// TODO: reverify this case, what can result in this not being found
-	}
-
-	for _, user := range users {
-		if userFullName == user {
-			glog.Infof("SCC user %s already is in the user list of scc: %s.", userFullName, sccName)
-			return nil
-		}
-	}
-
-	users = append(users, userFullName)
-	err = unstructured.SetNestedStringSlice(scc.Object, users, "users")
-	if err != nil {
-		return err
-	}
-
-	err = util.RetryDuring(util.TransientRetryTimes, 0,
-		util.QuickRetryInterval, func() error {
-			scc, err = client.Resource(res).Update(context.TODO(), scc, metav1.UpdateOptions{})
-			if err != nil {
-				// retry
-				return err
-			}
-			return nil
-		})
-	return err
-}
-
-// TODO: Remove code duplication
-func removeUserFromSCC(userFullName, sccName string, client dynamic.Interface) error {
-	res := schema.GroupVersionResource{
-		Group:    util.OpenShiftAPISCCGV.Group,
-		Version:  util.OpenShiftAPISCCGV.Version,
-		Resource: util.OpenShiftSCCResName,
-	}
-
-	var scc *unstructured.Unstructured
-	err := util.RetryDuring(util.TransientRetryTimes, 0,
-		util.QuickRetryInterval, func() error {
-			var err error
-			scc, err = client.Resource(res).Get(context.TODO(), sccName, metav1.GetOptions{})
-			if err != nil {
-				// retry
-				return err
-			}
-			return nil
-		})
-
-	// Check if the user indeed is there in the list before deleting
-	users, ok, err := unstructured.NestedStringSlice(scc.Object, "users")
-	if err != nil {
-		return err
-	}
-	if !ok || len(users) < 1 {
-		// No users to remove
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	updatedUsers := []string{}
-	found := false
-	for _, user := range users {
-		if userFullName == user {
-			found = true
-			continue
-		}
-		updatedUsers = append(updatedUsers, user)
-	}
-
-	if found == true {
-		err := unstructured.SetNestedStringSlice(scc.Object, updatedUsers, "users")
-		if err != nil {
-			return err
-		}
-
-		err = util.RetryDuring(util.TransientRetryTimes, 0,
-			util.QuickRetryInterval, func() error {
-				scc, err = client.Resource(res).Update(context.TODO(), scc, metav1.UpdateOptions{})
-				if err != nil {
-					// retry
-					return err
-				}
-				return nil
-			})
-		return err
-	} else {
-		glog.Errorf("SCC user: %s does not exist in the scc: %s user list.", userFullName, sccName)
-	}
-
-	return nil
 }

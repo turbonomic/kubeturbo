@@ -280,6 +280,60 @@ func GetClusterRoleBindingForSCC(saNames []string, saNamespace, clusterRoleName 
 	}
 }
 
+func GetRoleForSCC(sccName string) *rbacv1.Role {
+	return &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: kubeturboSCCPrefix + "-use-" + sccName,
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs: []string{
+					rbacv1.VerbUse,
+				},
+				APIGroups: []string{
+					OpenShiftSecurityGroupName,
+				},
+				ResourceNames: []string{
+					sccName,
+				},
+				Resources: []string{
+					OpenShiftSCCResName,
+				},
+			},
+		},
+	}
+}
+
+func GetRoleBindingForSCC(saName, saNamespace, sccName, roleName string) *rbacv1.RoleBinding {
+	subjects := []rbacv1.Subject{
+		{
+			Kind:      rbacv1.ServiceAccountKind,
+			Name:      saName,
+			Namespace: saNamespace,
+		},
+	}
+
+	return &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: kubeturboSCCPrefix + "-use-" + sccName,
+		},
+		Subjects: subjects,
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: AuthorizationGroupName,
+			Kind:     KindRole,
+			Name:     roleName,
+		},
+	}
+}
+
+func RoleNameForSCC(sccName string) string {
+	return kubeturboSCCPrefix + "-use-" + sccName
+}
+
+func RoleBindingNameForSCC(sccName string) string {
+	return kubeturboSCCPrefix + "-use-" + sccName
+}
+
 func GetServiceAccountForSCC(sccName string) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
