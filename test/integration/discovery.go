@@ -271,19 +271,21 @@ var _ = Describe("Discover Cluster", func() {
 	})
 
 	Describe("discovering pod with pv having affinity rules", func() {
-		It("discovering with pv with affinity rules", func() {
+		//Create test resources
+		var err error
+		var podFullName string
+		var nodeName string
+		var podNode *corev1.Node
+		var podEntityDTO *proto.EntityDTO
+		var nodeEntityDTO []*proto.EntityDTO
+		var zoneLabelKey = "topology.kubernetes.io/zone"
+		var regionLabelKey = "topology.kubernetes.io/region"
+		var zoneLabelValue = "us-west-1"
+		var regionLabelValue = "us-west-1"
+		var commodityZoneValue = zoneLabelKey + "=" + zoneLabelValue
+		var commodityRegionValue = regionLabelKey + "=" + regionLabelValue
 
-			var nodeNameForPod string
-			var podFullName string
-
-			// Enable the feature gate
-			honorAzPvFlag := make(map[string]bool)
-			honorAzPvFlag["HonorAzLabelPvAffinity"] = true
-			err := utilfeature.DefaultMutableFeatureGate.SetFromMap(honorAzPvFlag)
-			if err != nil {
-				glog.Fatalf("Invalid Feature Gates: %v", err)
-			}
-
+		It("create test resources", func() {
 			//Add Storage Class
 			newStorage, err := createStorageClass(kubeClient)
 			if newStorage == nil && err != nil {
@@ -299,6 +301,9 @@ var _ = Describe("Discover Cluster", func() {
 			if pvc == nil && err != nil {
 				framework.Failf("Failed to create PVC %s with the error %s", pvc, err)
 			}
+
+			// Update kind-worker node with foo=bar to create node compliant to pv-affinity
+			podNode, err = updateNodeWithLabel(kubeClient, "foo", "bar", "kind-worker")
 			//Create deployment and validate pod creation
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, pvc.Name, 1, true, false, false, ""))
 			framework.ExpectNoError(err, "Error creating test resources")
@@ -309,16 +314,100 @@ var _ = Describe("Discover Cluster", func() {
 				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
 			}
 
-			nodeNameForPod = pod.Spec.NodeName
+			nodeName = pod.Spec.NodeName
 			podFullName = namespace + "/" + pod.Name
+		})
+
+		It("discovering pod with pv with affinity rules when feature gate is default(true)", func() {
+
+			//Use Caase 1 : Validate whether VMPM_ACCESS is present in the pod commodity bought list
+			//and no OTHER node has VMPM_ACCESS commodity in sold list with feature gate default value
+
+			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
+			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
+			podEntityDTO, nodeEntityDTO = getPodNodeDTO(entityDTOs, podFullName)
+
+			if !validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_VMPM_ACCESS, "foo in (bar)") {
+				framework.Failf("PV affinity is not honored")
+			}
+		})
+
+		It("pod with pv to honor zone label when feature gate is default(true)", func() {
+			//User Case 2 : Test zone label in node and featureGate default value
+			podNode, err = updateNodeWithLabel(kubeClient, zoneLabelKey, zoneLabelValue, nodeName)
+			podNode, err = updateNodeWithLabel(kubeClient, regionLabelKey, regionLabelValue, nodeName)
 
 			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
 			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
 
-			//Validation logic
-			if !validateBuyerSellerCommodity(entityDTOs, nodeNameForPod, podFullName, proto.CommodityDTO_VMPM_ACCESS, "foo in (bar)") {
+			//Verify zone label in the commodity list
+			podEntityDTO, nodeEntityDTO = getPodNodeDTO(entityDTOs, podFullName)
+
+			// Verify zone label is honored for pod with pv
+			if !validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_LABEL, commodityZoneValue) {
+				framework.Failf("Zone label in node for pod with PV is not honored")
+			}
+			if !validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_LABEL, commodityRegionValue) {
+				framework.Failf("Region label in node for pod with PV is not honored")
+			}
+
+		})
+
+		It("discovering pod with pv with affinity rules with featureGate disabled", func() {
+
+			// Disable  the feature gate
+			honorAzPvFlag := make(map[string]bool)
+			honorAzPvFlag["HonorAzLabelPvAffinity"] = false
+			err = utilfeature.DefaultMutableFeatureGate.SetFromMap(honorAzPvFlag)
+			if err != nil {
+				glog.Fatalf("Invalid Feature Gates: %v", err)
+			}
+
+			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
+			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
+			podEntityDTO, nodeEntityDTO = getPodNodeDTO(entityDTOs, podFullName)
+
+			var delNode *corev1.Node = getNodewithNodeName(nodeName, kubeClient)
+			if validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_VMPM_ACCESS, "foo in (bar)") {
+				podNode = deleteLabelsFromNode(delNode, "foo", kubeClient)
 				framework.Failf("PV affinity is not honored")
 			}
+			//Manual deletion of foo=bar
+			podNode = deleteLabelsFromNode(delNode, "foo", kubeClient)
+		})
+
+		It("pod with pv to honor zone label when feature gate is disabled", func() {
+
+			//Use Case 3 : Test zone label in node and featureGate value false
+
+			// Disable the feature gate
+			honorAzPvFlag := make(map[string]bool)
+			honorAzPvFlag["HonorAzLabelPvAffinity"] = false
+			err = utilfeature.DefaultMutableFeatureGate.SetFromMap(honorAzPvFlag)
+			if err != nil {
+				glog.Fatalf("Invalid Feature Gates: %v", err)
+			}
+
+			podNode, err = updateNodeWithLabel(kubeClient, zoneLabelKey, zoneLabelValue, nodeName)
+			podNode, err = updateNodeWithLabel(kubeClient, regionLabelKey, regionLabelValue, nodeName)
+
+			entityDTOs, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
+			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
+
+			podEntityDTO, nodeEntityDTO = getPodNodeDTO(entityDTOs, podFullName)
+
+			//Verify zone/region label in the commodity list
+			if validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_LABEL, commodityZoneValue) {
+				framework.Failf("Zone label in node for pod with PV is considered even if featureGate is disabled")
+			}
+			if validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_LABEL, commodityRegionValue) {
+				framework.Failf("Region label in node for pod with PV is considered even if featureGate is diabledd")
+			}
+
+		})
+		AfterEach(func() {
+			delNode := deleteLabelsFromNode(podNode, zoneLabelKey, kubeClient)
+			delNode = deleteLabelsFromNode(delNode, regionLabelKey, kubeClient)
 		})
 	})
 
@@ -332,15 +421,50 @@ var _ = Describe("Discover Cluster", func() {
 	})
 })
 
-func validateBuyerSellerCommodity(entityDTOs []*proto.EntityDTO, nodeName string, podName string,
-	commodityType proto.CommodityDTO_CommodityType, commodityValue string) bool {
+func getNodewithNodeName(nodeName string, kubeClient *kubeclientset.Clientset) *corev1.Node {
+	var zoneNode *corev1.Node
+	zoneNode, err := kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		framework.Failf("Failed to retrieve node with error %s", err)
+	}
+	return zoneNode
+}
 
-	var buyerRegsitered bool
-	var sellerRegistered bool
+func updateNodeWithLabel(kubeClient *kubeclientset.Clientset, labelKey string,
+	labelValue string, nodeName string) (*corev1.Node, error) {
+
+	var nodeToUpdate *corev1.Node
+	var err error
+	nodeToUpdate = getNodewithNodeName(nodeName, kubeClient)
+
+	nodeToUpdate.Labels[labelKey] = labelValue //Label node w
+	nodeToUpdate, err = kubeClient.CoreV1().Nodes().Update(context.TODO(), nodeToUpdate, metav1.UpdateOptions{})
+	if err != nil {
+		framework.Failf("Failed to update node %s with zone label: %s %s", nodeToUpdate, labelKey+":"+labelValue, err)
+	}
+	return nodeToUpdate, err
+}
+
+func deleteLabelsFromNode(delNode *corev1.Node, labelKey string, kubeClient *kubeclientset.Clientset) *corev1.Node {
+	//Iterate to support case labelKey is not present in the nodelabels
+	for label := range delNode.Labels {
+		if strings.Contains(label, labelKey) {
+			delete(delNode.Labels, label)
+		}
+	}
+	var err error
+	podNode, err := kubeClient.CoreV1().Nodes().Update(context.TODO(), delNode, metav1.UpdateOptions{})
+	if err != nil {
+		framework.Failf("Failed to remove label %s from node %s. Error %s", labelKey, podNode, err)
+	}
+	return podNode
+}
+
+func getPodNodeDTO(entityDTOs []*proto.EntityDTO, podName string) (*proto.EntityDTO, []*proto.EntityDTO) {
+	//Identify the pod with pv and all nodes and create respective dto variable and list respectively
 	var podEntityDTO *proto.EntityDTO
 	var nodeEntityDTO []*proto.EntityDTO
 
-	//Identify the pod with pv and all nodes and create respective dto variable and list respectively
 	for _, entityDTO := range entityDTOs {
 		if *entityDTO.EntityType == proto.EntityDTO_CONTAINER_POD &&
 			*entityDTO.DisplayName == podName {
@@ -350,6 +474,15 @@ func validateBuyerSellerCommodity(entityDTOs []*proto.EntityDTO, nodeName string
 			nodeEntityDTO = append(nodeEntityDTO, entityDTO)
 		}
 	}
+	return podEntityDTO, nodeEntityDTO
+
+}
+
+func validateBuyerSellerCommodity(podEntityDTO *proto.EntityDTO, nodeEntityDTO []*proto.EntityDTO, nodeName string,
+	commodityTypeToCheck proto.CommodityDTO_CommodityType, commodityValue string) bool {
+
+	var buyerRegsitered bool
+	var sellerRegistered bool
 
 	buyerRegsitered = false
 	sellerRegistered = false
@@ -357,7 +490,7 @@ func validateBuyerSellerCommodity(entityDTOs []*proto.EntityDTO, nodeName string
 	for _, commI := range podEntityDTO.GetCommoditiesBought() {
 		if *commI.ProviderType == proto.EntityDTO_VIRTUAL_MACHINE {
 			for _, commI := range commI.Bought {
-				if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
+				if *commI.CommodityType == commodityTypeToCheck &&
 					strings.Contains(*commI.Key, commodityValue) {
 					buyerRegsitered = true
 					break
@@ -368,12 +501,12 @@ func validateBuyerSellerCommodity(entityDTOs []*proto.EntityDTO, nodeName string
 			break
 		}
 	}
-	// Validate correct node to have VMPM_ACCESS commodity of type foo in (bar)
+	// Validate commodity is present in no other node
 	for _, nDTO := range nodeEntityDTO {
 		for _, commI := range nDTO.GetCommoditiesSold() {
-			if *commI.CommodityType == proto.CommodityDTO_VMPM_ACCESS &&
+			if *commI.CommodityType == commodityTypeToCheck &&
 				strings.Contains(*commI.Key, commodityValue) {
-				if *nDTO.DisplayName == nodeName { //Make sure no node other than kind-worker has the VMPM_ACCESS commodity
+				if *nDTO.DisplayName == nodeName { //Make sure no node other node has this commodity
 					sellerRegistered = true
 				} else {
 					framework.Failf(commodityValue+" commodity is present in another node %s", *nDTO.DisplayName)

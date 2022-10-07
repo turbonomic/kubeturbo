@@ -52,6 +52,5 @@ EOF
 echo "Creating kind cluster"
 create-cluster
 ${kubectl_path} config use-context kind-kind
-${kubectl_path} label node kind-worker foo=bar
 
 echo "Cluster creation complete."
