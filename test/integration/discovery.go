@@ -318,7 +318,7 @@ var _ = Describe("Discover Cluster", func() {
 			podFullName = namespace + "/" + pod.Name
 		})
 
-		It("discovering with pv with affinity rules", func() {
+		It("discovering pod with pv with affinity rules when feature gate is default(true)", func() {
 
 			//Use Caase 1 : Validate whether VMPM_ACCESS is present in the pod commodity bought list
 			//and no OTHER node has VMPM_ACCESS commodity in sold list with feature gate default value
@@ -353,7 +353,7 @@ var _ = Describe("Discover Cluster", func() {
 
 		})
 
-		It("discovering with pv with affinity rules with featureGate disabled", func() {
+		It("discovering pod with pv with affinity rules with featureGate disabled", func() {
 
 			// Disable  the feature gate
 			honorAzPvFlag := make(map[string]bool)
@@ -376,7 +376,7 @@ var _ = Describe("Discover Cluster", func() {
 			podNode = deleteLabelsFromNode(delNode, "foo", kubeClient)
 		})
 
-		It("pod with pv to honor zone label when feature gate is default(false)", func() {
+		It("pod with pv to honor zone label when feature gate is disabled", func() {
 
 			//Use Case 3 : Test zone label in node and featureGate value false
 
@@ -398,10 +398,10 @@ var _ = Describe("Discover Cluster", func() {
 
 			//Verify zone/region label in the commodity list
 			if validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_LABEL, commodityZoneValue) {
-				framework.Failf("Zone label in node for pod with PV is not honored")
+				framework.Failf("Zone label in node for pod with PV is considered even if featureGate is disabled")
 			}
 			if validateBuyerSellerCommodity(podEntityDTO, nodeEntityDTO, nodeName, proto.CommodityDTO_LABEL, commodityRegionValue) {
-				framework.Failf("Region label in node for pod with PV is not honored")
+				framework.Failf("Region label in node for pod with PV is considered even if featureGate is diabledd")
 			}
 
 		})
