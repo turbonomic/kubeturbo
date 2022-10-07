@@ -34,6 +34,8 @@ const (
 	machineSetNodePoolPrefix = "machineset"
 	// Expiration of cached pod controller info.
 	defaultCacheTTL = 12 * time.Hour
+	// Number of max items we query in each workload controller list API calls
+	defaultMaxListQueryItems = 400
 )
 
 var (
@@ -54,7 +56,7 @@ type ClusterScraperInterface interface {
 	GetKubernetesServiceID() (svcID string, err error)
 	GetAllPVs() ([]*api.PersistentVolume, error)
 	GetAllPVCs() ([]*api.PersistentVolumeClaim, error)
-	GetResources(resource schema.GroupVersionResource) (*unstructured.UnstructuredList, error)
+	GetResources(resource schema.GroupVersionResource) ([]unstructured.Unstructured, error)
 	GetMachineSetToNodesMap(nodes []*v1.Node) map[string][]*v1.Node
 	GetAllTurboSLOScalings() ([]policyv1alpha1.SLOHorizontalScale, error)
 	GetAllTurboPolicyBindings() ([]policyv1alpha1.PolicyBinding, error)
@@ -278,8 +280,25 @@ func (s *ClusterScraper) GetAllEndpoints() ([]*api.Endpoints, error) {
 	return s.GetEndpoints(api.NamespaceAll, listOption)
 }
 
-func (s *ClusterScraper) GetResources(resource schema.GroupVersionResource) (*unstructured.UnstructuredList, error) {
-	return s.DynamicClient.Resource(resource).Namespace(api.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+func (s *ClusterScraper) GetResources(resource schema.GroupVersionResource) ([]unstructured.Unstructured, error) {
+	items := []unstructured.Unstructured{}
+	continueList := ""
+	// TODO: Is there a possibility of this loop never exiting?
+	// The documentation states that the APIs reliably return correct values for continue
+	for {
+		listOptions := metav1.ListOptions{Limit: int64(defaultMaxListQueryItems), Continue: continueList}
+		listItems, err := s.DynamicClient.Resource(resource).Namespace(api.NamespaceAll).List(context.TODO(), listOptions)
+		if err != nil {
+			return items, err
+		}
+		items = append(items, listItems.Items...)
+		if listItems.GetContinue() == "" {
+			break
+		}
+		continueList = listItems.GetContinue()
+	}
+
+	return items, nil
 }
 
 func (s *ClusterScraper) GetKubernetesServiceID() (svcID string, err error) {

@@ -88,7 +88,7 @@ func (cp *ControllerProcessor) cacheAllControllers() {
 	}
 	controllerMap := make(map[string]*repository.K8sController)
 	for _, controller := range supportedControllers {
-		list, err := cp.ClusterInfoScraper.GetResources(controller)
+		items, err := cp.ClusterInfoScraper.GetResources(controller)
 		if err != nil {
 			if apierrors.IsNotFound(err) && strings.Contains(err.Error(), "the server could not find the requested resource") {
 				glog.V(3).Infof("Resource %v not found ", controller.Resource)
@@ -97,7 +97,7 @@ func (cp *ControllerProcessor) cacheAllControllers() {
 			}
 			continue
 		}
-		for _, item := range list.Items {
+		for _, item := range items {
 			uid := string(item.GetUID())
 			kind := item.GetKind()
 			name := item.GetName()
