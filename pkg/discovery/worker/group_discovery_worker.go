@@ -51,7 +51,7 @@ func Newk8sEntityGroupDiscoveryWorker(cluster *repository.ClusterSummary,
 // It merges the group members belonging to the same group but discovered by different discovery workers.
 // Then it creates DTOs for the pod/container groups to be sent to the server.
 func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.EntityGroup,
-	sidecarContainerSpecs, podsWithVolumes []string, unknownStateNodes []string) ([]*proto.GroupDTO, error) {
+	sidecarContainerSpecs, podsWithVolumes []string, notReadyNodes []string) ([]*proto.GroupDTO, error) {
 
 	var groupDTOs []*proto.GroupDTO
 
@@ -111,7 +111,7 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 	// Create static groups for all pods that use volumes
 	groupDTOs = append(groupDTOs, worker.buildPodsWithVolumesGroup(podsWithVolumes)...)
 
-	groupDTOs = append(groupDTOs, worker.buildUnknownStateNodesGroup(unknownStateNodes)...)
+	groupDTOs = append(groupDTOs, worker.buildNotReadyNodesGroup(notReadyNodes)...)
 
 	// Create dynamic groups for discovered Turbo policies
 	groupDTOs = append(groupDTOs, worker.BuildTurboPolicyDTOsFromPolicyBindings()...)
@@ -186,14 +186,14 @@ func (worker *k8sEntityGroupDiscoveryWorker) buildPodsWithVolumesGroup(podsWithV
 	return groupsDTOs
 }
 
-func (worker *k8sEntityGroupDiscoveryWorker) buildUnknownStateNodesGroup(unknownStateNodes []string) []*proto.GroupDTO {
+func (worker *k8sEntityGroupDiscoveryWorker) buildNotReadyNodesGroup(notReadyNodes []string) []*proto.GroupDTO {
 	var groupsDTOs []*proto.GroupDTO
-	if len(unknownStateNodes) <= 0 {
+	if len(notReadyNodes) <= 0 {
 		return groupsDTOs
 	}
-	id := fmt.Sprintf("All-Nodes-State-Unknown-%s", worker.targetId)
-	displayName := "All Nodes (State Unknown)"
-	uniqueSpecs := sets.NewString(unknownStateNodes...)
+	id := fmt.Sprintf("NotReady-Nodes-%s", worker.targetId)
+	displayName := fmt.Sprintf("NotReady Nodes [%s]", worker.targetId)
+	uniqueSpecs := sets.NewString(notReadyNodes...)
 	// static group
 	groupBuilder := group.StaticRegularGroup(id).
 		OfType(proto.EntityDTO_VIRTUAL_MACHINE).

@@ -132,7 +132,7 @@ type TaskResult struct {
 	podVolumeMetrics      []*repository.PodVolumeMetrics
 	sidecarContainerSpecs []string
 	podsWithVolumes       []string
-	unknownStateNodes     []string
+	notReadyNodes         []string
 }
 
 func NewTaskResult(workerID string, state TaskResultState) *TaskResult {
@@ -186,8 +186,8 @@ func (r *TaskResult) PodWithVolumes() []string {
 	return r.podsWithVolumes
 }
 
-func (r *TaskResult) UnknownStateNodes() []string {
-	return r.unknownStateNodes
+func (r *TaskResult) NotReadyNodes() []string {
+	return r.notReadyNodes
 }
 
 func (r *TaskResult) Err() error {
@@ -244,7 +244,7 @@ func (r *TaskResult) WithPodsWithVolumes(podsWithVolumes []string) *TaskResult {
 	return r
 }
 
-func (r *TaskResult) WithUnknownStateNodes(unknownStateNodes []string) *TaskResult {
-	r.unknownStateNodes = unknownStateNodes
+func (r *TaskResult) WithNotReadyNodes(notReadyNodes []string) *TaskResult {
+	r.notReadyNodes = notReadyNodes
 	return r
 }
