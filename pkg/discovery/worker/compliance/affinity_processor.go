@@ -7,8 +7,10 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 // Affinity processor parses each affinity rule defined in pod and creates commodityDTOs for nodes and pods.
@@ -46,9 +48,11 @@ func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod, podsNodesMap ma
 	// Honor the nodeAffinity from the pod's nodeAffinity
 	nodeSelectorTerms := getAllNodeSelectors(affinity)
 	// Also honor the nodeAffinity from the PVs of the pod if the pod have the PV attached
-	pvNodeSelectorTerms := am.getAllPvAffinityTerms(pod)
-
-	nodeSelectorTerms = append(nodeSelectorTerms, pvNodeSelectorTerms...)
+	var pvNodeSelectorTerms []api.NodeSelectorTerm
+	if utilfeature.DefaultFeatureGate.Enabled(features.HonorAzLabelPvAffinity) {
+		pvNodeSelectorTerms = am.getAllPvAffinityTerms(pod)
+		nodeSelectorTerms = append(nodeSelectorTerms, pvNodeSelectorTerms...)
+	}
 
 	nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought, err := am.commManager.GetAccessCommoditiesForNodeAffinity(nodeSelectorTerms)
 	if err != nil {

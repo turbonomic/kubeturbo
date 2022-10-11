@@ -94,7 +94,8 @@ type LinuxAmd64NodeCpuFrequencyGetter struct {
 
 // GetJobCommand returns the command used to obtain CPU frequency on x64 linux
 // TODO: Ideally we should use lscpu to get the averaged CPU speed across all CPUs on the node, instead of the CPU
-//   speed of the first CPU
+//
+//	speed of the first CPU
 func (amd64 *LinuxAmd64NodeCpuFrequencyGetter) GetJobCommand() string {
 	return `cat /proc/cpuinfo | grep -m 1 'cpu MHz'`
 }

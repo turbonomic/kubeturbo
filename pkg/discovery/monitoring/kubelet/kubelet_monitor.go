@@ -191,15 +191,16 @@ type throttlingMetric struct {
 // # TYPE container_spec_cpu_period gauge
 // container_spec_cpu_period{container="metallb-speaker",id="/kubepods/pod8266a379-dd56-42f8-8af0-19fc0d8ea3af/8e1a2ff0f116c9d086af53cbd7430dced0e70fed104aea79e3891870564aed38",image="sha256:8c49f7de2c13b87026d7afb04f35494e5d9ce6b5eeeb7f8983d38e601d0ac910",name="k8s_metallb-speaker_metallb-speaker-m29mf_ccp_8266a379-dd56-42f8-8af0-19fc0d8ea3af_16",namespace="ccp",pod="metallb-speaker-m29mf"} 100000 1629775404902
 //
-//out:
-// map[string]*throttlingMetric{
-//		"ccp/metallb-speaker-m29mf/metallb-speaker": {
-//			cpuThrottled: 5,
-//			cpuTotal:     10,
-//          cpuQuota:     10000,
-//          cpuPeriod:    100000,
-//		},
-//	}
+// out:
+//
+//	map[string]*throttlingMetric{
+//			"ccp/metallb-speaker-m29mf/metallb-speaker": {
+//				cpuThrottled: 5,
+//				cpuTotal:     10,
+//	         cpuQuota:     10000,
+//	         cpuPeriod:    100000,
+//			},
+//		}
 //
 // Please check the unit test for more details.
 func parseMetricFamilies(metricFamilies map[string]*dto.MetricFamily) map[string]*throttlingMetric {

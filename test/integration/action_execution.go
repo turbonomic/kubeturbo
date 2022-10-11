@@ -10,6 +10,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -424,6 +425,7 @@ func depSingleContainerWithResources(namespace, claimName string, replicas int32
 			},
 		}
 	}
+
 	if withGCLabel {
 		addGCLabelDep(&dep)
 	}
@@ -693,7 +695,7 @@ func createVolumeClaim(client kubeclientset.Interface, namespace, storageClassNa
 		newPvc, errInternal = client.CoreV1().PersistentVolumeClaims(namespace).Create(context.TODO(), pvc, metav1.CreateOptions{})
 		if errInternal != nil {
 			glog.Errorf("Unexpected error while creating PVC for test: %v", errInternal)
-			return false, nil
+			return false, errInternal
 		}
 		return true, nil
 	}); err != nil {
@@ -704,6 +706,62 @@ func createVolumeClaim(client kubeclientset.Interface, namespace, storageClassNa
 
 }
 
+func createPV(client kubeclientset.Interface, namespace, storageClassName string) (*corev1.PersistentVolume, error) {
+	quantity, _ := resource.ParseQuantity("5Gi")
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "test-pv-",
+			Namespace:    namespace,
+		},
+		Spec: corev1.PersistentVolumeSpec{
+			Capacity: corev1.ResourceList{
+				corev1.ResourceStorage: quantity,
+			},
+			//VolumeMode: Default is FileSystem
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteOnce,
+			},
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				Local: &corev1.LocalVolumeSource{
+					Path: "/opt",
+				},
+			},
+			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimDelete,
+			StorageClassName:              storageClassName,
+			NodeAffinity: &corev1.VolumeNodeAffinity{
+				Required: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
+						{
+							MatchExpressions: []corev1.NodeSelectorRequirement{
+								{
+
+									Key:      "foo",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"bar"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var newPV *corev1.PersistentVolume
+	var errInternal error
+	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
+		newPV, errInternal = client.CoreV1().PersistentVolumes().Create(context.TODO(), pv, metav1.CreateOptions{})
+		if errInternal != nil {
+			glog.Errorf("Unexpected error while creating PV for test: %v", errInternal)
+			return false, errInternal
+		}
+		return true, nil
+	}); err != nil {
+		return nil, err
+	}
+	return newPV, nil
+}
+
 func createDeployment(client kubeclientset.Interface, dep *appsv1.Deployment) (*appsv1.Deployment, error) {
 	var newDep *appsv1.Deployment
 	var errInternal error
@@ -711,7 +769,7 @@ func createDeployment(client kubeclientset.Interface, dep *appsv1.Deployment) (*
 		newDep, errInternal = client.AppsV1().Deployments(dep.Namespace).Create(context.TODO(), dep, metav1.CreateOptions{})
 		if errInternal != nil {
 			glog.Errorf("Unexpected error while creating deployment: %v", errInternal)
-			return false, nil
+			return false, errInternal
 		}
 		return true, nil
 	}); err != nil {
@@ -727,13 +785,37 @@ func createReplicaSet(client kubeclientset.Interface, rs *appsv1.ReplicaSet) (*a
 		newRS, errInternal = client.AppsV1().ReplicaSets(rs.Namespace).Create(context.TODO(), rs, metav1.CreateOptions{})
 		if errInternal != nil {
 			glog.Errorf("Unexpected error while creating replicaset: %v", errInternal)
-			return false, nil
+			return false, errInternal
 		}
 		return true, nil
 	}); err != nil {
 		return nil, err
 	}
 	return newRS, nil
+}
+
+func createStorageClass(client kubeclientset.Interface) (*storagev1.StorageClass, error) {
+	storageC := &storagev1.StorageClass{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "pod-with-pv-affinity-",
+		},
+		Provisioner: "kubernetes.io/no-provisioner",
+	}
+	var localStorage *storagev1.StorageClass
+	var errInternal error
+	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
+		localStorage, errInternal = client.StorageV1().StorageClasses().Create(context.TODO(), storageC, metav1.CreateOptions{})
+		if errInternal != nil {
+			glog.Errorf("Unexpected error while creating PVC for test: %v", errInternal)
+			return false, errInternal
+		}
+		return true, nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return localStorage, nil
+
 }
 
 func waitForDeployment(client kubeclientset.Interface, depName, namespace string) (*appsv1.Deployment, error) {
@@ -743,7 +825,7 @@ func waitForDeployment(client kubeclientset.Interface, depName, namespace string
 		newDep, err = client.AppsV1().Deployments(namespace).Get(context.TODO(), depName, metav1.GetOptions{})
 		if err != nil {
 			glog.Errorf("Unexpected error while getting deployment: %v", err)
-			return false, nil
+			return false, err
 		}
 		if newDep.Status.AvailableReplicas == *newDep.Spec.Replicas {
 			return true, nil

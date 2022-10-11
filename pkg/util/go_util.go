@@ -12,6 +12,20 @@ import (
 	"github.com/golang/glog"
 )
 
+type ErrorSkipRetry struct {
+	errString string
+}
+
+func NewSkipRetryError(errString string) *ErrorSkipRetry {
+	return &ErrorSkipRetry{
+		errString: errString,
+	}
+}
+
+func (e *ErrorSkipRetry) Error() string {
+	return e.errString
+}
+
 // CompareVersion compares two version strings, for example:
 // v1: "1.4.9",  v2: "1.5", then return -1
 // v1: "1.5.0", v2: "1.5", then return 0
@@ -60,6 +74,11 @@ func RetryDuring(attempts int, timeout time.Duration, sleep time.Duration, myfun
 			return nil
 		}
 
+		if _, skipRetry := err.(*ErrorSkipRetry); skipRetry {
+			err = fmt.Errorf("failing without retries: %v", err)
+			return err
+		}
+
 		glog.V(4).Infof("[retry-%d/%d] Warning %v", i+1, attempts, err)
 		if i >= (attempts - 1) {
 			break
@@ -68,7 +87,6 @@ func RetryDuring(attempts int, timeout time.Duration, sleep time.Duration, myfun
 		if timeout > 0 {
 			if delta := time.Now().Sub(t0); delta > timeout {
 				err = fmt.Errorf("failed after %d attepmts (during %v) last error: %v", i+1, delta, err)
-				glog.Error(err)
 				return err
 			}
 		}
@@ -79,11 +97,10 @@ func RetryDuring(attempts int, timeout time.Duration, sleep time.Duration, myfun
 	}
 
 	err = fmt.Errorf("failed after %d attepmts, last error: %v", attempts, err)
-	glog.Error(err)
 	return err
 }
 
-//RetrySimple executes a function with retries and a timeout
+// RetrySimple executes a function with retries and a timeout
 func RetrySimple(attempts int32, timeout, sleep time.Duration, myfunc func() (bool, error)) error {
 	t0 := time.Now()
 

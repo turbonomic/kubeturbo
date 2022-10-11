@@ -162,7 +162,8 @@ func TestAccumulateMultiPoints_AccumulatedMissingAResource(t *testing.T) {
 
 // New portion is missing some metric points for a resource
 // ==> the new portion of that resource will be discarded;
-//     the other resources without missing metric points will still be accumulated
+//
+//	the other resources without missing metric points will still be accumulated
 func TestAccumulateMultiPoints_NewPortionMissingMetricPoints(t *testing.T) {
 	accumulated :=
 		map[ResourceType][]Point{
@@ -217,7 +218,8 @@ func TestAccumulateMultiPoints_NewPortionMissingMetricPoints(t *testing.T) {
 
 // Accumulated is missing some metric points for a resource
 // ==> the accumulated of that resource will be discarded and replaced by the new portion's;
-//     the other resources without missing metric points will still be accumulated as normal
+//
+//	the other resources without missing metric points will still be accumulated as normal
 func TestAccumulateMultiPoints_AccumulatedMissingMetricPoints(t *testing.T) {
 	accumulated :=
 		map[ResourceType][]Point{

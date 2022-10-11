@@ -96,9 +96,10 @@ func (p *PodCachedManager) getRunningPod(podClient v1.PodInterface, name, uid st
 
 // Need to find the latest pod as there might be multiple action applied to the pod.
 // E.g., If there are three actions in a row for the same pod, the third one need to get the pod name after the change made by the second action.
-//       action1: pod-foo (old) => pod-foo-c (new)
-//       action2: pod-foo (old) => pod-foo-c (from cache) => pod-foo-c-c (new)
-//       action3: pod-foo (old) => pod-foo-c (from cache) => pod-foo-c-c (from cache again) => pod-foo-c-c-c (new)
+//
+//	action1: pod-foo (old) => pod-foo-c (new)
+//	action2: pod-foo (old) => pod-foo-c (from cache) => pod-foo-c-c (new)
+//	action3: pod-foo (old) => pod-foo-c (from cache) => pod-foo-c-c (from cache again) => pod-foo-c-c-c (new)
 func (p *PodCachedManager) getLatestValue(key string) (string, bool) {
 	val, ok := p.podCache.Get(key)
 	if !ok {

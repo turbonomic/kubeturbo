@@ -1,4 +1,5 @@
-/*Copied from
+/*
+Copied from
 k8s.io/kubernetes/pkg/kubelet/eviction/helpers.go
 k8s.io/kubernetes/pkg/kubelet/eviction/api/types.go
 */

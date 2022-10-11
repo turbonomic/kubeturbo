@@ -251,11 +251,14 @@ func createTaintCommsBought(pod *api.Pod, taintCollection map[api.Taint]string) 
 // Checks if a taint is tolerated by any of the tolerations.
 // The matching follows the rules below:
 // (1) Empty toleration.effect means to match all taint effects,
-//     otherwise taint effect must equal to toleration.effect.
+//
+//	otherwise taint effect must equal to toleration.effect.
+//
 // (2) If toleration.operator is 'Exists', it means to match all taint values.
 // (3) Empty toleration.key means to match all taint keys.
-//     If toleration.key is empty, toleration.operator must be 'Exists';
-//     this combination means to match all taint values and all taint keys.
+//
+//	If toleration.key is empty, toleration.operator must be 'Exists';
+//	this combination means to match all taint values and all taint keys.
 func tolerationsTolerateTaint(tolerations []api.Toleration, taint *api.Taint) bool {
 	for i := range tolerations {
 		if tolerations[i].ToleratesTaint(taint) {
