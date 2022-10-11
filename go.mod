@@ -17,7 +17,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	github.com/turbonomic/turbo-crd v0.0.0-20220630232025-77ff549647ec
-	github.com/turbonomic/turbo-go-sdk v0.0.0-20220921150744-f1925181c839
+	github.com/turbonomic/turbo-go-sdk v0.0.0-20221010221617-9853850521da
 )
 
 // k8s and relevant dependencies
