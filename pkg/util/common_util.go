@@ -19,15 +19,17 @@ import (
 
 const (
 	kubeturboNSEnvVar = "KUBETURBO_NAMESPACE"
-	defaultNamespace  = "default"
 	// We want these names to be unique and at the same time, we should
 	// be able to identify these across restarts. We can also think of
 	// making these user configurable, if need be.
-	kubeturboSCCPrefix        = "kubeturbo-scc-"
-	SCCClusterRoleName        = kubeturboSCCPrefix + "pod-restart-clusterrole"
-	SCCClusterRoleBindingName = kubeturboSCCPrefix + "pod-restart-clusterrolebinding"
+	KubeturboSCCPrefix        = "kubeturbo-scc-"
+	SCCClusterRoleName        = KubeturboSCCPrefix + "pod-crud"
+	SCCClusterRoleBindingName = KubeturboSCCPrefix + "pod-crud"
 	SCCAnnotationKey          = "openshift.io/scc"
 )
+
+// We make this a global variable usable in test as set to the test ns
+var DefaultNamespace = "default"
 
 type ErrorSkipRetry struct {
 	errString string
@@ -231,15 +233,15 @@ func JSONPath(fields []string) string {
 func GetKubeturboNamespace() string {
 	namespace := os.Getenv(kubeturboNSEnvVar)
 	if namespace == "" {
-		namespace = defaultNamespace
+		namespace = DefaultNamespace
 	}
 	return namespace
 }
 
-func GetClusterRoleForSCC() *rbacv1.ClusterRole {
+func GetClusterRoleForSCC(saNamespace string) *rbacv1.ClusterRole {
 	return &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: SCCClusterRoleName,
+			Name: fmt.Sprintf("%s-%s", SCCClusterRoleBindingName, saNamespace),
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
@@ -269,7 +271,9 @@ func GetClusterRoleBindingForSCC(saNames []string, saNamespace, clusterRoleName 
 
 	return &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: SCCClusterRoleBindingName,
+			// We attach a namespace in the name to disambiguate the rolebinding
+			// wrt sa installed by kubeturbos running in different namespaces.
+			Name: fmt.Sprintf("%s-%s", SCCClusterRoleBindingName, saNamespace),
 		},
 		Subjects: subjects,
 		RoleRef: rbacv1.RoleRef{
@@ -283,12 +287,12 @@ func GetClusterRoleBindingForSCC(saNames []string, saNamespace, clusterRoleName 
 func GetRoleForSCC(sccName string) *rbacv1.Role {
 	return &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: kubeturboSCCPrefix + "-use-" + sccName,
+			Name: RoleNameForSCC(sccName),
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
 				Verbs: []string{
-					rbacv1.VerbUse,
+					VerbUse,
 				},
 				APIGroups: []string{
 					OpenShiftSecurityGroupName,
@@ -315,7 +319,7 @@ func GetRoleBindingForSCC(saName, saNamespace, sccName, roleName string) *rbacv1
 
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: kubeturboSCCPrefix + "-use-" + sccName,
+			Name: RoleBindingNameForSCC(sccName),
 		},
 		Subjects: subjects,
 		RoleRef: rbacv1.RoleRef{
@@ -327,17 +331,17 @@ func GetRoleBindingForSCC(saName, saNamespace, sccName, roleName string) *rbacv1
 }
 
 func RoleNameForSCC(sccName string) string {
-	return kubeturboSCCPrefix + "-use-" + sccName
+	return KubeturboSCCPrefix + "use-" + sccName
 }
 
 func RoleBindingNameForSCC(sccName string) string {
-	return kubeturboSCCPrefix + "-use-" + sccName
+	return KubeturboSCCPrefix + "use-" + sccName
 }
 
 func GetServiceAccountForSCC(sccName string) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("%s%s", kubeturboSCCPrefix, sccName),
+			Name: fmt.Sprintf("%s%s", KubeturboSCCPrefix, sccName),
 		},
 	}
 }

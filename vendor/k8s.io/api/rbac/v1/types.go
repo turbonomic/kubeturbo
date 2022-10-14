@@ -30,7 +30,6 @@ const (
 	ResourceAll    = "*"
 	VerbAll        = "*"
 	NonResourceAll = "*"
-	VerbUse        = "use"
 
 	GroupKind          = "Group"
 	ServiceAccountKind = "ServiceAccount"

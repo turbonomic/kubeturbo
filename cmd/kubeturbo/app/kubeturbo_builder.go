@@ -489,15 +489,18 @@ func (s *VMTServer) Run() {
 		glog.Fatalf("Unexpected error while creating Kubernetes TAP service: %s", err)
 	}
 
+	// Its a must to include the namespace env var in the kubeturbo pod spec.
+	ns := util.GetKubeturboNamespace()
 	// Update scc resources in parallel.
-	go manageSCCs(dynamicClient, kubeClient)
+	go ManageSCCs(ns, dynamicClient, kubeClient)
 
 	// The client for healthz, debug, and prometheus
 	go s.startHttp()
 
 	cleanupWG := &sync.WaitGroup{}
 	cleanupSCCFn := func() {
-		cleanUpSCCMgmtResources(dynamicClient, kubeClient)
+		ns := util.GetKubeturboNamespace()
+		CleanUpSCCMgmtResources(ns, dynamicClient, kubeClient)
 	}
 	disconnectFn := func() {
 		// Disconnect from Turbo server when Kubeturbo is shutdown
@@ -633,16 +636,14 @@ func latestComparedVersion(newVersion, existingVersion string) string {
 	return newVersion
 }
 
-func manageSCCs(dynClient dynamic.Interface, kubeClient kubernetes.Interface) {
-	// Its a must to include the namespace env var in the kubeturbo pod spec.
-	ns := util.GetKubeturboNamespace()
-	if reviewSCCAccess(ns, kubeClient) != true {
+func ManageSCCs(ns string, dynClient dynamic.Interface, kubeClient kubernetes.Interface) {
+	if !reviewSCCAccess(ns, kubeClient) {
 		// Skip managing scc resources; appropriate error messages are already logged
 		// by the review function
 		return
 	}
 
-	sccList := getSCCs(dynClient)
+	sccList := GetSCCs(dynClient)
 	if (sccList == nil) || (sccList != nil && len(sccList.Items) < 1) {
 		// We don't need to bother as this cluster is most probably not openshift
 		return
@@ -652,7 +653,7 @@ func manageSCCs(dynClient dynamic.Interface, kubeClient kubernetes.Interface) {
 	fail := true
 	defer func() {
 		if fail {
-			cleanUpSCCMgmtResources(dynClient, kubeClient)
+			CleanUpSCCMgmtResources(ns, dynClient, kubeClient)
 		}
 	}()
 
@@ -689,9 +690,10 @@ func manageSCCs(dynClient dynamic.Interface, kubeClient kubernetes.Interface) {
 		// the kubeturbo namespace is deleted.
 		// Also in case of kubeturbo restarts if there are leaked resources, kubeturbo will adopt them.
 		util.SCCMapping[sccName] = saName
+		saNames = append(saNames, saName)
 	}
 
-	clusterRoleName, err := createSCCClusterRole(kubeClient)
+	clusterRoleName, err := createSCCClusterRole(ns, kubeClient)
 	if err != nil {
 		return
 	}
@@ -703,7 +705,7 @@ func manageSCCs(dynClient dynamic.Interface, kubeClient kubernetes.Interface) {
 	fail = false
 }
 
-func getSCCs(client dynamic.Interface) (sccList *unstructured.UnstructuredList) {
+func GetSCCs(client dynamic.Interface) (sccList *unstructured.UnstructuredList) {
 	res := schema.GroupVersionResource{
 		Group:    util.OpenShiftAPISCCGV.Group,
 		Version:  util.OpenShiftAPISCCGV.Version,
@@ -766,6 +768,8 @@ func createSCCRole(namespace, sccName string, kubeClient kubernetes.Interface) (
 				glog.Errorf("Error creating SCC Role: %s, %s.", roleName, err)
 				return err
 			}
+
+			glog.V(3).Infof("SCC Role: %s created.", roleName)
 			return nil
 		})
 
@@ -788,12 +792,14 @@ func createSCCRoleBinding(saName, namespace, sccName, roleName string, kubeClien
 				glog.Errorf("Error creating SCC RoleBinding: %s, %s.", rb.Name, err)
 				return err
 			}
+
+			glog.V(3).Infof("SCC RoleBinding: %s created.", rb.Name)
 			return nil
 		})
 }
 
-func createSCCClusterRole(kubeClient kubernetes.Interface) (string, error) {
-	clusterRole := util.GetClusterRoleForSCC()
+func createSCCClusterRole(ns string, kubeClient kubernetes.Interface) (string, error) {
+	clusterRole := util.GetClusterRoleForSCC(ns)
 	clusterRoleName := clusterRole.Name
 
 	err := util.RetryDuring(util.TransientRetryTimes, 0,
@@ -808,6 +814,8 @@ func createSCCClusterRole(kubeClient kubernetes.Interface) (string, error) {
 				glog.Errorf("Error creating SCC Cluster Role: %s, %s.", clusterRoleName, err)
 				return err
 			}
+
+			glog.V(3).Infof("SCC Cluster Role: %s created.", clusterRoleName)
 			return nil
 		})
 
@@ -822,20 +830,23 @@ func createSCCClusterRoleBinding(saNames []string, namespace, roleName string, k
 			if apierrors.IsAlreadyExists(err) {
 				// TODO: We ignore the case where a new scc might appear between kubeturbo runs
 				// That means a new scc definition will be picked across restarts only.
-				glog.V(3).Infof("SCC ClusterRoleBinding: %s already exists.", crb.Name)
-				return nil
+				glog.V(3).Infof("SCC ClusterRoleBinding: %s already exists. "+
+					"It will be updated with the latest subjects.", crb.Name)
+				_, err := kubeClient.RbacV1().ClusterRoleBindings().Update(context.TODO(), crb, metav1.UpdateOptions{})
+				return err
 			}
 
 			if err != nil {
 				glog.Errorf("Error creating SCC ClusterRoleBinding: %s, %s.", crb.Name, err)
 				return err
 			}
+
+			glog.V(3).Infof("SCC ClusterRoleBinding: %s created.", crb.Name)
 			return nil
 		})
 }
 
-func cleanUpSCCMgmtResources(dynClient dynamic.Interface, kubeClient kubernetes.Interface) {
-	ns := util.GetKubeturboNamespace()
+func CleanUpSCCMgmtResources(ns string, dynClient dynamic.Interface, kubeClient kubernetes.Interface) {
 	if len(util.SCCMapping) < 1 {
 		glog.V(2).Infof("SCC management resource cleanup is not needed.")
 		return
@@ -915,7 +926,7 @@ func deleteSCCRoleBinding(namespace, sccName string, kubeClient kubernetes.Inter
 }
 
 func deleteSCCClusterRole(namespace string, kubeClient kubernetes.Interface) {
-	clusterRoleName := util.SCCClusterRoleName
+	clusterRoleName := fmt.Sprintf("%s-%s", util.SCCClusterRoleName, namespace)
 	err := util.RetryDuring(util.TransientRetryTimes, 0,
 		util.QuickRetryInterval, func() error {
 			err := kubeClient.RbacV1().ClusterRoles().Delete(context.TODO(), clusterRoleName, metav1.DeleteOptions{})
@@ -937,7 +948,7 @@ func deleteSCCClusterRole(namespace string, kubeClient kubernetes.Interface) {
 }
 
 func deleteSCCClusterRoleBinding(namespace string, kubeClient kubernetes.Interface) {
-	clusterRoleBindingName := util.SCCClusterRoleBindingName
+	clusterRoleBindingName := fmt.Sprintf("%s-%s", util.SCCClusterRoleBindingName, namespace)
 	err := util.RetryDuring(util.TransientRetryTimes, 0,
 		util.QuickRetryInterval, func() error {
 			err := kubeClient.RbacV1().ClusterRoleBindings().Delete(context.TODO(), clusterRoleBindingName, metav1.DeleteOptions{})

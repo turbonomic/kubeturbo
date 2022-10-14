@@ -49,6 +49,7 @@ const (
 	VerbUpdate      = "update"
 	VerbImpersonate = "impersonate"
 	VerbDelete      = "delete"
+	VerbUse         = "use"
 
 	TransientRetryTimes = 5
 	QuickRetryInterval  = time.Second * 2
