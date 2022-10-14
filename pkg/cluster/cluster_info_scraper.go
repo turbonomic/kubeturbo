@@ -23,9 +23,11 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
 	policyv1alpha1 "github.com/turbonomic/turbo-crd/api/v1alpha1"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 const (
@@ -281,6 +283,11 @@ func (s *ClusterScraper) GetAllEndpoints() ([]*api.Endpoints, error) {
 }
 
 func (s *ClusterScraper) GetResources(resource schema.GroupVersionResource) ([]unstructured.Unstructured, error) {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.PaginateAPICalls) {
+		list, err := s.DynamicClient.Resource(resource).Namespace(api.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+		return list.Items, err
+	}
+
 	items := []unstructured.Unstructured{}
 	continueList := ""
 	// TODO: Is there a possibility of this loop never exiting?
