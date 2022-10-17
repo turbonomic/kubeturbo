@@ -35,8 +35,6 @@ const (
 	machineSetNodePoolPrefix = "machineset"
 	// Expiration of cached pod controller info.
 	defaultCacheTTL = 12 * time.Hour
-	// Number of max items we query in each workload controller list API calls
-	defaultMaxListQueryItems = 400
 )
 
 var (
@@ -283,8 +281,11 @@ func (s *ClusterScraper) GetAllEndpoints() ([]*api.Endpoints, error) {
 }
 
 func (s *ClusterScraper) GetResources(resource schema.GroupVersionResource) ([]unstructured.Unstructured, error) {
-	if !utilfeature.DefaultFeatureGate.Enabled(features.PaginateAPICalls) {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.MemoryOptimisations) {
 		list, err := s.DynamicClient.Resource(resource).Namespace(api.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+		if err != nil || list == nil {
+			return nil, err
+		}
 		return list.Items, err
 	}
 
@@ -293,7 +294,7 @@ func (s *ClusterScraper) GetResources(resource schema.GroupVersionResource) ([]u
 	// TODO: Is there a possibility of this loop never exiting?
 	// The documentation states that the APIs reliably return correct values for continue
 	for {
-		listOptions := metav1.ListOptions{Limit: int64(defaultMaxListQueryItems), Continue: continueList}
+		listOptions := metav1.ListOptions{Limit: int64(commonutil.ItemsPerListQuery), Continue: continueList}
 		listItems, err := s.DynamicClient.Resource(resource).Namespace(api.NamespaceAll).List(context.TODO(), listOptions)
 		if err != nil {
 			return items, err
