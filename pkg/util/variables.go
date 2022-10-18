@@ -55,23 +55,4 @@ var (
 	K8sAPIJobGV = schema.GroupVersion{Group: K8sBatchGroupName, Version: "v1"}
 	// The API group under which CronJob are exposed by the k8s cluster
 	K8sAPICronJobGV = schema.GroupVersion{Group: K8sBatchGroupName, Version: "v1beta1"}
-
-	// Number of items that should be requested in each workload controller
-	// list API to ensure no OOMs occur.
-	// This value is calculated from cgroup MEMLIMIT using the below expression:
-	// 5000 * m; where m is memlimit in GB (5000 items per GB of memlimit)
-	// In our experiments we have observed that approximately 10k resources
-	// consume a GB of memory. This is along with other portions of discovery also
-	// allocating and freeing the memory in parallel.
-
-	// We leave half of the above buffer space being conservative and arrive at
-	// 5000 resources per 1GB of memory available for kubeturbos usage.
-	//
-	// In the absence of any MEMLIMIT set, we limit the number of resources requested in
-	// each call to fill up max of 8GB ie 40000 (=8*5000)
-	// This default is quite unlikelt to be used as Cgroup limit will always be available
-	// atleast on linux based systems. If the container limit is not set, cgroup limit will
-	// be available as nodes limit.
-	// This will be used for non linux systems, eg kubeturbo local run on mac.
-	ItemsPerListQuery = 40000
 )

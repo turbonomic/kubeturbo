@@ -367,8 +367,8 @@ func (s *MockClusterScrapper) GetAllPVCs() ([]*v1.PersistentVolumeClaim, error) 
 	return nil, fmt.Errorf("GetAllPVCs Not implemented")
 }
 
-func (s *MockClusterScrapper) GetResources(schema.GroupVersionResource) ([]unstructured.Unstructured, error) {
-	return []unstructured.Unstructured{}, nil
+func (s *MockClusterScrapper) GetResources(schema.GroupVersionResource) (*unstructured.UnstructuredList, error) {
+	return &unstructured.UnstructuredList{}, nil
 }
 
 func (s *MockClusterScrapper) GetMachineSetToNodeUIDsMap(nodes []*v1.Node) map[string][]string {

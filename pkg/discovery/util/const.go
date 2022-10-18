@@ -14,7 +14,6 @@ const (
 	BASE2UNIT float64 = 1 << (10 * iota)
 	BASE2KILO
 	BASE2MEGA
-	BASE2GIGA
 	// Add more when needed
 )
 
@@ -51,10 +50,6 @@ func Base2BytesToKilobytes(val float64) float64 {
 
 func Base2BytesToMegabytes(val float64) float64 {
 	return val / BASE2MEGA
-}
-
-func Base2BytesToGigabytes(val float64) float64 {
-	return val / BASE2GIGA
 }
 
 func Base2MegabytesToBytes(val float64) float64 {
