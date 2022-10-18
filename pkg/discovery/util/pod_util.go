@@ -101,7 +101,7 @@ func GetMirrorPods(pods []*api.Pod) []*api.Pod {
 			mirrorPods = append(mirrorPods, pod)
 		}
 	}
-	glog.V(4).Info("Found %+v mirror pods", len(mirrorPods))
+	glog.V(4).Infof("Found %+v mirror pods", len(mirrorPods))
 	glog.V(5).Info(mirrorPods)
 	return mirrorPods
 }
@@ -118,7 +118,7 @@ func MirrorPodPrefixToNodeNames(pods []*api.Pod) map[string]sets.String {
 		}
 	}
 
-	glog.V(4).Info("Found %+v static pod prefix keys.", len(prefixToNodeNames))
+	glog.V(4).Infof("Found %+v static pod prefix keys.", len(prefixToNodeNames))
 	glog.V(5).Info(prefixToNodeNames)
 	return prefixToNodeNames
 }

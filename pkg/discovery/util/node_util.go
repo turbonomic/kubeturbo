@@ -232,7 +232,7 @@ func MapNodePoolToNodeNames(nodes []*v1.Node) map[string]sets.String {
 			}
 		}
 	}
-	glog.V(4).Info("Found %+v node pool keys.", len(nodePools))
+	glog.V(4).Infof("Found %+v node pool keys.", len(nodePools))
 	glog.V(5).Info(nodePools)
 	return nodePools
 }

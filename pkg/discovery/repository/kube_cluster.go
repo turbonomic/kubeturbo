@@ -250,7 +250,7 @@ func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
 		prefixToDaemon[prefix] = daemon
 	}
 	summary.StaticPodToDaemonMap = staticPodToDaemonMap
-	glog.V(2).Info("Found %+v out of %+v static pods as daemons ", daemonCount, len(staticPodToDaemonMap))
+	glog.V(2).Infof("Found %+v out of %+v static pods as daemons ", daemonCount, len(staticPodToDaemonMap))
 }
 
 const (
