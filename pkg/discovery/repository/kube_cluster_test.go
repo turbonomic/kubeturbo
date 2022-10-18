@@ -218,3 +218,304 @@ func TestNamespaceNames(t *testing.T) {
 		t.Errorf("kubeNamespace.name is wrong: %v Vs. %v", kubeNamespace.Name, namespaceName)
 	}
 }
+
+type ClusterResultSummary struct {
+	S      ClusterSummary
+	Result map[string]bool
+}
+
+func TestComputeStaticPodToDaemonMap(t *testing.T) {
+
+	clusterSummaries := []struct {
+		s      *ClusterSummary
+		result map[string]bool
+	}{
+		// empty nodes and empty pods test
+		{
+			s: &ClusterSummary{
+				KubeCluster: &KubeCluster{
+					Nodes: make([]*v1.Node, 0),
+					Pods:  make([]*v1.Pod, 0),
+				},
+			},
+			result: make(map[string]bool),
+		},
+		// no node pools single node cluster test
+		{
+			s: &ClusterSummary{
+				KubeCluster: &KubeCluster{
+					Nodes: []*v1.Node{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test-node",
+							},
+						},
+					},
+					Pods: []*v1.Pod{
+						{
+							Spec: v1.PodSpec{
+								NodeName: "test-node",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								UID:  "pod1-UID",
+								Name: "test-pod-prefix-test-node",
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										Kind: util.Kind_Node,
+										Name: "test-node",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: map[string]bool{
+				"pod1-UID": true,
+			},
+		},
+		// multiple nodes and multiple pod cluster
+		{
+			s: &ClusterSummary{
+				KubeCluster: &KubeCluster{
+					Nodes: []*v1.Node{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test-node",
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test-node2",
+							},
+						},
+					},
+					Pods: []*v1.Pod{
+						// static pod apart of daemon set
+						{
+							Spec: v1.PodSpec{
+								NodeName: "test-node",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								UID:  "pod1-UID",
+								Name: "test-pod-prefix-test-node",
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										Kind: util.Kind_Node,
+										Name: "test-node",
+									},
+								},
+							},
+						},
+						// static pod not apart of daemon set
+						{
+							Spec: v1.PodSpec{
+								NodeName: "test-node",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								UID:  "pod2-UID",
+								Name: "test-pod-prefix2-test-node",
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										Kind: util.Kind_Node,
+										Name: "test-node",
+									},
+								},
+							},
+						},
+						// not a static pod
+						{
+							Spec: v1.PodSpec{
+								NodeName: "test-node",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								UID:  "pod4-UID",
+								Name: "pod4",
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										Kind: "controller",
+										Name: "test-node",
+									},
+								},
+							},
+						},
+						// static pod apart of daemon set
+						{
+							Spec: v1.PodSpec{
+								NodeName: "test-node2",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								UID:  "pod3-UID",
+								Name: "test-pod-prefix-test-node2",
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										Kind: util.Kind_Node,
+										Name: "test-node2",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: map[string]bool{
+				"pod1-UID": true,
+				"pod2-UID": false,
+				"pod3-UID": true,
+			},
+		},
+		// cluster with node pools, multiple nodes and multiple pods
+		{
+			s: &ClusterSummary{
+				KubeCluster: &KubeCluster{
+					Nodes: []*v1.Node{
+						{
+
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test-node",
+								Labels: map[string]string{
+									util.NodePoolGKE: util.NodePoolGKE,
+								},
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test-node2",
+								Labels: map[string]string{
+									util.NodePoolEKSIdentifier: util.NodePoolEKSIdentifier,
+								},
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test-node3",
+								Labels: map[string]string{
+									util.NodePoolGKE: util.NodePoolGKE,
+								},
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test-node4",
+								Labels: map[string]string{
+									util.NodePoolEKSIdentifier: util.NodePoolEKSIdentifier,
+								},
+							},
+						},
+					},
+					Pods: []*v1.Pod{
+						// static pod apart of daemon set
+						{
+							Spec: v1.PodSpec{
+								NodeName: "test-node",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								UID:  "pod1-UID",
+								Name: "test-pod-prefix-test-node",
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										Kind: util.Kind_Node,
+										Name: "test-node",
+									},
+								},
+							},
+						},
+						// static pod apart of different daemon set
+						{
+							Spec: v1.PodSpec{
+								NodeName: "test-node3",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								UID:  "pod2-UID",
+								Name: "test-pod-prefix2-test-node",
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										Kind: util.Kind_Node,
+										Name: "test-node3",
+									},
+								},
+							},
+						},
+						// not a static pod
+						{
+							Spec: v1.PodSpec{
+								NodeName: "test-node3",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								UID:  "pod4-UID",
+								Name: "pod4",
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										Kind: "controller",
+										Name: "test-node3",
+									},
+								},
+							},
+						},
+						// static pod apart of daemon set
+						{
+							Spec: v1.PodSpec{
+								NodeName: "test-node2",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								UID:  "pod3-UID",
+								Name: "test-pod-prefix-test-node2",
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										Kind: util.Kind_Node,
+										Name: "test-node2",
+									},
+								},
+							},
+						},
+						// static pod apart of different daemon set
+						{
+							Spec: v1.PodSpec{
+								NodeName: "test-node4",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								UID:  "pod5-UID",
+								Name: "test-pod-prefix2-test-node",
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										Kind: util.Kind_Node,
+										Name: "test-node4",
+									},
+								},
+							},
+						},
+						// static pod not apart of different daemon set
+						{
+							Spec: v1.PodSpec{
+								NodeName: "test-node",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								UID:  "pod6-UID",
+								Name: "test-pod-prefix3-test-node",
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										Kind: util.Kind_Node,
+										Name: "test-node",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: map[string]bool{
+				"pod1-UID": true,
+				"pod2-UID": true,
+				"pod3-UID": true,
+				"pod5-UID": true,
+				"pod6-UID": false,
+			},
+		},
+	}
+
+	for _, sum := range clusterSummaries {
+		sum.s.computeStaticPodToDaemonMap()
+		assert.Equal(t, sum.result, sum.s.StaticPodToDaemonMap)
+	}
+
+}

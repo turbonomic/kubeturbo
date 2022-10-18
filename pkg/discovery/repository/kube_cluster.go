@@ -202,7 +202,7 @@ func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
 	mirrorPods := util.GetMirrorPods(summary.Pods)
 	// common name prefix is our assumed conventions for showing intent of creating
 	// daemon sets with static pods
-	prefixToNodeNames := util.MirrorPodPrefixToNodeNames(mirrorPods)
+	prefixToNodeNames := util.GetMirrorPodPrefixToNodeNames(mirrorPods)
 	nodePoolToNodeNames := util.MapNodePoolToNodeNames(summary.Nodes)
 	anyPools := len(nodePoolToNodeNames) != 0
 	if anyPools {
@@ -215,10 +215,13 @@ func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
 	prefixToDaemon := make(map[string]bool)
 	daemonCount := 0
 	for _, pod := range mirrorPods {
-		prefix := util.GetMirrorPodPrefix(pod)
+		prefix, ok := util.GetMirrorPodPrefix(pod)
 		nodeNames := prefixToNodeNames[prefix]
 		// check whether the prefix has been processed before to prevent unnecessary work
-		if value, exists := prefixToDaemon[prefix]; exists {
+		if value, exists := prefixToDaemon[prefix]; ok && exists {
+			if value {
+				daemonCount++
+			}
 			staticPodToDaemonMap[string(pod.UID)] = value
 			continue
 		}

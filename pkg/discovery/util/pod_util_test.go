@@ -10,8 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	k8sapi "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func createPod() *k8sapi.Pod {
@@ -268,5 +270,68 @@ func TestGetPodInPhaseByUid(t *testing.T) {
 	_, err = GetPodInPhaseByUid(podInterface, testPodUID3, k8sapi.PodRunning)
 	if err == nil {
 		t.Errorf("GetPodInPhaseByUid should have returned an error.")
+	}
+}
+
+func TestGetMirrorPodPrefix(t *testing.T) {
+	pods := getPodsWithMirrorPods()
+
+	prefix1, res1 := GetMirrorPodPrefix(pods[0])
+	assert.Equal(t, "pod1-prefix-", prefix1)
+	assert.Equal(t, true, res1)
+	pref2, res2 := GetMirrorPodPrefix(pods[1])
+	assert.Equal(t, "", pref2)
+	assert.Equal(t, false, res2)
+}
+
+func TestGetMirrorPods(t *testing.T) {
+	pods := getPodsWithMirrorPods()
+
+	mirrorPods := GetMirrorPods(pods)
+	assert.Equal(t, 1, len(mirrorPods))
+	assert.Equal(t, pods[0], mirrorPods[0])
+}
+
+func TestGetMirrorPodPrefixToNodeNames(t *testing.T) {
+	pods := getPodsWithMirrorPods()
+
+	prefixToNodeNames := GetMirrorPodPrefixToNodeNames(pods)
+	assert.Equal(t, 1, len(prefixToNodeNames))
+	assert.Equal(t, sets.NewString("node"), prefixToNodeNames["pod1-prefix-"])
+
+}
+
+func getPodsWithMirrorPods() []*v1.Pod {
+	return []*v1.Pod{
+		// mirror pod
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod1-prefix-node",
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						Kind: Kind_Node,
+						Name: "node",
+					},
+				},
+			},
+			Spec: k8sapi.PodSpec{
+				NodeName: "node",
+			},
+		},
+		// not mirror pod
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod2",
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						Kind: "controller",
+						Name: "node",
+					},
+				},
+			},
+			Spec: k8sapi.PodSpec{
+				NodeName: "node",
+			},
+		},
 	}
 }

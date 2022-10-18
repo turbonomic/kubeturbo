@@ -89,15 +89,19 @@ func HasController(pod *api.Pod) bool {
 	return !hasNodeOwner(pod)
 }
 
-func GetMirrorPodPrefix(pod *api.Pod) string {
-	return strings.Replace(pod.Name, pod.Spec.NodeName, "", 1)
+// extracts mirror pod prefix. Returns the prefix and extraction result.
+func GetMirrorPodPrefix(pod *api.Pod) (string, bool) {
+	if !isMirrorPod(pod) {
+		return "", false
+	}
+	return strings.Replace(pod.Name, pod.Spec.NodeName, "", 1), true
 }
 
 func GetMirrorPods(pods []*api.Pod) []*api.Pod {
 	glog.V(4).Info("Getting mirror pods.")
 	mirrorPods := []*api.Pod{}
 	for _, pod := range pods {
-		if hasNodeOwner(pod) {
+		if isMirrorPod(pod) {
 			mirrorPods = append(mirrorPods, pod)
 		}
 	}
@@ -106,14 +110,14 @@ func GetMirrorPods(pods []*api.Pod) []*api.Pod {
 	return mirrorPods
 }
 
-func MirrorPodPrefixToNodeNames(pods []*api.Pod) map[string]sets.String {
+func GetMirrorPodPrefixToNodeNames(pods []*api.Pod) map[string]sets.String {
 	glog.V(4).Info("maping mirror pod prefixes to node names.")
 	prefixToNodeNames := make(map[string]sets.String)
 	for _, pod := range pods {
-		prefix := GetMirrorPodPrefix(pod)
-		if prefixToNodeNames[prefix] == nil {
+		prefix, ok := GetMirrorPodPrefix(pod)
+		if ok && prefixToNodeNames[prefix] == nil {
 			prefixToNodeNames[prefix] = sets.NewString(pod.Spec.NodeName)
-		} else {
+		} else if ok {
 			prefixToNodeNames[prefix].Insert(pod.Spec.NodeName)
 		}
 	}
@@ -126,13 +130,13 @@ func MirrorPodPrefixToNodeNames(pods []*api.Pod) map[string]sets.String {
 // Check if a pod is a mirror pod.
 func isMirrorPod(pod *api.Pod) bool {
 	annotations := pod.Annotations
-	if annotations == nil {
-		return false
+	if annotations != nil {
+		if _, exist := annotations[api.MirrorPodAnnotationKey]; exist {
+			glog.V(4).Infof("Found a mirror pod: %s/%s", pod.Namespace, pod.Name)
+			return true
+		}
 	}
-	if _, exist := annotations[api.MirrorPodAnnotationKey]; exist {
-		glog.V(4).Infof("Found a mirror pod: %s/%s", pod.Namespace, pod.Name)
-		return true
-	}
+
 	return hasNodeOwner(pod)
 }
 
