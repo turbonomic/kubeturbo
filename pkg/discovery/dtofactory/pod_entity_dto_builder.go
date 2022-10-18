@@ -65,23 +65,25 @@ var (
 
 type podEntityDTOBuilder struct {
 	generalBuilder
-	stitchingManager  *stitching.StitchingManager
-	nodeNameUIDMap    map[string]string
-	namespaceUIDMap   map[string]string
-	podToVolumesMap   map[string][]repository.MountedVolume
-	nodeNameToNodeMap map[string]*repository.KubeNode
-	runningPods       []*api.Pod
-	pendingPods       []*api.Pod
+	stitchingManager     *stitching.StitchingManager
+	nodeNameUIDMap       map[string]string
+	namespaceUIDMap      map[string]string
+	podToVolumesMap      map[string][]repository.MountedVolume
+	nodeNameToNodeMap    map[string]*repository.KubeNode
+	runningPods          []*api.Pod
+	pendingPods          []*api.Pod
+	staticPodToDaemonMap map[string]bool
 }
 
 func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager) *podEntityDTOBuilder {
 	return &podEntityDTOBuilder{
-		generalBuilder:    newGeneralBuilder(sink),
-		stitchingManager:  stitchingManager,
-		nodeNameUIDMap:    make(map[string]string),
-		namespaceUIDMap:   make(map[string]string),
-		podToVolumesMap:   make(map[string][]repository.MountedVolume),
-		nodeNameToNodeMap: make(map[string]*repository.KubeNode),
+		generalBuilder:       newGeneralBuilder(sink),
+		stitchingManager:     stitchingManager,
+		nodeNameUIDMap:       make(map[string]string),
+		namespaceUIDMap:      make(map[string]string),
+		podToVolumesMap:      make(map[string][]repository.MountedVolume),
+		nodeNameToNodeMap:    make(map[string]*repository.KubeNode),
+		staticPodToDaemonMap: make(map[string]bool),
 	}
 }
 
@@ -115,6 +117,11 @@ func (builder *podEntityDTOBuilder) WithPendingPods(pendingPods []*api.Pod) *pod
 	return builder
 }
 
+func (builder *podEntityDTOBuilder) WithStaticPodToDaemonMap(staticPodToDaemonMap map[string]bool) *podEntityDTOBuilder {
+	builder.staticPodToDaemonMap = staticPodToDaemonMap
+	return builder
+}
+
 func (builder *podEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, []*proto.EntityDTO, []string) {
 	glog.V(3).Infof("Building DTOs for running pods...")
 	runningPodDTOs, runningPodsWithVolumes := builder.buildDTOs(
@@ -133,15 +140,12 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 	resCommTypeBoughtFromNode []metrics.ResourceType) ([]*proto.EntityDTO, []string) {
 	var result []*proto.EntityDTO
 	var podsWithVolumes []string
-
 	for _, pod := range pods {
 		// id.
 		podID := string(pod.UID)
 		entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, podID)
-
 		// determine if the pod is a daemon set pod as that determines the eligibility of the pod for different actions
-		daemon := util.Daemon(pod)
-
+		daemon := util.Daemon(pod) || builder.staticPodToDaemonMap[podID]
 		// display name.
 		displayName := util.GetPodClusterID(pod)
 		entityDTOBuilder.DisplayName(displayName)

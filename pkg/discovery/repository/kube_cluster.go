@@ -81,6 +81,7 @@ type ClusterSummary struct {
 	// it fails to pull image onto the host
 	NodeToPendingPods       map[string][]*v1.Pod
 	AverageNodeCpuFrequency float64
+	StaticPodToDaemonMap    map[string]bool
 }
 
 func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
@@ -92,11 +93,13 @@ func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
 		PodClusterIDToServiceMap: make(map[string]*v1.Service),
 		NodeToRunningPods:        make(map[string][]*v1.Pod),
 		NodeToPendingPods:        make(map[string][]*v1.Pod),
+		StaticPodToDaemonMap:     make(map[string]bool),
 	}
 	clusterSummary.computeNodeMap()
 	clusterSummary.computePodMap()
 	clusterSummary.computeQuotaMap()
 	clusterSummary.computePodToServiceMap()
+	clusterSummary.computeStaticPodToDaemonMap()
 	return clusterSummary
 }
 
@@ -190,6 +193,64 @@ func (summary *ClusterSummary) computePodToServiceMap() {
 			summary.PodClusterIDToServiceMap[podClusterID] = svc
 		}
 	}
+}
+
+func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
+	glog.V(2).Info("creating mapping for static pods modeled as daemons.")
+	// static pods are only exposed through the API via mirror pods
+	// https://kubernetes.io/docs/reference/glossary/?all=true#term-mirror-pod
+	mirrorPods := util.GetMirrorPods(summary.Pods)
+	// common name prefix is our assumed conventions for showing intent of creating
+	// daemon sets with static pods
+	prefixToNodeNames := util.MirrorPodPrefixToNodeNames(mirrorPods)
+	nodePoolToNodeNames := util.MapNodePoolToNodeNames(summary.Nodes)
+	anyPools := len(nodePoolToNodeNames) != 0
+	if anyPools {
+		glog.V(3).Info("Conducting static pod daemon check with node pools.")
+	} else {
+		glog.V(3).Info("Conducting static pod daemon check with nodes.")
+	}
+
+	staticPodToDaemonMap := make(map[string]bool)
+	prefixToDaemon := make(map[string]bool)
+	daemonCount := 0
+	for _, pod := range mirrorPods {
+		prefix := util.GetMirrorPodPrefix(pod)
+		nodeNames := prefixToNodeNames[prefix]
+		// check whether the prefix has been processed before to prevent unnecessary work
+		if value, exists := prefixToDaemon[prefix]; exists {
+			staticPodToDaemonMap[string(pod.UID)] = value
+			continue
+		}
+
+		var daemon = true
+		if anyPools {
+			for _, nodePool := range nodePoolToNodeNames {
+				if intersection := nodePool.Intersection(nodeNames); intersection.Len() == 0 {
+					daemon = false
+					break
+				}
+			}
+		} else {
+			for _, node := range summary.Nodes {
+				if !nodeNames.Has(node.GetName()) {
+					daemon = false
+					break
+				}
+			}
+		}
+
+		if daemon {
+			daemonCount++
+		}
+
+		// remove entry since checking one pod with the same prefix proves daemon set
+		delete(prefixToNodeNames, prefix)
+		staticPodToDaemonMap[string(pod.UID)] = daemon
+		prefixToDaemon[prefix] = daemon
+	}
+	summary.StaticPodToDaemonMap = staticPodToDaemonMap
+	glog.V(2).Info("Found %+v out of %+v static pods as daemons ", daemonCount, len(staticPodToDaemonMap))
 }
 
 const (

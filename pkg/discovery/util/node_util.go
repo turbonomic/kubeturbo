@@ -8,6 +8,7 @@ import (
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
 	api "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
@@ -216,4 +217,22 @@ func DetectHARole(node *api.Node) bool {
 		glog.V(2).Infof("%s is a HA node and will be marked Non Suspendable.", node.Name)
 	}
 	return isHANode
+}
+
+func MapNodePoolToNodeNames(nodes []*v1.Node) map[string]sets.String {
+	glog.V(4).Info("mapping node pools to nodes.")
+	nodePools := make(map[string]sets.String)
+	for _, node := range nodes {
+		allPools := DetectNodePools(node)
+		for _, pool := range allPools.UnsortedList() {
+			if nodePools[pool] == nil {
+				nodePools[pool] = sets.NewString(node.Name)
+			} else {
+				nodePools[pool].Insert(node.Name)
+			}
+		}
+	}
+	glog.V(4).Info("Found %+v node pool keys.", len(nodePools))
+	glog.V(5).Info(nodePools)
+	return nodePools
 }
