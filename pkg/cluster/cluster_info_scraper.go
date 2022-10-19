@@ -10,6 +10,7 @@ import (
 	machinev1beta1api "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	capiclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	api "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
@@ -54,7 +55,7 @@ type ClusterScraperInterface interface {
 	GetAllPVs() ([]*api.PersistentVolume, error)
 	GetAllPVCs() ([]*api.PersistentVolumeClaim, error)
 	GetResources(resource schema.GroupVersionResource) (*unstructured.UnstructuredList, error)
-	GetMachineSetToNodeUIDsMap(nodes []*api.Node) map[string][]string
+	GetMachineSetToNodesMap(nodes []*v1.Node) map[string][]*v1.Node
 	GetAllTurboSLOScalings() ([]policyv1alpha1.SLOHorizontalScale, error)
 	GetAllTurboPolicyBindings() ([]policyv1alpha1.PolicyBinding, error)
 }
@@ -138,46 +139,45 @@ func (s *ClusterScraper) GetAllNodes() ([]*api.Node, error) {
 	return s.GetNodes(listOption)
 }
 
-func (s *ClusterScraper) GetMachineSetToNodeUIDsMap(nodes []*api.Node) map[string][]string {
-	machineSetToNodeUIDs := make(map[string][]string)
+func (s *ClusterScraper) GetMachineSetToNodesMap(nodes []*v1.Node) map[string][]*v1.Node {
+	machineSetToNodes := make(map[string][]*v1.Node)
 	if s.caClient == nil {
-		return machineSetToNodeUIDs
+		return machineSetToNodes
 	}
 
 	machineSetList := s.getCApiMachineSets()
 	if machineSetList == nil {
-		return machineSetToNodeUIDs
+		return machineSetToNodes
 	}
 
 	for _, machineSet := range machineSetList.Items {
 		machines := s.getCApiMachinesFiltered(machineSet.Name, metav1.ListOptions{
 			LabelSelector: metav1.FormatLabelSelector(&machineSet.Spec.Selector),
 		})
-		nodeUIDs := []string{}
+		nodes := []*v1.Node{}
 		for _, machine := range machines {
 			if machine.Status.NodeRef != nil && machine.Status.NodeRef.Name != "" {
-				if uid := findNodeUID(machine.Status.NodeRef.Name, nodes); uid != "" {
-					nodeUIDs = append(nodeUIDs, uid)
+				if node := findNode(machine.Status.NodeRef.Name, nodes); node != nil {
+					nodes = append(nodes, node)
 				}
 			}
 		}
-		machineSetToNodeUIDs[machineSetPoolName(machineSet.Name)] = nodeUIDs
+		machineSetToNodes[machineSetPoolName(machineSet.Name)] = nodes
 	}
-	return machineSetToNodeUIDs
+	return machineSetToNodes
 }
 
 func machineSetPoolName(machineSetName string) string {
 	return fmt.Sprintf("%s-%s", machineSetNodePoolPrefix, machineSetName)
 }
 
-func findNodeUID(nodeName string, nodes []*api.Node) string {
-	uid := ""
+func findNode(nodeName string, nodes []*api.Node) *api.Node {
 	for _, n := range nodes {
 		if n.Name == nodeName {
-			return string(n.UID)
+			return n
 		}
 	}
-	return uid
+	return nil
 }
 
 func (s *ClusterScraper) getCApiMachineSets() *machinev1beta1api.MachineSetList {

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -40,7 +41,7 @@ type KubeCluster struct {
 
 	// Map listing parent machineSet name for each nodename
 	// This will be filled only if openshift clusterapi is enabled
-	MachineSetToNodeUIDsMap map[string][]string
+	MachineSetToNodesMap map[string][]*v1.Node
 
 	// Data structures related to Turbo policy
 	TurboPolicyBindings []*TurboPolicyBinding
@@ -60,8 +61,8 @@ func (kc *KubeCluster) WithPods(pods []*v1.Pod) *KubeCluster {
 	return kc
 }
 
-func (kc *KubeCluster) WithMachineSetToNodeUIDsMap(machineSetToNodeUIDsMap map[string][]string) *KubeCluster {
-	kc.MachineSetToNodeUIDsMap = machineSetToNodeUIDsMap
+func (kc *KubeCluster) WithMachineSetToNodesMap(machineSetToNodesMap map[string][]*v1.Node) *KubeCluster {
+	kc.MachineSetToNodesMap = machineSetToNodesMap
 	return kc
 }
 
@@ -195,6 +196,8 @@ func (summary *ClusterSummary) computePodToServiceMap() {
 	}
 }
 
+// Find and cache all static pods modeled as daemons for discover workers
+// to set daemon flag for pod entities. Returns mapping of pod UID to flag.
 func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
 	glog.V(2).Info("creating mapping for static pods modeled as daemons.")
 	// static pods are only exposed through the API via mirror pods
@@ -203,15 +206,11 @@ func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
 	// common name prefix is our assumed conventions for showing intent of creating
 	// daemon sets with static pods
 	prefixToNodeNames := util.GetMirrorPodPrefixToNodeNames(mirrorPods)
-	nodePoolToNodeNames := util.MapNodePoolToNodeNames(summary.Nodes)
-	anyPools := len(nodePoolToNodeNames) != 0
-	if anyPools {
-		glog.V(3).Info("Conducting static pod daemon check with node pools.")
-	} else {
-		glog.V(3).Info("Conducting static pod daemon check with nodes.")
-	}
-
+	nodePoolToNodes := util.MapNodePoolToNodes(summary.Nodes, summary.MachineSetToNodesMap)
+	// additionally includes every node as its own node group with a generated key to ensure uniqueness
+	nodePoolToNodes["cluster-"+base64.StdEncoding.EncodeToString([]byte(summary.Name))] = summary.Nodes
 	staticPodToDaemonMap := make(map[string]bool)
+	// cache of static pod prefix to flag for quicker look up
 	prefixToDaemon := make(map[string]bool)
 	daemonCount := 0
 	for _, pod := range mirrorPods {
@@ -226,20 +225,14 @@ func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
 			continue
 		}
 
-		var daemon = true
-		if anyPools {
-			for _, nodePool := range nodePoolToNodeNames {
-				if intersection := nodePool.Intersection(nodeNames); intersection.Len() == 0 {
-					daemon = false
-					break
-				}
-			}
-		} else {
-			for _, node := range summary.Nodes {
-				if !nodeNames.Has(node.GetName()) {
-					daemon = false
-					break
-				}
+		// In order to mark the static pod as a daemon we have to find at least one node pool
+		// where every node in the pool has a static pod with the same name prefix. If it does
+		// meet this criteria, we mark it as false.
+		var daemon = false
+		for _, nodePool := range nodePoolToNodes {
+			if util.IsSuperset(nodeNames, nodePool, func(node *v1.Node) string { return node.Name }) {
+				daemon = true
+				break
 			}
 		}
 

@@ -98,20 +98,20 @@ func GetMirrorPodPrefix(pod *api.Pod) (string, bool) {
 }
 
 func GetMirrorPods(pods []*api.Pod) []*api.Pod {
-	glog.V(4).Info("Getting mirror pods.")
+	glog.V(3).Info("Getting mirror pods.")
 	mirrorPods := []*api.Pod{}
 	for _, pod := range pods {
 		if isMirrorPod(pod) {
 			mirrorPods = append(mirrorPods, pod)
 		}
 	}
-	glog.V(4).Infof("Found %+v mirror pods", len(mirrorPods))
-	glog.V(5).Info(mirrorPods)
+	glog.V(3).Infof("Found %+v mirror pods", len(mirrorPods))
+	glog.V(4).Info(mirrorPods)
 	return mirrorPods
 }
 
 func GetMirrorPodPrefixToNodeNames(pods []*api.Pod) map[string]sets.String {
-	glog.V(4).Info("maping mirror pod prefixes to node names.")
+	glog.V(3).Info("maping mirror pod prefixes to node names.")
 	prefixToNodeNames := make(map[string]sets.String)
 	for _, pod := range pods {
 		prefix, ok := GetMirrorPodPrefix(pod)
@@ -122,8 +122,8 @@ func GetMirrorPodPrefixToNodeNames(pods []*api.Pod) map[string]sets.String {
 		}
 	}
 
-	glog.V(4).Infof("Found %+v static pod prefix keys.", len(prefixToNodeNames))
-	glog.V(5).Info(prefixToNodeNames)
+	glog.V(3).Infof("Found %+v static pod prefix keys.", len(prefixToNodeNames))
+	glog.V(4).Info(prefixToNodeNames)
 	return prefixToNodeNames
 }
 

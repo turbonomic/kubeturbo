@@ -423,15 +423,15 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 						// static pod apart of different daemon set
 						{
 							Spec: v1.PodSpec{
-								NodeName: "test-node3",
+								NodeName: "test-node2",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								UID:  "pod2-UID",
-								Name: "test-pod-prefix2-test-node",
+								Name: "test-pod-prefix2-test-node2",
 								OwnerReferences: []metav1.OwnerReference{
 									{
 										Kind: util.Kind_Node,
-										Name: "test-node3",
+										Name: "test-node2",
 									},
 								},
 							},
@@ -455,15 +455,15 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 						// static pod apart of daemon set
 						{
 							Spec: v1.PodSpec{
-								NodeName: "test-node2",
+								NodeName: "test-node3",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								UID:  "pod3-UID",
-								Name: "test-pod-prefix-test-node2",
+								Name: "test-pod-prefix-test-node3",
 								OwnerReferences: []metav1.OwnerReference{
 									{
 										Kind: util.Kind_Node,
-										Name: "test-node2",
+										Name: "test-node3",
 									},
 								},
 							},
@@ -475,7 +475,7 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								UID:  "pod5-UID",
-								Name: "test-pod-prefix2-test-node",
+								Name: "test-pod-prefix2-test-node4",
 								OwnerReferences: []metav1.OwnerReference{
 									{
 										Kind: util.Kind_Node,
@@ -500,6 +500,22 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 								},
 							},
 						},
+						// static pod not apart of different daemon set
+						{
+							Spec: v1.PodSpec{
+								NodeName: "test-node2",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								UID:  "pod7-UID",
+								Name: "test-pod-prefix3-test-node2",
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										Kind: util.Kind_Node,
+										Name: "test-node2",
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -509,6 +525,7 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 				"pod3-UID": true,
 				"pod5-UID": true,
 				"pod6-UID": false,
+				"pod7-UID": false,
 			},
 		},
 	}

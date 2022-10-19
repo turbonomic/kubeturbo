@@ -24,7 +24,7 @@ func NewNodePoolsGroupDTOBuilder(cluster *repository.ClusterSummary,
 }
 
 func (builder *NodePoolsGroupDTOBuilder) Build() []*proto.GroupDTO {
-	nodePools := builder.getNodePools()
+	nodePools := util.MapNodePoolToNodes(builder.cluster.Nodes, builder.cluster.MachineSetToNodesMap)
 	if len(nodePools) == 0 {
 		glog.V(3).Infof("No node pools detected.")
 		return nil
@@ -40,7 +40,7 @@ func (builder *NodePoolsGroupDTOBuilder) Build() []*proto.GroupDTO {
 		// static group
 		dto, err := group.StaticNodePool(groupID).
 			OfType(proto.EntityDTO_VIRTUAL_MACHINE).
-			WithEntities(members).
+			WithEntities(util.GetUIDs(members)).
 			WithDisplayName(displayName).
 			WithOwner(builder.cluster.Name).
 			Build()
@@ -51,25 +51,4 @@ func (builder *NodePoolsGroupDTOBuilder) Build() []*proto.GroupDTO {
 		groupDTOs = append(groupDTOs, dto)
 	}
 	return groupDTOs
-}
-
-func (builder *NodePoolsGroupDTOBuilder) getNodePools() map[string][]string {
-	nodePools := make(map[string][]string)
-	for _, node := range builder.cluster.Nodes {
-		allPools := util.DetectNodePools(node)
-		for _, pool := range allPools.List() {
-			nodePools[pool] = append(nodePools[pool], string(node.UID))
-		}
-	}
-
-	for capiMachineSetPoolName, nodeUIDs := range builder.cluster.MachineSetToNodeUIDsMap {
-		nodePools[capiMachineSetPoolName] = nodeUIDs
-	}
-
-	if glog.V(3) {
-		for poolName, nodes := range nodePools {
-			glog.Infof("%s: %s", poolName, nodes)
-		}
-	}
-	return nodePools
 }

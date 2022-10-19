@@ -371,8 +371,8 @@ func (s *MockClusterScrapper) GetResources(schema.GroupVersionResource) (*unstru
 	return &unstructured.UnstructuredList{}, nil
 }
 
-func (s *MockClusterScrapper) GetMachineSetToNodeUIDsMap(nodes []*v1.Node) map[string][]string {
-	return make(map[string][]string)
+func (s *MockClusterScrapper) GetMachineSetToNodesMap(nodes []*v1.Node) map[string][]*v1.Node {
+	return make(map[string][]*v1.Node)
 }
 
 // Implements the KubeHttpClientInterface

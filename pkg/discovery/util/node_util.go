@@ -219,20 +219,42 @@ func DetectHARole(node *api.Node) bool {
 	return isHANode
 }
 
-func MapNodePoolToNodeNames(nodes []*v1.Node) map[string]sets.String {
-	glog.V(4).Info("mapping node pools to nodes.")
-	nodePools := make(map[string]sets.String)
+func MapNodePoolToNodes(nodes []*v1.Node, machineSetToNodesMap map[string][]*v1.Node) map[string][]*v1.Node {
+	glog.V(3).Info("mapping node pools to nodes.")
+	nodePools := make(map[string][]*v1.Node)
 	for _, node := range nodes {
 		allPools := DetectNodePools(node)
-		for _, pool := range allPools.UnsortedList() {
-			if nodePools[pool] == nil {
-				nodePools[pool] = sets.NewString(node.Name)
-			} else {
-				nodePools[pool].Insert(node.Name)
-			}
+		for _, pool := range allPools.List() {
+			nodePools[pool] = append(nodePools[pool], node)
 		}
 	}
-	glog.V(4).Infof("Found %+v node pool keys.", len(nodePools))
-	glog.V(5).Info(nodePools)
+
+	for capiMachineSetPoolName, nodes := range machineSetToNodesMap {
+		nodePools[capiMachineSetPoolName] = nodes
+	}
+
+	glog.V(3).Infof("Found %+v node pool keys.", len(nodePools))
+	glog.V(4).Info(nodePools)
 	return nodePools
+}
+
+type NodeLike interface {
+	string | *v1.Node
+}
+
+func IsSuperset[T NodeLike](nodeNames sets.String, nodes []T, extractor func(T) string) bool {
+	for _, node := range nodes {
+		if !nodeNames.Has(extractor(node)) {
+			return false
+		}
+	}
+	return true
+}
+
+func GetUIDs(nodes []*v1.Node) []string {
+	uids := []string{}
+	for _, node := range nodes {
+		uids = append(uids, string(node.UID))
+	}
+	return uids
 }
