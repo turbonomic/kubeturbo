@@ -126,8 +126,10 @@ func loadConfig(configPath, context string) (*restclient.Config, *clientcmdapi.C
 }
 
 func DeleteNamespace(client kubeclientset.Interface, namespaceName string) {
-	orphanDependents := false
-	if err := client.CoreV1().Namespaces().Delete(context.TODO(), namespaceName, metav1.DeleteOptions{OrphanDependents: &orphanDependents}); err != nil {
+	//orphanDependents := false
+	//if err := client.CoreV1().Namespaces().Delete(context.TODO(), namespaceName, metav1.DeleteOptions{OrphanDependents: &orphanDependents}); err != nil {
+	deletePolicy := metav1.DeletePropagationForeground
+	if err := client.CoreV1().Namespaces().Delete(context.TODO(), namespaceName, metav1.DeleteOptions{PropagationPolicy: &deletePolicy}); err != nil {
 		if !apierrors.IsNotFound(err) {
 			Failf("Error while deleting namespace %s: %s", namespaceName, err)
 		}

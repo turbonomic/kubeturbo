@@ -360,10 +360,18 @@ var _ = Describe("Action Executor ", func() {
 		})
 	})
 
+	AfterEach(func() {
+		if framework.TestContext.IsOpenShiftTest {
+			glog.Infof("AfterEach get called with the NS :%v", namespace)
+		}
+	})
 	// TODO: this particular Describe is currently used as the teardown for this
 	// whole test (not the suite).
 	// This will work only if run sequentially. Find a better way to do this.
 	Describe("test teardown", func() {
+		if framework.TestContext.IsOpenShiftTest {
+			glog.Infof("Teardown get called with the NS :%v", namespace)
+		}
 		It(fmt.Sprintf("Deleting framework namespace: %s", namespace), func() {
 			f.AfterEach()
 		})
