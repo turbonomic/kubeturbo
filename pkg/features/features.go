@@ -42,17 +42,13 @@ const (
 	// of the node which the pod is currently running on and also enable honoring the PV affninity on a pod move
 	HonorAzLabelPvAffinity featuregate.Feature = "HonorAzLabelPvAffinity"
 
-	// MemoryOptimisations owner: @mengding @irfanurrehman
+	// GoMemLimit owner: @mengding
 	// alpha:
-	// This flag enables below optimisations
 	//
 	// Go runtime soft memory limit support
 	// This gate enables Go runtime soft memory limit as explained in
 	// https://pkg.go.dev/runtime/debug#SetMemoryLimit
-	//
-	// Pagination support for list API calls to API server querying workload controllers
-	// Without this feature gate the whole list is requested in a single list API call.
-	MemoryOptimisations featuregate.Feature = "MemoryOptimisations"
+	GoMemLimit featuregate.Feature = "GoMemLimit"
 )
 
 func init() {
@@ -71,5 +67,5 @@ var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSp
 	ThrottlingMetrics:      {Default: true, PreRelease: featuregate.Beta},
 	GitopsApps:             {Default: false, PreRelease: featuregate.Alpha},
 	HonorAzLabelPvAffinity: {Default: true, PreRelease: featuregate.Alpha},
-	MemoryOptimisations:    {Default: false, PreRelease: featuregate.Alpha},
+	GoMemLimit:             {Default: false, PreRelease: featuregate.Alpha},
 }
