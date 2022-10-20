@@ -115,10 +115,15 @@ func GetMirrorPodPrefixToNodeNames(pods []*api.Pod) map[string]sets.String {
 	prefixToNodeNames := make(map[string]sets.String)
 	for _, pod := range pods {
 		prefix, ok := GetMirrorPodPrefix(pod)
-		if ok && prefixToNodeNames[prefix] == nil {
+		if !ok {
+			// Not a mirror pod
+			continue
+		}
+		nodeNames, found := prefixToNodeNames[prefix]
+		if !found {
 			prefixToNodeNames[prefix] = sets.NewString(pod.Spec.NodeName)
-		} else if ok {
-			prefixToNodeNames[prefix].Insert(pod.Spec.NodeName)
+		} else {
+			nodeNames.Insert(pod.Spec.NodeName)
 		}
 	}
 

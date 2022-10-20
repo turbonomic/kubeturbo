@@ -215,9 +215,14 @@ func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
 	daemonCount := 0
 	for _, pod := range mirrorPods {
 		prefix, ok := util.GetMirrorPodPrefix(pod)
+		if !ok {
+			// not a mirror pod
+			continue
+		}
+
 		nodeNames := prefixToNodeNames[prefix]
 		// check whether the prefix has been processed before to prevent unnecessary work
-		if value, exists := prefixToDaemon[prefix]; ok && exists {
+		if value, exists := prefixToDaemon[prefix]; exists {
 			if value {
 				daemonCount++
 			}
