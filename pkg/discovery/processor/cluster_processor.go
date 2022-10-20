@@ -171,7 +171,7 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.ClusterSummary, error)
 	glog.V(2).Infof("Discovering cluster with %d nodes and %d pods.", len(nodeList), len(podList))
 	// Create kubeCluster and compute cluster resource
 	kubeCluster := repository.NewKubeCluster(svcID, nodeList).WithPods(podList).
-		WithMachineSetToNodeUIDsMap(p.clusterInfoScraper.GetMachineSetToNodeUIDsMap(nodeList))
+		WithMachineSetToNodesMap(p.clusterInfoScraper.GetMachineSetToNodesMap(nodeList))
 
 	// Discover Namespaces and Quotas
 	NewNamespaceProcessor(p.clusterInfoScraper, kubeCluster).ProcessNamespaces()

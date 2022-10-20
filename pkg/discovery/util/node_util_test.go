@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	set "github.com/deckarep/golang-set"
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -151,6 +152,65 @@ func TestGetNodeOSArch(t *testing.T) {
 				test.nodeLabels, test.expectedArch, arch)
 		}
 	}
+}
+
+func TestMapNodePoolToNodeNames(t *testing.T) {
+	// node in gke pool with an additional label
+	node1 := v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Labels: map[string]string{
+				NodePoolGKE:     NodePoolGKE,
+				"another-label": "another-label",
+			},
+		},
+	}
+	// node in EKS pool
+	node2 := v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node2",
+			Labels: map[string]string{
+				NodePoolEKSIdentifier: NodePoolEKSIdentifier,
+			},
+		},
+	}
+	// node in GKE pool
+	node3 := v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node3",
+			Labels: map[string]string{
+				NodePoolGKE: NodePoolGKE,
+			},
+		},
+	}
+
+	// node that would be in two pools
+	node4 := v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node4",
+			Labels: map[string]string{
+				NodePoolEKSIdentifier: NodePoolEKSIdentifier,
+				NodePoolAKS:           NodePoolAKS,
+			},
+		},
+	}
+
+	// node with no labels
+	node5 := v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "test-node5",
+			Labels: map[string]string{},
+		},
+	}
+
+	nodes := []*v1.Node{&node1, &node2, &node3, &node4, &node5}
+
+	nodePoolToNodes := MapNodePoolToNodes(nodes, map[string][]*v1.Node{})
+	assert.Equal(t, map[string][]*v1.Node{
+		NodePoolEKSIdentifier: {&node2, &node4},
+		NodePoolGKE:           {&node1, &node3},
+		NodePoolAKS:           {&node4},
+	}, nodePoolToNodes)
 }
 
 func getNodeWithLabels(labels map[string]string) *v1.Node {

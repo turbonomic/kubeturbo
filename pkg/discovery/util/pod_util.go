@@ -89,16 +89,59 @@ func HasController(pod *api.Pod) bool {
 	return !hasNodeOwner(pod)
 }
 
+// extracts mirror pod prefix. Returns the prefix and extraction result.
+func GetMirrorPodPrefix(pod *api.Pod) (string, bool) {
+	if !isMirrorPod(pod) {
+		return "", false
+	}
+	return strings.Replace(pod.Name, pod.Spec.NodeName, "", 1), true
+}
+
+func GetMirrorPods(pods []*api.Pod) []*api.Pod {
+	glog.V(3).Info("Getting mirror pods.")
+	mirrorPods := []*api.Pod{}
+	for _, pod := range pods {
+		if isMirrorPod(pod) {
+			mirrorPods = append(mirrorPods, pod)
+		}
+	}
+	glog.V(3).Infof("Found %+v mirror pods", len(mirrorPods))
+	glog.V(4).Info(mirrorPods)
+	return mirrorPods
+}
+
+func GetMirrorPodPrefixToNodeNames(pods []*api.Pod) map[string]sets.String {
+	glog.V(3).Info("maping mirror pod prefixes to node names.")
+	prefixToNodeNames := make(map[string]sets.String)
+	for _, pod := range pods {
+		prefix, ok := GetMirrorPodPrefix(pod)
+		if !ok {
+			// Not a mirror pod
+			continue
+		}
+		nodeNames, found := prefixToNodeNames[prefix]
+		if !found {
+			prefixToNodeNames[prefix] = sets.NewString(pod.Spec.NodeName)
+		} else {
+			nodeNames.Insert(pod.Spec.NodeName)
+		}
+	}
+
+	glog.V(3).Infof("Found %+v static pod prefix keys.", len(prefixToNodeNames))
+	glog.V(4).Info(prefixToNodeNames)
+	return prefixToNodeNames
+}
+
 // Check if a pod is a mirror pod.
 func isMirrorPod(pod *api.Pod) bool {
 	annotations := pod.Annotations
-	if annotations == nil {
-		return false
+	if annotations != nil {
+		if _, exist := annotations[api.MirrorPodAnnotationKey]; exist {
+			glog.V(4).Infof("Found a mirror pod: %s/%s", pod.Namespace, pod.Name)
+			return true
+		}
 	}
-	if _, exist := annotations[api.MirrorPodAnnotationKey]; exist {
-		glog.V(4).Infof("Find a mirror pod: %s/%s", pod.Namespace, pod.Name)
-		return true
-	}
+
 	return hasNodeOwner(pod)
 }
 
@@ -107,7 +150,7 @@ func isMirrorPod(pod *api.Pod) bool {
 // https://github.com/kubernetes/enhancements/blob/master/keps/sig-auth/20190916-noderestriction-pods.md#ownerreferences
 func hasNodeOwner(pod *api.Pod) bool {
 	if pod.OwnerReferences != nil && len(pod.OwnerReferences) == 1 && pod.OwnerReferences[0].Kind == Kind_Node {
-		glog.V(4).Infof("Find a mirror pod: %s/%s", pod.Namespace, pod.Name)
+		glog.V(4).Infof("Found a mirror pod: %s/%s", pod.Namespace, pod.Name)
 		return true
 	}
 	return false

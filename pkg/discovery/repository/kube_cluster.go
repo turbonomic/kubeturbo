@@ -2,6 +2,7 @@ package repository
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -40,7 +41,7 @@ type KubeCluster struct {
 
 	// Map listing parent machineSet name for each nodename
 	// This will be filled only if openshift clusterapi is enabled
-	MachineSetToNodeUIDsMap map[string][]string
+	MachineSetToNodesMap map[string][]*v1.Node
 
 	// Data structures related to Turbo policy
 	TurboPolicyBindings []*TurboPolicyBinding
@@ -60,8 +61,8 @@ func (kc *KubeCluster) WithPods(pods []*v1.Pod) *KubeCluster {
 	return kc
 }
 
-func (kc *KubeCluster) WithMachineSetToNodeUIDsMap(machineSetToNodeUIDsMap map[string][]string) *KubeCluster {
-	kc.MachineSetToNodeUIDsMap = machineSetToNodeUIDsMap
+func (kc *KubeCluster) WithMachineSetToNodesMap(machineSetToNodesMap map[string][]*v1.Node) *KubeCluster {
+	kc.MachineSetToNodesMap = machineSetToNodesMap
 	return kc
 }
 
@@ -81,6 +82,7 @@ type ClusterSummary struct {
 	// it fails to pull image onto the host
 	NodeToPendingPods       map[string][]*v1.Pod
 	AverageNodeCpuFrequency float64
+	StaticPodToDaemonMap    map[string]bool
 }
 
 func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
@@ -92,11 +94,13 @@ func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
 		PodClusterIDToServiceMap: make(map[string]*v1.Service),
 		NodeToRunningPods:        make(map[string][]*v1.Pod),
 		NodeToPendingPods:        make(map[string][]*v1.Pod),
+		StaticPodToDaemonMap:     make(map[string]bool),
 	}
 	clusterSummary.computeNodeMap()
 	clusterSummary.computePodMap()
 	clusterSummary.computeQuotaMap()
 	clusterSummary.computePodToServiceMap()
+	clusterSummary.computeStaticPodToDaemonMap()
 	return clusterSummary
 }
 
@@ -190,6 +194,63 @@ func (summary *ClusterSummary) computePodToServiceMap() {
 			summary.PodClusterIDToServiceMap[podClusterID] = svc
 		}
 	}
+}
+
+// Find and cache all static pods modeled as daemons for discover workers
+// to set daemon flag for pod entities. Returns mapping of pod UID to flag.
+func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
+	glog.V(2).Info("creating mapping for static pods modeled as daemons.")
+	// static pods are only exposed through the API via mirror pods
+	// https://kubernetes.io/docs/reference/glossary/?all=true#term-mirror-pod
+	mirrorPods := util.GetMirrorPods(summary.Pods)
+	// common name prefix is our assumed conventions for showing intent of creating
+	// daemon sets with static pods
+	prefixToNodeNames := util.GetMirrorPodPrefixToNodeNames(mirrorPods)
+	nodePoolToNodes := util.MapNodePoolToNodes(summary.Nodes, summary.MachineSetToNodesMap)
+	// additionally includes every node as its own node group with a generated key to ensure uniqueness
+	nodePoolToNodes["cluster-"+base64.StdEncoding.EncodeToString([]byte(summary.Name))] = summary.Nodes
+	staticPodToDaemonMap := make(map[string]bool)
+	// cache of static pod prefix to flag for quicker look up
+	prefixToDaemon := make(map[string]bool)
+	daemonCount := 0
+	for _, pod := range mirrorPods {
+		prefix, ok := util.GetMirrorPodPrefix(pod)
+		if !ok {
+			// not a mirror pod
+			continue
+		}
+
+		nodeNames := prefixToNodeNames[prefix]
+		// check whether the prefix has been processed before to prevent unnecessary work
+		if value, exists := prefixToDaemon[prefix]; exists {
+			if value {
+				daemonCount++
+			}
+			staticPodToDaemonMap[string(pod.UID)] = value
+			continue
+		}
+
+		// In order to mark the static pod as a daemon we have to find at least one node pool
+		// where every node in the pool has a static pod with the same name prefix.
+		var daemon = false
+		for _, nodePool := range nodePoolToNodes {
+			if util.IsSuperset(nodeNames, nodePool, func(node *v1.Node) string { return node.Name }) {
+				daemon = true
+				break
+			}
+		}
+
+		if daemon {
+			daemonCount++
+		}
+
+		// remove entry since checking one pod with the same prefix proves daemon set
+		delete(prefixToNodeNames, prefix)
+		staticPodToDaemonMap[string(pod.UID)] = daemon
+		prefixToDaemon[prefix] = daemon
+	}
+	summary.StaticPodToDaemonMap = staticPodToDaemonMap
+	glog.V(2).Infof("Found %+v out of %+v static pods as daemons ", daemonCount, len(staticPodToDaemonMap))
 }
 
 const (

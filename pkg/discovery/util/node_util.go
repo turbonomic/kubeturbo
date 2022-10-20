@@ -8,6 +8,7 @@ import (
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
 	api "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/detectors"
@@ -216,4 +217,44 @@ func DetectHARole(node *api.Node) bool {
 		glog.V(2).Infof("%s is a HA node and will be marked Non Suspendable.", node.Name)
 	}
 	return isHANode
+}
+
+func MapNodePoolToNodes(nodes []*v1.Node, machineSetToNodesMap map[string][]*v1.Node) map[string][]*v1.Node {
+	glog.V(3).Info("mapping node pools to nodes.")
+	nodePools := make(map[string][]*v1.Node)
+	for _, node := range nodes {
+		allPools := DetectNodePools(node)
+		for _, pool := range allPools.List() {
+			nodePools[pool] = append(nodePools[pool], node)
+		}
+	}
+
+	for capiMachineSetPoolName, nodes := range machineSetToNodesMap {
+		nodePools[capiMachineSetPoolName] = nodes
+	}
+
+	glog.V(3).Infof("Found %+v node pool keys.", len(nodePools))
+	glog.V(4).Info(nodePools)
+	return nodePools
+}
+
+type NodeLike interface {
+	string | *v1.Node
+}
+
+func IsSuperset[T NodeLike](nodeNames sets.String, nodes []T, extractor func(T) string) bool {
+	for _, node := range nodes {
+		if !nodeNames.Has(extractor(node)) {
+			return false
+		}
+	}
+	return true
+}
+
+func GetUIDs(nodes []*v1.Node) []string {
+	uids := []string{}
+	for _, node := range nodes {
+		uids = append(uids, string(node.UID))
+	}
+	return uids
 }
