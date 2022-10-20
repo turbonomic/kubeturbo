@@ -231,8 +231,7 @@ func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
 		}
 
 		// In order to mark the static pod as a daemon we have to find at least one node pool
-		// where every node in the pool has a static pod with the same name prefix. If it does
-		// meet this criteria, we mark it as false.
+		// where every node in the pool has a static pod with the same name prefix.
 		var daemon = false
 		for _, nodePool := range nodePoolToNodes {
 			if util.IsSuperset(nodeNames, nodePool, func(node *v1.Node) string { return node.Name }) {
