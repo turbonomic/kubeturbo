@@ -4,16 +4,14 @@ import (
 	"fmt"
 	"math"
 
-	api "k8s.io/api/core/v1"
-
+	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-
-	"github.com/golang/glog"
+	api "k8s.io/api/core/v1"
 )
 
 const (
@@ -60,10 +58,10 @@ func NewNodeEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *s
 	}
 }
 
-// Build entityDTOs based on the given node list.
+// BuildEntityDTOs builds entityDTOs based on the given node list.
 func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*proto.EntityDTO, []string) {
 	var result []*proto.EntityDTO
-	var unknownStateNodes []string
+	var notReadyNodes []string
 
 	clusterId, err := builder.getClusterId()
 	if err != nil {
@@ -80,7 +78,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		entityDTOBuilder.DisplayName(displayName)
 		nodeActive := util.NodeIsReady(node)
 		if !nodeActive {
-			glog.Warningf("the NodeIsReady marked node %s as inactive", node.Name)
+			glog.Warningf("Node %s is in NotReady status.", node.Name)
 		}
 
 		// compute and constraint commodities sold.
@@ -113,8 +111,9 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 			nodeActive = false
 		}
 		entityDTOBuilder = entityDTOBuilder.ReplacedBy(metaData)
-		nodeKey := util.NodeKeyFunc(node)
+
 		// Check whether we have used cache
+		nodeKey := util.NodeKeyFunc(node)
 		cacheUsedMetric := metrics.GenerateEntityStateMetricUID(metrics.NodeType, nodeKey, "NodeCacheUsed")
 		present, _ := builder.metricsSink.GetMetric(cacheUsedMetric)
 		if present != nil {
@@ -132,14 +131,22 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		isHANode := util.DetectHARole(node)
 		entityDTOBuilder.IsSuspendable(!isHANode)
 
-		// Power state.
-		// Will be Powered On, only if it is ready and has no issues with kubelet accessibility.
-		if nodeActive {
-			entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
-		} else {
-			glog.Warningf("Node %s has unknown power state", node.GetName())
-			entityDTOBuilder = entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERSTATE_UNKNOWN)
-			unknownStateNodes = append(unknownStateNodes, nodeID)
+		if !nodeActive {
+			glog.Warningf("Node %s has NotReady status or has issues accessing kubelet.", node.GetName())
+			notReadyNodes = append(notReadyNodes, nodeID)
+			entityDTOBuilder.IsSuspendable(false)
+			entityDTOBuilder.IsProvisionable(false)
+			clusterCommodityKey := fmt.Sprintf("Node-%v-NotReady", nodeID)
+			clusterComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
+				Key(clusterCommodityKey).
+				Used(1).
+				Create()
+			if err == nil {
+				provider := sdkbuilder.CreateProvider(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, clusterId)
+				entityDTOBuilder.
+					Provider(provider).
+					BuysCommodity(clusterComm)
+			}
 		}
 
 		// Get CPU capacity in cores.
@@ -181,7 +188,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 		glog.V(4).Infof("Node DTO : %+v", entityDto)
 	}
 
-	return result, unknownStateNodes
+	return result, notReadyNodes
 }
 
 // Build the sold commodityDTO by each node. They include:

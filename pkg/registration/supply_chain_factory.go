@@ -257,6 +257,8 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 
 	mergedEntityMetadataBuilder = mergedEntityMetadataBuilder.WithMergePropertiesStrategy(proto.MergedEntityMetadata_MERGE_IF_NOT_PRESENT)
 
+	boughtCommTypes := []proto.CommodityDTO_CommodityType{proto.CommodityDTO_CLUSTER}
+
 	return mergedEntityMetadataBuilder.
 		PatchSoldMetadata(proto.CommodityDTO_CLUSTER, fieldsCapactiy).
 		PatchSoldMetadata(proto.CommodityDTO_VMPM_ACCESS, fieldsCapactiy).
@@ -272,6 +274,7 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 		PatchSoldMetadata(proto.CommodityDTO_VMEM_REQUEST_QUOTA, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_NUMBER_CONSUMERS, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_VSTORAGE, fieldsUsedCapacity).
+		PatchBoughtList(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, boughtCommTypes).
 		Build()
 }
 
@@ -289,7 +292,9 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 		Sells(numPodNumConsumersTemplateComm). // sells to Pods
 		Sells(vStorageTemplateComm).           // sells to Pods
 		Sells(taintTemplateCommWithKey).
-		Sells(labelTemplateCommWithKey)
+		Sells(labelTemplateCommWithKey).
+		Provider(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, proto.Provider_HOSTING).
+		Buys(clusterTemplateCommWithKey) // buys from cluster
 	// also sells Cluster to Pods
 
 	return nodeSupplyChainNodeBuilder.Create()

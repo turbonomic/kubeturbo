@@ -397,7 +397,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	// Discovery worker for creating Group DTOs
 	entityGroupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(clusterSummary, targetID)
 	groupDTOs, _ := entityGroupDiscoveryWorker.Do(result.EntityGroups, result.SidecarContainerSpecs,
-		result.PodsWithVolumes, result.UnknownStateNodes)
+		result.PodsWithVolumes, result.NotReadyNodes)
 
 	glog.V(2).Infof("There are totally %d groups DTOs", len(groupDTOs))
 	if glog.V(4) {

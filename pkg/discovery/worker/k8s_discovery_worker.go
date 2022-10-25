@@ -287,7 +287,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	entityGroups := NewGroupMetricsCollector(worker, currTask).CollectGroupMetrics()
 
 	// Build DTOs after getting the metrics
-	entityDTOs, podEntities, sidecarContainerSpecs, podsWithVolumes, unknownStateNodes := worker.buildEntityDTOs(currTask)
+	entityDTOs, podEntities, sidecarContainerSpecs, podsWithVolumes, notReadyNodes := worker.buildEntityDTOs(currTask)
 
 	// Uncomment this to dump the topology to a file for later use by the unit tests
 	// util.DumpTopology(currTask, "test-topology.dat")
@@ -311,13 +311,10 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		WithPodVolumeMetrics(podVolumeMetricsCollection).
 		// List of sidecar containerSpecIds
 		WithSidecarContainerSpecs(sidecarContainerSpecs).
-
 		// List of pods with volumes
 		WithPodsWithVolumes(podsWithVolumes).
-
-		// List of unknown nodes
-		WithUnknownStateNodes(unknownStateNodes)
-
+		// List of NotReady nodes
+		WithNotReadyNodes(notReadyNodes)
 }
 
 func (worker *k8sDiscoveryWorker) addPodQuotaMetrics(podMetricsCollection PodMetricsByNodeAndNamespace) {
@@ -352,9 +349,9 @@ func (worker *k8sDiscoveryWorker) addPodQuotaMetrics(podMetricsCollection PodMet
 func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto.EntityDTO,
 	[]*repository.KubePod, []string, []string, []string) {
 	var entityDTOs []*proto.EntityDTO
-	var unknownStateNodes []string
+	var notReadyNodes []string
 	// Build entity DTOs for nodes
-	nodeDTOs, unknownStateNodes := worker.buildNodeDTOs([]*api.Node{currTask.Node()})
+	nodeDTOs, notReadyNodes := worker.buildNodeDTOs([]*api.Node{currTask.Node()})
 
 	glog.V(3).Infof("Worker %s built %d node DTOs.", worker.id, len(nodeDTOs))
 	if len(nodeDTOs) == 0 {
@@ -381,7 +378,7 @@ func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto
 		entityDTOs = append(entityDTOs, appEntityDTOs...)
 	}
 	glog.V(2).Infof("Worker %s built %d entity DTOs in total.", worker.id, len(entityDTOs))
-	return entityDTOs, podEntities, sidecarContainerSpecs, podWithVolumes, unknownStateNodes
+	return entityDTOs, podEntities, sidecarContainerSpecs, podWithVolumes, notReadyNodes
 }
 
 func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node) ([]*proto.EntityDTO, []string) {

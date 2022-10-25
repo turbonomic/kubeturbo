@@ -154,14 +154,14 @@ var _ = Describe("Discover Cluster", func() {
 		})
 	})
 
-	Describe("Discovering affects of node with unknown state", func() {
+	Describe("Discovering effects of node with NotReady state", func() {
 		var entities []*proto.EntityDTO = nil
 		var groups []*proto.GroupDTO = nil
-		var unknownNode *proto.EntityDTO = nil
+		var notReadyNode *proto.EntityDTO = nil
 		testName := "discovery-integration-test"
 		nodeName := "kind-worker3"
 
-		It("Unknown node discovery setup", func() {
+		It("NotReady node discovery setup", func() {
 			// Create a pod to test and attach to the node soon to be in a NotReady state
 			_, deployErr := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, nodeName))
 			framework.ExpectNoError(deployErr, "Error creating test resources")
@@ -197,58 +197,59 @@ var _ = Describe("Discover Cluster", func() {
 			}
 		})
 
-		It("Unknown node should be detected", func() {
-			unknownNode = getUnknownNode(entities)
-			if unknownNode == nil {
-				framework.Failf("Node with unknown state not found")
+		It("NotReady node should be detected", func() {
+			notReadyNode = getNotReadyNode(entities)
+			if notReadyNode == nil {
+				framework.Failf("Node with NotReady state not found")
 			}
 
-			if unknownNode.GetDisplayName() == "" {
-				framework.Failf("Unknown nodes should have display names")
+			if notReadyNode.GetDisplayName() == "" {
+				framework.Failf("NotReady nodes should have display names")
 			}
 		})
 
-		It("Unknown nodes should be listed in the unknown node group", func() {
+		It("NotReady nodes should be listed in the NotReady node group", func() {
 
-			unknownGroup := getUnknownNodeGroup(groups)
-			if unknownGroup == nil {
-				framework.Failf("Could not find unknown Node group")
+			notReadyGroup := getNotReadyNodeGroup(groups)
+			if notReadyGroup == nil {
+				framework.Failf("Could not find NotReady Node group")
 			}
 
-			if unknownGroup.GetEntityType() != proto.EntityDTO_VIRTUAL_MACHINE {
-				framework.Failf("Unknown node group as incorrect entity type")
+			if notReadyGroup.GetEntityType() != proto.EntityDTO_VIRTUAL_MACHINE {
+				framework.Failf("NotReady node group as incorrect entity type")
 			}
 
-			if unknownGroup.GetDisplayName() != "All Nodes (State Unknown)" {
-				framework.Failf("Unknown node group display name has been changed")
+			if !strings.Contains(notReadyGroup.GetDisplayName(), "NotReady Nodes") {
+				framework.Failf("NotReady node group display name has been changed")
 			}
 
 			nodeInGroup := false
-			for _, uuid := range unknownGroup.GetMemberList().GetMember() {
-				if uuid == unknownNode.GetId() {
+			for _, uuid := range notReadyGroup.GetMemberList().GetMember() {
+				if uuid == notReadyNode.GetId() {
 					nodeInGroup = true
 				}
 			}
 
 			if !nodeInGroup {
-				framework.Failf("Unknown node was not found in node group")
+				framework.Failf("NotReady node was not found in node group")
 			}
 		})
 
-		It("Should check that pods on unknown nodes also have status unknown", func() {
-			podsWithUnknownNode := findEntities(entities, func(entity *proto.EntityDTO) bool {
-				return entity.GetEntityType() == proto.EntityDTO_CONTAINER_POD && findOneCommodityBought(entity.CommoditiesBought, func(commBought *proto.EntityDTO_CommodityBought) bool {
-					return commBought.GetProviderId() == unknownNode.GetId()
-				}) != nil
+		It("Should check that pods on NotReady nodes also have status unknown", func() {
+			podsWithNotReadyNode := findEntities(entities, func(entity *proto.EntityDTO) bool {
+				return entity.GetEntityType() == proto.EntityDTO_CONTAINER_POD &&
+					findOneCommodityBought(entity.CommoditiesBought, func(commBought *proto.EntityDTO_CommodityBought) bool {
+						return commBought.GetProviderId() == notReadyNode.GetId()
+					}) != nil
 			}, len(entities))
 
-			if len(podsWithUnknownNode) == 0 {
-				framework.Failf("Unknown node should have pods")
+			if len(podsWithNotReadyNode) == 0 {
+				framework.Failf("NotReady node should have pods")
 			}
 
-			for _, pod := range podsWithUnknownNode {
+			for _, pod := range podsWithNotReadyNode {
 				if pod.GetPowerState() != proto.EntityDTO_POWERSTATE_UNKNOWN {
-					framework.Failf("All pods with unknown Node provider should be in an unknown state")
+					framework.Failf("All pods with NotReady Node provider should be in an unknown state")
 				}
 			}
 		})
@@ -601,27 +602,41 @@ func execute(name string, arg ...string) (string, error) {
 	return output, err
 }
 
-func getUnknownNode(entities []*proto.EntityDTO) *proto.EntityDTO {
-	unknownNode := findOneEntity(entities, func(entity *proto.EntityDTO) bool {
-		return entity.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE && entity.GetPowerState() == proto.EntityDTO_POWERSTATE_UNKNOWN
+func getNotReadyNode(entities []*proto.EntityDTO) *proto.EntityDTO {
+	notReadyNode := findOneEntity(entities, func(entity *proto.EntityDTO) bool {
+		commBoughtList := entity.GetCommoditiesBought()
+		var hasClusterCommodity bool
+		for _, commBought := range commBoughtList {
+			providerType := commBought.GetProviderType()
+			for _, bought := range commBought.GetBought() {
+				if bought.GetCommodityType() == proto.CommodityDTO_CLUSTER &&
+					providerType == proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER {
+					hasClusterCommodity = true
+					break
+				}
+			}
+		}
+		return entity.GetEntityType() == proto.EntityDTO_VIRTUAL_MACHINE &&
+			entity.GetPowerState() == proto.EntityDTO_POWERED_ON &&
+			hasClusterCommodity
 	})
-	if unknownNode != nil {
-		framework.Logf("Successfully found Node with unknown power state.")
+	if notReadyNode != nil {
+		framework.Logf("Successfully found Node with NotReady status.")
 	}
 
-	return unknownNode
+	return notReadyNode
 }
 
-func getUnknownNodeGroup(groups []*proto.GroupDTO) *proto.GroupDTO {
-	unknownNodeGroup := findOneGroup(groups, func(group *proto.GroupDTO) bool {
-		return strings.Contains(group.GetGroupName(), "All-Nodes-State-Unknown-")
+func getNotReadyNodeGroup(groups []*proto.GroupDTO) *proto.GroupDTO {
+	notReadyNodeGroup := findOneGroup(groups, func(group *proto.GroupDTO) bool {
+		return strings.Contains(group.GetGroupName(), "NotReady-Nodes-")
 	})
 
-	if unknownNodeGroup != nil {
-		framework.Logf("Successfully found Unknown Node Group")
+	if notReadyNodeGroup != nil {
+		framework.Logf("Successfully found NotReady Node Group")
 	}
 
-	return unknownNodeGroup
+	return notReadyNodeGroup
 }
 
 func validateNumbers(entityDTOs []*proto.EntityDTO, groupDTOs []*proto.GroupDTO, totalEntities, totalGroups int) {
