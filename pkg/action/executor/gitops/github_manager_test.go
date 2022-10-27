@@ -270,7 +270,7 @@ func TestGitHandler_NewPR(t *testing.T) {
 		receivedPR := new(github.NewPullRequest)
 		json.NewDecoder(r.Body).Decode(receivedPR)
 		if !cmp.Equal(receivedPR, expectedReceivedPR) {
-			t.Errorf("Expected PR in newPR did not match got %+v, want %+v", receivedPR, expectedReceivedPR)
+			t.Errorf("Expected PR and newPR did not match got %+v, want %+v", receivedPR, expectedReceivedPR)
 		}
 
 		fmt.Fprint(w, `{"number":1}`)
@@ -800,7 +800,7 @@ spec:
 	}
 
 	for _, testCase := range testCases {
-		liveRes, err := decodeYaml(testCase.liveYaml)
+		liveRes, err := DecodeYaml(testCase.liveYaml)
 		if err != nil {
 			t.Errorf("Test: %v \nError decoding live yaml: %v", testCase.test, err)
 		}
@@ -815,7 +815,7 @@ spec:
 			t.Errorf("Test: %v \nError retrieving podSpec from the live res: %v", testCase.test, err)
 		}
 
-		modified, patchedResult, err := patchYamlContent(testCase.configYaml, liveReplicas.(int64), livePodSpec.(map[string]interface{}))
+		modified, patchedResult, err := PatchYamlContent(testCase.configYaml, liveReplicas.(int64), livePodSpec.(map[string]interface{}))
 		if err != nil {
 			t.Errorf("Test: %v \nError patching yaml content %v", testCase.test, err)
 		}
