@@ -133,6 +133,7 @@ type TaskResult struct {
 	sidecarContainerSpecs []string
 	podsWithVolumes       []string
 	notReadyNodes         []string
+	mirrorPodUids         []string
 }
 
 func NewTaskResult(workerID string, state TaskResultState) *TaskResult {
@@ -188,6 +189,10 @@ func (r *TaskResult) PodWithVolumes() []string {
 
 func (r *TaskResult) NotReadyNodes() []string {
 	return r.notReadyNodes
+}
+
+func (r *TaskResult) mirrorPodUids() []string {
+	return r.mirrorPodUids
 }
 
 func (r *TaskResult) Err() error {
@@ -246,5 +251,10 @@ func (r *TaskResult) WithPodsWithVolumes(podsWithVolumes []string) *TaskResult {
 
 func (r *TaskResult) WithNotReadyNodes(notReadyNodes []string) *TaskResult {
 	r.notReadyNodes = notReadyNodes
+	return r
+}
+
+func (r *TaskResult) WithMirrorPodUids(mirrorPodUids []string) *TaskResult {
+	r.mirrorPodUids = mirrorPodUids
 	return r
 }

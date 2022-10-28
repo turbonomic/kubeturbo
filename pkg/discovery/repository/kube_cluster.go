@@ -82,7 +82,7 @@ type ClusterSummary struct {
 	// it fails to pull image onto the host
 	NodeToPendingPods       map[string][]*v1.Pod
 	AverageNodeCpuFrequency float64
-	StaticPodToDaemonMap    map[string]bool
+	MirrorPodToDaemonMap    map[string]bool
 }
 
 func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
@@ -94,13 +94,13 @@ func CreateClusterSummary(kubeCluster *KubeCluster) *ClusterSummary {
 		PodClusterIDToServiceMap: make(map[string]*v1.Service),
 		NodeToRunningPods:        make(map[string][]*v1.Pod),
 		NodeToPendingPods:        make(map[string][]*v1.Pod),
-		StaticPodToDaemonMap:     make(map[string]bool),
+		MirrorPodToDaemonMap:     make(map[string]bool),
 	}
 	clusterSummary.computeNodeMap()
 	clusterSummary.computePodMap()
 	clusterSummary.computeQuotaMap()
 	clusterSummary.computePodToServiceMap()
-	clusterSummary.computeStaticPodToDaemonMap()
+	clusterSummary.computeMirrorPodToDaemonMap()
 	return clusterSummary
 }
 
@@ -196,10 +196,10 @@ func (summary *ClusterSummary) computePodToServiceMap() {
 	}
 }
 
-// Find and cache all static pods modeled as daemons for discover workers
+// Find and cache all mirror pods modeled as daemons for discover workers
 // to set daemon flag for pod entities. Returns mapping of pod UID to flag.
-func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
-	glog.V(2).Info("creating mapping for static pods modeled as daemons.")
+func (summary *ClusterSummary) computeMirrorPodToDaemonMap() {
+	glog.V(2).Info("creating mirror pod mapping for static pods modeled as daemons.")
 	// static pods are only exposed through the API via mirror pods
 	// https://kubernetes.io/docs/reference/glossary/?all=true#term-mirror-pod
 	mirrorPods := util.GetMirrorPods(summary.Pods)
@@ -209,8 +209,8 @@ func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
 	nodePoolToNodes := util.MapNodePoolToNodes(summary.Nodes, summary.MachineSetToNodesMap)
 	// additionally includes every node as its own node group with a generated key to ensure uniqueness
 	nodePoolToNodes["cluster-"+base64.StdEncoding.EncodeToString([]byte(summary.Name))] = summary.Nodes
-	staticPodToDaemonMap := make(map[string]bool)
-	// cache of static pod prefix to flag for quicker look up
+	mirrorPodToDaemonMap := make(map[string]bool)
+	// cache of mirror pod prefix to flag for quicker look up
 	prefixToDaemon := make(map[string]bool)
 	daemonCount := 0
 	for _, pod := range mirrorPods {
@@ -226,12 +226,12 @@ func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
 			if value {
 				daemonCount++
 			}
-			staticPodToDaemonMap[string(pod.UID)] = value
+			mirrorPodToDaemonMap[string(pod.UID)] = value
 			continue
 		}
 
-		// In order to mark the static pod as a daemon we have to find at least one node pool
-		// where every node in the pool has a static pod with the same name prefix.
+		// In order to mark the pod as a daemon we have to find at least one node pool
+		// where every node in the pool has a mirror pod with the same name prefix.
 		var daemon = false
 		for _, nodePool := range nodePoolToNodes {
 			if util.IsSuperset(nodeNames, nodePool, func(node *v1.Node) string { return node.Name }) {
@@ -246,11 +246,11 @@ func (summary *ClusterSummary) computeStaticPodToDaemonMap() {
 
 		// remove entry since checking one pod with the same prefix proves daemon set
 		delete(prefixToNodeNames, prefix)
-		staticPodToDaemonMap[string(pod.UID)] = daemon
+		mirrorPodToDaemonMap[string(pod.UID)] = daemon
 		prefixToDaemon[prefix] = daemon
 	}
-	summary.StaticPodToDaemonMap = staticPodToDaemonMap
-	glog.V(2).Infof("Found %+v out of %+v static pods as daemons ", daemonCount, len(staticPodToDaemonMap))
+	summary.MirrorPodToDaemonMap = mirrorPodToDaemonMap
+	glog.V(2).Infof("Found %+v out of %+v static pods as daemons ", daemonCount, len(mirrorPodToDaemonMap))
 }
 
 const (

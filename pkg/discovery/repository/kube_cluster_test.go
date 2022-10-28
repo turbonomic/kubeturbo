@@ -224,7 +224,7 @@ type ClusterResultSummary struct {
 	Result map[string]bool
 }
 
-func TestComputeStaticPodToDaemonMap(t *testing.T) {
+func TestComputeMirrorPodToDaemonMap(t *testing.T) {
 
 	clusterSummaries := []struct {
 		s      *ClusterSummary
@@ -531,8 +531,8 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 	}
 
 	for _, sum := range clusterSummaries {
-		sum.s.computeStaticPodToDaemonMap()
-		assert.Equal(t, sum.result, sum.s.StaticPodToDaemonMap)
+		sum.s.computeMirrorPodToDaemonMap()
+		assert.Equal(t, sum.result, sum.s.MirrorPodToDaemonMap)
 	}
 
 }

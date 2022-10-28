@@ -25,6 +25,7 @@ type DiscoveryResult struct {
 	SidecarContainerSpecs []string
 	PodsWithVolumes       []string
 	NotReadyNodes         []string
+	MirrorPodUids         []string
 	SuccessCount          int
 	ErrorCount            int
 }
@@ -76,6 +77,7 @@ func (rc *ResultCollector) Collect(count int) *DiscoveryResult {
 					result.ContainerSpecMetrics = append(result.ContainerSpecMetrics, taskResult.ContainerSpecMetrics()...)
 					result.SidecarContainerSpecs = append(result.SidecarContainerSpecs, taskResult.SidecarContainerSpecs()...)
 					result.PodsWithVolumes = append(result.PodsWithVolumes, taskResult.PodWithVolumes()...)
+					result.MirrorPodUids = append(result.MirrorPodUids, taskResult.MirrorPodUids()...)
 					result.NotReadyNodes = append(result.NotReadyNodes, taskResult.NotReadyNodes()...)
 				}
 				wg.Done()
