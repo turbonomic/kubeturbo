@@ -134,6 +134,7 @@ spec:
             mountPath: /etc/kubeturbo
             readOnly: true
           - name: turbonomic-credentials-volume
+            # This mount path cannot be changed
             mountPath: /etc/turbonomic-credentials
             readOnly: true
           - name: varlog
