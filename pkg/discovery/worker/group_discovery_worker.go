@@ -33,17 +33,19 @@ var (
 
 // Converts the cluster group objects to Group DTOs
 type k8sEntityGroupDiscoveryWorker struct {
-	id       string
-	targetId string
-	cluster  *repository.ClusterSummary
+	id                    string
+	targetId              string
+	cluster               *repository.ClusterSummary
+	enablePodClusterMoves bool
 }
 
 func Newk8sEntityGroupDiscoveryWorker(cluster *repository.ClusterSummary,
-	targetId string) *k8sEntityGroupDiscoveryWorker {
+	targetId string, enablePodClusterMoves bool) *k8sEntityGroupDiscoveryWorker {
 	return &k8sEntityGroupDiscoveryWorker{
-		cluster:  cluster,
-		id:       k8sGroupWorkerID,
-		targetId: targetId,
+		cluster:               cluster,
+		id:                    k8sGroupWorkerID,
+		targetId:              targetId,
+		enablePodClusterMoves: enablePodClusterMoves,
 	}
 }
 
@@ -93,7 +95,7 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 	groupDTOs = groupDtoBuilder.BuildGroupDTOs()
 
 	// Create DTO for cluster
-	clusterGroupDTOs := dtofactory.NewClusterDTOBuilder(worker.cluster, worker.targetId).BuildGroup()
+	clusterGroupDTOs := dtofactory.NewClusterDTOBuilder(worker.cluster, worker.targetId, worker.enablePodClusterMoves).BuildGroup()
 	groupDTOs = append(groupDTOs, clusterGroupDTOs...)
 
 	// Create static groups for HA Nodes

@@ -98,7 +98,7 @@ var _ = Describe("Action Executor ", func() {
 			discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, nil, app.DefaultValidationWorkers,
 				app.DefaultValidationTimeout, aggregation.DefaultContainerUtilizationDataAggStrategy,
 				aggregation.DefaultContainerUsageDataAggStrategy, ormClient, app.DefaultDiscoveryWorkers, app.DefaultDiscoveryTimeoutSec,
-				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec)
+				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec, app.DefaultEnablePodClusterMoves)
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
 				cluster.NewClusterScraper(kubeClient, dynamicClient, nil, false, nil, ""),
 				[]string{"*"}, ormClient, false, true, 60, gitops.GitConfig{}, "test-cluster-id")

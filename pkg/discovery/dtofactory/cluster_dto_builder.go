@@ -14,7 +14,10 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
-const ClusterKeyPrefix = "cluster-"
+const (
+	ClusterKeyPrefix = "cluster-"
+	ClusterFreeKey   = "ClusterFreeKey"
+)
 
 var quotaToComputeResourceCommMap = map[proto.CommodityDTO_CommodityType]proto.CommodityDTO_CommodityType{
 	proto.CommodityDTO_VCPU_LIMIT_QUOTA: proto.CommodityDTO_VCPU,
@@ -22,21 +25,26 @@ var quotaToComputeResourceCommMap = map[proto.CommodityDTO_CommodityType]proto.C
 }
 
 type clusterDTOBuilder struct {
-	cluster  *repository.ClusterSummary
-	targetId string
+	cluster               *repository.ClusterSummary
+	targetId              string
+	enablePodClusterMoves bool
 }
 
 func NewClusterDTOBuilder(cluster *repository.ClusterSummary,
-	targetId string) *clusterDTOBuilder {
+	targetId string, enablePodClusterMoves bool) *clusterDTOBuilder {
 	return &clusterDTOBuilder{
-		cluster:  cluster,
-		targetId: targetId,
+		cluster:               cluster,
+		targetId:              targetId,
+		enablePodClusterMoves: enablePodClusterMoves,
 	}
 }
 
 // GetClusterKey constructs the commodity key sold by the cluster entity, by adding a prefix to the cluster id.
 // Use of a prefix is to distinguish the same key used by the node entities in the cluster
-func GetClusterKey(clusterId string) string {
+func GetClusterKey(clusterId string, enablePodClusterMoves bool) string {
+	if enablePodClusterMoves {
+		return ClusterFreeKey
+	}
 	return ClusterKeyPrefix + clusterId
 }
 
@@ -126,7 +134,7 @@ func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO, nam
 func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityDTO) ([]*proto.CommodityDTO,
 	map[proto.CommodityDTO_CommodityType]float64, error) {
 	// Cluster access commodity
-	clusterKey := GetClusterKey(builder.cluster.Name)
+	clusterKey := GetClusterKey(builder.cluster.Name, builder.enablePodClusterMoves)
 	clusterCommodity, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
 		Key(clusterKey).Capacity(accessCommodityDefaultCapacity).Create()
 	if err != nil {

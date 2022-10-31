@@ -41,6 +41,7 @@ type DiscoveryClientConfig struct {
 	DiscoveryTimeoutSec        int
 	DiscoverySamples           int
 	DiscoverySampleIntervalSec int
+	EnablePodClusterMoves      bool
 	// Strategy to aggregate Container utilization data on ContainerSpec entity
 	containerUtilizationDataAggStrategy string
 	// Strategy to aggregate Container usage data on ContainerSpec entity
@@ -54,7 +55,7 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 	targetConfig *configs.K8sTargetConfig, ValidationWorkers int,
 	ValidationTimeoutSec int, containerUtilizationDataAggStrategy,
 	containerUsageDataAggStrategy string, ormClient *resourcemapping.ORMClient,
-	discoveryWorkers, discoveryTimeoutMin, discoverySamples, discoverySampleIntervalSec int) *DiscoveryClientConfig {
+	discoveryWorkers, discoveryTimeoutMin, discoverySamples, discoverySampleIntervalSec int, enableClusterMoves bool) *DiscoveryClientConfig {
 	if discoveryWorkers < minDiscoveryWorker {
 		glog.Warningf("Invalid number of discovery workers %v, set it to %v.",
 			discoveryWorkers, minDiscoveryWorker)
@@ -84,6 +85,7 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 		DiscoveryTimeoutSec:                 discoveryTimeoutMin,
 		DiscoverySamples:                    discoverySamples,
 		DiscoverySampleIntervalSec:          discoverySampleIntervalSec,
+		EnablePodClusterMoves:               enableClusterMoves,
 	}
 }
 
@@ -311,7 +313,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 
 	// Namespace discovery worker to create namespace DTOs
 	stitchType := dc.Config.probeConfig.StitchingPropertyType
-	namespacesDiscoveryWorker := worker.Newk8sNamespaceDiscoveryWorker(clusterSummary, stitchType)
+	namespacesDiscoveryWorker := worker.Newk8sNamespaceDiscoveryWorker(clusterSummary, stitchType, dc.Config.EnablePodClusterMoves)
 	namespaceDtos, err := namespacesDiscoveryWorker.Do(result.NamespaceMetrics)
 	if err != nil {
 		glog.Errorf("Failed to discover namespaces from current Kubernetes cluster with the new discovery framework: %s", err)
@@ -395,7 +397,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	glog.V(2).Infof("Successfully processed taints and tolerations.")
 
 	// Discovery worker for creating Group DTOs
-	entityGroupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(clusterSummary, targetID)
+	entityGroupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(clusterSummary, targetID, dc.Config.EnablePodClusterMoves)
 	groupDTOs, _ := entityGroupDiscoveryWorker.Do(result.EntityGroups, result.SidecarContainerSpecs,
 		result.PodsWithVolumes, result.NotReadyNodes)
 
@@ -409,7 +411,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	}
 
 	// Create the cluster DTO
-	clusterEntityDTO, err := dtofactory.NewClusterDTOBuilder(clusterSummary, targetID).BuildEntity(result.EntityDTOs, namespaceDtos)
+	clusterEntityDTO, err := dtofactory.NewClusterDTOBuilder(clusterSummary, targetID, dc.Config.EnablePodClusterMoves).BuildEntity(result.EntityDTOs, namespaceDtos)
 	if err != nil {
 		glog.Errorf("Failed to create the cluster DTO: %s", err)
 	} else {

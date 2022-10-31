@@ -1,11 +1,13 @@
 package dtofactory
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	"testing"
 )
 
 const (
@@ -140,7 +142,7 @@ func makeNodeDTOs() ([]*proto.EntityDTO, error) {
 func TestBuildClusterDto(t *testing.T) {
 	kubeCluster := repository.KubeCluster{Name: clusterId}
 	clusterSummary := repository.ClusterSummary{KubeCluster: &kubeCluster}
-	builder := NewClusterDTOBuilder(&clusterSummary, targetId)
+	builder := NewClusterDTOBuilder(&clusterSummary, targetId, app.DefaultEnablePodClusterMoves)
 	entityDTOs, err := makeNodeDTOs()
 	assert.Nil(t, err, "Failed to make node DTOs to build the cluster DTO: %s", err)
 	clusterDTO, err := builder.BuildEntity(entityDTOs, entityDTOs)
@@ -150,7 +152,7 @@ func TestBuildClusterDto(t *testing.T) {
 	for _, commSold := range clusterDTO.CommoditiesSold {
 		switch commSold.GetCommodityType() {
 		case proto.CommodityDTO_CLUSTER:
-			assert.Equal(t, GetClusterKey(clusterId), commSold.GetKey())
+			assert.Equal(t, GetClusterKey(clusterId, app.DefaultEnablePodClusterMoves), commSold.GetKey())
 			assert.Equal(t, accessCommodityDefaultCapacity, commSold.GetCapacity())
 		case proto.CommodityDTO_NUMBER_CONSUMERS:
 			assert.InDelta(t, 10+22+16, commSold.GetUsed(), delta)

@@ -14,12 +14,14 @@ import (
 )
 
 type namespaceEntityDTOBuilder struct {
-	NamespaceMap map[string]*repository.KubeNamespace
+	NamespaceMap          map[string]*repository.KubeNamespace
+	EnablePodClusterMoves bool
 }
 
-func NewNamespaceEntityDTOBuilder(namespaceMap map[string]*repository.KubeNamespace) *namespaceEntityDTOBuilder {
+func NewNamespaceEntityDTOBuilder(namespaceMap map[string]*repository.KubeNamespace, enablePodClusterMoves bool) *namespaceEntityDTOBuilder {
 	builder := &namespaceEntityDTOBuilder{
-		NamespaceMap: namespaceMap,
+		NamespaceMap:          namespaceMap,
+		EnablePodClusterMoves: enablePodClusterMoves,
 	}
 	return builder
 }
@@ -112,7 +114,7 @@ func (builder *namespaceEntityDTOBuilder) getQuotaCommoditiesSold(kubeNamespace 
 }
 
 func (builder *namespaceEntityDTOBuilder) getCommoditiesBought(kubeNamespace *repository.KubeNamespace) ([]*proto.CommodityDTO, error) {
-	clusterKey := GetClusterKey(kubeNamespace.ClusterName)
+	clusterKey := GetClusterKey(kubeNamespace.ClusterName, builder.EnablePodClusterMoves)
 	clusterCommBought, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
 		Key(clusterKey).Used(1).Create()
 	if err != nil {

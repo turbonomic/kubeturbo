@@ -55,6 +55,7 @@ type Config struct {
 	failVolumePodMoves      bool
 	updateQuotaToAllowMoves bool
 	clusterAPIEnabled       bool
+	enablePodClusterMoves   bool
 	readinessRetryThreshold int
 	gitConfig               gitops.GitConfig
 }
