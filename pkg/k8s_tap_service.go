@@ -26,6 +26,7 @@ import (
 const (
 	defaultUsername      = "defaultUser"
 	defaultPassword      = "defaultPassword"
+	credentialsDirPath   = "/etc/turbonomic-credentials"
 	usernameFilePath     = "/etc/turbonomic-credentials/username"
 	passwordFilePath     = "/etc/turbonomic-credentials/password"
 	clientIdFilePath     = "/etc/turbonomic-credentials/clientid"
@@ -67,6 +68,10 @@ func ParseK8sTAPServiceSpec(configFile string, defaultTargetName string) (*K8sTA
 		tapSpec.TargetIdentifier = defaultTargetName
 	}
 
+	if _, err := os.Stat(credentialsDirPath); os.IsNotExist(err) {
+		glog.V(2).Infof("credentials mount path is unavailable. Checked path: %s", credentialsDirPath)
+	}
+
 	if err := loadOpsMgrCredentialsFromSecret(tapSpec); err != nil {
 		return nil, err
 	}
@@ -93,21 +98,21 @@ func loadOpsMgrCredentialsFromSecret(tapSpec *K8sTAPServiceSpec) error {
 	// Return unchanged if the mounted file isn't present
 	// for backward compatibility.
 	if _, err := os.Stat(usernameFilePath); os.IsNotExist(err) {
-		glog.V(3).Infof("credentials from secret unavailable. Checked path: %s", usernameFilePath)
+		glog.V(2).Infof("server api credentials from secret unavailable. Checked path: %s", usernameFilePath)
 		return nil
 	}
 	if _, err := os.Stat(passwordFilePath); os.IsNotExist(err) {
-		glog.V(3).Infof("credentials from secret unavailable. Checked path: %s", passwordFilePath)
+		glog.V(2).Infof("sever api credentials from secret unavailable. Checked path: %s", passwordFilePath)
 		return nil
 	}
 
 	username, err := ioutil.ReadFile(usernameFilePath)
 	if err != nil {
-		return fmt.Errorf("error reading credentials from secret: username: %v", err)
+		return fmt.Errorf("error reading server api credentials from secret: username: %v", err)
 	}
 	password, err := ioutil.ReadFile(passwordFilePath)
 	if err != nil {
-		return fmt.Errorf("error reading credentials from secret: password: %v", err)
+		return fmt.Errorf("error reading server api credentials from secret: password: %v", err)
 	}
 
 	tapSpec.OpsManagerUsername = strings.TrimSpace(string(username))
@@ -120,21 +125,21 @@ func loadClientIdSecretFromSecret(tapSpec *K8sTAPServiceSpec) error {
 	// Return unchanged if the mounted file isn't present
 	// for backward compatibility.
 	if _, err := os.Stat(clientIdFilePath); os.IsNotExist(err) {
-		glog.V(3).Infof("credentials from secret unavailable. Checked path: %s", clientIdFilePath)
+		glog.V(2).Infof("secure server credentials from secret unavailable. Checked path: %s", clientIdFilePath)
 		return nil
 	}
 	if _, err := os.Stat(clientSecretFilePath); os.IsNotExist(err) {
-		glog.V(3).Infof("credentials from secret unavailable. Checked path: %s", clientSecretFilePath)
+		glog.V(2).Infof("secure server credentials from secret unavailable. Checked path: %s", clientSecretFilePath)
 		return nil
 	}
 
 	clientId, err := ioutil.ReadFile(clientIdFilePath)
 	if err != nil {
-		return fmt.Errorf("error reading credentials from secret: clientId: %v", err)
+		return fmt.Errorf("error reading secure server credentials from secret: clientId: %v", err)
 	}
 	clientSecret, err := ioutil.ReadFile(clientSecretFilePath)
 	if err != nil {
-		return fmt.Errorf("error reading credentials from secret: clientSecret: %v", err)
+		return fmt.Errorf("error reading secure server credentials from secret: clientSecret: %v", err)
 	}
 
 	tapSpec.ClientId = strings.TrimSpace(string(clientId))
