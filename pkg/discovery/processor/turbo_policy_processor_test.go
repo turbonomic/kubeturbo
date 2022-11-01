@@ -12,7 +12,6 @@ import (
 	apiextensionv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 )
@@ -307,7 +306,7 @@ func TestConvertTurboPolicy(t *testing.T) {
 		WithTurboPolicy(turboPolicy)
 	kubeCluster.TurboPolicyBindings = append(kubeCluster.TurboPolicyBindings, policyBinding)
 	kubeClusterSummary := repository.CreateClusterSummary(kubeCluster)
-	groupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(kubeClusterSummary, "targetId", app.DefaultEnablePodClusterMoves)
+	groupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(kubeClusterSummary, "targetId", false)
 	groupDTOs := groupDiscoveryWorker.BuildTurboPolicyDTOsFromPolicyBindings()
 	// No services cached in group discovery worker, cannot resolve services
 	assert.Empty(t, groupDTOs)
@@ -357,7 +356,7 @@ func TestConvertTurboPolicyWithInvalidReplicas(t *testing.T) {
 		WithTurboPolicy(turboPolicy)
 	kubeCluster.TurboPolicyBindings = append(kubeCluster.TurboPolicyBindings, policyBinding)
 	kubeClusterSummary := repository.CreateClusterSummary(kubeCluster)
-	groupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(kubeClusterSummary, "targetId", app.DefaultEnablePodClusterMoves)
+	groupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(kubeClusterSummary, "targetId", false)
 	kubeClusterSummary.Services = map[*api.Service][]string{
 		svc1: {},
 	}
@@ -375,7 +374,7 @@ func TestConvertTurboPolicyWithInvalidObjectives(t *testing.T) {
 		WithTurboPolicy(turboPolicy)
 	kubeCluster.TurboPolicyBindings = append(kubeCluster.TurboPolicyBindings, policyBinding)
 	kubeClusterSummary := repository.CreateClusterSummary(kubeCluster)
-	groupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(kubeClusterSummary, "targetId", app.DefaultEnablePodClusterMoves)
+	groupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(kubeClusterSummary, "targetId", false)
 	kubeClusterSummary.Services = map[*api.Service][]string{
 		svc1: {},
 	}

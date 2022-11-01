@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -254,7 +253,7 @@ func TestBuildNamespaceDto(t *testing.T) {
 		nodeMapByUID[kubeNode.UID] = kubeNode
 	}
 
-	builder := NewNamespaceEntityDTOBuilder(namespaceMap, app.DefaultEnablePodClusterMoves)
+	builder := NewNamespaceEntityDTOBuilder(namespaceMap, false)
 	dtos, err := builder.BuildEntityDTOs()
 	assert.Nil(t, err)
 
@@ -331,7 +330,7 @@ func TestBuildNamespaceDto(t *testing.T) {
 				}
 				// verify the cluster commodity
 				foundClusterCommodity = true
-				assert.Equal(t, GetClusterKey(clusterName, app.DefaultEnablePodClusterMoves), commBought.GetKey())
+				assert.Equal(t, GetClusterKey(clusterName, false), commBought.GetKey())
 			}
 			assert.True(t, foundClusterCommodity)
 
