@@ -191,7 +191,7 @@ func (r *TaskResult) NotReadyNodes() []string {
 	return r.notReadyNodes
 }
 
-func (r *TaskResult) mirrorPodUids() []string {
+func (r *TaskResult) MirrorPodUids() []string {
 	return r.mirrorPodUids
 }
 

@@ -196,7 +196,7 @@ func (worker *k8sEntityGroupDiscoveryWorker) buildMirrorPodGroup(mirrorPodUids [
 	groupDTO, err := group.StaticRegularGroup(fmt.Sprintf("Mirror-Pods-%s", worker.targetId)).
 		OfType(proto.EntityDTO_CONTAINER_POD).
 		WithEntities(mirrorPodUids).
-		WithDisplayName(fmt.Sprintf("All Mirror Pods of [%s]", worker.targetId)).
+		WithDisplayName("Mirror Pods").
 		Build()
 
 	if err != nil {

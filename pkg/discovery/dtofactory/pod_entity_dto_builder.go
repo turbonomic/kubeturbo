@@ -83,7 +83,7 @@ func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *st
 		namespaceUIDMap:      make(map[string]string),
 		podToVolumesMap:      make(map[string][]repository.MountedVolume),
 		nodeNameToNodeMap:    make(map[string]*repository.KubeNode),
-		MirrorPodToDaemonMap: make(map[string]bool),
+		mirrorPodToDaemonMap: make(map[string]bool),
 	}
 }
 
