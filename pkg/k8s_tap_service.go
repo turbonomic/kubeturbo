@@ -69,7 +69,7 @@ func ParseK8sTAPServiceSpec(configFile string, defaultTargetName string) (*K8sTA
 	}
 
 	if _, err := os.Stat(credentialsDirPath); os.IsNotExist(err) {
-		glog.V(2).Infof("credentials mount path is unavailable. Checked path: %s", credentialsDirPath)
+		glog.V(2).Infof("credentials mount path %s does not exist", credentialsDirPath)
 	}
 
 	if err := loadOpsMgrCredentialsFromSecret(tapSpec); err != nil {
@@ -102,7 +102,7 @@ func loadOpsMgrCredentialsFromSecret(tapSpec *K8sTAPServiceSpec) error {
 		return nil
 	}
 	if _, err := os.Stat(passwordFilePath); os.IsNotExist(err) {
-		glog.V(2).Infof("sever api credentials from secret unavailable. Checked path: %s", passwordFilePath)
+		glog.V(2).Infof("server api credentials from secret unavailable. Checked path: %s", passwordFilePath)
 		return nil
 	}
 
