@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	set "github.com/deckarep/golang-set"
@@ -48,6 +49,7 @@ type iNodeCpuFrequencyGetter interface {
 
 // NodeCpuFrequencyGetter defines an abstract type with default methods and fields shared by all concrete types
 type NodeCpuFrequencyGetter struct {
+	mu              sync.Mutex
 	kubeClient      *kubernetes.Clientset
 	busyboxImage    string
 	imagePullSecret string
@@ -166,8 +168,10 @@ func (n *NodeCpuFrequencyGetter) GetFrequency(i iNodeCpuFrequencyGetter, nodeNam
 
 	backoff, exists := n.backoffFailures[nodeName]
 	if !exists {
+		n.mu.Lock()
 		n.backoffFailures[nodeName] = newBackoff(defaultInitialDelay)
 		backoff = n.backoffFailures[nodeName]
+		n.mu.Unlock()
 	}
 	if backoff.backoff() {
 		return 0, fmt.Errorf("backoff getting node cpu freq for: %s", nodeName)
