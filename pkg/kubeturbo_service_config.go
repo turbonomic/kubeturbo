@@ -68,6 +68,11 @@ func NewVMTConfig2() *Config {
 	return cfg
 }
 
+func (c *Config) WithClusterKeyInjected(clusterKeyInjected string) *Config {
+	c.clusterKeyInjected = clusterKeyInjected
+	return c
+}
+
 func (c *Config) WithKubeClient(client *kubeclient.Clientset) *Config {
 	c.KubeClient = client
 	return c
