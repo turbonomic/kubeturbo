@@ -228,7 +228,7 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clus
 		if isResizeable, exists := resizableCommodities[commSold.GetCommodityType()]; exists {
 			commSold.Resizable = &isResizeable
 		}
-	}ing
+	}
 	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
 
 	// Label commodities
