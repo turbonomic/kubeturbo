@@ -430,7 +430,8 @@ func (s *VMTServer) Run() {
 		WithVolumePodMoveConfig(s.FailVolumePodMoves).
 		WithQuotaUpdateConfig(s.UpdateQuotaToAllowMoves).
 		WithClusterAPIEnabled(clusterAPIEnabled).
-		WithReadinessRetryThreshold(s.readinessRetryThreshold)
+		WithReadinessRetryThreshold(s.readinessRetryThreshold).
+		WithClusterKeyInjected(s.ClusterKeyInjected)
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.GitopsApps) {
 		vmtConfig.WithGitConfig(s.gitConfig)
