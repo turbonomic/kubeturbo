@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"fmt"
+	"strings"
 
 	api "k8s.io/api/core/v1"
 
@@ -73,6 +74,7 @@ type podEntityDTOBuilder struct {
 	runningPods          []*api.Pod
 	pendingPods          []*api.Pod
 	staticPodToDaemonMap map[string]bool
+	clusterKeyInjected   string
 }
 
 func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager) *podEntityDTOBuilder {
@@ -85,6 +87,11 @@ func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *st
 		nodeNameToNodeMap:    make(map[string]*repository.KubeNode),
 		staticPodToDaemonMap: make(map[string]bool),
 	}
+}
+
+func (c *podEntityDTOBuilder) WithClusterKeyInjected(clusterKeyInjected string) *podEntityDTOBuilder {
+	c.clusterKeyInjected = clusterKeyInjected
+	return c
 }
 
 func (builder *podEntityDTOBuilder) WithNodeNameUIDMap(nodeNameUIDMap map[string]string) *podEntityDTOBuilder {
@@ -423,7 +430,16 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
 	if err != nil {
 		glog.Errorf("Failed to get %s used for current Kubernetes Cluster %s", metrics.Cluster, clusterInfo)
 	} else {
-		clusterCommodityKey, ok := clusterInfo.GetValue().(string)
+		var clusterCommodityKey string
+		var ok bool
+		if len(strings.TrimSpace(builder.clusterKeyInjected)) != 0 {
+			clusterCommodityKey = builder.clusterKeyInjected
+			glog.V(5).Infof("Injecting cluster key for POD %s with key : %s", pod.Name, clusterCommodityKey)
+		} else {
+			clusterCommodityKey, ok = clusterInfo.GetValue().(string)
+			glog.V(5).Infof("adding cluster key for POD %s with key : %s", pod.Name, clusterCommodityKey)
+		}
+
 		if !ok {
 			glog.Error("Failed to get cluster ID")
 		}

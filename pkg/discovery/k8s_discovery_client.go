@@ -118,13 +118,15 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	resultCollector := worker.NewResultCollector(config.DiscoveryWorkers * 2)
 
 	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
-		config.DiscoveryWorkers, config.DiscoveryTimeoutSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec)
+		config.DiscoveryWorkers, config.DiscoveryTimeoutSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec).
+		WithClusterKeyInjected(config.ClusterKeyInjected)
 	dispatcher := worker.NewDispatcher(dispatcherConfig, globalEntityMetricSink)
 	dispatcher.Init(resultCollector)
 
 	// Create new SamplingDispatcher to assign tasks to collect additional resource usage data samples from kubelet
 	samplingDispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
-		config.DiscoveryWorkers, config.DiscoverySampleIntervalSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec)
+		config.DiscoveryWorkers, config.DiscoverySampleIntervalSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec).
+		WithClusterKeyInjected(config.ClusterKeyInjected)
 	dataSamplingDispatcher := worker.NewSamplingDispatcher(samplingDispatcherConfig, globalEntityMetricSink)
 	dataSamplingDispatcher.InitSamplingDiscoveryWorkers()
 
@@ -416,7 +418,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	}
 
 	// Create the cluster DTO
-	clusterEntityDTO, err := dtofactory.NewClusterDTOBuilder(clusterSummary, targetID).WithClusterKeyInjected(dc.Config.ClusterKeyInjected).BuildEntity(result.EntityDTOs, namespaceDtos)
+	clusterEntityDTO, err := dtofactory.NewClusterDTOBuilder(clusterSummary, targetID).BuildEntity(result.EntityDTOs, namespaceDtos)
 	if err != nil {
 		glog.Errorf("Failed to create the cluster DTO: %s", err)
 	} else {

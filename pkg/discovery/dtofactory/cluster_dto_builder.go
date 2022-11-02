@@ -2,7 +2,6 @@ package dtofactory
 
 import (
 	"fmt"
-	"strings"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 
@@ -23,9 +22,8 @@ var quotaToComputeResourceCommMap = map[proto.CommodityDTO_CommodityType]proto.C
 }
 
 type clusterDTOBuilder struct {
-	cluster            *repository.ClusterSummary
-	targetId           string
-	clusterKeyInjected string
+	cluster  *repository.ClusterSummary
+	targetId string
 }
 
 func NewClusterDTOBuilder(cluster *repository.ClusterSummary,
@@ -34,12 +32,6 @@ func NewClusterDTOBuilder(cluster *repository.ClusterSummary,
 		cluster:  cluster,
 		targetId: targetId,
 	}
-}
-
-// WithClusterKeyInjected sets the clusterKeyInjected for the builder
-func (builder *clusterDTOBuilder) WithClusterKeyInjected(clusterKeyInjected string) *clusterDTOBuilder {
-	builder.clusterKeyInjected = clusterKeyInjected
-	return builder
 }
 
 // GetClusterKey constructs the commodity key sold by the cluster entity, by adding a prefix to the cluster id.
@@ -134,14 +126,7 @@ func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO, nam
 func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityDTO) ([]*proto.CommodityDTO,
 	map[proto.CommodityDTO_CommodityType]float64, error) {
 	// Cluster access commodity
-	var clusterKey string
-	if len(strings.TrimSpace(builder.clusterKeyInjected)) != 0 {
-		clusterKey = builder.clusterKeyInjected
-		glog.V(4).Infof("Injected Cluster key: %s", clusterKey)
-	} else {
-		clusterKey = GetClusterKey(builder.cluster.Name)
-	}
-
+	clusterKey := GetClusterKey(builder.cluster.Name)
 	clusterCommodity, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
 		Key(clusterKey).Capacity(accessCommodityDefaultCapacity).Create()
 	if err != nil {
