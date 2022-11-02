@@ -16,19 +16,17 @@ const (
 
 // Converts the cluster namespaceEntity and NamespaceMetrics objects to create Namespace DTOs
 type k8sNamespaceDiscoveryWorker struct {
-	id                    string
-	Cluster               *repository.ClusterSummary
-	stitchType            stitching.StitchingPropertyType
-	enablePodClusterMoves bool
+	id         string
+	Cluster    *repository.ClusterSummary
+	stitchType stitching.StitchingPropertyType
 }
 
 func Newk8sNamespaceDiscoveryWorker(cluster *repository.ClusterSummary, pType stitching.StitchingPropertyType,
-	enablePodClusterMoves bool) *k8sNamespaceDiscoveryWorker {
+) *k8sNamespaceDiscoveryWorker {
 	return &k8sNamespaceDiscoveryWorker{
-		Cluster:               cluster,
-		id:                    k8sQuotasWorkerID,
-		stitchType:            pType,
-		enablePodClusterMoves: enablePodClusterMoves,
+		Cluster:    cluster,
+		id:         k8sQuotasWorkerID,
+		stitchType: pType,
 	}
 }
 
@@ -120,7 +118,7 @@ func (worker *k8sNamespaceDiscoveryWorker) Do(namespaceMetricsList []*repository
 	}
 
 	// Create DTOs for each namespace entity
-	namespaceEntityDTOBuilder := dtofactory.NewNamespaceEntityDTOBuilder(worker.Cluster.NamespaceMap, worker.enablePodClusterMoves)
+	namespaceEntityDTOBuilder := dtofactory.NewNamespaceEntityDTOBuilder(worker.Cluster.NamespaceMap)
 	namespaceEntityDtos, _ := namespaceEntityDTOBuilder.BuildEntityDTOs()
 	return namespaceEntityDtos, nil
 }

@@ -141,7 +141,7 @@ func makeNodeDTOs() ([]*proto.EntityDTO, error) {
 func TestBuildClusterDto(t *testing.T) {
 	kubeCluster := repository.KubeCluster{Name: clusterId}
 	clusterSummary := repository.ClusterSummary{KubeCluster: &kubeCluster}
-	builder := NewClusterDTOBuilder(&clusterSummary, targetId, false)
+	builder := NewClusterDTOBuilder(&clusterSummary, targetId)
 	entityDTOs, err := makeNodeDTOs()
 	assert.Nil(t, err, "Failed to make node DTOs to build the cluster DTO: %s", err)
 	clusterDTO, err := builder.BuildEntity(entityDTOs, entityDTOs)
@@ -151,7 +151,7 @@ func TestBuildClusterDto(t *testing.T) {
 	for _, commSold := range clusterDTO.CommoditiesSold {
 		switch commSold.GetCommodityType() {
 		case proto.CommodityDTO_CLUSTER:
-			assert.Equal(t, GetClusterKey(clusterId, false), commSold.GetKey())
+			assert.Equal(t, GetClusterKey(clusterId), commSold.GetKey())
 			assert.Equal(t, accessCommodityDefaultCapacity, commSold.GetCapacity())
 		case proto.CommodityDTO_NUMBER_CONSUMERS:
 			assert.InDelta(t, 10+22+16, commSold.GetUsed(), delta)
@@ -193,7 +193,7 @@ func TestBuildClusterDto(t *testing.T) {
 func Test_clusterDTOBuilder_createClusterData(t *testing.T) {
 	kubeCluster := repository.KubeCluster{Name: clusterId}
 	clusterSummary := repository.ClusterSummary{KubeCluster: &kubeCluster}
-	builder := NewClusterDTOBuilder(&clusterSummary, targetId, false)
+	builder := NewClusterDTOBuilder(&clusterSummary, targetId)
 	namespaceDTOs := []*proto.EntityDTO{namespaceDTO1, namespaceDTO2}
 	nodeResourceCapacityMap := map[proto.CommodityDTO_CommodityType]float64{
 		proto.CommodityDTO_VCPU: nodeVCpuCap,

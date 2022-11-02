@@ -198,7 +198,11 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 	discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, config.tapSpec.K8sTargetConfig,
 		config.ValidationWorkers, config.ValidationTimeoutSec, config.containerUtilizationDataAggStrategy,
 		config.containerUsageDataAggStrategy, config.ORMClient, config.DiscoveryWorkers, config.DiscoveryTimeoutSec,
-		config.DiscoverySamples, config.DiscoverySampleIntervalSec, config.enablePodClusterMoves)
+		config.DiscoverySamples, config.DiscoverySampleIntervalSec)
+
+	if config.clusterKeyInjected != "" {
+		discoveryClientConfig = discoveryClientConfig.WithClusterKeyInjected(config.clusterKeyInjected)
+	}
 
 	k8sSvcId, err := probeConfig.ClusterScraper.GetKubernetesServiceID()
 	if err != nil {

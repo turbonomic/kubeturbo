@@ -306,7 +306,7 @@ func TestConvertTurboPolicy(t *testing.T) {
 		WithTurboPolicy(turboPolicy)
 	kubeCluster.TurboPolicyBindings = append(kubeCluster.TurboPolicyBindings, policyBinding)
 	kubeClusterSummary := repository.CreateClusterSummary(kubeCluster)
-	groupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(kubeClusterSummary, "targetId", false)
+	groupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(kubeClusterSummary, "targetId")
 	groupDTOs := groupDiscoveryWorker.BuildTurboPolicyDTOsFromPolicyBindings()
 	// No services cached in group discovery worker, cannot resolve services
 	assert.Empty(t, groupDTOs)
@@ -356,7 +356,7 @@ func TestConvertTurboPolicyWithInvalidReplicas(t *testing.T) {
 		WithTurboPolicy(turboPolicy)
 	kubeCluster.TurboPolicyBindings = append(kubeCluster.TurboPolicyBindings, policyBinding)
 	kubeClusterSummary := repository.CreateClusterSummary(kubeCluster)
-	groupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(kubeClusterSummary, "targetId", false)
+	groupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(kubeClusterSummary, "targetId")
 	kubeClusterSummary.Services = map[*api.Service][]string{
 		svc1: {},
 	}
@@ -374,7 +374,7 @@ func TestConvertTurboPolicyWithInvalidObjectives(t *testing.T) {
 		WithTurboPolicy(turboPolicy)
 	kubeCluster.TurboPolicyBindings = append(kubeCluster.TurboPolicyBindings, policyBinding)
 	kubeClusterSummary := repository.CreateClusterSummary(kubeCluster)
-	groupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(kubeClusterSummary, "targetId", false)
+	groupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(kubeClusterSummary, "targetId")
 	kubeClusterSummary.Services = map[*api.Service][]string{
 		svc1: {},
 	}

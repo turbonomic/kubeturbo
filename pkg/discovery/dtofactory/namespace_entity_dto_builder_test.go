@@ -253,7 +253,7 @@ func TestBuildNamespaceDto(t *testing.T) {
 		nodeMapByUID[kubeNode.UID] = kubeNode
 	}
 
-	builder := NewNamespaceEntityDTOBuilder(namespaceMap, false)
+	builder := NewNamespaceEntityDTOBuilder(namespaceMap)
 	dtos, err := builder.BuildEntityDTOs()
 	assert.Nil(t, err)
 
@@ -330,7 +330,7 @@ func TestBuildNamespaceDto(t *testing.T) {
 				}
 				// verify the cluster commodity
 				foundClusterCommodity = true
-				assert.Equal(t, GetClusterKey(clusterName, false), commBought.GetKey())
+				assert.Equal(t, GetClusterKey(clusterName), commBought.GetKey())
 			}
 			assert.True(t, foundClusterCommodity)
 

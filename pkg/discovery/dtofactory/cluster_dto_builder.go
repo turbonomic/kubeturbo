@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"fmt"
+	"strings"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 
@@ -14,10 +15,7 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
-const (
-	ClusterKeyPrefix = "cluster-"
-	ClusterFreeKey   = "ClusterFreeKey"
-)
+const ClusterKeyPrefix = "cluster-"
 
 var quotaToComputeResourceCommMap = map[proto.CommodityDTO_CommodityType]proto.CommodityDTO_CommodityType{
 	proto.CommodityDTO_VCPU_LIMIT_QUOTA: proto.CommodityDTO_VCPU,
@@ -25,26 +23,28 @@ var quotaToComputeResourceCommMap = map[proto.CommodityDTO_CommodityType]proto.C
 }
 
 type clusterDTOBuilder struct {
-	cluster               *repository.ClusterSummary
-	targetId              string
-	enablePodClusterMoves bool
+	cluster            *repository.ClusterSummary
+	targetId           string
+	clusterKeyInjected string
 }
 
 func NewClusterDTOBuilder(cluster *repository.ClusterSummary,
-	targetId string, enablePodClusterMoves bool) *clusterDTOBuilder {
+	targetId string) *clusterDTOBuilder {
 	return &clusterDTOBuilder{
-		cluster:               cluster,
-		targetId:              targetId,
-		enablePodClusterMoves: enablePodClusterMoves,
+		cluster:  cluster,
+		targetId: targetId,
 	}
+}
+
+// WithClusterKeyInjected sets the clusterKeyInjected for the builder
+func (builder *clusterDTOBuilder) WithClusterKeyInjected(clusterKeyInjected string) *clusterDTOBuilder {
+	builder.clusterKeyInjected = clusterKeyInjected
+	return builder
 }
 
 // GetClusterKey constructs the commodity key sold by the cluster entity, by adding a prefix to the cluster id.
 // Use of a prefix is to distinguish the same key used by the node entities in the cluster
-func GetClusterKey(clusterId string, enablePodClusterMoves bool) string {
-	if enablePodClusterMoves {
-		return ClusterFreeKey
-	}
+func GetClusterKey(clusterId string) string {
 	return ClusterKeyPrefix + clusterId
 }
 
@@ -134,7 +134,14 @@ func (builder *clusterDTOBuilder) BuildEntity(entityDTOs []*proto.EntityDTO, nam
 func (builder *clusterDTOBuilder) getCommoditiesSold(entityDTOs []*proto.EntityDTO) ([]*proto.CommodityDTO,
 	map[proto.CommodityDTO_CommodityType]float64, error) {
 	// Cluster access commodity
-	clusterKey := GetClusterKey(builder.cluster.Name, builder.enablePodClusterMoves)
+	var clusterKey string
+	if len(strings.TrimSpace(builder.clusterKeyInjected)) != 0 {
+		clusterKey = builder.clusterKeyInjected
+		glog.V(4).Infof("Injected Cluster key: %s", clusterKey)
+	} else {
+		clusterKey = GetClusterKey(builder.cluster.Name)
+	}
+
 	clusterCommodity, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
 		Key(clusterKey).Capacity(accessCommodityDefaultCapacity).Create()
 	if err != nil {
