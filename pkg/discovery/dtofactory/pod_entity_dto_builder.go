@@ -434,10 +434,10 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
 		var ok bool
 		if len(strings.TrimSpace(builder.clusterKeyInjected)) != 0 {
 			clusterCommodityKey = builder.clusterKeyInjected
-			glog.V(5).Infof("Injecting cluster key for POD %s with key : %s", pod.Name, clusterCommodityKey)
+			glog.V(4).Infof("Injecting cluster key for POD %s with key : %s", pod.Name, clusterCommodityKey)
 		} else {
 			clusterCommodityKey, ok = clusterInfo.GetValue().(string)
-			glog.V(5).Infof("adding cluster key for POD %s with key : %s", pod.Name, clusterCommodityKey)
+			glog.V(4).Infof("adding cluster key for POD %s with key : %s", pod.Name, clusterCommodityKey)
 		}
 
 		if !ok {

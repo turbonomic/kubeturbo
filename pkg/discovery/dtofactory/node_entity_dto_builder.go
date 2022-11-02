@@ -249,10 +249,10 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clus
 	var clusterCommKey string
 	if len(strings.TrimSpace(builder.clusterKeyInjected)) != 0 {
 		clusterCommKey = builder.clusterKeyInjected
-		glog.V(5).Infof("Injecting cluster key for Node %s with key : %s", node.Name, clusterCommKey)
+		glog.V(4).Infof("Injecting cluster key for Node %s with key : %s", node.Name, clusterCommKey)
 	} else {
 		clusterCommKey = clusterId
-		glog.V(5).Infof("Adding cluster key for Node %s with key : %s", node.Name, clusterCommKey)
+		glog.V(4).Infof("Adding cluster key for Node %s with key : %s", node.Name, clusterCommKey)
 	}
 	clusterComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
 		Key(clusterCommKey).
