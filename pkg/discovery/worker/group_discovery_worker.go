@@ -190,7 +190,7 @@ func (worker *k8sEntityGroupDiscoveryWorker) buildPodsWithVolumesGroup(podsWithV
 
 func (worker *k8sEntityGroupDiscoveryWorker) buildMirrorPodGroup(mirrorPodUids []string) []*proto.GroupDTO {
 	if len(mirrorPodUids) <= 0 {
-		return []*proto.GroupDTO{}
+		return nil
 	}
 
 	groupDTO, err := group.StaticRegularGroup(fmt.Sprintf("Mirror-Pods-%s", worker.targetId)).
@@ -201,6 +201,7 @@ func (worker *k8sEntityGroupDiscoveryWorker) buildMirrorPodGroup(mirrorPodUids [
 
 	if err != nil {
 		glog.Errorf("Error creating group of mirror pods for target [%s]. Error: %v", worker.targetId, err)
+		return nil
 	}
 
 	return []*proto.GroupDTO{groupDTO}
