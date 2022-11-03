@@ -49,7 +49,7 @@ type iNodeCpuFrequencyGetter interface {
 
 // NodeCpuFrequencyGetter defines an abstract type with default methods and fields shared by all concrete types
 type NodeCpuFrequencyGetter struct {
-	mu              sync.Mutex
+	mu              *sync.Mutex
 	kubeClient      *kubernetes.Clientset
 	busyboxImage    string
 	imagePullSecret string
@@ -158,6 +158,7 @@ func NewNodeCpuFrequencyGetter(kubeClient *kubernetes.Clientset, busyboxImage, i
 		busyboxImage:    busyboxImage,
 		imagePullSecret: imagePullSecret,
 		backoffFailures: make(map[string]*backoffFailure),
+		mu:              &sync.Mutex{},
 	}
 }
 
