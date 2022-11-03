@@ -29,7 +29,7 @@ func TestBuildMirrorPodGroup(t *testing.T) {
 	}{
 		{
 			uids:     []string{},
-			expected: []*proto.GroupDTO{},
+			expected: nil,
 		},
 		{
 			uids: ids,
