@@ -15,7 +15,7 @@ func TestBuildMirrorPodGroup(t *testing.T) {
 		cluster:  &repository.ClusterSummary{},
 	}
 
-	displayName := "Mirror Pods"
+	displayName := "Mirror Pods target_id"
 	entityType := proto.EntityDTO_CONTAINER_POD
 	ids := []string{
 		"id1",
