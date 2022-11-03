@@ -437,12 +437,13 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
 			glog.V(4).Infof("Injecting cluster key for POD %s with key : %s", pod.Name, clusterCommodityKey)
 		} else {
 			clusterCommodityKey, ok = clusterInfo.GetValue().(string)
-			glog.V(4).Infof("adding cluster key for POD %s with key : %s", pod.Name, clusterCommodityKey)
+			if !ok {
+				glog.Error("Failed to get cluster ID")
+			} else {
+				glog.V(4).Infof("adding cluster key for POD %s with key : %s", pod.Name, clusterCommodityKey)
+			}
 		}
 
-		if !ok {
-			glog.Error("Failed to get cluster ID")
-		}
 		clusterComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
 			Key(clusterCommodityKey).
 			Create()

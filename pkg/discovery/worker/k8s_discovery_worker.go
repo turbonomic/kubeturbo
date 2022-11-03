@@ -430,6 +430,7 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 		WithPendingPods(currTask.PendingPodList()).
 		// map of static pods to daemon flags
 		WithStaticPodToDaemonMap(cluster.StaticPodToDaemonMap).
+		WithClusterKeyInjected(worker.config.clusterKeyInjected).
 		BuildEntityDTOs()
 
 	var podDTOs []*proto.EntityDTO
