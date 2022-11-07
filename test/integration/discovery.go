@@ -416,7 +416,6 @@ var _ = Describe("Discover Cluster", func() {
 		testName := "discovery-integration-test"
 		mirrorpod_prefix := "static-web"
 		var entities []*proto.EntityDTO = nil
-		//var groups []*proto.GroupDTO = nil
 		var delNode *corev1.Node
 		var err error
 
