@@ -224,7 +224,7 @@ type ClusterResultSummary struct {
 	Result map[string]bool
 }
 
-func TestComputeStaticPodToDaemonMap(t *testing.T) {
+func TestComputeMirrorPodToDaemonMap(t *testing.T) {
 
 	clusterSummaries := []struct {
 		s      *ClusterSummary
@@ -291,7 +291,7 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 						},
 					},
 					Pods: []*v1.Pod{
-						// static pod apart of daemon set
+						// mirror pod apart of daemon set
 						{
 							Spec: v1.PodSpec{
 								NodeName: "test-node",
@@ -307,7 +307,7 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 								},
 							},
 						},
-						// static pod not apart of daemon set
+						// mirror pod not apart of daemon set
 						{
 							Spec: v1.PodSpec{
 								NodeName: "test-node",
@@ -323,7 +323,7 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 								},
 							},
 						},
-						// not a static pod
+						// not a mirror pod
 						{
 							Spec: v1.PodSpec{
 								NodeName: "test-node",
@@ -339,7 +339,7 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 								},
 							},
 						},
-						// static pod apart of daemon set
+						// mirror pod apart of daemon set
 						{
 							Spec: v1.PodSpec{
 								NodeName: "test-node2",
@@ -404,7 +404,7 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 						},
 					},
 					Pods: []*v1.Pod{
-						// static pod apart of daemon set
+						// mirror pod apart of daemon set
 						{
 							Spec: v1.PodSpec{
 								NodeName: "test-node",
@@ -420,7 +420,7 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 								},
 							},
 						},
-						// static pod apart of different daemon set
+						// mirror pod apart of different daemon set
 						{
 							Spec: v1.PodSpec{
 								NodeName: "test-node2",
@@ -436,7 +436,7 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 								},
 							},
 						},
-						// not a static pod
+						// not a mirror pod
 						{
 							Spec: v1.PodSpec{
 								NodeName: "test-node3",
@@ -452,7 +452,7 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 								},
 							},
 						},
-						// static pod apart of daemon set
+						// mirror pod apart of daemon set
 						{
 							Spec: v1.PodSpec{
 								NodeName: "test-node3",
@@ -468,7 +468,7 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 								},
 							},
 						},
-						// static pod apart of different daemon set
+						// mirror pod apart of different daemon set
 						{
 							Spec: v1.PodSpec{
 								NodeName: "test-node4",
@@ -484,7 +484,7 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 								},
 							},
 						},
-						// static pod not apart of different daemon set
+						// mirror pod not apart of different daemon set
 						{
 							Spec: v1.PodSpec{
 								NodeName: "test-node",
@@ -500,7 +500,7 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 								},
 							},
 						},
-						// static pod not apart of different daemon set
+						// mirror pod not apart of different daemon set
 						{
 							Spec: v1.PodSpec{
 								NodeName: "test-node2",
@@ -531,8 +531,8 @@ func TestComputeStaticPodToDaemonMap(t *testing.T) {
 	}
 
 	for _, sum := range clusterSummaries {
-		sum.s.computeStaticPodToDaemonMap()
-		assert.Equal(t, sum.result, sum.s.StaticPodToDaemonMap)
+		sum.s.computeMirrorPodToDaemonMap()
+		assert.Equal(t, sum.result, sum.s.MirrorPodToDaemonMap)
 	}
 
 }

@@ -72,7 +72,7 @@ type podEntityDTOBuilder struct {
 	nodeNameToNodeMap    map[string]*repository.KubeNode
 	runningPods          []*api.Pod
 	pendingPods          []*api.Pod
-	staticPodToDaemonMap map[string]bool
+	mirrorPodToDaemonMap map[string]bool
 }
 
 func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager) *podEntityDTOBuilder {
@@ -83,7 +83,7 @@ func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *st
 		namespaceUIDMap:      make(map[string]string),
 		podToVolumesMap:      make(map[string][]repository.MountedVolume),
 		nodeNameToNodeMap:    make(map[string]*repository.KubeNode),
-		staticPodToDaemonMap: make(map[string]bool),
+		mirrorPodToDaemonMap: make(map[string]bool),
 	}
 }
 
@@ -117,35 +117,42 @@ func (builder *podEntityDTOBuilder) WithPendingPods(pendingPods []*api.Pod) *pod
 	return builder
 }
 
-func (builder *podEntityDTOBuilder) WithStaticPodToDaemonMap(staticPodToDaemonMap map[string]bool) *podEntityDTOBuilder {
-	builder.staticPodToDaemonMap = staticPodToDaemonMap
+func (builder *podEntityDTOBuilder) WithMirrorPodToDaemonMap(mirrorPodToDaemonMap map[string]bool) *podEntityDTOBuilder {
+	builder.mirrorPodToDaemonMap = mirrorPodToDaemonMap
 	return builder
 }
 
-func (builder *podEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, []*proto.EntityDTO, []string) {
+func (builder *podEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, []*proto.EntityDTO, []string, []string) {
 	glog.V(3).Infof("Building DTOs for running pods...")
-	runningPodDTOs, runningPodsWithVolumes := builder.buildDTOs(
+	runningPodDTOs, runningPodsWithVolumes, runningMirrorPodUids := builder.buildDTOs(
 		builder.runningPods, runningPodResCommTypeSold, runningPodResCommTypeBoughtFromNode)
 	glog.V(3).Infof("Built %d running pod DTOs.", len(runningPodDTOs))
 	glog.V(3).Infof("Building DTOs for pending pods...")
-	pendingPodDTOs, pendingPodsWithVolumes := builder.buildDTOs(
+	pendingPodDTOs, pendingPodsWithVolumes, pendingMirrorPodUids := builder.buildDTOs(
 		builder.pendingPods, pendingPodResCommTypeSold, pendingPodResCommTypeBoughtFromNode)
 	glog.V(3).Infof("Built %d pending pod DTOs.", len(pendingPodDTOs))
 	podsWithVolumes := append(runningPodsWithVolumes, pendingPodsWithVolumes...)
-	return runningPodDTOs, pendingPodDTOs, podsWithVolumes
+	mirrorPodUids := append(runningMirrorPodUids, pendingMirrorPodUids...)
+	return runningPodDTOs, pendingPodDTOs, podsWithVolumes, mirrorPodUids
 }
 
 // Build entityDTOs based on the given pod list.
 func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
-	resCommTypeBoughtFromNode []metrics.ResourceType) ([]*proto.EntityDTO, []string) {
+	resCommTypeBoughtFromNode []metrics.ResourceType) ([]*proto.EntityDTO, []string, []string) {
 	var result []*proto.EntityDTO
 	var podsWithVolumes []string
+	var mirrorPodUids []string
 	for _, pod := range pods {
 		// id.
 		podID := string(pod.UID)
 		entityDTOBuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER_POD, podID)
 		// determine if the pod is a daemon set pod as that determines the eligibility of the pod for different actions
-		daemon := util.Daemon(pod) || builder.staticPodToDaemonMap[podID]
+		mirrorPodDaemon, hasKey := builder.mirrorPodToDaemonMap[podID]
+		daemon := util.Daemon(pod) || mirrorPodDaemon
+		if hasKey {
+			mirrorPodUids = append(mirrorPodUids, podID)
+		}
+
 		// display name.
 		displayName := util.GetPodClusterID(pod)
 		entityDTOBuilder.DisplayName(displayName)
@@ -299,7 +306,7 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 		}
 	}
 
-	return result, podsWithVolumes
+	return result, podsWithVolumes, mirrorPodUids
 }
 
 func (builder *podEntityDTOBuilder) isContainerMetricsAvailable(pod *api.Pod) bool {
