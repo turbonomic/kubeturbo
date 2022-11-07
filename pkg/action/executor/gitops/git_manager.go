@@ -66,7 +66,7 @@ func (r *GitManager) Update(replicas int64, podSpec map[string]interface{}) (Wai
 	}
 	pathParts := strings.Split(url.Path, "/")
 	// We get three parts for a git repo like below:
-	// For github.com/irfanurrehman/kubeturbo
+	// For https://github.com/irfanurrehman/kubeturbo
 	// Path == /irfanurrehman/kubeturbo
 	// pathParts[0] = ""
 	// pathParts[1] = "irfanurrehman"
@@ -95,7 +95,7 @@ func (r *GitManager) Update(replicas int64, podSpec map[string]interface{}) (Wai
 	case url.Host == "github.com":
 		handler = NewGitHubHandler(gitHandler, getClient(ctx, token))
 	case strings.HasPrefix(url.Host, "git."):
-		client, err := gitlab.NewClient(token)
+		client, err := gitlab.NewClient(token, gitlab.WithBaseURL(url.Scheme+"://"+url.Host))
 		if err != nil {
 			return nil, nil, err
 		}

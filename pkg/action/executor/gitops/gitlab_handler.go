@@ -66,7 +66,7 @@ func (g *GitLabHandler) getRemoteFileContent(resName, path, branchRef string) (s
 	}
 
 	for _, node := range treeNodes {
-		if node.Mode != "blob" {
+		if node.Type != "blob" {
 			continue
 		}
 		// We look for only those tree nodes which are marked as type blob
