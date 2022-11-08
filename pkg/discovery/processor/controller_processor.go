@@ -88,7 +88,7 @@ func (cp *ControllerProcessor) cacheAllControllers() {
 	}
 	controllerMap := make(map[string]*repository.K8sController)
 	for _, controller := range supportedControllers {
-		list, err := cp.ClusterInfoScraper.GetResources(controller)
+		items, err := cp.ClusterInfoScraper.GetResources(controller)
 		if err != nil {
 			if apierrors.IsNotFound(err) && strings.Contains(err.Error(), "the server could not find the requested resource") {
 				glog.V(3).Infof("Resource %v not found ", controller.Resource)
@@ -97,7 +97,10 @@ func (cp *ControllerProcessor) cacheAllControllers() {
 			}
 			continue
 		}
-		for _, item := range list.Items {
+		for _, item := range items {
+			if !cacheController(item) {
+				continue
+			}
 			uid := string(item.GetUID())
 			kind := item.GetKind()
 			name := item.GetName()
@@ -129,4 +132,23 @@ func (cp *ControllerProcessor) cacheAllControllers() {
 		}
 	}
 	cp.KubeCluster.ControllerMap = controllerMap
+}
+
+func cacheController(obj unstructured.Unstructured) bool {
+	if obj.GetKind() != util.ReplicaSetResName &&
+		obj.GetKind() != util.ReplicationControllerResName {
+		return true
+	}
+
+	replicas, found, err := unstructured.NestedInt64(obj.Object, "spec", "replicas")
+	if err != nil || !found {
+		// We ideally should not hit this as we use this only for rs and rc
+		// We could not determine how many replicas; so we cache it nevertheless
+		return true
+	}
+
+	if replicas > 0 {
+		return true
+	}
+	return false
 }
