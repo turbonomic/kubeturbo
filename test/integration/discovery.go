@@ -416,6 +416,7 @@ var _ = Describe("Discover Cluster", func() {
 		testName := "discovery-integration-test"
 		mirrorpod_prefix := "static-web"
 		var entities []*proto.EntityDTO = nil
+		var groups []*proto.GroupDTO = nil
 		var delNode *corev1.Node
 		var err error
 
@@ -430,7 +431,7 @@ var _ = Describe("Discover Cluster", func() {
 			if err != nil {
 				framework.Failf("Error in updating the nodepool label")
 			}
-			entityDTOs, _, Err := discoveryClient.DiscoverWithNewFramework(testName)
+			entityDTOs, groupDTOs, Err := discoveryClient.DiscoverWithNewFramework(testName)
 			if Err != nil {
 				framework.Failf(Err.Error())
 			}
@@ -441,13 +442,9 @@ var _ = Describe("Discover Cluster", func() {
 					entities = append(entities, entityDTO)
 				}
 			}
-			//Validate daemon: true in ConsumerPolicy for pods
-			for _, entity := range entities {
-				if *entity.ConsumerPolicy.Daemon != true {
-					framework.Failf("Daemon set settings for %v mirror pod is false ", entity.DisplayName)
-				}
-			}
-			//groups = groupDTOs
+			groups = groupDTOs
+			validateMirrorPods(groups, entities)
+
 		})
 
 		It("validate dameon settings true when all nodes in nodepool has static pod", func() {
@@ -462,7 +459,7 @@ var _ = Describe("Discover Cluster", func() {
 			if err != nil {
 				framework.Failf("Error in updating the nodepool label")
 			}
-			entityDTOs, _, Err := discoveryClient.DiscoverWithNewFramework(testName)
+			entityDTOs, groupDTOs, Err := discoveryClient.DiscoverWithNewFramework(testName)
 			if Err != nil {
 				framework.Failf(Err.Error())
 			}
@@ -473,12 +470,10 @@ var _ = Describe("Discover Cluster", func() {
 					entities = append(entities, entityDTO)
 				}
 			}
+
+			groups = groupDTOs
 			//Validate daemon: true for nodepool with 2 nodes
-			for _, entity := range entities {
-				if *entity.ConsumerPolicy.Daemon != true {
-					framework.Failf("Daemon set settings for %v mirror pod is false ", entity.DisplayName)
-				}
-			}
+			validateMirrorPods(groups, entities)
 
 		})
 		It("validate daemon settings false for a nodepool with not all nodes having staic pods", func() {
@@ -493,7 +488,7 @@ var _ = Describe("Discover Cluster", func() {
 			if err != nil {
 				framework.Failf("Error in updating the nodepool label")
 			}
-			entityDTOs, _, Err := discoveryClient.DiscoverWithNewFramework(testName)
+			entityDTOs, groupDTOs, Err := discoveryClient.DiscoverWithNewFramework(testName)
 			if Err != nil {
 				framework.Failf(Err.Error())
 			}
@@ -504,13 +499,35 @@ var _ = Describe("Discover Cluster", func() {
 					entities = append(entities, entityDTO)
 				}
 			}
-			//Validate daemon:false as not all nodes in nodepool have static pods
+
+			groups = groupDTOs
+
+			mirrorPodGroup := getGroup(groups, "Mirror-Pods-")
+			var groupMemberList []string = mirrorPodGroup.GetMemberList().GetMember()
+
+			//Group validations
+			if mirrorPodGroup == nil {
+				framework.Failf("Could not find Mirror Pod group")
+			}
+
+			if mirrorPodGroup.GetEntityType() != proto.EntityDTO_CONTAINER_POD {
+				framework.Failf("Mirror pod group has incorrect entity type")
+			}
+
+			if !strings.Contains(mirrorPodGroup.GetDisplayName(), "Mirror Pods") {
+				framework.Failf("Mirror pod group display name has been changed")
+			}
+
 			for _, entity := range entities {
+				//Validate daemon:false as not all nodes in nodepool have static pods
 				if *entity.ConsumerPolicy.Daemon == true {
 					framework.Failf("Daemon set for %v mirror pod should be false as not all the nodes in the nodepool has static pod ", entity.DisplayName)
 				}
-			}
+				if !isElementExist(groupMemberList, *entity.Id) {
+					framework.Failf("Pod %s is not present in Mirror pod group", *entity.DisplayName)
+				}
 
+			}
 		})
 
 		AfterEach(func() {
@@ -539,6 +556,46 @@ var _ = Describe("Discover Cluster", func() {
 		})
 	})
 })
+
+func validateMirrorPods(groups []*proto.GroupDTO, entities []*proto.EntityDTO) {
+	mirrorPodGroup := getGroup(groups, "Mirror-Pods-")
+	var groupMemberList []string = mirrorPodGroup.GetMemberList().GetMember()
+
+	//Group validations
+
+	if mirrorPodGroup == nil {
+		framework.Failf("Could not find Mirror Pod group")
+	}
+
+	if mirrorPodGroup.GetEntityType() != proto.EntityDTO_CONTAINER_POD {
+		framework.Failf("Mirror pod group has incorrect entity type")
+	}
+
+	if !strings.Contains(mirrorPodGroup.GetDisplayName(), "Mirror Pods") {
+		framework.Failf("Mirror pod group display name has been changed")
+	}
+
+	//Validate daemon: true in ConsumerPolicy for pods and group contains the mirror pods
+	for _, entity := range entities {
+		if *entity.ConsumerPolicy.Daemon != true {
+			framework.Failf("Daemon set settings for %v mirror pod is false ", entity.DisplayName)
+		}
+		if !isElementExist(groupMemberList, *entity.Id) {
+			framework.Failf("Pod %s is not present in Mirror pod group", *entity.DisplayName)
+		}
+
+	}
+
+}
+
+func isElementExist(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+	return false
+}
 
 func getNodewithNodeName(nodeName string, kubeClient *kubeclientset.Clientset) *corev1.Node {
 	var zoneNode *corev1.Node
