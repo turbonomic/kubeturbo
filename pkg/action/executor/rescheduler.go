@@ -151,7 +151,7 @@ func (r *ReScheduler) preActionCheck(pod *api.Pod, node *api.Node) error {
 	for _, cond := range conditions {
 		if cond.Type == api.NodeReady {
 			// If the destination node is NOT in a Ready state, return an error to fail the action
-			if cond.Status == api.ConditionFalse {
+			if cond.Status != api.ConditionTrue {
 				return fmt.Errorf("Move action: pod[%v]'s new host (%v) is in bad condition: %v",
 					fullName, node.Name, cond.Message)
 			}
@@ -161,7 +161,7 @@ func (r *ReScheduler) preActionCheck(pod *api.Pod, node *api.Node) error {
 	}
 
 	return nil
-}
+}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
 
 func (r *ReScheduler) reSchedule(pod *api.Pod, node *api.Node) (*api.Pod, error) {
 	//1. do some check
