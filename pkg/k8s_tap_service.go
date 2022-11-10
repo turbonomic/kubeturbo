@@ -156,7 +156,12 @@ func readK8sTAPServiceSpec(path string) (*K8sTAPServiceSpec, error) {
 	var spec K8sTAPServiceSpec
 	err := json.Unmarshal(file, &spec)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshall error :%v", err.Error())
+		switch typeErr := err.(type) {
+		case *json.UnmarshalTypeError:
+			return nil, fmt.Errorf("error processing configuration property '%v':%v", typeErr.Field, typeErr.Error())
+		default:
+			return nil, fmt.Errorf("error processing configuration: %v", err.Error())
+		}
 	}
 	return &spec, nil
 }
