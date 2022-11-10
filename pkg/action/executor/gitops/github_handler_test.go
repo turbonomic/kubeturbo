@@ -27,8 +27,8 @@ type updateRefRequest struct {
 	Force *bool   `json:"force"`
 }
 
-func TestGitHandler_PushCommit(t *testing.T) {
-	client, mux, _, teardown := setup()
+func TestGitHubHandler_PushCommit(t *testing.T) {
+	client, mux, _, teardown := githubTestSetup()
 	defer teardown()
 
 	author := "a"
@@ -161,8 +161,8 @@ func TestGitHandler_PushCommit(t *testing.T) {
 
 }
 
-func TestGitHandler_CreateNewBranch(t *testing.T) {
-	client, mux, _, teardown := setup()
+func TestGitHubHandler_CreateNewBranch(t *testing.T) {
+	client, mux, _, teardown := githubTestSetup()
 	defer teardown()
 
 	author := "a"
@@ -247,8 +247,8 @@ func TestGitHandler_CreateNewBranch(t *testing.T) {
 
 }
 
-func TestGitHandler_NewPR(t *testing.T) {
-	client, mux, _, teardown := setup()
+func TestGitHubHandler_NewPR(t *testing.T) {
+	client, mux, _, teardown := githubTestSetup()
 	defer teardown()
 
 	author := "a"
