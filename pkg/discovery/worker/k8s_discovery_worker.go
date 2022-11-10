@@ -292,7 +292,7 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 	entityGroups := NewGroupMetricsCollector(worker, currTask).CollectGroupMetrics()
 
 	// Build DTOs after getting the metrics
-	entityDTOs, podEntities, sidecarContainerSpecs, podsWithVolumes, notReadyNodes := worker.buildEntityDTOs(currTask)
+	entityDTOs, podEntities, sidecarContainerSpecs, podsWithVolumes, notReadyNodes, mirrorPodUids := worker.buildEntityDTOs(currTask)
 
 	// Uncomment this to dump the topology to a file for later use by the unit tests
 	// util.DumpTopology(currTask, "test-topology.dat")
@@ -319,7 +319,9 @@ func (worker *k8sDiscoveryWorker) executeTask(currTask *task.Task) *task.TaskRes
 		// List of pods with volumes
 		WithPodsWithVolumes(podsWithVolumes).
 		// List of NotReady nodes
-		WithNotReadyNodes(notReadyNodes)
+		WithNotReadyNodes(notReadyNodes).
+		// list of mirror pod UIDs
+		WithMirrorPodUids(mirrorPodUids)
 }
 
 func (worker *k8sDiscoveryWorker) addPodQuotaMetrics(podMetricsCollection PodMetricsByNodeAndNamespace) {
@@ -352,7 +354,7 @@ func (worker *k8sDiscoveryWorker) addPodQuotaMetrics(podMetricsCollection PodMet
 }
 
 func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto.EntityDTO,
-	[]*repository.KubePod, []string, []string, []string) {
+	[]*repository.KubePod, []string, []string, []string, []string) {
 	var entityDTOs []*proto.EntityDTO
 	var notReadyNodes []string
 	// Build entity DTOs for nodes
@@ -360,14 +362,14 @@ func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto
 
 	glog.V(3).Infof("Worker %s built %d node DTOs.", worker.id, len(nodeDTOs))
 	if len(nodeDTOs) == 0 {
-		return nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, nil, nil
 	}
 	entityDTOs = append(entityDTOs, nodeDTOs...)
 	// Build entity DTOs for pods
-	podDTOs, runningPods, podWithVolumes := worker.buildPodDTOs(currTask)
+	podDTOs, runningPods, podWithVolumes, mirrorPodUids := worker.buildPodDTOs(currTask)
 	glog.V(3).Infof("Worker %s built %d pod DTOs.", worker.id, len(podDTOs))
 	if len(podDTOs) == 0 {
-		return entityDTOs, nil, nil, nil, nil
+		return entityDTOs, nil, nil, nil, nil, nil
 	}
 	entityDTOs = append(entityDTOs, podDTOs...)
 	// Build entity DTOs for containers from running pods
@@ -383,7 +385,7 @@ func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto
 		entityDTOs = append(entityDTOs, appEntityDTOs...)
 	}
 	glog.V(2).Infof("Worker %s built %d entity DTOs in total.", worker.id, len(entityDTOs))
-	return entityDTOs, podEntities, sidecarContainerSpecs, podWithVolumes, notReadyNodes
+	return entityDTOs, podEntities, sidecarContainerSpecs, podWithVolumes, notReadyNodes, mirrorPodUids
 }
 
 func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node) ([]*proto.EntityDTO, []string) {
@@ -403,15 +405,15 @@ func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node) ([]*proto.Ent
 }
 
 // Build DTOs for running pods
-func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*api.Pod, []string) {
+func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.EntityDTO, []*api.Pod, []string, []string) {
 	glog.V(3).Infof("Worker %s received %d pods.", worker.id, len(currTask.PodList()))
 	cluster := currTask.Cluster()
 	if cluster == nil {
 		// This should not happen, guard anyway
 		glog.Errorf("Failed to build pod DTOs: cluster summary object is null for worker %s", worker.id)
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
-	runningPodDTOs, pendingPodDTOs, podsWithVolumes := dtofactory.
+	runningPodDTOs, pendingPodDTOs, podsWithVolumes, mirrorPodUids := dtofactory.
 		NewPodEntityDTOBuilder(worker.sink, worker.stitchingManager, worker.config.commodityConfig).
 		// Node providers
 		WithNodeNameUIDMap(cluster.NodeNameUIDMap).
@@ -425,8 +427,8 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 		WithRunningPods(currTask.RunningPodList()).
 		// Pending pods
 		WithPendingPods(currTask.PendingPodList()).
-		// map of static pods to daemon flags
-		WithStaticPodToDaemonMap(cluster.StaticPodToDaemonMap).
+		// map of mirror pods to daemon flags
+		WithMirrorPodToDaemonMap(cluster.MirrorPodToDaemonMap).
 		BuildEntityDTOs()
 
 	var podDTOs []*proto.EntityDTO
@@ -440,7 +442,7 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 	if len(pendingPodDTOs) > 0 {
 		podDTOs = append(podDTOs, pendingPodDTOs...)
 	}
-	return podDTOs, runningPods, podsWithVolumes
+	return podDTOs, runningPods, podsWithVolumes, mirrorPodUids
 }
 
 // Build DTOs for containers

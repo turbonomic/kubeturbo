@@ -42,12 +42,16 @@ const (
 	// of the node which the pod is currently running on and also enable honoring the PV affninity on a pod move
 	HonorAzLabelPvAffinity featuregate.Feature = "HonorAzLabelPvAffinity"
 
-	// GoMemLimit owner: @mengding
+	// GoMemLimit (MemoryOptimisations) owner: @mengding @irfanurrehman
 	// alpha:
+	// This flag enables below optimisations
 	//
 	// Go runtime soft memory limit support
 	// This gate enables Go runtime soft memory limit as explained in
 	// https://pkg.go.dev/runtime/debug#SetMemoryLimit
+	//
+	// Pagination support for list API calls to API server querying workload controllers
+	// Without this feature gate the whole list is requested in a single list API call.
 	GoMemLimit featuregate.Feature = "GoMemLimit"
 )
 

@@ -51,7 +51,7 @@ func Newk8sEntityGroupDiscoveryWorker(cluster *repository.ClusterSummary,
 // It merges the group members belonging to the same group but discovered by different discovery workers.
 // Then it creates DTOs for the pod/container groups to be sent to the server.
 func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.EntityGroup,
-	sidecarContainerSpecs, podsWithVolumes []string, notReadyNodes []string) ([]*proto.GroupDTO, error) {
+	sidecarContainerSpecs, podsWithVolumes []string, notReadyNodes []string, mirrorPodUids []string) ([]*proto.GroupDTO, error) {
 
 	var groupDTOs []*proto.GroupDTO
 
@@ -112,6 +112,8 @@ func (worker *k8sEntityGroupDiscoveryWorker) Do(entityGroupList []*repository.En
 	groupDTOs = append(groupDTOs, worker.buildPodsWithVolumesGroup(podsWithVolumes)...)
 
 	groupDTOs = append(groupDTOs, worker.buildNotReadyNodesGroup(notReadyNodes)...)
+
+	groupDTOs = append(groupDTOs, worker.buildMirrorPodGroup(mirrorPodUids)...)
 
 	// Create dynamic groups for discovered Turbo policies
 	groupDTOs = append(groupDTOs, worker.BuildTurboPolicyDTOsFromPolicyBindings()...)
@@ -184,6 +186,25 @@ func (worker *k8sEntityGroupDiscoveryWorker) buildPodsWithVolumesGroup(podsWithV
 	groupsDTOs = append(groupsDTOs, groupDTO)
 
 	return groupsDTOs
+}
+
+func (worker *k8sEntityGroupDiscoveryWorker) buildMirrorPodGroup(mirrorPodUids []string) []*proto.GroupDTO {
+	if len(mirrorPodUids) <= 0 {
+		return nil
+	}
+
+	groupDTO, err := group.StaticRegularGroup(fmt.Sprintf("Mirror-Pods-%s", worker.targetId)).
+		OfType(proto.EntityDTO_CONTAINER_POD).
+		WithEntities(mirrorPodUids).
+		WithDisplayName("Mirror Pods " + worker.targetId).
+		Build()
+
+	if err != nil {
+		glog.Errorf("Error creating group of mirror pods for target [%s]. Error: %v", worker.targetId, err)
+		return nil
+	}
+
+	return []*proto.GroupDTO{groupDTO}
 }
 
 func (worker *k8sEntityGroupDiscoveryWorker) buildNotReadyNodesGroup(notReadyNodes []string) []*proto.GroupDTO {

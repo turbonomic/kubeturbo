@@ -132,6 +132,9 @@ type VMTServer struct {
 	// Garbage collection (leaked pods) interval config
 	GCIntervalMin int
 
+	// Number of workload controller items the list api call should request for
+	ItemsPerListQuery int
+
 	// The Openshift SCC list allowed for action execution
 	sccSupport []string
 
@@ -215,6 +218,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.DiscoverySamples, "discovery-samples", DefaultDiscoverySamples, "The number of resource usage data samples to be collected from kubelet in each full discovery cycle. This should be no larger than 60.")
 	fs.IntVar(&s.DiscoverySampleIntervalSec, "discovery-sample-interval", DefaultDiscoverySampleIntervalSec, "The discovery interval in seconds to collect additional resource usage data samples from kubelet. This should be no smaller than 10 seconds.")
 	fs.IntVar(&s.GCIntervalMin, "garbage-collection-interval", DefaultGCIntervalMin, "The garbage collection interval in minutes for possible leaked pods from actions failed because of kubeturbo restarts. Default value is 20 mins.")
+	fs.IntVar(&s.ItemsPerListQuery, "items-per-list-query", 0, "Number of workload controller items the list api call should request for.")
 	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all. Default allowed scc is [restricted].")
 	// So far we have noticed cluster api support only in openshift clusters and our implementation works only for openshift
 	// It thus makes sense to have openshifts machine api namespace as our default cluster api namespace
@@ -370,7 +374,7 @@ func (s *VMTServer) Run() {
 	}
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.GoMemLimit) {
-		glog.V(2).Info("GoMemLimit feature is enabled.")
+		glog.V(2).Info("Memory Optimisations are enabled.")
 		// Set Go runtime soft memory limit: https://pkg.go.dev/runtime/debug#SetMemoryLimit
 		// Set Go runtime soft memory limit through the AUTOMEMLIMIT environment variable.
 		// AUTOMEMLIMIT configures how much memory of the cgroup's memory limit should be set as Go runtime
@@ -381,8 +385,30 @@ func (s *VMTServer) Run() {
 		// AUTOMEMLIMIT_DEBUG environment variable enables debug logging of AUTOMEMLIMIT
 		_ = os.Setenv("AUTOMEMLIMIT_DEBUG", "true")
 		memlimit.SetGoMemLimitWithEnv()
+		if s.ItemsPerListQuery == 0 {
+			limit, err := memlimit.FromCgroup()
+			if err != nil {
+				// This is very unlikely because in absense of any limit set in container resources
+				// we will get the cgroup limit as the nodes available/usable memory limit
+				glog.Errorf("Error retrieving memory limit (%v): %v.", limit, err)
+			} else if limit == 0 {
+				// This is very unlikely because in absense of any limit set in container resources
+				// we will get the cgroup limit as the nodes available/usable memory limit
+				glog.Error("Limit found set to zero (0).")
+			} else {
+				glog.V(2).Infof("Cgroup memlimit is set as %v.", limit)
+				util.ItemsPerListQuery = calculateListAPIItemsCount(float64(limit))
+			}
+		} else {
+			if s.ItemsPerListQuery < 10 {
+				glog.Warningf("Arg --items-per-list-query is set too low (%v), capping it to a minimum of 10 items.", s.ItemsPerListQuery)
+				s.ItemsPerListQuery = 10
+			}
+			util.ItemsPerListQuery = s.ItemsPerListQuery
+		}
+		glog.V(2).Infof("List Query Items Count is set to %v.", util.ItemsPerListQuery)
 	} else {
-		glog.V(2).Info("GoMemLimit feature is not enabled.")
+		glog.V(2).Info("Memory Optimisations are not enabled.")
 	}
 
 	// Collect target and probe info such as master host, server version, probe container image, etc
@@ -512,6 +538,15 @@ func handleExit(disconnectFunc disconnectFromTurboFunc) { // k8sTAPService *kube
 			disconnectFunc()
 		}
 	}()
+}
+
+// The rational behind this calculation
+// Memory used in other areas approx = 500MB (conservatively).
+// heap-to-memory-limit ratio = 0.9
+//
+// ItemsPerListQuery = (mem_limit_gb * 0.9 - 0.5) * 5K
+func calculateListAPIItemsCount(memLimit float64) int {
+	return int(5000 * (nodeUtil.Base2BytesToGigabytes(memLimit)*0.9 - 0.5))
 }
 
 func discoverk8sAPIResourceGV(client *kubernetes.Clientset, resourceName string) (schema.GroupVersion, error) {
