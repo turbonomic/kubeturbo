@@ -51,6 +51,8 @@ type Config struct {
 	containerUtilizationDataAggStrategy string
 	// Strategy to aggregate Container usage data on ContainerSpec entity
 	containerUsageDataAggStrategy string
+	// VCPU Throttling threshold
+	vcpuThrottlingUtilThreshold int
 
 	failVolumePodMoves      bool
 	updateQuotaToAllowMoves bool
@@ -174,6 +176,11 @@ func (c *Config) WithContainerUtilizationDataAggStrategy(containerUtilizationDat
 
 func (c *Config) WithContainerUsageDataAggStrategy(containerUsageDataAggStrategy string) *Config {
 	c.containerUsageDataAggStrategy = containerUsageDataAggStrategy
+	return c
+}
+
+func (c *Config) WithVcpuThrottlingUtilThreshold(vcpuThrottlingUtilThreshold int) *Config {
+	c.vcpuThrottlingUtilThreshold = vcpuThrottlingUtilThreshold
 	return c
 }
 

@@ -35,7 +35,7 @@ var (
 		metrics.StorageAmount:      proto.CommodityDTO_STORAGE_AMOUNT,
 		metrics.VCPUThrottling:     proto.CommodityDTO_VCPU_THROTTLING,
 	}
-	vcpuThrottlingUtilThreshold = 5.0
+	vcpuThrottlingUtilThreshold = 30.0 //5.0
 )
 
 type ValueConversionFunc func(input float64) float64
@@ -105,11 +105,19 @@ func (s *attributeSetter) Set(rType metrics.ResourceType, commBuilder *sdkbuilde
 
 type generalBuilder struct {
 	metricsSink *metrics.EntityMetricSink
+	config *CommodityConfig
 }
 
-func newGeneralBuilder(sink *metrics.EntityMetricSink) generalBuilder {
+func newGeneralBuilder(sink *metrics.EntityMetricSink, config *CommodityConfig) generalBuilder {
+	glog.Infof("commodity config %v", config)
+	if config == nil {
+		config = &CommodityConfig{
+			VCPUThrottlingUtilThreshold: vcpuThrottlingUtilThreshold,
+		}
+	}
 	return generalBuilder{
 		metricsSink: sink,
+		config: config,
 	}
 }
 
@@ -176,7 +184,10 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 		// This is better then separately posting the capacity into metrics sync
 		// and then reading it here.
 		commSoldBuilder.Capacity(100)
-		commSoldBuilder.UtilizationThresholdPct(vcpuThrottlingUtilThreshold) // keeping throttling low
+		commSoldBuilder.UtilizationThresholdPct(builder.config.VCPUThrottlingUtilThreshold)	//vcpuThrottlingUtilThreshold) // keeping throttling low
+		if entityType == metrics.ContainerType && metricValue.Avg > 0 {
+			glog.Infof("Container %s VCPUThrottling used: %v peak: %v", entityID, metricValue.Avg, metricValue.Peak)
+		}
 	} else {
 		capacityMetricValue, err := builder.metricValue(entityType, entityID,
 			resourceType, metrics.Capacity, converter)
@@ -246,20 +257,33 @@ func (builder generalBuilder) metricValue(entityType metrics.DiscoveredEntityTyp
 		metricValue.Avg = sum / float64(len(typedValue))
 		metricValue.Peak = peak
 	case []metrics.ThrottlingCumulative:
-		throttled, total, peak, ok := aggregateContainerThrottlingSamples(entityID, typedValue)
+		throttled, total, _, throttledTime, totalUsage, peakTimeThrottled, ok := aggregateContainerThrottlingSamples(entityID, typedValue)
+		//throttled, total, peak, throttledTime, totalUsage, ok := aggregateContainerThrottlingSamples(entityID, typedValue)
 		if !ok {
 			// We don't have enough samples to calculate this value.
 			break
 		}
-
+		var oldAvg float64
 		if total > 0 {
 			if throttled > total {
-				metricValue.Avg = 100
+				oldAvg = 100
 			} else {
-				metricValue.Avg = throttled * 100 / total
+				oldAvg = throttled * 100 / total
 			}
 		}
-		metricValue.Peak = peak
+
+		if throttledTime > 0 || totalUsage > 0 {
+			metricValue.Avg = throttledTime * 100 / (throttledTime + totalUsage)
+		} else {
+			metricValue.Avg = 0
+		}
+		metricValue.Peak = peakTimeThrottled
+		if (oldAvg > 0 || metricValue.Avg > 0) {
+			glog.Infof("Container, throttled, total, oldAvg, "+
+				"throttledTime, totalUsage, newAvg -> %s, %v, %v, %v, %v, %v, %v",
+				entityID, throttled, total, oldAvg, throttledTime, totalUsage, metricValue.Avg)
+		}
+
 	case float64:
 		metricValue.Avg = typedValue
 		metricValue.Peak = typedValue
@@ -379,7 +403,8 @@ func (builder generalBuilder) getNodeCPUFrequency(nodeKey string) (float64, erro
 // Throttled value is calculated as the overall percentage from the counter data collected
 // from the first and the last sample. The peak is calculated from the individual throttling
 // percentages by the diff of counters between two subsequent samples.
-func aggregateContainerThrottlingSamples(entityID string, samples []metrics.ThrottlingCumulative) (throttled float64, total float64, peak float64, ok bool) {
+func aggregateContainerThrottlingSamples(entityID string, samples []metrics.ThrottlingCumulative) (throttled float64, total float64, peak float64,
+	throttledTime float64, totalUsage float64, peakTimeThrottled float64, ok bool) {
 	numberOfSamples := len(samples)
 	if numberOfSamples <= 1 {
 		// We don't have enough samples to calculate this value.
@@ -390,7 +415,7 @@ func aggregateContainerThrottlingSamples(entityID string, samples []metrics.Thro
 			// but its ok as the information will anyways be a repeated msg only.
 			glog.V(3).Infof("Number of samples not enough to calculate throttling value on: %s", entityID)
 		}
-		return 0, 0, 0, false
+		return 0, 0, 0, 0, 0,0, false
 	}
 
 	// TODO: The need of this sort could be removed if the metrics sinks
@@ -400,36 +425,72 @@ func aggregateContainerThrottlingSamples(entityID string, samples []metrics.Thro
 	})
 
 	lastReset := 0
+
 	for i := 0; i < numberOfSamples-1; i++ {
 		if samples[i+1].Total < samples[i].Total || samples[i+1].Throttled < samples[i].Throttled {
 			// This probably means the counter was reset for some reason
 			throttled += (samples[i].Throttled - samples[lastReset].Throttled)
 			total += samples[i].Total - samples[lastReset].Total
+			throttledTime += (samples[i].ThrottledTime - samples[lastReset].ThrottledTime)
+			totalUsage += samples[i].TotalUsage - samples[lastReset].TotalUsage
 			lastReset = i + 1
 			// we ignore this samples diff for our peak calculations
 			continue
 		}
 
-		totalSingleSample := samples[i+1].Total - samples[i].Total
+		totalSingleSample := samples[i+1].Total - samples[i].Total	//number of runnable periods so far
 		throttledPercent := float64(0)
+
+		throttledSingleSample := samples[i+1].Throttled - samples[i].Throttled //throttled number of runnable periods
 		if totalSingleSample > 0 {
-			throttledSingleSample := samples[i+1].Throttled - samples[i].Throttled
 			if throttledSingleSample > totalSingleSample {
 				// This is unlikely but possible because of errors at cadvisors end.
 				throttledPercent = 100
-				glog.Warningf("Throttled cpu samples overshoots total cpu samples for container %s. Throttling set to 100 percent.", entityID)
+				glog.Warningf("Throttled cpu samples overshoots total cpu samples for container %s. " +
+					"Throttling set to 100 percent.", entityID)
 			} else {
 				throttledPercent = throttledSingleSample * 100 / totalSingleSample
 			}
 		}
-		peak = math.Max(peak, throttledPercent)
+
+		throttledTimePercent := float64(0)
+		throttledTimeSingleSample := samples[i+1].ThrottledTime - samples[i].ThrottledTime
+		totalUsageSingleSample := samples[i+1].TotalUsage - samples[i].TotalUsage
+		//containerThreadsSample := samples[i].ContainerThreads
+		if throttledTimeSingleSample > 0 || totalUsageSingleSample > 0{
+			throttledTimePercent = throttledTimeSingleSample *100 / (throttledTimeSingleSample + totalUsageSingleSample)
+		}
+
+		//if entityID != "" {
+		//	glog.Infof("Sample for container: %s, %v, %v, %v, %v, %v, %v, %v, %v",
+		//		entityID, i, containerThreadsSample,
+		//		throttledSingleSample, totalSingleSample, throttledPercent,
+		//		throttledTimeSingleSample, totalUsageSingleSample, throttledTimePercent)
+		//}
+
+		peakTimeThrottled = math.Max(peakTimeThrottled, throttledTimePercent)	//new
+		peak = math.Max(peak, throttledPercent) //old
 	}
 
 	// handle last window if there ever was one, else this calculates the diff of the first and the last sample.
 	if lastReset != numberOfSamples-1 {
 		throttled += (samples[numberOfSamples-1].Throttled - samples[lastReset].Throttled)
 		total += samples[numberOfSamples-1].Total - samples[lastReset].Total
+		throttledTime += (samples[numberOfSamples-1].ThrottledTime - samples[lastReset].ThrottledTime)
+		totalUsage += samples[numberOfSamples-1].TotalUsage - samples[lastReset].TotalUsage
 	}
 
-	return throttled, total, peak, true
+	if peak > 0 || peakTimeThrottled > 0 {
+		glog.Infof("container -> SampleNumber, SampleNumber, " +
+			"containerThreadsSample[numberOfSamples], containerThreadsSample[lastReset], " +
+			"throttledPeriod, totalPeriods, throttledPercent, " +
+			"throttledTime, usage, throttlingUsedPercent: " +
+			"%s, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v",
+			entityID, numberOfSamples, lastReset,
+			samples[numberOfSamples-1].ContainerThreads, samples[lastReset].ContainerThreads,
+			throttled, total, peak,
+			throttledTime, totalUsage, peakTimeThrottled)
+	}
+
+	return throttled, total, peak, throttledTime, totalUsage, peakTimeThrottled, true
 }

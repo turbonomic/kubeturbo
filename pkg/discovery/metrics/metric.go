@@ -217,6 +217,12 @@ type ThrottlingCumulative struct {
 	CPULimit float64
 	// Time at which the metric value is collected
 	Timestamp int64
+	// Cumulative throttled time during the runnable periods for the resource
+	ThrottledTime float64
+	// Cumulative total usage during the runnable periods for the resource
+	TotalUsage float64
+	// Container Threads
+	ContainerThreads float64
 }
 
 func NewResourceMetric(rType ResourceType, mProp MetricProp, v interface{}) ResourceMetric {

@@ -206,7 +206,7 @@ func PodIsReady(pod *api.Pod) bool {
 			return condition.Status == api.ConditionTrue
 		}
 	}
-	glog.Errorf("Unable to get status for pod %s", pod.Name)
+	//glog.Errorf("Unable to get status for pod %s", pod.Name)
 	return false
 }
 

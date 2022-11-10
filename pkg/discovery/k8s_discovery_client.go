@@ -48,13 +48,15 @@ type DiscoveryClientConfig struct {
 	// ORMClient builds operator resource mapping templates fetched from OperatorResourceMapping CR so that action
 	// execution client will be able to execute action on operator-managed resources based on resource mapping templates.
 	OrmClient *resourcemapping.ORMClient
+	// VCPU Throttling threshold
+	vcpuThrottlingUtilThreshold int
 }
 
 func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 	targetConfig *configs.K8sTargetConfig, ValidationWorkers int,
 	ValidationTimeoutSec int, containerUtilizationDataAggStrategy,
 	containerUsageDataAggStrategy string, ormClient *resourcemapping.ORMClient,
-	discoveryWorkers, discoveryTimeoutMin, discoverySamples, discoverySampleIntervalSec int) *DiscoveryClientConfig {
+	discoveryWorkers, discoveryTimeoutMin, discoverySamples, discoverySampleIntervalSec int, vcpuThrottlingUtilThreshold int) *DiscoveryClientConfig {
 	if discoveryWorkers < minDiscoveryWorker {
 		glog.Warningf("Invalid number of discovery workers %v, set it to %v.",
 			discoveryWorkers, minDiscoveryWorker)
@@ -84,6 +86,7 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 		DiscoveryTimeoutSec:                 discoveryTimeoutMin,
 		DiscoverySamples:                    discoverySamples,
 		DiscoverySampleIntervalSec:          discoverySampleIntervalSec,
+		vcpuThrottlingUtilThreshold:		 vcpuThrottlingUtilThreshold,
 	}
 }
 
@@ -110,16 +113,24 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	// make maxWorkerCount of result collector twice the worker count.
 	resultCollector := worker.NewResultCollector(config.DiscoveryWorkers * 2)
 
+	commodityConfig := &dtofactory.CommodityConfig{
+		VCPUThrottlingUtilThreshold: 30.0,	//float64(config.vcpuThrottlingUtilThreshold),
+	}
+
 	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
-		config.DiscoveryWorkers, config.DiscoveryTimeoutSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec)
+		config.DiscoveryWorkers, config.DiscoveryTimeoutSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec, commodityConfig)
 	dispatcher := worker.NewDispatcher(dispatcherConfig, globalEntityMetricSink)
 	dispatcher.Init(resultCollector)
 
 	// Create new SamplingDispatcher to assign tasks to collect additional resource usage data samples from kubelet
 	samplingDispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
-		config.DiscoveryWorkers, config.DiscoverySampleIntervalSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec)
+		config.DiscoveryWorkers, config.DiscoverySampleIntervalSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec, commodityConfig)
 	dataSamplingDispatcher := worker.NewSamplingDispatcher(samplingDispatcherConfig, globalEntityMetricSink)
 	dataSamplingDispatcher.InitSamplingDiscoveryWorkers()
+
+	//commodityConfig := &CommodityConfig {
+	//
+	//}
 
 	dc := &K8sDiscoveryClient{
 		Config:                 config,

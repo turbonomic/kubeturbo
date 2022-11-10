@@ -64,6 +64,7 @@ const (
 	DefaultDiscoverySampleIntervalSec = 60
 	DefaultGCIntervalMin              = 10
 	DefaultReadinessRetryThreshold    = 60
+	DefaultVcpuThrottlingUtilThreshold = 30
 )
 
 var (
@@ -166,6 +167,8 @@ type VMTServer struct {
 	// Total number of retrys. When a pod is not ready, Kubeturbo will try failureThreshold times before giving up
 	readinessRetryThreshold int
 
+	vcpuThrottlingUtilThreshold int
+
 	// Git configuration for gitops based action execution
 	gitConfig gitops.GitConfig
 }
@@ -228,6 +231,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.gitConfig.GitUsername, "git-username", "", "The user name to be used to push changes to git.")
 	fs.StringVar(&s.gitConfig.GitEmail, "git-email", "", "The email to be used to push changes to git.")
 	fs.StringVar(&s.gitConfig.CommitMode, "git-commit-mode", "direct", "The commit mode that should be used for git action executions. One of pr|direct. Defaults to direct.")
+	fs.IntVar(&s.vcpuThrottlingUtilThreshold, "vcpu-throttling-threshold", DefaultVcpuThrottlingUtilThreshold, "The VCPU Throttling util threshold.")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -426,7 +430,8 @@ func (s *VMTServer) Run() {
 		WithVolumePodMoveConfig(s.FailVolumePodMoves).
 		WithQuotaUpdateConfig(s.UpdateQuotaToAllowMoves).
 		WithClusterAPIEnabled(clusterAPIEnabled).
-		WithReadinessRetryThreshold(s.readinessRetryThreshold)
+		WithReadinessRetryThreshold(s.readinessRetryThreshold).
+		WithVcpuThrottlingUtilThreshold(s.vcpuThrottlingUtilThreshold)
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.GitopsApps) {
 		vmtConfig.WithGitConfig(s.gitConfig)

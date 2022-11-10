@@ -34,9 +34,11 @@ type k8sDiscoveryWorkerConfig struct {
 	monitoringWorkerTimeout time.Duration
 	// Max metric samples to be collected by this discovery worker
 	metricSamples int
+	commodityConfig 	*dtofactory.CommodityConfig
 }
 
-func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutSec, metricSamples int) *k8sDiscoveryWorkerConfig {
+func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutSec, metricSamples int,
+								commodityConfig *dtofactory.CommodityConfig) *k8sDiscoveryWorkerConfig {
 	var monitoringWorkerTimeout time.Duration
 	if timeoutSec < minTimeoutSec {
 		glog.Warningf("Invalid discovery timeout %v, set it to %v", timeoutSec, minTimeoutSec)
@@ -54,6 +56,7 @@ func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutS
 		monitoringSourceConfigs: make(map[types.MonitorType][]monitoring.MonitorWorkerConfig),
 		monitoringWorkerTimeout: monitoringWorkerTimeout,
 		metricSamples:           metricSamples,
+		commodityConfig: commodityConfig,
 	}
 }
 
@@ -132,6 +135,8 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string, globalM
 	if isFullDiscoveryWorker && config.stitchingPropertyType != "" {
 		stitchingManager = stitching.NewStitchingManager(config.stitchingPropertyType)
 	}
+
+	//commodityConfig := config.commodityConfig
 
 	return &k8sDiscoveryWorker{
 		id:                    wid,
@@ -393,7 +398,8 @@ func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node) ([]*proto.Ent
 		}
 	}
 	// Build entity DTOs for nodes
-	return dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager).BuildEntityDTOs(nodes)
+	return dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager,
+										worker.config.commodityConfig).BuildEntityDTOs(nodes)
 }
 
 // Build DTOs for running pods
@@ -406,7 +412,7 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 		return nil, nil, nil
 	}
 	runningPodDTOs, pendingPodDTOs, podsWithVolumes := dtofactory.
-		NewPodEntityDTOBuilder(worker.sink, worker.stitchingManager).
+		NewPodEntityDTOBuilder(worker.sink, worker.stitchingManager, worker.config.commodityConfig).
 		// Node providers
 		WithNodeNameUIDMap(cluster.NodeNameUIDMap).
 		// Quota providers
@@ -439,7 +445,7 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 
 // Build DTOs for containers
 func (worker *k8sDiscoveryWorker) buildContainerDTOs(runningPods []*api.Pod) ([]*proto.EntityDTO, []string) {
-	return dtofactory.NewContainerDTOBuilder(worker.sink).BuildEntityDTOs(runningPods)
+	return dtofactory.NewContainerDTOBuilder(worker.sink, worker.config.commodityConfig).BuildEntityDTOs(runningPods)
 }
 
 // Build App DTOs using the list of pods with valid DTOs
@@ -448,7 +454,7 @@ func (worker *k8sDiscoveryWorker) buildAppDTOs(
 	var result []*proto.EntityDTO
 	var podEntities []*repository.KubePod
 	applicationEntityDTOBuilder := dtofactory.NewApplicationEntityDTOBuilder(worker.sink,
-		cluster.PodClusterIDToServiceMap)
+		cluster.PodClusterIDToServiceMap, worker.config.commodityConfig)
 	for _, pod := range runningPods {
 		kubeNode := cluster.NodeMap[pod.Spec.NodeName]
 		kubePod := repository.NewKubePod(pod, kubeNode, cluster.Name)

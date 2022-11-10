@@ -32,9 +32,9 @@ type applicationEntityDTOBuilder struct {
 // Metric Sink provides the metrics saved by the discovery worker.
 // podClusterIDToServiceMap provides the service ID for the service associated with the applications running on the pods.
 func NewApplicationEntityDTOBuilder(sink *metrics.EntityMetricSink,
-	podClusterIDToServiceMap map[string]*api.Service) *applicationEntityDTOBuilder {
+	podClusterIDToServiceMap map[string]*api.Service, config *CommodityConfig) *applicationEntityDTOBuilder {
 	return &applicationEntityDTOBuilder{
-		generalBuilder:           newGeneralBuilder(sink),
+		generalBuilder:           newGeneralBuilder(sink, config),
 		podClusterIDToServiceMap: podClusterIDToServiceMap,
 	}
 }
