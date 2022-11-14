@@ -34,6 +34,7 @@ type containerSpecDTOBuilder struct {
 	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator
 	// Cluster Summary needed to populate the labels and annotations from the workload controller cache
 	clusterSummary  *repository.ClusterSummary
+	// config for commodity data thresholds
 	commodityConfig *CommodityConfig
 }
 
@@ -171,18 +172,15 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 // from diff of subsequent samples per container.
 func aggregateThrottlingSamples(containerSpecId string, containerSpecVCPUCapacity float64, samples [][]metrics.ThrottlingCumulative) (float64, float64, float64) {
 	var throttledTimeOverall, totalUsageOverall, peakThrottledPercentOverall float64
-
 	for _, singleContainerSamples := range samples {
 		// Include container samples only if corresponding CPU limit is same as containerSpec VCPU capacity.
 		filteredContainerSamples := filterContainerThrottlingSamples(containerSpecId, singleContainerSamples, containerSpecVCPUCapacity)
-		//glog.Infof("containerSpec %s: aggregateContainerThrottlingSamples -->", containerSpecId)
 		containerThrottledTime, containerTotalUsage, containerThrottledTimePeak, ok :=
 			aggregateContainerThrottlingSamples("", filteredContainerSamples)
 		if !ok {
 			// We don't have enough samples to calculate this value.
 			continue
 		}
-
 		throttledTimeOverall += containerThrottledTime
 		totalUsageOverall += containerTotalUsage
 		peakThrottledPercentOverall = math.Max(peakThrottledPercentOverall, containerThrottledTimePeak)
@@ -191,11 +189,6 @@ func aggregateThrottlingSamples(containerSpecId string, containerSpecVCPUCapacit
 	avgThrottledTimeOverall := float64(0)
 	if throttledTimeOverall > 0 || totalUsageOverall > 0 {
 		avgThrottledTimeOverall = throttledTimeOverall * 100 / (throttledTimeOverall + totalUsageOverall)
-	}
-
-	if avgThrottledTimeOverall > 0 {
-		glog.Infof("ContainerSpec, throttledTime, totalUsage, newThrottledAvg -> %s, %v, %v, %v",
-			containerSpecId, avgThrottledTimeOverall, totalUsageOverall, avgThrottledTimeOverall)
 	}
 
 	return 100, avgThrottledTimeOverall, peakThrottledPercentOverall //avgThrottledOverall, peakOverall
