@@ -108,7 +108,6 @@ func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 
 			name := util.ContainerNameFunc(pod, container)
 			ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_CONTAINER, containerId).DisplayName(name)
-			//glog.Infof("container %s running on node %v", name, pod.Spec.NodeName)
 
 			if controllerUID != "" {
 				// To connect Container to ContainerSpec entity, Container is Controlled by the associated ContainerSpec.
@@ -137,7 +136,7 @@ func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 			if !isMemRequestSet {
 				glog.V(4).Infof("Container[%s] has no request set for Memory", name)
 			}
-			commoditiesSold, err := builder.getCommoditiesSold(name, containerId, containerMId, pod.Spec.NodeName,
+			commoditiesSold, err := builder.getCommoditiesSold(name, containerId, containerMId,
 				isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet)
 			if err != nil {
 				glog.Warningf("Failed to create commoditiesSold for container[%s]: %v", name, err)
@@ -208,7 +207,7 @@ func (builder *containerDTOBuilder) isInjectedSidecarContainer(containerMId stri
 }
 
 // vCPU, vMem, vCPURequest, vMemRequest and Application are sold by Container.
-func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerId, containerMId string, nodeName string,
+func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerId, containerMId string,
 	isCpuLimitSet, isMemLimitSet, isCpuRequestSet, isMemRequestSet bool) ([]*proto.CommodityDTO, error) {
 
 	var result []*proto.CommodityDTO
@@ -246,23 +245,7 @@ func (builder *containerDTOBuilder) getCommoditiesSold(containerName, containerI
 	}
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.ThrottlingMetrics) {
-		//for k := range cpuCommodities {
-		//	if *cpuCommodities[k].CommodityType == proto.CommodityDTO_VCPU {
-		//		glog.Infof("container %s CPU Limit %v", containerName, *cpuCommodities[k].Capacity)
-		//	}
-		//}
-
 		throttlingCommodities := builder.createCommoditiesSold(containerEntityType, throttlingCommodity, containerMId, nil, false)
-		for i := range throttlingCommodities {
-			if *throttlingCommodities[i].Used > 0 {
-				for k := range cpuCommodities {
-					if *cpuCommodities[k].CommodityType == proto.CommodityDTO_VCPU {
-						glog.Infof("container: %s -> Node: %v , CPULimit: %v",
-							containerName, nodeName, *cpuCommodities[k].Capacity)
-					}
-				}
-			}
-		}
 		result = append(result, throttlingCommodities...)
 	}
 

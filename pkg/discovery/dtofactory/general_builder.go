@@ -182,10 +182,7 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 		// This is better then separately posting the capacity into metrics sync
 		// and then reading it here.
 		commSoldBuilder.Capacity(100)
-		commSoldBuilder.UtilizationThresholdPct(builder.config.VCPUThrottlingUtilThreshold) //vcpuThrottlingUtilThreshold) // keeping throttling low
-		if entityType == metrics.ContainerType && metricValue.Avg > 0 {
-			glog.Infof("Container %s VCPUThrottling used: %v peak: %v", entityID, metricValue.Avg, metricValue.Peak)
-		}
+		commSoldBuilder.UtilizationThresholdPct(builder.config.VCPUThrottlingUtilThreshold) // keeping throttling low
 	} else {
 		capacityMetricValue, err := builder.metricValue(entityType, entityID,
 			resourceType, metrics.Capacity, converter)
@@ -266,7 +263,6 @@ func (builder generalBuilder) metricValue(entityType metrics.DiscoveredEntityTyp
 		} else {
 			metricValue.Avg = 0
 		}
-		glog.Infof("Avg %v", metricValue.Avg)
 		metricValue.Peak = peakTimeThrottled
 	case float64:
 		metricValue.Avg = typedValue
@@ -408,14 +404,12 @@ func aggregateContainerThrottlingSamples(entityID string, samples []metrics.Thro
 	})
 
 	lastReset := 0
-
 	for i := 0; i < numberOfSamples-1; i++ {
 		if samples[i+1].TotalUsage < samples[i].TotalUsage || samples[i+1].ThrottledTime < samples[i].ThrottledTime {
 			// This probably means the counter was reset for some reason
 			throttledTime += (samples[i].ThrottledTime - samples[lastReset].ThrottledTime)
 			totalUsage += samples[i].TotalUsage - samples[lastReset].TotalUsage
 			lastReset = i + 1
-			fmt.Printf("throttledTime %v totalUsage %v, lastReset %v\n", throttledTime, totalUsage, lastReset)
 			// we ignore this samples diff for our peak calculations
 			continue
 		}
@@ -426,19 +420,13 @@ func aggregateContainerThrottlingSamples(entityID string, samples []metrics.Thro
 		if throttledTimeSingleSample > 0 || totalUsageSingleSample > 0 {
 			throttledTimePercent = throttledTimeSingleSample * 100 / (throttledTimeSingleSample + totalUsageSingleSample)
 		}
-		fmt.Printf("throttledTimeSingleSample %v totalUsageSingleSample %v throttledTimePercent %v\n",
-			throttledTimeSingleSample, totalUsageSingleSample, throttledTimePercent)
 		peakTimeThrottled = math.Max(peakTimeThrottled, throttledTimePercent) //new
-		fmt.Printf("peakTimeThrottled %v\n", peakTimeThrottled)
 	}
 
 	// handle last window if there ever was one, else this calculates the diff of the first and the last sample.
 	if lastReset != numberOfSamples-1 {
 		throttledTime += (samples[numberOfSamples-1].ThrottledTime - samples[lastReset].ThrottledTime)
 		totalUsage += samples[numberOfSamples-1].TotalUsage - samples[lastReset].TotalUsage
-		fmt.Printf("numberOfSamples %v lastReset %v throttledTime %v totalUsage %v\n",
-			numberOfSamples, lastReset, throttledTime, totalUsage)
 	}
-	fmt.Printf("final: throttledTime %v totalUsage %v\n", throttledTime, totalUsage)
 	return throttledTime, totalUsage, peakTimeThrottled, true
 }

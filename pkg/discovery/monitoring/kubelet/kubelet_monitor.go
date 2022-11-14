@@ -153,7 +153,7 @@ func (m *KubeletMonitor) generateThrottlingMetrics(metricFamilies map[string]*dt
 	parsedMetrics := parseMetricFamilies(metricFamilies)
 	for metricID, tm := range parsedMetrics {
 		if tm != nil {
-			glog.V(3).Infof("Throttling Metrics for container: %s, "+
+			glog.V(4).Infof("Throttling Metrics for container: %s, "+
 				"cpuThrottled: %.3f, cpuTotal: %.3f, "+
 				"cpuQuota: %.3f, cpuPeriod: %.3f, "+
 				"cpuThrottledTimeTotal: %.3f, cpuUsageTimeTotal: %.3f,",
@@ -258,8 +258,6 @@ func parseMetricFamilies(metricFamilies map[string]*dto.MetricFamily) map[string
 					tm.cpuThrottledTimeTotal = metric.Counter.GetValue()
 				case kubeclient.ContainerCPUTotalUsageSec:
 					tm.cpuTotalUsageTotal = metric.Counter.GetValue()
-				case kubeclient.ContainerThreads:
-					tm.containerThreads = metric.Counter.GetValue()
 				default:
 					glog.Errorf("Unsupported counter metric %s", metricName)
 					continue
