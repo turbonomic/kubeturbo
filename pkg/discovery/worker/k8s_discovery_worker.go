@@ -34,11 +34,12 @@ type k8sDiscoveryWorkerConfig struct {
 	monitoringWorkerTimeout time.Duration
 	// Max metric samples to be collected by this discovery worker
 	metricSamples int
-	commodityConfig 	*dtofactory.CommodityConfig
+	// Config for various commodity settings
+	commodityConfig *dtofactory.CommodityConfig
 }
 
 func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutSec, metricSamples int,
-								commodityConfig *dtofactory.CommodityConfig) *k8sDiscoveryWorkerConfig {
+	commodityConfig *dtofactory.CommodityConfig) *k8sDiscoveryWorkerConfig {
 	var monitoringWorkerTimeout time.Duration
 	if timeoutSec < minTimeoutSec {
 		glog.Warningf("Invalid discovery timeout %v, set it to %v", timeoutSec, minTimeoutSec)
@@ -56,7 +57,7 @@ func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutS
 		monitoringSourceConfigs: make(map[types.MonitorType][]monitoring.MonitorWorkerConfig),
 		monitoringWorkerTimeout: monitoringWorkerTimeout,
 		metricSamples:           metricSamples,
-		commodityConfig: commodityConfig,
+		commodityConfig:         commodityConfig,
 	}
 }
 
@@ -135,8 +136,6 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string, globalM
 	if isFullDiscoveryWorker && config.stitchingPropertyType != "" {
 		stitchingManager = stitching.NewStitchingManager(config.stitchingPropertyType)
 	}
-
-	//commodityConfig := config.commodityConfig
 
 	return &k8sDiscoveryWorker{
 		id:                    wid,
@@ -400,8 +399,7 @@ func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node) ([]*proto.Ent
 		}
 	}
 	// Build entity DTOs for nodes
-	return dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager,
-										worker.config.commodityConfig).BuildEntityDTOs(nodes)
+	return dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager).BuildEntityDTOs(nodes)
 }
 
 // Build DTOs for running pods
@@ -456,7 +454,7 @@ func (worker *k8sDiscoveryWorker) buildAppDTOs(
 	var result []*proto.EntityDTO
 	var podEntities []*repository.KubePod
 	applicationEntityDTOBuilder := dtofactory.NewApplicationEntityDTOBuilder(worker.sink,
-		cluster.PodClusterIDToServiceMap, worker.config.commodityConfig)
+		cluster.PodClusterIDToServiceMap)
 	for _, pod := range runningPods {
 		kubeNode := cluster.NodeMap[pod.Spec.NodeName]
 		kubePod := repository.NewKubePod(pod, kubeNode, cluster.Name)

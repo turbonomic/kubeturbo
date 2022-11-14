@@ -153,9 +153,9 @@ func (m *KubeletMonitor) generateThrottlingMetrics(metricFamilies map[string]*dt
 	parsedMetrics := parseMetricFamilies(metricFamilies)
 	for metricID, tm := range parsedMetrics {
 		if tm != nil {
-			glog.V(3).Infof("Throttling Metrics for container: %s, " +
-				"cpuThrottled: %.3f, cpuTotal: %.3f, " +
-				"cpuQuota: %.3f, cpuPeriod: %.3f, " +
+			glog.V(3).Infof("Throttling Metrics for container: %s, "+
+				"cpuThrottled: %.3f, cpuTotal: %.3f, "+
+				"cpuQuota: %.3f, cpuPeriod: %.3f, "+
 				"cpuThrottledTimeTotal: %.3f, cpuUsageTimeTotal: %.3f,",
 				metricID, tm.cpuThrottled, tm.cpuTotal, tm.cpuQuota, tm.cpuPeriod,
 				tm.cpuThrottledTimeTotal, tm.cpuTotalUsageTotal)
@@ -179,9 +179,6 @@ type throttlingMetric struct {
 	cpuTotalUsageTotal float64
 	// container threads
 	containerThreads float64
-
-	//41 = container_cpu_cfs_throttled_seconds_total ->
-	//42 = container_cpu_usage_seconds_total ->
 }
 
 // parseMetricFamilies parses the incoming prometheus format metric from four metric families
@@ -521,12 +518,12 @@ func (m *KubeletMonitor) genThrottlingMetrics(etype metrics.DiscoveredEntityType
 	}
 	metric := metrics.NewEntityResourceMetric(etype, key, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: tm.cpuThrottled,
-			Total:     tm.cpuTotal,
-			CPULimit:  cpuLimit,
-			Timestamp: timestamp,
-			ThrottledTime: tm.cpuThrottledTimeTotal,
-			TotalUsage: tm.cpuTotalUsageTotal,
+			Throttled:        tm.cpuThrottled,
+			Total:            tm.cpuTotal,
+			CPULimit:         cpuLimit,
+			Timestamp:        timestamp,
+			ThrottledTime:    tm.cpuThrottledTimeTotal,
+			TotalUsage:       tm.cpuTotalUsageTotal,
 			ContainerThreads: tm.containerThreads,
 		}})
 	m.metricSink.AddNewMetricEntries(metric)

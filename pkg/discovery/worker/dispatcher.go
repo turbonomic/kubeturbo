@@ -23,7 +23,7 @@ type DispatcherConfig struct {
 	workerTimeoutSec    int
 	samples             int
 	samplingIntervalSec int
-	commodityConfig 	*dtofactory.CommodityConfig
+	commodityConfig     *dtofactory.CommodityConfig
 }
 
 func NewDispatcherConfig(clusterInfoScraper *cluster.ClusterScraper, probeConfig *configs.ProbeConfig,
@@ -35,7 +35,7 @@ func NewDispatcherConfig(clusterInfoScraper *cluster.ClusterScraper, probeConfig
 		workerTimeoutSec:    workerTimeoutSec,
 		samples:             samples,
 		samplingIntervalSec: samplingIntervalSec,
-		commodityConfig: commodityConfig,
+		commodityConfig:     commodityConfig,
 	}
 }
 

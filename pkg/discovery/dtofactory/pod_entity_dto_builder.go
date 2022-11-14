@@ -76,7 +76,7 @@ type podEntityDTOBuilder struct {
 }
 
 func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager,
-							config *CommodityConfig) *podEntityDTOBuilder {
+	config *CommodityConfig) *podEntityDTOBuilder {
 	return &podEntityDTOBuilder{
 		generalBuilder:       newGeneralBuilder(sink, config),
 		stitchingManager:     stitchingManager,

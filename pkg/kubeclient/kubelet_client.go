@@ -47,10 +47,7 @@ const (
 	ContainerCPUPeriod            = "container_spec_cpu_period"
 	ContainerCPUThrottledTotalSec = "container_cpu_cfs_throttled_seconds_total"
 	ContainerCPUTotalUsageSec     = "container_cpu_usage_seconds_total"
-	ContainerThreads			  = "container_threads"
-
-// 41 = container_cpu_cfs_throttled_seconds_total ->
-// 42 = container_cpu_usage_seconds_total ->
+	ContainerThreads              = "container_threads"
 )
 
 type KubeHttpClientInterface interface {
