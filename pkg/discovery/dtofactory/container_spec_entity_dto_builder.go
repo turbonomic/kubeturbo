@@ -33,7 +33,7 @@ type containerSpecDTOBuilder struct {
 	// Aggregator to aggregate container replicas commodity usage data (used, peak and capacity)
 	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator
 	// Cluster Summary needed to populate the labels and annotations from the workload controller cache
-	clusterSummary  *repository.ClusterSummary
+	clusterSummary *repository.ClusterSummary
 	// config for commodity data thresholds
 	commodityConfig *CommodityConfig
 }
