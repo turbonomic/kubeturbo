@@ -241,7 +241,7 @@ var _ = Describe("Discover Cluster", func() {
 			}
 		})
 
-		It("Should check that pods on NotReady nodes also have status unknown and inactive", func() {
+		It("Should check that pods on NotReady nodes also have status unknown and should be inactive", func() {
 			podsWithNotReadyNode := findEntities(entities, func(entity *proto.EntityDTO) bool {
 				return entity.GetEntityType() == proto.EntityDTO_CONTAINER_POD &&
 					findOneCommodityBought(entity.CommoditiesBought, func(commBought *proto.EntityDTO_CommodityBought) bool {
@@ -257,7 +257,7 @@ var _ = Describe("Discover Cluster", func() {
 				if pod.GetPowerState() != proto.EntityDTO_POWERSTATE_UNKNOWN {
 					framework.Failf("All pods with NotReady Node provider should be in an unknown state")
 				}
-				if pod.GetPowerState() == proto.EntityDTO_POWERED_ON {
+				if pod.GetPowerState() != proto.EntityDTO_POWERED_OFF {
 					framework.Failf("All pods with NotReady Node provider should be in inactive state")
 				}
 			}
