@@ -199,12 +199,6 @@ var _ = Describe("Discover Cluster", func() {
 		})
 
 		It("NotReady node should be detected", func() {
-			reconfigureActionForNRFlag := make(map[string]bool)
-			reconfigureActionForNRFlag["enableReconfigureActionForNotReadyNode"] = true
-			err = utilfeature.DefaultMutableFeatureGate.SetFromMap(reconfigureActionForNRFlag)
-			if err != nil {
-				glog.Fatalf("Invalid Feature Gates: %v", err)
-			}
 			notReadyNode = getNotReadyNode(entities)
 			if notReadyNode == nil {
 				framework.Failf("Node with NotReady state not found")
