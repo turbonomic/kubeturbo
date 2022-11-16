@@ -197,7 +197,7 @@ var _ = Describe("Discover Cluster", func() {
 			}
 		})
 
-		It("NotReady node should be detected", func() {
+		It("NotReady node should be detected and it shouldn't have sunspended and provisioned actions", func() {
 			notReadyNode = getNotReadyNode(entities)
 			if notReadyNode == nil {
 				framework.Failf("Node with NotReady state not found")
@@ -241,7 +241,7 @@ var _ = Describe("Discover Cluster", func() {
 			}
 		})
 
-		It("Should check that pods on NotReady nodes also have status unknown", func() {
+		It("Should check that pods on NotReady nodes also have status unknown and inactive", func() {
 			podsWithNotReadyNode := findEntities(entities, func(entity *proto.EntityDTO) bool {
 				return entity.GetEntityType() == proto.EntityDTO_CONTAINER_POD &&
 					findOneCommodityBought(entity.CommoditiesBought, func(commBought *proto.EntityDTO_CommodityBought) bool {
@@ -257,11 +257,8 @@ var _ = Describe("Discover Cluster", func() {
 				if pod.GetPowerState() != proto.EntityDTO_POWERSTATE_UNKNOWN {
 					framework.Failf("All pods with NotReady Node provider should be in an unknown state")
 				}
-				if !*pod.ActionEligibility.Suspendable {
-					framework.Failf("All pods with NotReady Node provider is not eligible to suspended")
-				}
-				if !*pod.ActionEligibility.Cloneable {
-					framework.Failf("All pods with NotReady Node provider is not eligible to provisioned")
+				if pod.GetPowerState() == proto.EntityDTO_POWERED_ON {
+					framework.Failf("All pods with NotReady Node provider should be in inactive state")
 				}
 			}
 		})
