@@ -158,6 +158,7 @@ var _ = Describe("Discover Cluster", func() {
 		var entities []*proto.EntityDTO = nil
 		var groups []*proto.GroupDTO = nil
 		var notReadyNode *proto.EntityDTO = nil
+		var err error
 		testName := "discovery-integration-test"
 		nodeName := "kind-worker3"
 
@@ -198,6 +199,12 @@ var _ = Describe("Discover Cluster", func() {
 		})
 
 		It("NotReady node should be detected", func() {
+			reconfigureActionForNRFlag := make(map[string]bool)
+			reconfigureActionForNRFlag["enableReconfigureActionForNotReadyNode"] = true
+			err = utilfeature.DefaultMutableFeatureGate.SetFromMap(reconfigureActionForNRFlag)
+			if err != nil {
+				glog.Fatalf("Invalid Feature Gates: %v", err)
+			}
 			notReadyNode = getNotReadyNode(entities)
 			if notReadyNode == nil {
 				framework.Failf("Node with NotReady state not found")
@@ -205,6 +212,12 @@ var _ = Describe("Discover Cluster", func() {
 
 			if notReadyNode.GetDisplayName() == "" {
 				framework.Failf("NotReady nodes should have display names")
+			}
+			if *notReadyNode.ActionEligibility.Suspendable {
+				framework.Failf("NotReady nodes should not have suspended actions")
+			}
+			if *notReadyNode.ActionEligibility.Cloneable {
+				framework.Failf("NotReady nodes should not have provisioned actions")
 			}
 		})
 
@@ -251,10 +264,10 @@ var _ = Describe("Discover Cluster", func() {
 				if pod.GetPowerState() != proto.EntityDTO_POWERSTATE_UNKNOWN {
 					framework.Failf("All pods with NotReady Node provider should be in an unknown state")
 				}
-				if !pod.ActionEligibility.GetSuspendable() {
+				if *pod.ActionEligibility.Suspendable {
 					framework.Failf("All pods with NotReady Node provider is not eligible to suspended")
 				}
-				if !pod.ActionEligibility.GetCloneable() {
+				if *pod.ActionEligibility.Cloneable {
 					framework.Failf("All pods with NotReady Node provider is not eligible to provisioned")
 				}
 			}
