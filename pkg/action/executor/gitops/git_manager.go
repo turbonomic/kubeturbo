@@ -27,6 +27,11 @@ type gitHubWaitData struct {
 	prNum   int
 }
 
+type gitLabWaitData struct {
+	handler *GitLabHandler
+	mrNum   int
+}
+
 type GitManager struct {
 	gitConfig    GitConfig
 	typedClient  *typedClient.Clientset
