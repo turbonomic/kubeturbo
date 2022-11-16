@@ -158,7 +158,6 @@ var _ = Describe("Discover Cluster", func() {
 		var entities []*proto.EntityDTO = nil
 		var groups []*proto.GroupDTO = nil
 		var notReadyNode *proto.EntityDTO = nil
-		var err error
 		testName := "discovery-integration-test"
 		nodeName := "kind-worker3"
 
