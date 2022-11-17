@@ -257,9 +257,6 @@ var _ = Describe("Discover Cluster", func() {
 				if pod.GetPowerState() != proto.EntityDTO_POWERSTATE_UNKNOWN {
 					framework.Failf("All pods with NotReady Node provider should be in an unknown state")
 				}
-				if pod.GetPowerState() == proto.EntityDTO_POWERED_ON {
-					framework.Failf("All pods with NotReady Node provider should be in inactive state")
-				}
 			}
 		})
 
