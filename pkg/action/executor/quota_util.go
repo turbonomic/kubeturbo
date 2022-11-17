@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
+	"github.com/turbonomic/kubeturbo/pkg/action/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -20,7 +21,7 @@ const QuotaAnnotationKey = "kubeturbo.io/last-good-config"
 
 type QuotaAccessor interface {
 	Get() ([]*corev1.ResourceQuota, error)
-	Evaluate(quotas []*corev1.ResourceQuota, pod *corev1.Pod) error
+	Evaluate(quotas []*corev1.ResourceQuota, pod *corev1.Pod, replicas int64) error
 	Update() error
 	Revert()
 }
@@ -76,9 +77,10 @@ func (q *QuotaAccessorImpl) Get() ([]*corev1.ResourceQuota, error) {
 	return resourceQuotas, nil
 }
 
-func (q *QuotaAccessorImpl) Evaluate(quotas []*corev1.ResourceQuota, pod *corev1.Pod) error {
+func (q *QuotaAccessorImpl) Evaluate(quotas []*corev1.ResourceQuota, pod *corev1.Pod, replicas int64) error {
 	podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	quotasToUpdate := []*corev1.ResourceQuota{}
+	var totalDeltaUsage corev1.ResourceList
 	deltaUsage, err := q.evaluator.Usage(pod)
 	if err != nil {
 		return err
@@ -86,8 +88,12 @@ func (q *QuotaAccessorImpl) Evaluate(quotas []*corev1.ResourceQuota, pod *corev1
 
 	// ignore items in deltaUsage with zero usage
 	deltaUsage = removeZeros(deltaUsage)
+
+	for i := int64(0); i < replicas; i++ {
+		totalDeltaUsage = quota.Add(totalDeltaUsage, deltaUsage)
+	}
 	// if there is no remaining non-zero usage, short-circuit and return
-	if len(deltaUsage) == 0 {
+	if len(totalDeltaUsage) == 0 {
 		return nil
 	}
 
@@ -114,7 +120,7 @@ func (q *QuotaAccessorImpl) Evaluate(quotas []*corev1.ResourceQuota, pod *corev1
 			continue
 		}
 
-		requestedUsage := quota.Mask(deltaUsage, hardResources)
+		requestedUsage := quota.Mask(totalDeltaUsage, hardResources)
 		newTotalUsage := quota.Add(resourceQuota.Status.Used, requestedUsage)
 		// We need to mask again as add returns all resources in the first list
 		maskedNewTotalUsage := quota.Mask(newTotalUsage, quota.ResourceNames(requestedUsage))
@@ -316,4 +322,38 @@ func RemoveGCLabelFromQuota(quota *corev1.ResourceQuota) {
 		delete(labels, TurboGCLabelKey)
 		quota.SetLabels(labels)
 	}
+}
+
+// checkQuotas checks and updates a quota if need be in the pods namespace
+func checkQuotas(quotaAccessor QuotaAccessor, pod *corev1.Pod, lockMap *util.ExpirationMap, replicas int64) error {
+	quotas, err := quotaAccessor.Get()
+	if err != nil {
+		return err
+	}
+	if err := quotaAccessor.Evaluate(quotas, pod, replicas); err != nil {
+		return err
+	}
+
+	if err := quotaAccessor.Update(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func lockForQuota(namespace string, lockMap *util.ExpirationMap) (*util.LockHelper, error) {
+	quotaLockKey := fmt.Sprintf("quota-lock-%s", namespace)
+	lockHelper, err := util.NewLockHelper(quotaLockKey, lockMap)
+	if err != nil {
+		return nil, err
+	}
+
+	err = lockHelper.Trylock(defaultWaitLockTimeOut, defaultWaitLockSleep)
+	if err != nil {
+		glog.Errorf("Failed to acquire lock with key(%v): %v", quotaLockKey, err)
+		return nil, err
+	}
+	lockHelper.KeepRenewLock()
+
+	return lockHelper, nil
 }

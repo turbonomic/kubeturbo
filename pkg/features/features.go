@@ -53,6 +53,12 @@ const (
 	// Pagination support for list API calls to API server querying workload controllers
 	// Without this feature gate the whole list is requested in a single list API call.
 	GoMemLimit featuregate.Feature = "GoMemLimit"
+	// AllowIncreaseNsQuota4Resizing owner: @kevinwang
+	// alpha:
+	//
+	// This gate will enable the temporary namespace quota increase when
+	// kubeturbo execute a resize action on a workload controller
+	AllowIncreaseNsQuota4Resizing featuregate.Feature = "AllowIncreaseNsQuota4Resizing"
 )
 
 func init() {
@@ -67,9 +73,10 @@ func init() {
 // Ref: https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/
 // Note: We use the config to feed the values, not the command line params.
 var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	PersistentVolumes:      {Default: true, PreRelease: featuregate.Beta},
-	ThrottlingMetrics:      {Default: true, PreRelease: featuregate.Beta},
-	GitopsApps:             {Default: false, PreRelease: featuregate.Alpha},
-	HonorAzLabelPvAffinity: {Default: true, PreRelease: featuregate.Alpha},
-	GoMemLimit:             {Default: true, PreRelease: featuregate.Alpha},
+	PersistentVolumes:             {Default: true, PreRelease: featuregate.Beta},
+	ThrottlingMetrics:             {Default: true, PreRelease: featuregate.Beta},
+	GitopsApps:                    {Default: false, PreRelease: featuregate.Alpha},
+	HonorAzLabelPvAffinity:        {Default: true, PreRelease: featuregate.Alpha},
+	GoMemLimit:                    {Default: true, PreRelease: featuregate.Alpha},
+	AllowIncreaseNsQuota4Resizing: {Default: true, PreRelease: featuregate.Alpha},
 }
