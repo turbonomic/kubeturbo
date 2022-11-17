@@ -148,7 +148,7 @@ func (h *ActionHandler) registerActionExecutors() {
 	containerResizer := executor.NewContainerResizer(ae, c.kubeletClient, c.sccAllowedSet)
 	h.actionExecutors[turboActionContainerResize] = containerResizer
 
-	controllerResizer := executor.NewWorkloadControllerResizer(ae, c.kubeletClient, c.sccAllowedSet)
+	controllerResizer := executor.NewWorkloadControllerResizer(ae, c.kubeletClient, c.sccAllowedSet, h.lockMap)
 	h.actionExecutors[turboActionControllerResize] = controllerResizer
 
 	// Only register the actions when API client is non-nil and cluster-api is available.

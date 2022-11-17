@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/dynamic"
 	typedClient "k8s.io/client-go/kubernetes"
@@ -149,8 +150,85 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		err = c.ormClient.Update(origControllerObj, c.obj, ownerInfo)
 	} else {
 		_, err = c.clients.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
+		if utilfeature.DefaultFeatureGate.Enabled(features.AllowIncreaseNsQuota4Resizing) {
+			err4Waiting := c.waitForAllNewReplicasToBeCreated(c.obj.GetName())
+			if err4Waiting != nil {
+				glog.V(2).Infof("Get error while waiting for the new replicas to be created for the workload controller %s/%s:%v", c.obj.GetNamespace(), c.obj.GetName(), err4Waiting)
+				if hasWarningEvent, warningInfo := c.getLatestWarningEvents(c.obj.GetNamespace(), c.obj.GetName()); hasWarningEvent {
+					return fmt.Errorf(warningInfo)
+				}
+				return err4Waiting
+			}
+			glog.V(2).Infof("All of the new replicasets get created for the workload controller %s/%s", c.obj.GetNamespace(), c.obj.GetName())
+		}
 	}
 	return err
+}
+
+// Wait for all of the new replicas to be created
+func (c *parentController) waitForAllNewReplicasToBeCreated(name string) error {
+	return wait.Poll(DefaultRetrySleepInterval, DefaultWaitReplicaToBeScheduled, func() (bool, error) {
+		obj, errInternal := c.clients.dynNamespacedClient.Get(context.TODO(), name, metav1.GetOptions{})
+		if errInternal != nil {
+			return false, errInternal
+		}
+
+		var replicas, updatedReplicas int64
+		found := false
+
+		if obj.GetKind() == util.KindDaemonSet {
+			replicas, found, errInternal = unstructured.NestedInt64(obj.Object, "status", "desiredNumberScheduled")
+		} else {
+			replicas, found, errInternal = unstructured.NestedInt64(obj.Object, "spec", "replicas")
+		}
+		if errInternal != nil || !found {
+			return false, errInternal
+		}
+
+		if obj.GetKind() == util.KindDaemonSet {
+			updatedReplicas, found, errInternal = unstructured.NestedInt64(obj.Object, "status", "updatedNumberScheduled")
+		} else {
+			updatedReplicas, found, errInternal = unstructured.NestedInt64(obj.Object, "status", "updatedReplicas")
+		}
+		if errInternal != nil || !found {
+			return false, errInternal
+		}
+
+		if replicas == updatedReplicas {
+			return true, nil
+		}
+
+		return false, nil
+	})
+}
+
+// get the latest warning event for a workload controller
+func (c *parentController) getLatestWarningEvents(namespace, name string) (bool, string) {
+	// Get events that belong to the given workload controller
+	events, err := c.clients.typedClient.CoreV1().Events(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return false, ""
+	}
+	var latestEnt apicorev1.Event
+	visited := make(map[string]bool, 0)
+	for _, ent := range events.Items {
+		if ent.Type == apicorev1.EventTypeWarning && strings.HasPrefix(ent.InvolvedObject.Name, name) {
+			if ent.CreationTimestamp.After(latestEnt.CreationTimestamp.Time) {
+				latestEnt = ent
+			}
+			// Log all of non-duplicated warning events
+			if visited[ent.Reason] {
+				continue
+			}
+			visited[ent.Reason] = true
+			glog.V(2).Infof("Found warning event on the workload controller %s/%s: %+v", namespace, name, ent.Message)
+
+		}
+	}
+	if !latestEnt.CreationTimestamp.IsZero() {
+		return true, latestEnt.Message
+	}
+	return false, ""
 }
 
 // Whether Operator controller should be skipped when executing a resize action on a K8s controller
