@@ -197,7 +197,7 @@ var _ = Describe("Discover Cluster", func() {
 			}
 		})
 
-		It("NotReady node should be detected", func() {
+		It("NotReady node should be detected and it shouldn't have sunspended and provisioned actions", func() {
 			notReadyNode = getNotReadyNode(entities)
 			if notReadyNode == nil {
 				framework.Failf("Node with NotReady state not found")
@@ -205,6 +205,12 @@ var _ = Describe("Discover Cluster", func() {
 
 			if notReadyNode.GetDisplayName() == "" {
 				framework.Failf("NotReady nodes should have display names")
+			}
+			if *notReadyNode.ActionEligibility.Suspendable {
+				framework.Failf("NotReady nodes should not have suspended actions")
+			}
+			if *notReadyNode.ActionEligibility.Cloneable {
+				framework.Failf("NotReady nodes should not have provisioned actions")
 			}
 		})
 
