@@ -241,7 +241,7 @@ var _ = Describe("Discover Cluster", func() {
 			}
 		})
 
-		It("Should check that pods on NotReady nodes also have status unknown and should be inactive", func() {
+		It("Should check that pods on NotReady nodes also have status unknown", func() {
 			podsWithNotReadyNode := findEntities(entities, func(entity *proto.EntityDTO) bool {
 				return entity.GetEntityType() == proto.EntityDTO_CONTAINER_POD &&
 					findOneCommodityBought(entity.CommoditiesBought, func(commBought *proto.EntityDTO_CommodityBought) bool {
