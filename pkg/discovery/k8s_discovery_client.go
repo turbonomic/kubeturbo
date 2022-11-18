@@ -41,6 +41,7 @@ type DiscoveryClientConfig struct {
 	DiscoveryTimeoutSec        int
 	DiscoverySamples           int
 	DiscoverySampleIntervalSec int
+	ClusterKeyInjected         string
 	// Strategy to aggregate Container utilization data on ContainerSpec entity
 	containerUtilizationDataAggStrategy string
 	// Strategy to aggregate Container usage data on ContainerSpec entity
@@ -87,6 +88,12 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 	}
 }
 
+// WithClusterKeyInjected sets the clusterKeyInjected for the DiscoveryClientConfig.
+func (config *DiscoveryClientConfig) WithClusterKeyInjected(clusterKeyInjected string) *DiscoveryClientConfig {
+	config.ClusterKeyInjected = clusterKeyInjected
+	return config
+}
+
 // Implements the go sdk discovery client interface
 type K8sDiscoveryClient struct {
 	Config                 *DiscoveryClientConfig
@@ -111,13 +118,15 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	resultCollector := worker.NewResultCollector(config.DiscoveryWorkers * 2)
 
 	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
-		config.DiscoveryWorkers, config.DiscoveryTimeoutSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec)
+		config.DiscoveryWorkers, config.DiscoveryTimeoutSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec).
+		WithClusterKeyInjected(config.ClusterKeyInjected)
 	dispatcher := worker.NewDispatcher(dispatcherConfig, globalEntityMetricSink)
 	dispatcher.Init(resultCollector)
 
 	// Create new SamplingDispatcher to assign tasks to collect additional resource usage data samples from kubelet
 	samplingDispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
-		config.DiscoveryWorkers, config.DiscoverySampleIntervalSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec)
+		config.DiscoveryWorkers, config.DiscoverySampleIntervalSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec).
+		WithClusterKeyInjected(config.ClusterKeyInjected)
 	dataSamplingDispatcher := worker.NewSamplingDispatcher(samplingDispatcherConfig, globalEntityMetricSink)
 	dataSamplingDispatcher.InitSamplingDiscoveryWorkers()
 

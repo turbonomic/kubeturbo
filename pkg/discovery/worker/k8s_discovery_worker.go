@@ -34,6 +34,8 @@ type k8sDiscoveryWorkerConfig struct {
 	monitoringWorkerTimeout time.Duration
 	// Max metric samples to be collected by this discovery worker
 	metricSamples int
+	// Injected Cluster Key to enable pod move across cluster
+	clusterKeyInjected string
 }
 
 func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutSec, metricSamples int) *k8sDiscoveryWorkerConfig {
@@ -55,6 +57,12 @@ func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutS
 		monitoringWorkerTimeout: monitoringWorkerTimeout,
 		metricSamples:           metricSamples,
 	}
+}
+
+// WithClusterKeyInjected sets the clusterKeyInjected for the k8sDiscoveryWorkerConfig
+func (config *k8sDiscoveryWorkerConfig) WithClusterKeyInjected(clusterKeyInjected string) *k8sDiscoveryWorkerConfig {
+	config.clusterKeyInjected = clusterKeyInjected
+	return config
 }
 
 // Add new monitoring worker config to the discovery worker config.
@@ -395,7 +403,8 @@ func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node) ([]*proto.Ent
 		}
 	}
 	// Build entity DTOs for nodes
-	return dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager).BuildEntityDTOs(nodes)
+	return dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager).
+		WithClusterKeyInjected(worker.config.clusterKeyInjected).BuildEntityDTOs(nodes)
 }
 
 // Build DTOs for running pods
@@ -421,6 +430,7 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 		WithRunningPods(currTask.RunningPodList()).
 		// Pending pods
 		WithPendingPods(currTask.PendingPodList()).
+		WithClusterKeyInjected(worker.config.clusterKeyInjected).
 		// map of mirror pods to daemon flags
 		WithMirrorPodToDaemonMap(cluster.MirrorPodToDaemonMap).
 		BuildEntityDTOs()

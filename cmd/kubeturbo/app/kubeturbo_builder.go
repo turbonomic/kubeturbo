@@ -137,6 +137,9 @@ type VMTServer struct {
 	// The Openshift SCC list allowed for action execution
 	sccSupport []string
 
+	// Injected Cluster Key to enable pod move across cluster
+	ClusterKeyInjected string
+
 	// Force the use of self-signed certificates.
 	// The default is true.
 	ForceSelfSignedCerts bool
@@ -186,6 +189,7 @@ func NewVMTServer() *VMTServer {
 
 // AddFlags adds flags for a specific VMTServer to the specified FlagSet
 func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
+	fs.StringVar(&s.ClusterKeyInjected, "cluster-key-injected", "", "Injected cluster key to enable pod move across cluster")
 	fs.IntVar(&s.Port, "port", s.Port, "The port that kubeturbo's http service runs on.")
 	fs.StringVar(&s.Address, "ip", s.Address, "the ip address that kubeturbo's http service runs on.")
 	// TODO: The flagset that is included by vendoring k8s uses the same names i.e. "master" and "kubeconfig".
@@ -452,7 +456,8 @@ func (s *VMTServer) Run() {
 		WithVolumePodMoveConfig(s.FailVolumePodMoves).
 		WithQuotaUpdateConfig(s.UpdateQuotaToAllowMoves).
 		WithClusterAPIEnabled(clusterAPIEnabled).
-		WithReadinessRetryThreshold(s.readinessRetryThreshold)
+		WithReadinessRetryThreshold(s.readinessRetryThreshold).
+		WithClusterKeyInjected(s.ClusterKeyInjected)
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.GitopsApps) {
 		vmtConfig.WithGitConfig(s.gitConfig)

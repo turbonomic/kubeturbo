@@ -55,6 +55,7 @@ type Config struct {
 	failVolumePodMoves      bool
 	updateQuotaToAllowMoves bool
 	clusterAPIEnabled       bool
+	clusterKeyInjected      string
 	readinessRetryThreshold int
 	gitConfig               gitops.GitConfig
 }
@@ -65,6 +66,11 @@ func NewVMTConfig2() *Config {
 	}
 
 	return cfg
+}
+
+func (c *Config) WithClusterKeyInjected(clusterKeyInjected string) *Config {
+	c.clusterKeyInjected = clusterKeyInjected
+	return c
 }
 
 func (c *Config) WithKubeClient(client *kubeclient.Clientset) *Config {
