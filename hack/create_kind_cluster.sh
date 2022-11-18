@@ -53,4 +53,8 @@ echo "Creating kind cluster"
 create-cluster
 ${kubectl_path} config use-context kind-kind
 
+
+docker cp ./test/config/static-web.yaml kind-worker2:/etc/kubernetes/manifests/
+docker cp ./test/config/static-web.yaml kind-worker3:/etc/kubernetes/manifests/
+
 echo "Cluster creation complete."

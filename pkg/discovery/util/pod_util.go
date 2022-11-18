@@ -127,7 +127,7 @@ func GetMirrorPodPrefixToNodeNames(pods []*api.Pod) map[string]sets.String {
 		}
 	}
 
-	glog.V(3).Infof("Found %+v static pod prefix keys.", len(prefixToNodeNames))
+	glog.V(3).Infof("Found %+v mirror pod prefix keys.", len(prefixToNodeNames))
 	glog.V(4).Info(prefixToNodeNames)
 	return prefixToNodeNames
 }
