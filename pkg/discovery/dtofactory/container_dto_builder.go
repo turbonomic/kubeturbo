@@ -75,12 +75,19 @@ var (
 
 type containerDTOBuilder struct {
 	generalBuilder
+	mirrorPodToDaemonMap map[string]bool
 }
 
 func NewContainerDTOBuilder(sink *metrics.EntityMetricSink) *containerDTOBuilder {
 	return &containerDTOBuilder{
-		generalBuilder: newGeneralBuilder(sink),
+		generalBuilder:       newGeneralBuilder(sink),
+		mirrorPodToDaemonMap: make(map[string]bool),
 	}
+}
+
+func (builder *containerDTOBuilder) WithMirrorPodToDaemonMap(mirrorPodToDaemonMap map[string]bool) *containerDTOBuilder {
+	builder.mirrorPodToDaemonMap = mirrorPodToDaemonMap
+	return builder
 }
 
 func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.EntityDTO, []string) {
@@ -92,6 +99,7 @@ func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 		podId := string(pod.UID)
 		podMId := util.PodMetricIdAPI(pod)
 		controllerUID := ""
+		mirrorPodDaemon := builder.mirrorPodToDaemonMap[podId]
 		if util.HasController(pod) {
 			// Get controllerUID only if Pod is deployed by a K8s controller.
 			controllerUID, err = util.GetControllerUID(pod, builder.metricsSink)
@@ -100,6 +108,7 @@ func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 				continue
 			}
 		}
+
 		for i := range pod.Spec.Containers {
 			container := &(pod.Spec.Containers[i])
 
@@ -162,7 +171,8 @@ func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 			ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
 			truep := true
-			controllable := util.Controllable(pod)
+
+			controllable := util.Controllable(pod, mirrorPodDaemon)
 			monitored := true
 			powerState := proto.EntityDTO_POWERED_ON
 			if !util.PodIsReady(pod) {

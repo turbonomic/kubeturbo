@@ -376,7 +376,7 @@ func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto
 	}
 	entityDTOs = append(entityDTOs, podDTOs...)
 	// Build entity DTOs for containers from running pods
-	containerDTOs, sidecarContainerSpecs := worker.buildContainerDTOs(runningPods)
+	containerDTOs, sidecarContainerSpecs := worker.buildContainerDTOs(runningPods, currTask.Cluster())
 	glog.V(3).Infof("Worker %s built %d container DTOs.", worker.id, len(containerDTOs))
 	if len(containerDTOs) > 0 {
 		entityDTOs = append(entityDTOs, containerDTOs...)
@@ -450,8 +450,11 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 }
 
 // Build DTOs for containers
-func (worker *k8sDiscoveryWorker) buildContainerDTOs(runningPods []*api.Pod) ([]*proto.EntityDTO, []string) {
-	return dtofactory.NewContainerDTOBuilder(worker.sink).BuildEntityDTOs(runningPods)
+func (worker *k8sDiscoveryWorker) buildContainerDTOs(runningPods []*api.Pod, cluster *repository.ClusterSummary) ([]*proto.EntityDTO, []string) {
+	return dtofactory.
+		NewContainerDTOBuilder(worker.sink).
+		WithMirrorPodToDaemonMap(cluster.MirrorPodToDaemonMap).
+		BuildEntityDTOs(runningPods)
 }
 
 // Build App DTOs using the list of pods with valid DTOs
@@ -459,8 +462,9 @@ func (worker *k8sDiscoveryWorker) buildAppDTOs(
 	runningPods []*api.Pod, cluster *repository.ClusterSummary) ([]*proto.EntityDTO, []*repository.KubePod) {
 	var result []*proto.EntityDTO
 	var podEntities []*repository.KubePod
-	applicationEntityDTOBuilder := dtofactory.NewApplicationEntityDTOBuilder(worker.sink,
-		cluster.PodClusterIDToServiceMap)
+	applicationEntityDTOBuilder := dtofactory.
+		NewApplicationEntityDTOBuilder(worker.sink, cluster.PodClusterIDToServiceMap).
+		WithMirrorPodToDaemonMap(cluster.MirrorPodToDaemonMap)
 	for _, pod := range runningPods {
 		kubeNode := cluster.NodeMap[pod.Spec.NodeName]
 		kubePod := repository.NewKubePod(pod, kubeNode, cluster.Name)

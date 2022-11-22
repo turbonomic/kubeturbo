@@ -73,8 +73,8 @@ func Daemon(pod *api.Pod) bool {
 
 // Returns a boolean that indicates whether the given pod should be controllable.
 // Do not monitor mirror pods or pods created by DaemonSets.
-func Controllable(pod *api.Pod) bool {
-	controllable := !isMirrorPod(pod) && IsControllableFromAnnotation(pod.GetAnnotations())
+func Controllable(pod *api.Pod, mirrorPodDaemon bool) bool {
+	controllable := (!isMirrorPod(pod) || mirrorPodDaemon) && IsControllableFromAnnotation(pod.GetAnnotations())
 	if !controllable {
 		glog.V(4).Infof("Pod %s/%s is not controllable", pod.Namespace, pod.Name)
 	}
