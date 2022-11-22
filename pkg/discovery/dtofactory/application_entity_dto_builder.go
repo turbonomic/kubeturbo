@@ -26,7 +26,6 @@ var (
 type applicationEntityDTOBuilder struct {
 	generalBuilder
 	podClusterIDToServiceMap map[string]*api.Service
-	mirrorPodToDaemonMap     map[string]bool
 }
 
 // Builder to build DTOs for application running on each container
@@ -37,20 +36,13 @@ func NewApplicationEntityDTOBuilder(sink *metrics.EntityMetricSink,
 	return &applicationEntityDTOBuilder{
 		generalBuilder:           newGeneralBuilder(sink),
 		podClusterIDToServiceMap: podClusterIDToServiceMap,
-		mirrorPodToDaemonMap:     make(map[string]bool),
 	}
-}
-
-func (builder *applicationEntityDTOBuilder) WithMirrorPodToDaemonMap(mirrorPodToDaemonMap map[string]bool) *applicationEntityDTOBuilder {
-	builder.mirrorPodToDaemonMap = mirrorPodToDaemonMap
-	return builder
 }
 
 func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*proto.EntityDTO, error) {
 	var result []*proto.EntityDTO
 	podFullName := util.GetPodClusterID(pod)
 	podId := string(pod.UID)
-	mirrorPodDaemon := builder.mirrorPodToDaemonMap[podId]
 	podMId := util.PodMetricIdAPI(pod)
 	nodeCPUFrequency, err := builder.getNodeCPUFrequencyViaPod(pod)
 	if err != nil {
@@ -92,7 +84,9 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 		properties := builder.getApplicationProperties(pod, i)
 		ebuilder.WithProperties(properties)
 
-		controllable := util.Controllable(pod, mirrorPodDaemon)
+		// controllability of applications should not be dictated by mirror pods modeled as daemon pods
+		// because they cannot be controlled through the API server
+		controllable := util.Controllable(pod, false)
 		monitored := true
 		powerState := proto.EntityDTO_POWERED_ON
 		if !util.PodIsReady(pod) {
