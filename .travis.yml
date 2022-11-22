@@ -54,6 +54,6 @@ after_success:
         # Build and push the image
         cd build
         # Push the latest image built from master branch
-        docker buildx build --platform $PLATFORM_OS_ARCH_LIST --label "git-version=$TRAVIS_COMMIT" --push -t $DOCKER_IMAGE_NAME .
+        docker buildx build --platform $PLATFORM_OS_ARCH_LIST --label "git-version=$TRAVIS_COMMIT" .
       fi
     fi
