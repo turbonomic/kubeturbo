@@ -371,6 +371,10 @@ func (s *MockClusterScrapper) GetResources(schema.GroupVersionResource) ([]unstr
 	return []unstructured.Unstructured{}, nil
 }
 
+func (s *MockClusterScrapper) GetResourcesPaginated(schema.GroupVersionResource, int) ([]unstructured.Unstructured, error) {
+	return []unstructured.Unstructured{}, nil
+}
+
 func (s *MockClusterScrapper) GetMachineSetToNodesMap(nodes []*v1.Node) map[string][]*v1.Node {
 	return make(map[string][]*v1.Node)
 }

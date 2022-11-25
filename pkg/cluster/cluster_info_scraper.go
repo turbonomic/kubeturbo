@@ -6,11 +6,10 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-
 	machinev1beta1api "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	capiclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
+	policyv1alpha1 "github.com/turbonomic/turbo-crd/api/v1alpha1"
 	api "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
@@ -23,11 +22,8 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
-	policyv1alpha1 "github.com/turbonomic/turbo-crd/api/v1alpha1"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 const (
@@ -57,7 +53,8 @@ type ClusterScraperInterface interface {
 	GetAllPVs() ([]*api.PersistentVolume, error)
 	GetAllPVCs() ([]*api.PersistentVolumeClaim, error)
 	GetResources(resource schema.GroupVersionResource) ([]unstructured.Unstructured, error)
-	GetMachineSetToNodesMap(nodes []*v1.Node) map[string][]*v1.Node
+	GetResourcesPaginated(resource schema.GroupVersionResource, itemsPerPage int) ([]unstructured.Unstructured, error)
+	GetMachineSetToNodesMap(nodes []*api.Node) map[string][]*api.Node
 	GetAllTurboSLOScalings() ([]policyv1alpha1.SLOHorizontalScale, error)
 	GetAllTurboPolicyBindings() ([]policyv1alpha1.PolicyBinding, error)
 }
@@ -141,8 +138,8 @@ func (s *ClusterScraper) GetAllNodes() ([]*api.Node, error) {
 	return s.GetNodes(listOption)
 }
 
-func (s *ClusterScraper) GetMachineSetToNodesMap(nodes []*v1.Node) map[string][]*v1.Node {
-	machineSetToNodes := make(map[string][]*v1.Node)
+func (s *ClusterScraper) GetMachineSetToNodesMap(nodes []*api.Node) map[string][]*api.Node {
+	machineSetToNodes := make(map[string][]*api.Node)
 	if s.caClient == nil {
 		return machineSetToNodes
 	}
@@ -156,7 +153,7 @@ func (s *ClusterScraper) GetMachineSetToNodesMap(nodes []*v1.Node) map[string][]
 		machines := s.getCApiMachinesFiltered(machineSet.Name, metav1.ListOptions{
 			LabelSelector: metav1.FormatLabelSelector(&machineSet.Spec.Selector),
 		})
-		nodes := []*v1.Node{}
+		nodes := []*api.Node{}
 		for _, machine := range machines {
 			if machine.Status.NodeRef != nil && machine.Status.NodeRef.Name != "" {
 				if node := findNode(machine.Status.NodeRef.Name, nodes); node != nil {
@@ -281,20 +278,21 @@ func (s *ClusterScraper) GetAllEndpoints() ([]*api.Endpoints, error) {
 }
 
 func (s *ClusterScraper) GetResources(resource schema.GroupVersionResource) ([]unstructured.Unstructured, error) {
-	if !utilfeature.DefaultFeatureGate.Enabled(features.GoMemLimit) {
-		list, err := s.DynamicClient.Resource(resource).Namespace(api.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
-		if err != nil || list == nil {
-			return nil, err
-		}
-		return list.Items, err
+	list, err := s.DynamicClient.Resource(resource).Namespace(api.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	if err != nil || list == nil {
+		return nil, err
 	}
+	return list.Items, err
+}
 
-	items := []unstructured.Unstructured{}
+func (s *ClusterScraper) GetResourcesPaginated(
+	resource schema.GroupVersionResource, itemsPerPage int) ([]unstructured.Unstructured, error) {
+	var items []unstructured.Unstructured
 	continueList := ""
 	// TODO: Is there a possibility of this loop never exiting?
 	// The documentation states that the APIs reliably return correct values for continue
 	for {
-		listOptions := metav1.ListOptions{Limit: int64(commonutil.ItemsPerListQuery), Continue: continueList}
+		listOptions := metav1.ListOptions{Limit: int64(itemsPerPage), Continue: continueList}
 		listItems, err := s.DynamicClient.Resource(resource).Namespace(api.NamespaceAll).List(context.TODO(), listOptions)
 		if err != nil {
 			return items, err
@@ -305,7 +303,6 @@ func (s *ClusterScraper) GetResources(resource schema.GroupVersionResource) ([]u
 		}
 		continueList = listItems.GetContinue()
 	}
-
 	return items, nil
 }
 
