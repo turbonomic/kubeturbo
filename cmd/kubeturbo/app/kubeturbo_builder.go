@@ -381,18 +381,19 @@ func (s *VMTServer) Run() {
 		_ = os.Setenv("AUTOMEMLIMIT_DEBUG", "true")
 		if s.ItemsPerListQuery != 0 {
 			// Perform sanity check on user specified value of itemsPerListQuery
-			if s.ItemsPerListQuery < 0 {
-				// Negative values are invalid, set to DefaultItemsPerListQuery
-				glog.Warningf("Argument --items-per-list-query is invalid (%v), setting it to the default value of %d.",
-					s.ItemsPerListQuery, int(processor.DefaultItemsPerListQuery))
-				s.ItemsPerListQuery = int(processor.DefaultItemsPerListQuery)
-			} else if s.ItemsPerListQuery < processor.DefaultItemsPerGBMemory {
-				// Values set too low will be reset to DefaultItemsPerGBMemory
-				glog.Warningf("Argument --items-per-list-query is set too low (%v), setting it to a minimum value of %v.",
-					s.ItemsPerListQuery, processor.DefaultItemsPerGBMemory)
+			if s.ItemsPerListQuery < processor.DefaultItemsPerGBMemory {
+				var errMsg string
+				if s.ItemsPerListQuery < 0 {
+					errMsg = "negative"
+				} else {
+					errMsg = "set too low"
+				}
+				glog.Warningf("Argument --items-per-list-query is %s (%v). Setting it to the default value of %d.",
+					errMsg, s.ItemsPerListQuery, processor.DefaultItemsPerGBMemory)
 				s.ItemsPerListQuery = processor.DefaultItemsPerGBMemory
+			} else {
+				glog.V(2).Infof("Set items per list API call to the user specified value: %v.", s.ItemsPerListQuery)
 			}
-			glog.V(2).Infof("Set items per list query to the user specified value: %v.", s.ItemsPerListQuery)
 		}
 	} else {
 		glog.V(2).Info("Memory Optimisations are not enabled.")

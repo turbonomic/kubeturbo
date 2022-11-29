@@ -19,10 +19,8 @@ import (
 const (
 	// DefaultItemsPerGBMemory defines number of items to retrieve for each GB of memory
 	DefaultItemsPerGBMemory                     = 5000
-	DefaultMemoryLimitInGB                      = 8
 	DefaultAutoMemLimitPct                      = 0.9
 	DefaultGenericMetricSizePerThousandPodsInGB = 0.24
-	DefaultNumberOfPodsInThousands              = 1
 	DefaultCadvisorMetricSizePerPodInGB         = 0.004
 	DefaultMaxPodsPerNode                       = 250
 	DefaultExtraPerNodeUsageInGB                = 0.2
@@ -32,39 +30,6 @@ const (
 var (
 	workers       = 10
 	totalWaitTime = 60 * time.Second
-	// DefaultItemsPerListQuery defines default number of items that should be requested in each
-	// workload controller list API to ensure no OOMs occur.
-	//
-	// This value is calculated using the following expression:
-	//
-	// (kubeturbo_mem_limit_gb * default_automemlimit_pct
-	//    - generic_metric_size_gb_per_thousand_pods * number_of_pods_in_thousands_in_cluster
-	//    - (cadvisor_metric_size_gb_per_pod * max_pods_per_node + extra_per_node_usage_gb)
-	//    - extra_cluster_wide_usage_gb) * items_per_gb
-	//
-	// In the absence of any MEMLIMIT set, we assume the following default values
-	// to calculate the default items per query:
-	//   * mem_limit_gb: 8
-	//   * default_automemlimit_pct: 0.9 (percentage of memory limit that can be controlled by Go Runtime)
-	//   * generic_metric_size_gb_per_thousand_pods: 0.24
-	//   * number_of_pods_in_thousands_in_cluster: 1 (1000 pods)
-	//   * cadvisor_metric_size_gb_per_pod: 0.004
-	//   * max_pods_per_node: 250
-	//   * extra_per_node_usage_gb: 0.2
-	//   * extra_cluster_wide_usage_gb: 0.2
-	//   * items_per_gb: 5000
-	//
-	// which results in the value of:
-	//   (8 * 0.9 - 0.24 * 1 - (0.004 * 250 + 0.2) - 0.2) *  5000 = 27800
-	//
-	// This default is unlikely to be used on Linux based system as Cgroup limit will always
-	// be available. If the container limit is not set, Cgroup limit will be set to nodes limit.
-	//
-	// This value will be used for non-linux systems, e.g., kubeturbo local run on MacOS.
-	DefaultItemsPerListQuery = (DefaultMemoryLimitInGB*DefaultAutoMemLimitPct -
-		DefaultGenericMetricSizePerThousandPodsInGB*DefaultNumberOfPodsInThousands -
-		(DefaultCadvisorMetricSizePerPodInGB*DefaultMaxPodsPerNode + DefaultExtraPerNodeUsageInGB) -
-		DefaultExtraClusterWideUsageInGB) * DefaultItemsPerGBMemory
 )
 
 // ClusterProcessor defines top level object that will connect to the Kubernetes cluster and all the
@@ -228,16 +193,16 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.ClusterSummary, error)
 	glog.V(2).Infof("Discovering cluster with %d nodes and %d pods.", len(nodeList), podCount)
 	itemsPerListQuery := p.itemsPerListQuery
 	if feature.DefaultFeatureGate.Enabled(features.GoMemLimit) && itemsPerListQuery == 0 {
-		// Determine items per list query
+		// Determine items per list API call
 		items, limit, err := p.calculateItemsPerListQuery(podCount)
 		if err != nil {
-			itemsPerListQuery = int(DefaultItemsPerListQuery)
-			glog.Errorf("Failed to calculate items per list query: %v. Use default value of %v.",
-				err, itemsPerListQuery)
+			itemsPerListQuery = DefaultItemsPerGBMemory
+			glog.Warningf("Cannot calculate items per list API call: %v.", err)
+			glog.V(2).Infof("Set items per list API call to the default value of %v.", itemsPerListQuery)
 		} else {
 			itemsPerListQuery = items
-			glog.V(2).Infof("Set items per list query to %v based on memory limit of %.2f GB and pod count of %v.",
-				items, limit, podCount)
+			glog.V(2).Infof("Set items per list API call to %v based on memory limit of %.2f GB "+
+				"and pod count of %v.", items, limit, podCount)
 		}
 	}
 	// Create kubeCluster and compute cluster resource
@@ -306,17 +271,22 @@ func (p *ClusterProcessor) calculateItemsPerListQuery(podCount int) (int, float6
 	if limit == 0 {
 		// This is very unlikely because in absense of any limit set in container resources
 		// we will get the cgroup limit as the nodes available/usable memory limit
-		return 0, 0, fmt.Errorf("limit found set to zero (0")
+		return 0, 0, fmt.Errorf("limit found set to zero (0)")
 	}
 	podsInThousands := float64(podCount) / 1000
-	limitInGB := util.Base2BytesToGigabytes(float64(limit))
-	availMem := limitInGB*DefaultAutoMemLimitPct -
+	currentLimitInGB := util.Base2BytesToGigabytes(float64(limit))
+	availMemInGB := currentLimitInGB*DefaultAutoMemLimitPct -
 		DefaultGenericMetricSizePerThousandPodsInGB*podsInThousands -
 		(DefaultCadvisorMetricSizePerPodInGB*DefaultMaxPodsPerNode + DefaultExtraPerNodeUsageInGB) -
 		DefaultExtraClusterWideUsageInGB
-	if availMem < 1.0 {
-		return 0, 0, fmt.Errorf("unable to calculate reasonable items per list query based on "+
-			"memory limit of %v and pod count of %v. Caculated value is %v", limit, podCount, availMem)
+	if availMemInGB < 1.0 {
+		recommendedLimitInGB := (1.0 + DefaultExtraClusterWideUsageInGB +
+			(DefaultCadvisorMetricSizePerPodInGB*DefaultMaxPodsPerNode + DefaultExtraPerNodeUsageInGB) +
+			DefaultGenericMetricSizePerThousandPodsInGB*podsInThousands) / DefaultAutoMemLimitPct
+		return 0, 0, fmt.Errorf("the memory limit of kubeturbo %.2f GB is too low to calculate "+
+			"a reasonable number of items per list API call. Kubeturbo may run into OOM. "+
+			"Consider increasing the memory limit of kubeturbo to at least %.2f GB",
+			currentLimitInGB, recommendedLimitInGB)
 	}
-	return int(DefaultItemsPerGBMemory * availMem), limitInGB, nil
+	return int(DefaultItemsPerGBMemory * availMemInGB), currentLimitInGB, nil
 }
