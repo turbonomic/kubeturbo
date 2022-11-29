@@ -451,7 +451,9 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 
 // Build DTOs for containers
 func (worker *k8sDiscoveryWorker) buildContainerDTOs(runningPods []*api.Pod) ([]*proto.EntityDTO, []string) {
-	return dtofactory.NewContainerDTOBuilder(worker.sink).BuildEntityDTOs(runningPods)
+	return dtofactory.
+		NewContainerDTOBuilder(worker.sink).
+		BuildEntityDTOs(runningPods)
 }
 
 // Build App DTOs using the list of pods with valid DTOs
@@ -459,8 +461,9 @@ func (worker *k8sDiscoveryWorker) buildAppDTOs(
 	runningPods []*api.Pod, cluster *repository.ClusterSummary) ([]*proto.EntityDTO, []*repository.KubePod) {
 	var result []*proto.EntityDTO
 	var podEntities []*repository.KubePod
-	applicationEntityDTOBuilder := dtofactory.NewApplicationEntityDTOBuilder(worker.sink,
-		cluster.PodClusterIDToServiceMap)
+	applicationEntityDTOBuilder := dtofactory.
+		NewApplicationEntityDTOBuilder(worker.sink, cluster.PodClusterIDToServiceMap)
+
 	for _, pod := range runningPods {
 		kubeNode := cluster.NodeMap[pod.Spec.NodeName]
 		kubePod := repository.NewKubePod(pod, kubeNode, cluster.Name)

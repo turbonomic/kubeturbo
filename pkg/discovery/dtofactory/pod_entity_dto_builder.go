@@ -242,7 +242,7 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 		}
 
 		mounts := builder.podToVolumesMap[displayName]
-		controllable := util.Controllable(pod)
+		controllable := util.Controllable(pod, mirrorPodDaemon)
 		monitored := true
 		suspendable := true
 		provisionable := true

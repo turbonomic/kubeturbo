@@ -102,7 +102,7 @@ func TestPodFlags(t *testing.T) {
 	}
 
 	for i, pod := range pods {
-		controllable := util.Controllable(pod)
+		controllable := util.Controllable(pod, false)
 		if controllable != expectedResult[i].Controllable {
 			t.Errorf("Pod %d Controllable: expected %v, got %v", i,
 				expectedResult[i].Controllable, controllable)
