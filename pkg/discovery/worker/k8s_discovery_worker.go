@@ -34,6 +34,8 @@ type k8sDiscoveryWorkerConfig struct {
 	monitoringWorkerTimeout time.Duration
 	// Max metric samples to be collected by this discovery worker
 	metricSamples int
+	// Injected Cluster Key to enable pod move across cluster
+	clusterKeyInjected string
 	// Config for various commodity settings
 	commodityConfig *dtofactory.CommodityConfig
 }
@@ -59,6 +61,12 @@ func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutS
 		metricSamples:           metricSamples,
 		commodityConfig:         commodityConfig,
 	}
+}
+
+// WithClusterKeyInjected sets the clusterKeyInjected for the k8sDiscoveryWorkerConfig
+func (config *k8sDiscoveryWorkerConfig) WithClusterKeyInjected(clusterKeyInjected string) *k8sDiscoveryWorkerConfig {
+	config.clusterKeyInjected = clusterKeyInjected
+	return config
 }
 
 // Add new monitoring worker config to the discovery worker config.
@@ -399,7 +407,8 @@ func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node) ([]*proto.Ent
 		}
 	}
 	// Build entity DTOs for nodes
-	return dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager).BuildEntityDTOs(nodes)
+	return dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager).
+		WithClusterKeyInjected(worker.config.clusterKeyInjected).BuildEntityDTOs(nodes)
 }
 
 // Build DTOs for running pods
@@ -425,6 +434,7 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 		WithRunningPods(currTask.RunningPodList()).
 		// Pending pods
 		WithPendingPods(currTask.PendingPodList()).
+		WithClusterKeyInjected(worker.config.clusterKeyInjected).
 		// map of mirror pods to daemon flags
 		WithMirrorPodToDaemonMap(cluster.MirrorPodToDaemonMap).
 		BuildEntityDTOs()
@@ -445,7 +455,9 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 
 // Build DTOs for containers
 func (worker *k8sDiscoveryWorker) buildContainerDTOs(runningPods []*api.Pod) ([]*proto.EntityDTO, []string) {
-	return dtofactory.NewContainerDTOBuilder(worker.sink, worker.config.commodityConfig).BuildEntityDTOs(runningPods)
+	return dtofactory.
+		NewContainerDTOBuilder(worker.sink, worker.config.commodityConfig).
+		BuildEntityDTOs(runningPods)
 }
 
 // Build App DTOs using the list of pods with valid DTOs
@@ -453,8 +465,9 @@ func (worker *k8sDiscoveryWorker) buildAppDTOs(
 	runningPods []*api.Pod, cluster *repository.ClusterSummary) ([]*proto.EntityDTO, []*repository.KubePod) {
 	var result []*proto.EntityDTO
 	var podEntities []*repository.KubePod
-	applicationEntityDTOBuilder := dtofactory.NewApplicationEntityDTOBuilder(worker.sink,
-		cluster.PodClusterIDToServiceMap)
+	applicationEntityDTOBuilder := dtofactory.
+		NewApplicationEntityDTOBuilder(worker.sink, cluster.PodClusterIDToServiceMap)
+
 	for _, pod := range runningPods {
 		kubeNode := cluster.NodeMap[pod.Spec.NodeName]
 		kubePod := repository.NewKubePod(pod, kubeNode, cluster.Name)

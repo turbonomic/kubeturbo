@@ -23,6 +23,7 @@ type DispatcherConfig struct {
 	workerTimeoutSec    int
 	samples             int
 	samplingIntervalSec int
+	clusterKeyInjected  string
 	commodityConfig     *dtofactory.CommodityConfig
 }
 
@@ -37,6 +38,11 @@ func NewDispatcherConfig(clusterInfoScraper *cluster.ClusterScraper, probeConfig
 		samplingIntervalSec: samplingIntervalSec,
 		commodityConfig:     commodityConfig,
 	}
+}
+
+func (config *DispatcherConfig) WithClusterKeyInjected(clusterKeyInjected string) *DispatcherConfig {
+	config.clusterKeyInjected = clusterKeyInjected
+	return config
 }
 
 type Dispatcher struct {
@@ -83,7 +89,8 @@ func (d *Dispatcher) Init(c *ResultCollector) {
 	// Create discovery workers
 	for i := 0; i < d.config.workerCount; i++ {
 		// Create the worker instance
-		workerConfig := NewK8sDiscoveryWorkerConfig(d.config.probeConfig.StitchingPropertyType, d.config.workerTimeoutSec, d.config.samples, d.config.commodityConfig)
+		workerConfig := NewK8sDiscoveryWorkerConfig(d.config.probeConfig.StitchingPropertyType, d.config.workerTimeoutSec, d.config.samples, d.config.commodityConfig).
+			WithClusterKeyInjected(d.config.clusterKeyInjected)
 		for _, mc := range d.config.probeConfig.MonitoringConfigs {
 			workerConfig.WithMonitoringWorkerConfig(mc)
 		}

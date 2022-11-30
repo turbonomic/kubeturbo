@@ -201,23 +201,23 @@ func makePodInDaemonSet() *k8sapi.Pod {
 
 func TestMirroredPod(t *testing.T) {
 	pod := newPod("pod-1")
-	if !Controllable(pod) {
+	if !Controllable(pod, false) {
 		t.Error("Pod is not controllable and it should be by default")
 	}
 	// Set an annotation on the pod to indicate that it is mirrored
 	pod.ObjectMeta.Annotations = make(map[string]string)
 	pod.ObjectMeta.Annotations["some-random-key"] = "foo"
-	if !Controllable(pod) {
+	if !Controllable(pod, false) {
 		t.Error("Non-mirrored pod should be controllable")
 	}
 
 	pod.ObjectMeta.Annotations[k8sapi.MirrorPodAnnotationKey] = "yes"
-	if Controllable(pod) {
+	if Controllable(pod, false) {
 		t.Error("Mirrored pod should not be controllable")
 	}
 
 	podInDaemonSet := makePodInDaemonSet()
-	if !Controllable(podInDaemonSet) {
+	if !Controllable(podInDaemonSet, false) {
 		t.Errorf("Pod in daemon set must be controllable")
 	}
 
@@ -230,10 +230,19 @@ func TestMirroredPod(t *testing.T) {
 	ref.Reference.Name = "yes"
 	refbytes, _ := json.Marshal(&ref)
 	podInDaemonSet.ObjectMeta.Annotations["kubernetes.io/created-by"] = string(refbytes)
-	if !Controllable(podInDaemonSet) {
+	if !Controllable(podInDaemonSet, false) {
 		t.Errorf("Pod in daemon set must be controllable")
 	}
 
+	mirrorPod := newPod("pod-mirror")
+	mirrorPod.OwnerReferences = []metav1.OwnerReference{
+		{
+			Kind: "Node",
+		},
+	}
+	if !Controllable(mirrorPod, true) {
+		t.Errorf("Is a mirror pod, but modeled as daemon, and should be controllable")
+	}
 }
 
 func newPod(name string, podConds ...k8sapi.PodCondition) *k8sapi.Pod {

@@ -214,6 +214,10 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		config.containerUsageDataAggStrategy, config.ORMClient, config.DiscoveryWorkers, config.DiscoveryTimeoutSec,
 		config.DiscoverySamples, config.DiscoverySampleIntervalSec, commodityConfig)
 
+	if config.clusterKeyInjected != "" {
+		discoveryClientConfig = discoveryClientConfig.WithClusterKeyInjected(config.clusterKeyInjected)
+	}
+
 	k8sSvcId, err := probeConfig.ClusterScraper.GetKubernetesServiceID()
 	if err != nil {
 		glog.Fatalf("Error retrieving the Kubernetes service id: %v", err)

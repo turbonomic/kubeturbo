@@ -198,7 +198,7 @@ var _ = Describe("Discover Cluster", func() {
 			}
 		})
 
-		It("NotReady node should be detected", func() {
+		It("NotReady node should be detected and it shouldn't have sunspended and provisioned actions", func() {
 			notReadyNode = getNotReadyNode(entities)
 			if notReadyNode == nil {
 				framework.Failf("Node with NotReady state not found")
@@ -207,11 +207,17 @@ var _ = Describe("Discover Cluster", func() {
 			if notReadyNode.GetDisplayName() == "" {
 				framework.Failf("NotReady nodes should have display names")
 			}
+			if *notReadyNode.ActionEligibility.Suspendable {
+				framework.Failf("NotReady nodes should not have suspended actions")
+			}
+			if *notReadyNode.ActionEligibility.Cloneable {
+				framework.Failf("NotReady nodes should not have provisioned actions")
+			}
 		})
 
 		It("NotReady nodes should be listed in the NotReady node group", func() {
 
-			notReadyGroup := getNotReadyNodeGroup(groups)
+			notReadyGroup := getGroup(groups, "NotReady-Nodes-")
 			if notReadyGroup == nil {
 				framework.Failf("Could not find NotReady Node group")
 			}
@@ -413,6 +419,141 @@ var _ = Describe("Discover Cluster", func() {
 		})
 	})
 
+	Describe("test mirror pods", func() {
+		testName := "discovery-integration-test"
+		mirrorpod_prefix := "static-web"
+		var entities []*proto.EntityDTO = nil
+		var groups []*proto.GroupDTO = nil
+		var delNode *corev1.Node
+		var err error
+
+		It("validate dameon settings true for multiple nodepools in a cluster with all nodes havings static pod in the pool", func() {
+
+			// Create AKS and GKE nodepools with one node in each
+			_, err = updateNodeWithLabel(kubeClient, util.NodePoolGKE, "MirrorPodTestGKE", "kind-worker2")
+			if err != nil {
+				framework.Failf("Error in updating the nodepool label")
+			}
+			_, err = updateNodeWithLabel(kubeClient, util.NodePoolAKS, "MirrorPodTestAKS", "kind-worker3")
+			if err != nil {
+				framework.Failf("Error in updating the nodepool label")
+			}
+			entityDTOs, groupDTOs, Err := discoveryClient.DiscoverWithNewFramework(testName)
+			if Err != nil {
+				framework.Failf(Err.Error())
+			}
+
+			for _, entityDTO := range entityDTOs {
+				if *entityDTO.EntityType == proto.EntityDTO_CONTAINER_POD &&
+					strings.Contains(*entityDTO.DisplayName, mirrorpod_prefix) {
+					entities = append(entities, entityDTO)
+				}
+			}
+			groups = groupDTOs
+			validateMirrorPods(groups, entities)
+
+		})
+
+		It("validate dameon settings true when all nodes in nodepool has static pod", func() {
+
+			// Create GKE nodepools with two nodes
+			entities = nil
+			_, err = updateNodeWithLabel(kubeClient, util.NodePoolGKE, "MirrorPodTestGKE", "kind-worker2")
+			if err != nil {
+				framework.Failf("Error in updating the nodepool label")
+			}
+			_, err = updateNodeWithLabel(kubeClient, util.NodePoolGKE, "MirrorPodTestGKE", "kind-worker3")
+			if err != nil {
+				framework.Failf("Error in updating the nodepool label")
+			}
+			entityDTOs, groupDTOs, Err := discoveryClient.DiscoverWithNewFramework(testName)
+			if Err != nil {
+				framework.Failf(Err.Error())
+			}
+
+			for _, entityDTO := range entityDTOs {
+				if *entityDTO.EntityType == proto.EntityDTO_CONTAINER_POD &&
+					strings.Contains(*entityDTO.DisplayName, mirrorpod_prefix) {
+					entities = append(entities, entityDTO)
+				}
+			}
+
+			groups = groupDTOs
+			//Validate daemon: true for nodepool with 2 nodes
+			validateMirrorPods(groups, entities)
+
+		})
+		It("validate daemon settings false for a nodepool with not all nodes having staic pods", func() {
+
+			// Create GKE nodepools with two nodes
+			entities = nil
+			_, err = updateNodeWithLabel(kubeClient, util.NodePoolGKE, "MirrorPodTestGKE", "kind-worker2")
+			if err != nil {
+				framework.Failf("Error in updating the nodepool label")
+			}
+			_, err = updateNodeWithLabel(kubeClient, util.NodePoolGKE, "MirrorPodTestGKE", "kind-worker")
+			if err != nil {
+				framework.Failf("Error in updating the nodepool label")
+			}
+			entityDTOs, groupDTOs, Err := discoveryClient.DiscoverWithNewFramework(testName)
+			if Err != nil {
+				framework.Failf(Err.Error())
+			}
+
+			for _, entityDTO := range entityDTOs {
+				if *entityDTO.EntityType == proto.EntityDTO_CONTAINER_POD &&
+					strings.Contains(*entityDTO.DisplayName, mirrorpod_prefix) {
+					entities = append(entities, entityDTO)
+				}
+			}
+
+			groups = groupDTOs
+
+			mirrorPodGroup := getGroup(groups, "Mirror-Pods-")
+			var groupMemberList []string = mirrorPodGroup.GetMemberList().GetMember()
+
+			//Group validations
+			if mirrorPodGroup == nil {
+				framework.Failf("Could not find Mirror Pod group")
+			}
+
+			if mirrorPodGroup.GetEntityType() != proto.EntityDTO_CONTAINER_POD {
+				framework.Failf("Mirror pod group has incorrect entity type")
+			}
+
+			if !strings.Contains(mirrorPodGroup.GetDisplayName(), "Mirror Pods") {
+				framework.Failf("Mirror pod group display name has been changed")
+			}
+
+			for _, entity := range entities {
+				//Validate daemon:false as not all nodes in nodepool have static pods
+				if *entity.ConsumerPolicy.Daemon == true {
+					framework.Failf("Daemon set for %v mirror pod should be false as not all the nodes in the nodepool has static pod ", entity.DisplayName)
+				}
+				if !isElementExist(groupMemberList, *entity.Id) {
+					framework.Failf("Pod %s is not present in Mirror pod group", *entity.DisplayName)
+				}
+
+			}
+		})
+
+		AfterEach(func() {
+			delNode = getNodewithNodeName("kind-worker2", kubeClient)
+			_ = deleteLabelsFromNode(delNode, util.NodePoolGKE, kubeClient)
+
+			delNode = getNodewithNodeName("kind-worker3", kubeClient)
+			_ = deleteLabelsFromNode(delNode, util.NodePoolAKS, kubeClient)
+
+			delNode = getNodewithNodeName("kind-worker3", kubeClient)
+			_ = deleteLabelsFromNode(delNode, util.NodePoolGKE, kubeClient)
+
+			delNode = getNodewithNodeName("kind-worker", kubeClient)
+			_ = deleteLabelsFromNode(delNode, util.NodePoolGKE, kubeClient)
+
+		})
+
+	})
+
 	// TODO: this particular Describe is currently used as the teardown for this
 	// whole test (not the suite).
 	// This will work only if run sequentially. Find a better way to do this.
@@ -422,6 +563,46 @@ var _ = Describe("Discover Cluster", func() {
 		})
 	})
 })
+
+func validateMirrorPods(groups []*proto.GroupDTO, entities []*proto.EntityDTO) {
+	mirrorPodGroup := getGroup(groups, "Mirror-Pods-")
+	var groupMemberList []string = mirrorPodGroup.GetMemberList().GetMember()
+
+	//Group validations
+
+	if mirrorPodGroup == nil {
+		framework.Failf("Could not find Mirror Pod group")
+	}
+
+	if mirrorPodGroup.GetEntityType() != proto.EntityDTO_CONTAINER_POD {
+		framework.Failf("Mirror pod group has incorrect entity type")
+	}
+
+	if !strings.Contains(mirrorPodGroup.GetDisplayName(), "Mirror Pods") {
+		framework.Failf("Mirror pod group display name has been changed")
+	}
+
+	//Validate daemon: true in ConsumerPolicy for pods and group contains the mirror pods
+	for _, entity := range entities {
+		if *entity.ConsumerPolicy.Daemon != true {
+			framework.Failf("Daemon set settings for %v mirror pod is false ", entity.DisplayName)
+		}
+		if !isElementExist(groupMemberList, *entity.Id) {
+			framework.Failf("Pod %s is not present in Mirror pod group", *entity.DisplayName)
+		}
+
+	}
+
+}
+
+func isElementExist(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+	return false
+}
 
 func getNodewithNodeName(nodeName string, kubeClient *kubeclientset.Clientset) *corev1.Node {
 	var zoneNode *corev1.Node
@@ -442,7 +623,7 @@ func updateNodeWithLabel(kubeClient *kubeclientset.Clientset, labelKey string,
 	nodeToUpdate.Labels[labelKey] = labelValue //Label node w
 	nodeToUpdate, err = kubeClient.CoreV1().Nodes().Update(context.TODO(), nodeToUpdate, metav1.UpdateOptions{})
 	if err != nil {
-		framework.Failf("Failed to update node %s with zone label: %s %s", nodeToUpdate, labelKey+":"+labelValue, err)
+		framework.Failf("Failed to update node %s with label: %s %s", nodeToUpdate, labelKey+":"+labelValue, err)
 	}
 	return nodeToUpdate, err
 }
@@ -628,16 +809,16 @@ func getNotReadyNode(entities []*proto.EntityDTO) *proto.EntityDTO {
 	return notReadyNode
 }
 
-func getNotReadyNodeGroup(groups []*proto.GroupDTO) *proto.GroupDTO {
-	notReadyNodeGroup := findOneGroup(groups, func(group *proto.GroupDTO) bool {
-		return strings.Contains(group.GetGroupName(), "NotReady-Nodes-")
+func getGroup(groups []*proto.GroupDTO, groupName string) *proto.GroupDTO {
+	reqGroup := findOneGroup(groups, func(group *proto.GroupDTO) bool {
+		return strings.Contains(group.GetGroupName(), groupName)
 	})
 
-	if notReadyNodeGroup != nil {
-		framework.Logf("Successfully found NotReady Node Group")
+	if reqGroup != nil {
+		framework.Logf("Successfully found Group %s", groupName)
 	}
 
-	return notReadyNodeGroup
+	return reqGroup
 }
 
 func validateNumbers(entityDTOs []*proto.EntityDTO, groupDTOs []*proto.GroupDTO, totalEntities, totalGroups int) {
