@@ -164,7 +164,7 @@ var _ = Describe("Action Executor ", func() {
 
 			// TODO: The storageclass can be taken as a configurable parameter from commandline
 			// For now this will need to be updated when running against the given cluster
-			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, "", 1, 1, false))
+			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, "", 1, 1, false, true))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentConfigsPod(kubeClient, dc.Name, namespace, "")
@@ -197,7 +197,7 @@ var _ = Describe("Action Executor ", func() {
 			// TODO: The storageclass can be taken as a configurable parameter from commandline
 			// For now this will need to be updated when running against the given cluster
 			pvc, err := createVolumeClaim(kubeClient, namespace, "gp2")
-			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, pvc.Name, 1, 1, true))
+			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, pvc.Name, 1, 1, true, true))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentConfigsPod(kubeClient, dc.Name, namespace, "")
@@ -227,7 +227,7 @@ var _ = Describe("Action Executor ", func() {
 			if !framework.TestContext.IsOpenShiftTest {
 				Skip("Ignoring resize multiple containers for the deploymentconfig.")
 			}
-			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, "", 2, 1, false))
+			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, "", 2, 1, false, false))
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			targetSE := newResizeWorkloadControllerTargetSE(dc)
@@ -601,10 +601,14 @@ func createDCResource(client *osclient.Clientset, dc *osv1.DeploymentConfig) (*o
 	return waitForDeploymentConfig(client, newDc.Name, newDc.Namespace)
 }
 
-func genDeploymentConfigWithResources(namespace, claimName string, containerNum, replicas int32, withVolume bool) *osv1.DeploymentConfig {
+func genDeploymentConfigWithResources(namespace, claimName string, containerNum, replicas int32, withVolume, isForMove bool) *osv1.DeploymentConfig {
 	containerlst := []corev1.Container{}
 	for i := 0; i < int(containerNum); i++ {
-		containerlst = append(containerlst, genContainerSpec(fmt.Sprintf("test-cont-%d", i+1), "50m", "100Mi", "100m", "200Mi"))
+		if isForMove {
+			containerlst = append(containerlst, genContainerSpec(fmt.Sprintf("test-cont-%d", i+1), "0m", "0Mi", "0m", "0Mi"))
+		} else {
+			containerlst = append(containerlst, genContainerSpec(fmt.Sprintf("test-cont-%d", i+1), "50m", "100Mi", "100m", "200Mi"))
+		}
 	}
 	dc := osv1.DeploymentConfig{
 		ObjectMeta: metav1.ObjectMeta{
