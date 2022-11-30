@@ -101,9 +101,10 @@ spec:
               type: object
               description: Disable features
               properties:
-                disabledFeatures:
-                  description: Feature names
-                  type: string, quote
+                default:
+                  type: string
+                additionalProperties:
+                  type: boolean
             HANodeConfig:
               type: object
               description: Create HA placement policy for Node to Hypervisor by node role. Master is default
