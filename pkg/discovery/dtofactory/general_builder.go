@@ -383,7 +383,7 @@ func (builder generalBuilder) getNodeCPUFrequency(nodeKey string) (float64, erro
 // Throttled value is calculated as the overall percentage from the counter data collected
 // from the first and the last sample. The peak is calculated from the individual throttling
 // percentages by the diff of counters between two subsequent samples.
-func aggregateContainerThrottlingSamples(entityID string, samples []metrics.ThrottlingCumulative) (throttledTime float64, totalUsage float64, peakTimeThrottled float64, ok bool) {
+func aggregateContainerThrottlingSamples(entityID string, samples []metrics.ThrottlingCumulative) (throttledTime float64, totalUsage float64, peakThrottledTimePercent float64, ok bool) {
 	numberOfSamples := len(samples)
 	if numberOfSamples <= 1 {
 		// We don't have enough samples to calculate this value.
@@ -407,7 +407,7 @@ func aggregateContainerThrottlingSamples(entityID string, samples []metrics.Thro
 	for i := 0; i < numberOfSamples-1; i++ {
 		if samples[i+1].TotalUsage < samples[i].TotalUsage || samples[i+1].ThrottledTime < samples[i].ThrottledTime {
 			// This probably means the counter was reset for some reason
-			throttledTime += (samples[i].ThrottledTime - samples[lastReset].ThrottledTime)
+			throttledTime += samples[i].ThrottledTime - samples[lastReset].ThrottledTime
 			totalUsage += samples[i].TotalUsage - samples[lastReset].TotalUsage
 			lastReset = i + 1
 			// we ignore this samples diff for our peak calculations
@@ -420,7 +420,7 @@ func aggregateContainerThrottlingSamples(entityID string, samples []metrics.Thro
 		if throttledTimeSingleSample > 0 || totalUsageSingleSample > 0 {
 			throttledTimePercent = throttledTimeSingleSample * 100 / (throttledTimeSingleSample + totalUsageSingleSample)
 		}
-		peakTimeThrottled = math.Max(peakTimeThrottled, throttledTimePercent) //new
+		peakThrottledTimePercent = math.Max(peakThrottledTimePercent, throttledTimePercent)
 	}
 
 	// handle last window if there ever was one, else this calculates the diff of the first and the last sample.
@@ -428,5 +428,5 @@ func aggregateContainerThrottlingSamples(entityID string, samples []metrics.Thro
 		throttledTime += (samples[numberOfSamples-1].ThrottledTime - samples[lastReset].ThrottledTime)
 		totalUsage += samples[numberOfSamples-1].TotalUsage - samples[lastReset].TotalUsage
 	}
-	return throttledTime, totalUsage, peakTimeThrottled, true
+	return throttledTime, totalUsage, peakThrottledTimePercent, true
 }

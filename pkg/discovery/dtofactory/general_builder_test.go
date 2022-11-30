@@ -345,16 +345,16 @@ func TestMetricValueWithThrottlingCumulativePoints(t *testing.T) {
 
 	metricValue, _ = dtoBuilder.metricValue(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used, nil)
 	fmt.Printf("metricValue %v\n", metricValue)
-	// time                  t1   t2    t3     t4      t5                  t6     t7    t8               t9     t10    t11
-	// throttled samples =   1    3     5      6       11                  0      1     3                1       3      1
-	// total samples =       5    8     10     15      25                  0      5     8                5       8      5
-	// diff                   d1    d2     d3      d4          d5              d6    d7       d8              d9       d10
-	// throttled =           (3-1) (5-3)  (6-5)   (11-6)  (reset/ignore 0-11) (1-0) (3-1) (reset/ignore 1-3) (3-1)  (reset/ignore 1-3)
-	// total =               (8-5) (10-8) (15-10) (25-15) (reset/ignore 0-25) (5-0) (8-5) (reset/ignore 5-8) (8-5)  (reset/ignore 5-8)
-	// avg =				 2/2+3  2/2+2   1/1+5   5/5+10						1/1+5 2/2+3						2/2+3
+	// time                  t1    t2    t3      t4      t5                  t6     t7    t8                t9     t10    t11
+	// throttled samples =   1     3     5       6       11                  0      1     3                 1       3      1
+	// total samples =       5     8     10      15      25                  0      5     8                 5       8      5
+	// diff                 d1     d2    d3      d4      d5                  d6    d7     d8                d9     d10
+	// throttled =         (3-1)  (5-3)  (6-5)   (11-6)  (reset/ignore 0-11) (1-0) (3-1) (reset/ignore 1-3) (3-1)  (reset/ignore 1-3)
+	// total =             (8-5)  (10-8) (15-10) (25-15) (reset/ignore 0-25) (5-0) (8-5) (reset/ignore 5-8) (8-5)  (reset/ignore 5-8)
+	// avg =			   2/2+3  2/2+2   1/1+5   5/5+10					  1/1+5 2/2+3						2/2+3
 	//						  time = (11-1) usage = (25-5)                  time = (3-0) usage =(8-0)		time=(3-1) usage=(8-5)
 	//						  40	50	    16.67   33.33                       16.67  40                        40
-	// Window                |_____________w1___________|                     |___w2____|                    |_w3_|
+	// Window                |_____________w1___________|                      |___w2____|                     |_w3_|
 
 	// Avg = ((11-1)+(3-0)+(3-1))*100/[((25-5)+(8-0)+(8-5)) + ((11-1)+(3-0)+(3-1))] = (10+3+2)/[(20+8+3)+(10+3+2)] = 32.6
 	// Peak = (5-3)*100/(10-8) = 100

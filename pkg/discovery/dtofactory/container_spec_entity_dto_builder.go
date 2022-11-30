@@ -175,7 +175,7 @@ func aggregateThrottlingSamples(containerSpecId string, containerSpecVCPUCapacit
 	for _, singleContainerSamples := range samples {
 		// Include container samples only if corresponding CPU limit is same as containerSpec VCPU capacity.
 		filteredContainerSamples := filterContainerThrottlingSamples(containerSpecId, singleContainerSamples, containerSpecVCPUCapacity)
-		containerThrottledTime, containerTotalUsage, containerThrottledTimePeak, ok :=
+		containerThrottledTime, containerTotalUsage, containerThrottledPercentPeak, ok :=
 			aggregateContainerThrottlingSamples("", filteredContainerSamples)
 		if !ok {
 			// We don't have enough samples to calculate this value.
@@ -183,7 +183,7 @@ func aggregateThrottlingSamples(containerSpecId string, containerSpecVCPUCapacit
 		}
 		throttledTimeOverall += containerThrottledTime
 		totalUsageOverall += containerTotalUsage
-		peakThrottledPercentOverall = math.Max(peakThrottledPercentOverall, containerThrottledTimePeak)
+		peakThrottledPercentOverall = math.Max(peakThrottledPercentOverall, containerThrottledPercentPeak)
 	}
 
 	avgThrottledTimeOverall := float64(0)
@@ -191,7 +191,7 @@ func aggregateThrottlingSamples(containerSpecId string, containerSpecVCPUCapacit
 		avgThrottledTimeOverall = throttledTimeOverall * 100 / (throttledTimeOverall + totalUsageOverall)
 	}
 
-	return 100, avgThrottledTimeOverall, peakThrottledPercentOverall //avgThrottledOverall, peakOverall
+	return 100, avgThrottledTimeOverall, peakThrottledPercentOverall
 }
 
 func filterContainerThrottlingSamples(containerSpecId string, singleContainerSamples []metrics.ThrottlingCumulative, containerSpecVCPUCapacity float64) []metrics.ThrottlingCumulative {
