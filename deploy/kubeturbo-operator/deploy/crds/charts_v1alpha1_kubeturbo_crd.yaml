@@ -99,12 +99,9 @@ spec:
                   type: string
             featureGates:
               type: object
-              description: Disable features
-              properties:
-                default:
-                  type: string
-                additionalProperties:
-                  type: boolean
+              description: Enable or disable features
+              additionalProperties:
+                type: boolean
             HANodeConfig:
               type: object
               description: Create HA placement policy for Node to Hypervisor by node role. Master is default
