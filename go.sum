@@ -72,8 +72,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/GoogleCloudPlatform/k8s-cloud-provider v1.16.1-0.20210702024009-ea6160c1d0e3/go.mod h1:8XasY4ymP2V/tn2OOV9ZadmiTE1FIB/h3W+yNlPttKw=
 github.com/JeffAshton/win_pdh v0.0.0-20161109143554-76bb4ee9f0ab/go.mod h1:3VYc5hodBMJ5+l/7J4xAyMeuM2PNuepvHlGs8yilUCA=
-github.com/KimMachineGun/automemlimit v0.2.2 h1:WAcvOZV8aA4YGS0V3HQZ60dR3h0Dd/6tWzEhf1InJ1k=
-github.com/KimMachineGun/automemlimit v0.2.2/go.mod h1:38QAnnnNhnFuAIW3+aPlaVUHqzE9buJYZK3m/jsra8E=
+github.com/KimMachineGun/automemlimit v0.2.4 h1:GBty8TK8k0aJer1Pq5/3Vdt2ef+YpLhcqNo+PSD5CoI=
+github.com/KimMachineGun/automemlimit v0.2.4/go.mod h1:38QAnnnNhnFuAIW3+aPlaVUHqzE9buJYZK3m/jsra8E=
 github.com/Knetic/govaluate v3.0.1-0.20171022003610-9aa49832a739+incompatible/go.mod h1:r7JcOSlj0wfOMncg0iLm8Leh48TZaKVeNIfJntJ2wa0=
 github.com/MakeNowJust/heredoc v0.0.0-20170808103936-bb23615498cd/go.mod h1:64YHyfSL2R96J44Nlwm39UHepQbyR5q10x7iYa1ks2E=
 github.com/MakeNowJust/heredoc v1.0.0/go.mod h1:mG5amYoWBHf8vpLOuehzbGGw0EHxpZZ6lCpQ4fNJ8LE=
@@ -877,8 +877,6 @@ github.com/turbonomic/turbo-api v0.0.0-20221010220448-3f35ebf030aa h1:x7AkF/BAbv
 github.com/turbonomic/turbo-api v0.0.0-20221010220448-3f35ebf030aa/go.mod h1:L3eNZzTD3Iw8GV+cfeJD/lfDaEGPbZZGQrtml71yG10=
 github.com/turbonomic/turbo-crd v0.0.0-20220630232025-77ff549647ec h1:AmQY0cCtDy28QkzPcyHNjMmY54agR87FPZ5EluG7ChY=
 github.com/turbonomic/turbo-crd v0.0.0-20220630232025-77ff549647ec/go.mod h1:yUpUS3CIq74nyG/OmIYFu4Uw8eKg5om58cOk2dz4xMA=
-github.com/turbonomic/turbo-go-sdk v0.0.0-20221010221617-9853850521da h1:n9mvr4uGIMuTMXMY7sZZRenj4WBTqbU0K275TUR6Ykg=
-github.com/turbonomic/turbo-go-sdk v0.0.0-20221010221617-9853850521da/go.mod h1:RWvXz62oL7Yhkw+WRdDRdOEZSsm8f0vR3xvsgSU9ohM=
 github.com/turbonomic/turbo-go-sdk v0.0.0-20221114162847-7ef7b8aa0887 h1:fhRj83T3M+duhrM8NXR3I0M23dDbIK+eUIBYDx4kIIo=
 github.com/turbonomic/turbo-go-sdk v0.0.0-20221114162847-7ef7b8aa0887/go.mod h1:RWvXz62oL7Yhkw+WRdDRdOEZSsm8f0vR3xvsgSU9ohM=
 github.com/ugorji/go v1.1.4/go.mod h1:uQMGLiO92mf5W77hV/PUCpI3pbzQx3CRekS0kk+RGrc=

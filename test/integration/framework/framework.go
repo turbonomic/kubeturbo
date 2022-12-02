@@ -17,6 +17,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 )
 
 const (
@@ -88,8 +89,8 @@ func (f *TestFramework) GetClusterNodes() []string {
 	ExpectNoError(err, fmt.Sprintf("Error retrieving list of cluster nodes: %+v", err))
 
 	for _, node := range nodes.Items {
-		// skip master nodes.
-		if isMasterNode(node) {
+		// skip master nodes and NotReady nodes
+		if isMasterNode(node) || !util.NodeIsReady(&node) {
 			continue
 		}
 		nodeNames = append(nodeNames, node.Name)

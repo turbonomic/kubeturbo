@@ -93,7 +93,7 @@ require (
 )
 
 require (
-	github.com/KimMachineGun/automemlimit v0.2.2
+	github.com/KimMachineGun/automemlimit v0.2.4
 	github.com/argoproj/gitops-engine v0.7.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1

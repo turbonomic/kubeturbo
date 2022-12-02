@@ -17,6 +17,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/master"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
 	"github.com/turbonomic/kubeturbo/version"
 	"github.com/turbonomic/turbo-go-sdk/pkg/probe"
@@ -91,7 +92,24 @@ func ParseK8sTAPServiceSpec(configFile string, defaultTargetName string) (*K8sTA
 	detectors.ValidateAndParseDetectors(tapSpec.MasterNodeDetectors,
 		tapSpec.DaemonPodDetectors, tapSpec.HANodeConfig, tapSpec.AnnotationWhitelist)
 
+	logFeatureGates(tapSpec)
+
 	return tapSpec, nil
+}
+
+func logFeatureGates(tapSpec *K8sTAPServiceSpec) {
+	featureGates := make(map[string]bool)
+	for featureGate, flag := range tapSpec.FeatureGates {
+		featureGates[featureGate] = flag
+	}
+	for feature, spec := range features.DefaultKubeturboFeatureGates {
+		if _, exists := featureGates[string(feature)]; !exists {
+			featureGates[string(feature)] = spec.Default
+		}
+	}
+	for feature, flag := range featureGates {
+		glog.V(2).Infof("FEATURE GATE: %s=%t", feature, flag)
+	}
 }
 
 func loadOpsMgrCredentialsFromSecret(tapSpec *K8sTAPServiceSpec) error {
@@ -208,7 +226,11 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 	discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, config.tapSpec.K8sTargetConfig,
 		config.ValidationWorkers, config.ValidationTimeoutSec, config.containerUtilizationDataAggStrategy,
 		config.containerUsageDataAggStrategy, config.ORMClient, config.DiscoveryWorkers, config.DiscoveryTimeoutSec,
-		config.DiscoverySamples, config.DiscoverySampleIntervalSec)
+		config.DiscoverySamples, config.DiscoverySampleIntervalSec, config.ItemsPerListQuery)
+
+	if config.clusterKeyInjected != "" {
+		discoveryClientConfig = discoveryClientConfig.WithClusterKeyInjected(config.clusterKeyInjected)
+	}
 
 	k8sSvcId, err := probeConfig.ClusterScraper.GetKubernetesServiceID()
 	if err != nil {

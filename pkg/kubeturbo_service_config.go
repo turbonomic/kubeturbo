@@ -55,8 +55,12 @@ type Config struct {
 	failVolumePodMoves      bool
 	updateQuotaToAllowMoves bool
 	clusterAPIEnabled       bool
+	clusterKeyInjected      string
 	readinessRetryThreshold int
 	gitConfig               gitops.GitConfig
+
+	// Number of workload controller items the list api call should request for
+	ItemsPerListQuery int
 }
 
 func NewVMTConfig2() *Config {
@@ -65,6 +69,11 @@ func NewVMTConfig2() *Config {
 	}
 
 	return cfg
+}
+
+func (c *Config) WithClusterKeyInjected(clusterKeyInjected string) *Config {
+	c.clusterKeyInjected = clusterKeyInjected
+	return c
 }
 
 func (c *Config) WithKubeClient(client *kubeclient.Clientset) *Config {
@@ -199,5 +208,10 @@ func (c *Config) WithReadinessRetryThreshold(readinessRetryThreshold int) *Confi
 
 func (c *Config) WithGitConfig(gitConfig gitops.GitConfig) *Config {
 	c.gitConfig = gitConfig
+	return c
+}
+
+func (c *Config) WithItemsPerListQuery(itemsPerListQuery int) *Config {
+	c.ItemsPerListQuery = itemsPerListQuery
 	return c
 }

@@ -3,6 +3,7 @@ package dtofactory
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
@@ -48,7 +49,8 @@ var (
 
 type nodeEntityDTOBuilder struct {
 	generalBuilder
-	stitchingManager *stitching.StitchingManager
+	stitchingManager   *stitching.StitchingManager
+	clusterKeyInjected string
 }
 
 func NewNodeEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager) *nodeEntityDTOBuilder {
@@ -56,6 +58,11 @@ func NewNodeEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *s
 		generalBuilder:   newGeneralBuilder(sink),
 		stitchingManager: stitchingManager,
 	}
+}
+
+func (builder *nodeEntityDTOBuilder) WithClusterKeyInjected(clusterKeyInjected string) *nodeEntityDTOBuilder {
+	builder.clusterKeyInjected = clusterKeyInjected
+	return builder
 }
 
 // BuildEntityDTOs builds entityDTOs based on the given node list.
@@ -239,8 +246,16 @@ func (builder *nodeEntityDTOBuilder) getNodeCommoditiesSold(node *api.Node, clus
 	}
 
 	// Cluster commodity.
+	var clusterCommKey string
+	if len(strings.TrimSpace(builder.clusterKeyInjected)) != 0 {
+		clusterCommKey = builder.clusterKeyInjected
+		glog.V(4).Infof("Injecting cluster key for Node %s with key : %s", node.Name, clusterCommKey)
+	} else {
+		clusterCommKey = clusterId
+		glog.V(4).Infof("Adding cluster key for Node %s with key : %s", node.Name, clusterCommKey)
+	}
 	clusterComm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_CLUSTER).
-		Key(clusterId).
+		Key(clusterCommKey).
 		Capacity(clusterCommodityDefaultCapacity).
 		Create()
 	if err != nil {

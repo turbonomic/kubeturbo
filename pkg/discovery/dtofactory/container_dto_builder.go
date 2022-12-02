@@ -100,6 +100,7 @@ func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 				continue
 			}
 		}
+
 		for i := range pod.Spec.Containers {
 			container := &(pod.Spec.Containers[i])
 
@@ -162,7 +163,10 @@ func (builder *containerDTOBuilder) BuildEntityDTOs(pods []*api.Pod) ([]*proto.E
 			ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
 			truep := true
-			controllable := util.Controllable(pod)
+
+			// controllability of applications should not be dictated by mirror pods modeled as daemon pods
+			// because they cannot be controlled through the API server
+			controllable := util.Controllable(pod, false)
 			monitored := true
 			powerState := proto.EntityDTO_POWERED_ON
 			if !util.PodIsReady(pod) {
