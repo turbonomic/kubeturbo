@@ -125,18 +125,18 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		case repository.AppTypeArgoCD:
 			// The workload is managed by a pipeline controller (argoCD) which replicates
 			// it from a source of truth
-			manager = gitops.NewGitHubManager(c.gitConfig, c.clients.typedClient,
+			manager = gitops.NewGitManager(c.gitConfig, c.clients.typedClient,
 				c.clients.dynClient, c.obj, c.managerApp, c.k8sClusterId)
 			glog.Infof("Gitops pipeline detected.")
 		default:
 			return fmt.Errorf("unsupported gitops manager type: %v", c.managerApp.Type)
 		}
 
-		completionData, err := manager.Update(int64(*updatedSpec.replicas), podSpecUnstructured)
+		completionFn, completionData, err := manager.Update(int64(*updatedSpec.replicas), podSpecUnstructured)
 		if err != nil {
 			return fmt.Errorf("failed to update the gitops managed source of truth: %v", err)
 		}
-		return manager.WaitForActionCompletion(completionData)
+		return manager.WaitForActionCompletion(completionFn, completionData)
 	}
 
 	ownerInfo, isOwnerSet := discoveryutil.GetOwnerInfo(c.obj.GetOwnerReferences())
