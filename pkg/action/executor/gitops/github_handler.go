@@ -151,7 +151,7 @@ func (g *GitHubHandler) UpdateRemote(res *unstructured.Unstructured, replicas in
 	var err error
 	resName := res.GetName()
 	resNamespace := res.GetNamespace()
-	if g.commitMode == CommitModePR {
+	if g.commitMode == CommitModeRequest {
 		pr, err = g.checkPrExists(resName, resNamespace, clusterId)
 		if err != nil {
 			return nil, nil, err
@@ -221,15 +221,18 @@ func (g *GitHubHandler) UpdateRemote(res *unstructured.Unstructured, replicas in
 		return nil, nil, fmt.Errorf("error committing new content to branch %s, %v", g.baseBranch, err)
 	}
 
-	if g.commitMode == CommitModePR {
+	if g.commitMode == CommitModeRequest {
 		if pr == nil {
 			pr, err = g.newPR(resName, resNamespace, clusterId, commitBranchName)
 			if err != nil {
 				return nil, nil, err
 			}
+			glog.Infof("PR #%d created. "+
+				"Will now wait for the PR to be merged to complete the action.", pr.GetNumber())
+		} else {
+			glog.Infof("PR #%d exists. "+
+				"Will now wait for the PR to be merged to complete the action.", pr.GetNumber())
 		}
-		glog.Infof("PR #%d created. "+
-			"Will now wait for the PR to be merged to complete the action.", pr.GetNumber())
 		return GitHubWaitForCompletionFn, gitHubWaitData{
 			handler: g,
 			prNum:   pr.GetNumber(),
@@ -246,7 +249,7 @@ func GitHubWaitForCompletionFn(completionData interface{}) error {
 		waitData = data
 	default:
 		return fmt.Errorf("wrong type of completion data received in"+
-			"githubManager waitforActionCompletion: expected: [gitWaitData], got: [%t]", data)
+			"githubManager waitforActionCompletion: expected: [gitHubWaitData], got: [%t]", data)
 	}
 
 	// We currently wait for the PR to be merged with a big timeout (1 week), which is

@@ -16,7 +16,7 @@ import (
 
 const (
 	KubeturboNamespaceEnv = "KUBETURBO_NAMESPACE"
-	CommitModePR          = "pr"
+	CommitModeRequest     = "request"
 	CommitModeDirect      = "direct"
 )
 
