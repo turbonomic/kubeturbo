@@ -3,16 +3,17 @@ package processor
 import (
 	"strings"
 
-	"github.com/golang/glog"
-
 	"github.com/davecgh/go-spew/spew"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 )
 
@@ -65,6 +66,7 @@ var (
 type ControllerProcessor struct {
 	ClusterInfoScraper cluster.ClusterScraperInterface
 	KubeCluster        *repository.KubeCluster
+	itemsPerListQuery  int
 }
 
 func NewControllerProcessor(clusterInfoScraper cluster.ClusterScraperInterface,
@@ -73,6 +75,11 @@ func NewControllerProcessor(clusterInfoScraper cluster.ClusterScraperInterface,
 		ClusterInfoScraper: clusterInfoScraper,
 		KubeCluster:        kubeCluster,
 	}
+}
+
+func (cp *ControllerProcessor) WithItemsPerListQuery(itemsPerListQuery int) *ControllerProcessor {
+	cp.itemsPerListQuery = itemsPerListQuery
+	return cp
 }
 
 func (cp *ControllerProcessor) ProcessControllers() {
@@ -88,9 +95,15 @@ func (cp *ControllerProcessor) cacheAllControllers() {
 	}
 	controllerMap := make(map[string]*repository.K8sController)
 	for _, controller := range supportedControllers {
-		items, err := cp.ClusterInfoScraper.GetResources(controller)
+		var items []unstructured.Unstructured
+		var err error
+		if feature.DefaultFeatureGate.Enabled(features.GoMemLimit) {
+			items, err = cp.ClusterInfoScraper.GetResourcesPaginated(controller, cp.itemsPerListQuery)
+		} else {
+			items, err = cp.ClusterInfoScraper.GetResources(controller)
+		}
 		if err != nil {
-			if apierrors.IsNotFound(err) && strings.Contains(err.Error(), "the server could not find the requested resource") {
+			if errors.IsNotFound(err) && strings.Contains(err.Error(), "the server could not find the requested resource") {
 				glog.V(3).Infof("Resource %v not found ", controller.Resource)
 			} else {
 				glog.Errorf("Failed to list workload controller for %v", controller.Resource)

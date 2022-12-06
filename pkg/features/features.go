@@ -71,5 +71,5 @@ var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSp
 	ThrottlingMetrics:      {Default: true, PreRelease: featuregate.Beta},
 	GitopsApps:             {Default: false, PreRelease: featuregate.Alpha},
 	HonorAzLabelPvAffinity: {Default: true, PreRelease: featuregate.Alpha},
-	GoMemLimit:             {Default: false, PreRelease: featuregate.Alpha},
+	GoMemLimit:             {Default: true, PreRelease: featuregate.Alpha},
 }

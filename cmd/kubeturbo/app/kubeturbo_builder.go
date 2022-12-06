@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/KimMachineGun/automemlimit/memlimit"
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
 	clusterclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
@@ -37,6 +36,7 @@ import (
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
 	nodeUtil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	agg "github.com/turbonomic/kubeturbo/pkg/discovery/worker/aggregation"
@@ -238,7 +238,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.gitConfig.GitSecretName, "git-secret-name", "", "The name of the secret which holds the git credentials.")
 	fs.StringVar(&s.gitConfig.GitUsername, "git-username", "", "The user name to be used to push changes to git.")
 	fs.StringVar(&s.gitConfig.GitEmail, "git-email", "", "The email to be used to push changes to git.")
-	fs.StringVar(&s.gitConfig.CommitMode, "git-commit-mode", "direct", "The commit mode that should be used for git action executions. One of pr|direct. Defaults to direct.")
+	fs.StringVar(&s.gitConfig.CommitMode, "git-commit-mode", "direct", "The commit mode that should be used for git action executions. One of request|direct. Defaults to direct.")
 	fs.Float64Var(&s.vcpuThrottlingUtilThreshold, "vcpu-throttling-threshold", DefaultVcpuThrottlingUtilThreshold, "The VCPU Throttling util threshold.")
 }
 
@@ -379,38 +379,26 @@ func (s *VMTServer) Run() {
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.GoMemLimit) {
 		glog.V(2).Info("Memory Optimisations are enabled.")
-		// Set Go runtime soft memory limit: https://pkg.go.dev/runtime/debug#SetMemoryLimit
-		// Set Go runtime soft memory limit through the AUTOMEMLIMIT environment variable.
-		// AUTOMEMLIMIT configures how much memory of the cgroup's memory limit should be set as Go runtime
-		// soft memory limit in the half-open range (0.0,1.0].
-		// If AUTOMEMLIMIT is not set, it defaults to 0.9. This means 10% is the headroom for memory sources
-		// that the Go runtime is unaware of and unable to control.
-		// If GOMEMLIMIT environment variable is already set or AUTOMEMLIMIT=off, this function does nothing.
 		// AUTOMEMLIMIT_DEBUG environment variable enables debug logging of AUTOMEMLIMIT
+		// GoMemLimit will be set during the start of each discovery, see K8sDiscoveryClient.Discover,
+		// as memory limit may change overtime
 		_ = os.Setenv("AUTOMEMLIMIT_DEBUG", "true")
-		memlimit.SetGoMemLimitWithEnv()
-		if s.ItemsPerListQuery == 0 {
-			limit, err := memlimit.FromCgroup()
-			if err != nil {
-				// This is very unlikely because in absense of any limit set in container resources
-				// we will get the cgroup limit as the nodes available/usable memory limit
-				glog.Errorf("Error retrieving memory limit (%v): %v.", limit, err)
-			} else if limit == 0 {
-				// This is very unlikely because in absense of any limit set in container resources
-				// we will get the cgroup limit as the nodes available/usable memory limit
-				glog.Error("Limit found set to zero (0).")
+		if s.ItemsPerListQuery != 0 {
+			// Perform sanity check on user specified value of itemsPerListQuery
+			if s.ItemsPerListQuery < processor.DefaultItemsPerGBMemory {
+				var errMsg string
+				if s.ItemsPerListQuery < 0 {
+					errMsg = "negative"
+				} else {
+					errMsg = "set too low"
+				}
+				glog.Warningf("Argument --items-per-list-query is %s (%v). Setting it to the default value of %d.",
+					errMsg, s.ItemsPerListQuery, processor.DefaultItemsPerGBMemory)
+				s.ItemsPerListQuery = processor.DefaultItemsPerGBMemory
 			} else {
-				glog.V(2).Infof("Cgroup memlimit is set as %v.", limit)
-				util.ItemsPerListQuery = calculateListAPIItemsCount(float64(limit))
+				glog.V(2).Infof("Set items per list API call to the user specified value: %v.", s.ItemsPerListQuery)
 			}
-		} else {
-			if s.ItemsPerListQuery < 10 {
-				glog.Warningf("Arg --items-per-list-query is set too low (%v), capping it to a minimum of 10 items.", s.ItemsPerListQuery)
-				s.ItemsPerListQuery = 10
-			}
-			util.ItemsPerListQuery = s.ItemsPerListQuery
 		}
-		glog.V(2).Infof("List Query Items Count is set to %v.", util.ItemsPerListQuery)
 	} else {
 		glog.V(2).Info("Memory Optimisations are not enabled.")
 	}
@@ -462,6 +450,7 @@ func (s *VMTServer) Run() {
 		WithClusterAPIEnabled(clusterAPIEnabled).
 		WithReadinessRetryThreshold(s.readinessRetryThreshold).
 		WithClusterKeyInjected(s.ClusterKeyInjected).
+		WithItemsPerListQuery(s.ItemsPerListQuery).
 		WithVcpuThrottlingUtilThreshold(s.vcpuThrottlingUtilThreshold)
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.GitopsApps) {
@@ -543,15 +532,6 @@ func handleExit(disconnectFunc disconnectFromTurboFunc) { // k8sTAPService *kube
 			disconnectFunc()
 		}
 	}()
-}
-
-// The rational behind this calculation
-// Memory used in other areas approx = 500MB (conservatively).
-// heap-to-memory-limit ratio = 0.9
-//
-// ItemsPerListQuery = (mem_limit_gb * 0.9 - 0.5) * 5K
-func calculateListAPIItemsCount(memLimit float64) int {
-	return int(5000 * (nodeUtil.Base2BytesToGigabytes(memLimit)*0.9 - 0.5))
 }
 
 func discoverk8sAPIResourceGV(client *kubernetes.Clientset, resourceName string) (schema.GroupVersion, error) {

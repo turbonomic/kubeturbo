@@ -5,7 +5,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/golang/glog"
+	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
@@ -18,10 +23,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/registration"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	kubeturboversion "github.com/turbonomic/kubeturbo/version"
-	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 const (
@@ -49,6 +50,8 @@ type DiscoveryClientConfig struct {
 	// ORMClient builds operator resource mapping templates fetched from OperatorResourceMapping CR so that action
 	// execution client will be able to execute action on operator-managed resources based on resource mapping templates.
 	OrmClient *resourcemapping.ORMClient
+	// Number of workload controller items the list api call should request for
+	itemsPerListQuery int
 	// VCPU Throttling threshold
 	CommodityConfig *dtofactory.CommodityConfig
 }
@@ -57,7 +60,8 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 	targetConfig *configs.K8sTargetConfig, ValidationWorkers int,
 	ValidationTimeoutSec int, containerUtilizationDataAggStrategy,
 	containerUsageDataAggStrategy string, ormClient *resourcemapping.ORMClient,
-	discoveryWorkers, discoveryTimeoutMin, discoverySamples, discoverySampleIntervalSec int, commodityConfig *dtofactory.CommodityConfig) *DiscoveryClientConfig {
+	discoveryWorkers, discoveryTimeoutMin, discoverySamples,
+	discoverySampleIntervalSec, itemsPerListQuery int, , commodityConfig *dtofactory.CommodityConfig) *DiscoveryClientConfig {
 	if discoveryWorkers < minDiscoveryWorker {
 		glog.Warningf("Invalid number of discovery workers %v, set it to %v.",
 			discoveryWorkers, minDiscoveryWorker)
@@ -87,6 +91,7 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 		DiscoveryTimeoutSec:                 discoveryTimeoutMin,
 		DiscoverySamples:                    discoverySamples,
 		DiscoverySampleIntervalSec:          discoverySampleIntervalSec,
+		itemsPerListQuery:                   itemsPerListQuery,
 		CommodityConfig:                     commodityConfig,
 	}
 }
@@ -97,7 +102,7 @@ func (config *DiscoveryClientConfig) WithClusterKeyInjected(clusterKeyInjected s
 	return config
 }
 
-// Implements the go sdk discovery client interface
+// K8sDiscoveryClient defines the go sdk discovery client interface
 type K8sDiscoveryClient struct {
 	Config                 *DiscoveryClientConfig
 	k8sClusterScraper      *cluster.ClusterScraper
@@ -113,7 +118,7 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 
 	// for discovery tasks
 	clusterProcessor := processor.NewClusterProcessor(k8sClusterScraper, config.probeConfig.NodeClient,
-		config.ValidationWorkers, config.ValidationTimeoutSec)
+		config.ValidationWorkers, config.ValidationTimeoutSec, config.itemsPerListQuery)
 
 	globalEntityMetricSink := metrics.NewEntityMetricSink().WithMaxMetricPointsSize(config.DiscoverySamples)
 
@@ -256,6 +261,19 @@ func (dc *K8sDiscoveryClient) Discover(
 
 	glog.V(2).Infof("Discovering kubernetes cluster...")
 
+	if utilfeature.DefaultFeatureGate.Enabled(features.GoMemLimit) {
+		// Set Go runtime soft memory limit: https://pkg.go.dev/runtime/debug#SetMemoryLimit
+		// Set Go runtime soft memory limit through the AUTOMEMLIMIT environment variable.
+		// AUTOMEMLIMIT configures how much memory of the cgroup's memory limit should be set as Go runtime
+		// soft memory limit in the half-open range (0.0,1.0].
+		// If AUTOMEMLIMIT is not set, it defaults to 0.9. This means 10% is the headroom for memory sources
+		// that the Go runtime is unaware of and unable to control.
+		// If GOMEMLIMIT environment variable is already set or AUTOMEMLIMIT=off, this function does nothing.
+		// Set GoMemLimit during each discovery as memory limit may change over time (when in-place resource
+		// update is enabled).
+		memlimit.SetGoMemLimitWithEnv()
+	}
+
 	discoveryResponse = &proto.DiscoveryResponse{}
 
 	var targetID string
@@ -289,9 +307,7 @@ func (dc *K8sDiscoveryClient) Discover(
 	return
 }
 
-/*
-The actual discovery work is done here.
-*/
+// DiscoverWithNewFramework performs the actual discovery.
 func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*proto.EntityDTO, []*proto.GroupDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES, QUOTAS, SERVICES HERE
 	clusterSummary, err := dc.clusterProcessor.DiscoverCluster()
