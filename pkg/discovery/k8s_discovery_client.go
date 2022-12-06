@@ -61,7 +61,7 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 	ValidationTimeoutSec int, containerUtilizationDataAggStrategy,
 	containerUsageDataAggStrategy string, ormClient *resourcemapping.ORMClient,
 	discoveryWorkers, discoveryTimeoutMin, discoverySamples,
-	discoverySampleIntervalSec, itemsPerListQuery int, , commodityConfig *dtofactory.CommodityConfig) *DiscoveryClientConfig {
+	discoverySampleIntervalSec, itemsPerListQuery int, commodityConfig *dtofactory.CommodityConfig) *DiscoveryClientConfig {
 	if discoveryWorkers < minDiscoveryWorker {
 		glog.Warningf("Invalid number of discovery workers %v, set it to %v.",
 			discoveryWorkers, minDiscoveryWorker)

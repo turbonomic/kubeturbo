@@ -107,7 +107,7 @@ var _ = Describe("Discover Cluster", func() {
 			discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, nil, app.DefaultValidationWorkers,
 				app.DefaultValidationTimeout, aggregation.DefaultContainerUtilizationDataAggStrategy,
 				aggregation.DefaultContainerUsageDataAggStrategy, ormClient, app.DefaultDiscoveryWorkers, app.DefaultDiscoveryTimeoutSec,
-				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec, 0, , dtofactory.DefaultCommodityConfig())
+				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec, 0, dtofactory.DefaultCommodityConfig())
 
 			// Kubernetes Probe Discovery Client
 			discoveryClient = discovery.NewK8sDiscoveryClient(discoveryClientConfig)
