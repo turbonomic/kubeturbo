@@ -70,6 +70,13 @@ func (builder *containerSpecDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 				entityDTOBuilder.WithProperties(property.BuildLabelAnnotationProperties(controller.Labels, controller.Annotations, detectors.AWContainerSpec))
 			}
 		}
+		//container spec data
+		cPUThrottlingType := proto.EntityDTO_timeBased
+		containerSpecData := &proto.EntityDTO_ContainerSpecData{
+			CpuThrottlingType: &cPUThrottlingType,
+		}
+		entityDTOBuilder.ContainerSpecData(containerSpecData)
+
 		dto, err := entityDTOBuilder.Create()
 		if err != nil {
 			glog.Errorf("Failed to build ContainerSpec[%s] entityDTO: %v", containerSpecId, err)
