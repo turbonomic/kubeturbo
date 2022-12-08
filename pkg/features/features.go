@@ -59,6 +59,15 @@ const (
 	// This gate will enable the temporary namespace quota increase when
 	// kubeturbo execute a resize action on a workload controller
 	AllowIncreaseNsQuota4Resizing featuregate.Feature = "AllowIncreaseNsQuota4Resizing"
+	// IgnoreAffinities owner: @irfanurrehman
+	// alpha:
+	//
+	// This gate will simply ignore processing of affinities in the cluster.
+	// This is to try out temporarily disable processing of affinities to be able to
+	// try out a POV in a customer environment, which is held up because of inefficiency
+	// in out code, where affinity processing alone takes a really long time.
+	// https://vmturbo.atlassian.net/browse/OM-93635?focusedCommentId=771727
+	IgnoreAffinities featuregate.Feature = "IgnoreAffinities"
 )
 
 func init() {
@@ -79,4 +88,5 @@ var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSp
 	HonorAzLabelPvAffinity:        {Default: true, PreRelease: featuregate.Alpha},
 	GoMemLimit:                    {Default: true, PreRelease: featuregate.Alpha},
 	AllowIncreaseNsQuota4Resizing: {Default: true, PreRelease: featuregate.Alpha},
+	IgnoreAffinities:              {Default: false, PreRelease: featuregate.Alpha},
 }
