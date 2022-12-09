@@ -398,14 +398,18 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	glog.V(2).Infof("There are totally %d entityDTOs.", len(result.EntityDTOs))
 
 	// affinity process
-	glog.V(2).Infof("Begin to process affinity.")
-	affinityProcessor, err := compliance.NewAffinityProcessor(clusterSummary)
-	if err != nil {
-		glog.Errorf("Failed during process affinity rules: %s", err)
+	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) {
+		glog.V(2).Infof("Begin to process affinity.")
+		affinityProcessor, err := compliance.NewAffinityProcessor(clusterSummary)
+		if err != nil {
+			glog.Errorf("Failed during process affinity rules: %s", err)
+		} else {
+			result.EntityDTOs = affinityProcessor.ProcessAffinityRules(result.EntityDTOs)
+		}
+		glog.V(2).Infof("Successfully processed affinity.")
 	} else {
-		result.EntityDTOs = affinityProcessor.ProcessAffinityRules(result.EntityDTOs)
+		glog.V(2).Infof("Ignoring affinities.")
 	}
-	glog.V(2).Infof("Successfully processed affinity.")
 
 	// Taint-toleration process to create access commodities
 	glog.V(2).Infof("Begin to process taints and tolerations")
