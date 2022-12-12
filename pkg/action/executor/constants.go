@@ -10,9 +10,10 @@ const (
 	// Default number of Retries for waiting for Pod to be ready during action execution
 	DefaultWaitForPodThreshold = 55
 
-	DefaultRetrySleepInterval = time.Second * 3
-	DefaultRetryShortTimeout  = time.Second * 20
-	DefaultRetryTimeout       = time.Second * 120
+	DefaultRetrySleepInterval       = time.Second * 3
+	DefaultRetryShortTimeout        = time.Second * 20
+	DefaultRetryTimeout             = time.Second * 120
+	DefaultWaitReplicaToBeScheduled = time.Minute * 10
 
 	defaultWaitLockTimeOut = time.Second * 300
 	defaultWaitLockSleep   = time.Second * 10
