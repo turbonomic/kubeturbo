@@ -57,7 +57,7 @@ spec:
               description: Kubeturbo image details for deployments outside of RH Operator Hub
               properties:
                 repository:
-                  description: Container repository. default is docker hub
+                  description: Container repository. default is icr.io/cpopen/turbonomic/kubeturbo
                   type: string
                 tag:
                   description: Kubeturbo container image tag
