@@ -41,10 +41,13 @@ const (
 	defaultConnTimeOut         = 20 * time.Second
 	defaultTLSHandShakeTimeout = 10 * time.Second
 
-	ContainerCPUThrottledTotal = "container_cpu_cfs_throttled_periods_total"
-	ContainerCPUTotal          = "container_cpu_cfs_periods_total"
-	ContainerCPUQuota          = "container_spec_cpu_quota"
-	ContainerCPUPeriod         = "container_spec_cpu_period"
+	ContainerCPUThrottledTotal    = "container_cpu_cfs_throttled_periods_total"
+	ContainerCPUTotal             = "container_cpu_cfs_periods_total"
+	ContainerCPUQuota             = "container_spec_cpu_quota"
+	ContainerCPUPeriod            = "container_spec_cpu_period"
+	ContainerCPUThrottledTotalSec = "container_cpu_cfs_throttled_seconds_total"
+	ContainerCPUTotalUsageSec     = "container_cpu_usage_seconds_total"
+	ContainerThreads              = "container_threads"
 )
 
 type KubeHttpClientInterface interface {
@@ -299,6 +302,9 @@ func TextToThrottlingMetricFamilies(data []byte) (map[string]*dto.MetricFamily, 
 	metricFamilies[ContainerCPUTotal] = parsed[ContainerCPUTotal]
 	metricFamilies[ContainerCPUQuota] = parsed[ContainerCPUQuota]
 	metricFamilies[ContainerCPUPeriod] = parsed[ContainerCPUPeriod]
+	metricFamilies[ContainerCPUThrottledTotalSec] = parsed[ContainerCPUThrottledTotalSec]
+	metricFamilies[ContainerCPUTotalUsageSec] = parsed[ContainerCPUTotalUsageSec]
+	metricFamilies[ContainerThreads] = parsed[ContainerThreads]
 
 	return metricFamilies, nil
 }

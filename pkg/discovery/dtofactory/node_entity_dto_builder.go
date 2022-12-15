@@ -55,7 +55,7 @@ type nodeEntityDTOBuilder struct {
 
 func NewNodeEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager) *nodeEntityDTOBuilder {
 	return &nodeEntityDTOBuilder{
-		generalBuilder:   newGeneralBuilder(sink),
+		generalBuilder:   newGeneralBuilder(sink, DefaultCommodityConfig()),
 		stitchingManager: stitchingManager,
 	}
 }

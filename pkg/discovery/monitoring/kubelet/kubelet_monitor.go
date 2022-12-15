@@ -153,8 +153,12 @@ func (m *KubeletMonitor) generateThrottlingMetrics(metricFamilies map[string]*dt
 	parsedMetrics := parseMetricFamilies(metricFamilies)
 	for metricID, tm := range parsedMetrics {
 		if tm != nil {
-			glog.V(4).Infof("Throttling Metrics for container: %s, cpuThrottled: %.3f, cpuTotal: %.3f, cpuQuota: %.3f, cpuPeriod: %.3f",
-				metricID, tm.cpuThrottled, tm.cpuTotal, tm.cpuQuota, tm.cpuPeriod)
+			glog.V(4).Infof("Throttling Metrics for container: %s, "+
+				"cpuThrottled: %.3f, cpuTotal: %.3f, "+
+				"cpuQuota: %.3f, cpuPeriod: %.3f, "+
+				"cpuThrottledTimeTotal: %.3f, cpuUsageTimeTotal: %.3f,",
+				metricID, tm.cpuThrottled, tm.cpuTotal, tm.cpuQuota, tm.cpuPeriod,
+				tm.cpuThrottledTimeTotal, tm.cpuTotalUsageTotal)
 			m.genThrottlingMetrics(metrics.ContainerType, metricID, tm, timestamp)
 		}
 	}
@@ -169,6 +173,12 @@ type throttlingMetric struct {
 	cpuQuota float64
 	// container_spec_cpu_period
 	cpuPeriod float64
+	// container_cpu_cfs_throttled_seconds_total
+	cpuThrottledTimeTotal float64
+	// container_cpu_usage_seconds_total
+	cpuTotalUsageTotal float64
+	// container threads
+	containerThreads float64
 }
 
 // parseMetricFamilies parses the incoming prometheus format metric from four metric families
@@ -244,6 +254,10 @@ func parseMetricFamilies(metricFamilies map[string]*dto.MetricFamily) map[string
 					tm.cpuTotal = metric.Counter.GetValue()
 				case kubeclient.ContainerCPUThrottledTotal:
 					tm.cpuThrottled = metric.Counter.GetValue()
+				case kubeclient.ContainerCPUThrottledTotalSec:
+					tm.cpuThrottledTimeTotal = metric.Counter.GetValue()
+				case kubeclient.ContainerCPUTotalUsageSec:
+					tm.cpuTotalUsageTotal = metric.Counter.GetValue()
 				default:
 					glog.Errorf("Unsupported counter metric %s", metricName)
 					continue
@@ -254,6 +268,8 @@ func parseMetricFamilies(metricFamilies map[string]*dto.MetricFamily) map[string
 					tm.cpuQuota = metric.Gauge.GetValue()
 				case kubeclient.ContainerCPUPeriod:
 					tm.cpuPeriod = metric.Gauge.GetValue()
+				case kubeclient.ContainerThreads:
+					tm.containerThreads = metric.Gauge.GetValue()
 				default:
 					glog.Errorf("Unsupported gauge metric %s", metricName)
 					continue
@@ -500,10 +516,13 @@ func (m *KubeletMonitor) genThrottlingMetrics(etype metrics.DiscoveredEntityType
 	}
 	metric := metrics.NewEntityResourceMetric(etype, key, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: tm.cpuThrottled,
-			Total:     tm.cpuTotal,
-			CPULimit:  cpuLimit,
-			Timestamp: timestamp,
+			Throttled:        tm.cpuThrottled,
+			Total:            tm.cpuTotal,
+			CPULimit:         cpuLimit,
+			Timestamp:        timestamp,
+			ThrottledTime:    tm.cpuThrottledTimeTotal,
+			TotalUsage:       tm.cpuTotalUsageTotal,
+			ContainerThreads: tm.containerThreads,
 		}})
 	m.metricSink.AddNewMetricEntries(metric)
 }

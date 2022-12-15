@@ -12,10 +12,14 @@ import (
 )
 
 // Converts ContainerSpecMetrics objects to ContainerSpec entity DTOs
-type k8sContainerSpecDiscoveryWorker struct{}
+type k8sContainerSpecDiscoveryWorker struct {
+	commodityConfig *dtofactory.CommodityConfig
+}
 
-func NewK8sContainerSpecDiscoveryWorker() *k8sContainerSpecDiscoveryWorker {
-	return &k8sContainerSpecDiscoveryWorker{}
+func NewK8sContainerSpecDiscoveryWorker(commodityConfig *dtofactory.CommodityConfig) *k8sContainerSpecDiscoveryWorker {
+	return &k8sContainerSpecDiscoveryWorker{
+		commodityConfig: commodityConfig,
+	}
 }
 
 // ContainerSpec discovery worker collects ContainerSpecMetrics discovered by different discovery workers.
@@ -32,7 +36,7 @@ func (worker *k8sContainerSpecDiscoveryWorker) Do(clusterSummary *repository.Clu
 	// of container replicas
 	containerSpecMetricsMap := worker.createContainerSpecMetricsMap(containerSpecMetrics)
 	containerSpecEntityDTOBuilder := dtofactory.NewContainerSpecDTOBuilder(clusterSummary, containerSpecMetricsMap, utilizationDataAggregator,
-		usageDataAggregator)
+		usageDataAggregator, worker.commodityConfig)
 	containerSpecEntityDTOs, err := containerSpecEntityDTOBuilder.BuildDTOs()
 	if err != nil {
 		return nil, fmt.Errorf("error while creating ContainerSpec entityDTOs: %v", err)
