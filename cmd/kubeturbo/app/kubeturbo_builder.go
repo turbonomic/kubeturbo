@@ -65,6 +65,7 @@ const (
 	DefaultGCIntervalMin               = 10
 	DefaultReadinessRetryThreshold     = 60
 	DefaultVcpuThrottlingUtilThreshold = 30
+	DefaultBusyBoxImageVersion         = "1.34.1"
 )
 
 var (
@@ -227,7 +228,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	// So far we have noticed cluster api support only in openshift clusters and our implementation works only for openshift
 	// It thus makes sense to have openshifts machine api namespace as our default cluster api namespace
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "openshift-machine-api", "The Cluster API namespace.")
-	fs.StringVar(&s.BusyboxImage, "busybox-image", "busybox", "The complete image uri used for fallback node cpu frequency getter job.")
+	fs.StringVar(&s.BusyboxImage, "busybox-image", "icr.io/cpopen/turbonomic/busyboxturbo"+":"+DefaultBusyBoxImageVersion, "The complete image uri used for fallback node cpu frequency getter job.")
 	fs.StringVar(&s.BusyboxImagePullSecret, "busybox-image-pull-secret", "", "The name of the secret that stores the image pull credentials for busybox image.")
 	fs.StringVar(&s.CpufreqJobExcludeNodeLabels, "cpufreq-job-exclude-node-labels", "", "The comma separated list of key=value node label pairs for the nodes (for example windows nodes) to be excluded from running job based cpufrequency getter.")
 	fs.StringVar(&s.containerUtilizationDataAggStrategy, "cnt-utilization-data-agg-strategy", agg.DefaultContainerUtilizationDataAggStrategy, "Container utilization data aggregation strategy.")
