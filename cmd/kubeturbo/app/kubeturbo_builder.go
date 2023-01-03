@@ -46,6 +46,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/kubeturbo/test/flag"
 	policyv1alpha1 "github.com/turbonomic/turbo-crd/api/v1alpha1"
+	gitopsv1alpha1 "github.com/turbonomic/turbo-gitops/api/v1alpha1"
 )
 
 const (
@@ -83,6 +84,7 @@ type disconnectFromTurboFunc func()
 func init() {
 	// Add registered custom types to the custom scheme
 	utilruntime.Must(policyv1alpha1.AddToScheme(customScheme))
+	utilruntime.Must(gitopsv1alpha1.AddToScheme(customScheme))
 }
 
 // VMTServer has all the context and params needed to run a Scheduler

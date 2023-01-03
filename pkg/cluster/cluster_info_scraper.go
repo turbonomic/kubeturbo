@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/golang/glog"
@@ -24,6 +25,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/turbostore"
 	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
+	gitopsv1alpha1 "github.com/turbonomic/turbo-gitops/api/v1alpha1"
 )
 
 const (
@@ -57,6 +59,7 @@ type ClusterScraperInterface interface {
 	GetMachineSetToNodesMap(nodes []*api.Node) map[string][]*api.Node
 	GetAllTurboSLOScalings() ([]policyv1alpha1.SLOHorizontalScale, error)
 	GetAllTurboPolicyBindings() ([]policyv1alpha1.PolicyBinding, error)
+	GetAllGitOpsConfigurations() ([]gitopsv1alpha1.GitOps, error)
 }
 
 type ClusterScraper struct {
@@ -66,17 +69,21 @@ type ClusterScraper struct {
 	DynamicClient           dynamic.Interface
 	ControllerRuntimeClient runtimeclient.Client
 	cache                   turbostore.ITurboCache
+	GitOpsConfigCache       *map[string][]*gitopsv1alpha1.Configuration
+	GitOpsConfigCacheLock   sync.Mutex
 }
 
 func NewClusterScraper(kclient *client.Clientset, dynamicClient dynamic.Interface, rtClient runtimeclient.Client,
 	capiEnabled bool, caClient *capiclient.Clientset, capiNamespace string) *ClusterScraper {
+	gitOpsMap := make(map[string][]*gitopsv1alpha1.Configuration)
 	clusterScraper := &ClusterScraper{
 		Clientset:               kclient,
 		DynamicClient:           dynamicClient,
 		ControllerRuntimeClient: rtClient,
 		// Create cache with expiration duration as defaultCacheTTL, which means the cached data will be cleaned up after
 		// defaultCacheTTL.
-		cache: turbostore.NewTurboCache(defaultCacheTTL).Cache,
+		cache:             turbostore.NewTurboCache(defaultCacheTTL).Cache,
+		GitOpsConfigCache: &gitOpsMap,
 	}
 
 	if capiEnabled {
@@ -525,4 +532,28 @@ func (s *ClusterScraper) GetAllTurboPolicyBindings() ([]policyv1alpha1.PolicyBin
 		return nil, err
 	}
 	return policyBindingList.Items, nil
+}
+
+// GetAllGitOpsConfigurations gets the custom GitOps configuration resources from all namespaces
+func (s *ClusterScraper) GetAllGitOpsConfigurations() ([]gitopsv1alpha1.GitOps, error) {
+	gitopsList := &gitopsv1alpha1.GitOpsList{}
+	if err := s.ControllerRuntimeClient.List(context.TODO(), gitopsList, &listOptions); err != nil {
+		return nil, err
+	}
+	return gitopsList.Items, nil
+}
+
+// Generate a map of namespace to GitOps configuration overrides
+func (s *ClusterScraper) UpdateGitOpsConfigCache(configs []gitopsv1alpha1.GitOps) {
+	gitOpsConfigCache := make(map[string][]*gitopsv1alpha1.Configuration)
+	for _, gitOpsConfig := range configs {
+		namespace := gitOpsConfig.GetNamespace()
+		for _, c := range gitOpsConfig.Spec.Configuration {
+			gitOpsConfigCache[namespace] = append(gitOpsConfigCache[namespace], &c)
+		}
+	}
+	// Lock the "cache" to prevent access while it gets overwritten
+	s.GitOpsConfigCacheLock.Lock()
+	defer s.GitOpsConfigCacheLock.Unlock()
+	s.GitOpsConfigCache = &gitOpsConfigCache
 }

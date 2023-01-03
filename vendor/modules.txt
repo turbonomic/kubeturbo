@@ -88,7 +88,7 @@ github.com/golang/protobuf/ptypes/timestamp
 # github.com/google/cadvisor v0.43.0
 ## explicit; go 1.13
 github.com/google/cadvisor/info/v1
-# github.com/google/go-cmp v0.5.8
+# github.com/google/go-cmp v0.5.9
 ## explicit; go 1.13
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/internal/diff
@@ -257,6 +257,9 @@ github.com/turbonomic/turbo-api/pkg/client
 # github.com/turbonomic/turbo-crd v0.0.0-20220630232025-77ff549647ec
 ## explicit; go 1.17
 github.com/turbonomic/turbo-crd/api/v1alpha1
+# github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3
+## explicit; go 1.19
+github.com/turbonomic/turbo-gitops/api/v1alpha1
 # github.com/turbonomic/turbo-go-sdk v0.0.0-20221212155126-6e7e16cf1e1f
 ## explicit; go 1.13
 github.com/turbonomic/turbo-go-sdk/pkg
@@ -280,7 +283,7 @@ golang.org/x/crypto/openpgp/elgamal
 golang.org/x/crypto/openpgp/errors
 golang.org/x/crypto/openpgp/packet
 golang.org/x/crypto/openpgp/s2k
-# golang.org/x/net v0.0.0-20220805013720-a33c5aa5df48
+# golang.org/x/net v0.0.0-20221014081412-f15817d10f9b
 ## explicit; go 1.17
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
@@ -291,7 +294,7 @@ golang.org/x/net/http/httpguts
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
-# golang.org/x/oauth2 v0.0.0-20220722155238-128564f6959c
+# golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783
 ## explicit; go 1.17
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
