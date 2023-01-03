@@ -64,7 +64,7 @@ var (
 	mockMutextLock       sync.Mutex
 	mockParentController = &parentController{
 		gitConfig:             mockGitConfig,
-		gitOpsConfigCache:     mockGitOpsConfigCache,
+		gitOpsConfigCache:     &mockGitOpsConfigCache,
 		gitOpsConfigCacheLock: &mockMutextLock,
 	}
 )
