@@ -3,7 +3,9 @@ package executor
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
@@ -23,6 +25,7 @@ import (
 	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/util"
+	gitopsv1alpha1 "github.com/turbonomic/turbo-gitops/api/v1alpha1"
 )
 
 // k8sController defines a common interface for kubernetes controller actions
@@ -53,13 +56,16 @@ type kubeClients struct {
 }
 
 type parentController struct {
-	clients      kubeClients
-	obj          *unstructured.Unstructured
-	name         string
-	ormClient    *resourcemapping.ORMClient
-	managerApp   *repository.K8sApp
-	gitConfig    gitops.GitConfig
-	k8sClusterId string
+	clients               kubeClients
+	obj                   *unstructured.Unstructured
+	name                  string
+	ormClient             *resourcemapping.ORMClient
+	managerApp            *repository.K8sApp
+	gitConfig             gitops.GitConfig
+	k8sClusterId          string
+	KubeCluster           *repository.KubeCluster
+	gitOpsConfigCache     map[string][]*gitopsv1alpha1.Configuration
+	gitOpsConfigCacheLock *sync.Mutex
 }
 
 func (c *parentController) get(name string) (*k8sControllerSpec, error) {
@@ -124,9 +130,10 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		var manager gitops.GitopsManager
 		switch c.managerApp.Type {
 		case repository.AppTypeArgoCD:
+			gitOpsConfig := c.GetGitOpsConfig(c.obj)
 			// The workload is managed by a pipeline controller (argoCD) which replicates
 			// it from a source of truth
-			manager = gitops.NewGitManager(c.gitConfig, c.clients.typedClient,
+			manager = gitops.NewGitManager(gitOpsConfig, c.clients.typedClient,
 				c.clients.dynClient, c.obj, c.managerApp, c.k8sClusterId)
 			glog.Infof("Gitops pipeline detected.")
 		default:
@@ -250,4 +257,77 @@ func (c *parentController) shouldSkipOperator(controller *unstructured.Unstructu
 
 func (rc *parentController) String() string {
 	return rc.name
+}
+
+// Returns a flag indicating if the supplied application matches the selector of a GitOps configuration override
+func isAppSelectorMatch(selector string, objName string) bool {
+	match := false
+	if selector != "" {
+		match, _ = regexp.MatchString(selector, objName)
+		if match {
+			glog.V(2).Infof("Application %v matches GitOps override selector [%v]. Using configuration override.", objName, selector)
+		}
+	}
+	return match
+}
+
+// Returns a flag indicating if the supplied application is a member of the GitOps configuration override's whitelist
+func isAppInWhitelist(arr []string, objName string) bool {
+	withoutNamespace := objName[strings.IndexByte(objName, '/')+1:]
+	for _, v := range arr {
+		if v == objName || v == withoutNamespace {
+			glog.V(2).Infof("Application %v found in GitOps override whitelist. Using configuration override.", objName)
+			return true
+		}
+	}
+	return false
+}
+
+// Returns a flag indicating if there exists a GitOps configuration override for the supplied application
+func isGitOpsConfigOverridden(config *gitopsv1alpha1.Configuration, objName string) bool {
+	return isAppSelectorMatch(config.Selector, objName) || isAppInWhitelist(config.Whitelist, objName)
+}
+
+// Returns the credentials to be used for a GitOps operation.
+func getGitOpsCredentials(overrideConfig *gitopsv1alpha1.Configuration, defaultConfig gitops.GitConfig) (string, string, string, string) {
+	secretNamespace := defaultConfig.GitSecretNamespace
+	secretName := defaultConfig.GitSecretName
+	username := defaultConfig.GitUsername
+	email := defaultConfig.GitEmail
+
+	if overrideConfig.Credentials.Username != "" {
+		email = overrideConfig.Credentials.Email
+		username = overrideConfig.Credentials.Username
+		secretName = overrideConfig.Credentials.SecretName
+		secretNamespace = overrideConfig.Credentials.SecretNamespace
+		glog.V(4).Infof("Overriding GitOps credentials to use username [%v] instead of the default.", username)
+	}
+	return email, username, secretName, secretNamespace
+}
+
+// Returns the GitOps configuration for the supplied application. If an override exists, it will return it. Otherwise,
+// it will return the default configuration supplied that was supplied as a runtime parameter.
+func ( c *parentController) GetGitOpsConfig(obj *unstructured.Unstructured) gitops.GitConfig {
+	appName := c.managerApp.Name
+	glog.V(2).Infof("Checking for GitOps configuration override for %v...", appName)
+	// Lock the cache to ensure the discovery process doesn't overwrite the configs while processing the overrides
+	c.gitOpsConfigCacheLock.Lock()
+	defer c.gitOpsConfigCacheLock.Unlock()
+	namespaceConfigOverrides := c.gitOpsConfigCache[obj.GetNamespace()]
+	for _, configOverride := range namespaceConfigOverrides {
+		if isGitOpsConfigOverridden(configOverride, appName) {
+			glog.V(2).Infof("Found GitOps configuration override for [%v].", appName)
+			email, username, secretName, secretNamespace := getGitOpsCredentials(configOverride, c.gitConfig)
+			return gitops.GitConfig{
+				GitSecretNamespace: secretNamespace,
+				GitSecretName:      secretName,
+				GitUsername:        username,
+				GitEmail:           email,
+				CommitMode:         string(configOverride.CommitMode),
+			}
+		}
+	}
+	// No override was found. Return the default config.
+	glog.V(2).Infof("No GitOps configuration override found for [%v]. Using default configuration.", appName)
+	return c.gitConfig
 }
