@@ -100,13 +100,6 @@ func getMockManagerApp(name string) *repository.K8sApp {
 	}
 }
 
-func getMockManagerApp(name string) *repository.K8sApp {
-	return &repository.K8sApp{
-		Name:      name,
-		Namespace: mockNamespace,
-	}
-}
-
 func TestGetGitOpsConfigOverriddenSelector(t *testing.T) {
 	mockParentController.managerApp = getMockManagerApp("TEST")
 	expectedConfig := gitops.GitConfig{
