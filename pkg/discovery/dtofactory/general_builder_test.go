@@ -39,6 +39,7 @@ func TestBuildVCPUThrottlingSold(t *testing.T) {
 
 	dtoBuilder := &generalBuilder{
 		metricsSink: metricsSink,
+		config:      DefaultCommodityConfig(),
 	}
 
 	eType := metrics.ContainerType
@@ -51,7 +52,7 @@ func TestBuildVCPUThrottlingSold(t *testing.T) {
 	usedValue := container1CpuThrottlingUsed.GetValue().(float64)
 	assert.Equal(t, usedValue, commSold.GetUsed())
 	assert.Equal(t, 100.0, commSold.GetCapacity())
-	assert.Equal(t, vcpuThrottlingUtilThreshold, commSold.GetUtilizationThresholdPct())
+	assert.Equal(t, dtoBuilder.config.VCPUThrottlingUtilThreshold, commSold.GetUtilizationThresholdPct())
 }
 
 func TestBuildCPUSold(t *testing.T) {
@@ -59,6 +60,7 @@ func TestBuildCPUSold(t *testing.T) {
 	metricsSink.AddNewMetricEntries(cpuUsed_pod1, cpuCap_pod1)
 
 	dtoBuilder := &generalBuilder{
+		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -80,6 +82,7 @@ func TestBuildMemSold(t *testing.T) {
 	metricsSink.AddNewMetricEntries(memUsed_pod1, memCap_pod1)
 
 	dtoBuilder := &generalBuilder{
+		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -98,6 +101,7 @@ func TestBuildUnsupportedResource(t *testing.T) {
 	metricsSink = metrics.NewEntityMetricSink()
 
 	dtoBuilder := &generalBuilder{
+		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -113,6 +117,7 @@ func TestBuildCPUSoldWithMissingCap(t *testing.T) {
 	metricsSink.AddNewMetricEntries(cpuUsed_pod1)
 
 	dtoBuilder := &generalBuilder{
+		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 	commSold, err := dtoBuilder.getSoldResourceCommodityWithKey(eType, pod1, metrics.CPU, "", nil, nil)
@@ -126,6 +131,7 @@ func TestBuildCPUSoldWithMissingUsed(t *testing.T) {
 	metricsSink.AddNewMetricEntries(cpuCap_pod1)
 
 	dtoBuilder := &generalBuilder{
+		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 	commSold, err := dtoBuilder.getSoldResourceCommodityWithKey(eType, pod1, metrics.CPU, "", nil, nil)
@@ -138,6 +144,7 @@ func TestBuildCommSoldWithKey(t *testing.T) {
 	metricsSink.AddNewMetricEntries(memUsed_pod1, memCap_pod1)
 
 	dtoBuilder := &generalBuilder{
+		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -154,6 +161,7 @@ func TestBuildCommSold(t *testing.T) {
 	metricsSink.AddNewMetricEntries(cpuUsed_pod1, cpuCap_pod1, memCap_pod1, memUsed_pod1)
 
 	dtoBuilder := &generalBuilder{
+		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -179,6 +187,7 @@ func TestBuildCommBought(t *testing.T) {
 	metricsSink.AddNewMetricEntries(cpuUsed_pod1, memUsed_pod1)
 
 	dtoBuilder := &generalBuilder{
+		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -222,6 +231,7 @@ func TestMetricValueWithMultiplePoints(t *testing.T) {
 	metricsSink.UpdateMetricEntry(cpuUsedMetric3)
 
 	dtoBuilder := &generalBuilder{
+		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -235,33 +245,33 @@ func TestMetricValueWithThrottlingCumulativePoints(t *testing.T) {
 	containerId := "container-throttling"
 	cpuUsedMetric1 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: 1,
-			Total:     5,
-			Timestamp: 1,
+			ThrottledTime: 1,
+			TotalUsage:    5,
+			Timestamp:     1,
 		}})
 	cpuUsedMetric2 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: 3,
-			Total:     8,
-			Timestamp: 2,
+			ThrottledTime: 3,
+			TotalUsage:    8,
+			Timestamp:     2,
 		}})
 	cpuUsedMetric3 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: 5,
-			Total:     10,
-			Timestamp: 3,
+			ThrottledTime: 5,
+			TotalUsage:    10,
+			Timestamp:     3,
 		}})
 	cpuUsedMetric4 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: 6,
-			Total:     15,
-			Timestamp: 4,
+			ThrottledTime: 6,
+			TotalUsage:    15,
+			Timestamp:     4,
 		}})
 	cpuUsedMetric5 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: 11,
-			Total:     25,
-			Timestamp: 5,
+			ThrottledTime: 11,
+			TotalUsage:    25,
+			Timestamp:     5,
 		}})
 	metricsSink.AddNewMetricEntries(cpuUsedMetric1)
 	metricsSink.UpdateMetricEntry(cpuUsedMetric2)
@@ -270,58 +280,60 @@ func TestMetricValueWithThrottlingCumulativePoints(t *testing.T) {
 	metricsSink.UpdateMetricEntry(cpuUsedMetric5)
 
 	dtoBuilder := &generalBuilder{
+		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 	metricValue, _ := dtoBuilder.metricValue(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used, nil)
+
 	// throttled   = (3-1) (5-3)  (6-5)   (11-6)
 	// total   =     (8-5) (10-8) (15-10) (20-15)
-	// Avg = (11-1)*100/(25-5) = 50
+	// Avg = (11-1)*100/(25-5)+(11-1) = 33.33
 	// Peak = (5-3)*100/(10-8) = 100
-	assert.EqualValues(t, 50, int(metricValue.Avg))
-	assert.EqualValues(t, 100, int(metricValue.Peak))
+	assert.EqualValues(t, 33.33, int(metricValue.Avg))
+	assert.EqualValues(t, 50, int(metricValue.Peak))
 
 	// ------------------------------------------
 
 	// Adding more metrics where the counter is reset in continuation to previous 5
 	cpuUsedMetric6 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: 0,
-			Total:     0,
-			Timestamp: 6,
+			ThrottledTime: 0,
+			TotalUsage:    0,
+			Timestamp:     6,
 		}})
 
 	cpuUsedMetric7 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: 1,
-			Total:     5,
-			Timestamp: 7,
+			ThrottledTime: 1,
+			TotalUsage:    5,
+			Timestamp:     7,
 		}})
 
 	cpuUsedMetric8 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: 3,
-			Total:     8,
-			Timestamp: 8,
+			ThrottledTime: 3,
+			TotalUsage:    8,
+			Timestamp:     8,
 		}})
 
 	// Counter set to an old value again on this sample
 	cpuUsedMetric9 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: 1,
-			Total:     5,
-			Timestamp: 9,
+			ThrottledTime: 1,
+			TotalUsage:    5,
+			Timestamp:     9,
 		}})
 	cpuUsedMetric10 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: 3,
-			Total:     8,
-			Timestamp: 10,
+			ThrottledTime: 3,
+			TotalUsage:    8,
+			Timestamp:     10,
 		}})
 	cpuUsedMetric11 := metrics.NewEntityResourceMetric(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used,
 		[]metrics.ThrottlingCumulative{{
-			Throttled: 1,
-			Total:     5,
-			Timestamp: 10,
+			ThrottledTime: 1,
+			TotalUsage:    5,
+			Timestamp:     10,
 		}})
 
 	metricsSink.UpdateMetricEntry(cpuUsedMetric6)
@@ -332,17 +344,20 @@ func TestMetricValueWithThrottlingCumulativePoints(t *testing.T) {
 	metricsSink.UpdateMetricEntry(cpuUsedMetric11)
 
 	metricValue, _ = dtoBuilder.metricValue(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used, nil)
+	fmt.Printf("metricValue %v\n", metricValue)
+	// time                  t1    t2    t3      t4      t5                  t6     t7    t8                t9     t10    t11
+	// throttled samples =   1     3     5       6       11                  0      1     3                 1       3      1
+	// total samples =       5     8     10      15      25                  0      5     8                 5       8      5
+	// diff                 d1     d2    d3      d4      d5                  d6    d7     d8                d9     d10
+	// throttled =         (3-1)  (5-3)  (6-5)   (11-6)  (reset/ignore 0-11) (1-0) (3-1) (reset/ignore 1-3) (3-1)  (reset/ignore 1-3)
+	// total =             (8-5)  (10-8) (15-10) (25-15) (reset/ignore 0-25) (5-0) (8-5) (reset/ignore 5-8) (8-5)  (reset/ignore 5-8)
+	// avg =			   2/2+3  2/2+2   1/1+5   5/5+10					  1/1+5 2/2+3						2/2+3
+	//						  time = (11-1) usage = (25-5)                  time = (3-0) usage =(8-0)		time=(3-1) usage=(8-5)
+	//						  40	50	    16.67   33.33                       16.67  40                        40
+	// Window                |_____________w1___________|                      |___w2____|                     |_w3_|
 
-	// time                  t1   t2    t3     t4      t5                  t6     t7    t8               t9     t10    t11
-	// throttled samples =   1    3     5      6       11                  0      1     3                1       3      1
-	// total samples =       5    8     10     15      25                  0      5     8                5       8      5
-	// diff                   d1    d2     d3      d4          d5              d6    d7       d8              d9       d10
-	// throttled =           (3-1) (5-3)  (6-5)   (11-6)  (reset/ignore 0-11) (1-0) (3-1) (reset/ignore 1-3) (3-1)  (reset/ignore 1-3)
-	// total =               (8-5) (10-8) (15-10) (25-15) (reset/ignore 0-25) (5-0) (8-5) (reset/ignore 5-8) (8-5)  (reset/ignore 5-8)
-	// Window                |_____________w1___________|                     |___w2____|                    |_w3_|
-
-	// Avg = ((11-1)+(3-0)+(3-1))*100/((25-5)+(8-0)+(8-5)) = 48.387
+	// Avg = ((11-1)+(3-0)+(3-1))*100/[((25-5)+(8-0)+(8-5)) + ((11-1)+(3-0)+(3-1))] = (10+3+2)/[(20+8+3)+(10+3+2)] = 32.6
 	// Peak = (5-3)*100/(10-8) = 100
-	assert.EqualValues(t, 48, int(metricValue.Avg))
-	assert.EqualValues(t, 100, int(metricValue.Peak))
+	assert.EqualValues(t, 32, int(metricValue.Avg))
+	assert.EqualValues(t, 50, int(metricValue.Peak))
 }

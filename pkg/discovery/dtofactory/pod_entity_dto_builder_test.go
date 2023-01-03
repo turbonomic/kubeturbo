@@ -18,7 +18,7 @@ import (
 )
 
 var builder = &podEntityDTOBuilder{
-	generalBuilder: newGeneralBuilder(metrics.NewEntityMetricSink()),
+	generalBuilder: newGeneralBuilder(metrics.NewEntityMetricSink(), nil),
 }
 
 func Test_podEntityDTOBuilder_getPodCommoditiesSold_Error(t *testing.T) {
@@ -188,7 +188,7 @@ func TestContainerMetricsAvailability(t *testing.T) {
 	sink.AddNewMetricEntries(containerMetricsAvailableMetric, containerMetricsNotAvailableMetric)
 	// pod3 does not have any isAvailability metrics created, we consider it as powerON
 
-	podDTOBuilder := NewPodEntityDTOBuilder(sink, nil)
+	podDTOBuilder := NewPodEntityDTOBuilder(sink, nil, nil)
 	for _, test := range tests {
 		assert.Equal(t, podDTOBuilder.isContainerMetricsAvailable(test.pod), test.expectedMetricsAvailable)
 	}
@@ -242,7 +242,7 @@ func TestGetRegionZoneLabelCommodity(t *testing.T) {
 	}
 
 	sink := metrics.NewEntityMetricSink()
-	podDTOBuilder := NewPodEntityDTOBuilder(sink, nil).WithPodToVolumesMap(pod2PvMap).WithNodeNameToNodeMap(nodeNameToNodeMap)
+	podDTOBuilder := NewPodEntityDTOBuilder(sink, nil, nil).WithPodToVolumesMap(pod2PvMap).WithNodeNameToNodeMap(nodeNameToNodeMap)
 	var commoditiesBought []*proto.CommodityDTO
 	var err error
 	commoditiesBought, err = podDTOBuilder.getRegionZoneLabelCommodity(testPod1, commoditiesBought)

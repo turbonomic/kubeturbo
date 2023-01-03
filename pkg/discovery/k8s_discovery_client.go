@@ -52,6 +52,8 @@ type DiscoveryClientConfig struct {
 	OrmClient *resourcemapping.ORMClient
 	// Number of workload controller items the list api call should request for
 	itemsPerListQuery int
+	// VCPU Throttling threshold
+	CommodityConfig *dtofactory.CommodityConfig
 }
 
 func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
@@ -59,7 +61,7 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 	ValidationTimeoutSec int, containerUtilizationDataAggStrategy,
 	containerUsageDataAggStrategy string, ormClient *resourcemapping.ORMClient,
 	discoveryWorkers, discoveryTimeoutMin, discoverySamples,
-	discoverySampleIntervalSec, itemsPerListQuery int) *DiscoveryClientConfig {
+	discoverySampleIntervalSec, itemsPerListQuery int, commodityConfig *dtofactory.CommodityConfig) *DiscoveryClientConfig {
 	if discoveryWorkers < minDiscoveryWorker {
 		glog.Warningf("Invalid number of discovery workers %v, set it to %v.",
 			discoveryWorkers, minDiscoveryWorker)
@@ -90,6 +92,7 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 		DiscoverySamples:                    discoverySamples,
 		DiscoverySampleIntervalSec:          discoverySampleIntervalSec,
 		itemsPerListQuery:                   itemsPerListQuery,
+		CommodityConfig:                     commodityConfig,
 	}
 }
 
@@ -123,14 +126,16 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	resultCollector := worker.NewResultCollector(config.DiscoveryWorkers * 2)
 
 	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
-		config.DiscoveryWorkers, config.DiscoveryTimeoutSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec).
+		config.DiscoveryWorkers, config.DiscoveryTimeoutSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec,
+		config.CommodityConfig).
 		WithClusterKeyInjected(config.ClusterKeyInjected)
 	dispatcher := worker.NewDispatcher(dispatcherConfig, globalEntityMetricSink)
 	dispatcher.Init(resultCollector)
 
 	// Create new SamplingDispatcher to assign tasks to collect additional resource usage data samples from kubelet
 	samplingDispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
-		config.DiscoveryWorkers, config.DiscoverySampleIntervalSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec).
+		config.DiscoveryWorkers, config.DiscoverySampleIntervalSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec,
+		config.CommodityConfig).
 		WithClusterKeyInjected(config.ClusterKeyInjected)
 	dataSamplingDispatcher := worker.NewSamplingDispatcher(samplingDispatcherConfig, globalEntityMetricSink)
 	dataSamplingDispatcher.InitSamplingDiscoveryWorkers()
@@ -358,7 +363,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	// K8s container spec discovery worker to create ContainerSpec DTOs by aggregating commodities data of container
 	// replicas. ContainerSpec is an entity type which represents a certain type of container replicas deployed by a
 	// K8s controller.
-	containerSpecDiscoveryWorker := worker.NewK8sContainerSpecDiscoveryWorker()
+	containerSpecDiscoveryWorker := worker.NewK8sContainerSpecDiscoveryWorker(dc.Config.CommodityConfig)
 	containerSpecDtos, err := containerSpecDiscoveryWorker.Do(clusterSummary, result.ContainerSpecMetrics, dc.Config.containerUtilizationDataAggStrategy,
 		dc.Config.containerUsageDataAggStrategy)
 	if err != nil {

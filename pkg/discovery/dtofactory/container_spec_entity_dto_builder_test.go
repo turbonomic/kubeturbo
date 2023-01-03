@@ -52,7 +52,7 @@ func Test_containerSpecDTOBuilder_getCommoditiesSold(t *testing.T) {
 					// Throttling percent is 100% for this container with CPU limits as 3. But this set of data samples
 					// will be skipped when aggregating container throttling samples because CPU limits (3) do not match
 					// container spec VCPU capacity (4).
-					createContainerMetricCumulativeThrottling(1, 8, 3, 4, 12, 3, 9, 16, 3, 1, 2, 3),
+					createContainerMetricCumulativeThrottling(10, 80, 30, 40, 12, 36, 90, 160, 3, 1, 2, 3),
 					// Throttling percent is 50% for this container with CPU limits as 4
 					createContainerMetricCumulativeThrottling(1, 4, 4, 2, 5, 4, 4, 10, 4, 1, 2, 3),
 					// Throttling percent is 50% for this container with CPU limits as 4
@@ -66,6 +66,7 @@ func Test_containerSpecDTOBuilder_getCommoditiesSold(t *testing.T) {
 		containerSpecMetricsMap:            map[string]*repository.ContainerSpecMetrics{containerSpecId: &containerSpecMetrics},
 		containerUtilizationDataAggregator: aggregation.ContainerUtilizationDataAggregators[aggregation.DefaultContainerUtilizationDataAggStrategy],
 		containerUsageDataAggregator:       aggregation.ContainerUsageDataAggregators[aggregation.DefaultContainerUsageDataAggStrategy],
+		commodityConfig:                    DefaultCommodityConfig(),
 	}
 	commodityDTOs, err := builder.getCommoditiesSold(&containerSpecMetrics)
 	assert.Nil(t, err)
@@ -75,8 +76,8 @@ func Test_containerSpecDTOBuilder_getCommoditiesSold(t *testing.T) {
 		assert.Equal(t, true, *commodityDTO.Resizable)
 		// Parse values to int to avoid tolerance of float values
 		if commodityDTO.GetCommodityType() == proto.CommodityDTO_VCPU_THROTTLING {
-			assert.Equal(t, 50, int(*commodityDTO.Used))
-			assert.Equal(t, 100, int(*commodityDTO.Peak))
+			assert.Equal(t, 33, int(*commodityDTO.Used))
+			assert.Equal(t, 50, int(*commodityDTO.Peak))
 			assert.Equal(t, 100, int(*commodityDTO.Capacity))
 		} else {
 			assert.Equal(t, 2, int(*commodityDTO.Used))
@@ -97,22 +98,22 @@ func createContainerMetricPoint(value float64, timestamp int64) metrics.Point {
 func createContainerMetricCumulativeThrottling(thr1, tot1, cpu1, thr2, tot2, cpu2, thr3, tot3, cpu3 float64, t1, t2, t3 int64) []metrics.ThrottlingCumulative {
 	return []metrics.ThrottlingCumulative{
 		{
-			Throttled: thr1,
-			Total:     tot1,
-			CPULimit:  cpu1,
-			Timestamp: t1,
+			ThrottledTime: thr1,
+			TotalUsage:    tot1,
+			CPULimit:      cpu1,
+			Timestamp:     t1,
 		},
 		{
-			Throttled: thr2,
-			Total:     tot2,
-			CPULimit:  cpu2,
-			Timestamp: t2,
+			ThrottledTime: thr2,
+			TotalUsage:    tot2,
+			CPULimit:      cpu2,
+			Timestamp:     t2,
 		},
 		{
-			Throttled: thr3,
-			Total:     tot3,
-			CPULimit:  cpu3,
-			Timestamp: t3,
+			ThrottledTime: thr3,
+			TotalUsage:    tot3,
+			CPULimit:      cpu3,
+			Timestamp:     t3,
 		},
 	}
 }
