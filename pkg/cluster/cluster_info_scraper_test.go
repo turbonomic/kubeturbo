@@ -1,4 +1,4 @@
-package processor
+package cluster
 
 import (
 	"testing"
@@ -20,7 +20,12 @@ var (
 	}
 )
 
-func TestProcessGitOpsConfigsCommitMode(t *testing.T) {
+// Implements the ClusterScrapperInterface.
+type MockClusterScrapper struct {
+	mockGetAllGitOpsConfigurations func() ([]gitopsv1alpha1.GitOps, error)
+}
+
+func TestGetAllGitOpsConfigurationsCommitMode(t *testing.T) {
 	mockClusterScraper := &MockClusterScrapper{
 		mockGetAllGitOpsConfigurations: func() ([]gitopsv1alpha1.GitOps, error) {
 			return []gitopsv1alpha1.GitOps{
@@ -36,19 +41,14 @@ func TestProcessGitOpsConfigsCommitMode(t *testing.T) {
 			}, nil
 		},
 	}
-	gitOpsConfigProcessor := &GitOpsConfigProcessor{
-		ClusterScraper: mockClusterScraper,
-		KubeCluster:    kubeCluster,
-	}
-	gitOpsConfigProcessor.ProcessGitOpsConfigs()
-	gitOpsConfigs := kubeCluster.GitOpsConfigurations
+	gitOpsConfigs, err := mockClusterScraper.mockGetAllGitOpsConfigurations()
+	assert.Nil(t, err)
 	assert.NotEmpty(t, gitOpsConfigs)
 	assert.NotEmpty(t, gitOpsConfigs[0].Spec.Configuration)
 	assert.Equal(t, gitopsv1alpha1.CommitMode("request"), gitOpsConfigs[0].Spec.Configuration[0].CommitMode)
-	kubeCluster.GitOpsConfigurations = nil
 }
 
-func TestProcessGitOpsConfigsCredentials(t *testing.T) {
+func TestGetAllGitOpsConfigurationsCredentials(t *testing.T) {
 	mockEmail := "mockEmail"
 	mockSecretName := "mockSecretName"
 	mockSecretNamespace := "mockSecretNamespace"
@@ -74,22 +74,17 @@ func TestProcessGitOpsConfigsCredentials(t *testing.T) {
 			}, nil
 		},
 	}
-	gitOpsConfigProcessor := &GitOpsConfigProcessor{
-		ClusterScraper: mockClusterScraper,
-		KubeCluster:    kubeCluster,
-	}
-	gitOpsConfigProcessor.ProcessGitOpsConfigs()
-	gitOpsConfigs := kubeCluster.GitOpsConfigurations
+	gitOpsConfigs, err := mockClusterScraper.mockGetAllGitOpsConfigurations()
+	assert.Nil(t, err)
 	assert.NotEmpty(t, gitOpsConfigs)
 	assert.NotEmpty(t, gitOpsConfigs[0].Spec.Configuration)
 	assert.Equal(t, mockEmail, gitOpsConfigs[0].Spec.Configuration[0].Credentials.Email)
 	assert.Equal(t, mockSecretName, gitOpsConfigs[0].Spec.Configuration[0].Credentials.SecretName)
 	assert.Equal(t, mockSecretNamespace, gitOpsConfigs[0].Spec.Configuration[0].Credentials.SecretNamespace)
 	assert.Equal(t, mockUsername, gitOpsConfigs[0].Spec.Configuration[0].Credentials.Username)
-	kubeCluster.GitOpsConfigurations = nil
 }
 
-func TestProcessGitOpsConfigsSelector(t *testing.T) {
+func TestGetAllGitOpsConfigurationsSelector(t *testing.T) {
 	mockSelector := "*"
 	mockClusterScraper := &MockClusterScrapper{
 		mockGetAllGitOpsConfigurations: func() ([]gitopsv1alpha1.GitOps, error) {
@@ -106,19 +101,14 @@ func TestProcessGitOpsConfigsSelector(t *testing.T) {
 			}, nil
 		},
 	}
-	gitOpsConfigProcessor := &GitOpsConfigProcessor{
-		ClusterScraper: mockClusterScraper,
-		KubeCluster:    kubeCluster,
-	}
-	gitOpsConfigProcessor.ProcessGitOpsConfigs()
-	gitOpsConfigs := kubeCluster.GitOpsConfigurations
+	gitOpsConfigs, err := mockClusterScraper.mockGetAllGitOpsConfigurations()
+	assert.Nil(t, err)
 	assert.NotEmpty(t, gitOpsConfigs)
 	assert.NotEmpty(t, gitOpsConfigs[0].Spec.Configuration)
 	assert.Equal(t, mockSelector, gitOpsConfigs[0].Spec.Configuration[0].Selector)
-	kubeCluster.GitOpsConfigurations = nil
 }
 
-func TestProcessGitOpsConfigsWhitelist(t *testing.T) {
+func TestGetAllGitOpsConfigurationsWhitelist(t *testing.T) {
 	mockApp1 := "mockApp1"
 	mockApp2 := "mockApp2"
 
@@ -137,16 +127,11 @@ func TestProcessGitOpsConfigsWhitelist(t *testing.T) {
 			}, nil
 		},
 	}
-	gitOpsConfigProcessor := &GitOpsConfigProcessor{
-		ClusterScraper: mockClusterScraper,
-		KubeCluster:    kubeCluster,
-	}
-	gitOpsConfigProcessor.ProcessGitOpsConfigs()
-	gitOpsConfigs := kubeCluster.GitOpsConfigurations
+	gitOpsConfigs, err := mockClusterScraper.mockGetAllGitOpsConfigurations()
+	assert.Nil(t, err)
 	assert.NotEmpty(t, gitOpsConfigs)
 	assert.NotEmpty(t, gitOpsConfigs[0].Spec.Configuration)
 	assert.Equal(t, 2, len(gitOpsConfigs[0].Spec.Configuration[0].Whitelist))
 	assert.Contains(t, gitOpsConfigs[0].Spec.Configuration[0].Whitelist, mockApp1)
 	assert.Contains(t, gitOpsConfigs[0].Spec.Configuration[0].Whitelist, mockApp2)
-	kubeCluster.GitOpsConfigurations = nil
 }

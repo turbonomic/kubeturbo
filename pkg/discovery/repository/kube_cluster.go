@@ -14,7 +14,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/turbo-crd/api/v1alpha1"
-	gitopsv1alpha1 "github.com/turbonomic/turbo-gitops/api/v1alpha1"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
@@ -46,9 +45,6 @@ type KubeCluster struct {
 
 	// Data structures related to Turbo policy
 	TurboPolicyBindings []*TurboPolicyBinding
-
-	// Data structures related to GitOps configurations
-	GitOpsConfigurations []gitopsv1alpha1.GitOps
 }
 
 func NewKubeCluster(clusterName string, nodes []*v1.Node) *KubeCluster {

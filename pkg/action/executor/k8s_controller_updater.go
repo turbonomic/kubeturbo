@@ -79,7 +79,7 @@ func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper, ormClient *
 			managerApp:            managerApp,
 			gitConfig:             gitConfig,
 			k8sClusterId:          clusterId,
-			gitOpsConfigCache:     *clusterScraper.GitOpsConfigCache,
+			gitOpsConfigCache:     clusterScraper.GitOpsConfigCache,
 			gitOpsConfigCacheLock: &clusterScraper.GitOpsConfigCacheLock,
 		},
 		client:    clusterScraper.Clientset,
