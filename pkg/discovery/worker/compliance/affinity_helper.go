@@ -66,6 +66,7 @@ func nodeMatchesNodeSelectorTerms(node *api.Node, nodeSelectorTerms []api.NodeSe
 //----------------------------------------- Pod Affinity -------------------------------------------------------
 
 func interPodAffinityMatches(pod *api.Pod, node *api.Node, allPodsNodesMap map[*api.Pod]*api.Node) bool {
+	// This is to find out the topology key based antiaffinity, eg pods from same domain
 	if !satisfiesExistingPodsAntiAffinity(pod, node, allPodsNodesMap) {
 		return false
 	}
