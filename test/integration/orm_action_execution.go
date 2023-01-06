@@ -2,8 +2,9 @@ package integration
 
 import (
 	"context"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"strings"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
@@ -84,7 +85,7 @@ var _ = Describe("Action Executor ", func() {
 			}
 
 			s := app.NewVMTServer()
-			kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, "", "busybox", map[string]set.Set{}, true)
+			kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, "", "icr.io/cpopen/turbonomic/cpufreqgetter", map[string]set.Set{}, true)
 			apiExtClient, err := apiextclient.NewForConfig(kubeConfig)
 			if err != nil {
 				glog.Fatalf("Failed to generate apiExtensions client for kubernetes target: %v", err)
@@ -99,7 +100,7 @@ var _ = Describe("Action Executor ", func() {
 			discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, nil, app.DefaultValidationWorkers,
 				app.DefaultValidationTimeout, aggregation.DefaultContainerUtilizationDataAggStrategy,
 				aggregation.DefaultContainerUsageDataAggStrategy, ormClient, app.DefaultDiscoveryWorkers, app.DefaultDiscoveryTimeoutSec,
-				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec, 0,  dtofactory.DefaultCommodityConfig())
+				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec, 0, dtofactory.DefaultCommodityConfig())
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
 				cluster.NewClusterScraper(kubeClient, dynamicClient, nil, false, nil, ""),
 				[]string{"*"}, ormClient, false, true, 60, gitops.GitConfig{}, "test-cluster-id")

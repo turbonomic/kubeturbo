@@ -3,10 +3,11 @@ package integration
 import (
 	"context"
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"math"
 	"os/exec"
 	"strings"
+
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
@@ -91,7 +92,7 @@ var _ = Describe("Discover Cluster", func() {
 			}
 
 			s := app.NewVMTServer()
-			kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, "", "busybox", map[string]set.Set{}, true)
+			kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, "", "icr.io/cpopen/turbonomic/cpufreqgetter", map[string]set.Set{}, true)
 
 			apiExtClient, err := apiextclient.NewForConfig(kubeConfig)
 			if err != nil {
