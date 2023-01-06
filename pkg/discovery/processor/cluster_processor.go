@@ -229,18 +229,13 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.ClusterSummary, error)
 	// Discover Turbo Policies
 	NewTurboPolicyProcessor(p.clusterInfoScraper, kubeCluster).ProcessTurboPolicies()
 
-	// Discover GitOps configuration overrides
-	NewGitOpsConfigProcessor(p.clusterInfoScraper, kubeCluster).ProcessGitOpsConfigs()
-
-	// Update the GitOps configuration override cache
-	if clusterScraper, ok := p.clusterInfoScraper.(*cluster.ClusterScraper); ok {
-		clusterScraper.UpdateGitOpsConfigCache(kubeCluster.GitOpsConfigurations)
-	}
-
 	// Update the pod to controller cache
 	if clusterScraper, ok := p.clusterInfoScraper.(*cluster.ClusterScraper); ok {
 		clusterScraper.UpdatePodControllerCache(kubeCluster.Pods, kubeCluster.ControllerMap)
 	}
+
+	// Discover and cache GitOps configuration overrides
+	p.clusterInfoScraper.UpdateGitOpsConfigCache()
 
 	return repository.CreateClusterSummary(kubeCluster), nil
 }

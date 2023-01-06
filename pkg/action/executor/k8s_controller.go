@@ -290,33 +290,31 @@ func isGitOpsConfigOverridden(config *gitopsv1alpha1.Configuration, objName stri
 
 // Returns the credentials to be used for a GitOps operation.
 func getGitOpsCredentials(overrideConfig *gitopsv1alpha1.Configuration, defaultConfig gitops.GitConfig) (string, string, string, string) {
-	secretNamespace := defaultConfig.GitSecretNamespace
-	secretName := defaultConfig.GitSecretName
-	username := defaultConfig.GitUsername
-	email := defaultConfig.GitEmail
-
 	if overrideConfig.Credentials.Username != "" {
-		email = overrideConfig.Credentials.Email
-		username = overrideConfig.Credentials.Username
-		secretName = overrideConfig.Credentials.SecretName
-		secretNamespace = overrideConfig.Credentials.SecretNamespace
-		glog.V(4).Infof("Overriding GitOps credentials to use username [%v] instead of the default.", username)
+		glog.V(4).Infof("Overriding GitOps credentials to use username [%v] instead of the default.", overrideConfig.Credentials.Username)
+		return overrideConfig.Credentials.Email,
+			overrideConfig.Credentials.Username,
+			overrideConfig.Credentials.SecretName,
+			overrideConfig.Credentials.SecretNamespace
 	}
-	return email, username, secretName, secretNamespace
+	return defaultConfig.GitEmail,
+		defaultConfig.GitUsername,
+		defaultConfig.GitSecretName,
+		defaultConfig.GitSecretNamespace
 }
 
 // Returns the GitOps configuration for the supplied application. If an override exists, it will return it. Otherwise,
 // it will return the default configuration supplied that was supplied as a runtime parameter.
-func ( c *parentController) GetGitOpsConfig(obj *unstructured.Unstructured) gitops.GitConfig {
+func (c *parentController) GetGitOpsConfig(obj *unstructured.Unstructured) gitops.GitConfig {
 	appName := c.managerApp.Name
-	glog.V(2).Infof("Checking for GitOps configuration override for %v...", appName)
+	glog.V(3).Infof("Checking for GitOps configuration override for %v...", appName)
 	// Lock the cache to ensure the discovery process doesn't overwrite the configs while processing the overrides
 	c.gitOpsConfigCacheLock.Lock()
 	defer c.gitOpsConfigCacheLock.Unlock()
 	namespaceConfigOverrides := c.gitOpsConfigCache[obj.GetNamespace()]
 	for _, configOverride := range namespaceConfigOverrides {
 		if isGitOpsConfigOverridden(configOverride, appName) {
-			glog.V(2).Infof("Found GitOps configuration override for [%v].", appName)
+			glog.V(3).Infof("Found GitOps configuration override for [%v].", appName)
 			email, username, secretName, secretNamespace := getGitOpsCredentials(configOverride, c.gitConfig)
 			return gitops.GitConfig{
 				GitSecretNamespace: secretNamespace,
@@ -328,6 +326,6 @@ func ( c *parentController) GetGitOpsConfig(obj *unstructured.Unstructured) gito
 		}
 	}
 	// No override was found. Return the default config.
-	glog.V(2).Infof("No GitOps configuration override found for [%v]. Using default configuration.", appName)
+	glog.V(3).Infof("No GitOps configuration override found for [%v]. Using default configuration.", appName)
 	return c.gitConfig
 }

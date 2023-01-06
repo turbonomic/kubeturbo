@@ -286,6 +286,7 @@ type MockClusterScrapper struct {
 	mockGetAllTurboSLOScalings     func() ([]policyv1alpha1.SLOHorizontalScale, error)
 	mockGetAllTurboPolicyBindings  func() ([]policyv1alpha1.PolicyBinding, error)
 	mockGetAllGitOpsConfigurations func() ([]gitopsv1alpha1.GitOps, error)
+	mockUpdateGitOpsConfigCache    func()
 }
 
 func (s *MockClusterScrapper) GetAllTurboSLOScalings() ([]policyv1alpha1.SLOHorizontalScale, error) {
@@ -307,6 +308,12 @@ func (s *MockClusterScrapper) GetAllGitOpsConfigurations() ([]gitopsv1alpha1.Git
 		return s.mockGetAllGitOpsConfigurations()
 	}
 	return nil, fmt.Errorf("GetAllGitOpsConfigurations Not implemented")
+}
+
+func (s *MockClusterScrapper) UpdateGitOpsConfigCache() {
+	if s.mockUpdateGitOpsConfigCache != nil {
+		s.mockUpdateGitOpsConfigCache()
+	}
 }
 
 func (s *MockClusterScrapper) GetAllNodes() ([]*v1.Node, error) {

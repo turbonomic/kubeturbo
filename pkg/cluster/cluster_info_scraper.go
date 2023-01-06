@@ -60,6 +60,7 @@ type ClusterScraperInterface interface {
 	GetAllTurboSLOScalings() ([]policyv1alpha1.SLOHorizontalScale, error)
 	GetAllTurboPolicyBindings() ([]policyv1alpha1.PolicyBinding, error)
 	GetAllGitOpsConfigurations() ([]gitopsv1alpha1.GitOps, error)
+	UpdateGitOpsConfigCache()
 }
 
 type ClusterScraper struct {
@@ -69,7 +70,7 @@ type ClusterScraper struct {
 	DynamicClient           dynamic.Interface
 	ControllerRuntimeClient runtimeclient.Client
 	cache                   turbostore.ITurboCache
-	GitOpsConfigCache       *map[string][]*gitopsv1alpha1.Configuration
+	GitOpsConfigCache       map[string][]*gitopsv1alpha1.Configuration
 	GitOpsConfigCacheLock   sync.Mutex
 }
 
@@ -83,7 +84,7 @@ func NewClusterScraper(kclient *client.Clientset, dynamicClient dynamic.Interfac
 		// Create cache with expiration duration as defaultCacheTTL, which means the cached data will be cleaned up after
 		// defaultCacheTTL.
 		cache:             turbostore.NewTurboCache(defaultCacheTTL).Cache,
-		GitOpsConfigCache: &gitOpsMap,
+		GitOpsConfigCache: gitOpsMap,
 	}
 
 	if capiEnabled {
@@ -543,8 +544,12 @@ func (s *ClusterScraper) GetAllGitOpsConfigurations() ([]gitopsv1alpha1.GitOps, 
 	return gitopsList.Items, nil
 }
 
-// Generate a map of namespace to GitOps configuration overrides
-func (s *ClusterScraper) UpdateGitOpsConfigCache(configs []gitopsv1alpha1.GitOps) {
+func (s *ClusterScraper) UpdateGitOpsConfigCache() {
+	configs, err := s.GetAllGitOpsConfigurations()
+	if err != nil {
+		glog.V(2).Infof("Failed to discover GitOps configurations: %v", err)
+		return
+	}
 	gitOpsConfigCache := make(map[string][]*gitopsv1alpha1.Configuration)
 	for _, gitOpsConfig := range configs {
 		namespace := gitOpsConfig.GetNamespace()
@@ -555,5 +560,5 @@ func (s *ClusterScraper) UpdateGitOpsConfigCache(configs []gitopsv1alpha1.GitOps
 	// Lock the "cache" to prevent access while it gets overwritten
 	s.GitOpsConfigCacheLock.Lock()
 	defer s.GitOpsConfigCacheLock.Unlock()
-	s.GitOpsConfigCache = &gitOpsConfigCache
+	s.GitOpsConfigCache = gitOpsConfigCache
 }
