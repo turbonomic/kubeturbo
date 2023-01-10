@@ -6,7 +6,7 @@ import (
 
 	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/golang/glog"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
@@ -233,6 +233,9 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.ClusterSummary, error)
 	if clusterScraper, ok := p.clusterInfoScraper.(*cluster.ClusterScraper); ok {
 		clusterScraper.UpdatePodControllerCache(kubeCluster.Pods, kubeCluster.ControllerMap)
 	}
+
+	// Discover and cache GitOps configuration overrides
+	p.clusterInfoScraper.UpdateGitOpsConfigCache()
 
 	return repository.CreateClusterSummary(kubeCluster), nil
 }

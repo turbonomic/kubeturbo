@@ -17,6 +17,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
 	github.com/turbonomic/turbo-crd v0.0.0-20220630232025-77ff549647ec
+	github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3
 	github.com/turbonomic/turbo-go-sdk v0.0.0-20221212155126-6e7e16cf1e1f
 	github.com/xanzy/go-gitlab v0.74.0
 )
@@ -58,10 +59,10 @@ require (
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/turbonomic/turbo-api v0.0.0-20221010220448-3f35ebf030aa // indirect
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
-	golang.org/x/net v0.0.0-20220805013720-a33c5aa5df48 // indirect
+	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b // indirect
 	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/text v0.4.0 // indirect
 	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -98,7 +99,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
 	github.com/evanphx/json-patch v5.6.0+incompatible
-	github.com/google/go-cmp v0.5.8
+	github.com/google/go-cmp v0.5.9
 	github.com/google/go-github/v42 v42.0.0
 	github.com/openshift/client-go v0.0.0-20210730113412-1811c1b3fc0e
 	// openshift cluster api for cluster-api based node provision and suspend
@@ -109,7 +110,7 @@ require (
 	github.com/openshift/machine-api-operator v0.2.1-0.20210923190431-734dcea054a1
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.28.0
-	golang.org/x/oauth2 v0.0.0-20220722155238-128564f6959c
+	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/controller-runtime v0.11.2
 	sigs.k8s.io/yaml v1.3.0
