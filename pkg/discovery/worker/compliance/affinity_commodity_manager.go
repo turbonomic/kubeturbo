@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +22,8 @@ const (
 type AffinityCommodityManager struct {
 	commoditySoldStore   map[string]*proto.CommodityDTO
 	commodityBoughtStore map[string]*proto.CommodityDTO
+	commoditySoldLock    sync.RWMutex
+	commodityBoughtLock  sync.RWMutex
 }
 
 func NewAffinityCommodityManager() *AffinityCommodityManager {
@@ -84,6 +87,8 @@ func (acm *AffinityCommodityManager) getCommoditySoldAndBought(displayString, te
 }
 
 func (acm *AffinityCommodityManager) getCommoditySold(key string) (*proto.CommodityDTO, error) {
+	acm.commoditySoldLock.Lock()
+	defer acm.commoditySoldLock.Unlock()
 	commodityDTO, exist := acm.commoditySoldStore[key]
 	if exist {
 		return commodityDTO, nil
@@ -103,6 +108,8 @@ func (acm *AffinityCommodityManager) getCommoditySold(key string) (*proto.Commod
 }
 
 func (acm *AffinityCommodityManager) getCommodityBought(key string) (*proto.CommodityDTO, error) {
+	acm.commodityBoughtLock.Lock()
+	defer acm.commodityBoughtLock.Unlock()
 	commodityDTO, exist := acm.commodityBoughtStore[key]
 	if exist {
 		return commodityDTO, nil

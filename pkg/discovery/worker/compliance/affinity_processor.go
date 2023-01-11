@@ -1,13 +1,17 @@
 package compliance
 
 import (
+	"context"
+
 	"github.com/golang/glog"
 
 	api "k8s.io/api/core/v1"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/cache"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/features"
+	"github.com/turbonomic/kubeturbo/pkg/parallelizer"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -16,34 +20,50 @@ import (
 // Affinity processor parses each affinity rule defined in pod and creates commodityDTOs for nodes and pods.
 type AffinityProcessor struct {
 	*ComplianceProcessor
-	commManager     *AffinityCommodityManager
-	nodes           []*api.Node
-	pods            []*api.Pod
-	podToVolumesMap map[string][]repository.MountedVolume
+	commManager           *AffinityCommodityManager
+	nodes                 []*api.Node
+	pods                  []*api.Pod
+	podToVolumesMap       map[string][]repository.MountedVolume
+	affinityPodNodesCache *cache.AffinityPodNodesCache
+	parallelizer          parallelizer.Parallelizer
 }
 
 func NewAffinityProcessor(cluster *repository.ClusterSummary) (*AffinityProcessor, error) {
 	return &AffinityProcessor{
-		ComplianceProcessor: NewComplianceProcessor(),
-		commManager:         NewAffinityCommodityManager(),
-		nodes:               cluster.Nodes,
-		pods:                cluster.GetReadyPods(),
-		podToVolumesMap:     cluster.PodToVolumesMap,
+		ComplianceProcessor:   NewComplianceProcessor(),
+		commManager:           NewAffinityCommodityManager(),
+		nodes:                 cluster.Nodes,
+		pods:                  cluster.GetReadyPods(),
+		podToVolumesMap:       cluster.PodToVolumesMap,
+		affinityPodNodesCache: cache.NewAffinityPodNodesCache(cluster.Nodes, cluster.GetReadyPods()),
+		// TODO: How do we want to configure the parallelization here???
+		parallelizer: parallelizer.NewParallelizer(parallelizer.DefaultParallelism),
 	}, nil
 }
 
 // TODO if there is an error, fail the whole discovery? currently, error is handled in place and won't affect other discovery results.
 func (am *AffinityProcessor) ProcessAffinityRules(entityDTOs []*proto.EntityDTO) []*proto.EntityDTO {
 	am.GroupEntityDTOs(entityDTOs)
-	podsNodesMap := buildPodsNodesMap(am.nodes, am.pods)
 
+	// Filter the pods to only those with affinities
+	affinityPods := []*api.Pod{}
 	for _, pod := range am.pods {
-		am.processAffinityPerPod(pod, podsNodesMap)
+		if pod.Spec.Affinity != nil {
+			affinityPods = append(affinityPods, pod)
+		}
 	}
+
+	processAffinityPerPod := func(i int) {
+		pod := affinityPods[i]
+		am.processAffinityPerPod(pod)
+	}
+
+	am.parallelizer.Until(context.Background(), len(affinityPods), processAffinityPerPod, "processAffinityPerPod")
 	return am.GetAllEntityDTOs()
 }
 
-func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod, podsNodesMap map[*api.Pod]*api.Node) {
+func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod) {
+	glog.V(2).Infof("Processing Affinity for Pod %v", pod.Name) // TODO: REMOVE
 	affinity := pod.Spec.Affinity
 	// Honor the nodeAffinity from the pod's nodeAffinity
 	nodeSelectorTerms := getAllNodeSelectors(affinity)
@@ -67,13 +87,14 @@ func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod, podsNodesMap ma
 		return
 	}
 
-	hostNode := podsNodesMap[pod]
-	for _, node := range am.nodes {
-		if matchesNodeAffinity(pod, node) && matchesPvNodeAffinity(pvNodeSelectorTerms, node) {
-			am.addAffinityAccessCommodities(pod, node, hostNode, nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought)
-		}
-		if interPodAffinityMatches(pod, node, podsNodesMap) {
-			am.addAffinityAccessCommodities(pod, node, hostNode, podAffinityCommodityDTOsSold, podAffinityCommodityDTOsBought)
+	if hostNode, ok := am.affinityPodNodesCache.Load(pod); ok {
+		for _, node := range am.nodes {
+			if matchesNodeAffinity(pod, node) && matchesPvNodeAffinity(pvNodeSelectorTerms, node) {
+				am.addAffinityAccessCommodities(pod, node, hostNode, nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought)
+			}
+			if interPodAffinityMatches(pod, node, am.affinityPodNodesCache) {
+				am.addAffinityAccessCommodities(pod, node, hostNode, podAffinityCommodityDTOsSold, podAffinityCommodityDTOsBought)
+			}
 		}
 	}
 }
