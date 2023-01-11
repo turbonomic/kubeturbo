@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/cache"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 
 	"github.com/golang/glog"
@@ -65,8 +66,8 @@ func nodeMatchesNodeSelectorTerms(node *api.Node, nodeSelectorTerms []api.NodeSe
 
 //----------------------------------------- Pod Affinity -------------------------------------------------------
 
-func interPodAffinityMatches(pod *api.Pod, node *api.Node, allPodsNodesMap map[*api.Pod]*api.Node) bool {
-	if !satisfiesExistingPodsAntiAffinity(pod, node, allPodsNodesMap) {
+func interPodAffinityMatches(pod *api.Pod, node *api.Node, affinityPodNodesCache *cache.AffinityPodNodesCache) bool {
+	if !satisfiesExistingPodsAntiAffinity(pod, node, affinityPodNodesCache) {
 		return false
 	}
 
@@ -75,15 +76,15 @@ func interPodAffinityMatches(pod *api.Pod, node *api.Node, allPodsNodesMap map[*
 	if affinity == nil || (affinity.PodAffinity == nil && affinity.PodAntiAffinity == nil) {
 		return true
 	}
-	if !satisfiesPodsAffinityAntiAffinity(pod, node, affinity, allPodsNodesMap) {
+	if !satisfiesPodsAffinityAntiAffinity(pod, node, affinity, affinityPodNodesCache) {
 		return false
 	}
 
 	return true
 }
 
-func satisfiesExistingPodsAntiAffinity(pod *api.Pod, node *api.Node, allPodsNodesMap map[*api.Pod]*api.Node) bool {
-	matchingTerms, err := getMatchingAntiAffinityTerms(pod, allPodsNodesMap)
+func satisfiesExistingPodsAntiAffinity(pod *api.Pod, node *api.Node, affinityPodNodesCache *cache.AffinityPodNodesCache) bool {
+	matchingTerms, err := getMatchingAntiAffinityTerms(pod, affinityPodNodesCache)
 	if err != nil {
 		glog.Errorf("Failed to get all terms that pod %+v matches, err: %+v", util.GetPodClusterID(pod), err)
 		return false
@@ -107,35 +108,37 @@ type matchingPodAntiAffinityTerm struct {
 	node *api.Node
 }
 
-func getMatchingAntiAffinityTerms(pod *api.Pod, allPodsNodesMap map[*api.Pod]*api.Node) ([]matchingPodAntiAffinityTerm, error) {
-	var result []matchingPodAntiAffinityTerm
-	for existingPod, existingPodNode := range allPodsNodesMap {
+func getMatchingAntiAffinityTerms(pod *api.Pod, affinityPodNodesCache *cache.AffinityPodNodesCache) ([]matchingPodAntiAffinityTerm, error) {
+	var (
+		result      []matchingPodAntiAffinityTerm
+		errorResult error
+	)
+	affinityPodNodesCache.Range(func(existingPod *api.Pod, existingPodNode *api.Node) {
 		// Skip self as allPodsNodesMap contains this pod also
-		if pod.Name == existingPod.Name && pod.Namespace == existingPod.Namespace {
-			continue
-		}
-		affinity := existingPod.Spec.Affinity
-		if affinity != nil && affinity.PodAntiAffinity != nil {
-			for _, term := range getPodAntiAffinityTerms(affinity.PodAntiAffinity) {
-				namespaces := getNamespacesFromPodAffinityTerm(existingPod, &term)
-				selector, err := metav1.LabelSelectorAsSelector(term.LabelSelector)
-				if err != nil {
-					return nil, err
-				}
-				if podMatchesTermsNamespaceAndSelector(pod, namespaces, selector) {
-					result = append(result, matchingPodAntiAffinityTerm{term: &term, node: existingPodNode})
+		if pod.Name != existingPod.Name || pod.Namespace != existingPod.Namespace {
+			affinity := existingPod.Spec.Affinity
+			if affinity != nil && affinity.PodAntiAffinity != nil {
+				for _, term := range getPodAntiAffinityTerms(affinity.PodAntiAffinity) {
+					namespaces := getNamespacesFromPodAffinityTerm(existingPod, &term)
+					selector, err := metav1.LabelSelectorAsSelector(term.LabelSelector)
+					if err != nil {
+						result = nil
+						errorResult = err
+					}
+					if podMatchesTermsNamespaceAndSelector(pod, namespaces, selector) {
+						result = append(result, matchingPodAntiAffinityTerm{term: &term, node: existingPodNode})
+					}
 				}
 			}
 		}
-	}
-	return result, nil
+	})
+	return result, errorResult
 }
 
-func satisfiesPodsAffinityAntiAffinity(pod *api.Pod, node *api.Node, affinity *api.Affinity, allPodsNodesMap map[*api.Pod]*api.Node) bool {
-
+func satisfiesPodsAffinityAntiAffinity(pod *api.Pod, node *api.Node, affinity *api.Affinity, affinityPodNodesCache *cache.AffinityPodNodesCache) bool {
 	// Check all affinity terms.
 	for _, term := range getPodAffinityTerms(affinity.PodAffinity) {
-		termMatches, matchingPodExists, err := anyPodMatchesPodAffinityTerm(pod, allPodsNodesMap, node, &term)
+		termMatches, matchingPodExists, err := anyPodMatchesPodAffinityTerm(pod, affinityPodNodesCache, node, &term)
 		if err != nil {
 			glog.Errorf("Cannot schedule pod %+v onto node %v,because of PodAffinityTerm %v, err: %v",
 				util.GetPodClusterID(pod), node.Name, term, err)
@@ -168,7 +171,7 @@ func satisfiesPodsAffinityAntiAffinity(pod *api.Pod, node *api.Node, affinity *a
 
 	// Check all anti-affinity terms.
 	for _, term := range getPodAntiAffinityTerms(affinity.PodAntiAffinity) {
-		termMatches, _, err := anyPodMatchesPodAffinityTerm(pod, allPodsNodesMap, node, &term)
+		termMatches, _, err := anyPodMatchesPodAffinityTerm(pod, affinityPodNodesCache, node, &term)
 		if err != nil || termMatches {
 			glog.V(10).Infof("Cannot schedule pod %+v onto node %v,because of PodAntiAffinityTerm %v, err: %v",
 				util.GetPodClusterID(pod), node.Name, term, err)
@@ -179,30 +182,29 @@ func satisfiesPodsAffinityAntiAffinity(pod *api.Pod, node *api.Node, affinity *a
 	return true
 }
 
-func anyPodMatchesPodAffinityTerm(pod *api.Pod, allPodsNodesMap map[*api.Pod]*api.Node, node *api.Node, term *api.PodAffinityTerm) (bool, bool, error) {
+func anyPodMatchesPodAffinityTerm(pod *api.Pod, affinityPodNodesCache *cache.AffinityPodNodesCache, node *api.Node, term *api.PodAffinityTerm) (bool, bool, error) {
 	if len(term.TopologyKey) == 0 {
-		return false, false, errors.New("Empty topologyKey is not allowed except for PreferredDuringScheduling pod anti-affinity")
+		return false, false, errors.New("empty topologyKey is not allowed except for PreferredDuringScheduling pod anti-affinity")
 	}
+	result := false
 	matchingPodExists := false
 	namespaces := getNamespacesFromPodAffinityTerm(pod, term)
 	selector, err := metav1.LabelSelectorAsSelector(term.LabelSelector)
 	if err != nil {
 		return false, false, err
 	}
-	for existingPod, existingPodNode := range allPodsNodesMap {
-		// Skip self as allPodsNodesMap contains this pod also
-		if pod.Name == existingPod.Name && pod.Namespace == existingPod.Namespace {
-			continue
-		}
-		match := podMatchesTermsNamespaceAndSelector(existingPod, namespaces, selector)
-		if match {
-			matchingPodExists = true
-			if nodesHaveSameTopologyKey(node, existingPodNode, term.TopologyKey) {
-				return true, matchingPodExists, nil
+	affinityPodNodesCache.Range(func(existingPod *api.Pod, existingPodNode *api.Node) {
+		if pod.Name != existingPod.Name || pod.Namespace != existingPod.Namespace {
+			match := podMatchesTermsNamespaceAndSelector(existingPod, namespaces, selector)
+			if match {
+				matchingPodExists = true
+				if nodesHaveSameTopologyKey(node, existingPodNode, term.TopologyKey) {
+					result = true
+				}
 			}
 		}
-	}
-	return false, matchingPodExists, nil
+	})
+	return result, matchingPodExists, err
 }
 
 //----------------------------------------- util -------------------------------------------------------
