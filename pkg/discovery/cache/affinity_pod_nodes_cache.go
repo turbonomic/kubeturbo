@@ -38,7 +38,9 @@ func (c *AffinityPodNodesCache) Store(p *v1.Pod, n *v1.Node) {
 	c.podNodesMap[p] = n
 }
 
-func (c *AffinityPodNodesCache) Range(f func(key *v1.Pod, value *v1.Node)) {
+// Range calls function f for each key and value present in the map.
+// If f returns false, range stops the iteration
+func (c *AffinityPodNodesCache) Range(f func(key *v1.Pod, value *v1.Node) bool) {
 	// Make a copy of the map to interate over for the range operation so that the lock can be released quickly
 	c.RLock()
 	copy := make(map[*v1.Pod]*v1.Node)
@@ -48,7 +50,11 @@ func (c *AffinityPodNodesCache) Range(f func(key *v1.Pod, value *v1.Node)) {
 	c.RUnlock()
 	// Process the range operation against the copy of the cache
 	for key, value := range copy {
-		f(key, value)
+		keepProcessing := f(key, value)
+		// If the function returns false, stop iterating the range
+		if !keepProcessing {
+			break
+		}
 	}
 }
 

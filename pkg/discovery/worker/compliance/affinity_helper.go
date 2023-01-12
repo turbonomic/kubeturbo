@@ -113,8 +113,11 @@ func getMatchingAntiAffinityTerms(pod *api.Pod, affinityPodNodesCache *cache.Aff
 		result      []matchingPodAntiAffinityTerm
 		errorResult error
 	)
-	affinityPodNodesCache.Range(func(existingPod *api.Pod, existingPodNode *api.Node) {
+	affinityPodNodesCache.Range(func(existingPod *api.Pod, existingPodNode *api.Node) bool {
 		// Skip self as allPodsNodesMap contains this pod also
+		if pod.Name == existingPod.Name && pod.Namespace == existingPod.Namespace {
+			return true // "continue" to the next items in the range
+		}
 		if pod.Name != existingPod.Name || pod.Namespace != existingPod.Namespace {
 			affinity := existingPod.Spec.Affinity
 			if affinity != nil && affinity.PodAntiAffinity != nil {
@@ -124,6 +127,7 @@ func getMatchingAntiAffinityTerms(pod *api.Pod, affinityPodNodesCache *cache.Aff
 					if err != nil {
 						result = nil
 						errorResult = err
+						return false // Terminate the range "loop"
 					}
 					if podMatchesTermsNamespaceAndSelector(pod, namespaces, selector) {
 						result = append(result, matchingPodAntiAffinityTerm{term: &term, node: existingPodNode})
@@ -131,6 +135,7 @@ func getMatchingAntiAffinityTerms(pod *api.Pod, affinityPodNodesCache *cache.Aff
 				}
 			}
 		}
+		return true
 	})
 	return result, errorResult
 }
@@ -193,16 +198,22 @@ func anyPodMatchesPodAffinityTerm(pod *api.Pod, affinityPodNodesCache *cache.Aff
 	if err != nil {
 		return false, false, err
 	}
-	affinityPodNodesCache.Range(func(existingPod *api.Pod, existingPodNode *api.Node) {
+	affinityPodNodesCache.Range(func(existingPod *api.Pod, existingPodNode *api.Node) bool {
+		// Skip self as allPodsNodesMap contains this pod also
+		if pod.Name == existingPod.Name && pod.Namespace == existingPod.Namespace {
+			return true // "continue" to the next items in the range
+		}
 		if pod.Name != existingPod.Name || pod.Namespace != existingPod.Namespace {
 			match := podMatchesTermsNamespaceAndSelector(existingPod, namespaces, selector)
 			if match {
 				matchingPodExists = true
 				if nodesHaveSameTopologyKey(node, existingPodNode, term.TopologyKey) {
 					result = true
+					return false // Terminate the range "loop"
 				}
 			}
 		}
+		return true
 	})
 	return result, matchingPodExists, err
 }
