@@ -276,7 +276,7 @@ func reverseUuid(oid string) (string, error) {
 		seg := parts[i]
 		if len(seg)%2 != 0 {
 			errorMessage := fmt.Sprintf("invalid UUID segment of odd length found [%v] for uuid %v", seg, oid)
-			glog.V(2).Infof(errorMessage)
+			glog.Warningf(errorMessage)
 			return "", fmt.Errorf(errorMessage)
 		}
 		for end := len(seg); end > 0; end -= 2 {
