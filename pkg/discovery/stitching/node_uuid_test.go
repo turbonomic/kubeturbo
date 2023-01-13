@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	api "k8s.io/api/core/v1"
 )
 
@@ -181,4 +182,31 @@ func TestGKENodeUUIDGetter_GetUUID(t *testing.T) {
 			t.Errorf("Wrong node UUID %v Vs. %v", result, pair[1])
 		}
 	}
+}
+
+func TestReverseUUID(t *testing.T) {
+	uuids := []string{
+		"F4843642-7461-5AF2-5EF5-DA59C298CF44",
+		"BCB03642-6AE4-374E-8E17-457945ADA813",
+		"12AF3642-C5A9-6353-7EAE-AD5FD1E919C0",
+		"2AEB3642-28D6-946B-7B6F-55978F0F6628",
+		"51C03642-B323-C843-0CF9-FB0E46E4E29C",
+		"D1873642-A003-0963-D1C4-21A9AD6E5C79",
+		"EE3A3642-4D1F-23F3-A63A-D8991BC38002",
+	}
+
+	for _, uuid := range uuids {
+		// Our code converts these to lower case prior to entering this method
+		lowerUuid := strings.ToLower(uuid)
+		reversedUuid, err := reverseUuid(strings.ToLower(lowerUuid))
+		assert.Nil(t, err)
+		assert.NotNil(t, reversedUuid)
+		assert.NotEqual(t, lowerUuid, reversedUuid)
+	}
+}
+
+func TestReverseUUIDError(t *testing.T) {
+	// The following UUID was causing kubeturbo to crash. See OM-94666.
+	_, err := reverseUuid("a6e3642-0c9f-d66b-b19b-592157a699ed")
+	assert.NotNil(t, err, "reverse should fail due to invalid segment of odd length")
 }

@@ -266,7 +266,7 @@ func (v *vsphereNodeUUIDGetter) GetUUID(node *api.Node) (string, error) {
 func reverseUuid(oid string) (string, error) {
 	parts := strings.Split(oid, uuidSeparator)
 	if len(parts) != 5 {
-		return "", fmt.Errorf("Split failed")
+		return "", fmt.Errorf("split failed")
 	}
 
 	var buf bytes.Buffer
@@ -274,6 +274,11 @@ func reverseUuid(oid string) (string, error) {
 	//1. reverse the first 3 segments
 	for i := 0; i < 3; i++ {
 		seg := parts[i]
+		if len(seg)%2 != 0 {
+			errorMessage := fmt.Sprintf("invalid UUID segment of odd length found [%v] for uuid %v", seg, oid)
+			glog.Warningf(errorMessage)
+			return "", fmt.Errorf(errorMessage)
+		}
 		for end := len(seg); end > 0; end -= 2 {
 			buf.WriteString(seg[end-2 : end])
 		}
