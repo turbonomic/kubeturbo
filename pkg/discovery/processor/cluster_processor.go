@@ -210,7 +210,7 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.ClusterSummary, error)
 		WithMachineSetToNodesMap(p.clusterInfoScraper.GetMachineSetToNodesMap(nodeList))
 
 	// Discover Namespaces and Quotas
-	NewNamespaceProcessor(p.clusterInfoScraper, kubeCluster).ProcessNamespaces()
+	kubeCluster.KubeNamespacesMap = NewNamespaceProcessor(p.clusterInfoScraper, kubeCluster).ProcessNamespaces()
 
 	// Discover Workload Controllers
 	NewControllerProcessor(p.clusterInfoScraper, kubeCluster).

@@ -18,6 +18,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance/interpodaffinity"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/k8sappcomponents"
 	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
@@ -406,17 +407,19 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	glog.V(3).Infof("Postprocessing and aggregatig DTOs took %s", time.Since(start))
 
 	// affinity process
+	var affinityMapping map[string][]string
 	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) {
 		glog.V(2).Infof("Begin to process affinity.")
 		start := time.Now()
-		affinityProcessor, err := compliance.NewAffinityProcessor(clusterSummary)
+		affinityProcessor, err := interpodaffinity.New(dc.k8sClusterScraper.Clientset, clusterSummary)
 		if err != nil {
 			glog.Errorf("Failed during process affinity rules: %s", err)
 		} else {
-			result.EntityDTOs = affinityProcessor.ProcessAffinityRules(result.EntityDTOs)
+			affinityMapping = affinityProcessor.ProcessAffinities(clusterSummary.Pods)
 		}
 		glog.V(2).Infof("Successfully processed affinity.")
 		glog.V(3).Infof("Processing affinities took %s", time.Since(start))
+		glog.V(3).Infof("\n\nProcessed affinity result: %++v \n\n", affinityMapping)
 	} else {
 		glog.V(2).Infof("Ignoring affinities.")
 	}
