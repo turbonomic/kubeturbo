@@ -118,20 +118,18 @@ func getMatchingAntiAffinityTerms(pod *api.Pod, affinityPodNodesCache *cache.Aff
 		if pod.Name == existingPod.Name && pod.Namespace == existingPod.Namespace {
 			return true // "continue" to the next items in the range
 		}
-		if pod.Name != existingPod.Name || pod.Namespace != existingPod.Namespace {
-			affinity := existingPod.Spec.Affinity
-			if affinity != nil && affinity.PodAntiAffinity != nil {
-				for _, term := range getPodAntiAffinityTerms(affinity.PodAntiAffinity) {
-					namespaces := getNamespacesFromPodAffinityTerm(existingPod, &term)
-					selector, err := metav1.LabelSelectorAsSelector(term.LabelSelector)
-					if err != nil {
-						result = nil
-						errorResult = err
-						return false // Terminate the range "loop"
-					}
-					if podMatchesTermsNamespaceAndSelector(pod, namespaces, selector) {
-						result = append(result, matchingPodAntiAffinityTerm{term: &term, node: existingPodNode})
-					}
+		affinity := existingPod.Spec.Affinity
+		if affinity != nil && affinity.PodAntiAffinity != nil {
+			for _, term := range getPodAntiAffinityTerms(affinity.PodAntiAffinity) {
+				namespaces := getNamespacesFromPodAffinityTerm(existingPod, &term)
+				selector, err := metav1.LabelSelectorAsSelector(term.LabelSelector)
+				if err != nil {
+					result = nil
+					errorResult = err
+					return false // Terminate the range "loop"
+				}
+				if podMatchesTermsNamespaceAndSelector(pod, namespaces, selector) {
+					result = append(result, matchingPodAntiAffinityTerm{term: &term, node: existingPodNode})
 				}
 			}
 		}

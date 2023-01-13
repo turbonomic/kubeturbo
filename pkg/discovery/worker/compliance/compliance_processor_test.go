@@ -19,13 +19,13 @@ func TestGetEntityDTO(t *testing.T) {
 	}{
 		{
 			entityMaps: map[proto.EntityDTO_EntityType]map[string]*proto.EntityDTO{
-				proto.EntityDTO_VIRTUAL_MACHINE: map[string]*proto.EntityDTO{
+				proto.EntityDTO_VIRTUAL_MACHINE: {
 					"foo": {
 						EntityType: getEntityTypePointer(proto.EntityDTO_VIRTUAL_MACHINE),
 						Id:         getStringPointer("foo"),
 					},
 				},
-				proto.EntityDTO_CONTAINER_POD: map[string]*proto.EntityDTO{
+				proto.EntityDTO_CONTAINER_POD: {
 					"bar": {
 						EntityType: getEntityTypePointer(proto.EntityDTO_CONTAINER_POD),
 						Id:         getStringPointer("bar"),
@@ -43,7 +43,7 @@ func TestGetEntityDTO(t *testing.T) {
 		},
 		{
 			entityMaps: map[proto.EntityDTO_EntityType]map[string]*proto.EntityDTO{
-				proto.EntityDTO_VIRTUAL_MACHINE: map[string]*proto.EntityDTO{
+				proto.EntityDTO_VIRTUAL_MACHINE: {
 					"foo": {
 						EntityType: getEntityTypePointer(proto.EntityDTO_VIRTUAL_MACHINE),
 						Id:         getStringPointer("foo"),
@@ -88,7 +88,7 @@ func TestUpdateEntityDTO(t *testing.T) {
 	}{
 		{
 			entityMaps: map[proto.EntityDTO_EntityType]map[string]*proto.EntityDTO{
-				proto.EntityDTO_VIRTUAL_MACHINE: map[string]*proto.EntityDTO{
+				proto.EntityDTO_VIRTUAL_MACHINE: {
 					"foo": {
 						EntityType:  getEntityTypePointer(proto.EntityDTO_VIRTUAL_MACHINE),
 						Id:          getStringPointer("foo"),
@@ -106,7 +106,7 @@ func TestUpdateEntityDTO(t *testing.T) {
 		},
 		{
 			entityMaps: map[proto.EntityDTO_EntityType]map[string]*proto.EntityDTO{
-				proto.EntityDTO_VIRTUAL_MACHINE: map[string]*proto.EntityDTO{
+				proto.EntityDTO_VIRTUAL_MACHINE: {
 					"foo": {
 						EntityType:  getEntityTypePointer(proto.EntityDTO_VIRTUAL_MACHINE),
 						Id:          getStringPointer("foo"),
@@ -124,7 +124,7 @@ func TestUpdateEntityDTO(t *testing.T) {
 		},
 		{
 			entityMaps: map[proto.EntityDTO_EntityType]map[string]*proto.EntityDTO{
-				proto.EntityDTO_VIRTUAL_MACHINE: map[string]*proto.EntityDTO{
+				proto.EntityDTO_VIRTUAL_MACHINE: {
 					"foo": {
 						EntityType:  getEntityTypePointer(proto.EntityDTO_VIRTUAL_MACHINE),
 						Id:          getStringPointer("foo"),

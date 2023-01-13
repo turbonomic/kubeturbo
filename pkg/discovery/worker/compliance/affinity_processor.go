@@ -63,7 +63,7 @@ func (am *AffinityProcessor) ProcessAffinityRules(entityDTOs []*proto.EntityDTO)
 }
 
 func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod) {
-	glog.V(2).Infof("Processing Affinity for Pod %v", pod.Name) // TODO: REMOVE
+	glog.V(3).Infof("Processing Affinity for Pod %v", pod.Name)
 	affinity := pod.Spec.Affinity
 	// Honor the nodeAffinity from the pod's nodeAffinity
 	nodeSelectorTerms := getAllNodeSelectors(affinity)
@@ -125,12 +125,12 @@ func (am *AffinityProcessor) addAffinityAccessCommodities(pod *api.Pod, node *ap
 	affinityAccessCommoditiesSold, affinityAccessCommoditiesBought []*proto.CommodityDTO) {
 
 	// add commodity sold by matching nodes.
-	if affinityAccessCommoditiesSold != nil && len(affinityAccessCommoditiesSold) > 0 {
+	if len(affinityAccessCommoditiesSold) > 0 {
 		am.addCommoditySoldByNode(node, affinityAccessCommoditiesSold)
 	}
 
 	// add commodity bought by pod.
-	if affinityAccessCommoditiesBought != nil && len(affinityAccessCommoditiesBought) > 0 {
+	if len(affinityAccessCommoditiesBought) > 0 {
 		if hostingNode != nil {
 			// We always use hosting node as provider while adding pods bought commodities
 			// unless the pod does not have a node assigned yet (which is unlikely).
@@ -198,26 +198,8 @@ func (am *AffinityProcessor) getAllPvAffinityTerms(pod *api.Pod) []api.NodeSelec
 	mounts := am.podToVolumesMap[displayName]
 	for _, amt := range mounts {
 		if amt.UsedVolume != nil && amt.UsedVolume.Spec.NodeAffinity != nil && amt.UsedVolume.Spec.NodeAffinity.Required != nil {
-			for _, req := range amt.UsedVolume.Spec.NodeAffinity.Required.NodeSelectorTerms {
-				nodeSelectorTerms = append(nodeSelectorTerms, req)
-			}
+			nodeSelectorTerms = append(nodeSelectorTerms, amt.UsedVolume.Spec.NodeAffinity.Required.NodeSelectorTerms...)
 		}
 	}
 	return nodeSelectorTerms
-}
-
-func buildPodsNodesMap(nodes []*api.Node, pods []*api.Pod) map[*api.Pod]*api.Node {
-	nodesMap := make(map[string]*api.Node)
-	for _, currNode := range nodes {
-		nodesMap[currNode.Name] = currNode
-	}
-	podsNodesMap := make(map[*api.Pod]*api.Node)
-	for _, currPod := range pods {
-		hostingNode, exist := nodesMap[currPod.Spec.NodeName]
-		if !exist || hostingNode == nil {
-			continue
-		}
-		podsNodesMap[currPod] = hostingNode
-	}
-	return podsNodesMap
 }
