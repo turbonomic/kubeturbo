@@ -6,14 +6,14 @@ package parallelizer
 import (
 	"context"
 	"math"
+	"runtime"
 
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/component-base/metrics"
 )
 
 const (
-	DefaultParallelism int = 10
-	SchedulerSubsystem     = "scheduler"
+	SchedulerSubsystem = "scheduler"
 )
 
 var (
@@ -30,8 +30,8 @@ type Parallelizer struct {
 	parallelism int
 }
 
-func NewParallelizer(p int) Parallelizer {
-	return Parallelizer{parallelism: p}
+func NewParallelizer() Parallelizer {
+	return Parallelizer{parallelism: runtime.NumCPU()}
 }
 
 func chunkSizeFor(n, parallelism int) int {

@@ -36,8 +36,7 @@ func NewAffinityProcessor(cluster *repository.ClusterSummary) (*AffinityProcesso
 		pods:                  cluster.GetReadyPods(),
 		podToVolumesMap:       cluster.PodToVolumesMap,
 		affinityPodNodesCache: cache.NewAffinityPodNodesCache(cluster.Nodes, cluster.GetReadyPods()),
-		// TODO: How do we want to configure the parallelization here???
-		parallelizer: parallelizer.NewParallelizer(parallelizer.DefaultParallelism),
+		parallelizer:          parallelizer.NewParallelizer(),
 	}, nil
 }
 

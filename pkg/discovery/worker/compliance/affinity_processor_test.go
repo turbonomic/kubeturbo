@@ -414,7 +414,7 @@ func newAffinityProcessorForTest(allNodes []*api.Node, allPods []*api.Pod, pod2P
 		nodes:                 allNodes,
 		pods:                  allPods,
 		podToVolumesMap:       pod2PVs,
-		parallelizer:          parallelizer.NewParallelizer(parallelizer.DefaultParallelism),
+		parallelizer:          parallelizer.NewParallelizer(),
 		affinityPodNodesCache: cache.NewAffinityPodNodesCache(allNodes, allPods),
 	}
 }
