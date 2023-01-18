@@ -2,6 +2,7 @@ package compliance
 
 import (
 	"context"
+	"sync"
 
 	"github.com/golang/glog"
 
@@ -28,6 +29,10 @@ type AffinityProcessor struct {
 	parallelizer          parallelizer.Parallelizer
 }
 
+var (
+	Pod2NodesMapBasedOnAffinity map[string][]string
+)
+
 func NewAffinityProcessor(cluster *repository.ClusterSummary) (*AffinityProcessor, error) {
 	return &AffinityProcessor{
 		ComplianceProcessor:   NewComplianceProcessor(),
@@ -41,9 +46,9 @@ func NewAffinityProcessor(cluster *repository.ClusterSummary) (*AffinityProcesso
 }
 
 // TODO if there is an error, fail the whole discovery? currently, error is handled in place and won't affect other discovery results.
-func (am *AffinityProcessor) ProcessAffinityRules(entityDTOs []*proto.EntityDTO) []*proto.EntityDTO {
-	am.GroupEntityDTOs(entityDTOs)
-
+func (am *AffinityProcessor) ProcessAffinityRules(wg *sync.WaitGroup) map[string][]string {
+	defer wg.Done()
+	am.fillPod2NodesMapBasedOnAffinityRules()
 	// Filter the pods to only those with affinities
 	affinityPods := []*api.Pod{}
 	for _, pod := range am.pods {
@@ -58,7 +63,7 @@ func (am *AffinityProcessor) ProcessAffinityRules(entityDTOs []*proto.EntityDTO)
 	}
 
 	am.parallelizer.Until(context.Background(), len(affinityPods), processAffinityPerPod, "processAffinityPerPod")
-	return am.GetAllEntityDTOs()
+	return Pod2NodesMapBasedOnAffinity
 }
 
 func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod) {
@@ -188,6 +193,28 @@ func (am *AffinityProcessor) addCommodityBoughtByPod(pod *api.Pod, node *api.Nod
 	err = am.AddCommoditiesBought(podEntityDTO, provider, affinityAccessCommodityDTOs...)
 	if err != nil {
 		glog.Errorf("Failed to add commodityDTOs to %s: %s", util.GetPodClusterID(pod), err)
+	}
+}
+
+func (am *AffinityProcessor) fillPod2NodesMapBasedOnAffinityRules() {
+	Pod2NodesMapBasedOnAffinity = make(map[string][]string)
+	for _, pod := range am.pods {
+		if pod.Spec.Affinity == nil {
+			continue
+		}
+		for _, node := range am.nodes {
+			if matchesNodeAffinity(pod, node) && //check node affinity
+				interPodAffinityMatches(pod, node, am.affinityPodNodesCache) && //check pod affinity
+				matchesPvNodeAffinity(am.getAllPvAffinityTerms(pod), node) { //check pv affinity
+				var nodeLst []string
+				if oldLst, ok := Pod2NodesMapBasedOnAffinity[pod.Namespace+"/"+pod.Name]; ok {
+					nodeLst = append(oldLst, node.Name)
+				} else {
+					nodeLst = append(nodeLst, node.Name)
+				}
+				Pod2NodesMapBasedOnAffinity[util.GetPodClusterID(pod)] = nodeLst
+			}
+		}
 	}
 }
 

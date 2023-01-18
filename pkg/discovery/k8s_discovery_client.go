@@ -3,6 +3,7 @@ package discovery
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/KimMachineGun/automemlimit/memlimit"
@@ -315,6 +316,21 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 		return nil, nil, fmt.Errorf("failed to process cluster: %v", err)
 	}
 
+	// Build the placement map in parallel
+	var wg sync.WaitGroup
+	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) {
+		glog.V(2).Infof("Begin to process affinity.")
+		affinityHandler, err := compliance.NewAffinityProcessor(clusterSummary)
+		if err != nil {
+			glog.Errorf("Failed during process affinity rules: %s", err)
+		} else {
+			wg.Add(1)
+			go affinityHandler.ProcessAffinityRules(&wg)
+		}
+	} else {
+		glog.V(2).Infof("Ignoring affinities.")
+	}
+
 	// Cache operatorResourceSpecMap in ormClient
 	numCRs := dc.Config.OrmClient.CacheORMSpecMap()
 	if numCRs > 0 {
@@ -402,18 +418,11 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 
 	glog.V(2).Infof("There are totally %d entityDTOs.", len(result.EntityDTOs))
 
-	// affinity process
-	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) {
-		glog.V(2).Infof("Begin to process affinity.")
-		affinityProcessor, err := compliance.NewAffinityProcessor(clusterSummary)
-		if err != nil {
-			glog.Errorf("Failed during process affinity rules: %s", err)
-		} else {
-			result.EntityDTOs = affinityProcessor.ProcessAffinityRules(result.EntityDTOs)
-		}
-		glog.V(2).Infof("Successfully processed affinity.")
-	} else {
-		glog.V(2).Infof("Ignoring affinities.")
+	wg.Wait()
+	// MergeAffinitiesToDTOs
+	for podName, nodeLst := range compliance.Pod2NodesMapBasedOnAffinity {
+		nodesStr := strings.Join(nodeLst, ",")
+		glog.V(2).Infof("Based on affinity rules, pod<%v> could be placed on the node<%v>", podName, nodesStr)
 	}
 
 	// Taint-toleration process to create access commodities
