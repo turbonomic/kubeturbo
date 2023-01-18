@@ -3,6 +3,7 @@ package compliance
 import (
 	"testing"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/cache"
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -252,11 +253,10 @@ func TestAnyPodMatchesPodAffinityTerm(t *testing.T) {
 	}
 
 	table := []struct {
-		pod          *api.Pod
-		node         *api.Node
-		podsNodesMap map[*api.Pod]*api.Node
-		term         *api.PodAffinityTerm
-
+		pod            *api.Pod
+		node           *api.Node
+		cache          *cache.AffinityPodNodesCache
+		term           *api.PodAffinityTerm
 		expectsMatches bool
 		expectsErr     bool
 	}{
@@ -278,16 +278,19 @@ func TestAnyPodMatchesPodAffinityTerm(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels1,
-					},
+					}},
 				},
-			},
-			term: &term1,
-
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
+					Spec:       api.PodSpec{NodeName: "machine2"}},
+				},
+			),
+			term:           &term1,
 			expectsMatches: true,
 			expectsErr:     false,
 		},
@@ -309,19 +312,23 @@ func TestAnyPodMatchesPodAffinityTerm(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{
-					Labels:    podLabel,
-					Namespace: "namespace2",
-				}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels2,
 					},
-				},
-			},
-			term: &term1,
-
+				}},
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels:    podLabel,
+						Namespace: "namespace2",
+					},
+					Spec: api.PodSpec{
+						NodeName: "machine2",
+					}}},
+			),
+			term:           &term1,
 			expectsMatches: false,
 			expectsErr:     false,
 		},
@@ -343,16 +350,19 @@ func TestAnyPodMatchesPodAffinityTerm(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels2,
 					},
-				},
-			},
-			term: &term1,
-
+				}},
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
+					Spec:       api.PodSpec{NodeName: "machine2"},
+				}},
+			),
+			term:           &term1,
 			expectsMatches: false,
 			expectsErr:     false,
 		},
@@ -374,16 +384,19 @@ func TestAnyPodMatchesPodAffinityTerm(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels2,
 					},
-				},
-			},
-			term: &term1,
-
+				}},
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
+					Spec:       api.PodSpec{NodeName: "machine2"},
+				}},
+			),
+			term:           &term1,
 			expectsMatches: false,
 			expectsErr:     false,
 		},
@@ -404,24 +417,16 @@ func TestAnyPodMatchesPodAffinityTerm(t *testing.T) {
 					},
 				},
 			},
-			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
-					ObjectMeta: metav1.ObjectMeta{
-						Name:   "machine2",
-						Labels: nodeLabels1,
-					},
-				},
-			},
-			term: &termWithNamespace,
-
+			node:           &node1,
+			cache:          cache.NewAffinityPodNodesCache([]*api.Node{}, []*api.Pod{}),
+			term:           &termWithNamespace,
 			expectsMatches: false,
 			expectsErr:     false,
 		},
 	}
 
 	for i, item := range table {
-		matches, _, err := anyPodMatchesPodAffinityTerm(item.pod, item.podsNodesMap, item.node, item.term)
+		matches, _, err := anyPodMatchesPodAffinityTerm(item.pod, item.cache, item.node, item.term)
 		if err != nil {
 			if !item.expectsErr {
 				t.Errorf("Test case %d failed. Unexpected error: %s", i, err)
@@ -505,11 +510,10 @@ func TestSatisfiesPodsAffinityAntiAffinity(t *testing.T) {
 	}
 
 	table := []struct {
-		pod          *api.Pod
-		node         *api.Node
-		podsNodesMap map[*api.Pod]*api.Node
-		affinity     *api.Affinity
-
+		pod            *api.Pod
+		node           *api.Node
+		cache          *cache.AffinityPodNodesCache
+		affinity       *api.Affinity
 		expectsMatches bool
 	}{
 		{
@@ -524,16 +528,19 @@ func TestSatisfiesPodsAffinityAntiAffinity(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels1,
 					},
-				},
-			},
-			affinity: affinity1,
-
+				}},
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
+					Spec:       api.PodSpec{NodeName: "machine2"},
+				}},
+			),
+			affinity:       affinity1,
 			expectsMatches: true,
 		},
 		{
@@ -548,16 +555,19 @@ func TestSatisfiesPodsAffinityAntiAffinity(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels1,
 					},
-				},
-			},
-			affinity: affinity2,
-
+				}},
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
+					Spec:       api.PodSpec{NodeName: "machine2"},
+				}},
+			),
+			affinity:       affinity2,
 			expectsMatches: false,
 		},
 		{
@@ -572,14 +582,18 @@ func TestSatisfiesPodsAffinityAntiAffinity(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels2,
 					},
-				},
-			},
+				}},
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
+					Spec:       api.PodSpec{NodeName: "machine2"},
+				}},
+			),
 			affinity: affinity1,
 
 			expectsMatches: false,
@@ -596,22 +610,25 @@ func TestSatisfiesPodsAffinityAntiAffinity(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels1,
 					},
-				},
-			},
-			affinity: affinity3,
-
+				}},
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
+					Spec:       api.PodSpec{NodeName: "machine2"},
+				}},
+			),
+			affinity:       affinity3,
 			expectsMatches: false,
 		},
 	}
 
 	for i, item := range table {
-		matches := satisfiesPodsAffinityAntiAffinity(item.pod, item.node, item.affinity, item.podsNodesMap)
+		matches := satisfiesPodsAffinityAntiAffinity(item.pod, item.node, item.affinity, item.cache)
 		if matches != item.expectsMatches {
 			t.Errorf("Test case %d failed. Expects %t, got %t.", i, item.expectsMatches, matches)
 		}
@@ -685,10 +702,9 @@ func TestInterPodAffinityMatches(t *testing.T) {
 	}
 
 	table := []struct {
-		pod          *api.Pod
-		node         *api.Node
-		podsNodesMap map[*api.Pod]*api.Node
-
+		pod            *api.Pod
+		node           *api.Node
+		cache          *cache.AffinityPodNodesCache
 		expectsMatches bool
 	}{
 		{
@@ -703,15 +719,18 @@ func TestInterPodAffinityMatches(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels1,
 					},
-				},
-			},
-
+				}},
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
+					Spec:       api.PodSpec{NodeName: "machine2"},
+				}},
+			),
 			expectsMatches: true,
 		},
 		{
@@ -726,15 +745,18 @@ func TestInterPodAffinityMatches(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels1,
 					},
-				},
-			},
-
+				}},
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
+					Spec:       api.PodSpec{NodeName: "machine2"},
+				}},
+			),
 			expectsMatches: false,
 		},
 		{
@@ -749,15 +771,18 @@ func TestInterPodAffinityMatches(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels2,
 					},
-				},
-			},
-
+				}},
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
+					Spec:       api.PodSpec{NodeName: "machine2"},
+				}},
+			),
 			expectsMatches: false,
 		},
 		{
@@ -772,15 +797,18 @@ func TestInterPodAffinityMatches(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels1,
 					},
-				},
-			},
-
+				}},
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
+					Spec:       api.PodSpec{NodeName: "machine2"},
+				}},
+			),
 			expectsMatches: false,
 		},
 		{
@@ -792,15 +820,18 @@ func TestInterPodAffinityMatches(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels1,
 					},
-				},
-			},
-
+				}},
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
+					Spec:       api.PodSpec{NodeName: "machine2"},
+				}},
+			),
 			expectsMatches: true,
 		},
 		{
@@ -815,21 +846,24 @@ func TestInterPodAffinityMatches(t *testing.T) {
 				},
 			},
 			node: &node1,
-			podsNodesMap: map[*api.Pod]*api.Node{
-				{ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}: {
+			cache: cache.NewAffinityPodNodesCache(
+				[]*api.Node{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "machine2",
 						Labels: nodeLabels1,
 					},
-				},
-			},
-
+				}},
+				[]*api.Pod{{
+					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
+					Spec:       api.PodSpec{NodeName: "machine2"},
+				}},
+			),
 			expectsMatches: true,
 		},
 	}
 
 	for i, item := range table {
-		matches := interPodAffinityMatches(item.pod, item.node, item.podsNodesMap)
+		matches := interPodAffinityMatches(item.pod, item.node, item.cache)
 		if matches != item.expectsMatches {
 			t.Errorf("Test case %d failed. Expects %t, got %t.", i, item.expectsMatches, matches)
 		}

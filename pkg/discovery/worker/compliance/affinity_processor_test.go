@@ -8,8 +8,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/cache"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/parallelizer"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
@@ -114,9 +116,8 @@ func TestProcessAffinityPerPod(t *testing.T) {
 		entityDTOs := generateAllBasicEntityDTOs(item.nodes, item.pods)
 		ap := newAffinityProcessorForTest(item.nodes, item.pods, item.pod2PvMap)
 		ap.GroupEntityDTOs(entityDTOs)
-		podsNodesMap := buildPodsNodesMap(item.nodes, item.pods)
 
-		ap.processAffinityPerPod(item.currPod, podsNodesMap)
+		ap.processAffinityPerPod(item.currPod)
 
 		podEntityDTO, err := ap.GetEntityDTO(proto.EntityDTO_CONTAINER_POD, string(item.currPod.UID))
 		if err != nil {
@@ -410,8 +411,10 @@ func newAffinityProcessorForTest(allNodes []*api.Node, allPods []*api.Pod, pod2P
 		ComplianceProcessor: NewComplianceProcessor(),
 		commManager:         NewAffinityCommodityManager(),
 
-		nodes:           allNodes,
-		pods:            allPods,
-		podToVolumesMap: pod2PVs,
+		nodes:                 allNodes,
+		pods:                  allPods,
+		podToVolumesMap:       pod2PVs,
+		parallelizer:          parallelizer.NewParallelizer(),
+		affinityPodNodesCache: cache.NewAffinityPodNodesCache(allNodes, allPods),
 	}
 }

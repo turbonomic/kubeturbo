@@ -5,6 +5,7 @@ package compliance
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/golang/glog"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
@@ -15,6 +16,7 @@ import (
 // and commodities sold based on different compliance rules.
 type ComplianceProcessor struct {
 	entityMaps map[proto.EntityDTO_EntityType]map[string]*proto.EntityDTO
+	sync.RWMutex
 }
 
 func NewComplianceProcessor() *ComplianceProcessor {
@@ -25,6 +27,8 @@ func NewComplianceProcessor() *ComplianceProcessor {
 
 // Group the given entityDTOs based on entityTypes.
 func (cp *ComplianceProcessor) GroupEntityDTOs(entityDTOs []*proto.EntityDTO) {
+	cp.Lock()
+	defer cp.Unlock()
 	for _, e := range entityDTOs {
 		eType := e.GetEntityType()
 		if _, exist := cp.entityMaps[eType]; !exist {
@@ -37,6 +41,8 @@ func (cp *ComplianceProcessor) GroupEntityDTOs(entityDTOs []*proto.EntityDTO) {
 // Get all the entityDTOs from the compliance process.
 func (cp *ComplianceProcessor) GetAllEntityDTOs() []*proto.EntityDTO {
 	var entityDTOs []*proto.EntityDTO
+	cp.RLock()
+	defer cp.RUnlock()
 	for eType := range cp.entityMaps {
 		for _, entityDTO := range cp.entityMaps[eType] {
 			entityDTOs = append(entityDTOs, entityDTO)
@@ -47,26 +53,30 @@ func (cp *ComplianceProcessor) GetAllEntityDTOs() []*proto.EntityDTO {
 
 // Get one specific entityDTO based on given entity type and entity ID.
 func (cp *ComplianceProcessor) GetEntityDTO(eType proto.EntityDTO_EntityType, entityID string) (*proto.EntityDTO, error) {
+	cp.RLock()
+	defer cp.RUnlock()
 	if _, exist := cp.entityMaps[eType]; exist {
 		if _, found := cp.entityMaps[eType][entityID]; found {
 			return cp.entityMaps[eType][entityID], nil
 		} else {
-			return nil, fmt.Errorf("given entity ID %s does not exist.", entityID)
+			return nil, fmt.Errorf("given entity ID %s does not exist", entityID)
 		}
 	} else {
-		return nil, fmt.Errorf("given entity type %s does not exist.", eType)
+		return nil, fmt.Errorf("given entity type %s does not exist", eType)
 	}
 }
 
 // Update the entry in the grouped entityDTOs stored in compliance processor.
 func (cp *ComplianceProcessor) UpdateEntityDTO(entityDTO *proto.EntityDTO) error {
 	eType := entityDTO.GetEntityType()
+	cp.Lock()
+	defer cp.Unlock()
 	if _, exist := cp.entityMaps[eType]; !exist {
-		return fmt.Errorf("given entity type %s does not exist.", eType)
+		return fmt.Errorf("given entity type %s does not exist", eType)
 	}
 	eId := entityDTO.GetId()
 	if _, exist := cp.entityMaps[eType][eId]; !exist {
-		return fmt.Errorf("given entity id %s does not exist.", eId)
+		return fmt.Errorf("given entity id %s does not exist", eId)
 	}
 	cp.entityMaps[eType][eId] = entityDTO
 	return nil
@@ -75,10 +85,10 @@ func (cp *ComplianceProcessor) UpdateEntityDTO(entityDTO *proto.EntityDTO) error
 // insert the given commodity to a given entityDTO.
 func (cp *ComplianceProcessor) AddCommoditiesSold(entityDTO *proto.EntityDTO, commodities ...*proto.CommodityDTO) error {
 	if entityDTO == nil {
-		return errors.New("invalid input: entityDTO is nil.")
+		return errors.New("invalid input: entityDTO is nil")
 	}
 	if commodities == nil {
-		return errors.New("invalid input: commodity is nil.")
+		return errors.New("invalid input: commodity is nil")
 	}
 	commoditiesSold := entityDTO.GetCommoditiesSold()
 	for _, comm := range commodities {
@@ -100,13 +110,13 @@ func (cp *ComplianceProcessor) AddCommoditiesSold(entityDTO *proto.EntityDTO, co
 // Add a list of commodityDTOs bought from the given provider to the entityDTO.
 func (cp *ComplianceProcessor) AddCommoditiesBought(entityDTO *proto.EntityDTO, provider *sdkbuilder.ProviderDTO, commodities ...*proto.CommodityDTO) error {
 	if entityDTO == nil {
-		return errors.New("invalid input: entityDTO is nil.")
+		return errors.New("invalid input: entityDTO is nil")
 	}
 	if commodities == nil {
-		return errors.New("invalid input: commodit is nil.")
+		return errors.New("invalid input: commodit is nil")
 	}
 	if provider == nil {
-		return errors.New("invalid input: provider is nil.")
+		return errors.New("invalid input: provider is nil")
 	}
 	foundProvider := false
 	for _, commsBoughtFromOneProvider := range entityDTO.GetCommoditiesBought() {
