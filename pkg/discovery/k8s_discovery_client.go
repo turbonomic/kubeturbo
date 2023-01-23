@@ -317,10 +317,13 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	}
 
 	// Build the placement map in parallel
-	var wg sync.WaitGroup
+	var (
+		wg              sync.WaitGroup
+		affinityHandler *compliance.AffinityProcessor
+	)
 	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) {
 		glog.V(2).Infof("Begin to process affinity.")
-		affinityHandler, err := compliance.NewAffinityProcessor(clusterSummary)
+		affinityHandler, err = compliance.NewAffinityProcessor(clusterSummary)
 		if err != nil {
 			glog.Errorf("Failed during process affinity rules: %s", err)
 		} else {
@@ -419,11 +422,9 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	glog.V(2).Infof("There are totally %d entityDTOs.", len(result.EntityDTOs))
 
 	wg.Wait()
+
 	// MergeAffinitiesToDTOs
-	for podName, nodeLst := range compliance.Pod2NodesMapBasedOnAffinity {
-		nodesStr := strings.Join(nodeLst, ",")
-		glog.V(2).Infof("Based on affinity rules, pod<%v> could be placed on the node<%v>", podName, nodesStr)
-	}
+	affinityHandler.MergeAffinitiesToDTOs(result.EntityDTOs)
 
 	// Taint-toleration process to create access commodities
 	glog.V(2).Infof("Begin to process taints and tolerations")

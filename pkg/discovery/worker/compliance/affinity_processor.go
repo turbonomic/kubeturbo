@@ -30,10 +30,12 @@ type AffinityProcessor struct {
 }
 
 var (
-	Pod2NodesMapBasedOnAffinity map[string][]string
+	AffinityEntitiesCache     map[*api.Pod][]*api.Node
+	AffinityEntitiesCacheLock sync.RWMutex
 )
 
 func NewAffinityProcessor(cluster *repository.ClusterSummary) (*AffinityProcessor, error) {
+	AffinityEntitiesCache = make(map[*api.Pod][]*api.Node)
 	return &AffinityProcessor{
 		ComplianceProcessor:   NewComplianceProcessor(),
 		commManager:           NewAffinityCommodityManager(),
@@ -46,9 +48,8 @@ func NewAffinityProcessor(cluster *repository.ClusterSummary) (*AffinityProcesso
 }
 
 // TODO if there is an error, fail the whole discovery? currently, error is handled in place and won't affect other discovery results.
-func (am *AffinityProcessor) ProcessAffinityRules(wg *sync.WaitGroup) map[string][]string {
+func (am *AffinityProcessor) ProcessAffinityRules(wg *sync.WaitGroup) {
 	defer wg.Done()
-	am.fillPod2NodesMapBasedOnAffinityRules()
 	// Filter the pods to only those with affinities
 	affinityPods := []*api.Pod{}
 	for _, pod := range am.pods {
@@ -63,41 +64,66 @@ func (am *AffinityProcessor) ProcessAffinityRules(wg *sync.WaitGroup) map[string
 	}
 
 	am.parallelizer.Until(context.Background(), len(affinityPods), processAffinityPerPod, "processAffinityPerPod")
-	return Pod2NodesMapBasedOnAffinity
 }
 
 func (am *AffinityProcessor) processAffinityPerPod(pod *api.Pod) {
 	glog.V(3).Infof("Processing Affinity for Pod %v", pod.Name)
-	affinity := pod.Spec.Affinity
-	// Honor the nodeAffinity from the pod's nodeAffinity
-	nodeSelectorTerms := getAllNodeSelectors(affinity)
-	// Also honor the nodeAffinity from the PVs of the pod if the pod have the PV attached
-	var pvNodeSelectorTerms []api.NodeSelectorTerm
-	if utilfeature.DefaultFeatureGate.Enabled(features.HonorAzLabelPvAffinity) {
-		pvNodeSelectorTerms = am.getAllPvAffinityTerms(pod)
-		nodeSelectorTerms = append(nodeSelectorTerms, pvNodeSelectorTerms...)
-	}
-
-	nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought, err := am.commManager.GetAccessCommoditiesForNodeAffinity(nodeSelectorTerms)
-	if err != nil {
-		glog.Errorf("Failed to build commodity: %s", err)
-		return
-	}
-
-	podAffinityTerms := getAllPodAffinityTerms(affinity)
-	podAffinityCommodityDTOsSold, podAffinityCommodityDTOsBought, err := am.commManager.GetAccessCommoditiesForPodAffinityAntiAffinity(podAffinityTerms, pod)
-	if err != nil {
-		glog.Errorf("Failed to build commodity for pod affinity: %s", err)
-		return
-	}
-
-	if hostNode, ok := am.affinityPodNodesCache.Load(pod); ok {
-		for _, node := range am.nodes {
-			if matchesNodeAffinity(pod, node) && matchesPvNodeAffinity(pvNodeSelectorTerms, node) {
-				am.addAffinityAccessCommodities(pod, node, hostNode, nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought)
+	for _, node := range am.nodes {
+		if matchesNodeAffinity(pod, node) && //check node affinity
+			interPodAffinityMatches(pod, node, am.affinityPodNodesCache) && //check pod affinity
+			matchesPvNodeAffinity(am.getAllPvAffinityTerms(pod), node) { //check pv affinity
+			AffinityEntitiesCacheLock.Lock()
+			var nodesList []*api.Node
+			if existingList, exists := AffinityEntitiesCache[pod]; exists {
+				nodesList = append(existingList, node)
+			} else {
+				nodesList = append([]*api.Node{}, node)
 			}
-			if interPodAffinityMatches(pod, node, am.affinityPodNodesCache) {
-				am.addAffinityAccessCommodities(pod, node, hostNode, podAffinityCommodityDTOsSold, podAffinityCommodityDTOsBought)
+			AffinityEntitiesCache[pod] = nodesList
+			AffinityEntitiesCacheLock.Unlock()
+		}
+	}
+}
+
+func (am *AffinityProcessor) MergeAffinitiesToDTOs(entityDTOs []*proto.EntityDTO) {
+	am.GroupEntityDTOs(entityDTOs)
+
+	AffinityEntitiesCacheLock.RLock()
+	defer AffinityEntitiesCacheLock.RUnlock()
+
+	for pod, nodes := range AffinityEntitiesCache {
+		affinity := pod.Spec.Affinity
+		// Honor the nodeAffinity from the pod's nodeAffinity
+		nodeSelectorTerms := getAllNodeSelectors(affinity)
+		// Also honor the nodeAffinity from the PVs of the pod if the pod have the PV attached
+		var pvNodeSelectorTerms []api.NodeSelectorTerm
+		if utilfeature.DefaultFeatureGate.Enabled(features.HonorAzLabelPvAffinity) {
+			pvNodeSelectorTerms = am.getAllPvAffinityTerms(pod)
+			nodeSelectorTerms = append(nodeSelectorTerms, pvNodeSelectorTerms...)
+		}
+
+		nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought, err := am.commManager.GetAccessCommoditiesForNodeAffinity(nodeSelectorTerms)
+		if err != nil {
+			glog.Errorf("Failed to build commodity: %s", err)
+			return
+		}
+		glog.V(2).Infof("%v %v", nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought)
+
+		podAffinityTerms := getAllPodAffinityTerms(pod.Spec.Affinity)
+		podAffinityCommodityDTOsSold, podAffinityCommodityDTOsBought, err := am.commManager.GetAccessCommoditiesForPodAffinityAntiAffinity(podAffinityTerms, pod)
+		if err != nil {
+			glog.Errorf("Failed to build commodity for pod affinity: %s", err)
+			return
+		}
+
+		if hostNode, ok := am.affinityPodNodesCache.Load(pod); ok {
+			for _, node := range nodes {
+				if matchesNodeAffinity(pod, node) && matchesPvNodeAffinity(pvNodeSelectorTerms, node) {
+					am.addAffinityAccessCommodities(pod, node, hostNode, nodeAffinityAccessCommoditiesSold, nodeAffinityAccessCommoditiesBought)
+				}
+				if interPodAffinityMatches(pod, node, am.affinityPodNodesCache) {
+					am.addAffinityAccessCommodities(pod, node, hostNode, podAffinityCommodityDTOsSold, podAffinityCommodityDTOsBought)
+				}
 			}
 		}
 	}
@@ -193,28 +219,6 @@ func (am *AffinityProcessor) addCommodityBoughtByPod(pod *api.Pod, node *api.Nod
 	err = am.AddCommoditiesBought(podEntityDTO, provider, affinityAccessCommodityDTOs...)
 	if err != nil {
 		glog.Errorf("Failed to add commodityDTOs to %s: %s", util.GetPodClusterID(pod), err)
-	}
-}
-
-func (am *AffinityProcessor) fillPod2NodesMapBasedOnAffinityRules() {
-	Pod2NodesMapBasedOnAffinity = make(map[string][]string)
-	for _, pod := range am.pods {
-		if pod.Spec.Affinity == nil {
-			continue
-		}
-		for _, node := range am.nodes {
-			if matchesNodeAffinity(pod, node) && //check node affinity
-				interPodAffinityMatches(pod, node, am.affinityPodNodesCache) && //check pod affinity
-				matchesPvNodeAffinity(am.getAllPvAffinityTerms(pod), node) { //check pv affinity
-				var nodeLst []string
-				if oldLst, ok := Pod2NodesMapBasedOnAffinity[pod.Namespace+"/"+pod.Name]; ok {
-					nodeLst = append(oldLst, node.Name)
-				} else {
-					nodeLst = append(nodeLst, node.Name)
-				}
-				Pod2NodesMapBasedOnAffinity[util.GetPodClusterID(pod)] = nodeLst
-			}
-		}
 	}
 }
 

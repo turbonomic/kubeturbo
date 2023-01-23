@@ -2,14 +2,12 @@ package compliance
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/cache"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -120,6 +118,7 @@ func TestProcessAffinityPerPod(t *testing.T) {
 		ap.GroupEntityDTOs(entityDTOs)
 
 		ap.processAffinityPerPod(item.currPod)
+		ap.MergeAffinitiesToDTOs(entityDTOs)
 
 		podEntityDTO, err := ap.GetEntityDTO(proto.EntityDTO_CONTAINER_POD, string(item.currPod.UID))
 		if err != nil {
@@ -437,6 +436,7 @@ func generateAllBasicEntityDTOs(allNodes []*api.Node, allPods []*api.Pod) []*pro
 }
 
 func newAffinityProcessorForTest(allNodes []*api.Node, allPods []*api.Pod, pod2PVs map[string][]repository.MountedVolume) *AffinityProcessor {
+	AffinityEntitiesCache = make(map[*api.Pod][]*api.Node)
 	return &AffinityProcessor{
 		ComplianceProcessor: NewComplianceProcessor(),
 		commManager:         NewAffinityCommodityManager(),
@@ -446,115 +446,5 @@ func newAffinityProcessorForTest(allNodes []*api.Node, allPods []*api.Pod, pod2P
 		podToVolumesMap:       pod2PVs,
 		parallelizer:          parallelizer.NewParallelizer(),
 		affinityPodNodesCache: cache.NewAffinityPodNodesCache(allNodes, allPods),
-	}
-}
-
-func TestFillPod2NodesMapBasedOnAffinityRules(t *testing.T) {
-	nodes, pods, pvs := generateTopology()
-	table := []struct {
-		nodes     []*api.Node
-		pods      []*api.Pod
-		pod2PvMap map[string][]repository.MountedVolume
-
-		// a given pod
-		currPod *api.Pod
-		// a slice of expected nodes that pod can be placed on
-		expectedPlaceableNodes []*api.Node
-		// a slice of expected nodes that pod can NOT be placed on
-		expectedNonPlaceableNodes []*api.Node
-
-		text string
-	}{
-		{
-			nodes: nodes,
-			pods:  pods,
-
-			currPod: pods[0],
-			expectedPlaceableNodes: []*api.Node{
-				nodes[0],
-				nodes[2],
-			},
-			expectedNonPlaceableNodes: []*api.Node{
-				nodes[1],
-			},
-			text: "test node matches node affinity rules.",
-		},
-		{
-			nodes: nodes,
-			pods:  pods,
-
-			currPod: pods[1],
-			expectedPlaceableNodes: []*api.Node{
-				nodes[0],
-			},
-			expectedNonPlaceableNodes: []*api.Node{
-				nodes[1],
-				nodes[2],
-			},
-			text: "test node matches pod affinity rules by hosting the pod matches pod affinity terms.",
-		},
-		{
-			nodes: nodes,
-			pods:  pods,
-
-			currPod: pods[2],
-			expectedPlaceableNodes: []*api.Node{
-				nodes[0],
-				nodes[2],
-			},
-			expectedNonPlaceableNodes: []*api.Node{
-				nodes[1],
-			},
-			text: "test node matches pod affinity rules by having the same topology key.",
-		},
-		{
-			nodes: nodes,
-			pods:  pods,
-			pod2PvMap: map[string][]repository.MountedVolume{
-				util.GetPodClusterID(pods[3]): {
-					{
-						MountName:  "mount-point-name",
-						UsedVolume: pvs[0],
-					},
-				},
-			},
-
-			currPod: pods[3],
-			expectedPlaceableNodes: []*api.Node{
-				nodes[1],
-			},
-			expectedNonPlaceableNodes: []*api.Node{
-				nodes[0],
-				nodes[2],
-			},
-			text: "test node matches PV affinity rules.",
-		},
-		{
-			nodes: nodes,
-			pods:  pods,
-
-			currPod: pods[4],
-			expectedPlaceableNodes: []*api.Node{
-				nodes[1],
-				nodes[2],
-			},
-			expectedNonPlaceableNodes: []*api.Node{
-				nodes[0],
-			},
-			text: "test node matches pod anti-affinity rules by having the same topology key.",
-		},
-	}
-	for _, item := range table {
-		ap := newAffinityProcessorForTest(item.nodes, item.pods, item.pod2PvMap)
-		ap.fillPod2NodesMapBasedOnAffinityRules()
-		nodeLst, ok := Pod2NodesMapBasedOnAffinity[util.GetPodClusterID(item.currPod)]
-		assert.True(t, ok)
-		nodeLstStr := strings.Join(nodeLst, ",")
-		for _, aNode := range item.expectedPlaceableNodes {
-			assert.True(t, strings.Contains(nodeLstStr, aNode.Name))
-		}
-		for _, aNode := range item.expectedNonPlaceableNodes {
-			assert.False(t, strings.Contains(nodeLstStr, aNode.Name))
-		}
 	}
 }
