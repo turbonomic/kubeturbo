@@ -51,6 +51,11 @@ data:
   # - Specify a targetType only will register a probe without adding your cluster as a target.
   #   The probe will appear as a Cloud Native probe in the UI with a type Kubernetes-<targetType>.
   #
+  #  ex:
+  #  "serverMeta": {
+  #    "proxy":  "http://username:password@ip:port or http://ip:port"
+  #  }
+  #
   # Define node groups by node role, and automatically enable placement policies to limit to 1 per host
   # DaemonSets are identified by default. Use daemonPodDetectors to identify by name patterns using regex or by namespace.
   turbo.config: |-

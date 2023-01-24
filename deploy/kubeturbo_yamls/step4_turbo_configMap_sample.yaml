@@ -31,6 +31,7 @@ data:
             "serverMeta": {
                 "version": "8.0",
                 "turboServer": "https://<Turbo_server_URL>"
+                "proxy":  "http://username:password@ip:port or http://ip:port"
             },
             "restAPIConfig": {
                 "opsManagerUserName": "<Turbo_username>",
