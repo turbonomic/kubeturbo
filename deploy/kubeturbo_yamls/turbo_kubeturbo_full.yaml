@@ -58,6 +58,9 @@ data:
   #
   # Define node groups by node role, and automatically enable placement policies to limit to 1 per host
   # DaemonSets are identified by default. Use daemonPodDetectors to identify by name patterns using regex or by namespace.
+  #
+  # serverMeta.proxy format for authenticated and non-authenticated "http://username:password@ip:port or http://ip:port"
+  
   turbo.config: |-
     {
         "communicationConfig": {

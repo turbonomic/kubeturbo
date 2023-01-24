@@ -14,7 +14,7 @@ spec:
     version: "8.1"
     turboServer: https://Turbo_server_URL
 
-  # proxy url for Authenticated and Non-Authenticated
+  # URL format for Authenticated and Non-Authenticated
   #   proxy: "http://username:password@ip:port or http://ip:port"  
 
   # Turbo server user and password can be provided via an opaque type secret created separately 
