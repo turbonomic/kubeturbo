@@ -41,10 +41,13 @@ const (
 	defaultConnTimeOut         = 20 * time.Second
 	defaultTLSHandShakeTimeout = 10 * time.Second
 
-	ContainerCPUThrottledTotal = "container_cpu_cfs_throttled_periods_total"
-	ContainerCPUTotal          = "container_cpu_cfs_periods_total"
-	ContainerCPUQuota          = "container_spec_cpu_quota"
-	ContainerCPUPeriod         = "container_spec_cpu_period"
+	ContainerCPUThrottledTotal    = "container_cpu_cfs_throttled_periods_total"
+	ContainerCPUTotal             = "container_cpu_cfs_periods_total"
+	ContainerCPUQuota             = "container_spec_cpu_quota"
+	ContainerCPUPeriod            = "container_spec_cpu_period"
+	ContainerCPUThrottledTotalSec = "container_cpu_cfs_throttled_seconds_total"
+	ContainerCPUTotalUsageSec     = "container_cpu_usage_seconds_total"
+	ContainerThreads              = "container_threads"
 )
 
 type KubeHttpClientInterface interface {
@@ -299,6 +302,9 @@ func TextToThrottlingMetricFamilies(data []byte) (map[string]*dto.MetricFamily, 
 	metricFamilies[ContainerCPUTotal] = parsed[ContainerCPUTotal]
 	metricFamilies[ContainerCPUQuota] = parsed[ContainerCPUQuota]
 	metricFamilies[ContainerCPUPeriod] = parsed[ContainerCPUPeriod]
+	metricFamilies[ContainerCPUThrottledTotalSec] = parsed[ContainerCPUThrottledTotalSec]
+	metricFamilies[ContainerCPUTotalUsageSec] = parsed[ContainerCPUTotalUsageSec]
+	metricFamilies[ContainerThreads] = parsed[ContainerThreads]
 
 	return metricFamilies, nil
 }
@@ -381,19 +387,9 @@ func (client *KubeletClient) GetCpuFrequencyFromJob(node *v1.Node, osArch string
 			node.Name, osArch)
 		return
 	}
-	var getter iNodeCpuFrequencyGetter
-	switch osArch {
-	case "linux.ppc64le":
-		getter = &LinuxPpc64leNodeCpuFrequencyGetter{
-			NodeCpuFrequencyGetter: *client.fallbkCpuFreqGetter,
-		}
-	default:
-		getter = &LinuxAmd64NodeCpuFrequencyGetter{
-			NodeCpuFrequencyGetter: *client.fallbkCpuFreqGetter,
-		}
-	}
+
 	var err error
-	if nodeFreq, err = getter.GetFrequency(getter, node.Name); err != nil {
+	if nodeFreq, err = client.fallbkCpuFreqGetter.GetFrequency(node.Name); err != nil {
 		glog.Errorf("Failed to get CPU frequency from job on node %s: %v.", node.Name, err)
 		return
 	}
@@ -468,7 +464,7 @@ func (kc *KubeletConfig) Timeout(timeout int) *KubeletConfig {
 	return kc
 }
 
-func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, busyboxImage, imagePullSecret string,
+func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, cpuFreqGetterImage, imagePullSecret string,
 	excludeLabelsMap map[string]set.Set, useProxyEndpoint bool) (*KubeletClient, error) {
 	// 1. http transport
 	transport, err := makeTransport(kc.kubeConfig, kc.enableHttps, kc.tlsTimeOut, kc.forceSelfSignedCerts)
@@ -492,7 +488,7 @@ func (kc *KubeletConfig) Create(fallbackClient *kubernetes.Clientset, busyboxIma
 		scheme:                      scheme,
 		port:                        kc.port,
 		cache:                       make(map[string]*CacheEntry),
-		fallbkCpuFreqGetter:         NewNodeCpuFrequencyGetter(fallbackClient, busyboxImage, imagePullSecret),
+		fallbkCpuFreqGetter:         NewNodeCpuFrequencyGetter(fallbackClient, cpuFreqGetterImage, imagePullSecret),
 		cpufreqJobExcludeNodeLabels: excludeLabelsMap,
 		defaultCpuFreq:              defaultCpuFreq,
 		kubeClient:                  fallbackClient,

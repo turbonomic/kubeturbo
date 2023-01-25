@@ -1,8 +1,9 @@
 package kubeclient
 
 import (
-	set "github.com/deckarep/golang-set"
 	"testing"
+
+	set "github.com/deckarep/golang-set"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -69,7 +70,7 @@ func TestKubeletClientCacheNil(t *testing.T) {
 	kubeConf := &rest.Config{}
 	conf := NewKubeletConfig(kubeConf)
 
-	kc, _ := conf.Create(nil, "busybox", "", map[string]set.Set{}, false)
+	kc, _ := conf.Create(nil, "icr.io/cpopen/turbonomic/cpufreqgetter", "", map[string]set.Set{}, false)
 	entry := &CacheEntry{}
 	kc.cache["host_1"] = entry
 	assert.False(t, kc.HasCacheBeenUsed("host_1"))

@@ -188,7 +188,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 			}
 			defer lockHelper.ReleaseLock()
 
-			err = checkQuotas(quotaAccessor, pod, lockMap)
+			err = checkQuotas(quotaAccessor, pod, lockMap, 1)
 			if err != nil {
 				return nil, err
 			}
@@ -362,40 +362,6 @@ func calculateReadinessThreshold(container api.Container, retryInterval time.Dur
 		initDelay = readinessInitialDelaySec
 	}
 	return retryInterval, failureThreshold, initDelay
-}
-
-// checkQuotas checks and updates a quota if need be in the pods namespace
-func checkQuotas(quotaAccessor QuotaAccessor, pod *api.Pod, lockMap *util.ExpirationMap) error {
-	quotas, err := quotaAccessor.Get()
-	if err != nil {
-		return err
-	}
-	if err := quotaAccessor.Evaluate(quotas, pod); err != nil {
-		return err
-	}
-
-	if err := quotaAccessor.Update(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func lockForQuota(namespace string, lockMap *util.ExpirationMap) (*util.LockHelper, error) {
-	quotaLockKey := fmt.Sprintf("quota-lock-%s", namespace)
-	lockHelper, err := util.NewLockHelper(quotaLockKey, lockMap)
-	if err != nil {
-		return nil, err
-	}
-
-	err = lockHelper.Trylock(defaultWaitLockTimeOut, defaultWaitLockSleep)
-	if err != nil {
-		glog.Errorf("Failed to acquire lock with key(%v): %v", quotaLockKey, err)
-		return nil, err
-	}
-	lockHelper.KeepRenewLock()
-
-	return lockHelper, nil
 }
 
 func deleteInvalidPendingPods(parent *unstructured.Unstructured, podClient v1.PodInterface,

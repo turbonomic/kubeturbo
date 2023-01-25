@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
+
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo"
@@ -90,7 +92,7 @@ var _ = Describe("Discover Cluster", func() {
 			}
 
 			s := app.NewVMTServer()
-			kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, "", "busybox", map[string]set.Set{}, true)
+			kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, "", "icr.io/cpopen/turbonomic/cpufreqgetter", map[string]set.Set{}, true)
 
 			apiExtClient, err := apiextclient.NewForConfig(kubeConfig)
 			if err != nil {
@@ -106,7 +108,7 @@ var _ = Describe("Discover Cluster", func() {
 			discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, nil, app.DefaultValidationWorkers,
 				app.DefaultValidationTimeout, aggregation.DefaultContainerUtilizationDataAggStrategy,
 				aggregation.DefaultContainerUsageDataAggStrategy, ormClient, app.DefaultDiscoveryWorkers, app.DefaultDiscoveryTimeoutSec,
-				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec)
+				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec, 0, dtofactory.DefaultCommodityConfig())
 
 			// Kubernetes Probe Discovery Client
 			discoveryClient = discovery.NewK8sDiscoveryClient(discoveryClientConfig)

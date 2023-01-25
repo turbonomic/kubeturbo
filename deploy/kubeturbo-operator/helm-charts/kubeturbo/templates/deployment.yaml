@@ -35,7 +35,7 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
-{{- if and .Values.image.related (eq .Values.image.repository "turbonomic/kubeturbo") }}
+{{- if and .Values.image.related (eq .Values.image.repository "icr.io/cpopen/turbonomic/kubeturbo") }}
           image: {{ .Values.image.related }}
 {{- else }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}

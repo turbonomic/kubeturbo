@@ -9,13 +9,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
+	actionutil "github.com/turbonomic/kubeturbo/pkg/action/util"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/kubeclient"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
@@ -27,14 +31,16 @@ type WorkloadControllerResizer struct {
 	TurboK8sActionExecutor
 	kubeletClient *kubeclient.KubeletClient
 	sccAllowedSet map[string]struct{}
+	lockMap       *actionutil.ExpirationMap
 }
 
 func NewWorkloadControllerResizer(ae TurboK8sActionExecutor, kubeletClient *kubeclient.KubeletClient,
-	sccAllowedSet map[string]struct{}) *WorkloadControllerResizer {
+	sccAllowedSet map[string]struct{}, lockMap *actionutil.ExpirationMap) *WorkloadControllerResizer {
 	return &WorkloadControllerResizer{
 		TurboK8sActionExecutor: ae,
 		kubeletClient:          kubeletClient,
 		sccAllowedSet:          sccAllowedSet,
+		lockMap:                lockMap,
 	}
 }
 
@@ -46,7 +52,7 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 	// subsequently is needed to get the cpufrequency.
 	// TODO(irfanurrehman): This can be slightly erratic as the value conversions will
 	// use the node frequency of the queried pod.
-	controllerName, kind, namespace, podSpec, managerApp, err := r.getWorkloadControllerDetails(actionItems[0])
+	controllerName, kind, namespace, podSpec, managerApp, replicasNum, isOwnerSet, err := r.getWorkloadControllerDetails(actionItems[0])
 	if err != nil {
 		glog.Errorf("Failed to get workload controller %s/%s details: %v", namespace, controllerName, err)
 		return nil, err
@@ -66,6 +72,36 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 		}
 
 		resizeSpecs = append(resizeSpecs, spec)
+	}
+
+	// Temporally increase the NS quota if needed && not Gitops && not orm case
+	if utilfeature.DefaultFeatureGate.Enabled(features.AllowIncreaseNsQuota4Resizing) &&
+		managerApp == nil && !isOwnerSet {
+		quotaAccessor := NewQuotaAccessor(r.clusterScraper.Clientset, namespace)
+		// The accessor should get the quotas again within the lock to avoid
+		// possible race conditions.
+		quotas, errOnQuota := quotaAccessor.Get()
+		if errOnQuota != nil {
+			return &TurboActionExecutorOutput{}, errOnQuota
+		}
+		hasQuotas := len(quotas) > 0
+		if hasQuotas {
+			// If this namespace has quota we force the resize actions to
+			// become sequential.
+			lockHelper, errOnQuota := lockForQuota(namespace, r.lockMap)
+			if errOnQuota != nil {
+				return &TurboActionExecutorOutput{}, errOnQuota
+			}
+			defer lockHelper.ReleaseLock()
+
+			desiredPod := buildDesiredPod4QuotaEvaluation(namespace, resizeSpecs, *podSpec)
+			errOnQuota = checkQuotas(quotaAccessor, desiredPod, r.lockMap, replicasNum)
+			if errOnQuota != nil {
+				return &TurboActionExecutorOutput{}, errOnQuota
+			}
+			defer quotaAccessor.Revert()
+		}
+
 	}
 
 	// execute the Action
@@ -92,14 +128,14 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 }
 
 func (r *WorkloadControllerResizer) getWorkloadControllerDetails(actionItem *proto.ActionItemDTO) (string,
-	string, string, *k8sapi.PodSpec, *repository.K8sApp, error) {
+	string, string, *k8sapi.PodSpec, *repository.K8sApp, int64, bool, error) {
 	targetSE := actionItem.GetTargetSE()
 	if targetSE == nil {
-		return "", "", "", nil, nil, fmt.Errorf("workload controller action item does not have a valid target entity, %v", actionItem.Uuid)
+		return "", "", "", nil, nil, 0, false, fmt.Errorf("workload controller action item does not have a valid target entity, %v", actionItem.Uuid)
 	}
 	workloadCntrldata := targetSE.GetWorkloadControllerData()
 	if workloadCntrldata == nil {
-		return "", "", "", nil, nil, fmt.Errorf("workload controller action item missing controller data, %v", actionItem.Uuid)
+		return "", "", "", nil, nil, 0, false, fmt.Errorf("workload controller action item missing controller data, %v", actionItem.Uuid)
 	}
 
 	kind := ""
@@ -120,49 +156,61 @@ func (r *WorkloadControllerResizer) getWorkloadControllerDetails(actionItem *pro
 	case *proto.EntityDTO_WorkloadControllerData_CustomControllerData:
 		kind = workloadCntrldata.GetCustomControllerData().GetCustomControllerType()
 		if kind != util.KindDeploymentConfig {
-			return "", "", "", nil, nil, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData, custom controller type is: %s", cntrlType, kind)
+			return "", "", "", nil, nil, 0, false, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData, custom controller type is: %s", cntrlType, kind)
 		}
 	default:
-		return "", "", "", nil, nil, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData", cntrlType)
+		return "", "", "", nil, nil, 0, false, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData", cntrlType)
 	}
 
 	namespace, error := property.GetWorkloadNamespaceFromProperty(targetSE.GetEntityProperties())
 	if error != nil {
-		return "", "", "", nil, nil, error
+		return "", "", "", nil, nil, 0, false, error
 	}
 
 	controllerName := targetSE.GetDisplayName()
-	podSpec, err := r.getWorkloadControllerSpec(kind, namespace, controllerName)
+	podSpec, replicasNum, isOwnerSet, err := r.getWorkloadControllerSpec(kind, namespace, controllerName)
 	if err != nil {
-		return "", "", "", nil, nil, err
+		return "", "", "", nil, nil, 0, false, err
 	}
 
-	return controllerName, kind, namespace, podSpec, property.GetManagerAppFromProperties(targetSE.GetEntityProperties()), nil
+	return controllerName, kind, namespace, podSpec, property.GetManagerAppFromProperties(targetSE.GetEntityProperties()), replicasNum, isOwnerSet, nil
 }
 
-func (r *WorkloadControllerResizer) getWorkloadControllerSpec(parentKind, namespace, name string) (*k8sapi.PodSpec, error) {
+func (r *WorkloadControllerResizer) getWorkloadControllerSpec(parentKind, namespace, name string) (*k8sapi.PodSpec, int64, bool, error) {
 	res, err := GetSupportedResUsingKind(parentKind, namespace, name)
 	if err != nil {
-		return nil, err
+		return nil, 0, false, err
 	}
 
 	obj, err := r.clusterScraper.DynamicClient.Resource(res).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
-		return nil, err
+		return nil, 0, false, err
 	}
 
 	objKind := obj.GetKind()
 	podSpecUnstructured, found, err := unstructured.NestedFieldCopy(obj.Object, "spec", "template", "spec")
 	if err != nil || !found {
-		return nil, fmt.Errorf("error retrieving pod template spec from %s %s/%s: %v", objKind, namespace, name, err)
+		return nil, 0, false, fmt.Errorf("error retrieving pod template spec from %s %s/%s: %v", objKind, namespace, name, err)
 	}
 
 	podSpec := k8sapi.PodSpec{}
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(podSpecUnstructured.(map[string]interface{}), &podSpec); err != nil {
-		return nil, fmt.Errorf("error converting unstructured pod spec to typed pod spec for %s %s/%s: %v", objKind, namespace, name, err)
+		return nil, 0, false, fmt.Errorf("error converting unstructured pod spec to typed pod spec for %s %s/%s: %v", objKind, namespace, name, err)
 	}
 
-	return &podSpec, nil
+	replicas := int64(0)
+	if parentKind == util.KindDaemonSet { // daemonsets do not have replica field
+		replicas, found, err = unstructured.NestedInt64(obj.Object, "status", "desiredNumberScheduled")
+	} else {
+		replicas, found, err = unstructured.NestedInt64(obj.Object, "spec", "replicas")
+	}
+	if err != nil || !found {
+		return nil, 0, false, fmt.Errorf("error retrieving replicas from %s %s: %v", parentKind, name, err)
+	}
+
+	_, isOwnerSet := discoveryutil.GetOwnerInfo(obj.GetOwnerReferences())
+
+	return &podSpec, replicas, isOwnerSet, nil
 }
 
 func resizeWorkloadController(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient,
@@ -195,4 +243,32 @@ func getContainerIndex(podSpec *k8sapi.PodSpec, containerName string) int {
 
 	glog.V(4).Infof("Match for container %s not found in pod template spec : %v", containerName, podSpec)
 	return -1
+}
+
+func buildDesiredPod4QuotaEvaluation(namespace string, resizeSpecs []*containerResizeSpec, podSpec k8sapi.PodSpec) *k8sapi.Pod {
+	for _, spec := range resizeSpecs {
+		if spec == nil || spec.Index < 0 || spec.Index >= len(podSpec.Containers) {
+			glog.V(2).Infof("Skip one resize spec, as it is nil or its index is out of range")
+			continue
+		}
+		if newVal, found := spec.NewRequest[k8sapi.ResourceCPU]; found {
+			podSpec.Containers[spec.Index].Resources.Requests[k8sapi.ResourceCPU] = newVal
+		}
+		if newVal, found := spec.NewRequest[k8sapi.ResourceMemory]; found {
+			podSpec.Containers[spec.Index].Resources.Requests[k8sapi.ResourceMemory] = newVal
+		}
+		if newVal, found := spec.NewCapacity[k8sapi.ResourceCPU]; found {
+			podSpec.Containers[spec.Index].Resources.Limits[k8sapi.ResourceCPU] = newVal
+		}
+		if newVal, found := spec.NewCapacity[k8sapi.ResourceMemory]; found {
+			podSpec.Containers[spec.Index].Resources.Limits[k8sapi.ResourceMemory] = newVal
+		}
+	}
+	return &k8sapi.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "pod1",
+		},
+		Spec: podSpec,
+	}
 }

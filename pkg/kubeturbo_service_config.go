@@ -51,6 +51,8 @@ type Config struct {
 	containerUtilizationDataAggStrategy string
 	// Strategy to aggregate Container usage data on ContainerSpec entity
 	containerUsageDataAggStrategy string
+	// VCPU Throttling threshold
+	vcpuThrottlingUtilThreshold float64
 
 	failVolumePodMoves      bool
 	updateQuotaToAllowMoves bool
@@ -58,6 +60,9 @@ type Config struct {
 	clusterKeyInjected      string
 	readinessRetryThreshold int
 	gitConfig               gitops.GitConfig
+
+	// Number of workload controller items the list api call should request for
+	ItemsPerListQuery int
 }
 
 func NewVMTConfig2() *Config {
@@ -183,6 +188,11 @@ func (c *Config) WithContainerUsageDataAggStrategy(containerUsageDataAggStrategy
 	return c
 }
 
+func (c *Config) WithVcpuThrottlingUtilThreshold(vcpuThrottlingUtilThreshold float64) *Config {
+	c.vcpuThrottlingUtilThreshold = vcpuThrottlingUtilThreshold
+	return c
+}
+
 func (c *Config) WithVolumePodMoveConfig(failVolumePodMoves bool) *Config {
 	c.failVolumePodMoves = failVolumePodMoves
 	return c
@@ -205,5 +215,10 @@ func (c *Config) WithReadinessRetryThreshold(readinessRetryThreshold int) *Confi
 
 func (c *Config) WithGitConfig(gitConfig gitops.GitConfig) *Config {
 	c.gitConfig = gitConfig
+	return c
+}
+
+func (c *Config) WithItemsPerListQuery(itemsPerListQuery int) *Config {
+	c.ItemsPerListQuery = itemsPerListQuery
 	return c
 }

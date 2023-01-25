@@ -34,16 +34,20 @@ type containerSpecDTOBuilder struct {
 	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator
 	// Cluster Summary needed to populate the labels and annotations from the workload controller cache
 	clusterSummary *repository.ClusterSummary
+	// config for commodity data thresholds
+	commodityConfig *CommodityConfig
 }
 
 func NewContainerSpecDTOBuilder(clusterSummary *repository.ClusterSummary, containerSpecMetricsMap map[string]*repository.ContainerSpecMetrics,
 	containerUtilizationDataAggregator aggregation.ContainerUtilizationDataAggregator,
-	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator) *containerSpecDTOBuilder {
+	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator,
+	commodityConfig *CommodityConfig) *containerSpecDTOBuilder {
 	return &containerSpecDTOBuilder{
 		clusterSummary:                     clusterSummary,
 		containerSpecMetricsMap:            containerSpecMetricsMap,
 		containerUtilizationDataAggregator: containerUtilizationDataAggregator,
 		containerUsageDataAggregator:       containerUsageDataAggregator,
+		commodityConfig:                    commodityConfig,
 	}
 }
 
@@ -66,6 +70,13 @@ func (builder *containerSpecDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, error) 
 				entityDTOBuilder.WithProperties(property.BuildLabelAnnotationProperties(controller.Labels, controller.Annotations, detectors.AWContainerSpec))
 			}
 		}
+		//container spec data
+		cPUThrottlingType := proto.EntityDTO_timeBased
+		containerSpecData := &proto.EntityDTO_ContainerSpecData{
+			CpuThrottlingType: &cPUThrottlingType,
+		}
+		entityDTOBuilder.ContainerSpecData(containerSpecData)
+
 		dto, err := entityDTOBuilder.Create()
 		if err != nil {
 			glog.Errorf("Failed to build ContainerSpec[%s] entityDTO: %v", containerSpecId, err)
@@ -113,7 +124,7 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 				commSoldBuilder.Capacity(aggregatedCap)
 				commSoldBuilder.Peak(aggregatedPeak)
 				commSoldBuilder.Used(aggregatedUsed)
-				commSoldBuilder.UtilizationThresholdPct(vcpuThrottlingUtilThreshold)
+				commSoldBuilder.UtilizationThresholdPct(builder.commodityConfig.VCPUThrottlingUtilThreshold)
 			} else {
 				glog.Warningf("Invalid throttling metrics type: expected: [][]metrics.ThrottlingCumulative, got: %T.", resourceMetrics.Used)
 			}
@@ -167,31 +178,27 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 // across all containers. Peak is the peak of peaks, ie. the peak of individual container peaks calculated
 // from diff of subsequent samples per container.
 func aggregateThrottlingSamples(containerSpecId string, containerSpecVCPUCapacity float64, samples [][]metrics.ThrottlingCumulative) (float64, float64, float64) {
-	var throttledOverall, totalOverall, peakOverall float64
+	var throttledTimeOverall, totalUsageOverall, peakThrottledPercentOverall float64
 	for _, singleContainerSamples := range samples {
 		// Include container samples only if corresponding CPU limit is same as containerSpec VCPU capacity.
 		filteredContainerSamples := filterContainerThrottlingSamples(containerSpecId, singleContainerSamples, containerSpecVCPUCapacity)
-		containerThrottled, containerTotal, containerPeak, ok := aggregateContainerThrottlingSamples("", filteredContainerSamples)
+		containerThrottledTime, containerTotalUsage, containerThrottledPercentPeak, ok :=
+			aggregateContainerThrottlingSamples("", filteredContainerSamples)
 		if !ok {
 			// We don't have enough samples to calculate this value.
 			continue
 		}
-		throttledOverall += containerThrottled
-		totalOverall += containerTotal
-		peakOverall = math.Max(peakOverall, containerPeak)
-	}
-	avgThrottledOverall := float64(0)
-	if totalOverall > 0 {
-		if throttledOverall > totalOverall {
-			avgThrottledOverall = 100
-			glog.Warningf("Aggregated throttled cpu samples overshoots total cpu samples for containerSpec %s."+
-				" Throttling set to 100 percent.", containerSpecId)
-		} else {
-			avgThrottledOverall = throttledOverall * 100 / totalOverall
-		}
+		throttledTimeOverall += containerThrottledTime
+		totalUsageOverall += containerTotalUsage
+		peakThrottledPercentOverall = math.Max(peakThrottledPercentOverall, containerThrottledPercentPeak)
 	}
 
-	return 100, avgThrottledOverall, peakOverall
+	avgThrottledTimeOverall := float64(0)
+	if throttledTimeOverall > 0 || totalUsageOverall > 0 {
+		avgThrottledTimeOverall = throttledTimeOverall * 100 / (throttledTimeOverall + totalUsageOverall)
+	}
+
+	return 100, avgThrottledTimeOverall, peakThrottledPercentOverall
 }
 
 func filterContainerThrottlingSamples(containerSpecId string, singleContainerSamples []metrics.ThrottlingCumulative, containerSpecVCPUCapacity float64) []metrics.ThrottlingCumulative {

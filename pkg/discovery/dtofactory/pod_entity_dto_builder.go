@@ -77,9 +77,10 @@ type podEntityDTOBuilder struct {
 	mirrorPodToDaemonMap map[string]bool
 }
 
-func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager) *podEntityDTOBuilder {
+func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager,
+	config *CommodityConfig) *podEntityDTOBuilder {
 	return &podEntityDTOBuilder{
-		generalBuilder:       newGeneralBuilder(sink),
+		generalBuilder:       newGeneralBuilder(sink, config),
 		stitchingManager:     stitchingManager,
 		nodeNameUIDMap:       make(map[string]string),
 		namespaceUIDMap:      make(map[string]string),
@@ -242,7 +243,7 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 		}
 
 		mounts := builder.podToVolumesMap[displayName]
-		controllable := util.Controllable(pod)
+		controllable := util.Controllable(pod, mirrorPodDaemon)
 		monitored := true
 		suspendable := true
 		provisionable := true

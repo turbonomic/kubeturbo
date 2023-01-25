@@ -1,5 +1,5 @@
 FROM registry.access.redhat.com/ubi8
-MAINTAINER Enlin Xu <enlin.xu@turbonomic.com>
+MAINTAINER Turbonomic <turbodeploy@turbonomic.com>
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
 
@@ -14,11 +14,12 @@ LABEL name="Hybrid Cloud Container" \
       description="Hybrid Cloud Container leverages Turbonomic control platform, to assure the performance of micro-services running in OpenShift, as well as the efficiency of underlying infrastructure." \
 ### Required labels above - recommended below
       url="https://www.turbonomic.com" \
-      run='docker run -tdi --name ${NAME} vmturbo/kubeturbo:latest' \
       io.k8s.description="Hybrid Cloud Container will monitor and control the entire stack, from OpenShift down to your underlying infrastructure. " \
       io.k8s.display-name="Hybrid Cloud Container" \
       io.openshift.expose-services="" \
       io.openshift.tags="turbonomic,Hybrid Cloud Container"
+
+RUN dnf update -y krb5-libs
 
 ### Atomic Help File - Write in Markdown, it will be converted to man format at build time.
 ### https://github.com/projectatomic/container-best-practices/blob/master/creating/help.adoc

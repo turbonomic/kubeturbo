@@ -34,7 +34,7 @@ type applicationEntityDTOBuilder struct {
 func NewApplicationEntityDTOBuilder(sink *metrics.EntityMetricSink,
 	podClusterIDToServiceMap map[string]*api.Service) *applicationEntityDTOBuilder {
 	return &applicationEntityDTOBuilder{
-		generalBuilder:           newGeneralBuilder(sink),
+		generalBuilder:           newGeneralBuilder(sink, DefaultCommodityConfig()),
 		podClusterIDToServiceMap: podClusterIDToServiceMap,
 	}
 }
@@ -84,7 +84,9 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 		properties := builder.getApplicationProperties(pod, i)
 		ebuilder.WithProperties(properties)
 
-		controllable := util.Controllable(pod)
+		// controllability of applications should not be dictated by mirror pods modeled as daemon pods
+		// because they cannot be controlled through the API server
+		controllable := util.Controllable(pod, false)
 		monitored := true
 		powerState := proto.EntityDTO_POWERED_ON
 		if !util.PodIsReady(pod) {

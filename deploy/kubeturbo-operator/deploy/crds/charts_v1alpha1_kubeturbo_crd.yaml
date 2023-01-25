@@ -57,7 +57,7 @@ spec:
               description: Kubeturbo image details for deployments outside of RH Operator Hub
               properties:
                 repository:
-                  description: Container repository. default is docker hub
+                  description: Container repository. default is icr.io/cpopen/turbonomic/kubeturbo
                   type: string
                 tag:
                   description: Kubeturbo container image tag
@@ -99,11 +99,9 @@ spec:
                   type: string
             featureGates:
               type: object
-              description: Disable features
-              properties:
-                disabledFeatures:
-                  description: Feature names
-                  type: string, quote
+              description: Enable or disable features
+              additionalProperties:
+                type: boolean
             HANodeConfig:
               type: object
               description: Create HA placement policy for Node to Hypervisor by node role. Master is default

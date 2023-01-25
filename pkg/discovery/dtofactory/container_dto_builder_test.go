@@ -102,7 +102,7 @@ func TestPodFlags(t *testing.T) {
 	}
 
 	for i, pod := range pods {
-		controllable := util.Controllable(pod)
+		controllable := util.Controllable(pod, false)
 		if controllable != expectedResult[i].Controllable {
 			t.Errorf("Pod %d Controllable: expected %v, got %v", i,
 				expectedResult[i].Controllable, controllable)
@@ -119,7 +119,7 @@ func Test_containerDTOBuilder_BuildDTOs_layeredOver(t *testing.T) {
 		containerBar,
 	}
 
-	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink())
+	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink(), DefaultCommodityConfig())
 	containerDTOs, _ := containerDTOBuilder.BuildEntityDTOs([]*api.Pod{testPod})
 
 	assert.Equal(t, 2, len(containerDTOs))
@@ -141,7 +141,7 @@ func Test_containerDTOBuilder_BuildDTOs_sidecars(t *testing.T) {
 		containerBar,
 	}
 
-	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink())
+	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink(), DefaultCommodityConfig())
 	containerDTOs, sidecars := containerDTOBuilder.BuildEntityDTOs([]*api.Pod{testPod})
 
 	assert.Equal(t, 1, len(sidecars))
@@ -171,7 +171,7 @@ func Test_containerDTOBuilder_BuildDTOs_containerData(t *testing.T) {
 		containerFoo,
 		containerBar,
 	}
-	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink())
+	containerDTOBuilder := NewContainerDTOBuilder(mockMetricsSink(), DefaultCommodityConfig())
 	containerDTOs, _ := containerDTOBuilder.BuildEntityDTOs([]*api.Pod{testPod})
 	assert.Equal(t, 2, len(containerDTOs))
 	// containerFoo DTO has cpu and mem limits set.
