@@ -15,7 +15,7 @@ spec:
     turboServer: https://Turbo_server_URL
 
   # URL format for Authenticated and Non-Authenticated
-  #   proxy: "http://username:password@ip:port or http://ip:port"  
+  #   proxy: "http://username:password@proxyserver:proxyport or http://proxyserver:proxyport"  
 
   # Turbo server user and password can be provided via an opaque type secret created separately 
   # or optionally specify username and password below
