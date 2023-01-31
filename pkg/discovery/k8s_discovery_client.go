@@ -61,7 +61,7 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 	ValidationTimeoutSec int, containerUtilizationDataAggStrategy,
 	containerUsageDataAggStrategy string, ormClient *resourcemapping.ORMClient,
 	discoveryWorkers, discoveryTimeoutMin, discoverySamples,
-	discoverySampleIntervalSec, itemsPerListQuery int, commodityConfig *dtofactory.CommodityConfig) *DiscoveryClientConfig {
+	discoverySampleIntervalSec, itemsPerListQuery int) *DiscoveryClientConfig {
 	if discoveryWorkers < minDiscoveryWorker {
 		glog.Warningf("Invalid number of discovery workers %v, set it to %v.",
 			discoveryWorkers, minDiscoveryWorker)
@@ -92,7 +92,6 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 		DiscoverySamples:                    discoverySamples,
 		DiscoverySampleIntervalSec:          discoverySampleIntervalSec,
 		itemsPerListQuery:                   itemsPerListQuery,
-		CommodityConfig:                     commodityConfig,
 	}
 }
 
@@ -126,16 +125,14 @@ func NewK8sDiscoveryClient(config *DiscoveryClientConfig) *K8sDiscoveryClient {
 	resultCollector := worker.NewResultCollector(config.DiscoveryWorkers * 2)
 
 	dispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
-		config.DiscoveryWorkers, config.DiscoveryTimeoutSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec,
-		config.CommodityConfig).
+		config.DiscoveryWorkers, config.DiscoveryTimeoutSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec).
 		WithClusterKeyInjected(config.ClusterKeyInjected)
 	dispatcher := worker.NewDispatcher(dispatcherConfig, globalEntityMetricSink)
 	dispatcher.Init(resultCollector)
 
 	// Create new SamplingDispatcher to assign tasks to collect additional resource usage data samples from kubelet
 	samplingDispatcherConfig := worker.NewDispatcherConfig(k8sClusterScraper, config.probeConfig,
-		config.DiscoveryWorkers, config.DiscoverySampleIntervalSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec,
-		config.CommodityConfig).
+		config.DiscoveryWorkers, config.DiscoverySampleIntervalSec, config.DiscoverySamples, config.DiscoverySampleIntervalSec).
 		WithClusterKeyInjected(config.ClusterKeyInjected)
 	dataSamplingDispatcher := worker.NewSamplingDispatcher(samplingDispatcherConfig, globalEntityMetricSink)
 	dataSamplingDispatcher.InitSamplingDiscoveryWorkers()

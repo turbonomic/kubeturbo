@@ -34,20 +34,16 @@ type containerSpecDTOBuilder struct {
 	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator
 	// Cluster Summary needed to populate the labels and annotations from the workload controller cache
 	clusterSummary *repository.ClusterSummary
-	// config for commodity data thresholds
-	commodityConfig *CommodityConfig
 }
 
 func NewContainerSpecDTOBuilder(clusterSummary *repository.ClusterSummary, containerSpecMetricsMap map[string]*repository.ContainerSpecMetrics,
 	containerUtilizationDataAggregator aggregation.ContainerUtilizationDataAggregator,
-	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator,
-	commodityConfig *CommodityConfig) *containerSpecDTOBuilder {
+	containerUsageDataAggregator aggregation.ContainerUsageDataAggregator) *containerSpecDTOBuilder {
 	return &containerSpecDTOBuilder{
 		clusterSummary:                     clusterSummary,
 		containerSpecMetricsMap:            containerSpecMetricsMap,
 		containerUtilizationDataAggregator: containerUtilizationDataAggregator,
 		containerUsageDataAggregator:       containerUsageDataAggregator,
-		commodityConfig:                    commodityConfig,
 	}
 }
 
@@ -124,7 +120,6 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 				commSoldBuilder.Capacity(aggregatedCap)
 				commSoldBuilder.Peak(aggregatedPeak)
 				commSoldBuilder.Used(aggregatedUsed)
-				commSoldBuilder.UtilizationThresholdPct(builder.commodityConfig.VCPUThrottlingUtilThreshold)
 			} else {
 				glog.Warningf("Invalid throttling metrics type: expected: [][]metrics.ThrottlingCumulative, got: %T.", resourceMetrics.Used)
 			}

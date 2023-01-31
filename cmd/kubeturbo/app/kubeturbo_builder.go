@@ -51,21 +51,20 @@ import (
 
 const (
 	// The default port for vmt service server
-	KubeturboPort                      = 10265
-	DefaultKubeletPort                 = 10255
-	DefaultKubeletHttps                = false
-	defaultVMPriority                  = -1
-	defaultVMIsBase                    = true
-	defaultDiscoveryIntervalSec        = 600
-	DefaultValidationWorkers           = 10
-	DefaultValidationTimeout           = 60
-	DefaultDiscoveryWorkers            = 10
-	DefaultDiscoveryTimeoutSec         = 180
-	DefaultDiscoverySamples            = 10
-	DefaultDiscoverySampleIntervalSec  = 60
-	DefaultGCIntervalMin               = 10
-	DefaultReadinessRetryThreshold     = 60
-	DefaultVcpuThrottlingUtilThreshold = 30
+	KubeturboPort                     = 10265
+	DefaultKubeletPort                = 10255
+	DefaultKubeletHttps               = false
+	defaultVMPriority                 = -1
+	defaultVMIsBase                   = true
+	defaultDiscoveryIntervalSec       = 600
+	DefaultValidationWorkers          = 10
+	DefaultValidationTimeout          = 60
+	DefaultDiscoveryWorkers           = 10
+	DefaultDiscoveryTimeoutSec        = 180
+	DefaultDiscoverySamples           = 10
+	DefaultDiscoverySampleIntervalSec = 60
+	DefaultGCIntervalMin              = 10
+	DefaultReadinessRetryThreshold    = 60
 )
 
 var (
@@ -174,9 +173,6 @@ type VMTServer struct {
 	containerUsageDataAggStrategy string
 	// Total number of retrys. When a pod is not ready, Kubeturbo will try failureThreshold times before giving up
 	readinessRetryThreshold int
-	// VCPU Throttling util threshold
-	vcpuThrottlingUtilThreshold float64
-
 	// Git configuration for gitops based action execution
 	gitConfig gitops.GitConfig
 }
@@ -241,7 +237,6 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.gitConfig.GitUsername, "git-username", "", "The user name to be used to push changes to git.")
 	fs.StringVar(&s.gitConfig.GitEmail, "git-email", "", "The email to be used to push changes to git.")
 	fs.StringVar(&s.gitConfig.CommitMode, "git-commit-mode", "direct", "The commit mode that should be used for git action executions. One of request|direct. Defaults to direct.")
-	fs.Float64Var(&s.vcpuThrottlingUtilThreshold, "vcpu-throttling-threshold", DefaultVcpuThrottlingUtilThreshold, "The VCPU Throttling util threshold.")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -452,8 +447,7 @@ func (s *VMTServer) Run() {
 		WithClusterAPIEnabled(clusterAPIEnabled).
 		WithReadinessRetryThreshold(s.readinessRetryThreshold).
 		WithClusterKeyInjected(s.ClusterKeyInjected).
-		WithItemsPerListQuery(s.ItemsPerListQuery).
-		WithVcpuThrottlingUtilThreshold(s.vcpuThrottlingUtilThreshold)
+		WithItemsPerListQuery(s.ItemsPerListQuery)
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.GitopsApps) {
 		vmtConfig.WithGitConfig(s.gitConfig)

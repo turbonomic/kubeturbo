@@ -39,7 +39,6 @@ func TestBuildVCPUThrottlingSold(t *testing.T) {
 
 	dtoBuilder := &generalBuilder{
 		metricsSink: metricsSink,
-		config:      DefaultCommodityConfig(),
 	}
 
 	eType := metrics.ContainerType
@@ -52,7 +51,6 @@ func TestBuildVCPUThrottlingSold(t *testing.T) {
 	usedValue := container1CpuThrottlingUsed.GetValue().(float64)
 	assert.Equal(t, usedValue, commSold.GetUsed())
 	assert.Equal(t, 100.0, commSold.GetCapacity())
-	assert.Equal(t, dtoBuilder.config.VCPUThrottlingUtilThreshold, commSold.GetUtilizationThresholdPct())
 }
 
 func TestBuildCPUSold(t *testing.T) {
@@ -60,7 +58,6 @@ func TestBuildCPUSold(t *testing.T) {
 	metricsSink.AddNewMetricEntries(cpuUsed_pod1, cpuCap_pod1)
 
 	dtoBuilder := &generalBuilder{
-		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -82,7 +79,6 @@ func TestBuildMemSold(t *testing.T) {
 	metricsSink.AddNewMetricEntries(memUsed_pod1, memCap_pod1)
 
 	dtoBuilder := &generalBuilder{
-		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -101,7 +97,6 @@ func TestBuildUnsupportedResource(t *testing.T) {
 	metricsSink = metrics.NewEntityMetricSink()
 
 	dtoBuilder := &generalBuilder{
-		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -117,7 +112,6 @@ func TestBuildCPUSoldWithMissingCap(t *testing.T) {
 	metricsSink.AddNewMetricEntries(cpuUsed_pod1)
 
 	dtoBuilder := &generalBuilder{
-		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 	commSold, err := dtoBuilder.getSoldResourceCommodityWithKey(eType, pod1, metrics.CPU, "", nil, nil)
@@ -131,7 +125,6 @@ func TestBuildCPUSoldWithMissingUsed(t *testing.T) {
 	metricsSink.AddNewMetricEntries(cpuCap_pod1)
 
 	dtoBuilder := &generalBuilder{
-		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 	commSold, err := dtoBuilder.getSoldResourceCommodityWithKey(eType, pod1, metrics.CPU, "", nil, nil)
@@ -144,7 +137,6 @@ func TestBuildCommSoldWithKey(t *testing.T) {
 	metricsSink.AddNewMetricEntries(memUsed_pod1, memCap_pod1)
 
 	dtoBuilder := &generalBuilder{
-		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -161,7 +153,6 @@ func TestBuildCommSold(t *testing.T) {
 	metricsSink.AddNewMetricEntries(cpuUsed_pod1, cpuCap_pod1, memCap_pod1, memUsed_pod1)
 
 	dtoBuilder := &generalBuilder{
-		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -187,7 +178,6 @@ func TestBuildCommBought(t *testing.T) {
 	metricsSink.AddNewMetricEntries(cpuUsed_pod1, memUsed_pod1)
 
 	dtoBuilder := &generalBuilder{
-		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -231,7 +221,6 @@ func TestMetricValueWithMultiplePoints(t *testing.T) {
 	metricsSink.UpdateMetricEntry(cpuUsedMetric3)
 
 	dtoBuilder := &generalBuilder{
-		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 
@@ -280,7 +269,6 @@ func TestMetricValueWithThrottlingCumulativePoints(t *testing.T) {
 	metricsSink.UpdateMetricEntry(cpuUsedMetric5)
 
 	dtoBuilder := &generalBuilder{
-		config:      DefaultCommodityConfig(),
 		metricsSink: metricsSink,
 	}
 	metricValue, _ := dtoBuilder.metricValue(metrics.ContainerType, containerId, metrics.VCPUThrottling, metrics.Used, nil)

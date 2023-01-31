@@ -3,7 +3,6 @@ package worker
 import (
 	"flag"
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"math"
 	"runtime"
 	"testing"
@@ -86,9 +85,8 @@ func getDispatcherAndCollector(workerCount, taskRunTimeSec int) (*Dispatcher, *R
 		}},
 		StitchingPropertyType: "IP",
 	}
-	commodityConfig := dtofactory.DefaultCommodityConfig()
 	dispatcherConfig := NewDispatcherConfig(clusterScraper, probeConfig, workerCount,
-		10, 1, 1, commodityConfig)
+		10, 1, 1)
 	dispatcher := NewDispatcher(dispatcherConfig, metrics.NewEntityMetricSink())
 	resultCollector := NewResultCollector(workerCount * 2)
 	dispatcher.Init(resultCollector)
@@ -172,9 +170,8 @@ func getSamplingDispatcherAndCollector(workerCount, workerTimeout, taskRunTimeSe
 		}},
 		StitchingPropertyType: "IP",
 	}
-	commodityConfig := dtofactory.DefaultCommodityConfig()
 	dispatcherConfig := NewDispatcherConfig(clusterScraper, probeConfig, workerCount, workerTimeout,
-		1, 1, commodityConfig)
+		1, 1)
 	dispatcher := NewSamplingDispatcher(dispatcherConfig, metrics.NewEntityMetricSink())
 	resultCollector := NewResultCollector(workerCount * 2)
 	dispatcher.Init(resultCollector)

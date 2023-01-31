@@ -34,7 +34,7 @@ type applicationEntityDTOBuilder struct {
 func NewApplicationEntityDTOBuilder(sink *metrics.EntityMetricSink,
 	podClusterIDToServiceMap map[string]*api.Service) *applicationEntityDTOBuilder {
 	return &applicationEntityDTOBuilder{
-		generalBuilder:           newGeneralBuilder(sink, DefaultCommodityConfig()),
+		generalBuilder:           newGeneralBuilder(sink),
 		podClusterIDToServiceMap: podClusterIDToServiceMap,
 	}
 }

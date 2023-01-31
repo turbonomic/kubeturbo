@@ -36,7 +36,7 @@ func (worker *k8sContainerSpecDiscoveryWorker) Do(clusterSummary *repository.Clu
 	// of container replicas
 	containerSpecMetricsMap := worker.createContainerSpecMetricsMap(containerSpecMetrics)
 	containerSpecEntityDTOBuilder := dtofactory.NewContainerSpecDTOBuilder(clusterSummary, containerSpecMetricsMap, utilizationDataAggregator,
-		usageDataAggregator, worker.commodityConfig)
+		usageDataAggregator)
 	containerSpecEntityDTOs, err := containerSpecEntityDTOBuilder.BuildDTOs()
 	if err != nil {
 		return nil, fmt.Errorf("error while creating ContainerSpec entityDTOs: %v", err)

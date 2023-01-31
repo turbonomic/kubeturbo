@@ -77,9 +77,9 @@ type containerDTOBuilder struct {
 	generalBuilder
 }
 
-func NewContainerDTOBuilder(sink *metrics.EntityMetricSink, config *CommodityConfig) *containerDTOBuilder {
+func NewContainerDTOBuilder(sink *metrics.EntityMetricSink) *containerDTOBuilder {
 	return &containerDTOBuilder{
-		generalBuilder: newGeneralBuilder(sink, config),
+		generalBuilder: newGeneralBuilder(sink),
 	}
 }
 
