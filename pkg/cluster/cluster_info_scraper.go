@@ -146,7 +146,7 @@ func (s *ClusterScraper) GetAllNodes() ([]*api.Node, error) {
 	return s.GetNodes(listOption)
 }
 
-func (s *ClusterScraper) GetMachineSetToNodesMap(nodes []*api.Node) map[string][]*api.Node {
+func (s *ClusterScraper) GetMachineSetToNodesMap(allNodes []*api.Node) map[string][]*api.Node {
 	machineSetToNodes := make(map[string][]*api.Node)
 	if s.caClient == nil {
 		return machineSetToNodes
@@ -164,7 +164,7 @@ func (s *ClusterScraper) GetMachineSetToNodesMap(nodes []*api.Node) map[string][
 		nodes := []*api.Node{}
 		for _, machine := range machines {
 			if machine.Status.NodeRef != nil && machine.Status.NodeRef.Name != "" {
-				if node := findNode(machine.Status.NodeRef.Name, nodes); node != nil {
+				if node := findNode(machine.Status.NodeRef.Name, allNodes); node != nil {
 					nodes = append(nodes, node)
 				}
 			}
