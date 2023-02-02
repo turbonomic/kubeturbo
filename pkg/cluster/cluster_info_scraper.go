@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/dynamic"
 	client "k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -65,6 +66,7 @@ type ClusterScraperInterface interface {
 
 type ClusterScraper struct {
 	*client.Clientset
+	RestConfig              *restclient.Config
 	caClient                *capiclient.Clientset
 	capiNamespace           string
 	DynamicClient           dynamic.Interface
@@ -74,11 +76,12 @@ type ClusterScraper struct {
 	GitOpsConfigCacheLock   sync.Mutex
 }
 
-func NewClusterScraper(kclient *client.Clientset, dynamicClient dynamic.Interface, rtClient runtimeclient.Client,
-	capiEnabled bool, caClient *capiclient.Clientset, capiNamespace string) *ClusterScraper {
+func NewClusterScraper(restConfig *restclient.Config, kclient *client.Clientset, dynamicClient dynamic.Interface,
+	rtClient runtimeclient.Client, capiEnabled bool, caClient *capiclient.Clientset, capiNamespace string) *ClusterScraper {
 	gitOpsMap := make(map[string][]*gitopsv1alpha1.Configuration)
 	clusterScraper := &ClusterScraper{
 		Clientset:               kclient,
+		RestConfig:              restConfig,
 		DynamicClient:           dynamicClient,
 		ControllerRuntimeClient: rtClient,
 		// Create cache with expiration duration as defaultCacheTTL, which means the cached data will be cleaned up after

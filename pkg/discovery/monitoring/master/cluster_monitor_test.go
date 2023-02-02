@@ -149,7 +149,7 @@ func TestGenNodeResourceMetrics(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to create clusterMonitor: %v", err)
 	}
-	clusterMonitor.clusterClient = cluster.NewClusterScraper(&client.Clientset{}, nil, nil,
+	clusterMonitor.clusterClient = cluster.NewClusterScraper(nil, &client.Clientset{}, nil, nil,
 		false, nil, "")
 	clusterMonitor.sink = metrics.NewEntityMetricSink()
 	clusterMonitor.node = node
