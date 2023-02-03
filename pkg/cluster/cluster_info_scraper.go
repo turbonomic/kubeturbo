@@ -151,27 +151,35 @@ func (s *ClusterScraper) GetMachineSetToNodesMap(allNodes []*api.Node) map[strin
 	if s.caClient == nil {
 		return machineSetToNodes
 	}
-
+	// Get the list of machine sets in the cluster
 	machineSetList := s.getCApiMachineSets()
 	if machineSetList == nil {
 		return machineSetToNodes
 	}
 
 	for _, machineSet := range machineSetList.Items {
+		//Get the list of machines in each machine set
 		machines := s.getCApiMachinesFiltered(machineSet.Name, metav1.ListOptions{
 			LabelSelector: metav1.FormatLabelSelector(&machineSet.Spec.Selector),
 		})
-		nodes := []*api.Node{}
-		for _, machine := range machines {
-			if machine.Status.NodeRef != nil && machine.Status.NodeRef.Name != "" {
-				if node := findNode(machine.Status.NodeRef.Name, allNodes); node != nil {
-					nodes = append(nodes, node)
-				}
-			}
-		}
+
+		// from machine -> node
+		nodes := getNodesFromMachines(machines, allNodes)
 		machineSetToNodes[machineSetPoolName(machineSet.Name)] = nodes
 	}
 	return machineSetToNodes
+}
+
+func getNodesFromMachines(machines []machinev1beta1api.Machine, allNodes []*api.Node) []*api.Node {
+	nodes := []*api.Node{}
+	for _, machine := range machines {
+		if machine.Status.NodeRef != nil && machine.Status.NodeRef.Name != "" {
+			if node := findNode(machine.Status.NodeRef.Name, allNodes); node != nil {
+				nodes = append(nodes, node)
+			}
+		}
+	}
+	return nodes
 }
 
 func machineSetPoolName(machineSetName string) string {
