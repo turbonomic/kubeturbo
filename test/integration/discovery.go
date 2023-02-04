@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
+
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo"
@@ -142,6 +144,14 @@ var _ = Describe("Discover Cluster", func() {
 			// Right now the groups won't match the old expected.
 			// validateNumbers(entityDTOs, groupDTOs, 91, 33)
 			validateThresholds(entityDTOs)
+		})
+
+		It("should print timing information for affinity processing", func() {
+			// unskip and run this test individually when the timing information is needed
+			// against an arbitrary cluster
+			Skip("Skipping additional discovery that checks performance against an arbitrary cluster")
+			_, _, err := discoveryClient.DiscoverWithNewFramework("discovery-integration-test")
+			framework.ExpectNoError(err, "Failed completing discovery of test cluster")
 		})
 
 		It("with duplicate node or pod affinity rules should not result in duplicated commodities", func() {
