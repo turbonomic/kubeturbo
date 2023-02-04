@@ -1,13 +1,36 @@
-package interpodaffinity
+/*
+Copyright 2019 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+A reasonable amount of this code is carried over from upstream k8s
+scheduler plugins (mainly interpodaffinity) and updated/extended to make it
+suitable for usage here
+*/
+
+package podaffinity
 
 import (
-	"context"
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/informers"
 	client "k8s.io/client-go/kubernetes"
+	listersv1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
@@ -43,6 +66,7 @@ func NewNodeInfoLister(clusterSummary *repository.ClusterSummary) NodeInfoLister
 		allPods = append(allPods, clusterSummary.NodeToRunningPods[node.Name]...)
 		allPods = append(allPods, clusterSummary.NodeToPendingPods[node.Name]...)
 		nodeInfo := NewNodeInfo(allPods...)
+		nodeInfo.SetNode(node)
 
 		lister.nodeInfos = append(lister.nodeInfos, nodeInfo)
 		if len(nodeInfo.PodsWithRequiredAntiAffinity) > 0 {
@@ -61,20 +85,26 @@ func (n *NodeInfoListerImpl) HavePodsWithRequiredAntiAffinityList() ([]*NodeInfo
 	return n.nodesWithRequiredAntiAffinity, nil
 }
 
-type NamespaceListerImpl struct {
-	client            *client.Clientset
-	kubeNamespacesMap map[string]*v1.Namespace
-}
+func NewNamespaceLister(client *client.Clientset, clusterSummary *repository.ClusterSummary) (listersv1.NamespaceLister, error) {
+	factory := informers.NewSharedInformerFactory(client, 0)
+	nsInformer := factory.Core().V1().Namespaces()
+	informer := nsInformer.Informer()
+	stopCh := make(chan struct{})
+	factory.Start(stopCh) // runs in background
+	//factory.WaitForCacheSync(stopCh)
 
-func NewNamespaceLister(client *client.Clientset, clusterSummary *repository.ClusterSummary) NamespaceLister {
-	return &NamespaceListerImpl{
-		client:            client,
-		kubeNamespacesMap: clusterSummary.KubeNamespacesMap,
+	if !cache.WaitForCacheSync(stopCh, informer.HasSynced) {
+
+		//	return
+		// TODO
+		return nil, fmt.Errorf("failed to sync")
 	}
 
+	return nsInformer.Lister(), nil
+
 }
 
-func (n *NamespaceListerImpl) List(selector labels.Selector) (ret []*v1.Namespace, err error) {
+/*func (n *NamespaceListerImpl) List(selector labels.Selector) (ret []*v1.Namespace, err error) {
 	options := metav1.ListOptions{
 		LabelSelector: selector.String(),
 	}
@@ -96,3 +126,4 @@ func (n *NamespaceListerImpl) Get(name string) (*v1.Namespace, error) {
 	}
 	return ns, nil
 }
+*/

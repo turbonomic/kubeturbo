@@ -18,7 +18,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance/interpodaffinity"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance/podaffinity"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/k8sappcomponents"
 	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
@@ -411,7 +411,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) {
 		glog.V(2).Infof("Begin to process affinity.")
 		start := time.Now()
-		affinityProcessor, err := interpodaffinity.New(dc.k8sClusterScraper.Clientset, clusterSummary)
+		affinityProcessor, err := podaffinity.New(dc.k8sClusterScraper.Clientset, clusterSummary)
 		if err != nil {
 			glog.Errorf("Failed during process affinity rules: %s", err)
 		} else {

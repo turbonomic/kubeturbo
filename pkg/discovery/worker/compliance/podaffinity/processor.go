@@ -14,32 +14,47 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package interpodaffinity
+/*
+A reasonable amount of this code is carried over from upstream k8s
+scheduler plugins (mainly interpodaffinity) and updated/extended to make it
+suitable for usage here
+*/
+
+package podaffinity
 
 import (
 	"context"
+	"fmt"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	client "k8s.io/client-go/kubernetes"
+	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog/v2"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
 
-// InterPodAffinityProcessor processes inter pod affinities
-type InterPodAffinityProcessor struct {
-	nodeInfoLister NodeInfoLister
-	nsLister       NamespaceLister
+// PodAffinityProcessor processes inter pod affinities, anti affinities
+// and pod to node affinities
+type PodAffinityProcessor struct {
+	nodeInfoLister  NodeInfoLister
+	nsLister        listersv1.NamespaceLister
+	podToVolumesMap map[string][]repository.MountedVolume
 }
 
 // New initializes a new plugin and returns it.
-func New(client *client.Clientset, clusterSummary *repository.ClusterSummary) (*InterPodAffinityProcessor, error) {
-	pr := &InterPodAffinityProcessor{
-		nodeInfoLister: NewNodeInfoLister(clusterSummary),
-		nsLister:       NewNamespaceLister(client, clusterSummary),
+func New(client *client.Clientset, clusterSummary *repository.ClusterSummary) (*PodAffinityProcessor, error) {
+	pr := &PodAffinityProcessor{
+		nodeInfoLister:  NewNodeInfoLister(clusterSummary),
+		podToVolumesMap: clusterSummary.PodToVolumesMap,
+	}
+	nsLister, err := NewNamespaceLister(client, clusterSummary)
+	if err != nil {
+		return nil, fmt.Errorf("error creating affinity processor: %v", err)
 	}
 
+	pr.nsLister = nsLister
 	return pr, nil
 }
 
@@ -50,7 +65,7 @@ func New(client *client.Clientset, clusterSummary *repository.ClusterSummary) (*
 // is set to Nothing()) or is Empty(), which means match everything. Therefore,
 // there when matching against this term, there is no need to lookup the existing
 // pod's namespace labels to match them against term's namespaceSelector explicitly.
-func (pr *InterPodAffinityProcessor) mergeAffinityTermNamespacesIfNotEmpty(at *AffinityTerm) error {
+func (pr *PodAffinityProcessor) mergeAffinityTermNamespacesIfNotEmpty(at *AffinityTerm) error {
 	if at.NamespaceSelector.Empty() {
 		return nil
 	}
@@ -77,7 +92,7 @@ func GetNamespaceLabelsSnapshot(ns string, nsLister NamespaceLister) (nsLabels l
 	return
 }
 
-func (pr *InterPodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) map[string][]string {
+func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) map[string][]string {
 	result := make(map[string][]string)
 	ctx := context.TODO()
 
@@ -88,6 +103,9 @@ func (pr *InterPodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) map[st
 	}
 
 	for _, pod := range allPods {
+		if !podWithAffinity(pod) {
+			continue
+		}
 		state, err := pr.PreFilter(ctx, pod)
 		if err != nil {
 			klog.Errorf("Error computing prefilter state for pod, %s/%s.", pod.Namespace, pod.Name)

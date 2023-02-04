@@ -1,4 +1,26 @@
-package interpodaffinity
+/*
+Copyright 2019 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+A reasonable amount of this code is carried over from upstream k8s
+scheduler plugins (mainly interpodaffinity) and updated/extended to make it
+suitable for usage here
+*/
+
+package podaffinity
 
 import (
 	"errors"
@@ -370,13 +392,6 @@ func (n *NodeInfo) resetSlicesIfEmpty() {
 	if len(n.Pods) == 0 {
 		n.Pods = nil
 	}
-}
-
-func max(a, b int64) int64 {
-	if a >= b {
-		return a
-	}
-	return b
 }
 
 // SetNode sets the overall node information.
