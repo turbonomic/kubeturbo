@@ -201,7 +201,7 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.ClusterSummary, error)
 			glog.V(2).Infof("Set items per list API call to the default value of %v.", itemsPerListQuery)
 		} else {
 			itemsPerListQuery = items
-			glog.V(2).Infof("Set items per list API call to %v based on memory limit of %.2f GB "+
+			glog.V(2).Infof("Set items per list API call to %v based on memory limit of %.3f Gi "+
 				"and pod count of %v.", items, limit, podCount)
 		}
 	}
