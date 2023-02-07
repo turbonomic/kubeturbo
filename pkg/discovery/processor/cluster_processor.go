@@ -277,6 +277,8 @@ func (p *ClusterProcessor) calculateItemsPerListQuery(podCount int) (int, float6
 		return 0, 0, fmt.Errorf("limit found set to zero (0)")
 	}
 	podsInThousands := float64(podCount) / 1000
+	//round up recommended limit by 1 MB increment value
+	incrementRecommendInGB := 0.001
 	currentLimitInGB := util.Base2BytesToGigabytes(float64(limit))
 	availMemInGB := currentLimitInGB*DefaultAutoMemLimitPct -
 		DefaultGenericMetricSizePerThousandPodsInGB*podsInThousands -
@@ -286,10 +288,10 @@ func (p *ClusterProcessor) calculateItemsPerListQuery(podCount int) (int, float6
 		recommendedLimitInGB := (1.0 + DefaultExtraClusterWideUsageInGB +
 			(DefaultCadvisorMetricSizePerPodInGB*DefaultMaxPodsPerNode + DefaultExtraPerNodeUsageInGB) +
 			DefaultGenericMetricSizePerThousandPodsInGB*podsInThousands) / DefaultAutoMemLimitPct
-		return 0, 0, fmt.Errorf("the memory limit of kubeturbo %.2f GB is too low to calculate "+
+		return 0, 0, fmt.Errorf("the memory limit of kubeturbo %.3f Gi is too low to calculate "+
 			"a reasonable number of items per list API call. Kubeturbo may run into OOM. "+
-			"Consider increasing the memory limit of kubeturbo to at least %.2f GB",
-			currentLimitInGB, recommendedLimitInGB)
+			"Consider increasing the memory limit of kubeturbo to at least %.3f Gi",
+			currentLimitInGB, recommendedLimitInGB+incrementRecommendInGB)
 	}
 	return int(DefaultItemsPerGBMemory * availMemInGB), currentLimitInGB, nil
 }
