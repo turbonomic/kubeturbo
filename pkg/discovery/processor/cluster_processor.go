@@ -17,14 +17,14 @@ import (
 )
 
 const (
-	// DefaultItemsPerGBMemory defines number of items to retrieve for each GB of memory
-	DefaultItemsPerGBMemory                     = 5000
+	// DefaultItemsPerGiMemory defines number of items to retrieve for each GB of memory
+	DefaultItemsPerGiMemory                     = 5000
 	DefaultAutoMemLimitPct                      = 0.9
-	DefaultGenericMetricSizePerThousandPodsInGB = 0.24
-	DefaultCadvisorMetricSizePerPodInGB         = 0.004
+	DefaultGenericMetricSizePerThousandPodsInGi = 0.24
+	DefaultCadvisorMetricSizePerPodInGi         = 0.004
 	DefaultMaxPodsPerNode                       = 250
-	DefaultExtraPerNodeUsageInGB                = 0.2
-	DefaultExtraClusterWideUsageInGB            = 0.2
+	DefaultExtraPerNodeUsageInGi                = 0.2
+	DefaultExtraClusterWideUsageInGi            = 0.2
 )
 
 var (
@@ -196,7 +196,7 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.ClusterSummary, error)
 		// Determine items per list API call
 		items, limit, err := p.calculateItemsPerListQuery(podCount)
 		if err != nil {
-			itemsPerListQuery = DefaultItemsPerGBMemory
+			itemsPerListQuery = DefaultItemsPerGiMemory
 			glog.Warningf("Cannot calculate items per list API call: %v.", err)
 			glog.V(2).Infof("Set items per list API call to the default value of %v.", itemsPerListQuery)
 		} else {
@@ -244,6 +244,7 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.ClusterSummary, error)
 // This value must be calculated dynamically because:
 //   - the number of pods changes over time
 //   - the kubeturbo memory limit can change over time (when in-place pod resize is enabled)
+//   - gb here refers to Gi(1Gi = 1024*1024*1024)
 //
 // The following formula is used:
 //
@@ -278,20 +279,20 @@ func (p *ClusterProcessor) calculateItemsPerListQuery(podCount int) (int, float6
 	}
 	podsInThousands := float64(podCount) / 1000
 	//round up recommended limit by 1 MB increment value
-	incrementRecommendInGB := 0.001
-	currentLimitInGB := util.Base2BytesToGigabytes(float64(limit))
-	availMemInGB := currentLimitInGB*DefaultAutoMemLimitPct -
-		DefaultGenericMetricSizePerThousandPodsInGB*podsInThousands -
-		(DefaultCadvisorMetricSizePerPodInGB*DefaultMaxPodsPerNode + DefaultExtraPerNodeUsageInGB) -
-		DefaultExtraClusterWideUsageInGB
-	if availMemInGB < 1.0 {
-		recommendedLimitInGB := (1.0 + DefaultExtraClusterWideUsageInGB +
-			(DefaultCadvisorMetricSizePerPodInGB*DefaultMaxPodsPerNode + DefaultExtraPerNodeUsageInGB) +
-			DefaultGenericMetricSizePerThousandPodsInGB*podsInThousands) / DefaultAutoMemLimitPct
+	incrementRecommendInGi := 0.001
+	currentLimitInGi := util.Base2BytesToGigabytes(float64(limit))
+	availMemInGi := currentLimitInGi*DefaultAutoMemLimitPct -
+		DefaultGenericMetricSizePerThousandPodsInGi*podsInThousands -
+		(DefaultCadvisorMetricSizePerPodInGi*DefaultMaxPodsPerNode + DefaultExtraPerNodeUsageInGi) -
+		DefaultExtraClusterWideUsageInGi
+	if availMemInGi < 1.0 {
+		recommendedLimitInGi := (1.0 + DefaultExtraClusterWideUsageInGi +
+			(DefaultCadvisorMetricSizePerPodInGi*DefaultMaxPodsPerNode + DefaultExtraPerNodeUsageInGi) +
+			DefaultGenericMetricSizePerThousandPodsInGi*podsInThousands) / DefaultAutoMemLimitPct
 		return 0, 0, fmt.Errorf("the memory limit of kubeturbo %.3f Gi is too low to calculate "+
 			"a reasonable number of items per list API call. Kubeturbo may run into OOM. "+
 			"Consider increasing the memory limit of kubeturbo to at least %.3f Gi",
-			currentLimitInGB, recommendedLimitInGB+incrementRecommendInGB)
+			currentLimitInGi, recommendedLimitInGi+incrementRecommendInGi)
 	}
-	return int(DefaultItemsPerGBMemory * availMemInGB), currentLimitInGB, nil
+	return int(DefaultItemsPerGiMemory * availMemInGi), currentLimitInGi, nil
 }
