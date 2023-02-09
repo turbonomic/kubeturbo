@@ -7,7 +7,7 @@ replicaCount: 1
 # Replace the image with desired version
 image:
   repository: icr.io/cpopen/turbonomic/kubeturbo
-  tag: 8.7.5
+  tag: VERSION
   pullPolicy: IfNotPresent
 #  busyboxRepository: busybox
 #  imagePullSecret: ""
@@ -29,7 +29,7 @@ serviceAccountName: "turbo-user"
 
 # Turbo server version and address
 serverMeta:
-  version: "8.0"
+  version: VERSION
   turboServer: https://Turbo_server_URL
 #  proxy: http://username:password@proxyserver:proxyport
 

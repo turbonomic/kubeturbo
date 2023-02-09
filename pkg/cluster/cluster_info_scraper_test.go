@@ -1,6 +1,11 @@
 package cluster
 
 import (
+	machinev1beta1api "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	api "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -134,4 +139,111 @@ func TestGetAllGitOpsConfigurationsWhitelist(t *testing.T) {
 	assert.Equal(t, 2, len(gitOpsConfigs[0].Spec.Configuration[0].Whitelist))
 	assert.Contains(t, gitOpsConfigs[0].Spec.Configuration[0].Whitelist, mockApp1)
 	assert.Contains(t, gitOpsConfigs[0].Spec.Configuration[0].Whitelist, mockApp2)
+}
+
+func TestGetMachineSetToNodesMap(t *testing.T) {
+	machineTypeMeta := metav1.TypeMeta{
+		Kind:       "Machine",
+		APIVersion: "machine.openshift.io/v1beta1",
+	}
+
+	machines := []machinev1beta1api.Machine{
+		{
+			TypeMeta: machineTypeMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "worker-1",
+				Namespace: "test",
+				UID:       "1",
+			},
+
+			Status: machinev1beta1api.MachineStatus{
+				NodeRef: &corev1.ObjectReference{
+					Kind:      "Node",
+					Namespace: "",
+					Name:      "worker-1",
+					UID:       "1",
+				},
+			},
+		},
+		{
+			TypeMeta: machineTypeMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "worker-2",
+				Namespace: "test",
+				UID:       "2",
+			},
+			Status: machinev1beta1api.MachineStatus{
+				NodeRef: &corev1.ObjectReference{
+					Kind:      "Node",
+					Namespace: "",
+					Name:      "worker-2",
+					UID:       "2",
+				},
+			},
+		},
+	}
+
+	labels := map[string]string{
+		"machine.openshift.io/cluster-api-machineset": "ocp-release-jlw72-worker",
+		"machine.openshift.io/cluster-api-cluster":    "ocp-release-jlw72",
+	}
+	allNodes := []*api.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "master-0",
+				UID:    "1",
+				Labels: labels,
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "master-1",
+				UID:  "2",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "master-2",
+				UID:  "3",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "worker-1",
+				UID:    "4",
+				Labels: labels,
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "worker-2",
+				UID:    "5",
+				Labels: labels,
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "worker-3",
+				UID:    "6",
+				Labels: labels,
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "worker-4",
+				UID:    "7",
+				Labels: labels,
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "worker-5",
+				UID:    "8",
+				Labels: labels,
+			},
+		},
+	}
+	nodes := getNodesFromMachines(machines, allNodes)
+	assert.NotEmpty(t, nodes)
+	assert.Equal(t, len(nodes), 2)
 }
