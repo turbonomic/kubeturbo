@@ -83,7 +83,7 @@ var _ = Describe("Action Executor ", func() {
 			}
 
 			s := app.NewVMTServer()
-			kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, "", "busybox", map[string]set.Set{}, true)
+			kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, "", "icr.io/cpopen/turbonomic/cpufreqgetter", map[string]set.Set{}, true)
 			apiExtClient, err := apiextclient.NewForConfig(kubeConfig)
 			if err != nil {
 				glog.Fatalf("Failed to generate apiExtensions client for kubernetes target: %v", err)

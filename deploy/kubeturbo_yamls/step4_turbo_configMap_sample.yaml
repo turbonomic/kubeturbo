@@ -25,6 +25,8 @@ data:
   # The annotationWhitelist provides a mechanism for discovering annotations for kubernetes objects. 
   # By default, no annotations are collected. In order to collect annotations, provide a regular 
   # expression for each entity type for which the annotations are desired.
+  # 
+  # serverMeta.proxy format for authenticated and non-authenticated "http://username:password@proxyserver:proxyport or http://proxyserver:proxyport"
   turbo.config: |-
     {
         "communicationConfig": {

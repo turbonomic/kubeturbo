@@ -175,6 +175,11 @@ type VMTServer struct {
 	readinessRetryThreshold int
 	// Git configuration for gitops based action execution
 	gitConfig gitops.GitConfig
+
+	// Cpu frequency getter, used to replace busybox
+	CpuFrequencyGetterImage string
+	// Name of the secret that stores the image pull credentials of cpu freq getter job image
+	CpuFrequencyGetterPullSecret string
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -237,6 +242,9 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.gitConfig.GitUsername, "git-username", "", "The user name to be used to push changes to git.")
 	fs.StringVar(&s.gitConfig.GitEmail, "git-email", "", "The email to be used to push changes to git.")
 	fs.StringVar(&s.gitConfig.CommitMode, "git-commit-mode", "direct", "The commit mode that should be used for git action executions. One of request|direct. Defaults to direct.")
+	// CpuFreqGetter image and secret
+	fs.StringVar(&s.CpuFrequencyGetterImage, "cpufreqgetter-image", "icr.io/cpopen/turbonomic/cpufreqgetter", "The complete cpufreqgetter image uri used for fallback node cpu frequency getter job.")
+	fs.StringVar(&s.CpuFrequencyGetterPullSecret, "cpufreqgetter-image-pull-secret", "", "The name of the secret that stores the image pull credentials for cpufreqgetter image.")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -275,13 +283,13 @@ func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubern
 }
 
 func (s *VMTServer) CreateKubeletClientOrDie(kubeConfig *restclient.Config, fallbackClient *kubernetes.Clientset,
-	busyboxImage, imagePullSecret string, cpufreqJobExcludeNodeLabels map[string]set.Set, useProxyEndpoint bool) *kubeclient.KubeletClient {
+	cpuFreqGetterImage, imagePullSecret string, cpufreqJobExcludeNodeLabels map[string]set.Set, useProxyEndpoint bool) *kubeclient.KubeletClient {
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
 		ForceSelfSignedCerts(s.ForceSelfSignedCerts).
 		// Timeout(to).
-		Create(fallbackClient, busyboxImage, imagePullSecret, cpufreqJobExcludeNodeLabels, useProxyEndpoint)
+		Create(fallbackClient, cpuFreqGetterImage, imagePullSecret, cpufreqJobExcludeNodeLabels, useProxyEndpoint)
 	if err != nil {
 		glog.Errorf("Fatal error: failed to create kubeletClient: %v", err)
 		os.Exit(1)
@@ -382,7 +390,7 @@ func (s *VMTServer) Run() {
 		_ = os.Setenv("AUTOMEMLIMIT_DEBUG", "true")
 		if s.ItemsPerListQuery != 0 {
 			// Perform sanity check on user specified value of itemsPerListQuery
-			if s.ItemsPerListQuery < processor.DefaultItemsPerGBMemory {
+			if s.ItemsPerListQuery < processor.DefaultItemsPerGiMemory {
 				var errMsg string
 				if s.ItemsPerListQuery < 0 {
 					errMsg = "negative"
@@ -390,8 +398,8 @@ func (s *VMTServer) Run() {
 					errMsg = "set too low"
 				}
 				glog.Warningf("Argument --items-per-list-query is %s (%v). Setting it to the default value of %d.",
-					errMsg, s.ItemsPerListQuery, processor.DefaultItemsPerGBMemory)
-				s.ItemsPerListQuery = processor.DefaultItemsPerGBMemory
+					errMsg, s.ItemsPerListQuery, processor.DefaultItemsPerGiMemory)
+				s.ItemsPerListQuery = processor.DefaultItemsPerGiMemory
 			} else {
 				glog.V(2).Infof("Set items per list API call to the user specified value: %v.", s.ItemsPerListQuery)
 			}
@@ -408,8 +416,8 @@ func (s *VMTServer) Run() {
 		glog.Fatalf("Invalid cpu frequency exclude node label selectors: %v. The selectors "+
 			"should be a comma saperated list of key=value node label pairs", err)
 	}
-	kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, s.BusyboxImage,
-		s.BusyboxImagePullSecret, excludeLabelsMap, s.UseNodeProxyEndpoint)
+	kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, s.CpuFrequencyGetterImage,
+		s.CpuFrequencyGetterPullSecret, excludeLabelsMap, s.UseNodeProxyEndpoint)
 	caClient, err := clusterclient.NewForConfig(kubeConfig)
 	if err != nil {
 		glog.Errorf("Failed to generate correct TAP config: %v", err.Error())
