@@ -27,11 +27,13 @@ import (
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 
+	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
 	"github.com/turbonomic/kubeturbo/pkg/action"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
+	"github.com/turbonomic/kubeturbo/pkg/util"
 )
 
 const (
@@ -62,8 +64,7 @@ var _ = Describe("Action Executor ", func() {
 		f.BeforeEach()
 		// The following setup is shared across tests here
 		if kubeConfig == nil {
-
-			kubeConfig := f.GetKubeConfig()
+			kubeConfig = f.GetKubeConfig()
 			kubeClient = f.GetKubeClient("action-executor")
 
 			var err error
@@ -78,7 +79,7 @@ var _ = Describe("Action Executor ", func() {
 			}
 
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeClient, dynamicClient, nil, false, nil, ""),
+				cluster.NewClusterScraper(kubeConfig, kubeClient, dynamicClient, nil, false, nil, ""),
 				[]string{"*"}, nil, false, true, 60, gitops.GitConfig{}, "test-cluster-id")
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 		}
@@ -243,14 +244,15 @@ var _ = Describe("Action Executor ", func() {
 	})
 
 	// Test bare pod move
-	Describe("executing action move bare pod with volum attached", func() {
+	Describe("executing action move bare pod with volume attached", func() {
 		It("should result in new pod on target node", func() {
 			if framework.TestContext.IsOpenShiftTest {
 				Skip("Ignoring bare pod move against openshift target.")
 			}
 			pvc, err := createVolumeClaim(kubeClient, namespace, "standard")
+			framework.ExpectNoError(err, "Error creating test resources (pvc)")
 			pod, err := createBarePod(kubeClient, genBarePodWithResources(namespace, pvc.Name, 1, true))
-			framework.ExpectNoError(err, "Error creating test resources")
+			framework.ExpectNoError(err, "Error creating test resources (bare pod)")
 
 			targetNodeName := getTargetSENodeName(f, pod)
 			if targetNodeName == "" {
@@ -357,6 +359,76 @@ var _ = Describe("Action Executor ", func() {
 			if err != nil {
 				framework.Failf("The replica number is incorrect after executing suspend action")
 			}
+		})
+	})
+
+	Describe("check scc impersonation support that", func() {
+		BeforeEach(func() {
+			if !framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring scc impersonation tests on non openshift target.")
+			}
+		})
+
+		// This test is sequential and will run subsequent specs if one fails
+		// because we do not run the tests with --fail-fast.
+		// We expect the specs to run especially because the last one is cleanup.
+		It("it can setup scc resources", func() {
+			// If for some reason there is an error in creating scc resources
+			// the cleanup will be called within automatically
+			app.ManageSCCs(namespace, dynamicClient, kubeClient)
+		})
+
+		It("necessary resources were created and are valid", func() {
+			validateSccResourcesExist(namespace, dynamicClient, kubeClient)
+		})
+
+		// Check one pod with scc which has lower scc level then default anyuid
+		It("move action on a pod with restricted scc creates the new pod with the same scc level", func() {
+			clientForSccLevel, err := getDesiredUserImpersonationClient(namespace, "restricted", kubeConfig)
+			framework.ExpectNoError(err, "Error getting impersonation client")
+			pod, err := createBarePod(clientForSccLevel, genSimpleBarePodUsingSA(namespace,
+				fmt.Sprintf("%srestricted", util.KubeturboSCCPrefix), false))
+			framework.ExpectNoError(err, "Error creating bare pod")
+			validatePodGetsDesiredScc(namespace, "restricted", pod, kubeClient)
+
+			targetNodeName := getTargetSENodeName(f, pod)
+			if targetNodeName == "" {
+				framework.Failf("Failed to find a new node for the bare pod: %s", pod.Name)
+			}
+
+			util.DefaultNamespace = namespace
+			_, err = actionHandler.ExecuteAction(newActionExecutionDTO(proto.ActionItemDTO_MOVE,
+				newTargetSEFromPod(pod), newHostSEFromNodeName(targetNodeName)), nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Bare pod move with scc level failed")
+			newPod := validateMovedPod(kubeClient, pod.Name, "barepod", namespace, targetNodeName)
+			validatePodGetsDesiredScc(namespace, "restricted", newPod, clientForSccLevel)
+		})
+
+		// Check one pod with scc which has higher scc level then default anyuid
+		It("move action on a pod with hostnetwork scc creates the new pod with the same scc level", func() {
+			clientForSccLevel, err := getDesiredUserImpersonationClient(namespace, "hostnetwork", kubeConfig)
+			framework.ExpectNoError(err, "Error getting impersonation client")
+			pod, err := createBarePod(clientForSccLevel, genSimpleBarePodUsingSA(namespace,
+				fmt.Sprintf("%shostnetwork", util.KubeturboSCCPrefix), true))
+			framework.ExpectNoError(err, "Error creating bare pod")
+			validatePodGetsDesiredScc(namespace, "hostnetwork", pod, kubeClient)
+
+			targetNodeName := getTargetSENodeName(f, pod)
+			if targetNodeName == "" {
+				framework.Failf("Failed to find a new node for the bare pod: %s", pod.Name)
+			}
+
+			util.DefaultNamespace = namespace
+			_, err = actionHandler.ExecuteAction(newActionExecutionDTO(proto.ActionItemDTO_MOVE,
+				newTargetSEFromPod(pod), newHostSEFromNodeName(targetNodeName)), nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Bare pod move action failed")
+			newPod := validateMovedPod(kubeClient, pod.Name, "barepod", namespace, targetNodeName)
+			validatePodGetsDesiredScc(namespace, "hostnetwork", newPod, clientForSccLevel)
+		})
+
+		It("cleans up scc resources", func() {
+			util.DefaultNamespace = "default"
+			app.CleanUpSCCMgmtResources(namespace, dynamicClient, kubeClient)
 		})
 	})
 
@@ -530,6 +602,32 @@ func genBarePodWithResources(namespace, claimName string, replicas int32, withVo
 	return &barePod
 }
 
+func genSimpleBarePodUsingSA(namespace, saName string, withHostNetwork bool) *corev1.Pod {
+	barePod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "test-",
+			Namespace:    namespace,
+		},
+
+		Spec: corev1.PodSpec{
+			ImagePullSecrets: []corev1.LocalObjectReference{
+				{
+					Name: framework.DockerImagePullSecretName,
+				},
+			},
+			ServiceAccountName: saName,
+			Containers: []corev1.Container{
+				genContainerSpecSimple("test-cont"),
+			},
+		},
+	}
+
+	if withHostNetwork {
+		barePod.Spec.HostNetwork = withHostNetwork
+	}
+	return &barePod
+}
+
 func rsSingleContainerWithResources(namespace string, replicas int32, withGCLabel, withDummyScheduler bool) *appsv1.ReplicaSet {
 	rs := appsv1.ReplicaSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -670,6 +768,15 @@ func genContainerSpec(name, cpuRequest, memRequest, cpuLimit, memLimit string) c
 				corev1.ResourceMemory: resource.MustParse(memLimit),
 			},
 		},
+	}
+}
+
+func genContainerSpecSimple(name string) corev1.Container {
+	return corev1.Container{
+		Name:    name,
+		Image:   "busybox",
+		Command: []string{"/bin/sh"},
+		Args:    []string{"-c", "while true; do sleep 30; done;"},
 	}
 }
 
@@ -934,7 +1041,7 @@ func getPodWithNamePrefix(client kubeclientset.Interface, podPrefix, namespace, 
 		}
 	}
 
-	return nil, fmt.Errorf("Can't find the right pod that with the prefix %s running on the node %s", podPrefix, targetNodeName)
+	return nil, fmt.Errorf("can't find the right pod that with the prefix %s running on the node %s", podPrefix, targetNodeName)
 }
 
 func createDeploymentConfig(client osclient.Interface, dc *osv1.DeploymentConfig) (*osv1.DeploymentConfig, error) {
@@ -1249,4 +1356,88 @@ func findContainerIdxInPodSpecByName(podSpec *corev1.PodSpec, containerName stri
 		}
 	}
 	return -1, fmt.Errorf("can't find the right container with the name %s", containerName)
+}
+
+func validateSccResourcesExist(ns string, dynClient dynamic.Interface, kubeClient *kubeclientset.Clientset) {
+	sccList := app.GetSCCs(dynClient)
+	for _, scc := range sccList.Items {
+		saName := fmt.Sprintf("%s%s", util.KubeturboSCCPrefix, scc.GetName())
+		checkSAExists(ns, saName, kubeClient)
+		checkRoleExists(ns, util.RoleNameForSCC(scc.GetName()), kubeClient)
+		checkRoleBindingExists(ns, util.RoleBindingNameForSCC(scc.GetName()), kubeClient)
+		checkClusterRoleExists(fmt.Sprintf("%s-%s", util.SCCClusterRoleName, ns), kubeClient)
+		checkClusterRoleBindingExists(fmt.Sprintf("%s-%s", util.SCCClusterRoleBindingName, ns), kubeClient)
+	}
+
+}
+
+func checkSAExists(ns, saName string, kubeClient *kubeclientset.Clientset) {
+	sa, err := kubeClient.CoreV1().ServiceAccounts(ns).Get(context.TODO(), saName, metav1.GetOptions{})
+	if err != nil || sa == nil {
+		framework.Failf("Scc SA %s/%s not found: %v.", ns, saName, err)
+	}
+}
+
+func checkRoleExists(ns, roleName string, kubeClient *kubeclientset.Clientset) {
+	role, err := kubeClient.RbacV1().Roles(ns).Get(context.TODO(), roleName, metav1.GetOptions{})
+	if err != nil || role == nil {
+		framework.Failf("Scc Role %s/%s not found: %v.", ns, roleName, err)
+	}
+}
+
+func checkRoleBindingExists(ns, roleBindingName string, kubeClient *kubeclientset.Clientset) {
+	roleBinding, err := kubeClient.RbacV1().RoleBindings(ns).Get(context.TODO(), roleBindingName, metav1.GetOptions{})
+	if err != nil || roleBinding == nil {
+		framework.Failf("Scc RoleBinding %s/%s not found: %v.", ns, roleBindingName, err)
+	}
+}
+
+func checkClusterRoleExists(clusterRoleName string, kubeClient *kubeclientset.Clientset) {
+	clusterRole, err := kubeClient.RbacV1().ClusterRoles().Get(context.TODO(), clusterRoleName, metav1.GetOptions{})
+	if err != nil || clusterRole == nil {
+		framework.Failf("Scc ClusterRole %s not found: %v.", clusterRoleName, err)
+	}
+}
+
+func checkClusterRoleBindingExists(clusterRoleBindingName string, kubeClient *kubeclientset.Clientset) {
+	clusterRoleBinding, err := kubeClient.RbacV1().ClusterRoleBindings().Get(context.TODO(), clusterRoleBindingName, metav1.GetOptions{})
+	if err != nil || clusterRoleBinding == nil {
+		framework.Failf("Scc ClusterRoleBinding %s not found: %v.", clusterRoleBindingName, err)
+	}
+}
+
+func getDesiredUserImpersonationClient(ns, sccName string, restConfig *restclient.Config) (*kubeclientset.Clientset, error) {
+	userName := util.SCCUserFullName(ns, fmt.Sprintf("%s%s", util.KubeturboSCCPrefix, sccName))
+	config := restclient.CopyConfig(restConfig)
+	config.Impersonate.UserName = userName
+	client, err := kubeclientset.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create restricted impersonating client: %v", err)
+	}
+	return client, nil
+}
+
+func validatePodGetsDesiredScc(ns, expectedSccLevel string, pod *corev1.Pod, client *kubeclientset.Clientset) {
+	annotations := pod.GetAnnotations()
+	if err := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
+		sccLevel, exists := annotations[util.SCCAnnotationKey]
+		if exists && sccLevel == expectedSccLevel {
+			return true, nil
+		}
+		if exists && sccLevel != expectedSccLevel {
+			return false, fmt.Errorf("test pod [%s] failed to get desired scc, got %s, expected %s",
+				pod.GetName(), sccLevel, expectedSccLevel)
+		}
+
+		p, err := client.CoreV1().Pods(ns).Get(context.TODO(), pod.GetName(), metav1.GetOptions{})
+		if err != nil {
+			glog.Errorf("Unexpected error while getting pod %s, %v", pod.GetName(), err)
+			// Will try again
+			return false, nil
+		}
+		annotations = p.GetAnnotations()
+		return false, nil
+	}); err != nil {
+		framework.Failf("Failed to create pod with restricted scc [podName: %s]", pod.GetName())
+	}
 }
