@@ -7,8 +7,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
-
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo"
