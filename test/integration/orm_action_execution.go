@@ -100,7 +100,7 @@ var _ = Describe("Action Executor ", func() {
 				aggregation.DefaultContainerUsageDataAggStrategy, ormClient, app.DefaultDiscoveryWorkers, app.DefaultDiscoveryTimeoutSec,
 				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec, 0)
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeClient, dynamicClient, nil, false, nil, ""),
+				cluster.NewClusterScraper(nil, kubeClient, dynamicClient, nil, false, nil, ""),
 				[]string{"*"}, ormClient, false, true, 60, gitops.GitConfig{}, "test-cluster-id")
 
 			actionHandler = action.NewActionHandler(actionHandlerConfig)

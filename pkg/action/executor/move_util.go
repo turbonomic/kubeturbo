@@ -12,7 +12,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	podutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
-	apicorev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -25,6 +24,7 @@ import (
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 )
 
 // TODO: if pod is from controller, then copy pod in the way as
@@ -146,7 +146,6 @@ func genNewPodName(oldPod *api.Pod) string {
 // TODO: add support for operator controlled parent or parent's parent.
 func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, parentKind, parentName string,
 	retryNum int, failVolumePodMoves, updateQuotaToAllowMoves bool, lockMap *util.ExpirationMap) (*api.Pod, error) {
-	podClient := clusterScraper.Clientset.CoreV1().Pods(pod.Namespace)
 	podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	podUsingVolume := isPodUsingVolume(pod)
 	if podUsingVolume && failVolumePodMoves {
@@ -196,13 +195,19 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 		}
 	}
 
+	// Use an impersonation client in case SCC users are updated
+	client, ok := getImpersonationClientset(clusterScraper.RestConfig, pod)
+	if !ok {
+		client = clusterScraper.Clientset
+	}
 	//step 1. create a clone pod--podC of the original pod--podA
-	npod, err := createClonePod(clusterScraper.Clientset, pod, parentForPodSpec, updateQuotaToAllowMoves, nodeName)
+	npod, err := createClonePod(client, pod, parentForPodSpec, updateQuotaToAllowMoves, nodeName)
 	if err != nil {
 		glog.Errorf("Move pod failed: failed to create a clone pod: %v", err)
 		return nil, err
 	}
 
+	podClient := client.CoreV1().Pods(pod.Namespace)
 	var podList *api.PodList
 	//delete the clone pod if any of the below action fails
 	flag := false
@@ -295,7 +300,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 			return nil, fmt.Errorf("error retrieving containers for %s/%s because: %v", pod.Namespace, pod.Name, err)
 		}
 		for _, unstructuredContainer := range unstructuredContainers {
-			var container apicorev1.Container
+			var container api.Container
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredContainer.(map[string]interface{}), &container); err != nil {
 				return nil, fmt.Errorf("error converting unstructured containers to typed containers for %s/%s because : %v", pod.Namespace, pod.Name, err)
 			}
@@ -362,6 +367,46 @@ func calculateReadinessThreshold(container api.Container, retryInterval time.Dur
 		initDelay = readinessInitialDelaySec
 	}
 	return retryInterval, failureThreshold, initDelay
+}
+
+func getImpersonationClientset(restConfig *restclient.Config, pod *api.Pod) (*kclient.Clientset, bool) {
+	if len(commonutil.SCCMapping) < 1 {
+		return nil, false
+	}
+
+	sccLevel := ""
+	for key, val := range pod.GetAnnotations() {
+		if key == commonutil.SCCAnnotationKey {
+			sccLevel = val
+		}
+	}
+	if sccLevel == "" {
+		return nil, false
+	}
+
+	ns := commonutil.GetKubeturboNamespace()
+	userName := ""
+	for sccName, saName := range commonutil.SCCMapping {
+		if sccName == sccLevel {
+			userName = commonutil.SCCUserFullName(ns, saName)
+			break
+		}
+	}
+
+	if userName == "" {
+		return nil, false
+	}
+
+	config := restclient.CopyConfig(restConfig)
+	config.Impersonate.UserName = userName
+	client, err := kclient.NewForConfig(config)
+	if err != nil {
+		glog.Errorf("Failed to create Impersonating client while moving pod %s/%s: %v", ns, pod.Name, err)
+		return nil, false
+	}
+
+	glog.V(2).Infof("Using Impersonation client with username: %s while moving pod %s/%s", userName, ns, pod.Name)
+	return client, true
 }
 
 func deleteInvalidPendingPods(parent *unstructured.Unstructured, podClient v1.PodInterface,
@@ -544,7 +589,7 @@ func getPodOwnersInfo(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
 	return parent, nil, nsParentClient, nil, "", nil
 }
 
-func getContainerReadinessProbeDetails(container apicorev1.Container) (failureThreshold int32, initialDelaySec int32, periodSec int32) {
+func getContainerReadinessProbeDetails(container api.Container) (failureThreshold int32, initialDelaySec int32, periodSec int32) {
 	probe := container.ReadinessProbe
 	if probe == nil {
 		glog.V(4).Infof("Readiness probe not found for Container: %s, use default configuration instead", container.Name)

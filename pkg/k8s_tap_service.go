@@ -189,8 +189,8 @@ func createProbeConfigOrDie(c *Config) *configs.ProbeConfig {
 	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(c.KubeletClient, c.KubeClient)
 
 	// Create cluster monitoring
-	clusterScraper := cluster.NewClusterScraper(
-		c.KubeClient, c.DynamicClient, c.ControllerRuntimeClient, c.clusterAPIEnabled, c.CAClient, c.CAPINamespace)
+	clusterScraper := cluster.NewClusterScraper(c.RestConfig, c.KubeClient,
+		c.DynamicClient, c.ControllerRuntimeClient, c.clusterAPIEnabled, c.CAClient, c.CAPINamespace)
 	masterMonitoringConfig := master.NewClusterMonitorConfig(clusterScraper)
 
 	// TODO for now kubelet is the only monitoring source. As we have more sources, we should choose what to be added into the slice here.

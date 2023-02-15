@@ -4,6 +4,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	"k8s.io/client-go/dynamic"
 	kubeclient "k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
@@ -24,6 +25,7 @@ type Config struct {
 	VMIsBase bool
 
 	KubeClient    *kubeclient.Clientset
+	RestConfig    *restclient.Config
 	DynamicClient dynamic.Interface
 	KubeletClient *kubeletclient.KubeletClient
 	CAClient      *versioned.Clientset
@@ -78,6 +80,11 @@ func (c *Config) WithClusterKeyInjected(clusterKeyInjected string) *Config {
 
 func (c *Config) WithKubeClient(client *kubeclient.Clientset) *Config {
 	c.KubeClient = client
+	return c
+}
+
+func (c *Config) WithKubeConfig(config *restclient.Config) *Config {
+	c.RestConfig = config
 	return c
 }
 
