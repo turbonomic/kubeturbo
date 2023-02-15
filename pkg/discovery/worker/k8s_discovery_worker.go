@@ -40,8 +40,7 @@ type k8sDiscoveryWorkerConfig struct {
 	commodityConfig *dtofactory.CommodityConfig
 }
 
-func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutSec, metricSamples int,
-	commodityConfig *dtofactory.CommodityConfig) *k8sDiscoveryWorkerConfig {
+func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutSec, metricSamples int) *k8sDiscoveryWorkerConfig {
 	var monitoringWorkerTimeout time.Duration
 	if timeoutSec < minTimeoutSec {
 		glog.Warningf("Invalid discovery timeout %v, set it to %v", timeoutSec, minTimeoutSec)
@@ -59,7 +58,6 @@ func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutS
 		monitoringSourceConfigs: make(map[types.MonitorType][]monitoring.MonitorWorkerConfig),
 		monitoringWorkerTimeout: monitoringWorkerTimeout,
 		metricSamples:           metricSamples,
-		commodityConfig:         commodityConfig,
 	}
 }
 
@@ -421,7 +419,7 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 		return nil, nil, nil, nil
 	}
 	runningPodDTOs, pendingPodDTOs, podsWithVolumes, mirrorPodUids := dtofactory.
-		NewPodEntityDTOBuilder(worker.sink, worker.stitchingManager, worker.config.commodityConfig).
+		NewPodEntityDTOBuilder(worker.sink, worker.stitchingManager).
 		// Node providers
 		WithNodeNameUIDMap(cluster.NodeNameUIDMap).
 		// Quota providers
@@ -456,7 +454,7 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 // Build DTOs for containers
 func (worker *k8sDiscoveryWorker) buildContainerDTOs(runningPods []*api.Pod) ([]*proto.EntityDTO, []string) {
 	return dtofactory.
-		NewContainerDTOBuilder(worker.sink, worker.config.commodityConfig).
+		NewContainerDTOBuilder(worker.sink).
 		BuildEntityDTOs(runningPods)
 }
 

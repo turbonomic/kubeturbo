@@ -7,8 +7,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
-
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo"
@@ -108,7 +106,7 @@ var _ = Describe("Discover Cluster", func() {
 			discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, nil, app.DefaultValidationWorkers,
 				app.DefaultValidationTimeout, aggregation.DefaultContainerUtilizationDataAggStrategy,
 				aggregation.DefaultContainerUsageDataAggStrategy, ormClient, app.DefaultDiscoveryWorkers, app.DefaultDiscoveryTimeoutSec,
-				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec, 0, dtofactory.DefaultCommodityConfig())
+				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec, 0)
 
 			// Kubernetes Probe Discovery Client
 			discoveryClient = discovery.NewK8sDiscoveryClient(discoveryClientConfig)

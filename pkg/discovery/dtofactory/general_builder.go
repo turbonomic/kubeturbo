@@ -104,18 +104,11 @@ func (s *attributeSetter) Set(rType metrics.ResourceType, commBuilder *sdkbuilde
 
 type generalBuilder struct {
 	metricsSink *metrics.EntityMetricSink
-	config      *CommodityConfig
 }
 
-func newGeneralBuilder(sink *metrics.EntityMetricSink, config *CommodityConfig) generalBuilder {
-	if config == nil {
-		config = &CommodityConfig{
-			VCPUThrottlingUtilThreshold: vcpuThrottlingUtilThresholdDefault,
-		}
-	}
+func newGeneralBuilder(sink *metrics.EntityMetricSink) generalBuilder {
 	return generalBuilder{
 		metricsSink: sink,
-		config:      config,
 	}
 }
 
@@ -182,7 +175,6 @@ func (builder generalBuilder) getSoldResourceCommodityWithKey(entityType metrics
 		// This is better then separately posting the capacity into metrics sync
 		// and then reading it here.
 		commSoldBuilder.Capacity(100)
-		commSoldBuilder.UtilizationThresholdPct(builder.config.VCPUThrottlingUtilThreshold) // keeping throttling low
 	} else {
 		capacityMetricValue, err := builder.metricValue(entityType, entityID,
 			resourceType, metrics.Capacity, converter)

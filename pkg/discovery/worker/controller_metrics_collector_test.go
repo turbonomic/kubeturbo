@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -89,8 +88,7 @@ func TestCollectControllerMetrics(t *testing.T) {
 	clusterSummary := repository.CreateClusterSummary(kubeCluster)
 	pods := []*api.Pod{testPod1, testPod2, testPod3}
 	currTask := task.NewTask().WithPods(pods).WithCluster(clusterSummary)
-	commodityConfig := dtofactory.DefaultCommodityConfig()
-	workerConfig := NewK8sDiscoveryWorkerConfig("sType", 10, 10, commodityConfig).
+	workerConfig := NewK8sDiscoveryWorkerConfig("sType", 10, 10).
 		WithMonitoringWorkerConfig(kubelet.NewKubeletMonitorConfig(nil, nil))
 	discoveryWorker, _ := NewK8sDiscoveryWorker(workerConfig, "wid", metrics.NewEntityMetricSink(), true)
 

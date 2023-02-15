@@ -4,8 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
-
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/cmd/kubeturbo/app"
@@ -100,7 +98,7 @@ var _ = Describe("Action Executor ", func() {
 			discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, nil, app.DefaultValidationWorkers,
 				app.DefaultValidationTimeout, aggregation.DefaultContainerUtilizationDataAggStrategy,
 				aggregation.DefaultContainerUsageDataAggStrategy, ormClient, app.DefaultDiscoveryWorkers, app.DefaultDiscoveryTimeoutSec,
-				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec, 0, dtofactory.DefaultCommodityConfig())
+				app.DefaultDiscoverySamples, app.DefaultDiscoverySampleIntervalSec, 0)
 			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
 				cluster.NewClusterScraper(nil, kubeClient, dynamicClient, nil, false, nil, ""),
 				[]string{"*"}, ormClient, false, true, 60, gitops.GitConfig{}, "test-cluster-id")

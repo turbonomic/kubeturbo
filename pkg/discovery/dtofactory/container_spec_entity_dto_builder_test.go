@@ -66,7 +66,6 @@ func Test_containerSpecDTOBuilder_getCommoditiesSold(t *testing.T) {
 		containerSpecMetricsMap:            map[string]*repository.ContainerSpecMetrics{containerSpecId: &containerSpecMetrics},
 		containerUtilizationDataAggregator: aggregation.ContainerUtilizationDataAggregators[aggregation.DefaultContainerUtilizationDataAggStrategy],
 		containerUsageDataAggregator:       aggregation.ContainerUsageDataAggregators[aggregation.DefaultContainerUsageDataAggStrategy],
-		commodityConfig:                    DefaultCommodityConfig(),
 	}
 	commodityDTOs, err := builder.getCommoditiesSold(&containerSpecMetrics)
 	assert.Nil(t, err)

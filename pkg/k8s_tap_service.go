@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -224,13 +223,11 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		config.VMIsBase, config.clusterAPIEnabled)
 
 	probeConfig := createProbeConfigOrDie(config)
-	commodityConfig := dtofactory.DefaultCommodityConfig()
-	commodityConfig.VCPUThrottlingUtilThreshold = config.vcpuThrottlingUtilThreshold
 
 	discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, config.tapSpec.K8sTargetConfig,
 		config.ValidationWorkers, config.ValidationTimeoutSec, config.containerUtilizationDataAggStrategy,
 		config.containerUsageDataAggStrategy, config.ORMClient, config.DiscoveryWorkers, config.DiscoveryTimeoutSec,
-		config.DiscoverySamples, config.DiscoverySampleIntervalSec, config.ItemsPerListQuery, commodityConfig)
+		config.DiscoverySamples, config.DiscoverySampleIntervalSec, config.ItemsPerListQuery)
 
 	if config.clusterKeyInjected != "" {
 		discoveryClientConfig = discoveryClientConfig.WithClusterKeyInjected(config.clusterKeyInjected)
