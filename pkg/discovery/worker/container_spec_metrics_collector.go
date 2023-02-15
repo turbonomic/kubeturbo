@@ -87,8 +87,6 @@ func (collector *ContainerSpecMetricsCollector) collectContainerMetrics(containe
 			continue
 		}
 		usedMetricPoints, err := collector.getResourceMetricValue(containerMId, resourceType, metrics.Used)
-		//glog.Warningf("Cannot get resource %s value for container %s %s: %v", metrics.Used, containerMId, resourceType, err)
-		//continue
 		if err != nil {
 			if resourceType == metrics.VCPUThrottling {
 				// We dont want to pollute the logs at low verbosity when we don't get throttling metrics from
