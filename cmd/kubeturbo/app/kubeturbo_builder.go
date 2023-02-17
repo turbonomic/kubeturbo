@@ -73,7 +73,7 @@ const (
 )
 
 var (
-	defaultSccSupport = []string{"restricted"}
+	defaultSccSupport = []string{"*"}
 
 	// these variables will be deprecated. Keep it here for backward compatibility only
 	k8sVersion        = "1.8"
