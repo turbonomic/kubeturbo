@@ -185,6 +185,8 @@ type VMTServer struct {
 	CpuFrequencyGetterImage string
 	// Name of the secret that stores the image pull credentials of cpu freq getter job image
 	CpuFrequencyGetterPullSecret string
+	// Cleanup resources created in the SCC impersonation
+	CleanupSccRelatedResources bool
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -250,6 +252,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	// CpuFreqGetter image and secret
 	fs.StringVar(&s.CpuFrequencyGetterImage, "cpufreqgetter-image", "icr.io/cpopen/turbonomic/cpufreqgetter", "The complete cpufreqgetter image uri used for fallback node cpu frequency getter job.")
 	fs.StringVar(&s.CpuFrequencyGetterPullSecret, "cpufreqgetter-image-pull-secret", "", "The name of the secret that stores the image pull credentials for cpufreqgetter image.")
+	fs.BoolVar(&s.CleanupSccRelatedResources, "cleanup-scc-impersonation-resources", true, "Enable cleanup the resources for scc impersonation.")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -502,7 +505,12 @@ func (s *VMTServer) Run() {
 		// invalid endpoints remaining in the server side. See OM-28801.
 		k8sTAPService.DisconnectFromTurbo()
 	}
-	handleExit(cleanupWG, cleanupSCCFn, disconnectFn)
+	var cleanupFuns []cleanUp
+	if s.CleanupSccRelatedResources {
+		cleanupFuns = append(cleanupFuns, cleanupSCCFn)
+	}
+	cleanupFuns = append(cleanupFuns, disconnectFn)
+	handleExit(cleanupWG, cleanupFuns...)
 
 	gCChan := make(chan bool)
 	defer close(gCChan)
