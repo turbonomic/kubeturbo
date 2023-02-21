@@ -8,7 +8,7 @@ import (
 	cadvisorapi "github.com/google/cadvisor/info/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	policyv1alpha1 "github.com/turbonomic/turbo-crd/api/v1alpha1"
+	policyv1alpha1 "github.com/turbonomic/turbo-policy/api/v1alpha1"
 	gitopsv1alpha1 "github.com/turbonomic/turbo-gitops/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"

@@ -13,7 +13,7 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	"github.com/turbonomic/turbo-crd/api/v1alpha1"
+	"github.com/turbonomic/turbo-policy/api/v1alpha1"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 )
 
