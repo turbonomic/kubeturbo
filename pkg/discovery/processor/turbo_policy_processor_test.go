@@ -38,7 +38,7 @@ var (
 	sloScaleSpec = policyv1alpha1.SLOHorizontalScaleSpec{
 		MinReplicas: &minReplicas,
 		MaxReplicas: &maxReplicas,
-		Objectives: []policyv1alpha1.PolicySetting{
+		Objectives: []policyv1alpha1.SLOHorizontalScalePolicySetting{
 			{
 				Name:  "ResponseTime",
 				Value: apiextensionv1.JSON{Raw: marshaledRT},
@@ -56,7 +56,7 @@ var (
 	sloScaleSpecMinReplicasLargerThanMaxReplicas = policyv1alpha1.SLOHorizontalScaleSpec{
 		MinReplicas: &maxReplicas,
 		MaxReplicas: &minReplicas,
-		Objectives: []policyv1alpha1.PolicySetting{
+		Objectives: []policyv1alpha1.SLOHorizontalScalePolicySetting{
 			{
 				Name:  "ResponseTime",
 				Value: apiextensionv1.JSON{Raw: marshaledRT},
@@ -64,7 +64,7 @@ var (
 		},
 	}
 	sloScaleSpecInvalidObjectives = policyv1alpha1.SLOHorizontalScaleSpec{
-		Objectives: []policyv1alpha1.PolicySetting{
+		Objectives: []policyv1alpha1.SLOHorizontalScalePolicySetting{
 			{
 				Name:  "ResponseTime",
 				Value: apiextensionv1.JSON{Raw: marshaledRTInvalid},
