@@ -6,8 +6,8 @@ import (
 
 	mapset "github.com/deckarep/golang-set"
 	"github.com/stretchr/testify/assert"
-	policyv1alpha1 "github.com/turbonomic/turbo-policy/api/v1alpha1"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	policyv1alpha1 "github.com/turbonomic/turbo-policy/api/v1alpha1"
 	api "k8s.io/api/core/v1"
 	apiextensionv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
