@@ -11,9 +11,9 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/turbo-crd/api/v1alpha1"
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder/group"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"github.com/turbonomic/turbo-policy/api/v1alpha1"
 )
 
 const (

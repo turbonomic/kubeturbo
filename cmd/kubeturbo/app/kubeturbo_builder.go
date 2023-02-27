@@ -50,8 +50,8 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/kubeturbo/test/flag"
-	policyv1alpha1 "github.com/turbonomic/turbo-crd/api/v1alpha1"
 	gitopsv1alpha1 "github.com/turbonomic/turbo-gitops/api/v1alpha1"
+	policyv1alpha1 "github.com/turbonomic/turbo-policy/api/v1alpha1"
 )
 
 const (

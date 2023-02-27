@@ -254,9 +254,6 @@ github.com/stretchr/testify/require
 ## explicit
 github.com/turbonomic/turbo-api/pkg/api
 github.com/turbonomic/turbo-api/pkg/client
-# github.com/turbonomic/turbo-crd v0.0.0-20220630232025-77ff549647ec
-## explicit; go 1.17
-github.com/turbonomic/turbo-crd/api/v1alpha1
 # github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3
 ## explicit; go 1.19
 github.com/turbonomic/turbo-gitops/api/v1alpha1
@@ -271,6 +268,9 @@ github.com/turbonomic/turbo-go-sdk/pkg/proto
 github.com/turbonomic/turbo-go-sdk/pkg/service
 github.com/turbonomic/turbo-go-sdk/pkg/supplychain
 github.com/turbonomic/turbo-go-sdk/pkg/version
+# github.com/turbonomic/turbo-policy v0.0.0-20230227150618-cce94c7d2742
+## explicit; go 1.17
+github.com/turbonomic/turbo-policy/api/v1alpha1
 # github.com/xanzy/go-gitlab v0.74.0
 ## explicit; go 1.18
 github.com/xanzy/go-gitlab

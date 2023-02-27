@@ -16,12 +16,18 @@ limitations under the License.
 
 package v1alpha1
 
-// PolicyReference represents a declarative configuration of the reference to a Policy
-type PolicyReference struct {
-	// The kind of the policy referent
-	// +kubebuilder:validation:Enum=SLOHorizontalScale
+type PolicyTargetReference struct {
+	// The Kind of the target referent
 	Kind string `json:"kind"`
 
-	// The name of the policy referent
+	// The Name of the target referent
 	Name string `json:"name"`
+
+	// The API version of the target referent
+	// +optional
+	APIVersion string `json:"apiVersion,omitempty"`
+
+	// The Name of the container need to be specified if the target is workload controller
+	// +optional
+	Container string `json:"container,omitempty"`
 }

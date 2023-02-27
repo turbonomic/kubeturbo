@@ -16,17 +16,12 @@ limitations under the License.
 
 package v1alpha1
 
-import v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+// PolicyReference represents a declarative configuration of the reference to a Policy
+type PolicyReference struct {
+	// The kind of the policy referent
+	// +kubebuilder:validation:Enum=SLOHorizontalScale;ContainerVerticalScale
+	Kind string `json:"kind"`
 
-const (
-	ResponseTime = "ResponseTime"
-	Transaction  = "Transaction"
-)
-
-type PolicySetting struct {
-	// The name of the policy setting
+	// The name of the policy referent
 	Name string `json:"name"`
-
-	// The value of the policy setting
-	Value v1.JSON `json:"value"`
 }

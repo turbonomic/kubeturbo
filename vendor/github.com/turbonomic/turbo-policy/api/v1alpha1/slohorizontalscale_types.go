@@ -39,7 +39,7 @@ type SLOHorizontalScaleSpec struct {
 	// The objectives of this SLOHorizontalScale policy
 	// +kubebuilder:default:={{name:ResponseTime,value:2000},{name:Transaction,value:10}}
 	// +kubebuilder:validation:MinItems:=1
-	Objectives []PolicySetting `json:"objectives,omitempty"`
+	Objectives []SLOHorizontalScalePolicySetting `json:"objectives,omitempty"`
 
 	// The behavior of SLO driven horizontal scale actions
 	// +kubebuilder:default:={scaleUp:Manual,scaleDown:Manual}
