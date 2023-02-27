@@ -13,9 +13,8 @@ _output/
 .vscode/
 .DS_Store
 kubeturbo.iml
-kubeturbo
-kubeturbo.linux
-kubeturbo.debug
+build/kubeturbo*
+build/linux
 integration.test
 dlv
 bin
