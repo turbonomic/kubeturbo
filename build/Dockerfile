@@ -19,7 +19,7 @@ LABEL name="Hybrid Cloud Container" \
       io.openshift.expose-services="" \
       io.openshift.tags="turbonomic,Hybrid Cloud Container"
 
-RUN dnf update -y krb5-libs
+RUN dnf update -y krb5-libs && dnf remove -y vim-minimal
 
 ### Atomic Help File - Write in Markdown, it will be converted to man format at build time.
 ### https://github.com/projectatomic/container-best-practices/blob/master/creating/help.adoc
