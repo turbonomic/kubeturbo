@@ -19,7 +19,7 @@ package v1alpha1
 // PolicyReference represents a declarative configuration of the reference to a Policy
 type PolicyReference struct {
 	// The kind of the policy referent
-	// +kubebuilder:validation:Enum=SLOHorizontalScale
+	// +kubebuilder:validation:Enum=SLOHorizontalScale;ContainerVerticalScale
 	Kind string `json:"kind"`
 
 	// The name of the policy referent
