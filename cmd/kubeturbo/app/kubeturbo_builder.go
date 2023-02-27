@@ -73,7 +73,7 @@ const (
 )
 
 var (
-	defaultSccSupport = []string{"restricted"}
+	defaultSccSupport = []string{"*"}
 
 	// these variables will be deprecated. Keep it here for backward compatibility only
 	k8sVersion        = "1.8"
@@ -185,6 +185,8 @@ type VMTServer struct {
 	CpuFrequencyGetterImage string
 	// Name of the secret that stores the image pull credentials of cpu freq getter job image
 	CpuFrequencyGetterPullSecret string
+	// Cleanup resources created in the SCC impersonation
+	CleanupSccRelatedResources bool
 }
 
 // NewVMTServer creates a new VMTServer with default parameters
@@ -231,7 +233,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.DiscoverySampleIntervalSec, "discovery-sample-interval", DefaultDiscoverySampleIntervalSec, "The discovery interval in seconds to collect additional resource usage data samples from kubelet. This should be no smaller than 10 seconds.")
 	fs.IntVar(&s.GCIntervalMin, "garbage-collection-interval", DefaultGCIntervalMin, "The garbage collection interval in minutes for possible leaked pods from actions failed because of kubeturbo restarts. Default value is 20 mins.")
 	fs.IntVar(&s.ItemsPerListQuery, "items-per-list-query", 0, "Number of workload controller items the list api call should request for.")
-	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all. Default allowed scc is [restricted].")
+	fs.StringSliceVar(&s.sccSupport, "scc-support", defaultSccSupport, "The SCC list allowed for executing pod actions, e.g., --scc-support=restricted,anyuid or --scc-support=* to allow all. Default allowed scc is [*].")
 	// So far we have noticed cluster api support only in openshift clusters and our implementation works only for openshift
 	// It thus makes sense to have openshifts machine api namespace as our default cluster api namespace
 	fs.StringVar(&s.ClusterAPINamespace, "cluster-api-namespace", "openshift-machine-api", "The Cluster API namespace.")
@@ -250,6 +252,7 @@ func (s *VMTServer) AddFlags(fs *pflag.FlagSet) {
 	// CpuFreqGetter image and secret
 	fs.StringVar(&s.CpuFrequencyGetterImage, "cpufreqgetter-image", "icr.io/cpopen/turbonomic/cpufreqgetter", "The complete cpufreqgetter image uri used for fallback node cpu frequency getter job.")
 	fs.StringVar(&s.CpuFrequencyGetterPullSecret, "cpufreqgetter-image-pull-secret", "", "The name of the secret that stores the image pull credentials for cpufreqgetter image.")
+	fs.BoolVar(&s.CleanupSccRelatedResources, "cleanup-scc-impersonation-resources", true, "Enable cleanup the resources for scc impersonation.")
 }
 
 // create an eventRecorder to send events to Kubernetes APIserver
@@ -502,7 +505,12 @@ func (s *VMTServer) Run() {
 		// invalid endpoints remaining in the server side. See OM-28801.
 		k8sTAPService.DisconnectFromTurbo()
 	}
-	handleExit(cleanupWG, cleanupSCCFn, disconnectFn)
+	var cleanupFuns []cleanUp
+	if s.CleanupSccRelatedResources {
+		cleanupFuns = append(cleanupFuns, cleanupSCCFn)
+	}
+	cleanupFuns = append(cleanupFuns, disconnectFn)
+	handleExit(cleanupWG, cleanupFuns...)
 
 	gCChan := make(chan bool)
 	defer close(gCChan)
