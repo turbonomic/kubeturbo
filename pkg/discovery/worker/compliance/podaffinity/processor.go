@@ -92,16 +92,17 @@ func GetNamespaceLabelsSnapshot(ns string, nsLister NamespaceLister) (nsLabels l
 	return
 }
 
+// ProcessAffinities returns a map of nodes to list of pods which can be placed on each
+// respective node.
 func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) map[string][]string {
-	result := make(map[string][]string)
-	ctx := context.TODO()
-
 	nodeInfos, err := pr.nodeInfoLister.List()
 	if err != nil {
 		klog.Errorf("Error retreiving nodeinfos while processing affinities, %V.", err)
 		return nil
 	}
 
+	nodesPods := make(map[string][]string)
+	ctx := context.TODO()
 	for _, pod := range allPods {
 		if !podWithAffinity(pod) {
 			continue
@@ -112,16 +113,19 @@ func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) map[string]
 			continue
 		}
 
-		nodeList := []string{}
-		result[pod.Name] = nodeList
+		qualifiedPodName := pod.Namespace + "/" + pod.Name
 		for _, nodeInfo := range nodeInfos {
 			err := pr.Filter(ctx, state, pod, nodeInfo)
+			// Err means a placement was not found on this node
 			if err != nil {
 				continue
 			}
-			result[pod.Name] = append(result[pod.Name], nodeInfo.node.Name)
+			if _, exists := nodesPods[nodeInfo.node.Name]; !exists {
+				nodesPods[nodeInfo.node.Name] = []string{}
+			}
+			nodesPods[nodeInfo.node.Name] = append(nodesPods[nodeInfo.node.Name], qualifiedPodName)
 		}
 	}
 
-	return result
+	return nodesPods
 }

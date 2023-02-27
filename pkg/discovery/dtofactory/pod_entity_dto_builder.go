@@ -431,6 +431,22 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
 		}
 	}
 
+	// Add pods own qualified name as Label commodity to honor placement as per affinities
+	// Nodes where this pod can be placed will sell this commodity
+	var affinityLabelComm *proto.CommodityDTO
+	if utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
+		var err error
+		affinityLabelComm, err = sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
+			Key(podMId).
+			Create()
+		if err != nil {
+			glog.Errorf("Failed to ceate affinity label commodity for pod %s", podMId)
+			return nil, err
+		}
+		glog.V(5).Infof("Adding affinity label commodity for Pod %s", podMId)
+	}
+	commoditiesBought = append(commoditiesBought, affinityLabelComm)
+
 	// Cluster commodity.
 	clusterMetricUID := metrics.GenerateEntityStateMetricUID(metrics.ClusterType, "", metrics.Cluster)
 	clusterInfo, err := builder.metricsSink.GetMetric(clusterMetricUID)

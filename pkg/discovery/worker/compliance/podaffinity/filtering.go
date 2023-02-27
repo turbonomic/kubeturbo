@@ -166,6 +166,10 @@ func (pr *PodAffinityProcessor) getExistingAntiAffinityCounts(ctx context.Contex
 		for _, existingPod := range nodeInfo.PodsWithRequiredAntiAffinity {
 			// this will update the count of topology terms that match against the
 			// topology term in the map
+			if existingPod.Pod.Name == pod.Name && existingPod.Pod.Namespace == pod.Namespace {
+				// we should not be validating against self
+				continue
+			}
 			result.updateWithAntiAffinityTerms(existingPod.RequiredAntiAffinityTerms, pod, nsLabels, node, 1)
 		}
 	}
@@ -191,6 +195,10 @@ func (pr *PodAffinityProcessor) getIncomingAffinityAntiAffinityCounts(ctx contex
 			continue
 		}
 		for _, existingPod := range nodeInfo.Pods {
+			if existingPod.Pod.Name == podInfo.Pod.Name && existingPod.Pod.Namespace == podInfo.Pod.Namespace {
+				// we should not be validating against self
+				continue
+			}
 			affinityCounts.updateWithAffinityTerms(podInfo.RequiredAffinityTerms, existingPod.Pod, node, 1)
 			// The incoming pod's terms have the namespaceSelector merged into the namespaces, and so
 			// here we don't lookup the existing pod's namespace labels, hence passing nil for nsLabels.

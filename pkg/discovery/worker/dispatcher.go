@@ -2,6 +2,7 @@ package worker
 
 import (
 	"fmt"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 
 	"time"
@@ -134,7 +135,7 @@ func (d *Dispatcher) RegisterWorker(worker *k8sDiscoveryWorker) {
 
 // Create Task objects for discovery and monitoring for each node, and the pods and containers on that node
 // Dispatch the task to the pool, task will be picked by the k8sDiscoveryWorker
-func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSummary) int {
+func (d *Dispatcher) Dispatch(nodes []*api.Node, nodesPods map[string][]string, cluster *repository.ClusterSummary) int {
 	go func() {
 		for _, node := range nodes {
 			runningPods := cluster.GetRunningPodsOnNode(node)
@@ -143,7 +144,8 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, cluster *repository.ClusterSumm
 				WithNode(node).
 				WithRunningPods(runningPods).
 				WithPendingPods(pendingPods).
-				WithCluster(cluster)
+				WithCluster(cluster).
+				WithNodesPods(nodesPods)
 			glog.V(2).Infof("Dispatching task %v", currTask)
 			d.assignTask(currTask)
 		}

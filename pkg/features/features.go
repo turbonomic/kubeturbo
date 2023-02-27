@@ -68,6 +68,10 @@ const (
 	// in out code, where affinity processing alone takes a really long time.
 	// https://vmturbo.atlassian.net/browse/OM-93635?focusedCommentId=771727
 	IgnoreAffinities featuregate.Feature = "IgnoreAffinities"
+	//
+	// This gate will use the optimised affinity processing algorithm which in turn
+	// will ensure that the affinity processing can happen within a single discovery cycle.
+	NewAffinityProcessing featuregate.Feature = "NewAffinityProcessing"
 )
 
 func init() {
@@ -89,4 +93,5 @@ var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSp
 	GoMemLimit:                    {Default: true, PreRelease: featuregate.Alpha},
 	AllowIncreaseNsQuota4Resizing: {Default: true, PreRelease: featuregate.Alpha},
 	IgnoreAffinities:              {Default: false, PreRelease: featuregate.Alpha},
+	NewAffinityProcessing:         {Default: false, PreRelease: featuregate.Alpha},
 }

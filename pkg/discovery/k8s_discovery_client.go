@@ -315,6 +315,25 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	}
 	glog.V(3).Infof("Discovering cluster resources took %s", time.Since(start))
 
+	// affinity process with new algorithm
+	var nodesPods map[string][]string
+	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) &&
+		utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
+		glog.V(2).Infof("Begin to process affinity with new algorithm.")
+		start := time.Now()
+		affinityProcessor, err := podaffinity.New(dc.k8sClusterScraper.Clientset, clusterSummary)
+		if err != nil {
+			glog.Errorf("Failure in processing affinity rules: %s", err)
+		} else {
+			nodesPods = affinityProcessor.ProcessAffinities(clusterSummary.Pods)
+		}
+		glog.V(2).Infof("Successfully processed affinities.")
+		glog.V(3).Infof("Processing affinities with new algorithm took %s", time.Since(start))
+		glog.V(6).Infof("\n\nProcessed affinity result: \n\n %++v \n\n", nodesPods)
+	} else {
+		glog.V(2).Infof("Ignoring affinities.")
+	}
+
 	// Cache operatorResourceSpecMap in ormClient
 	numCRs := dc.Config.OrmClient.CacheORMSpecMap()
 	if numCRs > 0 {
@@ -332,7 +351,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	// Discover pods and create DTOs for nodes, namespaces, controllers, pods, containers, application.
 	// Merge collected usage data samples from globalEntityMetricSink into the metric sink of each individual discovery worker.
 	// Collect the kubePod, kubeNamespace metrics, groups and kubeControllers from all the discovery workers.
-	taskCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
+	taskCount := dc.dispatcher.Dispatch(nodes, nodesPods, clusterSummary)
 	result := dc.resultCollector.Collect(taskCount)
 	glog.V(3).Infof("Collection and processing of metrics from node kubelets took %s", time.Since(start))
 
@@ -407,19 +426,16 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	glog.V(3).Infof("Postprocessing and aggregatig DTOs took %s", time.Since(start))
 
 	// affinity process
-	var affinityMapping map[string][]string
-	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) &&
+		!utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
 		glog.V(2).Infof("Begin to process affinity.")
-		start := time.Now()
-		affinityProcessor, err := podaffinity.New(dc.k8sClusterScraper.Clientset, clusterSummary)
+		affinityProcessor, err := compliance.NewAffinityProcessor(clusterSummary)
 		if err != nil {
 			glog.Errorf("Failed during process affinity rules: %s", err)
 		} else {
-			affinityMapping = affinityProcessor.ProcessAffinities(clusterSummary.Pods)
+			result.EntityDTOs = affinityProcessor.ProcessAffinityRules(result.EntityDTOs)
 		}
 		glog.V(2).Infof("Successfully processed affinity.")
-		glog.V(3).Infof("Processing affinities took %s", time.Since(start))
-		glog.V(3).Infof("\n\nProcessed affinity result: %++v \n\n", affinityMapping)
 	} else {
 		glog.V(2).Infof("Ignoring affinities.")
 	}
@@ -462,4 +478,8 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	}
 
 	return result.EntityDTOs, groupDTOs, nil
+}
+
+func inverseAffinityMapping(map[string][]string) map[string][]string {
+	return nil
 }

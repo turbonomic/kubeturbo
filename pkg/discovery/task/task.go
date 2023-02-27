@@ -26,6 +26,7 @@ type Task struct {
 	pvs         []*api.PersistentVolume
 	pvcs        []*api.PersistentVolumeClaim
 	cluster     *repository.ClusterSummary
+	nodesPods   map[string][]string
 }
 
 // Worker task is consisted of a list of nodes the worker must discover.
@@ -79,6 +80,13 @@ func (t *Task) WithCluster(cluster *repository.ClusterSummary) *Task {
 	return t
 }
 
+// Assign inverse of pods placement map (list of pods per node which can actually be
+// placed on that node).
+func (t *Task) WithNodesPods(nodesPods map[string][]string) *Task {
+	t.nodesPods = nodesPods
+	return t
+}
+
 // Get node from the task.
 func (t *Task) Node() *api.Node {
 	return t.node
@@ -109,6 +117,10 @@ func (t *Task) PVCList() []*api.PersistentVolumeClaim {
 
 func (t *Task) Cluster() *repository.ClusterSummary {
 	return t.cluster
+}
+
+func (t *Task) NodesPods() map[string][]string {
+	return t.nodesPods
 }
 
 func (t *Task) String() string {
