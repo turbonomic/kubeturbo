@@ -25,6 +25,7 @@ package podaffinity
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -33,6 +34,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
+	"github.com/turbonomic/kubeturbo/pkg/parallelizer"
 )
 
 // PodAffinityProcessor processes inter pod affinities, anti affinities
@@ -41,6 +43,8 @@ type PodAffinityProcessor struct {
 	nodeInfoLister  NodeInfoLister
 	nsLister        listersv1.NamespaceLister
 	podToVolumesMap map[string][]repository.MountedVolume
+	parallelizer    parallelizer.Parallelizer
+	sync.Mutex
 }
 
 // New initializes a new plugin and returns it.
@@ -48,6 +52,8 @@ func New(client *client.Clientset, clusterSummary *repository.ClusterSummary) (*
 	pr := &PodAffinityProcessor{
 		nodeInfoLister:  NewNodeInfoLister(clusterSummary),
 		podToVolumesMap: clusterSummary.PodToVolumesMap,
+		// TODO: make the parallelizm configurable
+		parallelizer: parallelizer.NewParallelizer(parallelizer.DefaultParallelism),
 	}
 	nsLister, err := NewNamespaceLister(client, clusterSummary)
 	if err != nil {
@@ -103,29 +109,32 @@ func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) map[string]
 
 	nodesPods := make(map[string][]string)
 	ctx := context.TODO()
-	for _, pod := range allPods {
+	processAffinityPerPod := func(i int) {
+		pod := allPods[i]
 		if !podWithAffinity(pod) {
-			continue
+			return
 		}
 		state, err := pr.PreFilter(ctx, pod)
 		if err != nil {
 			klog.Errorf("Error computing prefilter state for pod, %s/%s.", pod.Namespace, pod.Name)
-			continue
+			return
 		}
 
-		qualifiedPodName := pod.Namespace + "/" + pod.Name
 		for _, nodeInfo := range nodeInfos {
 			err := pr.Filter(ctx, state, pod, nodeInfo)
 			// Err means a placement was not found on this node
 			if err != nil {
 				continue
 			}
+			pr.Lock()
 			if _, exists := nodesPods[nodeInfo.node.Name]; !exists {
 				nodesPods[nodeInfo.node.Name] = []string{}
 			}
-			nodesPods[nodeInfo.node.Name] = append(nodesPods[nodeInfo.node.Name], qualifiedPodName)
+			nodesPods[nodeInfo.node.Name] = append(nodesPods[nodeInfo.node.Name], pod.Namespace+"/"+pod.Name)
+			pr.Unlock()
 		}
 	}
 
+	pr.parallelizer.Until(context.Background(), len(allPods), processAffinityPerPod, "processAffinityPerPod")
 	return nodesPods
 }
