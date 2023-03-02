@@ -103,27 +103,3 @@ func NewNamespaceLister(client *client.Clientset, clusterSummary *repository.Clu
 	return nsInformer.Lister(), nil
 
 }
-
-/*func (n *NamespaceListerImpl) List(selector labels.Selector) (ret []*v1.Namespace, err error) {
-	options := metav1.ListOptions{
-		LabelSelector: selector.String(),
-	}
-	namespaces, err := n.client.CoreV1().Namespaces().List(context.TODO(), options)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, ns := range namespaces.Items {
-		ret = append(ret, &ns)
-	}
-	return ret, nil
-}
-
-func (n *NamespaceListerImpl) Get(name string) (*v1.Namespace, error) {
-	ns, found := n.kubeNamespacesMap[name]
-	if !found {
-		return nil, fmt.Errorf("namespace %s not found", name)
-	}
-	return ns, nil
-}
-*/

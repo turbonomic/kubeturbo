@@ -8,17 +8,18 @@ import (
 
 	"github.com/golang/glog"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	api "k8s.io/api/core/v1"
+
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	api "k8s.io/api/core/v1"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 )
 
 const (
@@ -435,7 +436,7 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 		WithClusterKeyInjected(worker.config.clusterKeyInjected).
 		// map of mirror pods to daemon flags
 		WithMirrorPodToDaemonMap(cluster.MirrorPodToDaemonMap).
-		BuildEntityDTOs()
+		BuildEntityDTOs(currTask.PodsWithAffinities())
 
 	var podDTOs []*proto.EntityDTO
 	var runningPods []*api.Pod

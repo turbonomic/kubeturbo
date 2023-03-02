@@ -296,10 +296,10 @@ func (n *NodeInfo) String() string {
 // Consider using this instead of AddPod if a PodInfo is already computed.
 func (n *NodeInfo) AddPodInfo(podInfo *PodInfo) {
 	n.Pods = append(n.Pods, podInfo)
-	if podWithAffinity(podInfo.Pod) {
+	if podWithPodAffinityAndAntiaffinity(podInfo.Pod) {
 		n.PodsWithAffinity = append(n.PodsWithAffinity, podInfo)
 	}
-	if podWithRequiredAntiAffinity(podInfo.Pod) {
+	if podWithRequiredPodAntiAffinity(podInfo.Pod) {
 		n.PodsWithRequiredAntiAffinity = append(n.PodsWithRequiredAntiAffinity, podInfo)
 	}
 	n.update(podInfo.Pod, 1)
@@ -313,12 +313,17 @@ func (n *NodeInfo) AddPod(pod *v1.Pod) {
 	n.AddPodInfo(podInfo)
 }
 
-func podWithAffinity(p *v1.Pod) bool {
+func podWithPodAffinityAndAntiaffinity(p *v1.Pod) bool {
 	affinity := p.Spec.Affinity
 	return affinity != nil && (affinity.PodAffinity != nil || affinity.PodAntiAffinity != nil)
 }
 
-func podWithRequiredAntiAffinity(p *v1.Pod) bool {
+func podWithAffinity(p *v1.Pod) bool {
+	affinity := p.Spec.Affinity
+	return affinity != nil
+}
+
+func podWithRequiredPodAntiAffinity(p *v1.Pod) bool {
 	affinity := p.Spec.Affinity
 	return affinity != nil && affinity.PodAntiAffinity != nil &&
 		len(affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution) != 0
@@ -347,10 +352,10 @@ func (n *NodeInfo) RemovePod(pod *v1.Pod) error {
 	if err != nil {
 		return err
 	}
-	if podWithAffinity(pod) {
+	if podWithPodAffinityAndAntiaffinity(pod) {
 		n.PodsWithAffinity = removeFromSlice(n.PodsWithAffinity, k)
 	}
-	if podWithRequiredAntiAffinity(pod) {
+	if podWithRequiredPodAntiAffinity(pod) {
 		n.PodsWithRequiredAntiAffinity = removeFromSlice(n.PodsWithRequiredAntiAffinity, k)
 	}
 

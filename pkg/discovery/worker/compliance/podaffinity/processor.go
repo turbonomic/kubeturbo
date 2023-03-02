@@ -29,6 +29,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/sets"
 	client "k8s.io/client-go/kubernetes"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog/v2"
@@ -99,27 +100,30 @@ func GetNamespaceLabelsSnapshot(ns string, nsLister NamespaceLister) (nsLabels l
 }
 
 // ProcessAffinities returns a map of nodes to list of pods which can be placed on each
-// respective node.
-func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) map[string][]string {
+// respective node and a set of pods which have affinities.
+func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string][]string, sets.String) {
 	nodeInfos, err := pr.nodeInfoLister.List()
 	if err != nil {
 		klog.Errorf("Error retreiving nodeinfos while processing affinities, %V.", err)
-		return nil
+		return nil, nil
 	}
 
+	podsWithAffinities := sets.NewString()
 	nodesPods := make(map[string][]string)
 	ctx := context.TODO()
 	processAffinityPerPod := func(i int) {
 		pod := allPods[i]
-		if !podWithAffinity(pod) {
+		qualifiedPodName := pod.Namespace + "/" + pod.Name
+		if !(podWithAffinity(pod) || pr.podHasVolumes(qualifiedPodName)) {
 			return
 		}
 		state, err := pr.PreFilter(ctx, pod)
 		if err != nil {
-			klog.Errorf("Error computing prefilter state for pod, %s/%s.", pod.Namespace, pod.Name)
+			klog.Errorf("Error computing prefilter state for pod, %s.", qualifiedPodName)
 			return
 		}
 
+		placed := false
 		for _, nodeInfo := range nodeInfos {
 			err := pr.Filter(ctx, state, pod, nodeInfo)
 			// Err means a placement was not found on this node
@@ -130,11 +134,22 @@ func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) map[string]
 			if _, exists := nodesPods[nodeInfo.node.Name]; !exists {
 				nodesPods[nodeInfo.node.Name] = []string{}
 			}
-			nodesPods[nodeInfo.node.Name] = append(nodesPods[nodeInfo.node.Name], pod.Namespace+"/"+pod.Name)
+			nodesPods[nodeInfo.node.Name] = append(nodesPods[nodeInfo.node.Name], qualifiedPodName)
+			placed = true
 			pr.Unlock()
 		}
+		pr.Lock()
+		if placed {
+			podsWithAffinities.Insert(qualifiedPodName)
+		}
+		pr.Unlock()
 	}
 
 	pr.parallelizer.Until(context.Background(), len(allPods), processAffinityPerPod, "processAffinityPerPod")
-	return nodesPods
+	return nodesPods, podsWithAffinities
+}
+
+func (pr *PodAffinityProcessor) podHasVolumes(qualifiedPodName string) bool {
+	_, exists := pr.podToVolumesMap[qualifiedPodName]
+	return exists
 }

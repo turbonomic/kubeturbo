@@ -2,19 +2,19 @@ package worker
 
 import (
 	"fmt"
-
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
-
 	"time"
+
+	api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/types"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/task"
-	api "k8s.io/api/core/v1"
 )
 
 type DispatcherConfig struct {
@@ -135,7 +135,8 @@ func (d *Dispatcher) RegisterWorker(worker *k8sDiscoveryWorker) {
 
 // Create Task objects for discovery and monitoring for each node, and the pods and containers on that node
 // Dispatch the task to the pool, task will be picked by the k8sDiscoveryWorker
-func (d *Dispatcher) Dispatch(nodes []*api.Node, nodesPods map[string][]string, cluster *repository.ClusterSummary) int {
+func (d *Dispatcher) Dispatch(nodes []*api.Node, nodesPods map[string][]string,
+	podsWithAffinities sets.String, cluster *repository.ClusterSummary) int {
 	go func() {
 		for _, node := range nodes {
 			runningPods := cluster.GetRunningPodsOnNode(node)
@@ -145,7 +146,8 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, nodesPods map[string][]string, 
 				WithRunningPods(runningPods).
 				WithPendingPods(pendingPods).
 				WithCluster(cluster).
-				WithNodesPods(nodesPods)
+				WithNodesPods(nodesPods).
+				WithPodsWithAffinities(podsWithAffinities)
 			glog.V(2).Infof("Dispatching task %v", currTask)
 			d.assignTask(currTask)
 		}

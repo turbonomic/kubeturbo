@@ -9,6 +9,7 @@ import (
 	"github.com/golang/glog"
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"k8s.io/apimachinery/pkg/util/sets"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
@@ -317,6 +318,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 
 	// affinity process with new algorithm
 	var nodesPods map[string][]string
+	var podsWithAffinities sets.String
 	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) &&
 		utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
 		glog.V(2).Infof("Begin to process affinity with new algorithm.")
@@ -325,11 +327,12 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 		if err != nil {
 			glog.Errorf("Failure in processing affinity rules: %s", err)
 		} else {
-			nodesPods = affinityProcessor.ProcessAffinities(clusterSummary.Pods)
+			nodesPods, podsWithAffinities = affinityProcessor.ProcessAffinities(clusterSummary.Pods)
 		}
 		glog.V(2).Infof("Successfully processed affinities.")
 		glog.V(3).Infof("Processing affinities with new algorithm took %s", time.Since(start))
-		glog.V(6).Infof("\n\nProcessed affinity result: \n\n %++v \n\n", nodesPods)
+		glog.V(6).Infof("\n\nProcessed affinity result: \n\n %++v \n\n %++v \n\n",
+			nodesPods, podsWithAffinities)
 	} else {
 		glog.V(2).Infof("Ignoring affinities.")
 	}
@@ -351,7 +354,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	// Discover pods and create DTOs for nodes, namespaces, controllers, pods, containers, application.
 	// Merge collected usage data samples from globalEntityMetricSink into the metric sink of each individual discovery worker.
 	// Collect the kubePod, kubeNamespace metrics, groups and kubeControllers from all the discovery workers.
-	taskCount := dc.dispatcher.Dispatch(nodes, nodesPods, clusterSummary)
+	taskCount := dc.dispatcher.Dispatch(nodes, nodesPods, podsWithAffinities, clusterSummary)
 	result := dc.resultCollector.Collect(taskCount)
 	glog.V(3).Infof("Collection and processing of metrics from node kubelets took %s", time.Since(start))
 
@@ -478,8 +481,4 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	}
 
 	return result.EntityDTOs, groupDTOs, nil
-}
-
-func inverseAffinityMapping(map[string][]string) map[string][]string {
-	return nil
 }
