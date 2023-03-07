@@ -40,6 +40,8 @@ spec:
             description: Spec defines the desired state of Kubeturbo
             type: object
             x-kubernetes-preserve-unknown-fields: true
+    subresources:
+      status: {}
   - name: v1
     served: true
     storage: true
@@ -103,6 +105,7 @@ spec:
                   turboServer:
                     description: URL for Turbo Server endpoint
                     type: string
+                  # proxy: http://username:password@proxyserver:proxyport or http://proxyserver:proxyport
                   proxy:
                     description: Proxy server address
                     type: string
@@ -120,12 +123,10 @@ spec:
                     description: Turbo admin user password
                     type: string
               featureGates:
-                description: Disable features
                 type: object
-                properties:
-                  disabledFeatures:
-                    description: Feature names
-                    type: string
+                description: Enable or disable features
+                additionalProperties:
+                  type: boolean
               HANodeConfig:
                 description: Create HA placement policy for Node to Hypervisor by node role. Master is default
                 type: object
@@ -165,9 +166,6 @@ spec:
                   stitchuuid:
                     description: Identify if using uuid or ip for stitching
                     type: boolean
-                  cleanupSccImpersonationResources:
-                    description: Identify if cleanup the resources created for scc impersonation, default is true
-                    type: boolean
               resources:
                 description: Kubeturbo resource configuration
                 type: object
@@ -192,3 +190,5 @@ spec:
                       cpu:
                         description: Define cpu requests in cores or millicores, include units
                         type: string
+    subresources:
+      status: {}
