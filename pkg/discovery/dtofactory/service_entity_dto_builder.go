@@ -10,9 +10,10 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"fmt"
+	"strings"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
-	"strings"
 )
 
 const (
@@ -264,7 +265,7 @@ func getIPProperty(pods []*api.Pod) *proto.EntityDTO_EntityProperty {
 	attr := stitching.AppStitchingAttr
 	ips := []string{}
 	for _, pod := range pods {
-		ips = append(ips, servicePrefix+"-"+pod.Status.PodIP)
+		ips = append(ips, servicePrefix+"-"+pod.Status.PodIP+"-"+ParsePodUID(string(pod.UID)))
 	}
 	ip := strings.Join(ips, ",")
 	ipProperty := &proto.EntityDTO_EntityProperty{
@@ -274,4 +275,12 @@ func getIPProperty(pods []*api.Pod) *proto.EntityDTO_EntityProperty {
 	}
 
 	return ipProperty
+}
+
+func ParsePodUID(podUID string) string {
+	indexBegin := strings.Index(podUID, "-")
+	if indexBegin == -1 {
+		return podUID
+	}
+	return podUID[:indexBegin]
 }
