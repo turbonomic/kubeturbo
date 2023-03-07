@@ -215,7 +215,7 @@ func TestNodeEntityDTO(t *testing.T) {
 	stitchingManager := stitching.NewStitchingManager(stitching.UUID)
 	stitchingManager.StoreStitchingValue(node)
 	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitchingManager)
-	nodeEntityDTOs, _ := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node})
+	nodeEntityDTOs, _ := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node}, nil)
 	vmData := nodeEntityDTOs[0].GetVirtualMachineData()
 	// The capacity metric is set in millicores but numcpus is set in cores
 	assert.EqualValues(t, 10, vmData.GetNumCpus())

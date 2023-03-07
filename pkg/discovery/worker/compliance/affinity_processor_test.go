@@ -3,6 +3,7 @@ package compliance
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -110,6 +111,7 @@ func TestProcessAffinityPerPod(t *testing.T) {
 		},
 	}
 
+	start := time.Now()
 	for i, item := range table {
 		entityDTOs := generateAllBasicEntityDTOs(item.nodes, item.pods)
 		ap := newAffinityProcessorForTest(item.nodes, item.pods, item.pod2PvMap)
@@ -168,6 +170,9 @@ func TestProcessAffinityPerPod(t *testing.T) {
 			}
 		}
 	}
+
+	elapsed := time.Since(start)
+	t.Logf("processing affinities took %s", elapsed)
 }
 
 // Check if a seller sells all the accessCommodities of the given type.
@@ -409,9 +414,8 @@ func newAffinityProcessorForTest(allNodes []*api.Node, allPods []*api.Pod, pod2P
 	return &AffinityProcessor{
 		ComplianceProcessor: NewComplianceProcessor(),
 		commManager:         NewAffinityCommodityManager(),
-
-		nodes:           allNodes,
-		pods:            allPods,
-		podToVolumesMap: pod2PVs,
+		nodes:               allNodes,
+		pods:                allPods,
+		podToVolumesMap:     pod2PVs,
 	}
 }

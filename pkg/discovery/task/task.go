@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
@@ -17,15 +18,17 @@ const (
 )
 
 type Task struct {
-	uid         string
-	name        string
-	node        *api.Node
-	pendingPods []*api.Pod
-	runningPods []*api.Pod
-	pods        []*api.Pod
-	pvs         []*api.PersistentVolume
-	pvcs        []*api.PersistentVolumeClaim
-	cluster     *repository.ClusterSummary
+	uid                string
+	name               string
+	node               *api.Node
+	pendingPods        []*api.Pod
+	runningPods        []*api.Pod
+	pods               []*api.Pod
+	pvs                []*api.PersistentVolume
+	pvcs               []*api.PersistentVolumeClaim
+	cluster            *repository.ClusterSummary
+	nodesPods          map[string][]string
+	podsWithAffinities sets.String
 }
 
 // Worker task is consisted of a list of nodes the worker must discover.
@@ -79,6 +82,19 @@ func (t *Task) WithCluster(cluster *repository.ClusterSummary) *Task {
 	return t
 }
 
+// Assign inverse of pods placement map (list of pods per node which can actually be
+// placed on that node).
+func (t *Task) WithNodesPods(nodesPods map[string][]string) *Task {
+	t.nodesPods = nodesPods
+	return t
+}
+
+// Assign pods which have affinities and should get a LABEL commodity to honor the affinities.
+func (t *Task) WithPodsWithAffinities(podsWithAffinities sets.String) *Task {
+	t.podsWithAffinities = podsWithAffinities
+	return t
+}
+
 // Get node from the task.
 func (t *Task) Node() *api.Node {
 	return t.node
@@ -109,6 +125,14 @@ func (t *Task) PVCList() []*api.PersistentVolumeClaim {
 
 func (t *Task) Cluster() *repository.ClusterSummary {
 	return t.cluster
+}
+
+func (t *Task) NodesPods() map[string][]string {
+	return t.nodesPods
+}
+
+func (t *Task) PodsWithAffinities() sets.String {
+	return t.podsWithAffinities
 }
 
 func (t *Task) String() string {

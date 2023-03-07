@@ -2,6 +2,9 @@ package processor
 
 import (
 	"github.com/golang/glog"
+
+	api "k8s.io/api/core/v1"
+
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 )
@@ -22,23 +25,24 @@ func NewNamespaceProcessor(kubeClient cluster.ClusterScraperInterface,
 }
 
 // Query the Kubernetes API Server and Get the Namespace objects
-func (p *NamespaceProcessor) ProcessNamespaces() {
+func (p *NamespaceProcessor) ProcessNamespaces() map[string]*api.Namespace {
 	clusterName := p.KubeCluster.Name
 	namespaceList, err := p.ClusterInfoScraper.GetNamespaces()
 	if err != nil {
 		glog.Errorf("Failed to get namespaces for cluster %s: %v.", clusterName, err)
-		return
+		return nil
 	}
 	glog.V(2).Infof("There are %d namespaces.", len(namespaceList))
 
 	quotaMap, err := p.ClusterInfoScraper.GetNamespaceQuotas()
 	if err != nil {
 		glog.Errorf("Failed to list all quotas in the cluster %s: %v.", clusterName, err)
-		return
+		return nil
 	}
 	glog.V(2).Infof("There are %d resource quotas.", len(quotaMap))
 
-	namespaces := make(map[string]*repository.KubeNamespace)
+	namespaceMap := make(map[string]*repository.KubeNamespace)
+	kubeNamespaceMap := make(map[string]*api.Namespace)
 	for _, item := range namespaceList {
 		// Create default namespace object
 		kubeNamespaceUID := string(item.UID)
@@ -53,9 +57,12 @@ func (p *NamespaceProcessor) ProcessNamespaces() {
 			kubeNamespace.ReconcileQuotas(quotaList)
 		}
 
-		namespaces[item.Name] = kubeNamespace
+		namespaceMap[item.Name] = kubeNamespace
+		kubeNamespaceMap[item.Name] = item
 		glog.V(4).Infof("Created namespace entity: %s.", kubeNamespace.String())
 
 	}
-	p.KubeCluster.NamespaceMap = namespaces
+	p.KubeCluster.NamespaceMap = namespaceMap
+
+	return kubeNamespaceMap
 }
