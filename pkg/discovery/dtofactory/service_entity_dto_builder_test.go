@@ -19,9 +19,9 @@ var testService = api.Service{
 }
 
 func createPods() []*api.Pod {
-	pod1 := &api.Pod{Status: api.PodStatus{PodIP: "10.1.1.1"}, ObjectMeta: metav1.ObjectMeta{UID: types.UID("1234-456-789")}}
-	pod2 := &api.Pod{Status: api.PodStatus{PodIP: "10.1.1.2"}, ObjectMeta: metav1.ObjectMeta{UID: types.UID("5678-1223-1122")}}
-	pod3 := &api.Pod{Status: api.PodStatus{PodIP: "10.1.1.3"}, ObjectMeta: metav1.ObjectMeta{UID: types.UID("5636-7799-8838")}}
+	pod1 := &api.Pod{Status: api.PodStatus{PodIP: "10.1.1.1"}, ObjectMeta: metav1.ObjectMeta{UID: types.UID("ag12eg34f-456gh-11e9-086700256h789")}}
+	pod2 := &api.Pod{Status: api.PodStatus{PodIP: "10.1.1.2"}, ObjectMeta: metav1.ObjectMeta{UID: types.UID("5ah6v7e8-122e-112gd2-005567l5b65s")}}
+	pod3 := &api.Pod{Status: api.PodStatus{PodIP: "10.1.1.3"}, ObjectMeta: metav1.ObjectMeta{UID: types.UID("ag56f36-779kl9-883djk8-00483k9023")}}
 	return []*api.Pod{pod1, pod2, pod3}
 }
 func TestBuildServiceData(t *testing.T) {
@@ -42,7 +42,7 @@ func TestGetIPProperty(t *testing.T) {
 	// Check the result
 	expectedNamespace := stitching.DefaultPropertyNamespace
 	expectedAttribute := stitching.AppStitchingAttr
-	expectedValue := "Service-10.1.1.1-1234,Service-10.1.1.2-5678,Service-10.1.1.3-5636"
+	expectedValue := "Service-10.1.1.1-ag12eg34f,Service-10.1.1.2-5ah6v7e8,Service-10.1.1.3-ag56f36"
 
 	if result.Namespace == nil || *result.Namespace != expectedNamespace {
 		t.Errorf("IP property test failed: namespace is incorrect (%v) Vs. (%v)", result.Namespace, expectedNamespace)
