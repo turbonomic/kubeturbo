@@ -20,6 +20,7 @@ require (
 	github.com/turbonomic/turbo-go-sdk v0.0.0-20221212155126-6e7e16cf1e1f
 	github.com/turbonomic/turbo-policy v0.0.0-20230227150618-cce94c7d2742
 	github.com/xanzy/go-gitlab v0.74.0
+	k8s.io/klog/v2 v2.30.0
 )
 
 require (
@@ -58,7 +59,7 @@ require (
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/turbonomic/turbo-api v0.0.0-20221010220448-3f35ebf030aa // indirect
-	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
+	golang.org/x/crypto v0.0.0-20220314234659-1baeb1ce4c0b // indirect
 	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b // indirect
 	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
@@ -70,7 +71,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/klog/v2 v2.30.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
 	k8s.io/kubernetes v1.23.1 // indirect
 	k8s.io/utils v0.0.0-20211116205334-6203023598ed // indirect
