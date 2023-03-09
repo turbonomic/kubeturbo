@@ -21,6 +21,7 @@ require (
 	github.com/turbonomic/turbo-policy v0.0.0-20230227150618-cce94c7d2742
 	github.com/xanzy/go-gitlab v0.74.0
 	k8s.io/klog/v2 v2.30.0
+	k8s.io/utils v0.0.0-20211116205334-6203023598ed
 )
 
 require (
@@ -73,7 +74,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
 	k8s.io/kubernetes v1.23.1 // indirect
-	k8s.io/utils v0.0.0-20211116205334-6203023598ed // indirect
 	sigs.k8s.io/cluster-api-provider-aws v0.0.0-00010101000000-000000000000 // indirect
 	sigs.k8s.io/cluster-api-provider-azure v0.0.0-00010101000000-000000000000 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
