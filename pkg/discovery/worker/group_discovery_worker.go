@@ -21,7 +21,6 @@ type k8sEntityGroupDiscoveryWorker struct {
 	id                   string
 	targetId             string
 	cluster              *repository.ClusterSummary
-	containerSpecMetrics *repository.ContainerSpecMetrics
 }
 
 func Newk8sEntityGroupDiscoveryWorker(cluster *repository.ClusterSummary,
