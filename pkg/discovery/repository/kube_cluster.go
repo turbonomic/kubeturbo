@@ -588,7 +588,8 @@ func parseAllocationResourceValue(resource v1.ResourceName, allocationResourceTy
 }
 
 type TurboPolicy struct {
-	SLOHorizontalScale *v1alpha1.SLOHorizontalScale
+	SLOHorizontalScale     *v1alpha1.SLOHorizontalScale
+	ContainerVerticalScale *v1alpha1.ContainerVerticalScale
 }
 
 func NewTurboPolicy() *TurboPolicy {
@@ -597,6 +598,11 @@ func NewTurboPolicy() *TurboPolicy {
 
 func (p *TurboPolicy) WithSLOHorizontalScale(policy *v1alpha1.SLOHorizontalScale) *TurboPolicy {
 	p.SLOHorizontalScale = policy
+	return p
+}
+
+func (p *TurboPolicy) WithContainerVerticalScale(policy *v1alpha1.ContainerVerticalScale) *TurboPolicy {
+	p.ContainerVerticalScale = policy
 	return p
 }
 
@@ -637,6 +643,13 @@ func (b *TurboPolicyBinding) GetSLOHorizontalScaleSpec() *v1alpha1.SLOHorizontal
 		return nil
 	}
 	return &b.SLOHorizontalScale.Spec
+}
+
+func (b *TurboPolicyBinding) GetContainerVerticalScaleSpec() *v1alpha1.ContainerVerticalScaleSpec {
+	if b.ContainerVerticalScale == nil {
+		return nil
+	}
+	return &b.ContainerVerticalScale.Spec
 }
 
 func (b *TurboPolicyBinding) GetTargets() []v1alpha1.PolicyTargetReference {
