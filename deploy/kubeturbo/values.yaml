@@ -93,5 +93,7 @@ args:
   stitchuuid: true
   # if Kubernetes version is older than 1.6, then add another arg for move/resize action
   pre16k8sVersion: false
+  # cleanup the resources for scc impersonation by deault
+  cleanupSccImpersonationResources: true
 
 resources: {}
