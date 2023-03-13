@@ -497,3 +497,11 @@ func GetContainerNames(parent *unstructured.Unstructured) (sets.String, error) {
 	}
 	return sets.NewString(names...), nil
 }
+
+func ParseSvcUID(svcUID string) string {
+	indexBegin := strings.Index(svcUID, "-")
+	if indexBegin == -1 {
+		return svcUID
+	}
+	return svcUID[:indexBegin]
+}
