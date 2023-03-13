@@ -60,8 +60,8 @@ func addCVSLimitSettings(prefix string, qty *v1alpha1.LimitResourceConstraint, s
 			return error
 		}
 
-		glog.V(4).Infof("Limit_MAX %s %f ", prefix, val)
-		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_MAX"]), val))
+		glog.V(2).Infof("Limit_MAX %s %f ", prefix, val)
+		//settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_MAX"]), val))
 	}
 
 	if min := qty.Min; min != nil {
@@ -69,18 +69,21 @@ func addCVSLimitSettings(prefix string, qty *v1alpha1.LimitResourceConstraint, s
 		if error != nil {
 			return error
 		}
-		glog.V(4).Infof("Limit_MIN %s %f", prefix, val)
+		glog.V(2).Infof("Limit_MIN %s %f", prefix, val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_MIN"]), val))
 	}
 
 	if aboveMax := qty.RecommendAboveMax; aboveMax != nil {
-		glog.V(4).Infof("Limit_aboveMax %s %t", prefix, *aboveMax)
-		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_ABOVE_MAX"]), *aboveMax))
+		glog.V(2).Infof("Limit_aboveMax %s %t", prefix, *aboveMax)
+		val := recommendOrDisable(*aboveMax)
+		glog.V(2).Infof("Limit_aboveMax %s %t", prefix, val)
+		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_ABOVE_MAX"]), val))
 	}
 
 	if belowMin := qty.RecommendBelowMin; belowMin != nil {
-		glog.V(4).Infof("Limit_aboveMax %s %t", prefix, *belowMin)
-		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_BELOW_MIN"]), *belowMin))
+		val := recommendOrDisable(*belowMin)
+		glog.V(2).Infof("Limit_belowMin %s %t", prefix, val)
+		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_BELOW_MIN"]), val))
 	}
 	return nil
 }
@@ -97,13 +100,14 @@ func addCVSRequestSettings(prefix string, qty *v1alpha1.RequestResourceConstrain
 		if error != nil {
 			return error
 		}
-		glog.V(4).Infof("Increments.REQUEST_MIN %s %f ", prefix, val)
+		glog.V(2).Infof("Increments.REQUEST_MIN %s %f ", prefix, val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_MIN"]), val))
 	}
 
 	if belowMin := qty.RecommendBelowMin; belowMin != nil {
-		glog.V(4).Infof("Increments.REQUEST_aboveMax %s %t", prefix,  *belowMin)
-		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_BELOW_MIN"]), *belowMin))
+		val := recommendOrDisable(*belowMin)
+		glog.V(2).Infof("Increments.REQUEST_belowMin %s %t", prefix, val)
+		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_BELOW_MIN"]), val))
 	}
 	return nil
 }
@@ -183,4 +187,12 @@ func parseFloatFromPercentString(s string) (float32, error) {
 		return 0, err
 	}
 	return float32(value), nil
+}
+
+func recommendOrDisable(isEnabled bool) string {
+	if isEnabled {
+		return "RECOMMEND"
+	} else {
+		return "DISABLED"
+	}
 }

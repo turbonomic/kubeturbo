@@ -31,7 +31,7 @@ func buildContainerVerticalScalePolicy(
 	return group.
 		StaticRegularGroup(policyBinding.GetUID()).
 		WithDisplayName(displayName).
-		OfType(proto.EntityDTO_CONTAINER).
+		OfType(proto.EntityDTO_CONTAINER_SPEC).
 		WithEntities(resolvedIds).
 		WithSettingPolicy(settingPolicy).
 		Build()
@@ -100,14 +100,14 @@ func createCVSPolicy(
 	aggressiveness := spec.Settings.Aggressiveness
 	if aggressiveness != nil {
 		val := PercentileAggressiveness[(string(*aggressiveness))]
-		glog.V(4).Infof("Aggressiveness %f", val)
+		glog.V(2).Infof("Aggressiveness %f", val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_AGGRESSIVENESS, val))
 	}
 
 	rateOfResize := spec.Settings.RateOfResize
 	if rateOfResize != nil {
 		val, _ := RateOfResize[(string(*rateOfResize))]
-		glog.V(4).Infof("RateOfResize %f", val)
+		glog.V(2).Infof("RateOfResize %f", val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_RATE_OF_RESIZE, val))
 	}
 
@@ -117,7 +117,7 @@ func createCVSPolicy(
 		if err != nil {
 			return nil, err
 		}
-		glog.V(4).Infof("CpuThrottlingTolerance %f", val)
+		glog.V(2).Infof("CpuThrottlingTolerance %f", val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_VCPU_MAX_THROTTLING_TOLERANCE, val))
 	}
 
@@ -129,7 +129,7 @@ func createCVSPolicy(
 			if err != nil {
 				return nil, err
 			}
-			glog.V(4).Infof("Increments.CPU %f", val)
+			glog.V(2).Infof("Increments.CPU %f", val)
 			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VCPU, val))
 		}
 
@@ -139,7 +139,7 @@ func createCVSPolicy(
 			if err != nil {
 				return nil, err
 			}
-			glog.V(4).Infof("Increments.Mem %f", val)
+			glog.V(2).Infof("Increments.Mem %f", val)
 			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VMEM, val))
 		}
 	}
@@ -149,15 +149,15 @@ func createCVSPolicy(
 		max := observationPeriod.Max
 		if max != nil {
 			val := MaxObservationPeriod[string(*max)]
-			glog.V(4).Infof("ObservationPeriod.Max %f", val)
-			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VCPU, val))
+			glog.V(2).Infof("ObservationPeriod.Max %f", val)
+			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_MAX_OBSERVATION_PERIOD, val))
 		}
 
 		min := observationPeriod.Min
 		if min != nil {
 			val := MinObservationPeriod[string(*min)]
-			glog.V(4).Infof("ObservationPeriod.Min %f", val)
-			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VMEM, val))
+			glog.V(2).Infof("ObservationPeriod.Min %f", val)
+			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_MIN_OBSERVATION_PERIOD, val))
 		}
 	}
 
@@ -175,11 +175,11 @@ func createCVSPolicy(
 
 	requests := spec.Settings.Requests
 	if requests != nil {
-		err := addCVSRequestSettings("VCPU_LIMIT_RESIZE", requests.CPU, settings)
+		err := addCVSRequestSettings("VCPU_REQUEST_RESIZE", requests.CPU, settings)
 		if err != nil {
 			return nil, err
 		}
-		err = addCVSRequestSettings("VMEM_LIMIT_RESIZE", requests.Memory, settings)
+		err = addCVSRequestSettings("VMEM_REQUEST_RESIZE", requests.Memory, settings)
 		if err != nil {
 			return nil, err
 		}
