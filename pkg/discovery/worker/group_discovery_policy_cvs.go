@@ -100,14 +100,14 @@ func createCVSPolicy(
 	aggressiveness := spec.Settings.Aggressiveness
 	if aggressiveness != nil {
 		val := PercentileAggressiveness[(string(*aggressiveness))]
-		glog.V(4).Infof("Aggressiveness", val)
+		glog.V(4).Infof("Aggressiveness %f", val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_AGGRESSIVENESS, val))
 	}
 
 	rateOfResize := spec.Settings.RateOfResize
 	if rateOfResize != nil {
 		val, _ := RateOfResize[(string(*rateOfResize))]
-		glog.V(4).Infof("RateOfResize ", val)
+		glog.V(4).Infof("RateOfResize %f", val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_RATE_OF_RESIZE, val))
 	}
 
@@ -117,7 +117,7 @@ func createCVSPolicy(
 		if err != nil {
 			return nil, err
 		}
-		glog.V(4).Infof("CpuThrottlingTolerance ", val)
+		glog.V(4).Infof("CpuThrottlingTolerance %f", val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_VCPU_MAX_THROTTLING_TOLERANCE, val))
 	}
 
@@ -129,7 +129,7 @@ func createCVSPolicy(
 			if err != nil {
 				return nil, err
 			}
-			glog.V(4).Infof("Increments.CPU ", val)
+			glog.V(4).Infof("Increments.CPU %f", val)
 			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VCPU, val))
 		}
 
@@ -139,7 +139,7 @@ func createCVSPolicy(
 			if err != nil {
 				return nil, err
 			}
-			glog.V(4).Infof("Increments.Mem ", val)
+			glog.V(4).Infof("Increments.Mem %f", val)
 			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VMEM, val))
 		}
 	}
@@ -149,14 +149,14 @@ func createCVSPolicy(
 		max := observationPeriod.Max
 		if max != nil {
 			val := MaxObservationPeriod[string(*max)]
-			glog.V(4).Infof("ObservationPeriod.Max ", val)
+			glog.V(4).Infof("ObservationPeriod.Max %f", val)
 			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VCPU, val))
 		}
 
 		min := observationPeriod.Min
 		if min != nil {
 			val := MinObservationPeriod[string(*min)]
-			glog.V(4).Infof("ObservationPeriod.Min ", val)
+			glog.V(4).Infof("ObservationPeriod.Min %f", val)
 			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VMEM, val))
 		}
 	}
