@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/golang/glog"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder/group"
@@ -94,8 +96,105 @@ func createCVSPolicy(
 	}
 
 	settings := group.NewSettingsBuilder()
+
+	aggressiveness := spec.Settings.Aggressiveness
+	if aggressiveness != nil {
+		val := PercentileAggressiveness[(string(*aggressiveness))]
+		glog.V(4).Infof("Aggressiveness", val)
+		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_AGGRESSIVENESS, val))
+	}
+
+	rateOfResize := spec.Settings.RateOfResize
+	if rateOfResize != nil {
+		val, _ := RateOfResize[(string(*rateOfResize))]
+		glog.V(4).Infof("RateOfResize ", val)
+		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_RATE_OF_RESIZE, val))
+	}
+
+	cpuThrottlingTolerance := spec.Settings.CpuThrottlingTolerance
+	if cpuThrottlingTolerance != nil {
+		val, err := parseFloatFromPercentString(string(*cpuThrottlingTolerance))
+		if err != nil {
+			return nil, err
+		}
+		glog.V(4).Infof("CpuThrottlingTolerance ", val)
+		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_VCPU_MAX_THROTTLING_TOLERANCE, val))
+	}
+
+	increments := spec.Settings.Increments
+	if increments != nil {
+		cpu := increments.CPU
+		if cpu != nil {
+			val, err := QuantityToMilliCore(cpu)
+			if err != nil {
+				return nil, err
+			}
+			glog.V(4).Infof("Increments.CPU ", val)
+			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VCPU, val))
+		}
+
+		mem := increments.Memory
+		if mem != nil {
+			val, err := QuantityToMB(mem)
+			if err != nil {
+				return nil, err
+			}
+			glog.V(4).Infof("Increments.Mem ", val)
+			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VMEM, val))
+		}
+	}
+
+	observationPeriod := spec.Settings.ObservationPeriod
+	if observationPeriod != nil {
+		max := observationPeriod.Max
+		if max != nil {
+			val := MaxObservationPeriod[string(*max)]
+			glog.V(4).Infof("ObservationPeriod.Max ", val)
+			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VCPU, val))
+		}
+
+		min := observationPeriod.Min
+		if min != nil {
+			val := MinObservationPeriod[string(*min)]
+			glog.V(4).Infof("ObservationPeriod.Min ", val)
+			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VMEM, val))
+		}
+	}
+
+	limits := spec.Settings.Limits
+	if limits != nil {
+		err := addCVSLimitSettings("VCPU_LIMIT_RESIZE", limits.CPU, settings)
+		if err != nil {
+			return nil, err
+		}
+		err = addCVSLimitSettings("VMEM_LIMIT_RESIZE", limits.Memory, settings)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	requests := spec.Settings.Requests
+	if requests != nil {
+		err := addCVSRequestSettings("VCPU_LIMIT_RESIZE", requests.CPU, settings)
+		if err != nil {
+			return nil, err
+		}
+		err = addCVSRequestSettings("VMEM_LIMIT_RESIZE", requests.Memory, settings)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// need to implement adding setting with discovered spec
-	settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_RATE_OF_RESIZE, float32(22.0)))
+	//settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_RATE_OF_RESIZE, float32(22.0)))
+	behavior := spec.Behavior
+	if behavior.VerticalResize != nil {
+		mode, err := validateActionMode(*behavior.VerticalResize)
+		if err != nil {
+			return nil, err
+		}
+		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_RESIZE_AUTOMATION_MODE, mode))
+	}
 	sts := settings.Build()
 
 	displayName := fmt.Sprintf("TurboPolicy::%v on %v [%v]",
