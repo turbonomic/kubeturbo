@@ -61,7 +61,7 @@ func addCVSLimitSettings(prefix string, qty *v1alpha1.LimitResourceConstraint, s
 		}
 
 		glog.V(2).Infof("Limit_MAX %s %f ", prefix, val)
-		//settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_MAX"]), val))
+		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_MAX"]), val))
 	}
 
 	if min := qty.Min; min != nil {

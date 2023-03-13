@@ -167,7 +167,7 @@ func createCVSPolicy(
 		if err != nil {
 			return nil, err
 		}
-		err = addCVSLimitSettings("VMEM_LIMIT_RESIZE", limits.Memory, settings)
+		//err = addCVSLimitSettings("VMEM_LIMIT_RESIZE", limits.Memory, settings)
 		if err != nil {
 			return nil, err
 		}
