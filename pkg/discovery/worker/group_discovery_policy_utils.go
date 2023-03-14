@@ -76,13 +76,13 @@ func addCVSLimitSettings(prefix string, qty *v1alpha1.LimitResourceConstraint, s
 	if aboveMax := qty.RecommendAboveMax; aboveMax != nil {
 		glog.V(2).Infof("Limit_aboveMax %s %t", prefix, *aboveMax)
 		val := recommendOrDisable(*aboveMax)
-		glog.V(2).Infof("Limit_aboveMax %s %t", prefix, val)
+		glog.V(2).Infof("Limit_aboveMax %s %s", prefix, val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_ABOVE_MAX"]), val))
 	}
 
 	if belowMin := qty.RecommendBelowMin; belowMin != nil {
 		val := recommendOrDisable(*belowMin)
-		glog.V(2).Infof("Limit_belowMin %s %t", prefix, val)
+		glog.V(2).Infof("Limit_belowMin %s %s", prefix, val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_BELOW_MIN"]), val))
 	}
 	return nil
@@ -106,7 +106,7 @@ func addCVSRequestSettings(prefix string, qty *v1alpha1.RequestResourceConstrain
 
 	if belowMin := qty.RecommendBelowMin; belowMin != nil {
 		val := recommendOrDisable(*belowMin)
-		glog.V(2).Infof("Increments.REQUEST_belowMin %s %t", prefix, val)
+		glog.V(2).Infof("Increments.REQUEST_belowMin %s %s", prefix, val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_SettingType(typeMap[prefix+"_BELOW_MIN"]), val))
 	}
 	return nil
@@ -132,18 +132,6 @@ var PercentileAggressiveness = map[string]float32{
 	"p99_5": 99.5,
 	"p99_9": 99.9,
 	"p100":  100.0,
-}
-
-var VcpuIncrement = map[string]float32{
-	"Deployment":  90.0,
-	"StatefulSet": 100.0,
-	"DaemonSet":   99.0,
-}
-
-var VmemIncrement = map[string]float32{
-	"Deployment":  90.0,
-	"StatefulSet": 100.0,
-	"DaemonSet":   99.0,
 }
 
 var RateOfResize = map[string]float32{

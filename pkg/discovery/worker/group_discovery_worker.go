@@ -18,9 +18,9 @@ const (
 
 // Converts the cluster group objects to Group DTOs
 type k8sEntityGroupDiscoveryWorker struct {
-	id                   string
-	targetId             string
-	cluster              *repository.ClusterSummary
+	id       string
+	targetId string
+	cluster  *repository.ClusterSummary
 }
 
 func Newk8sEntityGroupDiscoveryWorker(cluster *repository.ClusterSummary,
