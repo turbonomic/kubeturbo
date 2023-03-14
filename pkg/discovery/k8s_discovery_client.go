@@ -9,6 +9,7 @@ import (
 	"github.com/golang/glog"
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"k8s.io/apimachinery/pkg/util/sets"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
@@ -18,6 +19,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/compliance/podaffinity"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker/k8sappcomponents"
 	"github.com/turbonomic/kubeturbo/pkg/features"
 	"github.com/turbonomic/kubeturbo/pkg/registration"
@@ -307,9 +309,32 @@ func (dc *K8sDiscoveryClient) Discover(
 // DiscoverWithNewFramework performs the actual discovery.
 func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*proto.EntityDTO, []*proto.GroupDTO, error) {
 	// CREATE CLUSTER, NODES, NAMESPACES, QUOTAS, SERVICES HERE
+	start := time.Now()
 	clusterSummary, err := dc.clusterProcessor.DiscoverCluster()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to process cluster: %v", err)
+	}
+	glog.V(3).Infof("Discovering cluster resources took %s", time.Since(start))
+
+	// affinity process with new algorithm
+	var nodesPods map[string][]string
+	var podsWithAffinities sets.String
+	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) &&
+		utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
+		glog.V(2).Infof("Begin to process affinity with new algorithm.")
+		start := time.Now()
+		affinityProcessor, err := podaffinity.New(dc.k8sClusterScraper.Clientset, clusterSummary)
+		if err != nil {
+			glog.Errorf("Failure in processing affinity rules: %s", err)
+		} else {
+			nodesPods, podsWithAffinities = affinityProcessor.ProcessAffinities(clusterSummary.Pods)
+		}
+		glog.V(2).Infof("Successfully processed affinities.")
+		glog.V(3).Infof("Processing affinities with new algorithm took %s", time.Since(start))
+		glog.V(6).Infof("\n\nProcessed affinity result: \n\n %++v \n\n %++v \n\n",
+			nodesPods, podsWithAffinities)
+	} else {
+		glog.V(2).Infof("Ignoring affinities.")
 	}
 
 	// Cache operatorResourceSpecMap in ormClient
@@ -325,17 +350,20 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	// Stops scheduling dispatcher to assign sampling discovery tasks.
 	dc.samplingDispatcher.FinishSampling()
 
+	start = time.Now()
 	// Discover pods and create DTOs for nodes, namespaces, controllers, pods, containers, application.
 	// Merge collected usage data samples from globalEntityMetricSink into the metric sink of each individual discovery worker.
 	// Collect the kubePod, kubeNamespace metrics, groups and kubeControllers from all the discovery workers.
-	taskCount := dc.dispatcher.Dispatch(nodes, clusterSummary)
+	taskCount := dc.dispatcher.Dispatch(nodes, nodesPods, podsWithAffinities, clusterSummary)
 	result := dc.resultCollector.Collect(taskCount)
+	glog.V(3).Infof("Collection and processing of metrics from node kubelets took %s", time.Since(start))
 
 	// Clear globalEntityMetricSink cache after collecting full discovery results
 	dc.globalEntityMetricSink.ClearCache()
 	// Reschedule dispatch sampling discovery tasks for newly discovered nodes
 	dc.samplingDispatcher.ScheduleDispatch(nodes)
 
+	start = time.Now()
 	// Namespace discovery worker to create namespace DTOs
 	stitchType := dc.Config.probeConfig.StitchingPropertyType
 	namespacesDiscoveryWorker := worker.Newk8sNamespaceDiscoveryWorker(clusterSummary, stitchType)
@@ -398,9 +426,11 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	result.EntityDTOs = append(result.EntityDTOs, businessAppEntityDTOBuilderEntityDTOs...)
 
 	glog.V(2).Infof("There are totally %d entityDTOs.", len(result.EntityDTOs))
+	glog.V(3).Infof("Postprocessing and aggregatig DTOs took %s", time.Since(start))
 
 	// affinity process
-	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) &&
+		!utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
 		glog.V(2).Infof("Begin to process affinity.")
 		affinityProcessor, err := compliance.NewAffinityProcessor(clusterSummary)
 		if err != nil {
@@ -415,12 +445,14 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 
 	// Taint-toleration process to create access commodities
 	glog.V(2).Infof("Begin to process taints and tolerations")
+	start = time.Now()
 	taintTolerationProcessor, err := compliance.NewTaintTolerationProcessor(clusterSummary)
 	if err != nil {
 		glog.Errorf("Failed during process taints and tolerations: %v", err)
 	} else {
 		// Add access commodities to entity DOTs based on the taint-toleration rules
 		taintTolerationProcessor.Process(result.EntityDTOs)
+		glog.V(3).Infof("Processing taints took %s", time.Since(start))
 	}
 
 	glog.V(2).Infof("Successfully processed taints and tolerations.")

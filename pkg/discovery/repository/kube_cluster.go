@@ -21,10 +21,11 @@ import (
 // New discovery will bring in changes to the nodes and namespaces
 // Aggregate structure for nodes, namespaces and quotas
 type KubeCluster struct {
-	Name         string
-	Nodes        []*v1.Node
-	Pods         []*v1.Pod
-	NamespaceMap map[string]*KubeNamespace
+	Name              string
+	Nodes             []*v1.Node
+	Pods              []*v1.Pod
+	KubeNamespacesMap map[string]*v1.Namespace
+	NamespaceMap      map[string]*KubeNamespace
 	// Map of Service to Pod cluster Ids
 	Services map[*v1.Service][]string
 	// Map of Persistent Volumes to namespace qualified pod names with their

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -12,7 +13,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/features"
-	v1 "k8s.io/api/core/v1"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -129,14 +129,14 @@ func (builder *podEntityDTOBuilder) WithMirrorPodToDaemonMap(mirrorPodToDaemonMa
 	return builder
 }
 
-func (builder *podEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, []*proto.EntityDTO, []string, []string) {
+func (builder *podEntityDTOBuilder) BuildEntityDTOs(podsWithAffinities sets.String) ([]*proto.EntityDTO, []*proto.EntityDTO, []string, []string) {
 	glog.V(3).Infof("Building DTOs for running pods...")
 	runningPodDTOs, runningPodsWithVolumes, runningMirrorPodUids := builder.buildDTOs(
-		builder.runningPods, runningPodResCommTypeSold, runningPodResCommTypeBoughtFromNode)
+		builder.runningPods, runningPodResCommTypeSold, runningPodResCommTypeBoughtFromNode, podsWithAffinities)
 	glog.V(3).Infof("Built %d running pod DTOs.", len(runningPodDTOs))
 	glog.V(3).Infof("Building DTOs for pending pods...")
 	pendingPodDTOs, pendingPodsWithVolumes, pendingMirrorPodUids := builder.buildDTOs(
-		builder.pendingPods, pendingPodResCommTypeSold, pendingPodResCommTypeBoughtFromNode)
+		builder.pendingPods, pendingPodResCommTypeSold, pendingPodResCommTypeBoughtFromNode, podsWithAffinities)
 	glog.V(3).Infof("Built %d pending pod DTOs.", len(pendingPodDTOs))
 	podsWithVolumes := append(runningPodsWithVolumes, pendingPodsWithVolumes...)
 	mirrorPodUids := append(runningMirrorPodUids, pendingMirrorPodUids...)
@@ -145,7 +145,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, []*pr
 
 // Build entityDTOs based on the given pod list.
 func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
-	resCommTypeBoughtFromNode []metrics.ResourceType) ([]*proto.EntityDTO, []string, []string) {
+	resCommTypeBoughtFromNode []metrics.ResourceType, podsWithAffinities sets.String) ([]*proto.EntityDTO, []string, []string) {
 	var result []*proto.EntityDTO
 	var podsWithVolumes []string
 	var mirrorPodUids []string
@@ -180,7 +180,8 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 		// commodities bought - from node provider
-		commoditiesBought, err := builder.getPodCommoditiesBought(pod, resCommTypeBoughtFromNode)
+		commoditiesBought, err := builder.getPodCommoditiesBought(pod,
+			podsWithAffinities.Has(pod.Namespace+"/"+pod.Name), resCommTypeBoughtFromNode)
 		if err != nil {
 			glog.Warningf("Skip building DTO for pod %s: %s", displayName, err)
 			continue
@@ -390,8 +391,8 @@ func (builder *podEntityDTOBuilder) getPodQuotaCommoditiesSold(pod *api.Pod) ([]
 
 // Build the CommodityDTOs bought by the pod from the node provider.
 // Commodities bought are vCPU, vMem vmpm access, cluster
-func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
-	pod *api.Pod, resCommTypeBoughtFromNode []metrics.ResourceType) ([]*proto.CommodityDTO, error) {
+func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, isPodWithAffinity bool,
+	resCommTypeBoughtFromNode []metrics.ResourceType) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 
 	// Resource Commodities.
@@ -429,6 +430,22 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(
 			glog.Errorf("Failed to append the region/zone label commodity")
 			return nil, anerr
 		}
+	}
+
+	// Add pods own qualified name as Label commodity to honor placement as per affinities
+	// Nodes where this pod can be placed will sell this commodity
+	var affinityLabelComm *proto.CommodityDTO
+	if utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) && isPodWithAffinity {
+		var err error
+		affinityLabelComm, err = sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
+			Key(podMId).
+			Create()
+		if err != nil {
+			glog.Errorf("Failed to ceate affinity label commodity for pod %s", podMId)
+			return nil, err
+		}
+		glog.V(5).Infof("Adding affinity label commodity for Pod %s", podMId)
+		commoditiesBought = append(commoditiesBought, affinityLabelComm)
 	}
 
 	// Cluster commodity.
@@ -536,7 +553,7 @@ func (builder *podEntityDTOBuilder) getPodProperties(pod *api.Pod, vols []reposi
 	properties = append(properties, stitchingProperty)
 
 	if len(vols) > 0 {
-		var apiVols []*v1.PersistentVolume
+		var apiVols []*api.PersistentVolume
 		for _, vol := range vols {
 			apiVols = append(apiVols, vol.UsedVolume)
 		}

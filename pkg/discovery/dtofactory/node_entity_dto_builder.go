@@ -10,9 +10,11 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
+	"github.com/turbonomic/kubeturbo/pkg/features"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 const (
@@ -66,7 +68,7 @@ func (builder *nodeEntityDTOBuilder) WithClusterKeyInjected(clusterKeyInjected s
 }
 
 // BuildEntityDTOs builds entityDTOs based on the given node list.
-func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*proto.EntityDTO, []string) {
+func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPods map[string][]string) ([]*proto.EntityDTO, []string) {
 	var result []*proto.EntityDTO
 	var notReadyNodes []string
 
@@ -100,7 +102,14 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node) ([]*prot
 			glog.Errorf("Error when creating allocation commoditiesSold for %s: %s", node.Name, err)
 			nodeActive = false
 		}
+
 		commoditiesSold = append(commoditiesSold, allocationCommoditiesSold...)
+		// affinity commodities sold
+		var affinityCommoditiesSold []*proto.CommodityDTO
+		if utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
+			affinityCommoditiesSold = builder.getAffinityCommoditiesSold(node, nodesPods)
+			commoditiesSold = append(commoditiesSold, affinityCommoditiesSold...)
+		}
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 		// entities' properties.
@@ -405,6 +414,26 @@ func (builder *nodeEntityDTOBuilder) getAllocationCommoditiesSold(node *api.Node
 
 	commoditiesSold = append(commoditiesSold, resourceCommoditiesSold...)
 	return commoditiesSold, nil
+}
+
+func (builder *nodeEntityDTOBuilder) getAffinityCommoditiesSold(node *api.Node, nodesPods map[string][]string) []*proto.CommodityDTO {
+	var commoditiesSold []*proto.CommodityDTO
+	// Add label commodities to honor affinities
+	// This simply adds commodities sold for each pod that can
+	// be placed on this node
+	for _, podKey := range nodesPods[node.Name] {
+		commodityDTO, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
+			Key(podKey).
+			Capacity(accessCommodityDefaultCapacity).
+			Create()
+		if err != nil {
+			// We ignore a failure and continue to add the rest
+			continue
+		}
+		commoditiesSold = append(commoditiesSold, commodityDTO)
+	}
+
+	return commoditiesSold
 }
 
 // Get the properties of the node. This includes property related to stitching process and node cluster property.
