@@ -57,8 +57,7 @@ func resolveCVSPolicyTargets(
 		containerRegex := target.Container
 		namespace := policyBinding.GetNamespace()
 
-		for key, value := range worker.cluster.ControllerMap {
-			fmt.Println(key, value)
+		for _, value := range worker.cluster.ControllerMap {
 			if namespace != value.Namespace || !validWorkloadController(value.Kind) {
 				continue
 			}
