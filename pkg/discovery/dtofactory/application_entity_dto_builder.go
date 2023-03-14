@@ -192,10 +192,10 @@ func (builder *applicationEntityDTOBuilder) getApplicationProperties(pod *api.Po
 	appProperties := property.AddHostingPodProperties(pod.Namespace, pod.Name, index)
 	ns := stitching.DefaultPropertyNamespace
 	attr := stitching.AppStitchingAttr
-	// get k8sSvcId using the map of pod cluster Id to service
+	// get k8sSvc using the map of pod cluster Id to service
 	podClusterId := util.GetPodClusterID(pod)
 	svc := builder.podClusterIDToServiceMap[podClusterId]
-	value := getAppStitchingProperty(pod, index, string(svc.UID))
+	value := getAppStitchingProperty(pod, index, svc)
 	stitchingProperty := &proto.EntityDTO_EntityProperty{
 		Namespace: &ns,
 		Name:      &attr,
@@ -209,14 +209,14 @@ func (builder *applicationEntityDTOBuilder) getApplicationProperties(pod *api.Po
 }
 
 // Get the stitching property for Application.
-func getAppStitchingProperty(pod *api.Pod, index int, svcUID string) string {
+func getAppStitchingProperty(pod *api.Pod, index int, service *api.Service) string {
 	// For the container with index 0, the property is the pod ip with kubernetes service Id [IP]-[svcUID]
 	// For other containers, the container index is appended with hypen, i.e., [IP]-[svcUID]-[Index]
 	property := pod.Status.PodIP
-	if svcUID == "" {
-		glog.Errorf("Missing svcUID while getting IP property for stitching")
+	if service != nil {
+		svcUID := string(service.UID)
+		property = fmt.Sprintf("%s-%s", property, util.ParseSvcUID(svcUID))
 	}
-	property = fmt.Sprintf("%s-%s", property, util.ParseSvcUID(svcUID))
 	if index > 0 {
 		property = fmt.Sprintf("%s-%d", property, index)
 	}
