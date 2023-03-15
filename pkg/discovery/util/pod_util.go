@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -36,6 +37,8 @@ const (
 	// TODO: [Deprecated] Use TurboControllableAnnotation instead
 	TurboMonitorAnnotation      string = "kubeturbo.io/monitored"
 	TurboControllableAnnotation string = "kubeturbo.io/controllable"
+	defaultNamespace            string = "default"
+	defaultServiceName          string = "kubernetes"
 )
 
 type PodEvent struct {
@@ -499,9 +502,12 @@ func GetContainerNames(parent *unstructured.Unstructured) (sets.String, error) {
 }
 
 func ParseSvcUID(svcUID string) string {
-	indexBegin := strings.Index(svcUID, "-")
-	if indexBegin == -1 {
-		return svcUID
+	regex := regexp.MustCompile("^[0-9a-fA-F]{8}")
+	match := regex.FindStringSubmatch(svcUID)
+	if len(match) != 1 {
+		glog.Errorf("failed to parse UUID %v of the default kubernetes service %s/%s",
+			svcUID, defaultNamespace, defaultServiceName)
+		return ""
 	}
-	return svcUID[:indexBegin]
+	return match[0]
 }

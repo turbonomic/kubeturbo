@@ -5,6 +5,7 @@ import (
 
 	api "k8s.io/api/core/v1"
 
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -26,16 +27,19 @@ var (
 type applicationEntityDTOBuilder struct {
 	generalBuilder
 	podClusterIDToServiceMap map[string]*api.Service
+	ClusterScraper           *cluster.ClusterScraper
 }
 
 // Builder to build DTOs for application running on each container
 // Metric Sink provides the metrics saved by the discovery worker.
 // podClusterIDToServiceMap provides the service ID for the service associated with the applications running on the pods.
+// ClusterScraper Interface provides the implentation to get kubernetes service Id
 func NewApplicationEntityDTOBuilder(sink *metrics.EntityMetricSink,
-	podClusterIDToServiceMap map[string]*api.Service) *applicationEntityDTOBuilder {
+	podClusterIDToServiceMap map[string]*api.Service, clusterScraper *cluster.ClusterScraper) *applicationEntityDTOBuilder {
 	return &applicationEntityDTOBuilder{
 		generalBuilder:           newGeneralBuilder(sink),
 		podClusterIDToServiceMap: podClusterIDToServiceMap,
+		ClusterScraper:           clusterScraper,
 	}
 }
 
@@ -49,7 +53,10 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 		glog.Warningf("Failed to get node cpu frequency for pod[%s]."+
 			"\nHosted application usage data may not reflect right Mhz values: %v", podFullName, err)
 	}
-
+	svcID, err := builder.ClusterScraper.GetKubernetesServiceID()
+	if err != nil {
+		glog.Warningf("Failed to get Kubernetes service ID: %v", err)
+	}
 	for i := range pod.Spec.Containers {
 		//1. Id and Name
 		container := &(pod.Spec.Containers[i])
@@ -81,7 +88,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 		ebuilder.Provider(provider).BuysCommodities(commoditiesBought)
 
 		//4. set properties
-		properties := builder.getApplicationProperties(pod, i)
+		properties := builder.getApplicationProperties(pod, i, svcID)
 		ebuilder.WithProperties(properties)
 
 		// controllability of applications should not be dictated by mirror pods modeled as daemon pods
@@ -186,16 +193,13 @@ func (builder *applicationEntityDTOBuilder) getApplicationCommoditiesBought(appM
 }
 
 // Get the properties of the pod. This includes property related to application cluster property.
-func (builder *applicationEntityDTOBuilder) getApplicationProperties(pod *api.Pod, index int) []*proto.EntityDTO_EntityProperty {
+func (builder *applicationEntityDTOBuilder) getApplicationProperties(pod *api.Pod, index int, svcUID string) []*proto.EntityDTO_EntityProperty {
 	var properties []*proto.EntityDTO_EntityProperty
 	// additional node cluster info property.
 	appProperties := property.AddHostingPodProperties(pod.Namespace, pod.Name, index)
 	ns := stitching.DefaultPropertyNamespace
 	attr := stitching.AppStitchingAttr
-	// get k8sSvc using the map of pod cluster Id to service
-	podClusterId := util.GetPodClusterID(pod)
-	svc := builder.podClusterIDToServiceMap[podClusterId]
-	value := getAppStitchingProperty(pod, index, svc)
+	value := getAppStitchingProperty(pod, index, svcUID)
 	stitchingProperty := &proto.EntityDTO_EntityProperty{
 		Namespace: &ns,
 		Name:      &attr,
@@ -209,17 +213,13 @@ func (builder *applicationEntityDTOBuilder) getApplicationProperties(pod *api.Po
 }
 
 // Get the stitching property for Application.
-func getAppStitchingProperty(pod *api.Pod, index int, service *api.Service) string {
-	// For the container with index 0, the property is the pod ip with kubernetes service Id [IP]-[svcUID]
-	// For other containers, the container index is appended with hypen, i.e., [IP]-[svcUID]-[Index]
+func getAppStitchingProperty(pod *api.Pod, index int, svcUID string) string {
+	// For the container with index 0, the property is the pod ip with kubernetes service Id "[IP],[IP]-[svcUID]"
+	// For other containers, the container index is appended with hypen along with kubernetes service Id, i.e., "[IP]-[Index], [IP]-[Index]-[svcUID]"
 	property := pod.Status.PodIP
-	if service != nil {
-		svcUID := string(service.UID)
-		property = fmt.Sprintf("%s-%s", property, util.ParseSvcUID(svcUID))
-	}
 	if index > 0 {
 		property = fmt.Sprintf("%s-%d", property, index)
 	}
-
+	property = fmt.Sprintf("%s,%s", property, property+"-"+util.ParseSvcUID(svcUID))
 	return property
 }

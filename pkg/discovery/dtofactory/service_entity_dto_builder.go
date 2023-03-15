@@ -47,7 +47,7 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 	var result []*proto.EntityDTO
 	svcID, err := builder.ClusterScraper.GetKubernetesServiceID()
 	if err != nil {
-		glog.Errorf("Failed to get Kubernetes service ID: %v", err)
+		glog.Warningf("Failed to get Kubernetes service ID: %v", err)
 	}
 	for service, podList := range builder.ClusterSummary.Services {
 		serviceName := util.GetServiceClusterID(service)
@@ -246,7 +246,7 @@ func (builder *ServiceEntityDTOBuilder) getCommoditiesBought(appDTO *proto.Entit
 	}
 
 	if len(commoditiesBoughtFromApp) < 1 {
-		return nil, fmt.Errorf("no commodity found.")
+		return nil, fmt.Errorf("no commodity found")
 	}
 
 	return commoditiesBoughtFromApp, nil
@@ -263,16 +263,15 @@ func getUUIDProperty(uuid string) *proto.EntityDTO_EntityProperty {
 	}
 }
 
-// Get the IP property of the service for stitching purpose
+// Get the IP property appended with K8s service ID for stitching purpose
+// Format for stitching attribute for service looks like : "Service-[IP1], Service-[IP1]-[svcUID], Service-[IP2], Service-[IP2]-[svcUID]"
 func getIPProperty(pods []*api.Pod, svcUID string) *proto.EntityDTO_EntityProperty {
 	ns := stitching.DefaultPropertyNamespace
 	attr := stitching.AppStitchingAttr
 	ips := []string{}
-	if svcUID == "" {
-		glog.Errorf("Missing svcUID while getting IP property for stitching")
-	}
 	for _, pod := range pods {
-		ips = append(ips, servicePrefix+"-"+pod.Status.PodIP+"-"+util.ParseSvcUID(svcUID))
+		ips = append(ips, servicePrefix+"-"+pod.Status.PodIP,
+			servicePrefix+"-"+pod.Status.PodIP+"-"+util.ParseSvcUID(svcUID))
 	}
 	ip := strings.Join(ips, ",")
 	ipProperty := &proto.EntityDTO_EntityProperty{
