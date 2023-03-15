@@ -2,12 +2,13 @@ package processor
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 var (
@@ -81,7 +82,14 @@ func TestProcessNamespaces(t *testing.T) {
 		KubeCluster:        ks,
 	}
 
-	namespaceProcessor.ProcessNamespaces()
+	kubeNamespaceMap := namespaceProcessor.ProcessNamespaces()
+	assert.NotNil(t, kubeNamespaceMap)
+	assert.Equal(t, len(kubeNamespaceMap), len(mockNamepaces))
+	for _, ns := range mockNamepaces {
+		_, exists := kubeNamespaceMap[ns.name]
+		assert.True(t, exists, fmt.Sprintf("namespace %s does not exist", ns.name))
+	}
+
 	nsMap := ks.NamespaceMap
 	assert.Equal(t, len(nsMap), len(mockNamepaces))
 	mockedNamespaces := map[string]struct{}{
