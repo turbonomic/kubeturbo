@@ -502,7 +502,11 @@ func GetContainerNames(parent *unstructured.Unstructured) (sets.String, error) {
 }
 
 func ParseSvcUID(svcUID string) string {
-	regex := regexp.MustCompile("^[0-9a-fA-F]{8}")
+	regex, err := regexp.Compile("^[0-9a-fA-F]{8}")
+	if err != nil {
+		glog.Errorf("failed to compile regex pattern while parsing kubernetes service UUID: %v", err)
+		return ""
+	}
 	match := regex.FindStringSubmatch(svcUID)
 	if len(match) != 1 {
 		glog.Errorf("failed to parse UUID %v of the default kubernetes service %s/%s",
