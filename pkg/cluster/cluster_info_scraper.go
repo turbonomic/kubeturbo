@@ -59,6 +59,7 @@ type ClusterScraperInterface interface {
 	GetResourcesPaginated(resource schema.GroupVersionResource, itemsPerPage int) ([]unstructured.Unstructured, error)
 	GetMachineSetToNodesMap(nodes []*api.Node) map[string][]*api.Node
 	GetAllTurboSLOScalings() ([]policyv1alpha1.SLOHorizontalScale, error)
+	GetAllTurboCVSScalings() ([]policyv1alpha1.ContainerVerticalScale, error)
 	GetAllTurboPolicyBindings() ([]policyv1alpha1.PolicyBinding, error)
 	GetAllGitOpsConfigurations() ([]gitopsv1alpha1.GitOps, error)
 	UpdateGitOpsConfigCache()
@@ -534,6 +535,15 @@ func (s *ClusterScraper) GetAllTurboSLOScalings() ([]policyv1alpha1.SLOHorizonta
 		return nil, err
 	}
 	return sloScaleList.Items, nil
+}
+
+// GetAllTurboCVSScalings gets the custom ContainerVerticalScale resource from all namespaces
+func (s *ClusterScraper) GetAllTurboCVSScalings() ([]policyv1alpha1.ContainerVerticalScale, error) {
+	cvsScaleList := &policyv1alpha1.ContainerVerticalScaleList{}
+	if err := s.ControllerRuntimeClient.List(context.TODO(), cvsScaleList, &listOptions); err != nil {
+		return nil, err
+	}
+	return cvsScaleList.Items, nil
 }
 
 // GetAllTurboPolicyBindings gets the custom PolicyBinding resource from all namespaces

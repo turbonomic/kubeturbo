@@ -284,6 +284,7 @@ type MockClusterScrapper struct {
 	mockGetAllPVs                  func() ([]*v1.PersistentVolume, error)
 	mockGetAllPVCs                 func() ([]*v1.PersistentVolumeClaim, error)
 	mockGetAllTurboSLOScalings     func() ([]policyv1alpha1.SLOHorizontalScale, error)
+	mockGetAllTurboCVSScalings     func() ([]policyv1alpha1.ContainerVerticalScale, error)
 	mockGetAllTurboPolicyBindings  func() ([]policyv1alpha1.PolicyBinding, error)
 	mockGetAllGitOpsConfigurations func() ([]gitopsv1alpha1.GitOps, error)
 	mockUpdateGitOpsConfigCache    func()
@@ -294,6 +295,13 @@ func (s *MockClusterScrapper) GetAllTurboSLOScalings() ([]policyv1alpha1.SLOHori
 		return s.mockGetAllTurboSLOScalings()
 	}
 	return nil, fmt.Errorf("GetAllTurboSLOScalings Not implemented")
+}
+
+func (s *MockClusterScrapper) GetAllTurboCVSScalings() ([]policyv1alpha1.ContainerVerticalScale, error) {
+	if s.mockGetAllTurboCVSScalings != nil {
+		return s.mockGetAllTurboCVSScalings()
+	}
+	return nil, fmt.Errorf("GetAllTurboCVSScalings Not implemented")
 }
 
 func (s *MockClusterScrapper) GetAllTurboPolicyBindings() ([]policyv1alpha1.PolicyBinding, error) {
