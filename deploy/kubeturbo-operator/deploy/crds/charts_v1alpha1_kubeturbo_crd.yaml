@@ -166,6 +166,9 @@ spec:
                   stitchuuid:
                     description: Identify if using uuid or ip for stitching
                     type: boolean
+                  cleanupSccImpersonationResources:
+                    description: Identify if cleanup the resources created for scc impersonation, default is true
+                    type: boolean
               resources:
                 description: Kubeturbo resource configuration
                 type: object
