@@ -53,7 +53,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 		glog.Warningf("Failed to get node cpu frequency for pod[%s]."+
 			"\nHosted application usage data may not reflect right Mhz values: %v", podFullName, err)
 	}
-	svcID, err := builder.ClusterScraper.GetKubernetesServiceID()
+	svcUID, err := builder.ClusterScraper.GetKubernetesServiceID()
 	if err != nil {
 		glog.Warningf("Failed to get Kubernetes service ID: %v", err)
 	}
@@ -88,7 +88,7 @@ func (builder *applicationEntityDTOBuilder) BuildEntityDTO(pod *api.Pod) ([]*pro
 		ebuilder.Provider(provider).BuysCommodities(commoditiesBought)
 
 		//4. set properties
-		properties := builder.getApplicationProperties(pod, i, svcID)
+		properties := builder.getApplicationProperties(pod, i, svcUID)
 		ebuilder.WithProperties(properties)
 
 		// controllability of applications should not be dictated by mirror pods modeled as daemon pods
@@ -220,6 +220,8 @@ func getAppStitchingProperty(pod *api.Pod, index int, svcUID string) string {
 	if index > 0 {
 		property = fmt.Sprintf("%s-%d", property, index)
 	}
-	property = fmt.Sprintf("%s,%s", property, property+"-"+util.ParseSvcUID(svcUID))
+	if svcUID != "" {
+		property = fmt.Sprintf("%s,%s", property, property+"-"+util.ParseSvcUID(svcUID))
+	}
 	return property
 }

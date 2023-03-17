@@ -326,7 +326,8 @@ func (s *ClusterScraper) GetResourcesPaginated(
 }
 
 func (s *ClusterScraper) GetKubernetesServiceID() (svcID string, err error) {
-	if cachedSvcID, exists := s.cache.Get(kubernetesServiceName); exists {
+	k8sServiceKey := util.K8sServiceKey(k8sDefaultNamespace, kubernetesServiceName)
+	if cachedSvcID, exists := s.cache.Get(k8sServiceKey); exists {
 		svcID = cachedSvcID.(string)
 		glog.V(4).Infof("Using cached service uid: %s for kubernetes service name: %s", svcID, kubernetesServiceName)
 		return
@@ -337,7 +338,7 @@ func (s *ClusterScraper) GetKubernetesServiceID() (svcID string, err error) {
 	}
 	svcID = string(svc.UID)
 	glog.V(4).Infof("No cached service uid value found for kubernetes service name: %s", kubernetesServiceName)
-	s.cache.Set(kubernetesServiceName, svcID, 0)
+	s.cache.Set(k8sServiceKey, svcID, 0)
 	return
 }
 

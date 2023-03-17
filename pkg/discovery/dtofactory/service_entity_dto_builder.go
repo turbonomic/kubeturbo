@@ -45,7 +45,7 @@ func NewServiceEntityDTOBuilder(clusterSummary *repository.ClusterSummary,
 
 func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 	var result []*proto.EntityDTO
-	svcID, err := builder.ClusterScraper.GetKubernetesServiceID()
+	svcUID, err := builder.ClusterScraper.GetKubernetesServiceID()
 	if err != nil {
 		glog.Warningf("Failed to get Kubernetes service ID: %v", err)
 	}
@@ -93,7 +93,7 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 		ebuilder.ServiceData(createServiceData(service))
 
 		// set the ip property for stitching
-		ebuilder.WithProperty(getIPProperty(pods, svcID)).WithProperty(getUUIDProperty(id))
+		ebuilder.WithProperty(getIPProperty(pods, svcUID)).WithProperty(getUUIDProperty(id))
 
 		ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
@@ -270,8 +270,10 @@ func getIPProperty(pods []*api.Pod, svcUID string) *proto.EntityDTO_EntityProper
 	attr := stitching.AppStitchingAttr
 	ips := []string{}
 	for _, pod := range pods {
-		ips = append(ips, servicePrefix+"-"+pod.Status.PodIP,
-			servicePrefix+"-"+pod.Status.PodIP+"-"+util.ParseSvcUID(svcUID))
+		ips = append(ips, servicePrefix+"-"+pod.Status.PodIP)
+		if svcUID != "" {
+			ips = append(ips, servicePrefix+"-"+pod.Status.PodIP+"-"+util.ParseSvcUID(svcUID))
+		}
 	}
 	ip := strings.Join(ips, ",")
 	ipProperty := &proto.EntityDTO_EntityProperty{
