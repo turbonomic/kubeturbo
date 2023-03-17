@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
@@ -16,6 +17,7 @@ import (
 	api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apiserver/pkg/util/feature"
 )
 
 const (
@@ -204,6 +206,8 @@ func TestGetNodeIPs(t *testing.T) {
 }
 
 func TestNodeEntityDTO(t *testing.T) {
+	feature.DefaultMutableFeatureGate.Set("NewAffinityProcessing=true")
+
 	node := mockNode()
 	nodeKey := util.NodeKeyFunc(node)
 	metricsSink = metrics.NewEntityMetricSink()
@@ -215,7 +219,9 @@ func TestNodeEntityDTO(t *testing.T) {
 	stitchingManager := stitching.NewStitchingManager(stitching.UUID)
 	stitchingManager.StoreStitchingValue(node)
 	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitchingManager)
-	nodeEntityDTOs, _ := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node}, nil)
+	pods := []string{"pod1", "pod2"}
+	nodePods := map[string][]string{node.Name: pods}
+	nodeEntityDTOs, _ := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node}, nodePods)
 	vmData := nodeEntityDTOs[0].GetVirtualMachineData()
 	// The capacity metric is set in millicores but numcpus is set in cores
 	assert.EqualValues(t, 10, vmData.GetNumCpus())
@@ -244,4 +250,36 @@ func TestNodeEntityDTO(t *testing.T) {
 		}
 	}
 	assert.EqualValues(t, 5, matches, "there should be 5 tag properties")
+	assert.NotEmpty(t, nodeEntityDTOs[0].CommoditiesSold)
+
+	for _, pod := range pods {
+		commodityFound := false
+		for _, commodity := range nodeEntityDTOs[0].CommoditiesSold {
+			if *commodity.Key == pod {
+				commodityFound = true
+				assert.Equal(t, proto.CommodityDTO_LABEL, *commodity.CommodityType)
+				break
+			}
+		}
+		if !commodityFound {
+			assert.Fail(t, fmt.Sprintf("Failed to find commodity sold for pod %s", pod))
+		}
+	}
+}
+
+func Test_getAffinityCommoditiesSold(t *testing.T) {
+	node := mockNode()
+	stitchingManager := stitching.NewStitchingManager(stitching.UUID)
+	stitchingManager.StoreStitchingValue(node)
+	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitchingManager)
+	pod := "test"
+	mockNodesPods := make(map[string][]string)
+	mockNodesPods[node.Name] = append(mockNodesPods[node.Name], pod)
+
+	commodities := nodeEntityDTOBuilder.getAffinityCommoditiesSold(node, mockNodesPods)
+
+	assert.NotEmpty(t, commodities)
+	assert.Equal(t, 1, len(commodities))
+	assert.Equal(t, proto.CommodityDTO_LABEL, *commodities[0].CommodityType)
+	assert.Equal(t, pod, *commodities[0].Key)
 }

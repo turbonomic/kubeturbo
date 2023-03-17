@@ -15,6 +15,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
+	"k8s.io/apiserver/pkg/util/feature"
 )
 
 var builder = &podEntityDTOBuilder{
@@ -271,4 +272,307 @@ func TestGetRegionZoneLabelCommodity(t *testing.T) {
 	if !foundRegionComm || !foundZoneComm {
 		t.Errorf("Can't find region/zone commodity")
 	}
+}
+
+var (
+	mockPodCommoditiesBoughtTypes = []metrics.ResourceType{
+		metrics.CPU,
+		metrics.Memory,
+		metrics.CPURequest,
+		metrics.MemoryRequest,
+		metrics.NumPods,
+		metrics.VStorage,
+	}
+)
+
+func Test_getPodCommoditiesBought_NoAffinity(t *testing.T) {
+	feature.DefaultMutableFeatureGate.Set("NewAffinityProcessing=true")
+
+	mockPod := &api.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod-1",
+			Namespace: "test-namespace",
+			UID:       "test-pod-1-UID",
+		},
+	}
+
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+
+	assert.Nil(t, err)
+	assert.NotEmpty(t, commoditiesBought)
+	assert.Equal(t, 1, len(commoditiesBought))
+	assert.Equal(t, proto.CommodityDTO_LABEL, *commoditiesBought[0].CommodityType)
+}
+
+func Test_getPodCommoditiesBought_NodeAffinityWithNodeSelector(t *testing.T) {
+	feature.DefaultMutableFeatureGate.Set("NewAffinityProcessing=true")
+
+	mockPod := &api.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod-1",
+			Namespace: "test-namespace",
+			UID:       "test-pod-1-UID",
+		},
+		Spec: api.PodSpec{
+			Affinity: &api.Affinity{
+				NodeAffinity: &api.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &api.NodeSelector{
+						NodeSelectorTerms: []api.NodeSelectorTerm{
+							{
+								MatchExpressions: []api.NodeSelectorRequirement{
+									{
+										Key:      "foo",
+										Operator: api.NodeSelectorOpIn,
+										Values:   []string{"bar", "value2"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			NodeSelector: map[string]string{"test": "foo"},
+		},
+	}
+
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+
+	assert.Nil(t, err)
+	assert.NotEmpty(t, commoditiesBought)
+	assert.Equal(t, 2, len(commoditiesBought))
+
+	for _, commodity := range commoditiesBought {
+		assert.Equal(t, proto.CommodityDTO_LABEL, *commodity.CommodityType)
+	}
+}
+
+func Test_getPodCommoditiesBought_NodeAffinity(t *testing.T) {
+	feature.DefaultMutableFeatureGate.Set("NewAffinityProcessing=true")
+
+	mockPod := &api.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod-1",
+			Namespace: "test-namespace",
+			UID:       "test-pod-1-UID",
+		},
+		Spec: api.PodSpec{
+			Affinity: &api.Affinity{
+				NodeAffinity: &api.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &api.NodeSelector{
+						NodeSelectorTerms: []api.NodeSelectorTerm{
+							{
+								MatchExpressions: []api.NodeSelectorRequirement{
+									{
+										Key:      "foo",
+										Operator: api.NodeSelectorOpIn,
+										Values:   []string{"bar", "value2"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+
+	assert.Nil(t, err)
+	assert.NotEmpty(t, commoditiesBought)
+	assert.Equal(t, 1, len(commoditiesBought))
+	assert.Equal(t, proto.CommodityDTO_LABEL, *commoditiesBought[0].CommodityType)
+}
+
+func Test_getPodCommoditiesBought_NodeSelector(t *testing.T) {
+	feature.DefaultMutableFeatureGate.Set("NewAffinityProcessing=true")
+
+	mockPod := &api.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod-1",
+			Namespace: "test-namespace",
+			UID:       "test-pod-1-UID",
+		},
+		Spec: api.PodSpec{
+			NodeSelector: map[string]string{"test": "foo"},
+		},
+	}
+
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+
+	assert.Nil(t, err)
+	assert.NotEmpty(t, commoditiesBought)
+	assert.Equal(t, 2, len(commoditiesBought))
+
+	for _, commodity := range commoditiesBought {
+		assert.Equal(t, proto.CommodityDTO_LABEL, *commodity.CommodityType)
+	}
+}
+
+func Test_getPodCommoditiesBought_PodAffinityToSpread(t *testing.T) {
+	feature.DefaultMutableFeatureGate.Set("NewAffinityProcessing=true")
+
+	mockPod := &api.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod-1",
+			Namespace: "test-namespace",
+			UID:       "test-pod-1-UID",
+		},
+		Spec: api.PodSpec{
+			Affinity: &api.Affinity{
+				NodeAffinity: &api.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &api.NodeSelector{
+						NodeSelectorTerms: []api.NodeSelectorTerm{
+							{
+								MatchExpressions: []api.NodeSelectorRequirement{
+									{
+										Key:      "kubernetes.io/arch",
+										Operator: api.NodeSelectorOpIn,
+										Values:   []string{"amd64"},
+									},
+								},
+							},
+						},
+					},
+				},
+				PodAffinity: &api.PodAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []api.PodAffinityTerm{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "app",
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{"store"},
+									},
+								},
+							},
+							TopologyKey: "kubernetes.io/arch",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+
+	assert.Nil(t, err)
+	assert.NotEmpty(t, commoditiesBought)
+	assert.Equal(t, 1, len(commoditiesBought))
+	assert.Equal(t, proto.CommodityDTO_LABEL, *commoditiesBought[0].CommodityType)
+}
+
+func Test_getPodCommoditiesBought_SpreadWithPodAntiAffinity(t *testing.T) {
+	feature.DefaultMutableFeatureGate.Set("NewAffinityProcessing=true")
+
+	mockPod := &api.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod-1",
+			Namespace: "test-namespace",
+			UID:       "test-pod-1-UID",
+		},
+		Spec: api.PodSpec{
+			Affinity: &api.Affinity{
+				PodAntiAffinity: &api.PodAntiAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []api.PodAffinityTerm{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "app",
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{"store"},
+									},
+								},
+							},
+							TopologyKey: "kubernetes.io/arch",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+
+	assert.Nil(t, err)
+	assert.NotEmpty(t, commoditiesBought)
+	assert.Equal(t, 1, len(commoditiesBought))
+	assert.Equal(t, proto.CommodityDTO_LABEL, *commoditiesBought[0].CommodityType)
+}
+
+func Test_getPodCommoditiesBought_PodAntiAffinity(t *testing.T) {
+	feature.DefaultMutableFeatureGate.Set("NewAffinityProcessing=true")
+
+	mockPod := &api.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod-1",
+			Namespace: "test-namespace",
+			UID:       "test-pod-1-UID",
+		},
+		Spec: api.PodSpec{
+			Affinity: &api.Affinity{
+				PodAntiAffinity: &api.PodAntiAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []api.PodAffinityTerm{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "app",
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{"store"},
+									},
+								},
+							},
+							Namespaces:  []string{"default"},
+							TopologyKey: "kubernetes.io/arch",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+
+	assert.Nil(t, err)
+	assert.NotEmpty(t, commoditiesBought)
+	assert.Equal(t, 1, len(commoditiesBought))
+	assert.Equal(t, proto.CommodityDTO_LABEL, *commoditiesBought[0].CommodityType)
 }
