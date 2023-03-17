@@ -338,7 +338,8 @@ func (s *ClusterScraper) GetKubernetesServiceID() (svcID string, err error) {
 	}
 	svcID = string(svc.UID)
 	glog.V(4).Infof("No cached service uid value found for kubernetes service name: %s", kubernetesServiceName)
-	s.cache.Set(k8sServiceKey, svcID, 0)
+	//setting cache to never expire
+	s.cache.Set(k8sServiceKey, svcID, -1)
 	return
 }
 
