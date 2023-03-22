@@ -267,11 +267,14 @@ func (n *NodeCpuFrequencyGetter) createJob(namespace, nodeName string) (*batchv1
 func (n *NodeCpuFrequencyGetter) getCpuFreqJobDefinition(nodeName string) *batchv1.Job {
 	// There are no retries if the job fails it fails
 	backoffLimit := int32(0)
+	// Finished jobs will be automatically cleaned up in case they are leaked behind
+	ttlSecondsAfterFinished := int32(120)
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "kubeturbo-cpufreq-" + strconv.FormatInt(time.Now().UnixNano(), 32),
 		},
 		Spec: batchv1.JobSpec{
+			TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
