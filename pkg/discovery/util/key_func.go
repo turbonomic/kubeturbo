@@ -129,3 +129,7 @@ func VolumeKeyFunc(vol *api.PersistentVolume) string {
 func PodControllerInfoKey(pod *api.Pod) string {
 	return fmt.Sprintf("%s-%s", controllerInfoKeyPrefix, string(pod.UID))
 }
+
+func K8sServiceKey(k8DefaultNamespace string, k8sServiceName string) string {
+	return fmt.Sprintf("%v-%v", k8DefaultNamespace, k8sServiceName)
+}
