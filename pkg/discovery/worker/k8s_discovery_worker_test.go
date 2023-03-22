@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring/kubelet"
@@ -15,7 +16,8 @@ import (
 )
 
 func TestBuildDTOsWithMissingMetrics(t *testing.T) {
-	workerConfig := NewK8sDiscoveryWorkerConfig("UUID", 1, 1).
+	probeConfig := &configs.ProbeConfig{}
+	workerConfig := NewK8sDiscoveryWorkerConfig(probeConfig, "UUID", 1, 1).
 		WithMonitoringWorkerConfig(kubelet.NewKubeletMonitorConfig(nil, nil))
 	worker, err := NewK8sDiscoveryWorker(workerConfig, "wid-1", metrics.NewEntityMetricSink(), true)
 	if err != nil {

@@ -326,11 +326,20 @@ func (s *ClusterScraper) GetResourcesPaginated(
 }
 
 func (s *ClusterScraper) GetKubernetesServiceID() (svcID string, err error) {
+	k8sServiceKey := util.K8sServiceKey(k8sDefaultNamespace, kubernetesServiceName)
+	if cachedSvcID, exists := s.cache.Get(k8sServiceKey); exists {
+		svcID = cachedSvcID.(string)
+		glog.V(4).Infof("Using cached service uid: %s for kubernetes service name: %s", svcID, kubernetesServiceName)
+		return
+	}
 	svc, err := s.CoreV1().Services(k8sDefaultNamespace).Get(context.TODO(), kubernetesServiceName, metav1.GetOptions{})
 	if err != nil {
 		return
 	}
 	svcID = string(svc.UID)
+	glog.V(4).Infof("No cached service uid value found for kubernetes service name: %s", kubernetesServiceName)
+	//setting cache to never expire
+	s.cache.Set(k8sServiceKey, svcID, -1)
 	return
 }
 
