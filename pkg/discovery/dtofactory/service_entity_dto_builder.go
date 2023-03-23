@@ -10,9 +10,10 @@ import (
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"fmt"
+	"strings"
+
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
-	"strings"
 )
 
 const (
@@ -44,6 +45,10 @@ func NewServiceEntityDTOBuilder(clusterSummary *repository.ClusterSummary,
 
 func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 	var result []*proto.EntityDTO
+	svcUID, err := builder.ClusterScraper.GetKubernetesServiceID()
+	if err != nil {
+		glog.Warningf("Failed to get Kubernetes service ID: %v", err)
+	}
 	for service, podList := range builder.ClusterSummary.Services {
 		serviceName := util.GetServiceClusterID(service)
 		if len(podList) == 0 {
@@ -88,7 +93,7 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 		ebuilder.ServiceData(createServiceData(service))
 
 		// set the ip property for stitching
-		ebuilder.WithProperty(getIPProperty(pods)).WithProperty(getUUIDProperty(id))
+		ebuilder.WithProperty(getIPProperty(pods, svcUID)).WithProperty(getUUIDProperty(id))
 
 		ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
@@ -241,7 +246,7 @@ func (builder *ServiceEntityDTOBuilder) getCommoditiesBought(appDTO *proto.Entit
 	}
 
 	if len(commoditiesBoughtFromApp) < 1 {
-		return nil, fmt.Errorf("no commodity found.")
+		return nil, fmt.Errorf("no commodity found")
 	}
 
 	return commoditiesBoughtFromApp, nil
@@ -258,13 +263,17 @@ func getUUIDProperty(uuid string) *proto.EntityDTO_EntityProperty {
 	}
 }
 
-// Get the IP property of the service for stitching purpose
-func getIPProperty(pods []*api.Pod) *proto.EntityDTO_EntityProperty {
+// Get the IP property appended with K8s service ID for stitching purpose
+// Format for stitching attribute for service looks like : "Service-[IP1], Service-[IP1]-[svcUID], Service-[IP2], Service-[IP2]-[svcUID]"
+func getIPProperty(pods []*api.Pod, svcUID string) *proto.EntityDTO_EntityProperty {
 	ns := stitching.DefaultPropertyNamespace
 	attr := stitching.AppStitchingAttr
 	ips := []string{}
 	for _, pod := range pods {
 		ips = append(ips, servicePrefix+"-"+pod.Status.PodIP)
+		if svcUID != "" {
+			ips = append(ips, servicePrefix+"-"+pod.Status.PodIP+"-"+util.ParseSvcUID(svcUID))
+		}
 	}
 	ip := strings.Join(ips, ",")
 	ipProperty := &proto.EntityDTO_EntityProperty{

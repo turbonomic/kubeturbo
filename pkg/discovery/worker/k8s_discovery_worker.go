@@ -12,6 +12,8 @@ import (
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/monitoring"
@@ -28,6 +30,7 @@ const (
 )
 
 type k8sDiscoveryWorkerConfig struct {
+	probeConfig *configs.ProbeConfig
 	// a collection of all configs for building different monitoring clients.
 	// key: monitor type; value: monitor worker config.
 	monitoringSourceConfigs map[types.MonitorType][]monitoring.MonitorWorkerConfig
@@ -41,7 +44,7 @@ type k8sDiscoveryWorkerConfig struct {
 	commodityConfig *dtofactory.CommodityConfig
 }
 
-func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutSec, metricSamples int) *k8sDiscoveryWorkerConfig {
+func NewK8sDiscoveryWorkerConfig(probeConfig *configs.ProbeConfig, sType stitching.StitchingPropertyType, timeoutSec, metricSamples int) *k8sDiscoveryWorkerConfig {
 	var monitoringWorkerTimeout time.Duration
 	if timeoutSec < minTimeoutSec {
 		glog.Warningf("Invalid discovery timeout %v, set it to %v", timeoutSec, minTimeoutSec)
@@ -55,6 +58,7 @@ func NewK8sDiscoveryWorkerConfig(sType stitching.StitchingPropertyType, timeoutS
 		glog.Infof("Discovery timeout is %v", monitoringWorkerTimeout)
 	}
 	return &k8sDiscoveryWorkerConfig{
+		probeConfig:             probeConfig,
 		stitchingPropertyType:   sType,
 		monitoringSourceConfigs: make(map[types.MonitorType][]monitoring.MonitorWorkerConfig),
 		monitoringWorkerTimeout: monitoringWorkerTimeout,
@@ -105,13 +109,15 @@ type k8sDiscoveryWorker struct {
 	stitchingManager *stitching.StitchingManager
 
 	taskChan chan *task.Task
+
+	k8sClusterScraper *cluster.ClusterScraper
 }
 
 // Create new instance of k8sDiscoveryWorker.
 // Also creates instances of MonitoringWorkers for each MonitorType.
 func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string, globalMetricSink *metrics.EntityMetricSink,
 	isFullDiscoveryWorker bool) (*k8sDiscoveryWorker, error) {
-	// id := uuid.NewUUID().String()
+	k8sClusterScraper := config.probeConfig.ClusterScraper
 	if len(config.monitoringSourceConfigs) == 0 {
 		return nil, errors.New("no monitoring source config found in config")
 	}
@@ -153,6 +159,7 @@ func NewK8sDiscoveryWorker(config *k8sDiscoveryWorkerConfig, wid string, globalM
 		globalMetricSink:      globalMetricSink,
 		stitchingManager:      stitchingManager,
 		taskChan:              make(chan *task.Task),
+		k8sClusterScraper:     k8sClusterScraper,
 	}, nil
 }
 
@@ -465,7 +472,7 @@ func (worker *k8sDiscoveryWorker) buildAppDTOs(
 	var result []*proto.EntityDTO
 	var podEntities []*repository.KubePod
 	applicationEntityDTOBuilder := dtofactory.
-		NewApplicationEntityDTOBuilder(worker.sink, cluster.PodClusterIDToServiceMap)
+		NewApplicationEntityDTOBuilder(worker.sink, cluster.PodClusterIDToServiceMap, worker.k8sClusterScraper)
 
 	for _, pod := range runningPods {
 		kubeNode := cluster.NodeMap[pod.Spec.NodeName]
