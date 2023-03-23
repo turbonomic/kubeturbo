@@ -1,10 +1,11 @@
 package dtofactory
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
-	"testing"
 )
 
 var testService = api.Service{

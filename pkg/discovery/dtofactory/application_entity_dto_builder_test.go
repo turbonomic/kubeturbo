@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -50,8 +51,9 @@ func Test_getCommoditiesSold(t *testing.T) {
 	podClusterIDToServiceMap = make(map[string]*api.Service)
 	podId := "default/pod1"
 	podClusterIDToServiceMap[podId] = &api.Service{}
+	clusterScraper := &cluster.ClusterScraper{}
 
-	applicationEntityDTOBuilder := NewApplicationEntityDTOBuilder(sink, podClusterIDToServiceMap)
+	applicationEntityDTOBuilder := NewApplicationEntityDTOBuilder(sink, podClusterIDToServiceMap, clusterScraper)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := applicationEntityDTOBuilder.getCommoditiesSold(tt.args.pod, tt.args.index)
