@@ -290,6 +290,27 @@ func (s *VMTServer) createKubeClientOrDie(kubeConfig *restclient.Config) *kubern
 	return kubeClient
 }
 
+func (s *VMTServer) ensureBusyboxImageBackwardCompatibility() {
+	if s.CpuFrequencyGetterImage == "icr.io/cpopen/turbonomic/cpufreqgetter" && s.BusyboxImage != "busybox" {
+		// Somebody has set --busybox-image only explicitly, for example coming from an old configuration
+		// we should use it
+		s.CpuFrequencyGetterImage = s.BusyboxImage
+	}
+	// Other cases for example below, --cpufreqgetter-image value will always take precedence:
+	// if s.CpuFrequencyGetterImage == "icr.io/cpopen/turbonomic/cpufreqgetter" && s.BusyboxImage == "busybox"
+	// if s.CpuFrequencyGetterImage != "icr.io/cpopen/turbonomic/cpufreqgetter" && s.BusyboxImage != "busybox"
+	// if s.CpuFrequencyGetterImage == "icr.io/cpopen/turbonomic/cpufreqgetter" && s.BusyboxImage != "busybox"
+
+	if s.CpuFrequencyGetterPullSecret == "" && s.BusyboxImagePullSecret != "" {
+		// Somebody has set --busybox-image-pull-secret	only explicitly, for example coming from an old configuration
+		// we should use it
+		s.CpuFrequencyGetterPullSecret = s.BusyboxImagePullSecret
+	}
+	// Other cases for example below, --cpufreqgetter-image-pull-secret value will always take precedence:
+	// if s.CpuFrequencyGetterPullSecret != "" && s.BusyboxImagePullSecret != ""
+	// if s.CpuFrequencyGetterPullSecret != "" && s.BusyboxImagePullSecret == ""
+}
+
 func (s *VMTServer) CreateKubeletClientOrDie(kubeConfig *restclient.Config, fallbackClient *kubernetes.Clientset,
 	cpuFreqGetterImage, imagePullSecret string, cpufreqJobExcludeNodeLabels map[string]set.Set, useProxyEndpoint bool) *kubeclient.KubeletClient {
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
@@ -424,6 +445,8 @@ func (s *VMTServer) Run() {
 		glog.Fatalf("Invalid cpu frequency exclude node label selectors: %v. The selectors "+
 			"should be a comma saperated list of key=value node label pairs", err)
 	}
+
+	s.ensureBusyboxImageBackwardCompatibility()
 	kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, s.CpuFrequencyGetterImage,
 		s.CpuFrequencyGetterPullSecret, excludeLabelsMap, s.UseNodeProxyEndpoint)
 	caClient, err := clusterclient.NewForConfig(kubeConfig)
