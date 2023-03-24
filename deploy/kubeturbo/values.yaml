@@ -95,5 +95,7 @@ args:
   pre16k8sVersion: false
   # cleanup the resources for scc impersonation by deault
   cleanupSccImpersonationResources: true
+  # required for OCP cluster
+  # sccsupport: "*"
 
 resources: {}
