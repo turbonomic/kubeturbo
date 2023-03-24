@@ -96,7 +96,7 @@ func createCVSPolicy(
 	worker *k8sEntityGroupDiscoveryWorker,
 	policyBinding *repository.TurboPolicyBinding) (*proto.GroupDTO_SettingPolicy_, error) {
 	pbName := fmt.Sprintf("%v/%v", policyBinding.GetNamespace(), policyBinding.GetName())
-	glog.V(4).Infof("Create container vertical scale policy from policy bind %f", pbName)
+	glog.V(4).Infof("Create container vertical scale policy from policy bind %v", pbName)
 	spec := policyBinding.GetContainerVerticalScaleSpec()
 	if spec == nil {
 		return nil, fmt.Errorf("the ContainerVerticalScaleSpec is nil in policy binding %v", pbName)
