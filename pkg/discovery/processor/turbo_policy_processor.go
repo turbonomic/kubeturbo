@@ -56,19 +56,23 @@ func (p *TurboPolicyProcessor) ProcessTurboPolicies() {
 
 	for _, sloScale := range turboSloScalings {
 		if gvk := sloScale.GetObjectKind().GroupVersionKind(); !gvk.Empty() {
-			policyId := createPolicyId(gvk.Kind, sloScale.GetNamespace(), sloScale.GetName())
+			// Create a copy as sloScale variable is reused during range loop
+			sloScaleCopy := sloScale
+			policyId := createPolicyId(gvk.Kind, sloScaleCopy.GetNamespace(), sloScaleCopy.GetName())
 			policyMap[policyId] = repository.
 				NewTurboPolicy().
-				WithSLOHorizontalScale(&sloScale)
+				WithSLOHorizontalScale(&sloScaleCopy)
 		}
 	}
 
 	for _, cvsScale := range turboCvsScalings {
 		if gvk := cvsScale.GetObjectKind().GroupVersionKind(); !gvk.Empty() {
-			policyId := createPolicyId(gvk.Kind, cvsScale.GetNamespace(), cvsScale.GetName())
+			// Create a copy as cvsScale variable is reused during range loop
+			cvsScaleCopy := cvsScale
+			policyId := createPolicyId(gvk.Kind, cvsScaleCopy.GetNamespace(), cvsScaleCopy.GetName())
 			policyMap[policyId] = repository.
 				NewTurboPolicy().
-				WithContainerVerticalScale(&cvsScale)
+				WithContainerVerticalScale(&cvsScaleCopy)
 		}
 	}
 
