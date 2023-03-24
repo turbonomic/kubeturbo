@@ -58,7 +58,7 @@ func resolveCVSPolicyTargets(
 
 		containerRegex := target.Container
 		if len(containerRegex) == 0 {
-			return nil, fmt.Errorf("target %v/%v needs to specify its container name pattern", namespace, controllerRegex)
+			return nil, fmt.Errorf("target %v/%v must have container name specified ", namespace, controllerRegex)
 		}
 
 		for _, value := range worker.cluster.ControllerMap {
