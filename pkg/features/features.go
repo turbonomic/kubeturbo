@@ -27,7 +27,7 @@ const (
 	ThrottlingMetrics featuregate.Feature = "ThrottlingMetrics"
 
 	// GitopsApps owner: @irfanurrehman
-	// alpha:
+	// beta:
 	//
 	// Gitops application support.
 	// This gate will enable discovery of gitops pipeline applications and
@@ -68,6 +68,8 @@ const (
 	// in out code, where affinity processing alone takes a really long time.
 	// https://vmturbo.atlassian.net/browse/OM-93635?focusedCommentId=771727
 	IgnoreAffinities featuregate.Feature = "IgnoreAffinities"
+	// NewAffinityProcessing owner: @irfanurrehman
+	// alpha:
 	//
 	// This gate will use the optimised affinity processing algorithm which in turn
 	// will ensure that the affinity processing can happen within a single discovery cycle.
@@ -88,7 +90,7 @@ func init() {
 var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	PersistentVolumes:             {Default: true, PreRelease: featuregate.Beta},
 	ThrottlingMetrics:             {Default: true, PreRelease: featuregate.Beta},
-	GitopsApps:                    {Default: false, PreRelease: featuregate.Alpha},
+	GitopsApps:                    {Default: true, PreRelease: featuregate.Beta},
 	HonorAzLabelPvAffinity:        {Default: true, PreRelease: featuregate.Alpha},
 	GoMemLimit:                    {Default: true, PreRelease: featuregate.Alpha},
 	AllowIncreaseNsQuota4Resizing: {Default: true, PreRelease: featuregate.Alpha},
