@@ -169,6 +169,21 @@ spec:
                   cleanupSccImpersonationResources:
                     description: Identify if cleanup the resources created for scc impersonation, default is true
                     type: boolean
+                  gitEmail:
+                    description: The email to be used to push changes to git with ArgoCD integration
+                    type: string
+                  gitUsername:
+                    description: The username to be used to push changes to git with ArgoCD integration
+                    type: string
+                  gitSecretName:
+                    description: The name of the secret which holds the git credentials to be used with ArgoCD integration
+                    type: string
+                  gitSecretNamespace:
+                    description: The namespace of the secret which holds the git credentials to be used with ArgoCD integration
+                    type: string
+                  gitCommitMode:
+                    description: The commit mode that should be used for git action executions with ArgoCD Integration. One of request or direct. Defaults to direct.
+                    type: string
               resources:
                 description: Kubeturbo resource configuration
                 type: object

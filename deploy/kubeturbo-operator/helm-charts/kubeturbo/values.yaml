@@ -97,5 +97,15 @@ args:
   cleanupSccImpersonationResources: true
   # required for OCP cluster
   # sccsupport: "*"
+  # [ArgoCD integration] The email to be used to push changes to git.
+  # gitEmail: ""
+  # [ArgoCD integration] The username to be used to push changes to git.
+  # gitUsername: ""
+  # [ArgoCD integration] The name of the secret which holds the git credentials.
+  # gitSecretName: ""
+  # [ArgoCD integration] The namespace of the secret which holds the git credentials.
+  # gitSecretNamespace: ""
+  # [ArgoCD integration] The commit mode that should be used for git action executions. One of {request|direct}. Defaults to direct.
+  # gitCommitMode: ""
 
 resources: {}
