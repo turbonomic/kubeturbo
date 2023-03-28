@@ -58,6 +58,10 @@ spec:
           {{- end }}
           {{- if .Values.image.imagePullSecret }}
           - --busybox-image-pull-secret={{ .Values.image.imagePullSecret }}
+          - --cpufreqgetter-image-pull-secret={{ .Values.image.imagePullSecret }}
+          {{- end }}
+          {{- if .Values.image.cpufreqgetterRepository }}
+          - --cpufreqgetter-image={{ .Values.image.cpufreqgetterRepository }}
           {{- end }}
           {{- if .Values.args.busyboxExcludeNodeLabels }}
           - --cpufreq-job-exclude-node-labels={{ .Values.args.busyboxExcludeNodeLabels }}

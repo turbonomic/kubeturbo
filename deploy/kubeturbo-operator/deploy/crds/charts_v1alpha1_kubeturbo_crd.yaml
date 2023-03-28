@@ -87,7 +87,10 @@ spec:
                     description: Kubeturbo container image tag
                     type: string
                   busyboxRepository:
-                    description: Busybox repository. default is busybox
+                    description: Busybox repository. default is busybox. This is overridden by cpufreqgetterRepository
+                    type: string
+                  cpufreqgetterRepository:
+                    description: Repository used to get node cpufrequency. default is icr.io/cpopen/turbonomic/cpufreqgetter
                     type: string
                   pullPolicy:
                     description: Define pull policy, Always is default
