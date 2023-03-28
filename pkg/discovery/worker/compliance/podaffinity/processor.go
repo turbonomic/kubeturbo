@@ -24,13 +24,11 @@ package podaffinity
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
-	client "k8s.io/client-go/kubernetes"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog/v2"
 
@@ -49,19 +47,16 @@ type PodAffinityProcessor struct {
 }
 
 // New initializes a new plugin and returns it.
-func New(client *client.Clientset, clusterSummary *repository.ClusterSummary) (*PodAffinityProcessor, error) {
+func New(clusterSummary *repository.ClusterSummary, nodeInfoLister NodeInfoLister,
+	namespaceLister listersv1.NamespaceLister) (*PodAffinityProcessor, error) {
 	pr := &PodAffinityProcessor{
-		nodeInfoLister:  NewNodeInfoLister(clusterSummary),
+		nodeInfoLister:  nodeInfoLister,
 		podToVolumesMap: clusterSummary.PodToVolumesMap,
 		// TODO: make the parallelizm configurable
 		parallelizer: parallelizer.NewParallelizer(parallelizer.DefaultParallelism),
-	}
-	nsLister, err := NewNamespaceLister(client, clusterSummary)
-	if err != nil {
-		return nil, fmt.Errorf("error creating affinity processor: %v", err)
+		nsLister:     namespaceLister,
 	}
 
-	pr.nsLister = nsLister
 	return pr, nil
 }
 
