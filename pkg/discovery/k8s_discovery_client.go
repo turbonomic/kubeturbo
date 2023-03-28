@@ -319,20 +319,27 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	// affinity process with new algorithm
 	var nodesPods map[string][]string
 	var podsWithAffinities sets.String
-	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) &&
-		utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
-		glog.V(2).Infof("Begin to process affinity with new algorithm.")
-		start := time.Now()
-		affinityProcessor, err := podaffinity.New(dc.k8sClusterScraper.Clientset, clusterSummary)
-		if err != nil {
-			glog.Errorf("Failure in processing affinity rules: %s", err)
-		} else {
-			nodesPods, podsWithAffinities = affinityProcessor.ProcessAffinities(clusterSummary.Pods)
+	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) {
+		if utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
+			glog.V(2).Infof("Begin to process affinity with new algorithm.")
+			start := time.Now()
+			namespaceLister, err := podaffinity.NewNamespaceLister(dc.k8sClusterScraper.Clientset, clusterSummary)
+			if err != nil {
+				glog.Errorf("error creating affinity processor: %v", err)
+			} else {
+				affinityProcessor, err := podaffinity.New(clusterSummary,
+					podaffinity.NewNodeInfoLister(clusterSummary), namespaceLister)
+				if err != nil {
+					glog.Errorf("Failure in processing affinity rules: %s", err)
+				} else {
+					nodesPods, podsWithAffinities = affinityProcessor.ProcessAffinities(clusterSummary.Pods)
+				}
+				glog.V(2).Infof("Successfully processed affinities.")
+				glog.V(3).Infof("Processing affinities with new algorithm took %s", time.Since(start))
+				glog.V(6).Infof("\n\nProcessed affinity result: \n\n %++v \n\n %++v \n\n",
+					nodesPods, podsWithAffinities)
+			}
 		}
-		glog.V(2).Infof("Successfully processed affinities.")
-		glog.V(3).Infof("Processing affinities with new algorithm took %s", time.Since(start))
-		glog.V(6).Infof("\n\nProcessed affinity result: \n\n %++v \n\n %++v \n\n",
-			nodesPods, podsWithAffinities)
 	} else {
 		glog.V(2).Infof("Ignoring affinities.")
 	}
@@ -439,8 +446,6 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 			result.EntityDTOs = affinityProcessor.ProcessAffinityRules(result.EntityDTOs)
 		}
 		glog.V(2).Infof("Successfully processed affinity.")
-	} else {
-		glog.V(2).Infof("Ignoring affinities.")
 	}
 
 	// Taint-toleration process to create access commodities
