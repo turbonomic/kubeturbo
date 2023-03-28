@@ -52,7 +52,6 @@ func resolveCVSPolicyTargets(
 	var resolvedIds []string
 	for _, target := range targets {
 		namespace := policyBinding.GetNamespace()
-		controllerRegex := target.Name
 
 		// All targets must be container in a workload controller
 		controllerRegex := target.Name
