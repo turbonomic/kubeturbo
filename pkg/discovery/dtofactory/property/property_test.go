@@ -177,6 +177,33 @@ func TestBuildPodProperties(t *testing.T) {
 	assert.Equal(t, 5, matches, "there should be 5 matches in the test pod properties")
 }
 
+func TestBuildPodPropertiesWithSeconds(t *testing.T) {
+	tolerationSeconds := int64(300)
+	pod := &api.Pod{
+		Spec: api.PodSpec{
+			Tolerations: []api.Toleration{
+				{
+					Key:               "key",
+					Operator:          "op",
+					Effect:            "effect",
+					TolerationSeconds: &tolerationSeconds,
+				},
+			},
+		},
+	}
+
+	ps := BuildPodProperties(pod)
+
+	for _, p := range ps {
+		if p.GetName() == "[k8s toleration] effect" {
+			assert.EqualValues(t, "key op for 300s", p.GetValue())
+			return
+		}
+	}
+
+	assert.Fail(t, "tolerationSeconds is not found.")
+}
+
 func TestAddHostingPodProperties(t *testing.T) {
 	namespace := "xyz"
 	name := "poda"
