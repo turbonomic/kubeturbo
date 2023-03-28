@@ -131,6 +131,18 @@ spec:
           #- --stitch-uuid=false
           # Uncomment to customize readiness retry threshold. Kubeturbo will try readiness-retry-threshold times before giving up. Default is 60. The retry interval is 10s.
           #- --readiness-retry-threshold=60
+          # Uncomment to disable the cleanup of the resources which are created by kubeturbo for the scc impersonation.
+          #- --cleanup-scc-impersonation-resources=false
+          # [ArgoCD integration] The email to be used to push changes to git
+          #- --git-email=""
+          # [ArgoCD integration] The username to be used to push changes to git
+          #- --git-username=""
+          # [ArgoCD integration] The name of the secret which holds the git credentials
+          #- --git-secret-name""
+          # [ArgoCD integration] The namespace of the secret which holds the git credentials
+          #- --git-secret-namespace=""
+          # [ArgoCD integration] The commit mode that should be used for git action executions. One of {request|direct}. Defaults to direct
+          #- --git-commit-mode=""
         volumeMounts:
           # volume will be created, any name will work and must match below
           - name: turbo-volume
