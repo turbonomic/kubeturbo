@@ -51,6 +51,9 @@ func resolveCVSPolicyTargets(
 
 	var resolvedIds []string
 	for _, target := range targets {
+		namespace := policyBinding.GetNamespace()
+		controllerRegex := target.Name
+
 		// All targets must be container in a workload controller
 		controllerRegex := target.Name
 		if !validWorkloadController(target.Kind) {
@@ -58,7 +61,9 @@ func resolveCVSPolicyTargets(
 		}
 
 		containerRegex := target.Container
-		namespace := policyBinding.GetNamespace()
+		if len(containerRegex) == 0 {
+			return nil, fmt.Errorf("target %v/%v must have container name specified ", namespace, controllerRegex)
+		}
 
 		for _, value := range worker.cluster.ControllerMap {
 			if namespace != value.Namespace || !validWorkloadController(value.Kind) {

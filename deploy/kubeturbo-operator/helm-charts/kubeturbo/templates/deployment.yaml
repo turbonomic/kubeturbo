@@ -58,6 +58,10 @@ spec:
           {{- end }}
           {{- if .Values.image.imagePullSecret }}
           - --busybox-image-pull-secret={{ .Values.image.imagePullSecret }}
+          - --cpufreqgetter-image-pull-secret={{ .Values.image.imagePullSecret }}
+          {{- end }}
+          {{- if .Values.image.cpufreqgetterRepository }}
+          - --cpufreqgetter-image={{ .Values.image.cpufreqgetterRepository }}
           {{- end }}
           {{- if .Values.args.busyboxExcludeNodeLabels }}
           - --cpufreq-job-exclude-node-labels={{ .Values.args.busyboxExcludeNodeLabels }}
@@ -70,6 +74,21 @@ spec:
           {{- end }}
           {{- if not .Values.args.cleanupSccImpersonationResources }}
           - --cleanup-scc-impersonation-resources={{ .Values.args.cleanupSccImpersonationResources }}
+          {{- end }}
+          {{- if .Values.args.gitEmail }}
+          - --git-email={{ .Values.args.gitEmail }}
+          {{- end }}
+          {{- if .Values.args.gitUsername }}
+          - --git-username={{ .Values.args.gitUsername }}
+          {{- end }}
+          {{- if .Values.args.gitSecretName }}
+          - --git-secret-name={{ .Values.args.gitSecretName }}
+          {{- end }}
+          {{- if .Values.args.gitSecretNamespace }}
+          - --git-secret-namespace={{ .Values.args.gitSecretNamespace }}
+          {{- end }}
+          {{- if .Values.args.gitCommitMode }}
+          - --git-commit-mode={{ .Values.args.gitCommitMode }}
           {{- end }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
