@@ -49,15 +49,15 @@ type ResizeIncrements struct {
 
 // ContainerVerticalScaleSpec defines the desired state of ContainerVerticalScale
 type ContainerVerticalScalePolicySettings struct {
-	// +kubebuilder:default:={cpu:{max:64, min:"500m", recommendAboveMax:true, recommendBelowMin:false}, memory:{max:"10Gi", min:"10Mi", recommendAboveMax:true, recommendBelowMin:true}}
+	// +kubebuilder:default:={cpu:{max:64, min:"500m", recommendAboveMax:true, recommendBelowMin:false}, memory:{max:"104857M", min:"10M", recommendAboveMax:true, recommendBelowMin:true}}
 	// +optional
 	Limits *LimitResourceConstraints `json:"limits,omitempty"`
 
-	// +kubebuilder:default:={cpu:{min:"10m", recommendBelowMin:false}, memory:{min:"10Mi", recommendBelowMin:true}}
+	// +kubebuilder:default:={cpu:{min:"10m", recommendBelowMin:false}, memory:{min:"10M", recommendBelowMin:true}}
 	// +optional
 	Requests *RequestResourceConstraints `json:"requests,omitempty"`
 
-	// +kubebuilder:default:={cpu:"100m", memory:"100Mi"}
+	// +kubebuilder:default:={cpu:"100m", memory:"128M"}
 	// +optional
 	Increments *ResizeIncrements `json:"increments,omitempty"`
 
