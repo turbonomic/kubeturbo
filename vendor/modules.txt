@@ -268,7 +268,7 @@ github.com/turbonomic/turbo-go-sdk/pkg/proto
 github.com/turbonomic/turbo-go-sdk/pkg/service
 github.com/turbonomic/turbo-go-sdk/pkg/supplychain
 github.com/turbonomic/turbo-go-sdk/pkg/version
-# github.com/turbonomic/turbo-policy v0.0.0-20230227150618-cce94c7d2742
+# github.com/turbonomic/turbo-policy v0.0.0-20230328195608-0556e3cbe9b3
 ## explicit; go 1.17
 github.com/turbonomic/turbo-policy/api/v1alpha1
 # github.com/xanzy/go-gitlab v0.74.0
