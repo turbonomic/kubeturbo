@@ -28,6 +28,7 @@ func buildContainerVerticalScalePolicy(
 	}
 	// Create a dynamic group and applies settings to the group
 	displayName := fmt.Sprintf("%v [%v]", policyBinding, worker.targetId)
+	glog.V(4).Infof("build container vertical scale policy %v", displayName)
 	return group.
 		StaticRegularGroup(policyBinding.GetUID()).
 		WithDisplayName(displayName).
@@ -41,19 +42,21 @@ func buildContainerVerticalScalePolicy(
 func resolveCVSPolicyTargets(
 	worker *k8sEntityGroupDiscoveryWorker,
 	policyBinding *repository.TurboPolicyBinding) ([]string, error) {
+	pbName := fmt.Sprintf("%v/%v", policyBinding.GetNamespace(), policyBinding.GetName())
 	targets := policyBinding.GetTargets()
+
 	if len(targets) == 0 {
-		return nil, fmt.Errorf("policy target is empty")
+		return nil, fmt.Errorf("policy target is empty for policy binding %v", pbName)
 	}
 
 	var resolvedIds []string
 	for _, target := range targets {
 		namespace := policyBinding.GetNamespace()
-		controllerRegex := target.Name
 
 		// All targets must be container in a workload controller
+		controllerRegex := target.Name
 		if !validWorkloadController(target.Kind) {
-			return nil, fmt.Errorf("target %v/%v is not a workload controller", namespace, controllerRegex)
+			return nil, fmt.Errorf("target %v is not a workload controller for policy binding %v", controllerRegex, pbName)
 		}
 
 		containerRegex := target.Container
@@ -67,21 +70,24 @@ func resolveCVSPolicyTargets(
 			}
 			if matched, err := regexp.MatchString(controllerRegex, value.Name); err == nil && matched {
 				for container := range value.Containers {
+					containerSpecId := util.ContainerSpecIdFunc(value.UID, container)
 					if matched, err := regexp.MatchString(containerRegex, container); err == nil && matched {
-						containerSpecId := util.ContainerSpecIdFunc(value.UID, container)
+						glog.V(4).Infof("resolved container spec Id %v for policy binding %v", containerSpecId, pbName)
 						resolvedIds = append(resolvedIds, containerSpecId)
 					} else if err != nil {
+						glog.V(4).Infof("not able to resolve container spec Id %v for policy binding %v", containerSpecId, pbName)
 						return nil, err
 					}
 				}
 			} else if err != nil {
+				glog.V(4).Infof("not able to resolve workload controller %v for policy binding %v", controllerRegex, pbName)
 				return nil, err
 			}
 		}
 	}
 
 	if len(resolvedIds) == 0 {
-		return nil, fmt.Errorf("failed to resolve container specified the policy targets")
+		return nil, fmt.Errorf("failed to resolve any container specified in the policy targets for policy  binding %v", pbName)
 	}
 
 	return resolvedIds, nil
@@ -93,9 +99,11 @@ func resolveCVSPolicyTargets(
 func createCVSPolicy(
 	worker *k8sEntityGroupDiscoveryWorker,
 	policyBinding *repository.TurboPolicyBinding) (*proto.GroupDTO_SettingPolicy_, error) {
+	pbName := fmt.Sprintf("%v/%v", policyBinding.GetNamespace(), policyBinding.GetName())
+	glog.V(4).Infof("Create container vertical scale policy from policy bind %v", pbName)
 	spec := policyBinding.GetContainerVerticalScaleSpec()
 	if spec == nil {
-		return nil, fmt.Errorf("the ContainerVerticalScaleSpec is nil")
+		return nil, fmt.Errorf("the ContainerVerticalScaleSpec is nil in policy binding %v", pbName)
 	}
 
 	settings := group.NewSettingsBuilder()
@@ -103,14 +111,14 @@ func createCVSPolicy(
 	aggressiveness := spec.Settings.Aggressiveness
 	if aggressiveness != nil {
 		val := PercentileAggressiveness[(string(*aggressiveness))]
-		glog.V(2).Infof("Aggressiveness %f", val)
+		glog.V(4).Infof("Aggressiveness:  %f", val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_AGGRESSIVENESS, val))
 	}
 
 	rateOfResize := spec.Settings.RateOfResize
 	if rateOfResize != nil {
 		val, _ := RateOfResize[(string(*rateOfResize))]
-		glog.V(2).Infof("RateOfResize %f", val)
+		glog.V(4).Infof("RateOfResize:  %f", val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_RATE_OF_RESIZE, val))
 	}
 
@@ -120,7 +128,7 @@ func createCVSPolicy(
 		if err != nil {
 			return nil, err
 		}
-		glog.V(2).Infof("CpuThrottlingTolerance %f", val)
+		glog.V(4).Infof("CpuThrottlingTolerance:  %f", val)
 		settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_VCPU_MAX_THROTTLING_TOLERANCE, val))
 	}
 
@@ -132,7 +140,7 @@ func createCVSPolicy(
 			if err != nil {
 				return nil, err
 			}
-			glog.V(2).Infof("Increments.CPU %f", val)
+			glog.V(4).Infof("Increments.CPU:  %f", val)
 			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VCPU, val))
 		}
 
@@ -142,7 +150,7 @@ func createCVSPolicy(
 			if err != nil {
 				return nil, err
 			}
-			glog.V(2).Infof("Increments.Mem %f", val)
+			glog.V(4).Infof("Increments.Mem:  %f", val)
 			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_INCREMENT_RESIZE_CONSTANT_VMEM, val))
 		}
 	}
@@ -152,14 +160,14 @@ func createCVSPolicy(
 		max := observationPeriod.Max
 		if max != nil {
 			val := MaxObservationPeriod[string(*max)]
-			glog.V(2).Infof("ObservationPeriod.Max %f", val)
+			glog.V(4).Infof("ObservationPeriod.Max:  %f", val)
 			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_MAX_OBSERVATION_PERIOD, val))
 		}
 
 		min := observationPeriod.Min
 		if min != nil {
 			val := MinObservationPeriod[string(*min)]
-			glog.V(2).Infof("ObservationPeriod.Min %f", val)
+			glog.V(4).Infof("ObservationPeriod.Min:  %f", val)
 			settings.AddSetting(group.NewPolicySetting(proto.GroupDTO_Setting_MIN_OBSERVATION_PERIOD, val))
 		}
 	}
@@ -202,6 +210,7 @@ func createCVSPolicy(
 
 	displayName := fmt.Sprintf("TurboPolicy::%v on %v [%v]",
 		policyBinding.GetPolicyType(), policyBinding, worker.targetId)
+	glog.V(4).Infof("Create container vertical scale policy %v", displayName)
 	return group.NewSettingPolicyBuilder().
 		WithDisplayName(displayName).
 		WithName(policyBinding.GetUID()).
