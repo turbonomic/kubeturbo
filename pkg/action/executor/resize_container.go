@@ -224,7 +224,7 @@ func (r *ContainerResizer) Execute(input *TurboActionExecutorInput) (*TurboActio
 		pod,
 		spec,
 		actionItem.GetConsistentScalingCompliance(),
-		r.ormClientManager,
+		r.ormClient,
 		r.gitConfig,
 		r.k8sClusterId,
 	)

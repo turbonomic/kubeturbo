@@ -29,23 +29,23 @@ type TurboActionExecutor interface {
 }
 
 type TurboK8sActionExecutor struct {
-	clusterScraper   *cluster.ClusterScraper
-	cApiClient       *versioned.Clientset
-	podManager       util.IPodManager
-	ormClientManager *resourcemapping.ORMClientManager
-	gitConfig        gitops.GitConfig
-	k8sClusterId     string
+	clusterScraper *cluster.ClusterScraper
+	cApiClient     *versioned.Clientset
+	podManager     util.IPodManager
+	ormClient      *resourcemapping.ORMClientManager
+	gitConfig      gitops.GitConfig
+	k8sClusterId   string
 }
 
 func NewTurboK8sActionExecutor(clusterScraper *cluster.ClusterScraper, cApiClient *versioned.Clientset,
-	podManager util.IPodManager, ormClientManager *resourcemapping.ORMClientManager,
+	podManager util.IPodManager, ormClient *resourcemapping.ORMClientManager,
 	gitConfig gitops.GitConfig, clusterId string) TurboK8sActionExecutor {
 	return TurboK8sActionExecutor{
-		clusterScraper:   clusterScraper,
-		cApiClient:       cApiClient,
-		podManager:       podManager,
-		ormClientManager: ormClientManager,
-		gitConfig:        gitConfig,
-		k8sClusterId:     clusterId,
+		clusterScraper: clusterScraper,
+		cApiClient:     cApiClient,
+		podManager:     podManager,
+		ormClient:      ormClient,
+		gitConfig:      gitConfig,
+		k8sClusterId:   clusterId,
 	}
 }
