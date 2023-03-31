@@ -132,15 +132,13 @@ func (ormClient *ORMv2Client) getOwnerFromORM(orm *devopsv1alpha1.OperatorResour
 		}
 		obj, err = kubernetes.Toolbox.GetResourceWithGVK(orm.Spec.Owner.GroupVersionKind(), objk)
 		if err != nil {
-			fmt.Errorf("failed to find owner %++v", orm.Spec.Owner)
-			return nil, err
+			return nil, fmt.Errorf("failed to find owner %++v", orm.Spec.Owner)
 		}
 	} else {
 		objs, err := kubernetes.Toolbox.GetResourceListWithGVKWithSelector(orm.Spec.Owner.GroupVersionKind(),
 			types.NamespacedName{Namespace: orm.Spec.Owner.Namespace, Name: orm.Spec.Owner.Name}, &orm.Spec.Owner.LabelSelector)
 		if err != nil || len(objs) == 0 {
-			fmt.Errorf("failed to find owner %++v", orm.Spec.Owner)
-			return nil, err
+			return nil, fmt.Errorf("failed to find owner %++v", orm.Spec.Owner)
 		}
 		obj = &objs[0]
 	}
