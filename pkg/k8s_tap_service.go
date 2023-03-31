@@ -226,7 +226,7 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 
 	discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, config.tapSpec.K8sTargetConfig,
 		config.ValidationWorkers, config.ValidationTimeoutSec, config.containerUtilizationDataAggStrategy,
-		config.containerUsageDataAggStrategy, config.ORMClient, config.DiscoveryWorkers, config.DiscoveryTimeoutSec,
+		config.containerUsageDataAggStrategy, config.ORMClientManager, config.DiscoveryWorkers, config.DiscoveryTimeoutSec,
 		config.DiscoverySamples, config.DiscoverySampleIntervalSec, config.ItemsPerListQuery)
 
 	if config.clusterKeyInjected != "" {
@@ -238,7 +238,7 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		glog.Fatalf("Error retrieving the Kubernetes service id: %v", err)
 	}
 	actionHandlerConfig := action.NewActionHandlerConfig(config.CAPINamespace, config.CAClient, config.KubeletClient,
-		probeConfig.ClusterScraper, config.SccSupport, config.ORMClient, config.failVolumePodMoves,
+		probeConfig.ClusterScraper, config.SccSupport, config.ORMClientManager, config.failVolumePodMoves,
 		config.updateQuotaToAllowMoves, config.readinessRetryThreshold, config.gitConfig, k8sSvcId)
 
 	// Kubernetes Probe Discovery Client

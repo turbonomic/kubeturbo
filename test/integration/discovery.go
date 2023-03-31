@@ -12,7 +12,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -92,15 +91,11 @@ var _ = Describe("Discover Cluster", func() {
 			s := app.NewVMTServer()
 			kubeletClient := s.CreateKubeletClientOrDie(kubeConfig, kubeClient, "", "icr.io/cpopen/turbonomic/cpufreqgetter", map[string]set.Set{}, true)
 
-			apiExtClient, err := apiextclient.NewForConfig(kubeConfig)
-			if err != nil {
-				glog.Fatalf("Failed to generate apiExtensions client for kubernetes target: %v", err)
-			}
 			runtimeClient, err := runtimeclient.New(kubeConfig, runtimeclient.Options{})
 			if err != nil {
 				glog.Fatalf("Failed to create controller runtime client: %v.", err)
 			}
-			ormClient := resourcemapping.NewORMClient(dynamicClient, apiExtClient)
+			ormClient := resourcemapping.NewORMClientManager(dynamicClient, kubeConfig)
 			probeConfig := createProbeConfigOrDie(kubeClient, kubeletClient, dynamicClient, runtimeClient)
 
 			discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, nil, app.DefaultValidationWorkers,

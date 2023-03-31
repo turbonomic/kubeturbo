@@ -52,6 +52,7 @@ type ActionHandlerConfig struct {
 	cAPINamespace  string
 	// ormClient provides the capability to update the corresponding CR for an Operator managed resource.
 	ormClient               *resourcemapping.ORMClient
+	ORMClientManager        *resourcemapping.ORMClientManager
 	failVolumePodMoves      bool
 	updateQuotaToAllowMoves bool
 	readinessRetryThreshold int
@@ -60,7 +61,8 @@ type ActionHandlerConfig struct {
 }
 
 func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientset, kubeletClient *kubeletclient.KubeletClient,
-	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient,
+	clusterScraper *cluster.ClusterScraper, sccSupport []string,
+	ORMClientManager *resourcemapping.ORMClientManager,
 	failVolumePodMoves, updateQuotaToAllowMoves bool, readinessRetryThreshold int, gitConfig gitops.GitConfig, clusterId string) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
@@ -75,7 +77,7 @@ func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientse
 		sccAllowedSet:           sccAllowedSet,
 		cAPINamespace:           cApiNamespace,
 		cApiClient:              cApiClient,
-		ormClient:               ormClient,
+		ORMClientManager:        ORMClientManager,
 		failVolumePodMoves:      failVolumePodMoves,
 		updateQuotaToAllowMoves: updateQuotaToAllowMoves,
 		readinessRetryThreshold: readinessRetryThreshold,
@@ -134,7 +136,7 @@ func NewActionHandler(config *ActionHandlerConfig) *ActionHandler {
 func (h *ActionHandler) registerActionExecutors() {
 	c := h.config
 	ae := executor.NewTurboK8sActionExecutor(c.clusterScraper, c.cApiClient, h.podManager,
-		h.config.ormClient, c.gitConfig, c.k8sClusterId)
+		h.config.ORMClientManager, c.gitConfig, c.k8sClusterId)
 
 	reScheduler := executor.NewReScheduler(ae, c.sccAllowedSet, c.failVolumePodMoves,
 		c.updateQuotaToAllowMoves, h.lockMap, c.readinessRetryThreshold)

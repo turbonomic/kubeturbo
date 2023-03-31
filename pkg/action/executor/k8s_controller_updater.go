@@ -41,7 +41,7 @@ type controllerSpec struct {
 
 // newK8sControllerUpdaterViaPod returns a k8sControllerUpdater based on the parent kind of a pod
 func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
-	ormClient *resourcemapping.ORMClient, gitConfig gitops.GitConfig, clusterId string) (*k8sControllerUpdater, error) {
+	ormClientManager *resourcemapping.ORMClientManager, gitConfig gitops.GitConfig, clusterId string) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
 	ownerInfo, _, _, err := clusterScraper.GetPodControllerInfo(pod, true)
 	if err != nil {
@@ -56,12 +56,13 @@ func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *
 	// Copy that data on to the pod also to ensure we can rightly identify if this pods parent is managed
 	// by a specific argoCD app. (or find a better way of doing this)
 	// As of now scale up and down actions wont work with argoCD.
-	return newK8sControllerUpdater(clusterScraper, ormClient, ownerInfo.Kind, ownerInfo.Name,
+	return newK8sControllerUpdater(clusterScraper, ormClientManager, ownerInfo.Kind, ownerInfo.Name,
 		pod.Name, pod.Namespace, clusterId, nil, gitConfig)
 }
 
 // newK8sControllerUpdater returns a k8sControllerUpdater based on the controller kind
-func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient, kind,
+func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper,
+	ormClientManager *resourcemapping.ORMClientManager, kind,
 	controllerName, podName, namespace, clusterId string, managerApp *repository.K8sApp, gitConfig gitops.GitConfig) (*k8sControllerUpdater, error) {
 	res, err := GetSupportedResUsingKind(kind, namespace, controllerName)
 	if err != nil {
@@ -75,7 +76,7 @@ func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper, ormClient *
 				dynNamespacedClient: clusterScraper.DynamicClient.Resource(res).Namespace(namespace),
 			},
 			name:                  kind,
-			ormClient:             ormClient,
+			ormClientManager:      ormClientManager,
 			managerApp:            managerApp,
 			gitConfig:             gitConfig,
 			k8sClusterId:          clusterId,

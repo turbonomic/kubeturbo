@@ -60,6 +60,7 @@ type parentController struct {
 	obj                   *unstructured.Unstructured
 	name                  string
 	ormClient             *resourcemapping.ORMClient
+	ormClientManager      *resourcemapping.ORMClientManager
 	managerApp            *repository.K8sApp
 	gitConfig             gitops.GitConfig
 	k8sClusterId          string
@@ -154,7 +155,8 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		if c.ormClient == nil {
 			return fmt.Errorf("failed to execute action with nil ORMClient")
 		}
-		err = c.ormClient.Update(origControllerObj, c.obj, ownerInfo)
+		//err = c.ormClient.Update(origControllerObj, c.obj, ownerInfo)
+		err = c.ormClientManager.Update(origControllerObj, c.obj, ownerInfo)
 	} else {
 		_, err = c.clients.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
 		if utilfeature.DefaultFeatureGate.Enabled(features.AllowIncreaseNsQuota4Resizing) {

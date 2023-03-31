@@ -152,7 +152,9 @@ func (ormClient *ORMClient) getORMCRList() ([]unstructured.Unstructured, error) 
 }
 
 func (ormClient *ORMClient) getOperatorCRsFromCRD(crdName, namespace string) ([]unstructured.Unstructured, schema.GroupVersionResource, bool, error) {
-	crds := ormClient.apiExtClient.CustomResourceDefinitions()
+	// First get the Operator CRD
+	crds := ormClient.apiExtClient.CustomResourceDefinitions() //RESTClient is used to communicate
+	// with API server by this client implementation.
 	crd, err := crds.Get(context.TODO(), crdName, metav1.GetOptions{})
 	var isClusterScope bool
 	if err != nil {
@@ -163,6 +165,8 @@ func (ormClient *ORMClient) getOperatorCRsFromCRD(crdName, namespace string) ([]
 		Version:  crd.Spec.Versions[0].Name,
 		Resource: crd.Spec.Names.Plural,
 	}
+
+	// Next get the CRs
 	var crs *unstructured.UnstructuredList
 	if crd.Spec.Scope == apix.NamespaceScoped {
 		crs, err = ormClient.dynClient.Resource(groupVersionRes).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
@@ -238,8 +242,8 @@ func (ormClient *ORMClient) populateORMTemplateMap(ormCR unstructured.Unstructur
 //
 // controllerOwnerReference -- ownerReference of a K8s controller, which contains metadata of a Operator CR
 func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unstructured.Unstructured, controllerOwnerReference discoveryutil.OwnerInfo) error {
-	operatorCRUID := string(controllerOwnerReference.Uid)
-	componentKey := updatedControllerObj.GetKind() + "/" + updatedControllerObj.GetName()
+	operatorCRUID := string(controllerOwnerReference.Uid)                                 // owner is considered as operator
+	componentKey := updatedControllerObj.GetKind() + "/" + updatedControllerObj.GetName() // source or owned resource
 	ormClient.cacheLock.Lock()
 	defer ormClient.cacheLock.Unlock()
 	operatorResourceSpec, exists := ormClient.operatorResourceSpecMap[operatorCRUID]
@@ -251,7 +255,7 @@ func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unst
 		return fmt.Errorf("ormTemplate not found in ormTemplateMap for componentKey %s for operatorCR %s", componentKey, operatorCRUID)
 	}
 
-	operatorResKind := controllerOwnerReference.Kind
+	operatorResKind := controllerOwnerReference.Kind //operator kind and instance
 	operatorResName := controllerOwnerReference.Name
 	operatorRes := operatorResKind + "/" + operatorResName
 

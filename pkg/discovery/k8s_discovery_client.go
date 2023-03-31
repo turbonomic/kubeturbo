@@ -36,7 +36,7 @@ const (
 )
 
 type DiscoveryClientConfig struct {
-	probeConfig                *configs.ProbeConfig
+	probeConfig                *configs.ProbeConfig //contains the k8s resources clients
 	targetConfig               *configs.K8sTargetConfig
 	ValidationWorkers          int
 	ValidationTimeoutSec       int
@@ -51,7 +51,7 @@ type DiscoveryClientConfig struct {
 	containerUsageDataAggStrategy string
 	// ORMClient builds operator resource mapping templates fetched from OperatorResourceMapping CR so that action
 	// execution client will be able to execute action on operator-managed resources based on resource mapping templates.
-	OrmClient *resourcemapping.ORMClient
+	ORMClientManager *resourcemapping.ORMClientManager
 	// Number of workload controller items the list api call should request for
 	itemsPerListQuery int
 	// VCPU Throttling threshold
@@ -61,7 +61,7 @@ type DiscoveryClientConfig struct {
 func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 	targetConfig *configs.K8sTargetConfig, ValidationWorkers int,
 	ValidationTimeoutSec int, containerUtilizationDataAggStrategy,
-	containerUsageDataAggStrategy string, ormClient *resourcemapping.ORMClient,
+	containerUsageDataAggStrategy string, ormClientManager *resourcemapping.ORMClientManager,
 	discoveryWorkers, discoveryTimeoutMin, discoverySamples,
 	discoverySampleIntervalSec, itemsPerListQuery int) *DiscoveryClientConfig {
 	if discoveryWorkers < minDiscoveryWorker {
@@ -88,7 +88,7 @@ func NewDiscoveryConfig(probeConfig *configs.ProbeConfig,
 		ValidationTimeoutSec:                ValidationTimeoutSec,
 		containerUtilizationDataAggStrategy: containerUtilizationDataAggStrategy,
 		containerUsageDataAggStrategy:       containerUsageDataAggStrategy,
-		OrmClient:                           ormClient,
+		ORMClientManager:                    ormClientManager,
 		DiscoveryWorkers:                    discoveryWorkers,
 		DiscoveryTimeoutSec:                 discoveryTimeoutMin,
 		DiscoverySamples:                    discoverySamples,
@@ -337,11 +337,8 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 		glog.V(2).Infof("Ignoring affinities.")
 	}
 
-	// Cache operatorResourceSpecMap in ormClient
-	numCRs := dc.Config.OrmClient.CacheORMSpecMap()
-	if numCRs > 0 {
-		glog.Infof("Discovered %v Operator managed Custom Resources in cluster %s.", numCRs, targetID)
-	}
+	// ORM Discovery
+	dc.Config.ORMClientManager.DiscoverORMs()
 
 	// Multiple discovery workers to create node and pod DTOs
 	nodes := clusterSummary.Nodes
