@@ -80,7 +80,6 @@ func (ormClient *ORMv2Client) registerAllORMs(orms []v1alpha1.OperatorResourceMa
 					orm.Namespace, orm.Name, e)
 				continue
 			}
-			//glog.V(2).Infof("Registered orm v2 %v:%v", orm.Namespace, orm.Name)
 		}
 	}
 	return

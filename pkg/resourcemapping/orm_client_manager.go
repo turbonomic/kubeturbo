@@ -44,7 +44,6 @@ func NewORMClientManager(dynamicClient dynamic.Interface, kubeConfig *restclient
 
 // Discover and cache ORMs v1 and v2.
 func (manager *ORMClientManager) DiscoverORMs() {
-	glog.Infof("START DiscoverORMs")
 	// ORM v1 are saved as a map in ORMClient
 	manager.CacheORMSpecMap()
 	numV1CRs := manager.CacheORMSpecMap()
@@ -57,5 +56,4 @@ func (manager *ORMClientManager) DiscoverORMs() {
 	if numV2CRs > 0 {
 		glog.Infof("Discovered %v v2 ORM Resources.", numV2CRs)
 	}
-	glog.Infof("END DiscoverORMs")
 }
