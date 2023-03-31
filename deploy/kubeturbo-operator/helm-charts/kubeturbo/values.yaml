@@ -9,8 +9,20 @@ image:
   repository: icr.io/cpopen/turbonomic/kubeturbo
   tag: VERSION
   pullPolicy: IfNotPresent
-#  busyboxRepository: busybox
+
+##imagePullSecret is used as one pull credential which ideally should work for both
+##main kubeturbo image repository and busybox and/or cpufreqgetter repositories
+
 #  imagePullSecret: ""
+
+##We now use our self managed cpufreqgetter image to get node cpufrequencies, by default
+##busyboxRepository is still kept around for backward compatibility for envs which might not want
+##to change their operator/helm configurations. If both busyboxRepository and cpufreqgetterRepository
+##are configured, cpufreqgetterRepository takes precedence
+
+#  busyboxRepository: busybox
+#  cpufreqgetterRepository: icr.io/cpopen/turbonomic/cpufreqgetter
+
 
 annotations:
   kubeturbo.io/controllable: "false"
@@ -95,5 +107,17 @@ args:
   pre16k8sVersion: false
   # cleanup the resources for scc impersonation by deault
   cleanupSccImpersonationResources: true
+  # required for OCP cluster
+  # sccsupport: "*"
+  # [ArgoCD integration] The email to be used to push changes to git.
+  # gitEmail: ""
+  # [ArgoCD integration] The username to be used to push changes to git.
+  # gitUsername: ""
+  # [ArgoCD integration] The name of the secret which holds the git credentials.
+  # gitSecretName: ""
+  # [ArgoCD integration] The namespace of the secret which holds the git credentials.
+  # gitSecretNamespace: ""
+  # [ArgoCD integration] The commit mode that should be used for git action executions. One of {request|direct}. Defaults to direct.
+  # gitCommitMode: ""
 
 resources: {}

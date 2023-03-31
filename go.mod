@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/golang/glog v1.0.0
-	github.com/google/cadvisor v0.43.0
+	github.com/google/cadvisor v0.43.1
 	github.com/mitchellh/hashstructure v0.0.0-20170609045927-2bca23e0e452
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.24.1
@@ -18,10 +18,11 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3
 	github.com/turbonomic/turbo-go-sdk v0.0.0-20230307040640-43e100c457e6
-	github.com/turbonomic/turbo-policy v0.0.0-20230227150618-cce94c7d2742
+	github.com/turbonomic/turbo-policy v0.0.0-20230328195608-0556e3cbe9b3
 	github.com/xanzy/go-gitlab v0.74.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/klog/v2 v2.80.1
+	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
 )
 
 require github.com/turbonomic/orm v0.0.0-20230330135717-420692069dc1
@@ -74,8 +75,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
-	k8s.io/kubernetes v1.23.1 // indirect
-	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448 // indirect
+	k8s.io/kubernetes v1.23.14 // indirect
 	sigs.k8s.io/cluster-api-provider-aws v0.0.0-00010101000000-000000000000 // indirect
 	sigs.k8s.io/cluster-api-provider-azure v0.0.0-00010101000000-000000000000 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect

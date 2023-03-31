@@ -97,7 +97,7 @@ func NewNamespaceLister(client *client.Clientset, clusterSummary *repository.Clu
 
 		//	return
 		// TODO
-		return nil, fmt.Errorf("failed to sync")
+		return nil, fmt.Errorf("failed to sync lister cache while processing podaffinities")
 	}
 
 	return nsInformer.Lister(), nil

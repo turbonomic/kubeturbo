@@ -35,8 +35,8 @@ data:
                 "turboServer": "https://<Turbo_server_URL>"
             },
             "restAPIConfig": {
-                "opsManagerUserName": "<Turbo_username>",
-                "opsManagerPassword": "<Turbo_password>"
+                "opsManagerUserName": "<Turbo_username_plaintext>",
+                "opsManagerPassword": "<Turbo_password_plaintext>"
             }
         },
         "targetConfig": {

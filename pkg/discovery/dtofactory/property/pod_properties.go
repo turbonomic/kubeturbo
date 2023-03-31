@@ -2,6 +2,7 @@ package property
 
 import (
 	"fmt"
+	"strconv"
 
 	api "k8s.io/api/core/v1"
 
@@ -65,6 +66,11 @@ func BuildPodProperties(pod *api.Pod) []*proto.EntityDTO_EntityProperty {
 				tagNamePropertyValue += " " + toleration.Value
 			}
 		}
+
+		if toleration.TolerationSeconds != nil {
+			tagNamePropertyValue += " for " + strconv.FormatInt(*toleration.TolerationSeconds, 10) + "s"
+		}
+
 		tagProperty := &proto.EntityDTO_EntityProperty{
 			Namespace: &tagsPropertyNamespace,
 			Name:      &tagNamePropertyName,
