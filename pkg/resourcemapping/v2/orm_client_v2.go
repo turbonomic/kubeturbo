@@ -12,7 +12,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	restclient "k8s.io/client-go/rest"
@@ -69,81 +68,42 @@ func (ormClient *ORMv2Client) RegisterORMs() int {
 	return len(ormList.Items)
 }
 
-// Used for unit testing
 func (ormClient *ORMv2Client) registerAllORMs(orms []v1alpha1.OperatorResourceMapping) {
+	var registeredCnt int8
 	for _, orm := range orms {
 		if &orm != nil {
-			glog.V(2).Infof("****** ORM %v:%v", orm.Namespace, orm.Name)
 			e := ormClient.registerORMWithStatus(&orm)
 			if e != nil {
 				glog.Errorf("Unable to register v2 orm %v/%v due to error: %v.",
 					orm.Namespace, orm.Name, e)
 				continue
 			}
+			registeredCnt++
+			glog.V(2).Infof("Registered ORM %v:%v", orm.Namespace, orm.Name)
 		}
 	}
+	glog.V(2).Infof("Found %v orms, registered %v", len(orms), registeredCnt)
 	return
 }
 
 // Register ORM and update the status with the parsed owner and owned paths
 func (ormClient *ORMv2Client) registerORMWithStatus(orm *devopsv1alpha1.OperatorResourceMapping) error {
 	var err error
-
+	var ownerObj *unstructured.Unstructured
 	// Register ORM if owner exists
-	err = ormClient.ValidateAndRegisterORM(orm)
+	_, ownerObj, err = ormClient.ValidateAndRegisterORM(orm)
 	if err != nil {
 		return err
 	}
 	glog.V(3).Infof("Registered orm %v:%v", orm.Namespace, orm.Name)
 
-	var ownerObj *unstructured.Unstructured
-	ownerObj, err = ormClient.getOwnerFromORM(orm)
-	if err != nil {
-		glog.Infof("Cannot update orm status, %++v", err)
-		return err
-	}
-
 	if ownerObj == nil {
-		glog.Infof("Cannot update orm status, null owner")
+		glog.Warningf("Cannot update orm status, null owner")
 		return fmt.Errorf("Cannot update orm status, null owner")
 	}
 
+	// Set the state of the ORM with the list of owner resource paths and the current resource values
 	ormClient.SetORMStatusForOwner(ownerObj, orm)
 
 	return err
-}
-
-func (ormClient *ORMv2Client) getOwnerFromORM(orm *devopsv1alpha1.OperatorResourceMapping) (*unstructured.Unstructured, error) {
-	var err error
-	if orm == nil {
-		return nil, nil
-	}
-
-	// get owner
-	var obj *unstructured.Unstructured
-	if orm.Spec.Owner.Name != "" {
-		objk := types.NamespacedName{
-			Namespace: orm.Spec.Owner.Namespace,
-			Name:      orm.Spec.Owner.Name,
-		}
-		if objk.Namespace == "" {
-			objk.Namespace = orm.Namespace
-		}
-		obj, err = kubernetes.Toolbox.GetResourceWithGVK(orm.Spec.Owner.GroupVersionKind(), objk)
-		if err != nil {
-			return nil, fmt.Errorf("failed to find owner %++v", orm.Spec.Owner)
-		}
-	} else {
-		objs, err := kubernetes.Toolbox.GetResourceListWithGVKWithSelector(orm.Spec.Owner.GroupVersionKind(),
-			types.NamespacedName{Namespace: orm.Spec.Owner.Namespace, Name: orm.Spec.Owner.Name}, &orm.Spec.Owner.LabelSelector)
-		if err != nil || len(objs) == 0 {
-			return nil, fmt.Errorf("failed to find owner %++v", orm.Spec.Owner)
-		}
-		obj = &objs[0]
-	}
-
-	orm.Spec.Owner.Name = obj.GetName()
-	orm.Spec.Owner.Namespace = obj.GetNamespace()
-
-	return obj, nil
 }

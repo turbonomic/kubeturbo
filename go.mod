@@ -16,16 +16,14 @@ require (
 	github.com/prometheus/client_golang v1.14.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
+	github.com/turbonomic/orm v0.0.0-20230404121747-51bdc0508232
 	github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3
 	github.com/turbonomic/turbo-go-sdk v0.0.0-20230307040640-43e100c457e6
 	github.com/turbonomic/turbo-policy v0.0.0-20230328195608-0556e3cbe9b3
 	github.com/xanzy/go-gitlab v0.74.0
-	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/klog/v2 v2.80.1
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
 )
-
-require github.com/turbonomic/orm v0.0.0-20230330135717-420692069dc1
 
 require (
 	github.com/avast/retry-go v3.0.0+incompatible // indirect
@@ -74,6 +72,7 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
 	k8s.io/kubernetes v1.23.14 // indirect
 	sigs.k8s.io/cluster-api-provider-aws v0.0.0-00010101000000-000000000000 // indirect

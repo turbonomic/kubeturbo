@@ -869,8 +869,8 @@ github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635/go.mod h1:hkRG
 github.com/tmc/grpc-websocket-proxy v0.0.0-20170815181823-89b8d40f7ca8/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
-github.com/turbonomic/orm v0.0.0-20230330135717-420692069dc1 h1:vn77waOjs2AOou7Ruf58y9pYqm9c/Eu31y5t7WQsAP8=
-github.com/turbonomic/orm v0.0.0-20230330135717-420692069dc1/go.mod h1:59pNzaqkfqn9+n4NGbhld5hIc0oM4ngel+JXX6qwgX4=
+github.com/turbonomic/orm v0.0.0-20230404121747-51bdc0508232 h1:1kcrFj+0gpyhxPnHku46IXR2iA/10OZhN8vHslxKH10=
+github.com/turbonomic/orm v0.0.0-20230404121747-51bdc0508232/go.mod h1:59pNzaqkfqn9+n4NGbhld5hIc0oM4ngel+JXX6qwgX4=
 github.com/turbonomic/turbo-api v0.0.0-20221010220448-3f35ebf030aa h1:x7AkF/BAbvyJWeUd69UGqGIU96Izlz9oy9rpvsonqVI=
 github.com/turbonomic/turbo-api v0.0.0-20221010220448-3f35ebf030aa/go.mod h1:L3eNZzTD3Iw8GV+cfeJD/lfDaEGPbZZGQrtml71yG10=
 github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3 h1:R/3tmGlz0R2NakwJqoigcMNYN0jTYYXz1ngTFs0nD9M=

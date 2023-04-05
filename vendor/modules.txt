@@ -251,7 +251,7 @@ github.com/spf13/pflag
 ## explicit; go 1.13
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
-# github.com/turbonomic/orm v0.0.0-20230330135717-420692069dc1
+# github.com/turbonomic/orm v0.0.0-20230404121747-51bdc0508232
 ## explicit; go 1.20
 github.com/turbonomic/orm/api/v1alpha1
 github.com/turbonomic/orm/kubernetes
