@@ -65,3 +65,12 @@ fmtcheck:
 .PHONY: vet
 vet:
 	@go vet $(shell $(PACKAGES))
+
+PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
+REPO_NAME ?= icr.io/cpopen/turbonomic
+.PHONY: docker-buildx
+docker-buildx:
+	docker buildx create --name kubeturbo-builder
+	- docker buildx use kubeturbo-builder
+	- docker buildx build --platform=$(PLATFORMS) --push --tag $(REPO_NAME)/kubeturbo:$(VERSION) -f build/Dockerfile.multi-archs --build-arg version=$(VERSION) .
+	docker buildx rm kubeturbo-builder
