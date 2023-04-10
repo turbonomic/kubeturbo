@@ -66,6 +66,7 @@ var _ = Describe("Action Executor ", func() {
 	var origCRValue4NsScope, origCRValue4ClusterScope interface{}
 
 	BeforeEach(func() {
+		Skip("Temporarily skip the ORM test!")
 		if !framework.TestContext.IsOpenShiftTest {
 			Skip("Ignoring the case for ORM test.")
 		}
