@@ -181,3 +181,12 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
+PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
+REPO_NAME ?= icr.io/cpopen
+.PHONY: docker-buildx
+docker-buildx:
+	docker buildx create --name kubeturbo-operator-builder
+	- docker buildx use kubeturbo-operator-builder
+	- docker buildx build --platform=$(PLATFORMS) --push --tag $(REPO_NAME)/kubeturbo-operator:$(VERSION) --build-arg VERSION=$(VERSION) .
+	docker buildx rm kubeturbo-operator-builder
