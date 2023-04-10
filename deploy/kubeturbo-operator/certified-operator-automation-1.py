@@ -149,7 +149,7 @@ with open(yaml_file_path, 'w') as f:
 print(f'{operator_name}-annotations.yaml file updated.')
 
 
-# Commit and push changes to the repository
+# Commit and push changes to the turbodeploy repository
 repo = git.Repo(local_repo_path)
 repo.git.checkout('-b', f'{operator_name}-certified-{operator_release_version}')
 repo.git.add('.')
