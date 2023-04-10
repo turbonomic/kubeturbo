@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	devopsv1alpha1 "github.com/turbonomic/orm/api/v1alpha1"
 	"reflect"
 	"regexp"
 	"strings"
@@ -43,14 +44,14 @@ type ORMTemplate struct {
 	// Name of a K8s resource (controller) to which we srcPath to update data
 	componentName string
 	// Slice of resourceMappingTemplates defined in ORM CR
-	resourceMappingTemplates []map[string]interface{}
+	resourceMappingTemplates []map[string]interface{} //key -> source?
 }
 
 // ORMSpec defines the spec data which are used to update a corresponding Operator managed CR in action execution client.
 type ORMSpec struct {
 	operatorGVResource schema.GroupVersionResource
 	// Map from componentKey ("controllerKind/componentName") to ORMTemplate
-	ormTemplateMap map[string]ORMTemplate
+	ormTemplateMap map[string]ORMTemplate // source/owned kind/name -> path mappings
 	// Is cluster scope or namespace scope
 	isClusterScope bool
 }
@@ -62,7 +63,7 @@ type ORMClient struct {
 	dynClient    dynamic.Interface
 	apiExtClient *apiextclient.ApiextensionsV1Client
 	// Cached map data from Operator-managed CustomResource UID to ORMSpec. The cached data is updated each discovery.
-	operatorResourceSpecMap map[string]*ORMSpec
+	operatorResourceSpecMap map[string]*ORMSpec //key is owner UID
 }
 
 func NewORMClient(dynamicClient dynamic.Interface, apiExtClient *apiextclient.ApiextensionsV1Client) *ORMClient {
@@ -234,6 +235,91 @@ func (ormClient *ORMClient) populateORMTemplateMap(ormCR unstructured.Unstructur
 	return ormTemplateMap, nil
 }
 
+func (ormClient *ORMClient) retrieveORM(ownedObj *unstructured.Unstructured, ownerReference discoveryutil.OwnerInfo) (*ORMSpec, *unstructured.Unstructured, error) {
+	operatorCRUID := string(ownerReference.Uid)               // owner is considered as operator
+	ownedKey := ownedObj.GetKind() + "/" + ownedObj.GetName() // source or owned resource
+
+	operatorResourceSpec, exists := ormClient.operatorResourceSpecMap[operatorCRUID] //orm for the operator/owner
+	if !exists {
+		return nil, nil, fmt.Errorf("operatorResourceSpec not found in operatorResourceSpecMap for operatorCR %s", operatorCRUID)
+	}
+
+	operatorResKind := ownerReference.Kind //operator kind and instance
+	operatorResName := ownerReference.Name
+	operatorRes := operatorResKind + "/" + operatorResName
+
+	resourceNamespace := ownedObj.GetNamespace() //same namespace as the source/owned
+	if operatorResourceSpec.isClusterScope {
+		resourceNamespace = v1.NamespaceAll
+	}
+	dynResourceClient := ormClient.dynClient.Resource(operatorResourceSpec.operatorGVResource).Namespace(resourceNamespace)
+	operatorCR, err := dynResourceClient.Get(context.TODO(), operatorResName, metav1.GetOptions{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get CR %s for %s in namespace %s: %v",
+			operatorRes, ownedKey, resourceNamespace, err)
+	}
+
+	return operatorResourceSpec, operatorCR, nil
+}
+
+func (ormClient *ORMClient) LocateOwnerPaths(ownedObj *unstructured.Unstructured, ownerReference discoveryutil.OwnerInfo, owned []*devopsv1alpha1.ResourcePath) (map[string][]devopsv1alpha1.ResourcePath, error) {
+	var allOwnerResourcePaths map[string][]devopsv1alpha1.ResourcePath
+	orm, ownerObj, err := ormClient.retrieveORM(ownedObj, ownerReference)
+	if err != nil {
+		return allOwnerResourcePaths, err
+	}
+	if orm == nil {
+		return allOwnerResourcePaths, fmt.Errorf("CANNOT FIND ORM V1 for source: %s:%s\", owned.Namespace, owned.Name")
+	}
+	if orm == nil || ownerObj == nil {
+		return allOwnerResourcePaths, fmt.Errorf("CANNOT FIND owner for source: %s:%s\", owned.Namespace, owned.Name")
+	}
+
+	ownedKey := ownedObj.GetKind() + "/" + ownedObj.GetName() // source or owned resource
+
+	var ownerRef v1.ObjectReference
+	ownerRef = v1.ObjectReference{
+		Kind:       ownerObj.GetKind(),
+		Namespace:  ownerObj.GetNamespace(),
+		Name:       ownerObj.GetName(),
+		APIVersion: ownerObj.GetAPIVersion(),
+	}
+
+	ormTemplate, exists := orm.ormTemplateMap[ownedKey] //path mappings for the source
+	if !exists {
+		return nil, fmt.Errorf("ormTemplate not found in ormTemplateMap for componentKey %s for operatorCR %s",
+			ownedKey, ownerObj.GetUID())
+	}
+
+	operatorRes := ownerObj.GetKind() + "/" + ownerObj.GetName()
+	resourceNamespace := ownedObj.GetNamespace()
+
+	owners := map[string][]devopsv1alpha1.ResourcePath{}
+	// Update based on each resourceMappingTemplate
+	for _, sourceResPath := range owned {
+		sp := sourceResPath.Path
+		for _, resourceMappingTemplate := range ormTemplate.resourceMappingTemplates {
+			// Set resourceMappingComponentName to resourceMappingTemplate
+			// so as to parse the srcPath and destPath based on text template
+			resourceMappingTemplate[resourceMappingComponentName] = ormTemplate.componentName
+			srcPath, destPath, err := ormClient.parseSrcAndDestPath(resourceMappingTemplate)
+			if err != nil {
+				return nil, fmt.Errorf("failed to update CR %s for %s in namespace %s: %v",
+					operatorRes, ownedKey, resourceNamespace, err)
+			}
+			if srcPath == sp {
+				owner := &devopsv1alpha1.ResourcePath{
+					ownerRef,
+					destPath,
+				}
+				owners[sp] = []devopsv1alpha1.ResourcePath{*owner}
+			}
+		}
+	}
+
+	return owners, nil
+}
+
 // Update updates the corresponding CR for an Operator manged resource based on OperatorResourceMapping
 // origControllerObj -- original K8s controller object
 // updatedControllerObj -- updated K8s controller object based on Turbo actionItem, from which the resource value is fetched
@@ -246,6 +332,10 @@ func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unst
 	componentKey := updatedControllerObj.GetKind() + "/" + updatedControllerObj.GetName() // source or owned resource
 	ormClient.cacheLock.Lock()
 	defer ormClient.cacheLock.Unlock()
+	glog.Infof("Update owner %s/%s resources found using orm v1 for source %/%s",
+		controllerOwnerReference.Kind, controllerOwnerReference.Name,
+		updatedControllerObj.GetKind(), updatedControllerObj.GetName())
+
 	operatorResourceSpec, exists := ormClient.operatorResourceSpecMap[operatorCRUID]
 	if !exists {
 		return fmt.Errorf("operatorResourceSpec not found in operatorResourceSpecMap for operatorCR %s", operatorCRUID)
@@ -336,7 +426,7 @@ func (ormClient *ORMClient) parseSrcAndDestPath(resourceMappingTemplate map[stri
 }
 
 func (ormClient *ORMClient) parsePath(resourceMappingTemplate map[string]interface{}, pathType string) (string, error) {
-	path, exists := resourceMappingTemplate[pathType]
+	path, exists := resourceMappingTemplate[pathType] //interface type
 	if !exists {
 		return "", fmt.Errorf("%s does not exist in resourceMappingTemplate", pathType)
 	}
