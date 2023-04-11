@@ -1,0 +1,13 @@
+# This yaml is used for automation script of certified operator release
+#local repo path to specify where the project has to clone to update the files
+LOCAL_REPO_PATH:
+#operator name - kubeturbo or prometurbo
+OPERATOR_NAME:
+#operator version to release
+OPERATOR_RELEASE_VERSION:
+#operator version to replace in csv
+OPERATOR_REPLACE_VERSION:
+#operator release version to copy from to create a operator release version directory
+OPERATOR_DIR_COPY:
+# git access token
+ACCESS_TOKEN:
