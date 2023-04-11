@@ -31,7 +31,7 @@ type Config struct {
 	CAClient      *versioned.Clientset
 	// ORMClient builds operator resource mapping templates fetched from OperatorResourceMapping CR in discovery client
 	// and provides the capability to update the corresponding CR for an Operator managed resource in action execution client.
-	ORMClient *resourcemapping.ORMClient
+	ORMClientManager *resourcemapping.ORMClientManager
 	// Controller Runtime Client
 	ControllerRuntimeClient runtimeclient.Client
 	// Close this to stop all reflectors
@@ -103,8 +103,8 @@ func (c *Config) WithKubeletClient(client *kubeletclient.KubeletClient) *Config 
 	return c
 }
 
-func (c *Config) WithORMClient(client *resourcemapping.ORMClient) *Config {
-	c.ORMClient = client
+func (c *Config) WithORMClientManager(client *resourcemapping.ORMClientManager) *Config {
+	c.ORMClientManager = client
 	return c
 }
 

@@ -59,7 +59,7 @@ type parentController struct {
 	clients               kubeClients
 	obj                   *unstructured.Unstructured
 	name                  string
-	ormClient             *resourcemapping.ORMClient
+	ormClient             *resourcemapping.ORMClientManager
 	managerApp            *repository.K8sApp
 	gitConfig             gitops.GitConfig
 	k8sClusterId          string

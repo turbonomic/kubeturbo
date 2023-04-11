@@ -213,7 +213,7 @@ func (r *WorkloadControllerResizer) getWorkloadControllerSpec(parentKind, namesp
 	return &podSpec, replicas, isOwnerSet, nil
 }
 
-func resizeWorkloadController(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient,
+func resizeWorkloadController(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClientManager,
 	kind, controllerName, namespace, clusterId string, specs []*containerResizeSpec, managerApp *repository.K8sApp,
 	gitConfig gitops.GitConfig) error {
 	// prepare controllerUpdater
