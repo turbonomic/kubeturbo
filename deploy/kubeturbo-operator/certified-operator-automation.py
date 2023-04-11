@@ -31,7 +31,7 @@ if local_repo_path is None:
     local_repo_path = input('Enter local repository path: ')
 
 if operator_name is None:
-   operator_name = input('Enter the name of certified operator to release (kubeturbo or prometurbo):')
+   operator_name = input('Enter the name of certified operator to release (kubeturbo or prometurbo): ')
 
 if operator_release_version is None:
    operator_release_version = input(f'Enter the version of the {operator_name} certified operator to release: ')
@@ -100,7 +100,7 @@ def create_certified_operator_release_files():
         raise ValueError('Invalid operator version format. It allows the format of X.Y.Z,or X.Y.Z-beta.N where X, Y, Zand N are digits.')
  os.chdir(operator_dir_path)
  if os.path.exists(operator_release_version):
-    raise ValueError('The version entered already exists, cannot release a duplicate version')    
+    raise ValueError('The version entered already exists, cannot release a duplicate version.')    
  os.mkdir(operator_release_version)
  print(f'{operator_name} operator version {operator_release_version} directory created successfully.')
 # Copy files form user input operator version into new operator version folder
@@ -124,7 +124,7 @@ def get_operator_image_digest():
   icr_repo = prometurbo_operator
 #If other then kubeturbo or prometurbo    
  else:
-    raise ValueError(f'{operator_name} digest entered is invalid')
+    raise ValueError(f'{operator_name} digest entered is invalid.')
 #To get icr tag version based on the operator release version
 #strip of the part from beta in the version to query icr
  if re.search(operator_version_for_beta_pattern, operator_release_version):
@@ -140,7 +140,7 @@ def get_operator_image_digest():
  if match:
   digest = match.group(1)
  else:
-  raise ValueError(f'No matching digest key found for {operator_name} operator')
+  raise ValueError(f'No matching digest key found for {operator_name} operator.')
  return digest  
 
 # Update the image digest key pulled from icr into operator csv
