@@ -41,7 +41,7 @@ type controllerSpec struct {
 
 // newK8sControllerUpdaterViaPod returns a k8sControllerUpdater based on the parent kind of a pod
 func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
-	ormClient *resourcemapping.ORMClient, gitConfig gitops.GitConfig, clusterId string) (*k8sControllerUpdater, error) {
+	ormClient *resourcemapping.ORMClientManager, gitConfig gitops.GitConfig, clusterId string) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
 	ownerInfo, _, _, err := clusterScraper.GetPodControllerInfo(pod, true)
 	if err != nil {
@@ -61,12 +61,14 @@ func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *
 }
 
 // newK8sControllerUpdater returns a k8sControllerUpdater based on the controller kind
-func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper, ormClient *resourcemapping.ORMClient, kind,
+func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper,
+	ormClient *resourcemapping.ORMClientManager, kind,
 	controllerName, podName, namespace, clusterId string, managerApp *repository.K8sApp, gitConfig gitops.GitConfig) (*k8sControllerUpdater, error) {
 	res, err := GetSupportedResUsingKind(kind, namespace, controllerName)
 	if err != nil {
 		return nil, err
 	}
+
 	return &k8sControllerUpdater{
 		controller: &parentController{
 			clients: kubeClients{

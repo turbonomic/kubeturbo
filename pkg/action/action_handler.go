@@ -51,7 +51,7 @@ type ActionHandlerConfig struct {
 	sccAllowedSet  map[string]struct{}
 	cAPINamespace  string
 	// ormClient provides the capability to update the corresponding CR for an Operator managed resource.
-	ormClient               *resourcemapping.ORMClient
+	ormClient               *resourcemapping.ORMClientManager
 	failVolumePodMoves      bool
 	updateQuotaToAllowMoves bool
 	readinessRetryThreshold int
@@ -60,7 +60,8 @@ type ActionHandlerConfig struct {
 }
 
 func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientset, kubeletClient *kubeletclient.KubeletClient,
-	clusterScraper *cluster.ClusterScraper, sccSupport []string, ormClient *resourcemapping.ORMClient,
+	clusterScraper *cluster.ClusterScraper, sccSupport []string,
+	ORMClientManager *resourcemapping.ORMClientManager,
 	failVolumePodMoves, updateQuotaToAllowMoves bool, readinessRetryThreshold int, gitConfig gitops.GitConfig, clusterId string) *ActionHandlerConfig {
 	sccAllowedSet := make(map[string]struct{})
 	for _, sccAllowed := range sccSupport {
@@ -75,7 +76,7 @@ func NewActionHandlerConfig(cApiNamespace string, cApiClient *versioned.Clientse
 		sccAllowedSet:           sccAllowedSet,
 		cAPINamespace:           cApiNamespace,
 		cApiClient:              cApiClient,
-		ormClient:               ormClient,
+		ormClient:               ORMClientManager,
 		failVolumePodMoves:      failVolumePodMoves,
 		updateQuotaToAllowMoves: updateQuotaToAllowMoves,
 		readinessRetryThreshold: readinessRetryThreshold,
