@@ -78,7 +78,7 @@ var (
 	// The API group under which Job are exposed by the k8s cluster
 	K8sAPIJobGV = schema.GroupVersion{Group: K8sBatchGroupName, Version: "v1"}
 	// The API group under which CronJob are exposed by the k8s cluster
-	K8sAPICronJobGV = schema.GroupVersion{Group: K8sBatchGroupName, Version: "v1beta1"}
+	K8sAPICronJobGV = schema.GroupVersion{Group: K8sBatchGroupName, Version: "v1"}
 	// The API group under which openshifts scc resource is exposed by the server
 	OpenShiftAPISCCGV = schema.GroupVersion{Group: OpenShiftSecurityGroupName, Version: "v1"}
 

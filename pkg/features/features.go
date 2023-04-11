@@ -95,5 +95,5 @@ var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSp
 	GoMemLimit:                    {Default: true, PreRelease: featuregate.Alpha},
 	AllowIncreaseNsQuota4Resizing: {Default: true, PreRelease: featuregate.Alpha},
 	IgnoreAffinities:              {Default: false, PreRelease: featuregate.Alpha},
-	NewAffinityProcessing:         {Default: false, PreRelease: featuregate.Alpha},
+	NewAffinityProcessing:         {Default: true, PreRelease: featuregate.Beta},
 }
