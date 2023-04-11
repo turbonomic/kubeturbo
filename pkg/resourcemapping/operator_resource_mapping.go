@@ -263,19 +263,20 @@ func (ormClient *ORMClient) retrieveORM(ownedObj *unstructured.Unstructured, own
 }
 
 func (ormClient *ORMClient) LocateOwnerPaths(ownedObj *unstructured.Unstructured, ownerReference discoveryutil.OwnerInfo, owned []*devopsv1alpha1.ResourcePath) (map[string][]devopsv1alpha1.ResourcePath, error) {
+	ownedKey := ownedObj.GetKind() + "/" + ownedObj.GetName() // source or owned resource
+
 	var allOwnerResourcePaths map[string][]devopsv1alpha1.ResourcePath
+
 	orm, ownerObj, err := ormClient.retrieveORM(ownedObj, ownerReference)
 	if err != nil {
 		return allOwnerResourcePaths, err
 	}
 	if orm == nil {
-		return allOwnerResourcePaths, fmt.Errorf("CANNOT FIND ORM V1 for source: %s:%s\", owned.Namespace, owned.Name")
+		return allOwnerResourcePaths, fmt.Errorf("Cannot find orm V1 for source: %s\n", ownedKey)
 	}
 	if orm == nil || ownerObj == nil {
-		return allOwnerResourcePaths, fmt.Errorf("CANNOT FIND owner for source: %s:%s\", owned.Namespace, owned.Name")
+		return allOwnerResourcePaths, fmt.Errorf("Cannot find owner for source: %s\n", ownedKey)
 	}
-
-	ownedKey := ownedObj.GetKind() + "/" + ownedObj.GetName() // source or owned resource
 
 	var ownerRef v1.ObjectReference
 	ownerRef = v1.ObjectReference{
@@ -332,7 +333,7 @@ func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unst
 	componentKey := updatedControllerObj.GetKind() + "/" + updatedControllerObj.GetName() // source or owned resource
 	ormClient.cacheLock.Lock()
 	defer ormClient.cacheLock.Unlock()
-	glog.Infof("Update owner %s/%s resources found using orm v1 for source %/%s",
+	glog.Infof("Update owner %s/%s resources found using orm v1 for source %s/%s",
 		controllerOwnerReference.Kind, controllerOwnerReference.Name,
 		updatedControllerObj.GetKind(), updatedControllerObj.GetName())
 

@@ -16,7 +16,7 @@ require (
 	github.com/prometheus/client_golang v1.14.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
-	github.com/turbonomic/orm v0.0.0-20230404121747-51bdc0508232
+	github.com/turbonomic/orm v0.0.0-20230411145227-4dccb88ccbac
 	github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3
 	github.com/turbonomic/turbo-go-sdk v0.0.0-20230307040640-43e100c457e6
 	github.com/turbonomic/turbo-policy v0.0.0-20230328195608-0556e3cbe9b3
