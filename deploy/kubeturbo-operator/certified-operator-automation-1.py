@@ -158,17 +158,17 @@ repo.git.push('-u', 'origin', f'{operator_name}-certified-{operator_release_vers
 
 
 # Create the pull request from turbodeploy:certified-operators to redhat-openshift-ecosystem:certified-operators
-g = Github(access_token)
+git_turbo_login = Github(access_token)
 
 branch_name = f'{operator_name}-certified-{operator_release_version}'
 
-base_repo = g.get_repo(f'{base_repo_owner}/{base_repo_name}')
-origin_repo = g.get_repo(f'{origin_repo_owner}/{origin_repo_name}')
+base_repo = git_turbo_login.get_repo(f'{base_repo_owner}/{base_repo_name}')
+origin_repo = git_turbo_login.get_repo(f'{origin_repo_owner}/{origin_repo_name}')
 base_branch = base_repo.get_branch(base_repo.default_branch)
 head_branch = origin_repo.get_branch(branch_name)
 
 title = f'operator {operator_name}-certified ({operator_release_version})'
-body = 'New operator bundle release'
+body = f'New {operator_name} operator bundle release'
 pull_request = base_repo.create_pull(title=title,
                                      body=body,
                                      head=f'{origin_repo_owner}:{head_branch.name}',
