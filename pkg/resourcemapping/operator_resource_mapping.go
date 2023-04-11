@@ -310,8 +310,8 @@ func (ormClient *ORMClient) LocateOwnerPaths(ownedObj *unstructured.Unstructured
 			}
 			if srcPath == sp {
 				owner := &devopsv1alpha1.ResourcePath{
-					ownerRef,
-					destPath,
+					ObjectReference: ownerRef,
+					Path:            destPath,
 				}
 				owners[sp] = []devopsv1alpha1.ResourcePath{*owner}
 			}
@@ -368,9 +368,16 @@ func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unst
 		resourceMappingTemplate[resourceMappingComponentName] = ormTemplate.componentName
 		srcPath, destPath, err := ormClient.parseSrcAndDestPath(resourceMappingTemplate)
 		if err != nil {
-			return fmt.Errorf("failed to update CR %s for %s in namespace %s: %v", operatorRes, componentKey, resourceNamespace, err)
+			return fmt.Errorf("failed to update CR %s for %s in namespace %s: error while parsing resource paths [source %v, dest %v]:%v",
+				operatorRes, componentKey, resourceNamespace, srcPath, destPath, err)
 		}
+		glog.V(4).Infof("Source path: %v, Dest path: %v", srcPath, destPath)
 
+		srcPathExists, err := ormClient.checkResourcePath(origControllerObj, srcPath)
+		if !srcPathExists {
+			glog.Warningf("source path %s does not exist: %v\n", srcPath, err)
+			continue
+		}
 		// Check if CR needs update from current resourceMappingTemplate. If the values are same under the same srcPath
 		// from origControllerObj and updatedControllerObj, it means resource value is not changed and no need to update
 		// corresponding destPath in CR.
@@ -452,14 +459,25 @@ func (ormClient *ORMClient) parsePath(resourceMappingTemplate map[string]interfa
 func (ormClient *ORMClient) needsUpdate(origControllerObj, updatedControllerObj *unstructured.Unstructured, srcPath string) (interface{}, bool, error) {
 	oldVal, found, err := util.NestedField(origControllerObj, resourceMappingSrcPath, srcPath)
 	if err != nil || !found {
-		return nil, false, fmt.Errorf("failed to get value from path '%s' in origControllerObj: %v", srcPath, err)
+		return nil, false, fmt.Errorf("failed to get value from path '%s' in origControllerObj, error: %v", srcPath, err)
 	}
 	newVal, found, err := util.NestedField(updatedControllerObj, resourceMappingSrcPath, srcPath)
 	if err != nil || !found {
-		return nil, false, fmt.Errorf("failed to get value from path '%s' in updatedControllerObj: %v", srcPath, err)
+		return nil, false, fmt.Errorf("failed to get value from path '%s' in updatedControllerObj, error: %v", srcPath, err)
 	}
 	if reflect.DeepEqual(oldVal, newVal) {
 		return nil, false, nil
 	}
 	return newVal, true, nil
+}
+
+// needsUpdate returns false if values from origControllerObj and updatedControllerObj are the same for the same srcPath.
+func (ormClient *ORMClient) checkResourcePath(resourceObj *unstructured.Unstructured, path string) (bool, error) {
+	_, found, err := util.NestedField(resourceObj, resourceMappingSrcPath, path)
+	if err != nil || !found {
+		return false, fmt.Errorf("failed to get value from path '%s' in resourceObj: %s/%s, error -> %v\n",
+			path, resourceObj.GetKind(), resourceObj.GetName(), err)
+	}
+
+	return true, nil
 }

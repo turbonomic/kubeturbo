@@ -65,7 +65,7 @@ var _ = Describe("Action Executor ", func() {
 	var origCRValue4NsScope, origCRValue4ClusterScope interface{}
 
 	BeforeEach(func() {
-		Skip("As the OCP48 cluster is hitting some problems, temporally skip all of ORM test!")
+		//Skip("As the OCP48 cluster is hitting some problems, temporally skip all of ORM test!")
 		if !framework.TestContext.IsOpenShiftTest {
 			Skip("Ignoring the case for ORM test.")
 		}

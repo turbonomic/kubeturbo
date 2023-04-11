@@ -89,8 +89,8 @@ func (manager *ORMClientManager) GetOwnerResourcesForSource(ownedObj *unstructur
 	for _, path := range paths {
 		var resourcePath *devopsv1alpha1.ResourcePath
 		resourcePath = &devopsv1alpha1.ResourcePath{
-			owned,
-			path,
+			ObjectReference: owned,
+			Path:            path,
 		}
 		sourceResourcePath = append(sourceResourcePath, resourcePath)
 		ownerResourcePaths := manager.SeekTopOwnersResourcePathsForOwnedResourcePath(*resourcePath)
