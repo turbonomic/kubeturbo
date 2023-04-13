@@ -28,8 +28,14 @@ debug-product: clean
 	env GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LDFLAGS) -gcflags "-N -l" -o $(OUTPUT_DIR)/$(BINARY).debug ./cmd/kubeturbo
 
 build: clean
-	go build -ldflags $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY) ./cmd/kubeturbo
-
+	@ if [ -z '${TARGETPLATFORM}' ]; then \
+	    echo "target is current platform"; \
+		go build -ldflags $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY) ./cmd/kubeturbo; \
+	else \
+	    echo "target is ${TARGETPLATFORM}"; \
+		env GOOS=$(firstword $(subst /, ,$(TARGETPLATFORM))) GOARCH=$(word 2, $(subst /, ,$(TARGETPLATFORM))) go build -ldflags $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY) ./cmd/kubeturbo; \
+	fi
+	
 integration: clean
 	go test -c -o $(OUTPUT_DIR)/integration.test ./test/integration
 
