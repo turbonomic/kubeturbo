@@ -29,10 +29,10 @@ debug-product: clean
 
 build: clean
 	@ if [ -z '${TARGETPLATFORM}' ]; then \
-	    echo "target is current platform"; \
+		echo "target is current platform"; \
 		go build -ldflags $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY) ./cmd/kubeturbo; \
 	else \
-	    echo "target is ${TARGETPLATFORM}"; \
+		echo "target is ${TARGETPLATFORM}"; \
 		env GOOS=$(firstword $(subst /, ,$(TARGETPLATFORM))) GOARCH=$(word 2, $(subst /, ,$(TARGETPLATFORM))) go build -ldflags $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY) ./cmd/kubeturbo; \
 	fi
 	
