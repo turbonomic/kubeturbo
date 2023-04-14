@@ -1,10 +1,10 @@
 # Building base image
 FROM --platform=$BUILDPLATFORM golang:1.20.3 AS builder
-ARG version
-ENV KUBETURBO_VERSION $version
+ARG VERSION TARGETOS TARGETARCH
+ENV KUBETURBO_VERSION $VERSION
 WORKDIR /workspace
 ADD . ./
-RUN make build
+RUN make multi-archs
 
 
 FROM registry.access.redhat.com/ubi8
