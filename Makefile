@@ -68,9 +68,12 @@ vet:
 
 PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 REPO_NAME ?= icr.io/cpopen/turbonomic
+.PHONY: multi-archs
+multi-archs:
+	env GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -ldflags $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY) ./cmd/kubeturbo
 .PHONY: docker-buildx
 docker-buildx:
 	docker buildx create --name kubeturbo-builder
 	- docker buildx use kubeturbo-builder
-	- docker buildx build --platform=$(PLATFORMS) --push --tag $(REPO_NAME)/kubeturbo:$(VERSION) -f build/Dockerfile.multi-archs --build-arg version=$(VERSION) .
+	- docker buildx build --platform=$(PLATFORMS) --label "git-commit=$(GIT_COMMIT)" --push --tag $(REPO_NAME)/kubeturbo:$(VERSION) -f build/Dockerfile.multi-archs --build-arg VERSION=$(VERSION) .
 	docker buildx rm kubeturbo-builder
