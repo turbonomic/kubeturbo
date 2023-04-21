@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -499,19 +498,4 @@ func GetContainerNames(parent *unstructured.Unstructured) (sets.String, error) {
 		names = append(names, container.Name)
 	}
 	return sets.NewString(names...), nil
-}
-
-func ParseSvcUID(svcUID string) string {
-	regex, err := regexp.Compile("^[0-9a-fA-F]{8}")
-	if err != nil {
-		glog.Errorf("failed to compile regex pattern while parsing kubernetes service UUID: %v", err)
-		return ""
-	}
-	match := regex.FindStringSubmatch(svcUID)
-	if len(match) != 1 {
-		glog.Errorf("failed to parse UUID %v of the default kubernetes service %s/%s",
-			svcUID, defaultNamespace, defaultServiceName)
-		return ""
-	}
-	return match[0]
 }
