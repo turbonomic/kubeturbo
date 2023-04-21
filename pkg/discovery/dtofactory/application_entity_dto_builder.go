@@ -221,7 +221,7 @@ func getAppStitchingProperty(pod *api.Pod, index int, svcUID string) string {
 		property = fmt.Sprintf("%s-%d", property, index)
 	}
 	if svcUID != "" {
-		property = fmt.Sprintf("%s,%s", property, property+"-"+util.ParseSvcUID(svcUID))
+		property = fmt.Sprintf("%s,%s-%s", property, property, svcUID)
 	}
 	return property
 }

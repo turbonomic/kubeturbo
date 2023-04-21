@@ -268,11 +268,11 @@ func getUUIDProperty(uuid string) *proto.EntityDTO_EntityProperty {
 func getIPProperty(pods []*api.Pod, svcUID string) *proto.EntityDTO_EntityProperty {
 	ns := stitching.DefaultPropertyNamespace
 	attr := stitching.AppStitchingAttr
-	ips := []string{}
+	var ips []string
 	for _, pod := range pods {
 		ips = append(ips, servicePrefix+"-"+pod.Status.PodIP)
 		if svcUID != "" {
-			ips = append(ips, servicePrefix+"-"+pod.Status.PodIP+"-"+util.ParseSvcUID(svcUID))
+			ips = append(ips, servicePrefix+"-"+pod.Status.PodIP+"-"+svcUID)
 		}
 	}
 	ip := strings.Join(ips, ",")
