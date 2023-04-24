@@ -56,6 +56,9 @@ spec:
           {{- if .Values.image.busyboxRepository }}
           - --busybox-image={{ .Values.image.busyboxRepository }}
           {{- end }}
+          {{- if .Values.image.cpufreqgetterRepository }}
+          - --cpufreqgetter-image={{ .Values.image.cpufreqgetterRepository }}
+          {{- end }}
           {{- if .Values.image.imagePullSecret }}
           - --busybox-image-pull-secret={{ .Values.image.imagePullSecret }}
           {{- end }}

@@ -10,6 +10,7 @@ image:
   tag: 8.7.5
   pullPolicy: IfNotPresent
 #  busyboxRepository: busybox
+#  cpufreqgetterRepository: icr.io/cpopen/turbonomic/cpufreqgetter
 #  imagePullSecret: ""
 
 annotations:
