@@ -18,7 +18,7 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/turbonomic/orm v0.0.0-20230411145227-4dccb88ccbac
 	github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3
-	github.com/turbonomic/turbo-go-sdk v0.0.0-20230307040640-43e100c457e6
+	github.com/turbonomic/turbo-go-sdk v0.0.0-20230426193838-3d42e481fec9
 	github.com/turbonomic/turbo-policy v0.0.0-20230328195608-0556e3cbe9b3
 	github.com/xanzy/go-gitlab v0.74.0
 	k8s.io/klog/v2 v2.80.1
