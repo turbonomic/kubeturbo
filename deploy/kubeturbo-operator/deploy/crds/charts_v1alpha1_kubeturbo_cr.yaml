@@ -25,6 +25,12 @@ spec:
   #  opsManagerUserName: Turbo_username
   #  opsManagerPassword: Turbo_password
 
+  # Configurations to register probe with Turbo Server
+  #sdkProtocolConfig:
+  #  registrationTimeoutSec: 600
+  #  restartOnRegistrationTimeout: true
+
+
   # Uncomment out lines to configure HA Node to ESX policies by node role. Default is master
   # Add more roles using format "\"foo\"\,\"bar\""
   #HANodeConfig:
