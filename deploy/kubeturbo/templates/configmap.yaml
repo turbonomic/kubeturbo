@@ -16,6 +16,10 @@ data:
         "restAPIConfig": {
           "opsManagerUserName": "{{ .Values.restAPIConfig.opsManagerUserName }}",
           "opsManagerPassword": "{{ .Values.restAPIConfig.opsManagerPassword }}"
+        },
+        "sdkProtocolConfig": {
+           "registrationTimeoutSec": "{{ .Values.sdkProtocolConfig.registrationTimeoutSec }}",
+           "restartOnRegistrationTimeout": "{{ .Values.sdkProtocolConfig.restartOnRegistrationTimeout }}"
         }
       },
       {{- if .Values.featureGates }}
