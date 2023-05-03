@@ -35,6 +35,8 @@ type KubeCluster struct {
 	// Map of namespace qualified pod name wrt to the volumes they mount.
 	// This map will not feature volumes which are not mounted by any pods.
 	PodToVolumesMap map[string][]MountedVolume
+	// Map of namespace qualified pod name to their cluster unique parent name
+	PodToControllerMap map[string]string
 
 	K8sAppToComponentMap map[K8sApp][]K8sAppComponent
 	ComponentToAppMap    map[K8sAppComponent][]K8sApp
@@ -64,6 +66,11 @@ func (kc *KubeCluster) WithPods(pods []*v1.Pod) *KubeCluster {
 
 func (kc *KubeCluster) WithMachineSetToNodesMap(machineSetToNodesMap map[string][]*v1.Node) *KubeCluster {
 	kc.MachineSetToNodesMap = machineSetToNodesMap
+	return kc
+}
+
+func (kc *KubeCluster) WithPodToControllerMap(podToControllerMap map[string]string) *KubeCluster {
+	kc.PodToControllerMap = podToControllerMap
 	return kc
 }
 

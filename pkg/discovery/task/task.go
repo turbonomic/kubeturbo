@@ -29,6 +29,7 @@ type Task struct {
 	cluster            *repository.ClusterSummary
 	nodesPods          map[string][]string
 	podsWithAffinities sets.String
+	podsToControllers  map[string]string
 }
 
 // Worker task is consisted of a list of nodes the worker must discover.
@@ -95,6 +96,12 @@ func (t *Task) WithPodsWithAffinities(podsWithAffinities sets.String) *Task {
 	return t
 }
 
+// Assign the mapping of each pods cluster unique name to its parent controller unique name.
+func (t *Task) WithPodsToControllers(podsToControllers map[string]string) *Task {
+	t.podsToControllers = podsToControllers
+	return t
+}
+
 // Get node from the task.
 func (t *Task) Node() *api.Node {
 	return t.node
@@ -133,6 +140,10 @@ func (t *Task) NodesPods() map[string][]string {
 
 func (t *Task) PodsWithAffinities() sets.String {
 	return t.podsWithAffinities
+}
+
+func (t *Task) PodstoControllers() map[string]string {
+	return t.podsToControllers
 }
 
 func (t *Task) String() string {

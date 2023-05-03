@@ -68,7 +68,8 @@ func (builder *nodeEntityDTOBuilder) WithClusterKeyInjected(clusterKeyInjected s
 }
 
 // BuildEntityDTOs builds entityDTOs based on the given node list.
-func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPods map[string][]string) ([]*proto.EntityDTO, []string) {
+func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPods map[string][]string,
+	podsToControllers map[string]string) ([]*proto.EntityDTO, []string) {
 	var result []*proto.EntityDTO
 	var notReadyNodes []string
 
@@ -107,7 +108,7 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPod
 		// affinity commodities sold
 		var affinityCommoditiesSold []*proto.CommodityDTO
 		if utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
-			affinityCommoditiesSold = builder.getAffinityCommoditiesSold(node, nodesPods)
+			affinityCommoditiesSold = builder.getAffinityCommoditiesSold(node, nodesPods, podsToControllers)
 			commoditiesSold = append(commoditiesSold, affinityCommoditiesSold...)
 		}
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
@@ -416,14 +417,19 @@ func (builder *nodeEntityDTOBuilder) getAllocationCommoditiesSold(node *api.Node
 	return commoditiesSold, nil
 }
 
-func (builder *nodeEntityDTOBuilder) getAffinityCommoditiesSold(node *api.Node, nodesPods map[string][]string) []*proto.CommodityDTO {
+func (builder *nodeEntityDTOBuilder) getAffinityCommoditiesSold(node *api.Node,
+	nodesPods map[string][]string, podsToControllers map[string]string) []*proto.CommodityDTO {
 	var commoditiesSold []*proto.CommodityDTO
 	// Add label commodities to honor affinities
 	// This simply adds commodities sold for each pod that can
 	// be placed on this node
 	for _, podKey := range nodesPods[node.Name] {
+		key, exists := podsToControllers[podKey]
+		if !exists {
+			key = podKey
+		}
 		commodityDTO, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
-			Key(podKey).
+			Key(key).
 			Capacity(accessCommodityDefaultCapacity).
 			Create()
 		if err != nil {

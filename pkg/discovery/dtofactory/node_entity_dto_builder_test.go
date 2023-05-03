@@ -221,7 +221,7 @@ func TestNodeEntityDTO(t *testing.T) {
 	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitchingManager)
 	pods := []string{"pod1", "pod2"}
 	nodePods := map[string][]string{node.Name: pods}
-	nodeEntityDTOs, _ := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node}, nodePods)
+	nodeEntityDTOs, _ := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node}, nodePods, nil)
 	vmData := nodeEntityDTOs[0].GetVirtualMachineData()
 	// The capacity metric is set in millicores but numcpus is set in cores
 	assert.EqualValues(t, 10, vmData.GetNumCpus())
@@ -276,7 +276,7 @@ func Test_getAffinityCommoditiesSold(t *testing.T) {
 	mockNodesPods := make(map[string][]string)
 	mockNodesPods[node.Name] = append(mockNodesPods[node.Name], pod)
 
-	commodities := nodeEntityDTOBuilder.getAffinityCommoditiesSold(node, mockNodesPods)
+	commodities := nodeEntityDTOBuilder.getAffinityCommoditiesSold(node, mockNodesPods, nil)
 
 	assert.NotEmpty(t, commodities)
 	assert.Equal(t, 1, len(commodities))
