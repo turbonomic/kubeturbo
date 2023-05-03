@@ -231,7 +231,8 @@ func (p *ClusterProcessor) DiscoverCluster() (*repository.ClusterSummary, error)
 
 	// Update the pod to controller cache
 	if clusterScraper, ok := p.clusterInfoScraper.(*cluster.ClusterScraper); ok {
-		clusterScraper.UpdatePodControllerCache(kubeCluster.Pods, kubeCluster.ControllerMap)
+		podToControllerMap := clusterScraper.UpdatePodControllerCache(kubeCluster.Pods, kubeCluster.ControllerMap)
+		kubeCluster.WithPodToControllerMap(podToControllerMap)
 	}
 
 	// Discover and cache GitOps configuration overrides

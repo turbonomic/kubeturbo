@@ -75,6 +75,8 @@ type podEntityDTOBuilder struct {
 	pendingPods          []*api.Pod
 	clusterKeyInjected   string
 	mirrorPodToDaemonMap map[string]bool
+	podsWithAffinities   sets.String
+	podsToControllers    map[string]string
 }
 
 func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager) *podEntityDTOBuilder {
@@ -129,14 +131,24 @@ func (builder *podEntityDTOBuilder) WithMirrorPodToDaemonMap(mirrorPodToDaemonMa
 	return builder
 }
 
-func (builder *podEntityDTOBuilder) BuildEntityDTOs(podsWithAffinities sets.String) ([]*proto.EntityDTO, []*proto.EntityDTO, []string, []string) {
+func (builder *podEntityDTOBuilder) WithPodsWithAffinities(podsWithAffinities sets.String) *podEntityDTOBuilder {
+	builder.podsWithAffinities = podsWithAffinities
+	return builder
+}
+
+func (builder *podEntityDTOBuilder) WithPodsToControllers(podsToControllers map[string]string) *podEntityDTOBuilder {
+	builder.podsToControllers = podsToControllers
+	return builder
+}
+
+func (builder *podEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO, []*proto.EntityDTO, []string, []string) {
 	glog.V(3).Infof("Building DTOs for running pods...")
 	runningPodDTOs, runningPodsWithVolumes, runningMirrorPodUids := builder.buildDTOs(
-		builder.runningPods, runningPodResCommTypeSold, runningPodResCommTypeBoughtFromNode, podsWithAffinities)
+		builder.runningPods, runningPodResCommTypeSold, runningPodResCommTypeBoughtFromNode)
 	glog.V(3).Infof("Built %d running pod DTOs.", len(runningPodDTOs))
 	glog.V(3).Infof("Building DTOs for pending pods...")
 	pendingPodDTOs, pendingPodsWithVolumes, pendingMirrorPodUids := builder.buildDTOs(
-		builder.pendingPods, pendingPodResCommTypeSold, pendingPodResCommTypeBoughtFromNode, podsWithAffinities)
+		builder.pendingPods, pendingPodResCommTypeSold, pendingPodResCommTypeBoughtFromNode)
 	glog.V(3).Infof("Built %d pending pod DTOs.", len(pendingPodDTOs))
 	podsWithVolumes := append(runningPodsWithVolumes, pendingPodsWithVolumes...)
 	mirrorPodUids := append(runningMirrorPodUids, pendingMirrorPodUids...)
@@ -145,7 +157,7 @@ func (builder *podEntityDTOBuilder) BuildEntityDTOs(podsWithAffinities sets.Stri
 
 // Build entityDTOs based on the given pod list.
 func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
-	resCommTypeBoughtFromNode []metrics.ResourceType, podsWithAffinities sets.String) ([]*proto.EntityDTO, []string, []string) {
+	resCommTypeBoughtFromNode []metrics.ResourceType) ([]*proto.EntityDTO, []string, []string) {
 	var result []*proto.EntityDTO
 	var podsWithVolumes []string
 	var mirrorPodUids []string
@@ -181,7 +193,7 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 
 		// commodities bought - from node provider
 		commoditiesBought, err := builder.getPodCommoditiesBought(pod,
-			podsWithAffinities.Has(pod.Namespace+"/"+pod.Name), resCommTypeBoughtFromNode)
+			builder.podsWithAffinities.Has(pod.Namespace+"/"+pod.Name), resCommTypeBoughtFromNode)
 		if err != nil {
 			glog.Warningf("Skip building DTO for pod %s: %s", displayName, err)
 			continue
@@ -437,8 +449,12 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, isPodW
 	var affinityLabelComm *proto.CommodityDTO
 	if utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) && isPodWithAffinity {
 		var err error
+		key, exists := builder.podsToControllers[podMId]
+		if !exists {
+			key = podMId
+		}
 		affinityLabelComm, err = sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
-			Key(podMId).
+			Key(key).
 			Create()
 		if err != nil {
 			glog.Errorf("Failed to ceate affinity label commodity for pod %s", podMId)

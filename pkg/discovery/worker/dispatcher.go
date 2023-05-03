@@ -147,7 +147,8 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, nodesPods map[string][]string,
 				WithPendingPods(pendingPods).
 				WithCluster(cluster).
 				WithNodesPods(nodesPods).
-				WithPodsWithAffinities(podsWithAffinities)
+				WithPodsWithAffinities(podsWithAffinities).
+				WithPodsToControllers(cluster.PodToControllerMap)
 			glog.V(2).Infof("Dispatching task %v", currTask)
 			d.assignTask(currTask)
 		}

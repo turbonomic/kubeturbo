@@ -388,15 +388,22 @@ func (s *ClusterScraper) GetPVCs(namespace string, opts metav1.ListOptions) ([]*
 // A pod can have its labels changed on the fly without being restarted, causing its controller to be changed as well.
 // This is very unlikely but still possible. This can be detected when the cache entry expires in defaultCacheTTL.
 func (s *ClusterScraper) UpdatePodControllerCache(
-	pods []*api.Pod, controllers map[string]*repository.K8sController) {
+	pods []*api.Pod, controllers map[string]*repository.K8sController) map[string]string {
 	existing := 0
 	added := 0
 	bare := 0
 	custom := 0
+	podToControllerMap := make(map[string]string)
 	for _, pod := range pods {
 		podControllerInfoKey := util.PodControllerInfoKey(pod)
-		if _, exists := s.cache.Get(podControllerInfoKey); exists {
+		if o, exists := s.cache.Get(podControllerInfoKey); exists {
 			// Pod's controller info already exists in the cache
+			if oTyped, ok := o.(util.OwnerInfo); ok {
+				podToControllerMap[util.PodKeyFunc(pod)] = ownerControllerUniqueName(oTyped.Kind, pod.Namespace, oTyped.Name)
+			} else {
+				//simply skip this controller info
+				continue
+			}
 			existing++
 			continue
 		}
@@ -413,6 +420,7 @@ func (s *ClusterScraper) UpdatePodControllerCache(
 			// Could be custom controller. We do not bulk process custom controller.
 			glog.V(3).Infof("Skip updating controller %v/%v for pod %v/%v: controller not cached.",
 				ownerInfo.Kind, ownerInfo.Name, pod.Namespace, pod.Name)
+			podToControllerMap[util.PodKeyFunc(pod)] = ownerControllerUniqueName(ownerInfo.Kind, pod.Namespace, ownerInfo.Name)
 			custom++
 			continue
 		}
@@ -424,17 +432,25 @@ func (s *ClusterScraper) UpdatePodControllerCache(
 				// Found it
 				gpOwnerInfo.Containers = controller.Containers
 				s.cache.Set(podControllerInfoKey, gpOwnerInfo, 0)
+				podToControllerMap[util.PodKeyFunc(pod)] = ownerControllerUniqueName(gpOwnerInfo.Kind, pod.Namespace, gpOwnerInfo.Name)
 				added++
 				continue
 			}
 		}
 		ownerInfo.Containers = controller.Containers
 		s.cache.Set(podControllerInfoKey, ownerInfo, 0)
+		podToControllerMap[util.PodKeyFunc(pod)] = ownerControllerUniqueName(ownerInfo.Kind, pod.Namespace, ownerInfo.Name)
 		added++
 	}
+
 	glog.V(2).Infof("Finished updating pod controller cache."+
 		" Total pod scanned: %d, cached: %d, newly added: %d, bare pods: %d, pods with custom controllers: %d",
 		len(pods), existing, added, bare, custom)
+	return podToControllerMap
+}
+
+func ownerControllerUniqueName(kind, ns, name string) string {
+	return kind + "/" + ns + "/" + name
 }
 
 // GetPodControllerInfo gets grandParent (parent's parent) information of a pod: kind, name, uid
