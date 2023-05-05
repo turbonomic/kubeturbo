@@ -18,8 +18,8 @@ data:
           "opsManagerPassword": "{{ .Values.restAPIConfig.opsManagerPassword }}"
         },
         "sdkProtocolConfig": {
-           "registrationTimeoutSec": "{{ .Values.sdkProtocolConfig.registrationTimeoutSec }}",
-           "restartOnRegistrationTimeout": "{{ .Values.sdkProtocolConfig.restartOnRegistrationTimeout }}"
+           "registrationTimeoutSec": {{ .Values.sdkProtocolConfig.registrationTimeoutSec }},
+           "restartOnRegistrationTimeout": {{ .Values.sdkProtocolConfig.restartOnRegistrationTimeout }}
         }
       },
       {{- if .Values.featureGates }}
