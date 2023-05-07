@@ -66,8 +66,8 @@ type OwnerResources struct {
 	ControllerObj *unstructured.Unstructured
 	//---  V2 or V1
 	// mapping of owner and the owner path for a given source/owned path
-	OwnerResources map[string][]devopsv1alpha1.ResourcePath
-	ErrorMsg       error
+	OwnerResourcesMap map[string][]devopsv1alpha1.ResourcePath
+	ErrorMsg          error
 }
 
 // Return the owner resources to modify for a given source resource path
@@ -75,26 +75,29 @@ type OwnerResources struct {
 func (manager *ORMClientManager) GetOwnerResourcesForSource(ownedObj *unstructured.Unstructured,
 	ownerReference discoveryutil.OwnerInfo, paths []string) (*OwnerResources, error) {
 	var err error
-	var owned corev1.ObjectReference
-	owned = corev1.ObjectReference{
+	var owned corev1.ObjectReference = corev1.ObjectReference{
 		Kind:       ownedObj.GetKind(),
 		Namespace:  ownedObj.GetNamespace(),
 		Name:       ownedObj.GetName(),
 		APIVersion: ownedObj.GetAPIVersion(),
 	}
-	var allOwnerResourcePaths map[string][]devopsv1alpha1.ResourcePath
-
+	allOwnerResourcePaths := make(map[string][]devopsv1alpha1.ResourcePath)
 	//find ORM v2 given the source owned resource
 	var sourceResourcePath []*devopsv1alpha1.ResourcePath
 	for _, path := range paths {
-		var resourcePath *devopsv1alpha1.ResourcePath
-		resourcePath = &devopsv1alpha1.ResourcePath{
+		var resourcePath *devopsv1alpha1.ResourcePath = &devopsv1alpha1.ResourcePath{
 			ObjectReference: owned,
 			Path:            path,
 		}
 		sourceResourcePath = append(sourceResourcePath, resourcePath)
+		// If there are nested/hierarchy of owners, this always fetch the top owner resource. any updates on the top
+		// owner resource will flow down the chain to get it's children to update
 		ownerResourcePaths := manager.SeekTopOwnersResourcePathsForOwnedResourcePath(*resourcePath)
-		if len(ownerResourcePaths) > 0 {
+		// ownerResourcePaths will never be empty, as it returns the source/owned resource kind if it cannot
+		// find the corresponding owner resources and it's paths. so if the operatorResourceSpecMap is empty
+		// it means this is for V2 since the operatorResourceSpecMap is build and cached during discovery if it
+		// locates V1 orm resource
+		if len(manager.ORMClient.operatorResourceSpecMap) == 0 {
 			allOwnerResourcePaths[path] = ownerResourcePaths
 		}
 	}
@@ -114,9 +117,9 @@ func (manager *ORMClientManager) GetOwnerResourcesForSource(ownedObj *unstructur
 	}
 
 	return &OwnerResources{
-		ControllerObj:  ownedObj,
-		OwnerResources: allOwnerResourcePaths,
-		ErrorMsg:       err,
+		ControllerObj:     ownedObj,
+		OwnerResourcesMap: allOwnerResourcePaths,
+		ErrorMsg:          err,
 	}, nil
 
 }

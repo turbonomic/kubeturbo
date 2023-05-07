@@ -869,14 +869,12 @@ github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635/go.mod h1:hkRG
 github.com/tmc/grpc-websocket-proxy v0.0.0-20170815181823-89b8d40f7ca8/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
-github.com/turbonomic/orm v0.0.0-20230411145227-4dccb88ccbac h1:Mgexgep65Kiok9hJRtMsT+B/2efegW3xhbUqNwohJAQ=
-github.com/turbonomic/orm v0.0.0-20230411145227-4dccb88ccbac/go.mod h1:59pNzaqkfqn9+n4NGbhld5hIc0oM4ngel+JXX6qwgX4=
+github.com/turbonomic/orm v0.0.0-20230504185715-e8d83979d812 h1:UM9vMEkEdiCf4ClzB05hZLEXRgaWv/i5Grc/x6ZL/eA=
+github.com/turbonomic/orm v0.0.0-20230504185715-e8d83979d812/go.mod h1:59pNzaqkfqn9+n4NGbhld5hIc0oM4ngel+JXX6qwgX4=
 github.com/turbonomic/turbo-api v0.0.0-20221010220448-3f35ebf030aa h1:x7AkF/BAbvyJWeUd69UGqGIU96Izlz9oy9rpvsonqVI=
 github.com/turbonomic/turbo-api v0.0.0-20221010220448-3f35ebf030aa/go.mod h1:L3eNZzTD3Iw8GV+cfeJD/lfDaEGPbZZGQrtml71yG10=
 github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3 h1:R/3tmGlz0R2NakwJqoigcMNYN0jTYYXz1ngTFs0nD9M=
 github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3/go.mod h1:HAD6GcQFpgDGHOwhuCCjxQQWDjK2wv6gUvd5J3ZNU2g=
-github.com/turbonomic/turbo-go-sdk v0.0.0-20230426193838-3d42e481fec9 h1:drCOeXNVkAEm/FNngouf6mS3237eKZPc1EXn10KSqi8=
-github.com/turbonomic/turbo-go-sdk v0.0.0-20230426193838-3d42e481fec9/go.mod h1:RWvXz62oL7Yhkw+WRdDRdOEZSsm8f0vR3xvsgSU9ohM=
 github.com/turbonomic/turbo-go-sdk v0.0.0-20230502171353-11200efd6308 h1:Bh4Iv2XSzYmCDaHALtpjek7g8h96ruIam/QWbG6rfXU=
 github.com/turbonomic/turbo-go-sdk v0.0.0-20230502171353-11200efd6308/go.mod h1:RWvXz62oL7Yhkw+WRdDRdOEZSsm8f0vR3xvsgSU9ohM=
 github.com/turbonomic/turbo-policy v0.0.0-20230328195608-0556e3cbe9b3 h1:KQkPBU3uKH87s4FjMrtxT4sYQCFab1kC7tTv46FZerE=
