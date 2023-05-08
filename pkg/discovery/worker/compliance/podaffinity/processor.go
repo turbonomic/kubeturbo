@@ -43,6 +43,9 @@ type PodAffinityProcessor struct {
 	nodeInfoLister          NodeInfoLister
 	nsLister                listersv1.NamespaceLister
 	podToVolumesMap         map[string][]repository.MountedVolume
+	podToControllerMap      map[string]string
+	hostnameSpreadWorkloads map[string]sets.String
+	otherSpreadPods         sets.String
 	uniqueAffinityTerms     sets.String
 	uniqueAntiAffinityTerms sets.String
 	parallelizer            parallelizer.Parallelizer
@@ -53,13 +56,16 @@ type PodAffinityProcessor struct {
 func New(clusterSummary *repository.ClusterSummary, nodeInfoLister NodeInfoLister,
 	namespaceLister listersv1.NamespaceLister) (*PodAffinityProcessor, error) {
 	pr := &PodAffinityProcessor{
-		nodeInfoLister:  nodeInfoLister,
-		podToVolumesMap: clusterSummary.PodToVolumesMap,
+		nodeInfoLister:     nodeInfoLister,
+		podToVolumesMap:    clusterSummary.PodToVolumesMap,
+		podToControllerMap: clusterSummary.PodToControllerMap,
 		// TODO: make the parallelizm configurable
 		parallelizer:            parallelizer.NewParallelizer(parallelizer.DefaultParallelism),
 		nsLister:                namespaceLister,
 		uniqueAffinityTerms:     sets.NewString(),
 		uniqueAntiAffinityTerms: sets.NewString(),
+		hostnameSpreadWorkloads: make(map[string]sets.String),
+		otherSpreadPods:         sets.NewString(),
 	}
 
 	return pr, nil
@@ -101,11 +107,12 @@ func GetNamespaceLabelsSnapshot(ns string, nsLister NamespaceLister) (nsLabels l
 
 // ProcessAffinities returns a map of nodes to list of pods which can be placed on each
 // respective node and a set of pods which have affinities.
-func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string][]string, sets.String) {
+func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string][]string,
+	sets.String, map[string]sets.String, sets.String) {
 	nodeInfos, err := pr.nodeInfoLister.List()
 	if err != nil {
 		klog.Errorf("Error retreiving nodeinfos while processing affinities, %V.", err)
-		return nil, nil
+		return nil, nil, nil, nil
 	}
 
 	ctx := context.TODO()
@@ -140,6 +147,11 @@ func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string
 		state, err := pr.PreFilter(ctx, pod)
 		if err != nil {
 			klog.Errorf("Error computing prefilter state for pod, %s.", qualifiedPodName)
+			return
+		}
+		if state.isHostnameSpreadOnly {
+			// Skip adding the pod to the placement map
+			// We will create a separate segmentation based policy for these
 			return
 		}
 
@@ -187,27 +199,35 @@ func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string
 	pr.parallelizer.Until(context.Background(), len(allPods), processAffinityPerPod, "processAffinityPerPod")
 
 	if glog.V(3) {
-		glog.Infof("Cluster has %v total pods with All Affinities.", podsWithAllAffinities.Len())
-		glog.Infof("Cluster has %v total pods with node Affinities.", podsWithNodeAffinities.Len())
+		glog.Infof("Cluster has %v total pods with All Affinities/AntiAffinities.", podsWithAllAffinities.Len())
+		glog.Infof("Cluster has %v total pods with node Affinities/AntiAffinities.", podsWithNodeAffinities.Len())
 		glog.Infof("Cluster has %v pods with pod to pod Affinities/AntiAffinities.", podsWithPodAffinities.Len())
-		glog.Infof("Cluster has %v pods with volumes that specify Node AntiAffinities.", podsWithVolumeAffinities.Len())
+		glog.Infof("Cluster has %v pods with volumes that specify Node Affinities/AntiAffinities.", podsWithVolumeAffinities.Len())
 		glog.Infof("Cluster has %v total unique Affinity terms by rule string.", pr.uniqueAffinityTerms.Len())
 		glog.Infof("Cluster has %v total unique AntiAffinity terms by rule string.", pr.uniqueAntiAffinityTerms.Len())
 		glog.Infof("Cluster has %v total unique label key=value pairs on pods.", podLabels.Len())
 		glog.Infof("Cluster has %v total unique label key=value pairs (topologies) on nodes.", nodeLabels.Len())
+		spreadPodCount := 0
+		for _, w := range pr.hostnameSpreadWorkloads {
+			spreadPodCount += w.Len()
+		}
+		glog.Infof("Cluster has %v spread workloads wrt node hostnames with overall total of %v pods.", len(pr.hostnameSpreadWorkloads), spreadPodCount)
+		glog.Infof("Cluster has total of %v spread workload pods wrt other topology keys.", pr.otherSpreadPods.Len())
 	}
 	if glog.V(5) {
-		glog.Infof("Pods with Affinities: \n%v\n", podsWithAllAffinities.UnsortedList())
-		glog.Infof("Pods with node Affinities: \n%v\n", podsWithNodeAffinities.UnsortedList())
+		glog.Infof("Pods with Affinities/AntiAffinities: \n%v\n", podsWithAllAffinities.UnsortedList())
+		glog.Infof("Pods with node Affinities/AntiAffinities: \n%v\n", podsWithNodeAffinities.UnsortedList())
 		glog.Infof("Pods with pod to pod Affinities/AntiAffinities: \n%v\n", podsWithPodAffinities.UnsortedList())
-		glog.Infof("Pods with volumes that specify Node AntiAffinities: \n%v\n", podsWithVolumeAffinities.UnsortedList())
+		glog.Infof("Pods with volumes that specify Node Affinities/AntiAffinities: \n%v\n", podsWithVolumeAffinities.UnsortedList())
+		glog.Infof("Pods with spread workloads wrt hostnames: \n%v\n", pr.hostnameSpreadWorkloads)
+		glog.Infof("Pods with spread workloads but not wrt hostnames: \n%v\n", pr.otherSpreadPods)
 		glog.Infof("Unique Affinity terms by rule string: \n%v\n", pr.uniqueAffinityTerms.UnsortedList())
 		glog.Infof("Unique AntiAffinity terms by rule string: \n%v\n", pr.uniqueAntiAffinityTerms.UnsortedList())
 		glog.Infof("Unique label pairs on pods: \n %v\n", podLabels.UnsortedList())
 		glog.Infof("Unique label pairs (topologies) on nodes: \n %v\n", nodeLabels.UnsortedList())
 	}
 
-	return nodesPods, podsWithSupportedAffinities
+	return nodesPods, podsWithSupportedAffinities, pr.hostnameSpreadWorkloads, pr.otherSpreadPods
 }
 
 func (pr *PodAffinityProcessor) podHasVolumes(qualifiedPodName string) bool {

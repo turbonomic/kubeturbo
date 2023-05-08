@@ -18,18 +18,21 @@ const (
 )
 
 type Task struct {
-	uid                string
-	name               string
-	node               *api.Node
-	pendingPods        []*api.Pod
-	runningPods        []*api.Pod
-	pods               []*api.Pod
-	pvs                []*api.PersistentVolume
-	pvcs               []*api.PersistentVolumeClaim
-	cluster            *repository.ClusterSummary
-	nodesPods          map[string][]string
-	podsWithAffinities sets.String
-	podsToControllers  map[string]string
+	uid                     string
+	name                    string
+	node                    *api.Node
+	pendingPods             []*api.Pod
+	runningPods             []*api.Pod
+	pods                    []*api.Pod
+	pvs                     []*api.PersistentVolume
+	pvcs                    []*api.PersistentVolumeClaim
+	cluster                 *repository.ClusterSummary
+	nodesPods               map[string][]string
+	podsWithAffinities      sets.String
+	hostnameSpreadPods      sets.String
+	hostnameSpreadWorkloads sets.String
+	otherSpreadPods         sets.String
+	podsToControllers       map[string]string
 }
 
 // Worker task is consisted of a list of nodes the worker must discover.
@@ -96,6 +99,25 @@ func (t *Task) WithPodsWithAffinities(podsWithAffinities sets.String) *Task {
 	return t
 }
 
+// Assign pods and workloads which have hostname based anti affinities to self,
+// we will add segmentation commodities for these.
+func (t *Task) WithHostnameSpreadWorkloads(hostnameSpreadWorkloads map[string]sets.String) *Task {
+	t.hostnameSpreadWorkloads = sets.NewString()
+	t.hostnameSpreadPods = sets.NewString()
+	for w, pods := range hostnameSpreadWorkloads {
+		t.hostnameSpreadWorkloads.Insert(w)
+		t.hostnameSpreadPods.Insert(pods.UnsortedList()...)
+	}
+	return t
+}
+
+// Assign pods which have affinities, should get a LABEL commodity but not have the parent
+// workload as the key of that commodity.
+func (t *Task) WithOtherSpreadPods(otherSpreadPods sets.String) *Task {
+	t.otherSpreadPods = otherSpreadPods
+	return t
+}
+
 // Assign the mapping of each pods cluster unique name to its parent controller unique name.
 func (t *Task) WithPodsToControllers(podsToControllers map[string]string) *Task {
 	t.podsToControllers = podsToControllers
@@ -140,6 +162,18 @@ func (t *Task) NodesPods() map[string][]string {
 
 func (t *Task) PodsWithAffinities() sets.String {
 	return t.podsWithAffinities
+}
+
+func (t *Task) HostnameSpreadPods() sets.String {
+	return t.hostnameSpreadPods
+}
+
+func (t *Task) HostnameSpreadWorkloads() sets.String {
+	return t.hostnameSpreadWorkloads
+}
+
+func (t *Task) OtherSpreadPods() sets.String {
+	return t.otherSpreadPods
 }
 
 func (t *Task) PodstoControllers() map[string]string {

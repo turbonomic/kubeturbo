@@ -60,6 +60,8 @@ type preFilterState struct {
 	antiAffinityCounts topologyToMatchedTermCount
 	// podInfo of the incoming pod.
 	podInfo *PodInfo
+	// Indicates that this is a pod from a spread workload associated with topology key as hostname
+	isHostnameSpreadOnly bool
 	// A copy of the incoming pod's namespace labels.
 	namespaceLabels labels.Set
 }
@@ -156,15 +158,16 @@ func podMatchesAllAffinityTerms(terms []AffinityTerm, pod *v1.Pod) bool {
 // calculates the following for each existing pod on each node:
 //  1. Whether it has PodAntiAffinity
 //  2. Whether any AffinityTerm matches the incoming pod
-func (pr *PodAffinityProcessor) getExistingAntiAffinityCounts(ctx context.Context, pod *v1.Pod, nsLabels labels.Set, nodes []*NodeInfo) topologyToMatchedTermCount {
+func (pr *PodAffinityProcessor) getExistingAntiAffinityCounts(ctx context.Context, pod *v1.Pod,
+	nsLabels labels.Set, nodes []*NodeInfo) (topologyToMatchedTermCount, bool) {
 	result := make(topologyToMatchedTermCount)
+	hostnameSpreadOnly := false
 	for _, nodeInfo := range nodes {
 		node := nodeInfo.Node()
 		if node == nil {
 			klog.ErrorS(nil, "Node not found")
 			continue
 		}
-
 		for _, existingPod := range nodeInfo.PodsWithRequiredAntiAffinity {
 			// this will update the count of topology terms that match against the
 			// topology term in the map
@@ -172,11 +175,81 @@ func (pr *PodAffinityProcessor) getExistingAntiAffinityCounts(ctx context.Contex
 				// we should not be validating against self
 				continue
 			}
-			result.updateWithAntiAffinityTerms(existingPod.RequiredAntiAffinityTerms, pod, nsLabels, node, 1)
+			hostnameSpread, termsToConsiderFurther := pr.podAntiAffinityMatchesItsReplica(existingPod, pod, nsLabels, node)
+			if !hostnameSpread {
+				termsToConsiderFurther = existingPod.RequiredAntiAffinityTerms
+			} else {
+				// thisPod will match all its replicas spread across all nodes
+				// we will skip considering its matching terms to process placement
+				// instead will add this to a spread workload set and create segmentation policy.
+				// other replicas will be added to the same set mapped to their parent
+				// when its their turn to process their placement across nodes
+				if len(termsToConsiderFurther) == 0 {
+					// There is no point comparing with other pods as there are no other terms
+					hostnameSpreadOnly = true
+					break
+				}
+			}
+			result.updateWithAntiAffinityTerms(termsToConsiderFurther, pod, nsLabels, node, 1)
 		}
 	}
 
-	return result
+	return result, hostnameSpreadOnly
+}
+
+func (pr *PodAffinityProcessor) podAntiAffinityMatchesItsReplica(existingPod *PodInfo, thisPod *v1.Pod,
+	nsLabels labels.Set, node *v1.Node) (bool, []AffinityTerm) {
+	// Value will be "" if not found in map
+	// We ideally should have the parent info available as we build that before
+	// we process affinities
+	existingPodParent := pr.podToControllerMap[existingPod.Pod.Namespace+"/"+existingPod.Pod.Name]
+	thisPodParent := pr.podToControllerMap[thisPod.Namespace+"/"+thisPod.Name]
+	sameParent := existingPodParent != "" && thisPodParent != "" &&
+		(existingPodParent == thisPodParent)
+	if !sameParent {
+		return false, nil
+	}
+
+	nonMatchingTerms := []AffinityTerm{}
+	hostnameSpread := false
+	for _, t := range existingPod.RequiredAntiAffinityTerms {
+		switch {
+		case t.Matches(thisPod, nsLabels) && t.TopologyKey == "kubernetes.io/hostname":
+			hostnameSpread = true
+			pr.addPodToHostnameSpreadWorkloads(thisPod.Namespace + "/" + thisPod.Name)
+		case t.Matches(thisPod, nsLabels) && t.TopologyKey != "kubernetes.io/hostname":
+			// In this case we process this pod as rest to get in placement map but
+			// will not use the label commodity key as parent workload
+			pr.addToOtherSpreadPods(thisPod.Namespace + "/" + thisPod.Name)
+			nonMatchingTerms = append(nonMatchingTerms, t)
+		default:
+			// this caters to all other terms the pod might have
+			nonMatchingTerms = append(nonMatchingTerms, t)
+		}
+	}
+
+	return hostnameSpread, nonMatchingTerms
+}
+
+func (pr *PodAffinityProcessor) addPodToHostnameSpreadWorkloads(podQualifiedName string) {
+	// TODO: consider using a fine grained locks viz one only for this set
+	pr.Lock()
+	defer pr.Unlock()
+	parent := pr.podToControllerMap[podQualifiedName]
+	replicas := pr.hostnameSpreadWorkloads[parent]
+	if replicas.Len() == 0 { // This takes care of nil value and nil set both
+		replicas = sets.NewString(podQualifiedName)
+	} else {
+		replicas.Insert(podQualifiedName)
+	}
+	pr.hostnameSpreadWorkloads[parent] = replicas
+}
+
+func (pr *PodAffinityProcessor) addToOtherSpreadPods(podQualifiedName string) {
+	// TODO: consider using a fine grained locks viz one only for this set
+	pr.Lock()
+	defer pr.Unlock()
+	pr.otherSpreadPods.Insert(podQualifiedName)
 }
 
 // finds existing Pods that match affinity terms of the incoming pod's (anti)affinity terms.
@@ -204,7 +277,18 @@ func (pr *PodAffinityProcessor) getIncomingAffinityAntiAffinityCounts(ctx contex
 			affinityCounts.updateWithAffinityTerms(podInfo.RequiredAffinityTerms, existingPod.Pod, node, 1)
 			// The incoming pod's terms have the namespaceSelector merged into the namespaces, and so
 			// here we don't lookup the existing pod's namespace labels, hence passing nil for nsLabels.
-			antiAffinityCounts.updateWithAntiAffinityTerms(podInfo.RequiredAntiAffinityTerms, existingPod.Pod, nil, node, 1)
+			// We also skip the terms which match the other replicas emulating a spread workload with hostname as
+			// topology key. We create a segmentation policy for hostname spread workloads
+			hostnameSpread, termsToConsiderFurther := pr.podAntiAffinityMatchesItsReplica(podInfo, existingPod.Pod, nil, node)
+			if !hostnameSpread {
+				termsToConsiderFurther = podInfo.RequiredAntiAffinityTerms
+			} else if len(termsToConsiderFurther) == 0 {
+				// There is no point comparing with other pods as there are no other terms
+				// TODO: this might actually be noop as we are already skipping coming here from
+				// parent on a similar check
+				break
+			}
+			antiAffinityCounts.updateWithAntiAffinityTerms(termsToConsiderFurther, existingPod.Pod, nil, node, 1)
 		}
 	}
 
@@ -241,20 +325,29 @@ func (pr *PodAffinityProcessor) PreFilter(ctx context.Context, pod *v1.Pod) (*pr
 	}
 	s.namespaceLabels = GetNamespaceLabelsSnapshot(pod.Namespace, pr.nsLister)
 
-	s.existingAntiAffinityCounts = pr.getExistingAntiAffinityCounts(ctx, pod, s.namespaceLabels, nodesWithRequiredAntiAffinityPods)
-	s.affinityCounts, s.antiAffinityCounts = pr.getIncomingAffinityAntiAffinityCounts(ctx, s.podInfo, allNodes)
-
-	if glog.V(3) {
-		// We don't want to waste time setting the map up if verbosity < 3
-		defer pr.Unlock()
-		pr.Lock()
-		for _, term := range s.podInfo.ActualAffinityTerms {
-			pr.uniqueAffinityTerms.Insert(term.String())
-		}
-		for _, term := range s.podInfo.ActualAntiAffinityTerms {
-			pr.uniqueAntiAffinityTerms.Insert(term.String())
+	collectAffinitiesForLogs := func() {
+		if glog.V(3) {
+			// We don't want to waste time setting the map up if verbosity < 3
+			defer pr.Unlock()
+			pr.Lock()
+			for _, term := range s.podInfo.ActualAffinityTerms {
+				pr.uniqueAffinityTerms.Insert(term.String())
+			}
+			for _, term := range s.podInfo.ActualAntiAffinityTerms {
+				pr.uniqueAntiAffinityTerms.Insert(term.String())
+			}
 		}
 	}
+
+	s.existingAntiAffinityCounts, s.isHostnameSpreadOnly = pr.getExistingAntiAffinityCounts(ctx, pod, s.namespaceLabels, nodesWithRequiredAntiAffinityPods)
+	if s.isHostnameSpreadOnly {
+		collectAffinitiesForLogs()
+		// break early
+		return s, nil
+	}
+	s.affinityCounts, s.antiAffinityCounts = pr.getIncomingAffinityAntiAffinityCounts(ctx, s.podInfo, allNodes)
+
+	collectAffinitiesForLogs()
 	return s, nil
 }
 

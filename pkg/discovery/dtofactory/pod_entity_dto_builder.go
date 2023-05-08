@@ -78,6 +78,8 @@ type podEntityDTOBuilder struct {
 	mirrorPodToDaemonMap map[string]bool
 	ClusterScraper       *cluster.ClusterScraper
 	podsWithAffinities   sets.String
+	hostnameSpreadPods   sets.String
+	otherSpreadPods      sets.String
 	podsToControllers    map[string]string
 }
 
@@ -139,6 +141,16 @@ func (builder *podEntityDTOBuilder) WithPodsWithAffinities(podsWithAffinities se
 	return builder
 }
 
+func (builder *podEntityDTOBuilder) WithHostnameSpreadPods(hostnameSpreadPods sets.String) *podEntityDTOBuilder {
+	builder.hostnameSpreadPods = hostnameSpreadPods
+	return builder
+}
+
+func (builder *podEntityDTOBuilder) WithOtherSpreadPods(otherSpreadPods sets.String) *podEntityDTOBuilder {
+	builder.otherSpreadPods = otherSpreadPods
+	return builder
+}
+
 func (builder *podEntityDTOBuilder) WithPodsToControllers(podsToControllers map[string]string) *podEntityDTOBuilder {
 	builder.podsToControllers = podsToControllers
 	return builder
@@ -195,8 +207,7 @@ func (builder *podEntityDTOBuilder) buildDTOs(pods []*api.Pod, resCommTypeSold,
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
 
 		// commodities bought - from node provider
-		commoditiesBought, err := builder.getPodCommoditiesBought(pod,
-			builder.podsWithAffinities.Has(pod.Namespace+"/"+pod.Name), resCommTypeBoughtFromNode)
+		commoditiesBought, err := builder.getPodCommoditiesBought(pod, resCommTypeBoughtFromNode)
 		if err != nil {
 			glog.Warningf("Skip building DTO for pod %s: %s", displayName, err)
 			continue
@@ -406,7 +417,7 @@ func (builder *podEntityDTOBuilder) getPodQuotaCommoditiesSold(pod *api.Pod) ([]
 
 // Build the CommodityDTOs bought by the pod from the node provider.
 // Commodities bought are vCPU, vMem vmpm access, cluster
-func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, isPodWithAffinity bool,
+func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod,
 	resCommTypeBoughtFromNode []metrics.ResourceType) ([]*proto.CommodityDTO, error) {
 	var commoditiesBought []*proto.CommodityDTO
 
@@ -449,22 +460,13 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, isPodW
 
 	// Add pods own qualified name as Label commodity to honor placement as per affinities
 	// Nodes where this pod can be placed will sell this commodity
-	var affinityLabelComm *proto.CommodityDTO
-	if utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) && isPodWithAffinity {
-		var err error
-		key, exists := builder.podsToControllers[podMId]
-		if !exists {
-			key = podMId
-		}
-		affinityLabelComm, err = sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
-			Key(key).
-			Create()
+	// Also add segmentation commodity for pods which are part of hostname spread workloads
+	if utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
+		affinityComms, err := builder.getAffinityRelatedCommodities(pod.Namespace + "/" + pod.Name)
 		if err != nil {
-			glog.Errorf("Failed to ceate affinity label commodity for pod %s", podMId)
 			return nil, err
 		}
-		glog.V(5).Infof("Adding affinity label commodity for Pod %s", podMId)
-		commoditiesBought = append(commoditiesBought, affinityLabelComm)
+		commoditiesBought = append(commoditiesBought, affinityComms...)
 	}
 
 	// Cluster commodity.
@@ -497,6 +499,49 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod, isPodW
 	}
 
 	return commoditiesBought, nil
+}
+
+func (builder *podEntityDTOBuilder) getAffinityRelatedCommodities(podQualifiedName string) ([]*proto.CommodityDTO, error) {
+	var affinityComms []*proto.CommodityDTO = nil
+	// A pod could have multiple affinity/anti-affinity rules
+	// resulting in multiple commodities wrt to different rule types
+	if builder.podsWithAffinities.Has(podQualifiedName) {
+		key, exists := builder.podsToControllers[podQualifiedName]
+		if !exists || builder.otherSpreadPods.Has(podQualifiedName) {
+			key = podQualifiedName
+		}
+		comm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
+			Key(key).
+			Create()
+		if err != nil {
+			glog.Errorf("Failed to ceate affinity label commodity for pod %s", podQualifiedName)
+			return nil, err
+		}
+		glog.V(5).Infof("Adding affinity label commodity for Pod %s", podQualifiedName)
+		affinityComms = append(affinityComms, comm)
+	}
+
+	if builder.hostnameSpreadPods.Has(podQualifiedName) {
+		key, exists := builder.podsToControllers[podQualifiedName]
+		if !exists {
+			// spread workload means that this pod should have a parent
+			// as we could not find its parent, there is no point adding this commodity for this pod
+			glog.Warningf("Parent for spread workload pod %s not found", podQualifiedName)
+			return affinityComms, nil
+		}
+		comm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_SEGMENTATION).
+			Key(key).
+			Used(1).
+			Create()
+		if err != nil {
+			glog.Errorf("Failed to ceate affinity segmentation commodity for pod %s", podQualifiedName)
+			return nil, err
+		}
+		glog.V(5).Infof("Adding affinity segmentation commodity for Pod %s", podQualifiedName)
+		affinityComms = append(affinityComms, comm)
+	}
+
+	return affinityComms, nil
 }
 
 // Build the CommodityDTOs bought by the pod from the quota provider.

@@ -113,8 +113,8 @@ func testGetCommoditiesSoldWithError(t *testing.T,
 }
 
 func testGetCommoditiesBoughtWithError(t *testing.T,
-	f func(pod *api.Pod, isPodWithAffinity bool, resType []metrics.ResourceType) ([]*proto.CommodityDTO, error)) {
-	if _, err := f(createPodWithReadyCondition(), false, runningPodResCommTypeSold); err == nil {
+	f func(pod *api.Pod, resType []metrics.ResourceType) ([]*proto.CommodityDTO, error)) {
+	if _, err := f(createPodWithReadyCondition(), runningPodResCommTypeSold); err == nil {
 		t.Errorf("Error thrown expected")
 	}
 }
@@ -301,7 +301,7 @@ func Test_getPodCommoditiesBought_NoAffinity(t *testing.T) {
 		},
 	}
 
-	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, mockPodCommoditiesBoughtTypes)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, commoditiesBought)
@@ -345,7 +345,7 @@ func Test_getPodCommoditiesBought_NodeAffinityWithNodeSelector(t *testing.T) {
 		},
 	}
 
-	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, mockPodCommoditiesBoughtTypes)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, commoditiesBought)
@@ -391,7 +391,7 @@ func Test_getPodCommoditiesBought_NodeAffinity(t *testing.T) {
 		},
 	}
 
-	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, mockPodCommoditiesBoughtTypes)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, commoditiesBought)
@@ -418,7 +418,7 @@ func Test_getPodCommoditiesBought_NodeSelector(t *testing.T) {
 		},
 	}
 
-	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, mockPodCommoditiesBoughtTypes)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, commoditiesBought)
@@ -480,7 +480,7 @@ func Test_getPodCommoditiesBought_PodAffinityToSpread(t *testing.T) {
 		},
 	}
 
-	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, mockPodCommoditiesBoughtTypes)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, commoditiesBought)
@@ -524,7 +524,7 @@ func Test_getPodCommoditiesBought_SpreadWithPodAntiAffinity(t *testing.T) {
 		},
 	}
 
-	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, mockPodCommoditiesBoughtTypes)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, commoditiesBought)
@@ -569,7 +569,7 @@ func Test_getPodCommoditiesBought_PodAntiAffinity(t *testing.T) {
 		},
 	}
 
-	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, true, mockPodCommoditiesBoughtTypes)
+	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, mockPodCommoditiesBoughtTypes)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, commoditiesBought)
