@@ -164,6 +164,9 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 			return fmt.Errorf("failed to execute action with nil owner resources or no owner resource paths found")
 		}
 		err = c.ormClient.UpdateOwners(c.obj, ownerInfo, ownerResources)
+		if err != nil {
+			return fmt.Errorf("failed to execute action due to failure in updating owners:%v", err)
+		}
 	} else {
 		_, err = c.clients.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
 		if utilfeature.DefaultFeatureGate.Enabled(features.AllowIncreaseNsQuota4Resizing) {
