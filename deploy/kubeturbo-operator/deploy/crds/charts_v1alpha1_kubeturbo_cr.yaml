@@ -27,9 +27,8 @@ spec:
 
   # Configurations to register probe with Turbo Server
   #sdkProtocolConfig:
-  #  registrationTimeoutSec: 600
-  #  restartOnRegistrationTimeout: true
-
+  #  registrationTimeoutSec: 300
+  #  restartOnRegistrationTimeout: false
 
   # Uncomment out lines to configure HA Node to ESX policies by node role. Default is master
   # Add more roles using format "\"foo\"\,\"bar\""
