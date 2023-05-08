@@ -162,7 +162,7 @@ func (builder *ServiceEntityDTOBuilder) createCommoditySold(
 		}
 	}
 	if len(controllers) == 0 {
-		glog.Errorf("No controllers are found for any pod that provides to service %v.", serviceName)
+		glog.Warningf("No controllers are found for any pod that provides to service %v.", serviceName)
 		return nil
 	}
 	// The list of pods that provide to the service may belong to multiple controllers

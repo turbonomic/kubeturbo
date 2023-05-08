@@ -180,7 +180,7 @@ func createPodMetrics(pod *v1.Pod, namespace string, metricsSink *metrics.Entity
 		metricId := metrics.GenerateEntityResourceMetricUID(metrics.PodType, podKey, resourceType, metrics.Used)
 		metric, err := metricsSink.GetMetric(metricId)
 		if err != nil {
-			glog.Errorf("Error getting %s used value from metrics sink for pod %s: %v", resourceType, podKey, err)
+			glog.Warningf("Cannnot get %s used value from metrics sink for pod %s: %v", resourceType, podKey, err)
 			continue
 		}
 		resourceUsed := metric.GetValue().([]metrics.Point)
