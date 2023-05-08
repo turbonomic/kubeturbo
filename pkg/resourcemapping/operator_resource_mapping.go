@@ -373,12 +373,12 @@ func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructur
 					}
 				}
 				// get the new resource value from the source obj
-				newCRValue, found, err := util.NestedField(updatedControllerObj, resourceMappingSrcPath, ownedPath)
+				newCRValue, found, err := ormutils.NestedField(updatedControllerObj, resourceMappingSrcPath, ownedPath)
 				if err != nil || !found {
 					return fmt.Errorf("failed to get value for source/owned resource from path '%s' in updatedControllerObj, error: %v", ownerPath, err)
 				}
 				// get the original resource value from the owner obj
-				origCRValue, found, err := util.NestedField(ownerCR, resourceMappingDestPath, ownerPath)
+				origCRValue, found, err := ormutils.NestedField(ownerCR, resourceMappingDestPath, ownerPath)
 				if err != nil || !found {
 					return fmt.Errorf("failed to get value for owner resource from path '%s' in ownerCR, error: %v", ownerPath, err)
 				}
