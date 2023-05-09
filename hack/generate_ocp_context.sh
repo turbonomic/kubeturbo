@@ -11,6 +11,6 @@ function check-cluster-ready() {
 }
 
 echo "Log in the OpenShift cluster"
-${oc_path} login --server=${OCP47_SERVER_ADDR} --username=${OCP47_USERNAME} --password=${OCP47_PASSWORD} --insecure-skip-tls-verify=true
+${oc_path} login --server=${OCP_SERVER_ADDR} --username=${OCP_USERNAME} --password=${OCP_PASSWORD} --insecure-skip-tls-verify=true
 check-cluster-ready
-${oc_path} config rename-context $(${oc_path} config current-context) ocp47
+${oc_path} config rename-context $(${oc_path} config current-context) rosa
