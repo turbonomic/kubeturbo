@@ -360,6 +360,13 @@ func (ormClient *ORMClient) LocateOwnerPaths(ownedObj *unstructured.Unstructured
 // ownerResources -- mapping of owner resource obj with owner resource path and source/owned controller obj
 func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructured.Unstructured, controllerOwnerReference discoveryutil.OwnerInfo, ownerResources *OwnerResources) error {
 	updated := false
+	operatorResKind := controllerOwnerReference.Kind //operator kind and instance
+	operatorResName := controllerOwnerReference.Name
+	operatorRes := operatorResKind + "/" + operatorResName
+	resourceNamespace := updatedControllerObj.GetNamespace()
+	sourceResKind := updatedControllerObj.GetKind()
+	sourceResName := updatedControllerObj.GetName()
+	sourceRes := sourceResKind + "/" + sourceResName
 	for ownedPath, resourcePaths := range ownerResources.OwnerResourcesMap {
 		for _, resourcePath := range resourcePaths {
 			// Retrieve the owner object and path
@@ -372,6 +379,9 @@ func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructur
 			// ownerResources might have source/owned resource kind with their resource paths if it cannot find the owner resource mapping from ORM.
 			// In that case we cannot perform this update operation on source/owned resource kind without owner resource found
 			if ownerResKind != updatedControllerObj.GetKind() {
+				glog.Infof("Update owner %s/%s resources found for source %s/%s",
+					ownerResKind, ownerResName,
+					sourceResKind, sourceResName)
 				ownerCR, err := kubernetes.Toolbox.GetResourceWithObjectReference(ownerObj)
 				if err != nil {
 					return fmt.Errorf("failed to get orm v2 owner CR for owner object %s in namespace %s: %v", ownerRes, ownerResNamespace, err)
@@ -379,12 +389,12 @@ func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructur
 				// get the new resource value from the source obj
 				newCRValue, found, err := ormutils.NestedField(updatedControllerObj, resourceMappingSrcPath, ownedPath)
 				if err != nil || !found {
-					return fmt.Errorf("failed to get value for source/owned resource from path '%s' in updatedControllerObj, error: %v", ownerPath, err)
+					return fmt.Errorf("failed to get value for source/owned resource %s for path '%s' in updatedControllerObj, error: %v", sourceRes, ownerPath, err)
 				}
 				// get the original resource value from the owner obj
 				origCRValue, found, err := ormutils.NestedField(ownerCR, resourceMappingDestPath, ownerPath)
 				if err != nil || !found {
-					return fmt.Errorf("failed to get value for owner resource from path '%s' in ownerCR, error: %v", ownerPath, err)
+					return fmt.Errorf("failed to get value for owner resource %s from path '%s' in ownerCR, error: %v", ownerRes, ownerPath, err)
 				}
 				// set new resource values to owenr cr obj
 				if err := ormutils.SetNestedField(ownerCR.Object, newCRValue, ownerPath); err != nil {
@@ -411,7 +421,7 @@ func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructur
 	// ORM CR so it couldn't find any owner resource paths to update.
 	// We send an action failure notification here because nothing gets changes after the action execution.
 	if !updated {
-		return fmt.Errorf("failed to update owner CR %s in namespace %s: missing owner resource", controllerOwnerReference.Kind+"/"+controllerOwnerReference.Name, updatedControllerObj.GetNamespace())
+		return fmt.Errorf("failed to update owner CR %s in namespace %s: missing owner resource", operatorRes, resourceNamespace)
 	}
 	return nil
 }
