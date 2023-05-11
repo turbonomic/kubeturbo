@@ -11,6 +11,7 @@ image:
   pullPolicy: IfNotPresent
 #  busyboxRepository: busybox
 #  imagePullSecret: ""
+#  cpufreqgetterRepository: icr.io/cpopen/turbonomic/cpufreqgetter
 
 annotations:
   kubeturbo.io/controllable: "false"
