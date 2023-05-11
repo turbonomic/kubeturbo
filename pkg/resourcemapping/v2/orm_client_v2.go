@@ -60,7 +60,7 @@ func (ormClient *ORMv2Client) RegisterORMs() int {
 	err := kubernetes.Toolbox.OrmClient.List(context.TODO(), ormList, &listOptions)
 
 	if err != nil {
-		glog.Errorf("Unable to list orm list resource: %++v", err)
+		glog.Warningf("Could not list orm list resource: %++v", err)
 		return 0
 	}
 
