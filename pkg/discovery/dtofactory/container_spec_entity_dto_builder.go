@@ -110,7 +110,7 @@ func (builder *containerSpecDTOBuilder) getCommoditiesSold(containerSpecMetrics 
 			if ok {
 				containerCPUMetrics, exists := containerSpecMetrics.ContainerMetrics[metrics.CPU]
 				if !exists {
-					glog.Errorf("CPU metrics do not exist in resource metrics for ContainerSpec %s", containerSpecMetrics.ContainerSpecId)
+					glog.Warningf("CPU metrics is missing in resource metrics for ContainerSpec %s", containerSpecMetrics.ContainerSpecId)
 					continue
 				}
 				// Get VCPU capacity for containerSpec from container CPU metrics.
