@@ -72,7 +72,7 @@ func (worker *k8sNamespaceDiscoveryWorker) Do(namespaceMetricsList []*repository
 		// the namespace metrics
 		namespaceMetrics, exists := namespaceMetricsMap[namespace]
 		if !exists {
-			glog.Errorf("Missing quota metrics for namespace %s", namespace)
+			glog.Warningf("No quota metrics found for namespace %s", namespace)
 			continue
 		}
 		kubeNamespaceEntity.AverageNodeCpuFrequency = averageNodeFrequency
