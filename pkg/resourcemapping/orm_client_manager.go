@@ -67,6 +67,7 @@ type OwnerResources struct {
 	//---  V2 or V1
 	// mapping of owner and the owner path for a given source/owned path
 	OwnerResourcesMap map[string][]devopsv1alpha1.ResourcePath
+	isV1ORM           bool
 	ErrorMsg          error
 }
 
@@ -84,6 +85,7 @@ func (manager *ORMClientManager) GetOwnerResourcesForSource(ownedObj *unstructur
 	allOwnerResourcePaths := make(map[string][]devopsv1alpha1.ResourcePath)
 	//find ORM v2 given the source owned resource
 	var sourceResourcePath []*devopsv1alpha1.ResourcePath
+	foundORMV1 := false
 	for _, path := range paths {
 		var resourcePath *devopsv1alpha1.ResourcePath = &devopsv1alpha1.ResourcePath{
 			ObjectReference: owned,
@@ -94,11 +96,12 @@ func (manager *ORMClientManager) GetOwnerResourcesForSource(ownedObj *unstructur
 		// owner resource will flow down the chain to get it's children to update
 		ownerResourcePaths := manager.SeekTopOwnersResourcePathsForOwnedResourcePath(*resourcePath)
 		// ownerResourcePaths will never be empty, as it returns the source/owned resource kind if it cannot
-		// find the corresponding owner resources and it's paths. so if the operatorResourceSpecMap is empty
-		// it means this is for V2 since the operatorResourceSpecMap is build and cached during discovery if it
-		// locates V1 orm resource
-		if len(manager.ORMClient.operatorResourceSpecMap) == 0 {
-			allOwnerResourcePaths[path] = ownerResourcePaths
+		// find the corresponding owner resources and it's paths. so check if the ownerResourcePaths returned
+		// are same as resourcePath, if same then it didn't find any mappings related to V2 orm
+		for _, ownerResourcePath := range ownerResourcePaths {
+			if ownerResourcePath != *resourcePath {
+				allOwnerResourcePaths[path] = ownerResourcePaths
+			}
 		}
 	}
 
@@ -109,8 +112,11 @@ func (manager *ORMClientManager) GetOwnerResourcesForSource(ownedObj *unstructur
 	// find legacy orm if cannot locate v2 orm
 	if len(allOwnerResourcePaths) == 0 {
 		allOwnerResourcePaths, err = manager.LocateOwnerPaths(ownedObj, ownerReference, sourceResourcePath)
-
+		if err != nil {
+			return nil, err
+		}
 		if len(allOwnerResourcePaths) > 0 {
+			foundORMV1 = true
 			glog.Infof("Found owner resource paths using ORM v1 for owned object %s:%s:%s",
 				ownedObj.GetKind(), ownedObj.GetNamespace(), ownedObj.GetName())
 		}
@@ -119,6 +125,7 @@ func (manager *ORMClientManager) GetOwnerResourcesForSource(ownedObj *unstructur
 	return &OwnerResources{
 		ControllerObj:     ownedObj,
 		OwnerResourcesMap: allOwnerResourcePaths,
+		isV1ORM:           foundORMV1,
 		ErrorMsg:          err,
 	}, nil
 
