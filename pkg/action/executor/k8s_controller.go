@@ -158,7 +158,7 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		}
 		ownerResources, err := c.ormClient.GetOwnerResourcesForSource(c.obj, ownerInfo, resourcePaths)
 		if err != nil {
-			return fmt.Errorf("error while getting orm resources %++v", err)
+			return fmt.Errorf("failed to execute action to get owner resources %++v", err)
 		}
 		if ownerResources == nil || ownerResources != nil && len(ownerResources.OwnerResourcesMap) == 0 {
 			return fmt.Errorf("failed to execute action with nil owner resources or no owner resource paths found")

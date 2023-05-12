@@ -115,10 +115,14 @@ func (manager *ORMClientManager) GetOwnerResourcesForSource(ownedObj *unstructur
 		if err != nil {
 			return nil, err
 		}
+		// if it couldn't locate owner resource path mappings from V1 orm, it returns the source/owned resource mapping path similar to above
+		// V2 orm flow.
 		if len(allOwnerResourcePaths) > 0 {
-			foundORMV1 = true
-			glog.Infof("Found owner resource paths using ORM v1 for owned object %s:%s:%s",
-				ownedObj.GetKind(), ownedObj.GetNamespace(), ownedObj.GetName())
+			if ownerResourcesFound(ownedObj, allOwnerResourcePaths) {
+				foundORMV1 = true
+				glog.Infof("Found owner resource paths using ORM v1 for owned object %s:%s:%s",
+					ownedObj.GetKind(), ownedObj.GetNamespace(), ownedObj.GetName())
+			}
 		}
 	}
 
@@ -129,4 +133,15 @@ func (manager *ORMClientManager) GetOwnerResourcesForSource(ownedObj *unstructur
 		ErrorMsg:          err,
 	}, nil
 
+}
+
+func ownerResourcesFound(ownedObj *unstructured.Unstructured, allOwnerResourcePaths map[string][]devopsv1alpha1.ResourcePath) bool {
+	for _, resourcePaths := range allOwnerResourcePaths {
+		for _, resourcePath := range resourcePaths {
+			if ownedObj.GetKind() != resourcePath.ObjectReference.Kind {
+				return true
+			}
+		}
+	}
+	return false
 }
