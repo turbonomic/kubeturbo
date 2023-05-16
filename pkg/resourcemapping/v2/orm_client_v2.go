@@ -3,6 +3,7 @@ package resourcemapping
 import (
 	"context"
 	"fmt"
+
 	"github.com/golang/glog"
 	devopsv1alpha1 "github.com/turbonomic/orm/api/v1alpha1"
 
@@ -42,7 +43,7 @@ type ORMv2Client struct {
 }
 
 func NewORMv2Client(kubeconfig *restclient.Config) (*ORMv2Client, error) {
-	err := kubernetes.InitToolbox(kubeconfig, scheme)
+	err := kubernetes.InitToolbox(kubeconfig, scheme, nil)
 	if err != nil {
 		glog.Errorf("Unable to create orm v2 client: %++v", err)
 		return nil, err

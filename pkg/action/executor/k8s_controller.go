@@ -153,19 +153,17 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 			return fmt.Errorf("failed to execute action with nil ORMClient")
 		}
 		resourcePaths, err := getResourcePath(kind, updatedSpec)
-		if resourcePaths == nil || err != nil {
-			return fmt.Errorf("failed to execute action to get resource paths for unsupported controller types")
+		if err != nil {
+			return fmt.Errorf("failed to execute action, Unable to get resource paths: %v", err)
 		}
 		ownerResources, err := c.ormClient.GetOwnerResourcesForSource(c.obj, ownerInfo, resourcePaths)
 		if err != nil {
-			return fmt.Errorf("failed to execute action to get owner resources %++v", err)
-		}
-		if ownerResources == nil || ownerResources != nil && len(ownerResources.OwnerResourcesMap) == 0 {
-			return fmt.Errorf("failed to execute action with nil owner resources or no owner resource paths found")
+			glog.Warning(err.Error())
+			return fmt.Errorf("failed to execute action, Unable to get owner resources: %v", err)
 		}
 		err = c.ormClient.UpdateOwners(c.obj, ownerInfo, ownerResources)
 		if err != nil {
-			return fmt.Errorf("failed to execute action due to failure in updating owners:%v", err)
+			return fmt.Errorf("failed to execute action due to failure in updating owners: %v", err)
 		}
 	} else {
 		_, err = c.clients.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
@@ -353,12 +351,11 @@ func getResourcePath(controllerType string, k8sSpec *k8sControllerSpec) ([]strin
 			resourcePaths = append(resourcePaths, resourcePath)
 		}
 		glog.V(4).Infof("found resource paths for supported controller type: %v", controllerType)
-
+		return resourcePaths, nil
 		// TODO: we don't support any custom controllers currently, since when building podspec it resolves in unexpected controller type.
 		// default resource path for custome custroller - ".spec.containers[?(@.name=="xxxx")].resources"
 	default:
 		glog.V(4).Infof("no resource paths found due to unsupported controller type: %v", controllerType)
 		return resourcePaths, fmt.Errorf("unsupported controller type")
 	}
-	return resourcePaths, nil
 }

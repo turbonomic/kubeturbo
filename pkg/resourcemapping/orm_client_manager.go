@@ -68,7 +68,6 @@ type OwnerResources struct {
 	// mapping of owner and the owner path for a given source/owned path
 	OwnerResourcesMap map[string][]devopsv1alpha1.ResourcePath
 	isV1ORM           bool
-	ErrorMsg          error
 }
 
 // Return the owner resources to modify for a given source resource path
@@ -113,16 +112,18 @@ func (manager *ORMClientManager) GetOwnerResourcesForSource(ownedObj *unstructur
 	if len(allOwnerResourcePaths) == 0 {
 		allOwnerResourcePaths, err = manager.LocateOwnerPaths(ownedObj, ownerReference, sourceResourcePath)
 		if err != nil {
-			return nil, err
+			return &OwnerResources{
+				ControllerObj:     ownedObj,
+				OwnerResourcesMap: allOwnerResourcePaths,
+				isV1ORM:           foundORMV1,
+			}, err
 		}
-		// if it couldn't locate owner resource path mappings from V1 orm, it returns the source/owned resource mapping path similar to above
+		// if it cannot locate owner resource path mappings from V1 orm, it returns the source/owned resource mapping path similar to above
 		// V2 orm flow.
-		if len(allOwnerResourcePaths) > 0 {
-			if ownerResourcesFound(ownedObj, allOwnerResourcePaths) {
-				foundORMV1 = true
-				glog.Infof("Found owner resource paths using ORM v1 for owned object %s:%s:%s",
-					ownedObj.GetKind(), ownedObj.GetNamespace(), ownedObj.GetName())
-			}
+		if len(allOwnerResourcePaths) > 0 && ownerResourcesFound(ownedObj, allOwnerResourcePaths) {
+			foundORMV1 = true
+			glog.Infof("Found owner resource paths using ORM v1 for owned object %s:%s:%s",
+				ownedObj.GetKind(), ownedObj.GetNamespace(), ownedObj.GetName())
 		}
 	}
 
@@ -130,11 +131,12 @@ func (manager *ORMClientManager) GetOwnerResourcesForSource(ownedObj *unstructur
 		ControllerObj:     ownedObj,
 		OwnerResourcesMap: allOwnerResourcePaths,
 		isV1ORM:           foundORMV1,
-		ErrorMsg:          err,
 	}, nil
 
 }
 
+// This helper function will determine if the owner resources are found in orm V1, since we are returning the source/owned obj resourcepaths if it cannot
+// locate owner paths. This will determine to check and log if it actually found the owners resources from v1 orm
 func ownerResourcesFound(ownedObj *unstructured.Unstructured, allOwnerResourcePaths map[string][]devopsv1alpha1.ResourcePath) bool {
 	for _, resourcePaths := range allOwnerResourcePaths {
 		for _, resourcePath := range resourcePaths {
