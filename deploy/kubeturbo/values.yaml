@@ -40,6 +40,11 @@ restAPIConfig:
   opsManagerUserName: Turbo_username
   opsManagerPassword: Turbo_password
 
+# Turbo server registration process configuration
+sdkProtocolConfig:
+  registrationTimeoutSec: 300
+  restartOnRegistrationTimeout: false
+
 # For targetConfig, targetName provides better group naming to identify k8s clusters in UI
 # - If no targetConfig is specified, a default targetName will be created from the apiserver URL in
 #   the kubeconfig.

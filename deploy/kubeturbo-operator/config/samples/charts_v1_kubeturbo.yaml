@@ -24,6 +24,9 @@ spec:
     opsManagerPassword: Turbo_password
     opsManagerUserName: Turbo_username
     turbonomicCredentialsSecretName: turbonomic-credentials
+  sdkProtocolConfig:
+    registrationTimeoutSec: 300
+    restartOnRegistrationTimeout: false
   roleBinding: turbo-all-binding
   roleName: cluster-admin
   serverMeta:
