@@ -384,7 +384,7 @@ func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructur
 			// so we check if the owner kind and the contoller kind we get from action is same, in that case we cannot perform this update operation
 			// on source/owned resource kind without owner resource found
 			if ownerResKind == updatedControllerObj.GetKind() {
-				glog.Warning("owner resource not found for owned object: '%s' in namespace %s, skip updating owner CR",
+				glog.Warningf("owner resource not found for owned object: '%s' in namespace %s, skip updating owner CR",
 					ownerRes, ownerResNamespace)
 				continue
 			}
