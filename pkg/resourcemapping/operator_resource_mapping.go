@@ -410,7 +410,7 @@ func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructur
 				return fmt.Errorf("failed to set new value %v to owner CR %s '%s' in namespace %s: %v",
 					newCRValue, ownerRes, ownerPath, ownerResNamespace, err)
 			}
-			glog.V(4).Infof("updating owner resource for owner object %s in namespace %s at owner path %s", ownerRes, ownerObj.Namespace, ownerPath)
+			glog.V(2).Infof("updating owner resource for owner object %s in namespace %s at owner path %s", ownerRes, ownerObj.Namespace, ownerPath)
 			// update the owner cr object with new values set
 			err = kubernetes.Toolbox.UpdateResourceWithGVK(ownerCR.GroupVersionKind(), ownerCR)
 			if err != nil {
@@ -421,7 +421,7 @@ func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructur
 				ormClient.SetORMStatusForOwner(ownerCR, nil)
 			}
 			updated = true
-			glog.V(4).Infof("successfully updated owner CR %s for path '%s' from %v to %v in namespace %s", ownerRes, ownerPath, origCRValue, newCRValue, ownerResNamespace)
+			glog.Infof("successfully updated owner CR %s for path '%s' from %v to %v in namespace %s", ownerRes, ownerPath, origCRValue, newCRValue, ownerResNamespace)
 		}
 	}
 	// If updated is false at this stage, it means there are some changes turbo server is recommending to make but not
