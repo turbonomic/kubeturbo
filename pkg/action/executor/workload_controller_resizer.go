@@ -251,28 +251,23 @@ func buildDesiredPod4QuotaEvaluation(namespace string, resizeSpecs []*containerR
 			glog.V(2).Infof("Skip one resize spec, as it is nil or its index is out of range")
 			continue
 		}
+
+		if len(spec.NewRequest) > 0 && len(podSpec.Containers[spec.Index].Resources.Requests) == 0 {
+			podSpec.Containers[spec.Index].Resources.Requests = make(k8sapi.ResourceList)
+		}
+		if len(spec.NewCapacity) > 0 && len(podSpec.Containers[spec.Index].Resources.Limits) == 0 {
+			podSpec.Containers[spec.Index].Resources.Limits = make(k8sapi.ResourceList)
+		}
 		if newVal, found := spec.NewRequest[k8sapi.ResourceCPU]; found {
-			if len(podSpec.Containers[spec.Index].Resources.Requests) == 0 {
-				podSpec.Containers[spec.Index].Resources.Requests = make(k8sapi.ResourceList)
-			}
 			podSpec.Containers[spec.Index].Resources.Requests[k8sapi.ResourceCPU] = newVal
 		}
 		if newVal, found := spec.NewRequest[k8sapi.ResourceMemory]; found {
-			if len(podSpec.Containers[spec.Index].Resources.Requests) == 0 {
-				podSpec.Containers[spec.Index].Resources.Requests = make(k8sapi.ResourceList)
-			}
 			podSpec.Containers[spec.Index].Resources.Requests[k8sapi.ResourceMemory] = newVal
 		}
 		if newVal, found := spec.NewCapacity[k8sapi.ResourceCPU]; found {
-			if len(podSpec.Containers[spec.Index].Resources.Limits) == 0 {
-				podSpec.Containers[spec.Index].Resources.Limits = make(k8sapi.ResourceList)
-			}
 			podSpec.Containers[spec.Index].Resources.Limits[k8sapi.ResourceCPU] = newVal
 		}
 		if newVal, found := spec.NewCapacity[k8sapi.ResourceMemory]; found {
-			if len(podSpec.Containers[spec.Index].Resources.Limits) == 0 {
-				podSpec.Containers[spec.Index].Resources.Limits = make(k8sapi.ResourceList)
-			}
 			podSpec.Containers[spec.Index].Resources.Limits[k8sapi.ResourceMemory] = newVal
 		}
 	}
