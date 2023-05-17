@@ -8,12 +8,10 @@ import (
 	"text/template"
 
 	devopsv1alpha1 "github.com/turbonomic/orm/api/v1alpha1"
-	"github.com/turbonomic/orm/kubernetes"
 
 	"github.com/golang/glog"
 	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/util"
-	ormutils "github.com/turbonomic/orm/utils"
 	v1 "k8s.io/api/core/v1"
 	apix "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
@@ -353,85 +351,6 @@ func (ormClient *ORMClient) LocateOwnerPaths(ownedObj *unstructured.Unstructured
 	}
 
 	return owners, nil
-}
-
-// UpdateOwners updates the corresponding owner CR for an owned manged resource
-// updatedControllerObj -- updated K8s controller object based on Turbo actionItem, from which the resource value is fetched
-//
-//	and will be set to the corresponding CR
-//
-// controllerOwnerReference -- ownerReference of a K8s controller, which contains metadata of a owner CR
-// ownerResources -- mapping of owner resource obj with owner resource path and source/owned controller obj
-func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructured.Unstructured, controllerOwnerReference discoveryutil.OwnerInfo, ownerResources *OwnerResources) error {
-	updated := false
-	operatorResKind := controllerOwnerReference.Kind //operator kind and instance
-	operatorResName := controllerOwnerReference.Name
-	operatorRes := operatorResKind + "/" + operatorResName
-	resourceNamespace := updatedControllerObj.GetNamespace()
-	sourceResKind := updatedControllerObj.GetKind()
-	sourceResName := updatedControllerObj.GetName()
-	sourceRes := sourceResKind + "/" + sourceResName
-	for ownedPath, resourcePaths := range ownerResources.OwnerResourcesMap {
-		for _, resourcePath := range resourcePaths {
-			// Retrieve the owner object and path
-			ownerPath := resourcePath.Path
-			ownerObj := resourcePath.ObjectReference
-			ownerResKind := ownerObj.Kind
-			ownerResName := ownerObj.Name
-			ownerRes := ownerResKind + "/" + ownerResName
-			ownerResNamespace := ownerObj.Namespace
-			// ownerResources might have source/owned resource kind with their resource paths if it cannot find the owner resource mapping from ORM.
-			// so we check if the owner kind and the contoller kind we get from action is same, in that case we cannot perform this update operation
-			// on source/owned resource kind without owner resource found
-			if ownerResKind == updatedControllerObj.GetKind() {
-				glog.Warningf("owner resource not found for owned object: '%s' in namespace %s, skip updating owner CR",
-					sourceRes, ownerResNamespace)
-				continue
-			}
-			glog.Infof("Update owner %s/%s resource found for source %s/%s",
-				ownerResKind, ownerResName,
-				sourceResKind, sourceResName)
-			ownerCR, err := kubernetes.Toolbox.GetResourceWithObjectReference(ownerObj)
-			if err != nil {
-				return fmt.Errorf("failed to get owner CR with owner object %s for %s in namespace %s: %v", ownerRes, sourceRes, ownerResNamespace, err)
-			}
-			// get the new resource value from the source obj
-			newCRValue, found, err := ormutils.NestedField(updatedControllerObj.Object, ownedPath)
-			if err != nil || !found {
-				return fmt.Errorf("failed to get value for source/owned resource %s from path '%s' in action controller, error: %v", sourceRes, ownedPath, err)
-			}
-			// get the original resource value from the owner obj
-			origCRValue, found, err := ormutils.NestedField(ownerCR.Object, ownerPath)
-			if err != nil || !found {
-				return fmt.Errorf("failed to get value for owner resource %s from path '%s' in ownerCR for %s, error: %v", ownerRes, ownerPath, sourceRes, err)
-			}
-			// set new resource values to owenr cr obj
-			if err := ormutils.SetNestedField(ownerCR.Object, newCRValue, ownerPath); err != nil {
-				return fmt.Errorf("failed to set new value %v to owner CR %s at owner path '%s' for %s in namespace %s: %v",
-					newCRValue, ownerRes, ownerPath, sourceRes, ownerResNamespace, err)
-			}
-			glog.V(2).Infof("updating owner resource %s for %s in namespace %s at owner path %s", ownerRes, sourceRes, ownerObj.Namespace, ownerPath)
-			// update the owner cr object with new values set
-			err = kubernetes.Toolbox.UpdateResourceWithGVK(ownerCR.GroupVersionKind(), ownerCR)
-			if err != nil {
-				return fmt.Errorf("failed to perform update action on owner CR %s for %s in namespace %s: %v", ownerRes, sourceRes, ownerResNamespace, err)
-			}
-			//set orm status only for owner object if this not orm V1
-			if !ownerResources.isV1ORM {
-				ormClient.SetORMStatusForOwner(ownerCR, nil)
-			}
-			updated = true
-			glog.Infof("successfully updated owner CR %s for path '%s' from %v to %v for %s in namespace %s", ownerRes, ownerPath, origCRValue, newCRValue, sourceRes, ownerResNamespace)
-		}
-	}
-	// If updated is false at this stage, it means there are some changes turbo server is recommending to make but not
-	// defined in the ORM resource mapping templates. In this case, the resource field may be missing to be defined in
-	// ORM CR so it couldn't find any owner resource paths to update.
-	// We send an action failure notification here because nothing gets changes after the action execution.
-	if !updated {
-		return fmt.Errorf("failed to update owner CR %s for %s in namespace %s, missing owner resource", operatorRes, sourceRes, resourceNamespace)
-	}
-	return nil
 }
 
 func (ormClient *ORMClient) parseSrcAndDestPath(resourceMappingTemplate map[string]interface{}) (string, string, error) {

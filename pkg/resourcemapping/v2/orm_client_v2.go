@@ -42,6 +42,8 @@ type ORMv2Client struct {
 	*registry.ResourceMappingRegistry
 }
 
+// TODO: Passing the event recorder as nil as of now, will have to come up with creating
+// own event recorder during this initialization of toolbox to capture events
 func NewORMv2Client(kubeconfig *restclient.Config) (*ORMv2Client, error) {
 	err := kubernetes.InitToolbox(kubeconfig, scheme, nil)
 	if err != nil {
