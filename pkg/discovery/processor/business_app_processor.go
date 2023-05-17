@@ -76,7 +76,7 @@ func (p *BusinessAppProcessor) ProcessAppsOfType(res schema.GroupVersionResource
 
 	apps, err := dynClient.Resource(res).Namespace("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		glog.Warningf("Failed to list %v from %v/%v: %v", res.Resource, res.Group, res.Version, err)
+		glog.Warningf("Could not list %v from %v/%v: %v", res.Resource, res.Group, res.Version, err)
 		return appToComponentMap
 	}
 
