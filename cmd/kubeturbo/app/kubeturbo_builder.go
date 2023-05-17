@@ -736,7 +736,7 @@ func GetSCCs(client dynamic.Interface) (sccList *unstructured.UnstructuredList) 
 			var err error
 			sccList, err = client.Resource(res).List(context.TODO(), metav1.ListOptions{})
 			if err != nil {
-				glog.Errorf("Failed to get openshift cluster sccs: %v", err)
+				glog.Warningf("Could not get openshift cluster sccs: %v", err)
 			}
 			return err
 		})
