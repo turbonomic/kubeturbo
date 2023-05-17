@@ -9,7 +9,6 @@ import (
 	devopsv1alpha1 "github.com/turbonomic/orm/api/v1alpha1"
 	"github.com/turbonomic/orm/kubernetes"
 	ormutils "github.com/turbonomic/orm/utils"
-	corev1 "k8s.io/api/core/v1"
 	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
@@ -92,12 +91,7 @@ func ownerResourcesFound(ownedObj *unstructured.Unstructured, allOwnerResourcePa
 func (manager *ORMClientManager) GetOwnerResourcesForSource(ownedObj *unstructured.Unstructured,
 	ownerReference discoveryutil.OwnerInfo, paths []string) (*OwnerResources, error) {
 	var err error
-	var owned corev1.ObjectReference = corev1.ObjectReference{
-		Kind:       ownedObj.GetKind(),
-		Namespace:  ownedObj.GetNamespace(),
-		Name:       ownedObj.GetName(),
-		APIVersion: ownedObj.GetAPIVersion(),
-	}
+	owned := createObjRef(ownedObj)
 	allOwnerResourcePaths := make(map[string][]devopsv1alpha1.ResourcePath)
 	//find ORM v2 given the source owned resource
 	var sourceResourcePath []*devopsv1alpha1.ResourcePath

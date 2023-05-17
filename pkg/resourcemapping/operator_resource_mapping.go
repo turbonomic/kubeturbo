@@ -248,15 +248,20 @@ func (ormClient *ORMClient) populateORMTemplateMap(ormCR unstructured.Unstructur
 	return ormTemplateMap, nil
 }
 
-func createV1OwnedResourcePath(owned []*devopsv1alpha1.ResourcePath, ownedObj *unstructured.Unstructured) map[string][]devopsv1alpha1.ResourcePath {
+func createObjRef(obj *unstructured.Unstructured) v1.ObjectReference {
+	objRef := v1.ObjectReference{
+		Kind:       obj.GetKind(),
+		Namespace:  obj.GetNamespace(),
+		Name:       obj.GetName(),
+		APIVersion: obj.GetAPIVersion(),
+	}
+	return objRef
+}
+
+func defaultResourcePathWithOwned(owned []*devopsv1alpha1.ResourcePath, ownedObj *unstructured.Unstructured) map[string][]devopsv1alpha1.ResourcePath {
 	ownedV1Resources := make(map[string][]devopsv1alpha1.ResourcePath)
 
-	ownedRef := v1.ObjectReference{
-		Kind:       ownedObj.GetKind(),
-		Namespace:  ownedObj.GetNamespace(),
-		Name:       ownedObj.GetName(),
-		APIVersion: ownedObj.GetAPIVersion(),
-	}
+	ownedRef := createObjRef(ownedObj)
 
 	for _, ownedRespath := range owned {
 		ownedPath := ownedRespath.Path
@@ -305,26 +310,21 @@ func (ormClient *ORMClient) LocateOwnerPaths(ownedObj *unstructured.Unstructured
 
 	orm, ownerObj, err := ormClient.retrieveOwnerResource(ownedObj, ownerReference)
 	if err != nil {
-		allOwnerResourcePaths = createV1OwnedResourcePath(owned, ownedObj)
+		allOwnerResourcePaths = defaultResourcePathWithOwned(owned, ownedObj)
 		return allOwnerResourcePaths, err
 	}
 	if orm == nil || ownerObj == nil {
-		allOwnerResourcePaths = createV1OwnedResourcePath(owned, ownedObj)
+		allOwnerResourcePaths = defaultResourcePathWithOwned(owned, ownedObj)
 		return allOwnerResourcePaths, fmt.Errorf("cannot find orm V1 owner resource paths for sources : '%s' so returning owned/source resource paths", ownedKey)
 	}
 
 	ormTemplate, exists := orm.ormTemplateMap[ownedKey] //path mappings for the source
 	if !exists {
-		allOwnerResourcePaths = createV1OwnedResourcePath(owned, ownedObj)
+		allOwnerResourcePaths = defaultResourcePathWithOwned(owned, ownedObj)
 		return allOwnerResourcePaths, fmt.Errorf("ormTemplate not found in ormTemplateMap of orm V1 for componentKey %s for operatorCR %s",
 			ownedKey, ownerObj.GetUID())
 	}
-	var ownerRef v1.ObjectReference = v1.ObjectReference{
-		Kind:       ownerObj.GetKind(),
-		Namespace:  ownerObj.GetNamespace(),
-		Name:       ownerObj.GetName(),
-		APIVersion: ownerObj.GetAPIVersion(),
-	}
+	ownerRef := createObjRef(ownerObj)
 
 	operatorRes := ownerObj.GetKind() + "/" + ownerObj.GetName()
 	resourceNamespace := ownedObj.GetNamespace()
