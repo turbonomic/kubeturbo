@@ -388,17 +388,17 @@ func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructur
 					sourceRes, ownerResNamespace)
 				continue
 			}
-			glog.Infof("Update owner %s/%s resources found for source %s/%s",
+			glog.Infof("Update owner %s/%s resource found for source %s/%s",
 				ownerResKind, ownerResName,
 				sourceResKind, sourceResName)
 			ownerCR, err := kubernetes.Toolbox.GetResourceWithObjectReference(ownerObj)
 			if err != nil {
-				return fmt.Errorf("failed to get owner CR object %s for %s in namespace %s: %v", ownerRes, sourceRes, ownerResNamespace, err)
+				return fmt.Errorf("failed to get owner CR with owner object %s for %s in namespace %s: %v", ownerRes, sourceRes, ownerResNamespace, err)
 			}
 			// get the new resource value from the source obj
 			newCRValue, found, err := ormutils.NestedField(updatedControllerObj.Object, ownedPath)
 			if err != nil || !found {
-				return fmt.Errorf("failed to get value for source/owned resource %s for path '%s' in action controller, error: %v", sourceRes, ownerPath, err)
+				return fmt.Errorf("failed to get value for source/owned resource %s from path '%s' in action controller, error: %v", sourceRes, ownedPath, err)
 			}
 			// get the original resource value from the owner obj
 			origCRValue, found, err := ormutils.NestedField(ownerCR.Object, ownerPath)
@@ -407,10 +407,10 @@ func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructur
 			}
 			// set new resource values to owenr cr obj
 			if err := ormutils.SetNestedField(ownerCR.Object, newCRValue, ownerPath); err != nil {
-				return fmt.Errorf("failed to set new value %v to owner CR %s '%s' for %s in namespace %s: %v",
+				return fmt.Errorf("failed to set new value %v to owner CR %s at owner path '%s' for %s in namespace %s: %v",
 					newCRValue, ownerRes, ownerPath, sourceRes, ownerResNamespace, err)
 			}
-			glog.V(2).Infof("updating owner resource object %s for %s in namespace %s at owner path %s", ownerRes, sourceRes, ownerObj.Namespace, ownerPath)
+			glog.V(2).Infof("updating owner resource %s for %s in namespace %s at owner path %s", ownerRes, sourceRes, ownerObj.Namespace, ownerPath)
 			// update the owner cr object with new values set
 			err = kubernetes.Toolbox.UpdateResourceWithGVK(ownerCR.GroupVersionKind(), ownerCR)
 			if err != nil {
