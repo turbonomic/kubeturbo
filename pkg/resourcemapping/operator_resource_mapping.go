@@ -385,7 +385,7 @@ func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructur
 			// on source/owned resource kind without owner resource found
 			if ownerResKind == updatedControllerObj.GetKind() {
 				glog.Warningf("owner resource not found for owned object: '%s' in namespace %s, skip updating owner CR",
-					ownerRes, ownerResNamespace)
+					sourceRes, ownerResNamespace)
 				continue
 			}
 			glog.Infof("Update owner %s/%s resources found for source %s/%s",
@@ -393,35 +393,35 @@ func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructur
 				sourceResKind, sourceResName)
 			ownerCR, err := kubernetes.Toolbox.GetResourceWithObjectReference(ownerObj)
 			if err != nil {
-				return fmt.Errorf("failed to get owner CR for owner object %s in namespace %s: %v", ownerRes, ownerResNamespace, err)
+				return fmt.Errorf("failed to get owner CR object %s for %s in namespace %s: %v", ownerRes, sourceRes, ownerResNamespace, err)
 			}
 			// get the new resource value from the source obj
 			newCRValue, found, err := ormutils.NestedField(updatedControllerObj.Object, ownedPath)
 			if err != nil || !found {
-				return fmt.Errorf("failed to get value for source/owned resource %s for path '%s' in updatedControllerObj, error: %v", sourceRes, ownerPath, err)
+				return fmt.Errorf("failed to get value for source/owned resource %s for path '%s' in action controller, error: %v", sourceRes, ownerPath, err)
 			}
 			// get the original resource value from the owner obj
 			origCRValue, found, err := ormutils.NestedField(ownerCR.Object, ownerPath)
 			if err != nil || !found {
-				return fmt.Errorf("failed to get value for owner resource %s from path '%s' in ownerCR, error: %v", ownerRes, ownerPath, err)
+				return fmt.Errorf("failed to get value for owner resource %s from path '%s' in ownerCR for %s, error: %v", ownerRes, ownerPath, sourceRes, err)
 			}
 			// set new resource values to owenr cr obj
 			if err := ormutils.SetNestedField(ownerCR.Object, newCRValue, ownerPath); err != nil {
-				return fmt.Errorf("failed to set new value %v to owner CR %s '%s' in namespace %s: %v",
-					newCRValue, ownerRes, ownerPath, ownerResNamespace, err)
+				return fmt.Errorf("failed to set new value %v to owner CR %s '%s' for %s in namespace %s: %v",
+					newCRValue, ownerRes, ownerPath, sourceRes, ownerResNamespace, err)
 			}
-			glog.V(2).Infof("updating owner resource for owner object %s in namespace %s at owner path %s", ownerRes, ownerObj.Namespace, ownerPath)
+			glog.V(2).Infof("updating owner resource object %s for %s in namespace %s at owner path %s", ownerRes, sourceRes, ownerObj.Namespace, ownerPath)
 			// update the owner cr object with new values set
 			err = kubernetes.Toolbox.UpdateResourceWithGVK(ownerCR.GroupVersionKind(), ownerCR)
 			if err != nil {
-				return fmt.Errorf("failed to perform update action owner CR %s in namespace %s: %v", ownerRes, ownerResNamespace, err)
+				return fmt.Errorf("failed to perform update action on owner CR %s for %s in namespace %s: %v", ownerRes, sourceRes, ownerResNamespace, err)
 			}
 			//set orm status only for owner object if this not orm V1
 			if !ownerResources.isV1ORM {
 				ormClient.SetORMStatusForOwner(ownerCR, nil)
 			}
 			updated = true
-			glog.Infof("successfully updated owner CR %s for path '%s' from %v to %v in namespace %s", ownerRes, ownerPath, origCRValue, newCRValue, ownerResNamespace)
+			glog.Infof("successfully updated owner CR %s for path '%s' from %v to %v for %s in namespace %s", ownerRes, ownerPath, origCRValue, newCRValue, sourceRes, ownerResNamespace)
 		}
 	}
 	// If updated is false at this stage, it means there are some changes turbo server is recommending to make but not
@@ -429,7 +429,7 @@ func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructur
 	// ORM CR so it couldn't find any owner resource paths to update.
 	// We send an action failure notification here because nothing gets changes after the action execution.
 	if !updated {
-		return fmt.Errorf("failed to update owner CR %s in namespace %s, missing owner resource", operatorRes, resourceNamespace)
+		return fmt.Errorf("failed to update owner CR %s for %s in namespace %s, missing owner resource", operatorRes, sourceRes, resourceNamespace)
 	}
 	return nil
 }
