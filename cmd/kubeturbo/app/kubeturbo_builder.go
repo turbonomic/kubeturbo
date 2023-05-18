@@ -39,7 +39,6 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
-	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
 	nodeUtil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -457,7 +456,6 @@ func (s *VMTServer) Run() {
 
 	// Interface to discover turbonomic ORM mappings (legacy and v2) for resize actions
 	ormClientManager := resourcemapping.NewORMClientManager(dynamicClient, kubeConfig)
-	clusterAPIEnabled := executor.IsClusterAPIEnabled(caClient, kubeClient)
 
 	// Configuration for creating the Kubeturbo TAP service
 	vmtConfig := kubeturbo.NewVMTConfig2()
@@ -486,7 +484,6 @@ func (s *VMTServer) Run() {
 		WithContainerUsageDataAggStrategy(s.containerUsageDataAggStrategy).
 		WithVolumePodMoveConfig(s.FailVolumePodMoves).
 		WithQuotaUpdateConfig(s.UpdateQuotaToAllowMoves).
-		WithClusterAPIEnabled(clusterAPIEnabled).
 		WithReadinessRetryThreshold(s.readinessRetryThreshold).
 		WithClusterKeyInjected(s.ClusterKeyInjected).
 		WithItemsPerListQuery(s.ItemsPerListQuery)

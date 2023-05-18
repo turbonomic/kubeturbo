@@ -36,6 +36,9 @@ const (
 	machineSetNodePoolPrefix = "machineset"
 	// Expiration of cached pod controller info.
 	defaultCacheTTL = 12 * time.Hour
+	// TODO: When we have an actual user scenario, find out the version the user has and
+	//  add support for multiple cluster-api versions if need be.
+	clusterAPIGroupVersion = "machine.openshift.io/v1beta1"
 )
 
 var (
@@ -69,7 +72,7 @@ type ClusterScraperInterface interface {
 type ClusterScraper struct {
 	*client.Clientset
 	RestConfig              *restclient.Config
-	caClient                *capiclient.Clientset
+	CApiClient              *capiclient.Clientset
 	capiNamespace           string
 	DynamicClient           dynamic.Interface
 	OsClient                *osclient.Clientset
@@ -80,24 +83,21 @@ type ClusterScraper struct {
 }
 
 func NewClusterScraper(restConfig *restclient.Config, kclient *client.Clientset, dynamicClient dynamic.Interface,
-	rtClient runtimeclient.Client, osClient *osclient.Clientset, capiEnabled bool, caClient *capiclient.Clientset, capiNamespace string) *ClusterScraper {
-	clusterScraper := &ClusterScraper{
+	rtClient runtimeclient.Client, osClient *osclient.Clientset, caClient *capiclient.Clientset, capiNamespace string) *ClusterScraper {
+	return &ClusterScraper{
 		Clientset:               kclient,
 		RestConfig:              restConfig,
 		DynamicClient:           dynamicClient,
 		OsClient:                osClient,
 		ControllerRuntimeClient: rtClient,
+		// Nullable
+		CApiClient:    caClient,
+		capiNamespace: capiNamespace,
 		// Create cache with expiration duration as defaultCacheTTL, which means the cached data will be cleaned up after
 		// defaultCacheTTL.
 		cache:             turbostore.NewTurboCache(defaultCacheTTL).Cache,
 		GitOpsConfigCache: make(map[string][]*gitopsv1alpha1.Configuration),
 	}
-
-	if capiEnabled {
-		clusterScraper.caClient = caClient
-		clusterScraper.capiNamespace = capiNamespace
-	}
-	return clusterScraper
 }
 
 func (s *ClusterScraper) GetNamespaces() ([]*api.Namespace, error) {
@@ -154,7 +154,7 @@ func (s *ClusterScraper) GetAllNodes() ([]*api.Node, error) {
 
 func (s *ClusterScraper) GetMachineSetToNodesMap(allNodes []*api.Node) map[string][]*api.Node {
 	machineSetToNodes := make(map[string][]*api.Node)
-	if s.caClient == nil {
+	if s.CApiClient == nil {
 		return machineSetToNodes
 	}
 	// Get the list of machine sets in the cluster
@@ -202,7 +202,7 @@ func findNode(nodeName string, nodes []*api.Node) *api.Node {
 }
 
 func (s *ClusterScraper) getCApiMachineSets() *machinev1beta1api.MachineSetList {
-	machineSetList, err := s.caClient.MachineV1beta1().MachineSets(s.capiNamespace).List(context.TODO(), metav1.ListOptions{})
+	machineSetList, err := s.CApiClient.MachineV1beta1().MachineSets(s.capiNamespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		glog.Errorf("Error retrieving machinesets from cluster: %v", err)
 		return nil
@@ -212,7 +212,7 @@ func (s *ClusterScraper) getCApiMachineSets() *machinev1beta1api.MachineSetList 
 }
 
 func (s *ClusterScraper) getCApiMachinesFiltered(machinesetName string, listOptions metav1.ListOptions) []machinev1beta1api.Machine {
-	machineList, err := s.caClient.MachineV1beta1().Machines(s.capiNamespace).List(context.TODO(), listOptions)
+	machineList, err := s.CApiClient.MachineV1beta1().Machines(s.capiNamespace).List(context.TODO(), listOptions)
 	if err != nil {
 		glog.Errorf("Error retrieving machines for machineset %s from cluster: %v", machinesetName, err)
 		return nil
@@ -593,4 +593,22 @@ func (s *ClusterScraper) UpdateGitOpsConfigCache() {
 	s.GitOpsConfigCacheLock.Lock()
 	defer s.GitOpsConfigCacheLock.Unlock()
 	s.GitOpsConfigCache = gitOpsConfigCache
+}
+
+// IsClusterAPIEnabled checks whether the machine API is enabled for this cluster.
+// This API can be installed or unsintalled anytime, so this function may return true or false accordingly at runtime.
+func (s *ClusterScraper) IsClusterAPIEnabled() bool {
+	if s.CApiClient == nil {
+		return false
+	}
+	serviceString := fmt.Sprintf("ClusterAPI service \"%s\"", clusterAPIGroupVersion)
+	_, err := s.Clientset.Discovery().ServerResourcesForGroupVersion(clusterAPIGroupVersion)
+	// Ideally notFound is the error type which would definitively say that the resource
+	// is unavailable, but we also don't know if the functionality would work if we get some
+	// other error here. We thus treat all errors as problematic.
+	if err != nil {
+		glog.Infof("%s is not available: %v", serviceString, err)
+		return false
+	}
+	return true
 }

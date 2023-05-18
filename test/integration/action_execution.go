@@ -79,8 +79,8 @@ var _ = Describe("Action Executor ", func() {
 				framework.Failf("Failed to generate openshift client for kubernetes test cluster: %v", err)
 			}
 
-			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeConfig, kubeClient, dynamicClient, nil, osClient, false, nil, ""),
+			actionHandlerConfig := action.NewActionHandlerConfig("", nil,
+				cluster.NewClusterScraper(kubeConfig, kubeClient, dynamicClient, nil, osClient, nil, ""),
 				[]string{"*"}, nil, false, true, 60, gitops.GitConfig{}, "test-cluster-id")
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 		}

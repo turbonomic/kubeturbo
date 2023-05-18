@@ -189,8 +189,8 @@ func createProbeConfigOrDie(c *Config) *configs.ProbeConfig {
 	kubeletMonitoringConfig := kubelet.NewKubeletMonitorConfig(c.KubeletClient, c.KubeClient)
 
 	// Create cluster monitoring
-	clusterScraper := cluster.NewClusterScraper(c.RestConfig, c.KubeClient, c.DynamicClient,
-		c.ControllerRuntimeClient, c.OsClient, c.clusterAPIEnabled, c.CAClient, c.CAPINamespace)
+	clusterScraper := cluster.NewClusterScraper(c.RestConfig, c.KubeClient,
+		c.DynamicClient, c.ControllerRuntimeClient, c.OsClient, c.CAClient, c.CAPINamespace)
 	masterMonitoringConfig := master.NewClusterMonitorConfig(clusterScraper)
 
 	// TODO for now kubelet is the only monitoring source. As we have more sources, we should choose what to be added into the slice here.
@@ -218,10 +218,6 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		return nil, errors.New("invalid K8sTAPServiceConfig")
 	}
 
-	// Create the configurations for the registration, discovery and action clients
-	registrationClientConfig := registration.NewRegistrationClientConfig(config.StitchingPropType, config.VMPriority,
-		config.VMIsBase, config.clusterAPIEnabled)
-
 	probeConfig := createProbeConfigOrDie(config)
 
 	discoveryClientConfig := discovery.NewDiscoveryConfig(probeConfig, config.tapSpec.K8sTargetConfig,
@@ -237,7 +233,7 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 	if err != nil {
 		glog.Fatalf("Error retrieving the Kubernetes service id: %v", err)
 	}
-	actionHandlerConfig := action.NewActionHandlerConfig(config.CAPINamespace, config.CAClient, config.KubeletClient,
+	actionHandlerConfig := action.NewActionHandlerConfig(config.CAPINamespace, config.KubeletClient,
 		probeConfig.ClusterScraper, config.SccSupport, config.ORMClientManager, config.failVolumePodMoves,
 		config.updateQuotaToAllowMoves, config.readinessRetryThreshold, config.gitConfig, k8sSvcId)
 
@@ -249,6 +245,11 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 	actionHandler := action.NewActionHandler(actionHandlerConfig)
 
 	// Kubernetes Probe Registration Client
+	// Create the configurations for the registration, discovery and action clients
+	// TODO: Remove logic that checks ClusterAPI for action policies during probe registration when target level
+	//  action policy is implemented in the server
+	registrationClientConfig := registration.NewRegistrationClientConfig(config.StitchingPropType, config.VMPriority,
+		config.VMIsBase, probeConfig.ClusterScraper.IsClusterAPIEnabled())
 	registrationClient := registration.NewK8sRegistrationClient(registrationClientConfig,
 		config.tapSpec.K8sTargetConfig, targetAccountValues.AccountValues(), k8sSvcId)
 
