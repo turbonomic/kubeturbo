@@ -74,7 +74,7 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
-	k8s.io/kubernetes v1.23.14 // indirect
+	k8s.io/kubernetes v1.25.4 // indirect
 	sigs.k8s.io/cluster-api-provider-aws v0.0.0-00010101000000-000000000000 // indirect
 	sigs.k8s.io/cluster-api-provider-azure v0.0.0-00010101000000-000000000000 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
@@ -86,7 +86,7 @@ require (
 	k8s.io/api v0.26.1
 	k8s.io/apiextensions-apiserver v0.26.1
 	k8s.io/apimachinery v0.26.1
-	k8s.io/apiserver v0.23.5
+	k8s.io/apiserver v0.25.4
 	k8s.io/client-go v0.26.1
 	k8s.io/component-base v0.26.1
 	k8s.io/klog v1.0.0
@@ -127,10 +127,10 @@ replace (
 	// https://github.com/golang/go/issues/33546#issuecomment-519656923
 	github.com/go-check/check => github.com/go-check/check v0.0.0-20180628173108-788fd7840127
 
-	k8s.io/api => k8s.io/api v0.23.5
+	k8s.io/api => k8s.io/api v0.25.4
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.23.5
 	k8s.io/apimachinery => k8s.io/apimachinery v0.23.5
-	k8s.io/apiserver => k8s.io/apiserver v0.23.5
+	k8s.io/apiserver => k8s.io/apiserver v0.25.4
 	k8s.io/cli-runtime => k8s.io/cli-runtime v0.23.5
 	k8s.io/client-go => k8s.io/client-go v0.23.5
 	k8s.io/cloud-provider => k8s.io/cloud-provider v0.23.5
