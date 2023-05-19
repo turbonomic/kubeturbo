@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	devopsv1alpha1 "github.com/turbonomic/orm/api/v1alpha1"
-	"reflect"
-	"regexp"
-	"strings"
 	"sync"
 	"text/template"
+
+	devopsv1alpha1 "github.com/turbonomic/orm/api/v1alpha1"
 
 	"github.com/golang/glog"
 	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -152,6 +150,17 @@ func (ormClient *ORMClient) getORMCRList() ([]unstructured.Unstructured, error) 
 	return ormCRs.Items, nil
 }
 
+// this will help determine to pick right crd version for XL that's in use by checking if storage=true
+func GetCRDWithStorageVersionName(crd *apix.CustomResourceDefinition) (string, error) {
+	for _, version := range crd.Spec.Versions {
+		if version.Storage {
+			return version.Name, nil
+		}
+	}
+	// This should not happen if crd is valid
+	return "", fmt.Errorf("invalid CustomResourceDefinition, no storage version")
+}
+
 func (ormClient *ORMClient) getOperatorCRsFromCRD(crdName, namespace string) ([]unstructured.Unstructured, schema.GroupVersionResource, bool, error) {
 	// First get the Operator CRD
 	crds := ormClient.apiExtClient.CustomResourceDefinitions() //RESTClient is used to communicate
@@ -161,9 +170,13 @@ func (ormClient *ORMClient) getOperatorCRsFromCRD(crdName, namespace string) ([]
 	if err != nil {
 		return nil, schema.GroupVersionResource{}, isClusterScope, err
 	}
+	crdVersionName, err := GetCRDWithStorageVersionName(crd)
+	if err != nil {
+		return nil, schema.GroupVersionResource{}, isClusterScope, err
+	}
 	groupVersionRes := schema.GroupVersionResource{
 		Group:    crd.Spec.Group,
-		Version:  crd.Spec.Versions[0].Name,
+		Version:  crdVersionName,
 		Resource: crd.Spec.Names.Plural,
 	}
 
@@ -235,13 +248,40 @@ func (ormClient *ORMClient) populateORMTemplateMap(ormCR unstructured.Unstructur
 	return ormTemplateMap, nil
 }
 
-func (ormClient *ORMClient) retrieveORM(ownedObj *unstructured.Unstructured, ownerReference discoveryutil.OwnerInfo) (*ORMSpec, *unstructured.Unstructured, error) {
+func createObjRef(obj *unstructured.Unstructured) v1.ObjectReference {
+	objRef := v1.ObjectReference{
+		Kind:       obj.GetKind(),
+		Namespace:  obj.GetNamespace(),
+		Name:       obj.GetName(),
+		APIVersion: obj.GetAPIVersion(),
+	}
+	return objRef
+}
+
+func defaultResourcePathWithOwned(owned []*devopsv1alpha1.ResourcePath, ownedObj *unstructured.Unstructured) map[string][]devopsv1alpha1.ResourcePath {
+	ownedV1Resources := make(map[string][]devopsv1alpha1.ResourcePath)
+
+	ownedRef := createObjRef(ownedObj)
+
+	for _, ownedRespath := range owned {
+		ownedPath := ownedRespath.Path
+		ownedResPath := &devopsv1alpha1.ResourcePath{
+			ObjectReference: ownedRef,
+			Path:            ownedPath,
+		}
+		ownedV1Resources[ownedPath] = []devopsv1alpha1.ResourcePath{*ownedResPath}
+	}
+
+	return ownedV1Resources
+}
+
+func (ormClient *ORMClient) retrieveOwnerResource(ownedObj *unstructured.Unstructured, ownerReference discoveryutil.OwnerInfo) (*ORMSpec, *unstructured.Unstructured, error) {
 	operatorCRUID := string(ownerReference.Uid)               // owner is considered as operator
 	ownedKey := ownedObj.GetKind() + "/" + ownedObj.GetName() // source or owned resource
 
 	operatorResourceSpec, exists := ormClient.operatorResourceSpecMap[operatorCRUID] //orm for the operator/owner
 	if !exists {
-		return nil, nil, fmt.Errorf("operatorResourceSpec not found in operatorResourceSpecMap for operatorCR %s", operatorCRUID)
+		return nil, nil, fmt.Errorf("operatorResourceSpec not found in operatorResourceSpecMap for orm V1 operatorCR %s", operatorCRUID)
 	}
 
 	operatorResKind := ownerReference.Kind //operator kind and instance
@@ -255,7 +295,7 @@ func (ormClient *ORMClient) retrieveORM(ownedObj *unstructured.Unstructured, own
 	dynResourceClient := ormClient.dynClient.Resource(operatorResourceSpec.operatorGVResource).Namespace(resourceNamespace)
 	operatorCR, err := dynResourceClient.Get(context.TODO(), operatorResName, metav1.GetOptions{})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get CR %s for %s in namespace %s: %v",
+		return nil, nil, fmt.Errorf("failed to get orm V1 operatorCR %s for %s in namespace %s: %v",
 			operatorRes, ownedKey, resourceNamespace, err)
 	}
 
@@ -266,36 +306,28 @@ func (ormClient *ORMClient) LocateOwnerPaths(ownedObj *unstructured.Unstructured
 	ownedKey := ownedObj.GetKind() + "/" + ownedObj.GetName() // source or owned resource
 
 	var allOwnerResourcePaths map[string][]devopsv1alpha1.ResourcePath
+	owners := map[string][]devopsv1alpha1.ResourcePath{}
 
-	orm, ownerObj, err := ormClient.retrieveORM(ownedObj, ownerReference)
+	orm, ownerObj, err := ormClient.retrieveOwnerResource(ownedObj, ownerReference)
 	if err != nil {
+		allOwnerResourcePaths = defaultResourcePathWithOwned(owned, ownedObj)
 		return allOwnerResourcePaths, err
 	}
-	if orm == nil {
-		return allOwnerResourcePaths, fmt.Errorf("Cannot find orm V1 for source: %s\n", ownedKey)
-	}
 	if orm == nil || ownerObj == nil {
-		return allOwnerResourcePaths, fmt.Errorf("Cannot find owner for source: %s\n", ownedKey)
-	}
-
-	var ownerRef v1.ObjectReference
-	ownerRef = v1.ObjectReference{
-		Kind:       ownerObj.GetKind(),
-		Namespace:  ownerObj.GetNamespace(),
-		Name:       ownerObj.GetName(),
-		APIVersion: ownerObj.GetAPIVersion(),
+		allOwnerResourcePaths = defaultResourcePathWithOwned(owned, ownedObj)
+		return allOwnerResourcePaths, fmt.Errorf("cannot find orm V1 owner resource paths for sources : '%s' so returning owned/source resource paths", ownedKey)
 	}
 
 	ormTemplate, exists := orm.ormTemplateMap[ownedKey] //path mappings for the source
 	if !exists {
-		return nil, fmt.Errorf("ormTemplate not found in ormTemplateMap for componentKey %s for operatorCR %s",
+		allOwnerResourcePaths = defaultResourcePathWithOwned(owned, ownedObj)
+		return allOwnerResourcePaths, fmt.Errorf("ormTemplate not found in ormTemplateMap of orm V1 for componentKey %s for operatorCR %s",
 			ownedKey, ownerObj.GetUID())
 	}
+	ownerRef := createObjRef(ownerObj)
 
 	operatorRes := ownerObj.GetKind() + "/" + ownerObj.GetName()
 	resourceNamespace := ownedObj.GetNamespace()
-
-	owners := map[string][]devopsv1alpha1.ResourcePath{}
 	// Update based on each resourceMappingTemplate
 	for _, sourceResPath := range owned {
 		sp := sourceResPath.Path
@@ -319,106 +351,6 @@ func (ormClient *ORMClient) LocateOwnerPaths(ownedObj *unstructured.Unstructured
 	}
 
 	return owners, nil
-}
-
-// Update updates the corresponding CR for an Operator manged resource based on OperatorResourceMapping
-// origControllerObj -- original K8s controller object
-// updatedControllerObj -- updated K8s controller object based on Turbo actionItem, from which the resource value is fetched
-//
-//	and will be set to the corresponding CR
-//
-// controllerOwnerReference -- ownerReference of a K8s controller, which contains metadata of a Operator CR
-func (ormClient *ORMClient) Update(origControllerObj, updatedControllerObj *unstructured.Unstructured, controllerOwnerReference discoveryutil.OwnerInfo) error {
-	operatorCRUID := string(controllerOwnerReference.Uid)                                 // owner is considered as operator
-	componentKey := updatedControllerObj.GetKind() + "/" + updatedControllerObj.GetName() // source or owned resource
-	ormClient.cacheLock.Lock()
-	defer ormClient.cacheLock.Unlock()
-	glog.Infof("Update owner %s/%s resources found using orm v1 for source %s/%s",
-		controllerOwnerReference.Kind, controllerOwnerReference.Name,
-		updatedControllerObj.GetKind(), updatedControllerObj.GetName())
-
-	operatorResourceSpec, exists := ormClient.operatorResourceSpecMap[operatorCRUID]
-	if !exists {
-		return fmt.Errorf("operatorResourceSpec not found in operatorResourceSpecMap for operatorCR %s", operatorCRUID)
-	}
-	ormTemplate, exists := operatorResourceSpec.ormTemplateMap[componentKey]
-	if !exists {
-		return fmt.Errorf("ormTemplate not found in ormTemplateMap for componentKey %s for operatorCR %s", componentKey, operatorCRUID)
-	}
-
-	operatorResKind := controllerOwnerReference.Kind //operator kind and instance
-	operatorResName := controllerOwnerReference.Name
-	operatorRes := operatorResKind + "/" + operatorResName
-
-	resourceNamespace := updatedControllerObj.GetNamespace()
-	if operatorResourceSpec.isClusterScope {
-		resourceNamespace = v1.NamespaceAll
-	}
-	dynResourceClient := ormClient.dynClient.Resource(operatorResourceSpec.operatorGVResource).Namespace(resourceNamespace)
-	operatorCR, err := dynResourceClient.Get(context.TODO(), operatorResName, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get CR %s for %s in namespace %s: %v", operatorRes, componentKey, resourceNamespace, err)
-	}
-
-	glog.V(2).Infof("Updating CR %s for %s in namespace %s", operatorRes, componentKey, resourceNamespace)
-	updated := false
-	// Update based on each resourceMappingTemplate
-	for _, resourceMappingTemplate := range ormTemplate.resourceMappingTemplates {
-		// Set resourceMappingComponentName to resourceMappingTemplate so as to parse the srcPath and destPath based on text template
-		resourceMappingTemplate[resourceMappingComponentName] = ormTemplate.componentName
-		srcPath, destPath, err := ormClient.parseSrcAndDestPath(resourceMappingTemplate)
-		if err != nil {
-			return fmt.Errorf("failed to update CR %s for %s in namespace %s: error while parsing resource paths [source %v, dest %v]:%v",
-				operatorRes, componentKey, resourceNamespace, srcPath, destPath, err)
-		}
-		glog.V(4).Infof("Source path: %v, Dest path: %v", srcPath, destPath)
-
-		srcPathExists, err := ormClient.checkResourcePath(origControllerObj, srcPath)
-		if !srcPathExists {
-			glog.Warningf("source path %s does not exist: %v\n", srcPath, err)
-			continue
-		}
-		// Check if CR needs update from current resourceMappingTemplate. If the values are same under the same srcPath
-		// from origControllerObj and updatedControllerObj, it means resource value is not changed and no need to update
-		// corresponding destPath in CR.
-		newValue, needsUpdate, err := ormClient.needsUpdate(origControllerObj, updatedControllerObj, srcPath)
-		if err != nil {
-			return fmt.Errorf("failed to update CR %s for %s in namespace %s: %v", operatorRes, componentKey, resourceNamespace, err)
-		}
-		if !needsUpdate {
-			glog.V(4).Infof("No changes in controller %s/%s src path '%s'. Skip updating Operator CR %s.",
-				updatedControllerObj.GetKind(), updatedControllerObj.GetName(), srcPath, operatorRes)
-			continue
-		}
-		re := regexp.MustCompile(`(\[)|(\]\.)`)
-		parsedDestPath := re.ReplaceAllString(destPath, ".")
-		fields := strings.Split(parsedDestPath, ".")
-		if len(fields) < 2 {
-			return fmt.Errorf("failed to update %v to CR %s for %s in namespace %s: '%s' is invalid path", newValue, operatorRes, componentKey, resourceNamespace, destPath)
-		}
-		origCRValue, _, err := util.NestedField(operatorCR, resourceMappingDestPath, destPath)
-		if err != nil {
-			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
-		}
-		err = util.SetNestedField(operatorCR.Object, newValue, fields[1:]...)
-		if err != nil {
-			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
-		}
-		_, err = dynResourceClient.Update(context.TODO(), operatorCR, metav1.UpdateOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to update %v to CR %s '%s' for %s in namespace %s: %v", newValue, operatorRes, destPath, componentKey, resourceNamespace, err)
-		}
-		updated = true
-		glog.Infof("Successfully updated CR %s '%s' from %v to %v for %s in namespace %s", operatorRes, destPath, origCRValue, newValue, componentKey, resourceNamespace)
-	}
-	// If needsUpdate is false at this stage, it means there are some changes turbo server is recommending to make but not
-	// defined in the ORM resource mapping templates. In this case, either the resource field is missing to be defined in
-	// ORM CR or the field is not allowed to be changed, like a fixed value managed by Operator. We send an action failure
-	// notification here because nothing gets changes after the action execution.
-	if !updated {
-		return fmt.Errorf("failed to update CR %s for %s in namespace %s: missing resource mapping template", operatorRes, componentKey, resourceNamespace)
-	}
-	return nil
 }
 
 func (ormClient *ORMClient) parseSrcAndDestPath(resourceMappingTemplate map[string]interface{}) (string, string, error) {
@@ -453,31 +385,4 @@ func (ormClient *ORMClient) parsePath(resourceMappingTemplate map[string]interfa
 	}
 	parsedPath := buf.String()
 	return parsedPath, nil
-}
-
-// needsUpdate returns false if values from origControllerObj and updatedControllerObj are the same for the same srcPath.
-func (ormClient *ORMClient) needsUpdate(origControllerObj, updatedControllerObj *unstructured.Unstructured, srcPath string) (interface{}, bool, error) {
-	oldVal, found, err := util.NestedField(origControllerObj, resourceMappingSrcPath, srcPath)
-	if err != nil || !found {
-		return nil, false, fmt.Errorf("failed to get value from path '%s' in origControllerObj, error: %v", srcPath, err)
-	}
-	newVal, found, err := util.NestedField(updatedControllerObj, resourceMappingSrcPath, srcPath)
-	if err != nil || !found {
-		return nil, false, fmt.Errorf("failed to get value from path '%s' in updatedControllerObj, error: %v", srcPath, err)
-	}
-	if reflect.DeepEqual(oldVal, newVal) {
-		return nil, false, nil
-	}
-	return newVal, true, nil
-}
-
-// needsUpdate returns false if values from origControllerObj and updatedControllerObj are the same for the same srcPath.
-func (ormClient *ORMClient) checkResourcePath(resourceObj *unstructured.Unstructured, path string) (bool, error) {
-	_, found, err := util.NestedField(resourceObj, resourceMappingSrcPath, path)
-	if err != nil || !found {
-		return false, fmt.Errorf("failed to get value from path '%s' in resourceObj: %s/%s, error -> %v\n",
-			path, resourceObj.GetKind(), resourceObj.GetName(), err)
-	}
-
-	return true, nil
 }

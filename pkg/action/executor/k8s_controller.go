@@ -113,8 +113,6 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 	if err != nil {
 		return fmt.Errorf("error converting pod spec to unstructured pod spec for %s %s: %v", kind, objName, err)
 	}
-
-	origControllerObj := c.obj.DeepCopy()
 	if kind != util.KindDaemonSet { // daemonsets do not have replica field
 		if err := unstructured.SetNestedField(c.obj.Object, replicaVal, "spec", "replicas"); err != nil {
 			return fmt.Errorf("error setting replicas into unstructured %s %s: %v", kind, objName, err)
@@ -154,7 +152,15 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		if c.ormClient == nil {
 			return fmt.Errorf("failed to execute action with nil ORMClient")
 		}
-		err = c.ormClient.Update(origControllerObj, c.obj, ownerInfo)
+		resourcePaths, err := getResourcePath(kind, updatedSpec)
+		if err != nil {
+			return fmt.Errorf("unable to get resource paths: %v", err)
+		}
+		ownerResources, err := c.ormClient.GetOwnerResourcesForSource(c.obj, ownerInfo, resourcePaths)
+		if err != nil {
+			return fmt.Errorf("unable to get owner resources: %v", err)
+		}
+		return c.ormClient.UpdateOwners(c.obj, ownerInfo, ownerResources)
 	} else {
 		_, err = c.clients.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
 		if utilfeature.DefaultFeatureGate.Enabled(features.AllowIncreaseNsQuota4Resizing) {
@@ -328,4 +334,22 @@ func (c *parentController) GetGitOpsConfig(obj *unstructured.Unstructured) gitop
 	// No override was found. Return the default config.
 	glog.V(3).Infof("No GitOps configuration override found for [%v]. Using default configuration.", appName)
 	return c.gitConfig
+}
+
+// This gets all the resource paths for the containers from the controller spec for the supported controller types
+// resourcePath is similar for Deployment, StatefulSet and DaemonSet - "spec.template.spec.containers[?(@.name==“xxx”)].resources"
+func getResourcePath(controllerType string, k8sSpec *k8sControllerSpec) ([]string, error) {
+	var resourcePaths []string
+	switch controllerType {
+	case util.KindDeployment, util.KindDaemonSet, util.KindStatefulSet:
+		for _, container := range k8sSpec.podSpec.Containers {
+			resourcePath := ".spec.template.spec.containers[?(@.name==" + "\"" + container.Name + "\"" + ")].resources"
+			resourcePaths = append(resourcePaths, resourcePath)
+		}
+		glog.V(4).Infof("found resource paths for supported controller type: %v", controllerType)
+		return resourcePaths, nil
+		// TODO: we don't support any custom controllers currently, since when building podspec it resolves in unexpected controller type.
+		// default resource path for custome custroller - ".spec.containers[?(@.name=="xxxx")].resources"
+	}
+	return resourcePaths, fmt.Errorf("unsupported controller type: %v", controllerType)
 }
