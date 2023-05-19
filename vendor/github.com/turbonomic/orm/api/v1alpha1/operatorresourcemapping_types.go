@@ -25,12 +25,27 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+var (
+	ANNOTATION_GROUP = "devops.turbonomic.io"
+
+	ANNOTATIONKEY_VALIDATE_OWNER_PATH = ANNOTATION_GROUP + "/validate-owner-path" // default: enabled
+	ANNOTATIONKEY_VALIDATE_OWNED_PATH = ANNOTATION_GROUP + "/validate-owned-path" // default: enabled
+
+	ANNOTATIONVALUE_ENABLED  = "enabled"
+	ANNOTATIONVALUE_DISABLED = "disabled"
+)
+
 // Reference to object by name or by label
 type ObjectLocator struct {
 	// if namespace is empty, use the owner's namespace as default;
 	corev1.ObjectReference `json:",inline"`
 
-	// if ObjectReference.name is provided use the name, otherwise, use this label selector to find target resource(s)
+	// Selector is the key of predefined selectors
+	// Allow and Only allow 1 input from name, selector and labelSelector
+	Selector *string `json:"selector,omitempty"`
+
+	// labelSelector to select resource
+	// Allow and Only allow 1 input from name, selector and labelSelector
 	metav1.LabelSelector `json:",inline"`
 }
 
@@ -58,6 +73,9 @@ type MappingPatterns struct {
 	// parameters defined here can be used in owner and owned resource paths
 	// user can also use .owner.name to refer owner's name without defining it
 	Parameters map[string][]string `json:"parameters,omitempty"`
+
+	// Selectors defined here can be used in owned resource object locator
+	Selectors map[string]metav1.LabelSelector `json:"selectors,omitempty"`
 }
 
 // OperatorResourceMappingSpec defines the desired state of OperatorResourceMapping
@@ -81,11 +99,9 @@ type OwnerMappingValue struct {
 	// owned resource and the path
 	OwnedResourcePath *OwnedResourcePath `json:"owned,omitempty"`
 
-	// +optional
-	LastTransitionTime *metav1.Time `json:"lastTransitionTime,omitempty"`
 	// The reason for the condition's last transition.
 	// +optional
-	Reason string `json:"reason,omitempty"`
+	Reason ORMStatusReason `json:"reason,omitempty"`
 	// A human readable message indicating details about the transition.
 	// +optional
 	Message string `json:"message,omitempty"`
@@ -94,6 +110,7 @@ type OwnerMappingValue struct {
 type ORMStatusType string
 
 const (
+	ORMEmpty     ORMStatusType = ""
 	ORMTypeOK    ORMStatusType = "ok"
 	ORMTypeError ORMStatusType = "error"
 )
@@ -114,10 +131,12 @@ type OperatorResourceMappingStatus struct {
 	// state of ORM resource
 	State ORMStatusType `json:"state,omitempty"`
 	// +optional
-	Reason string `json:"reason,omitempty"`
+	Reason ORMStatusReason `json:"reason,omitempty"`
 	// A human readable message indicating details about the transition.
 	// +optional
 	Message string `json:"message,omitempty"`
+	// +optional
+	LastTransitionTime *metav1.Time `json:"lastTransitionTime,omitempty"`
 
 	// owner object reference
 	Owner corev1.ObjectReference `json:"owner,omitempty"`
