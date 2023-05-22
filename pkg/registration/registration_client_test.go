@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/configs"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -135,6 +136,80 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 			t.Errorf("Failed action policy check for entity(%v) %v", entity, err)
 		}
 	}
+}
+
+func TestK8sRegistrationClient_GetActionMergePolicy(t *testing.T) {
+	rClient := &K8sRegistrationClient{} // Create an instance of the K8sRegistrationClient
+
+	// Call the GetActionMergePolicy method
+	policies := rClient.GetActionMergePolicy()
+
+	// Perform assertions to validate the expected policies
+	assert.NotNil(t, policies)
+	assert.Equal(t, 2, len(policies))
+
+	hasResizePolicy := false
+	hasHorizontalScalePolicy := false
+
+	for _, policy := range policies {
+		// Validate the policy type
+		resizeSpec := policy.GetResizeSpec()
+		sloSpec := policy.GetHorizontalScaleSpec()
+
+		if resizeSpec != nil {
+			// The policy is for Resize
+			hasResizePolicy = true
+			assert.Equal(t, proto.EntityDTO_CONTAINER, policy.GetEntityType())
+			assert.Equal(t, 0, len(policy.GetEntityFilters()))
+		}
+
+		if sloSpec != nil {
+			// The policy is for HorizontalScale
+			hasHorizontalScalePolicy = true
+			assert.Equal(t, proto.EntityDTO_CONTAINER_POD, policy.GetEntityType())
+			assert.Equal(t, 2, len(policy.GetEntityFilters()))
+
+			hasDaemonSetData := false
+			hasReplicaSetData := false
+
+			for _, entityFilter := range policy.GetEntityFilters() {
+				// Perform assertions on each entity filter
+				containerPodData := entityFilter.GetContainerPodData()
+				assert.NotNil(t, containerPodData)
+
+				controllerData := containerPodData.GetControllerData()
+				assert.NotNil(t, controllerData)
+
+				switch controllerData.GetControllerType().(type) {
+				case *proto.EntityDTO_WorkloadControllerData_DaemonSetData:
+					// The entity filter has DaemonSetData
+					hasDaemonSetData = true
+					// Additional assertions specific to DaemonSetData
+					daemonSetData := controllerData.GetDaemonSetData()
+					assert.NotNil(t, daemonSetData)
+					// Perform specific assertions on DaemonSetData
+
+				case *proto.EntityDTO_WorkloadControllerData_ReplicaSetData:
+					// The entity filter has ReplicaSetData
+					hasReplicaSetData = true
+					// Additional assertions specific to ReplicaSetData
+					replicaSetData := controllerData.GetReplicaSetData()
+					assert.NotNil(t, replicaSetData)
+					// Perform specific assertions on ReplicaSetData
+
+				default:
+					assert.Fail(t, "Unknown ControllerData type")
+				}
+			}
+
+			assert.True(t, hasDaemonSetData)
+			assert.True(t, hasReplicaSetData)
+		}
+	}
+
+	// Assert that one policy is for Resize and the other is for HorizontalScale
+	assert.True(t, hasResizePolicy)
+	assert.True(t, hasHorizontalScalePolicy)
 }
 
 func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
