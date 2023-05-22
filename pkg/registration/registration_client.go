@@ -209,14 +209,14 @@ func (rClient *K8sRegistrationClient) addActionPolicy(ab *builder.ActionPolicyBu
 
 func (rClient *K8sRegistrationClient) GetActionMergePolicy() []*proto.ActionMergePolicyDTO {
 	glog.V(2).Infof("Begin to build Action Merge Policies")
-
-	actionMergeTarget := builder.NewActionDeDuplicateAndAggregationTargetBuilder().
+	// resize action
+	resizeActionMergeTarget := builder.NewActionDeDuplicateAndAggregationTargetBuilder().
 		DeDuplicatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_CONTAINER_SPEC,
 			proto.ConnectedEntity_CONTROLLED_BY_CONNECTION)).
 		AggregatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER,
 			proto.ConnectedEntity_CONTROLLED_BY_CONNECTION))
 
-	actionMergeTarget2 := builder.NewActionDeDuplicateAndAggregationTargetBuilder().
+	resizeActionMergeTarget2 := builder.NewActionDeDuplicateAndAggregationTargetBuilder().
 		DeDuplicatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_CONTAINER_SPEC,
 			proto.ConnectedEntity_CONTROLLED_BY_CONNECTION)).
 		AggregatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER,
@@ -228,11 +228,47 @@ func (rClient *K8sRegistrationClient) GetActionMergePolicy() []*proto.ActionMerg
 		ForCommodity(proto.CommodityDTO_VMEM).
 		ForCommodity(proto.CommodityDTO_VCPU_REQUEST).
 		ForCommodity(proto.CommodityDTO_VMEM_REQUEST).
-		DeDuplicateAndAggregateBy(actionMergeTarget).
-		DeDuplicateAndAggregateBy(actionMergeTarget2)
+		DeDuplicateAndAggregateBy(resizeActionMergeTarget).
+		DeDuplicateAndAggregateBy(resizeActionMergeTarget2)
+		
+	//horizontal scale action
+	horizontalScaleActionMergeTarget := builder.NewActionDeDuplicateAndAggregationTargetBuilder().
+		DeDuplicatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER,
+			proto.ConnectedEntity_AGGREGATED_BY_CONNECTION))
+
+	containerPodDataDaemonSet := proto.EntityDTO_ContainerPodData{
+		ControllerData: &proto.EntityDTO_WorkloadControllerData{
+			ControllerType: &proto.EntityDTO_WorkloadControllerData_DaemonSetData{
+				DaemonSetData: &proto.EntityDTO_DaemonSetData{
+					// Populate the fields specific to DaemonSetData
+				},
+			},
+		},
+	}
+
+	containerPodDataReplicaSet := proto.EntityDTO_ContainerPodData{
+		ControllerData: &proto.EntityDTO_WorkloadControllerData{
+			ControllerType: &proto.EntityDTO_WorkloadControllerData_ReplicaSetData{
+				ReplicaSetData: &proto.EntityDTO_ReplicaSetData{
+					// Populate the fields specific to ReplicaSetData
+				},
+			},
+		},
+	}
+
+	containerHorizontalScaleMerge := builder.NewHorizontalScaleMergeSpecBuilder().
+		ForEntityType(proto.EntityDTO_CONTAINER_POD).
+		ForCommodity(proto.CommodityDTO_VCPU).
+		ForCommodity(proto.CommodityDTO_VMEM).
+		ForCommodity(proto.CommodityDTO_VCPU_REQUEST).
+		ForCommodity(proto.CommodityDTO_VMEM_REQUEST).
+		ForContainerPodDataFilter(containerPodDataDaemonSet).
+		ForContainerPodDataFilter(containerPodDataReplicaSet).
+		DeDuplicateAndAggregateBy(horizontalScaleActionMergeTarget)
 
 	return builder.NewActionMergePolicyBuilder().
 		ForResizeAction(proto.EntityDTO_CONTAINER, containerResizeMerge).
+		ForHorizontalScaleAction(proto.EntityDTO_CONTAINER_POD, containerHorizontalScaleMerge).
 		Create()
 }
 
