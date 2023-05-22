@@ -230,7 +230,7 @@ func (rClient *K8sRegistrationClient) GetActionMergePolicy() []*proto.ActionMerg
 		ForCommodity(proto.CommodityDTO_VMEM_REQUEST).
 		DeDuplicateAndAggregateBy(resizeActionMergeTarget).
 		DeDuplicateAndAggregateBy(resizeActionMergeTarget2)
-		
+
 	//horizontal scale action
 	horizontalScaleActionMergeTarget := builder.NewActionDeDuplicateAndAggregationTargetBuilder().
 		DeDuplicatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER,
