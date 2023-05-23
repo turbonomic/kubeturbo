@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	osclient "github.com/openshift/client-go/apps/clientset/versioned"
 	machinev1beta1api "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	capiclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	policyv1alpha1 "github.com/turbonomic/turbo-policy/api/v1alpha1"
@@ -71,6 +72,7 @@ type ClusterScraper struct {
 	caClient                *capiclient.Clientset
 	capiNamespace           string
 	DynamicClient           dynamic.Interface
+	OsClient                *osclient.Clientset
 	ControllerRuntimeClient runtimeclient.Client
 	cache                   turbostore.ITurboCache
 	GitOpsConfigCache       map[string][]*gitopsv1alpha1.Configuration
@@ -78,11 +80,12 @@ type ClusterScraper struct {
 }
 
 func NewClusterScraper(restConfig *restclient.Config, kclient *client.Clientset, dynamicClient dynamic.Interface,
-	rtClient runtimeclient.Client, capiEnabled bool, caClient *capiclient.Clientset, capiNamespace string) *ClusterScraper {
+	rtClient runtimeclient.Client, osClient *osclient.Clientset, capiEnabled bool, caClient *capiclient.Clientset, capiNamespace string) *ClusterScraper {
 	clusterScraper := &ClusterScraper{
 		Clientset:               kclient,
 		RestConfig:              restConfig,
 		DynamicClient:           dynamicClient,
+		OsClient:                osClient,
 		ControllerRuntimeClient: rtClient,
 		// Create cache with expiration duration as defaultCacheTTL, which means the cached data will be cleaned up after
 		// defaultCacheTTL.

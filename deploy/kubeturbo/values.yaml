@@ -7,10 +7,11 @@ replicaCount: 1
 # Replace the image with desired version
 image:
   repository: icr.io/cpopen/turbonomic/kubeturbo
-  tag: 8.7.5
+  tag: 8.7.6
   pullPolicy: IfNotPresent
 #  busyboxRepository: busybox
 #  imagePullSecret: ""
+#  cpufreqgetterRepository: icr.io/cpopen/turbonomic/cpufreqgetter
 
 annotations:
   kubeturbo.io/controllable: "false"
