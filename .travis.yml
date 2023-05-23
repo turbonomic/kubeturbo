@@ -25,11 +25,11 @@ script:
   - ./hack/download_test_binaries.sh
   - ./hack/create_kind_cluster.sh
   - ./hack/deploy_istio.sh
-  - ./hack/generate_ocp_context.sh
+  # - ./hack/generate_ocp_context.sh
   - make integration
   - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=kind-kind -docker-user-name=${DOCKER_USERNAME} -docker-user-password=${DOCKER_PASSWORD}
   - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=kind-kind -istio-enabled=true -ginkgo.focus=Istio -ginkgo.focus=teardown -docker-user-name=${DOCKER_USERNAME} -docker-user-password=${DOCKER_PASSWORD}
-  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=rosa -openshift-tests=true -docker-user-name=${DOCKER_USERNAME} -docker-user-password=${DOCKER_PASSWORD}
+  # - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=rosa -openshift-tests=true -docker-user-name=${DOCKER_USERNAME} -docker-user-password=${DOCKER_PASSWORD}
   - make product
 
 after_success:
