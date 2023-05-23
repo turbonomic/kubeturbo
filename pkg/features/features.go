@@ -53,12 +53,14 @@ const (
 	// Pagination support for list API calls to API server querying workload controllers
 	// Without this feature gate the whole list is requested in a single list API call.
 	GoMemLimit featuregate.Feature = "GoMemLimit"
+
 	// AllowIncreaseNsQuota4Resizing owner: @kevinwang
 	// alpha:
 	//
 	// This gate will enable the temporary namespace quota increase when
 	// kubeturbo execute a resize action on a workload controller
 	AllowIncreaseNsQuota4Resizing featuregate.Feature = "AllowIncreaseNsQuota4Resizing"
+
 	// IgnoreAffinities owner: @irfanurrehman
 	// alpha:
 	//
@@ -68,12 +70,24 @@ const (
 	// in out code, where affinity processing alone takes a really long time.
 	// https://vmturbo.atlassian.net/browse/OM-93635?focusedCommentId=771727
 	IgnoreAffinities featuregate.Feature = "IgnoreAffinities"
+
 	// NewAffinityProcessing owner: @irfanurrehman
 	// alpha:
 	//
 	// This gate will use the optimised affinity processing algorithm which in turn
 	// will ensure that the affinity processing can happen within a single discovery cycle.
 	NewAffinityProcessing featuregate.Feature = "NewAffinityProcessing"
+
+	// DeploymentConfigForcedRollout owner: @irfanurrehman
+	// alpha:
+	//
+	// This gate is used to force the rollout of deployment configs on resize actions, if
+	// its found that the "spec.triggers" is explicitly set to empty ie. "[]".
+	// This is an explicit type of setup we have seen in some customer environments where
+	// users are expected to manually rollout the deployment config after any change to the
+	// same. More details in warning note here ->
+	// https://docs.openshift.com/container-platform/3.11/dev_guide/deployments/basic_deployment_operations.html#triggers
+	ForceDeploymentConfigRollout featuregate.Feature = "ForceDeploymentConfigRollout"
 )
 
 func init() {
@@ -96,4 +110,5 @@ var DefaultKubeturboFeatureGates = map[featuregate.Feature]featuregate.FeatureSp
 	AllowIncreaseNsQuota4Resizing: {Default: true, PreRelease: featuregate.Alpha},
 	IgnoreAffinities:              {Default: false, PreRelease: featuregate.Alpha},
 	NewAffinityProcessing:         {Default: true, PreRelease: featuregate.Beta},
+	ForceDeploymentConfigRollout:  {Default: false, PreRelease: featuregate.Alpha},
 }

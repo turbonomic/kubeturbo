@@ -150,7 +150,7 @@ func TestGenNodeResourceMetrics(t *testing.T) {
 		t.Errorf("Failed to create clusterMonitor: %v", err)
 	}
 	clusterMonitor.clusterClient = cluster.NewClusterScraper(nil, &client.Clientset{}, nil, nil,
-		false, nil, "")
+		nil, false, nil, "")
 	clusterMonitor.sink = metrics.NewEntityMetricSink()
 	clusterMonitor.node = node
 	clusterMonitor.nodePodMap = make(map[string][]*api.Pod)
