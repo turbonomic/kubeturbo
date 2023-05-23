@@ -204,6 +204,18 @@ func TestK8sRegistrationClient_GetActionMergePolicy(t *testing.T) {
 
 			assert.True(t, hasDaemonSetData)
 			assert.True(t, hasReplicaSetData)
+
+			commodityData := sloSpec.GetCommodityData()
+			assert.Equal(t, 2, len(commodityData))
+			assert.Equal(t, 2, len(commodityData))
+
+			commodityTypes := make(map[proto.CommodityDTO_CommodityType]bool)
+			for _, commodity := range commodityData {
+				commodityTypes[commodity.GetCommodityType()] = true
+			}
+
+			assert.Contains(t, commodityTypes, proto.CommodityDTO_RESPONSE_TIME)
+			assert.Contains(t, commodityTypes, proto.CommodityDTO_TRANSACTION)
 		}
 	}
 

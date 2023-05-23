@@ -258,10 +258,8 @@ func (rClient *K8sRegistrationClient) GetActionMergePolicy() []*proto.ActionMerg
 
 	containerHorizontalScaleMerge := builder.NewHorizontalScaleMergeSpecBuilder().
 		ForEntityType(proto.EntityDTO_CONTAINER_POD).
-		ForCommodity(proto.CommodityDTO_VCPU).
-		ForCommodity(proto.CommodityDTO_VMEM).
-		ForCommodity(proto.CommodityDTO_VCPU_REQUEST).
-		ForCommodity(proto.CommodityDTO_VMEM_REQUEST).
+		ForCommodity(proto.CommodityDTO_RESPONSE_TIME).
+		ForCommodity(proto.CommodityDTO_TRANSACTION).
 		ForContainerPodDataFilter(containerPodDataDaemonSet).
 		ForContainerPodDataFilter(containerPodDataReplicaSet).
 		DeDuplicateAndAggregateBy(horizontalScaleActionMergeTarget)
