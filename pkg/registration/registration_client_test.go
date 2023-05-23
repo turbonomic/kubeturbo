@@ -184,18 +184,14 @@ func TestK8sRegistrationClient_GetActionMergePolicy(t *testing.T) {
 				case *proto.EntityDTO_WorkloadControllerData_DaemonSetData:
 					// The entity filter has DaemonSetData
 					hasDaemonSetData = true
-					// Additional assertions specific to DaemonSetData
 					daemonSetData := controllerData.GetDaemonSetData()
 					assert.NotNil(t, daemonSetData)
-					// Perform specific assertions on DaemonSetData
 
 				case *proto.EntityDTO_WorkloadControllerData_ReplicaSetData:
 					// The entity filter has ReplicaSetData
 					hasReplicaSetData = true
-					// Additional assertions specific to ReplicaSetData
 					replicaSetData := controllerData.GetReplicaSetData()
 					assert.NotNil(t, replicaSetData)
-					// Perform specific assertions on ReplicaSetData
 
 				default:
 					assert.Fail(t, "Unknown ControllerData type")
