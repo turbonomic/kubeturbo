@@ -203,7 +203,6 @@ func TestK8sRegistrationClient_GetActionMergePolicy(t *testing.T) {
 
 			commodityData := sloSpec.GetCommodityData()
 			assert.Equal(t, 2, len(commodityData))
-			assert.Equal(t, 2, len(commodityData))
 
 			commodityTypes := make(map[proto.CommodityDTO_CommodityType]bool)
 			for _, commodity := range commodityData {
