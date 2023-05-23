@@ -113,7 +113,7 @@ func newActionHandlerConfig() *ActionHandlerConfig {
 
 	config.StopEverything = make(chan struct{})
 	config.clusterScraper = cluster.NewClusterScraper(nil, &client.Clientset{}, nil, nil,
-		false, nil, "")
+		nil, false, nil, "")
 	config.kubeletClient = &kubeclient.KubeletClient{}
 
 	return config

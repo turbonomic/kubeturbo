@@ -1,6 +1,7 @@
 package kubeturbo
 
 import (
+	osclient "github.com/openshift/client-go/apps/clientset/versioned"
 	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	"k8s.io/client-go/dynamic"
 	kubeclient "k8s.io/client-go/kubernetes"
@@ -29,6 +30,7 @@ type Config struct {
 	DynamicClient dynamic.Interface
 	KubeletClient *kubeletclient.KubeletClient
 	CAClient      *versioned.Clientset
+	OsClient      *osclient.Clientset
 	// ORMClient builds operator resource mapping templates fetched from OperatorResourceMapping CR in discovery client
 	// and provides the capability to update the corresponding CR for an Operator managed resource in action execution client.
 	ORMClientManager *resourcemapping.ORMClientManager
@@ -90,6 +92,11 @@ func (c *Config) WithKubeConfig(config *restclient.Config) *Config {
 
 func (c *Config) WithDynamicClient(client dynamic.Interface) *Config {
 	c.DynamicClient = client
+	return c
+}
+
+func (c *Config) WithOpenshiftClient(client *osclient.Clientset) *Config {
+	c.OsClient = client
 	return c
 }
 

@@ -10,6 +10,8 @@ import (
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 
+	osv1 "github.com/openshift/api/apps/v1"
+	osclient "github.com/openshift/client-go/apps/clientset/versioned"
 	apicorev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -50,6 +52,7 @@ type k8sControllerSpec struct {
 
 type kubeClients struct {
 	typedClient *typedClient.Clientset
+	osClient    *osclient.Clientset
 	dynClient   dynamic.Interface
 	// TODO: remove the need of this as we have dynClient already
 	dynNamespacedClient dynamic.ResourceInterface
@@ -163,6 +166,23 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		return c.ormClient.UpdateOwners(c.obj, ownerInfo, ownerResources)
 	} else {
 		_, err = c.clients.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
+
+		if utilfeature.DefaultFeatureGate.Enabled(features.ForceDeploymentConfigRollout) {
+			needsRollout, typedDC, err := c.shouldRolloutDeploymentConfig()
+			if err != nil {
+				return err
+			}
+			if needsRollout {
+				err = c.rolloutDeploymentConfig(typedDC)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
 		if utilfeature.DefaultFeatureGate.Enabled(features.AllowIncreaseNsQuota4Resizing) {
 			err4Waiting := c.waitForAllNewReplicasToBeCreated(c.obj.GetName())
 			if err4Waiting != nil {
@@ -176,6 +196,47 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		}
 	}
 	return err
+}
+
+func (c *parentController) rolloutDeploymentConfig(dc *osv1.DeploymentConfig) error {
+	// This will fail if the DC is already paused because of whatever reason
+	name := c.obj.GetName()
+	ns := c.obj.GetNamespace()
+	glog.V(3).Infof("Starting (Instantiating) the deploymentconfig %s/%s rollout", ns, name)
+	deployRequest := osv1.DeploymentRequest{Name: name, Latest: true, Force: true}
+	_, err := c.clients.osClient.AppsV1().DeploymentConfigs(ns).
+		Instantiate(context.TODO(), name, &deployRequest, metav1.CreateOptions{})
+	if err == nil {
+		glog.V(3).Infof("Rolled out (Instantiated) the deploymentconfig %s/%s", ns, name)
+	}
+
+	return err
+}
+
+func (c *parentController) shouldRolloutDeploymentConfig() (bool, *osv1.DeploymentConfig, error) {
+	objName := c.obj.GetNamespace() + "/" + c.obj.GetName()
+	objKind := c.obj.GetKind()
+	if objKind != util.KindDeploymentConfig {
+		return false, nil, nil
+	}
+
+	typedDC := osv1.DeploymentConfig{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(c.obj.Object, &typedDC); err != nil {
+		return false, nil, fmt.Errorf("error converting unstructured %s %s to typed %s: %v", objKind, objName, objKind, err)
+	}
+
+	spec := typedDC.Spec
+	// if no triggers/empty triggers are set ||
+	// if only imageChange trigger and no other trigger is set
+	shouldRollout := (len(spec.Triggers) == 0) ||
+		(len(spec.Triggers) == 1 && spec.Triggers[0].Type == osv1.DeploymentTriggerOnImageChange)
+
+	if shouldRollout && spec.Paused {
+		glog.Errorf("%s %s needs manual rollout, but is paused. Aborting rollout.", objKind, objName)
+		return false, nil, fmt.Errorf("rollout aborted as %s %s needs manual rollout, but is paused", objKind, objName)
+	}
+
+	return shouldRollout, &typedDC, nil
 }
 
 // Wait for all of the new replicas to be created

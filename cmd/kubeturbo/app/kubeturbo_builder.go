@@ -15,6 +15,7 @@ import (
 
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
+	osclient "github.com/openshift/client-go/apps/clientset/versioned"
 	clusterclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
@@ -372,6 +373,12 @@ func (s *VMTServer) Run() {
 		glog.Fatalf("Failed to create controller runtime client: %v.", err)
 	}
 
+	// Openshift client for deploymentconfig resize forced rollouts
+	osClient, err := osclient.NewForConfig(kubeConfig)
+	if err != nil {
+		glog.Fatalf("Failed to generate openshift client for kubernetes target: %v", err)
+	}
+
 	// TODO: Replace dynamicClient with runtimeClient
 	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
 	if err != nil {
@@ -462,6 +469,7 @@ func (s *VMTServer) Run() {
 		WithORMClientManager(ormClientManager).
 		WithKubeletClient(kubeletClient).
 		WithClusterAPIClient(caClient).
+		WithOpenshiftClient(osClient).
 		WithVMPriority(s.VMPriority).
 		WithVMIsBase(s.VMIsBase).
 		UsingUUIDStitch(s.UseUUID).
