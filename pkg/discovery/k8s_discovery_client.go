@@ -7,6 +7,7 @@ import (
 
 	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/golang/glog"
+	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -298,6 +299,7 @@ func (dc *K8sDiscoveryClient) Discover(
 	discoveryResponse = &proto.DiscoveryResponse{
 		DiscoveredGroup: groupDTOs,
 		EntityDTO:       newDiscoveryResultDTOs,
+		ActionPolicies:  dc.getTargetActionPolicies(),
 	}
 
 	newFrameworkDiscTime := time.Now().Sub(currentTime).Seconds()
@@ -483,4 +485,18 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	}
 
 	return result.EntityDTOs, groupDTOs, nil
+}
+
+func (dc *K8sDiscoveryClient) getTargetActionPolicies() []*proto.ActionPolicyDTO {
+	if dc.k8sClusterScraper.IsClusterAPIEnabled() {
+		// Set target level action policy for virtual machine entity type if cluster API is enabled
+		glog.V(2).Info("Cluster API is available. Set node action policy for this cluster.")
+		entityType := proto.EntityDTO_VIRTUAL_MACHINE
+		return builder.NewActionPolicyBuilder().
+			WithEntityActions(entityType, proto.ActionItemDTO_PROVISION, proto.ActionPolicyDTO_SUPPORTED).
+			WithEntityActions(entityType, proto.ActionItemDTO_SUSPEND, proto.ActionPolicyDTO_SUPPORTED).
+			Create()
+	}
+	glog.V(2).Info("Cluster API is not available. Do not set node action policy for this cluster.")
+	return nil
 }

@@ -80,8 +80,8 @@ spec:
 				framework.Failf("Failed to generate dynamic client for kubernetes test cluster: %v", err)
 			}
 
-			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(nil, kubeClient, dynamicClient, nil, nil, false, nil, ""),
+			actionHandlerConfig := action.NewActionHandlerConfig("", nil,
+				cluster.NewClusterScraper(nil, kubeClient, dynamicClient, nil, nil, nil, ""),
 				[]string{"*"}, nil, false, true, 60, gitops.GitConfig{}, "test-cluster-id")
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 
@@ -121,8 +121,8 @@ spec:
 		})
 
 		It("should fail the action if the quota-update is disabled", func() {
-			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(nil, kubeClient, dynamicClient, nil, nil, false, nil, ""),
+			actionHandlerConfig := action.NewActionHandlerConfig("", nil,
+				cluster.NewClusterScraper(nil, kubeClient, dynamicClient, nil, nil, nil, ""),
 				[]string{"*"}, nil, false, false, 60, gitops.GitConfig{}, "test-cluster-id")
 			actionHandler := action.NewActionHandler(actionHandlerConfig)
 
