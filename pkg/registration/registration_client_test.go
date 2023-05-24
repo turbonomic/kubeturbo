@@ -157,14 +157,14 @@ func TestK8sRegistrationClient_GetActionMergePolicy(t *testing.T) {
 		sloSpec := policy.GetHorizontalScaleSpec()
 
 		if resizeSpec != nil {
-			// The policy is for Resize
+			// Check the Resize policy
 			hasResizePolicy = true
 			assert.Equal(t, proto.EntityDTO_CONTAINER, policy.GetEntityType())
 			assert.Equal(t, 0, len(policy.GetEntityFilters()))
 		}
 
 		if sloSpec != nil {
-			// The policy is for HorizontalScale
+			// Check the HorizontalScale policy
 			hasHorizontalScalePolicy = true
 			assert.Equal(t, proto.EntityDTO_CONTAINER_POD, policy.GetEntityType())
 			assert.Equal(t, 2, len(policy.GetEntityFilters()))
