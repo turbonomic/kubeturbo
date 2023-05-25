@@ -264,7 +264,7 @@ github.com/turbonomic/turbo-api/pkg/client
 # github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3
 ## explicit; go 1.19
 github.com/turbonomic/turbo-gitops/api/v1alpha1
-# github.com/turbonomic/turbo-go-sdk v0.0.0-20230523172243-582a92c9fe66
+# github.com/turbonomic/turbo-go-sdk v0.0.0-20230525151109-3e988bf03b42
 ## explicit; go 1.13
 github.com/turbonomic/turbo-go-sdk/pkg
 github.com/turbonomic/turbo-go-sdk/pkg/builder

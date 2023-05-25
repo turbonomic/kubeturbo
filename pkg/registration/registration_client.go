@@ -222,7 +222,7 @@ func (rClient *K8sRegistrationClient) GetActionMergePolicy() []*proto.ActionMerg
 		AggregatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER,
 			proto.ConnectedEntity_OWNS_CONNECTION))
 
-	containerResizeMerge := builder.NewResizeMergeSpecBuilder().
+	containerResizeMerge := builder.NewMergePolicyBuilder().
 		ForEntityType(proto.EntityDTO_CONTAINER).
 		ForCommodity(proto.CommodityDTO_VCPU).
 		ForCommodity(proto.CommodityDTO_VMEM).
@@ -232,9 +232,8 @@ func (rClient *K8sRegistrationClient) GetActionMergePolicy() []*proto.ActionMerg
 		DeDuplicateAndAggregateBy(resizeActionMergeTarget2)
 
 		//horizontal scale action
-	horizontalScaleActionMergeTarget := builder.NewActionDeDuplicateAndAggregationTargetBuilder().
-		DeDuplicatedBy(builder.NewActionAggregationTargetBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER,
-			proto.ConnectedEntity_AGGREGATED_BY_CONNECTION))
+	horizontalScaleActionMergeTarget := builder.NewActionAggregationTargetBuilder(proto.EntityDTO_WORKLOAD_CONTROLLER,
+		proto.ConnectedEntity_AGGREGATED_BY_CONNECTION)
 
 	containerPodDataDaemonSet := proto.EntityDTO_ContainerPodData{
 		ControllerData: &proto.EntityDTO_WorkloadControllerData{
@@ -252,13 +251,13 @@ func (rClient *K8sRegistrationClient) GetActionMergePolicy() []*proto.ActionMerg
 		},
 	}
 
-	containerHorizontalScaleMerge := builder.NewHorizontalScaleMergeSpecBuilder().
+	containerHorizontalScaleMerge := builder.NewMergePolicyBuilder().
 		ForEntityType(proto.EntityDTO_CONTAINER_POD).
 		ForCommodity(proto.CommodityDTO_RESPONSE_TIME).
 		ForCommodity(proto.CommodityDTO_TRANSACTION).
-		ForContainerPodDataFilter(containerPodDataDaemonSet).
-		ForContainerPodDataFilter(containerPodDataReplicaSet).
-		DeDuplicateAndAggregateBy(horizontalScaleActionMergeTarget)
+		ForContainerPodDataExclusionFilter(containerPodDataDaemonSet).
+		ForContainerPodDataExclusionFilter(containerPodDataReplicaSet).
+		AggregateBy(horizontalScaleActionMergeTarget)
 
 	return builder.NewActionMergePolicyBuilder().
 		ForResizeAction(proto.EntityDTO_CONTAINER, containerResizeMerge).
