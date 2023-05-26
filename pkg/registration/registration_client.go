@@ -255,8 +255,8 @@ func (rClient *K8sRegistrationClient) GetActionMergePolicy() []*proto.ActionMerg
 		ForEntityType(proto.EntityDTO_CONTAINER_POD).
 		ForCommodity(proto.CommodityDTO_RESPONSE_TIME).
 		ForCommodity(proto.CommodityDTO_TRANSACTION).
-		ForContainerPodDataExclusionFilter(containerPodDataDaemonSet).
-		ForContainerPodDataExclusionFilter(containerPodDataReplicaSet).
+		ForContainerPodDataExclusionFilter(&containerPodDataDaemonSet).
+		ForContainerPodDataExclusionFilter(&containerPodDataReplicaSet).
 		AggregateBy(horizontalScaleActionMergeTarget)
 
 	return builder.NewActionMergePolicyBuilder().
