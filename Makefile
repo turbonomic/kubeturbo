@@ -75,5 +75,5 @@ multi-archs:
 docker-buildx:
 	docker buildx create --name kubeturbo-builder
 	- docker buildx use kubeturbo-builder
-	- docker buildx build --platform=$(PLATFORMS) --label "git-commit=$(GIT_COMMIT)" --provenance=false --push --tag $(REPO_NAME)/kubeturbo:$(VERSION) -f build/Dockerfile.multi-archs --build-arg VERSION=$(VERSION) .
+	- docker buildx build --platform=$(PLATFORMS) --label "git-commit=$(GIT_COMMIT)" --label "git-version=$(VERSION)" --provenance=false --push --tag $(REPO_NAME)/kubeturbo:$(VERSION) -f build/Dockerfile.multi-archs --build-arg VERSION=$(VERSION) .
 	docker buildx rm kubeturbo-builder
