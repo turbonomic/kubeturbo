@@ -193,8 +193,12 @@ func (ormClient *ORMClientManager) UpdateOwners(updatedControllerObj *unstructur
 			}
 			// get the original resource value from the owner obj
 			origCRValue, found, err := ormutils.NestedField(ownerCR.Object, ownerPath)
-			if err != nil || !found {
+			if err != nil {
 				return fmt.Errorf("failed to get value for owner resource %s from path '%s' in ownerCR for %s, error: %v", ownerRes, ownerPath, sourceRes, err)
+			}
+			if !found {
+				glog.V(4).Infof("no values found for owner resource %s from path '%s' in ownerCR for %s",
+					ownerRes, ownerPath, sourceRes)
 			}
 			// set new resource values to owenr cr obj
 			if err := ormutils.SetNestedField(ownerCR.Object, newCRValue, ownerPath); err != nil {
