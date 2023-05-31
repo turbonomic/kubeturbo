@@ -79,6 +79,7 @@ func (t *TaintTolerationProcessor) Process(entityDTOs []*proto.EntityDTO) {
 // Creates taint commodities sold by VMs.
 func (t *TaintTolerationProcessor) createTaintCommoditiesSoldByNode(nodeDTOs []*proto.EntityDTO,
 	nodes map[string]*api.Node, taintCollection map[api.Taint]string) {
+	totalSoldComms := 0
 	for _, nodeDTO := range nodeDTOs {
 		node, ok := nodes[*nodeDTO.Id]
 		if !ok {
@@ -92,11 +93,15 @@ func (t *TaintTolerationProcessor) createTaintCommoditiesSoldByNode(nodeDTOs []*
 			continue
 		}
 		nodeDTO.CommoditiesSold = append(nodeDTO.CommoditiesSold, taintComms...)
+		totalSoldComms += len(taintComms)
 	}
+
+	glog.V(3).Infof("Total of %v taint commodities are sold by all nodes.", totalSoldComms)
 }
 
 // Creates taint commodities bought by ContainerPods.
 func (t *TaintTolerationProcessor) createTaintCommoditiesBoughtByPod(podDTOs []*proto.EntityDTO, pods map[string]*api.Pod, nodeNameToUID map[string]string, taintCollection map[api.Taint]string) {
+	totalBoughtComms := 0
 	for _, podDTO := range podDTOs {
 		pod, ok := pods[*podDTO.Id]
 
@@ -119,7 +124,10 @@ func (t *TaintTolerationProcessor) createTaintCommoditiesBoughtByPod(podDTOs []*
 		}
 
 		podBuysCommodities(podDTO, taintComms, providerId)
+		totalBoughtComms += len(taintComms)
 	}
+
+	glog.V(3).Infof("Total of %v taint commodities are bought by all pods.", totalBoughtComms)
 }
 
 // Appends taint commodities to the CommodityBought list in the ContainerPod DTO.
@@ -166,7 +174,7 @@ func getTaintCollection(nodes map[string]*api.Node) map[api.Taint]string {
 		for _, taint := range taints {
 			if !isUnschedulableNodeTaint(taint) && (taint.Effect == api.TaintEffectNoExecute ||
 				taint.Effect == api.TaintEffectNoSchedule) {
-				glog.V(2).Infof("Found taint %s on node %s)", taintCollection[taint], node.GetName())
+				glog.V(5).Infof("Found taint %s on node %s)", taintCollection[taint], node.GetName())
 				if _, found := taintCollection[taint]; !found {
 					taintCollection[taint] = taint.Key + "=" + taint.Value + ":" + string(taint.Effect)
 				}
@@ -196,7 +204,7 @@ func createTaintCommsSold(node *api.Node, taintCollection map[api.Taint]string) 
 	visited := make(map[string]bool, 0)
 	for taint, key := range taintCollection {
 		if visited[key] {
-			glog.V(4).Infof("Commodity with key %s for taint %v already created for node %s", key, taint, node.Name)
+			glog.V(5).Infof("Commodity with key %s for taint %v already created for node %s", key, taint, node.Name)
 			continue
 		}
 		// If the node doesn't contain the taint, create TAINT commodity
@@ -210,13 +218,13 @@ func createTaintCommsSold(node *api.Node, taintCollection map[api.Taint]string) 
 				return nil, err
 			}
 			visited[key] = true
-			glog.V(4).Infof("Created taint commodity with key %s for node %s", key, node.GetName())
+			glog.V(5).Infof("Created taint commodity with key %s for node %s", key, node.GetName())
 
 			taintComms = append(taintComms, taintComm)
 		}
 	}
 
-	glog.V(4).Infof("Created %d taint commodities for node %s", len(taintComms), node.GetName())
+	glog.V(5).Infof("Created %d taint commodities for node %s", len(taintComms), node.GetName())
 	return taintComms, nil
 }
 
@@ -227,7 +235,7 @@ func createTaintCommsBought(pod *api.Pod, taintCollection map[api.Taint]string) 
 	visited := make(map[string]bool, 0)
 	for taint, key := range taintCollection {
 		if visited[key] {
-			glog.V(4).Infof("Commodity with key %s for taint %v already created for pod %s.", key, taint, pod.Name)
+			glog.V(5).Infof("Commodity with key %s for taint %v already created for pod %s.", key, taint, pod.Name)
 			continue
 		}
 		// If the pod doesn't have the proper toleration, create TAINT to buy
@@ -240,11 +248,11 @@ func createTaintCommsBought(pod *api.Pod, taintCollection map[api.Taint]string) 
 				return nil, err
 			}
 			visited[key] = true
-			glog.V(4).Infof("Created taint commodity with key %s for pod %s", key, pod.GetName())
+			glog.V(5).Infof("Created taint commodity with key %s for pod %s", key, pod.GetName())
 			taintComms = append(taintComms, taintComm)
 		}
 	}
-	glog.V(4).Infof("Created %d taint commodities for pod %s", len(taintComms), pod.GetName())
+	glog.V(5).Infof("Created %d taint commodities for pod %s", len(taintComms), pod.GetName())
 	return taintComms, nil
 }
 

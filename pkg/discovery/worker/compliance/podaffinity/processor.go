@@ -32,6 +32,7 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog/v2"
 
+	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/parallelizer"
 )
@@ -39,10 +40,12 @@ import (
 // PodAffinityProcessor processes inter pod affinities, anti affinities
 // and pod to node affinities
 type PodAffinityProcessor struct {
-	nodeInfoLister  NodeInfoLister
-	nsLister        listersv1.NamespaceLister
-	podToVolumesMap map[string][]repository.MountedVolume
-	parallelizer    parallelizer.Parallelizer
+	nodeInfoLister          NodeInfoLister
+	nsLister                listersv1.NamespaceLister
+	podToVolumesMap         map[string][]repository.MountedVolume
+	uniqueAffinityTerms     sets.String
+	uniqueAntiAffinityTerms sets.String
+	parallelizer            parallelizer.Parallelizer
 	sync.Mutex
 }
 
@@ -53,8 +56,10 @@ func New(clusterSummary *repository.ClusterSummary, nodeInfoLister NodeInfoListe
 		nodeInfoLister:  nodeInfoLister,
 		podToVolumesMap: clusterSummary.PodToVolumesMap,
 		// TODO: make the parallelizm configurable
-		parallelizer: parallelizer.NewParallelizer(parallelizer.DefaultParallelism),
-		nsLister:     namespaceLister,
+		parallelizer:            parallelizer.NewParallelizer(parallelizer.DefaultParallelism),
+		nsLister:                namespaceLister,
+		uniqueAffinityTerms:     sets.NewString(),
+		uniqueAntiAffinityTerms: sets.NewString(),
 	}
 
 	return pr, nil
@@ -103,9 +108,29 @@ func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string
 		return nil, nil
 	}
 
-	podsWithAffinities := sets.NewString()
-	nodesPods := make(map[string][]string)
 	ctx := context.TODO()
+	nodesPods := make(map[string][]string)
+	podsWithAllAffinities := sets.NewString()
+	// We somehow have never supported the nodeAffinity with matchFields term
+	// that is the reason podsWithAllAffinities differs from podsWithSupportedAffinities
+	podsWithSupportedAffinities := sets.NewString()
+	podsWithVolumeAffinities := sets.NewString()
+	podsWithPodAffinities := sets.NewString()
+	podsWithNodeAffinities := sets.NewString()
+	// We process and log the pod and node labels here as we want this
+	// information uniquely relevant to affinities anyways
+	podLabels := sets.NewString()
+	nodeLabels := sets.NewString()
+	if glog.V(3) {
+		pr.Lock()
+		for _, nodeInfo := range nodeInfos {
+			for k, v := range nodeInfo.node.Labels {
+				nodeLabels.Insert(k + "=" + v)
+			}
+		}
+		pr.Unlock()
+	}
+
 	processAffinityPerPod := func(i int) {
 		pod := allPods[i]
 		qualifiedPodName := pod.Namespace + "/" + pod.Name
@@ -118,7 +143,9 @@ func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string
 			return
 		}
 
-		placed := false
+		placed := false // this is used to avoid corner cases like those pods which
+		// have volumes but those volumes do not specify node affinities
+		// or those volumes have affinities but do not result into selectors
 		for _, nodeInfo := range nodeInfos {
 			err := pr.Filter(ctx, state, pod, nodeInfo)
 			// Err means a placement was not found on this node
@@ -135,16 +162,70 @@ func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string
 		}
 		pr.Lock()
 		if placed {
-			podsWithAffinities.Insert(qualifiedPodName)
+			podsWithSupportedAffinities.Insert(qualifiedPodName)
+		}
+		if podWithAffinity(pod) {
+			podsWithAllAffinities.Insert(qualifiedPodName)
+		}
+		if podWithPodAffinityAndAntiaffinity(pod) {
+			podsWithPodAffinities.Insert(qualifiedPodName)
+		}
+		if pr.podsVolumeHasAffinities(qualifiedPodName) {
+			podsWithVolumeAffinities.Insert(qualifiedPodName)
+		}
+		if podWithNodeAffinity(pod) {
+			podsWithNodeAffinities.Insert(qualifiedPodName)
+		}
+		if glog.V(3) {
+			for k, v := range pod.Labels {
+				podLabels.Insert(k + "=" + v)
+			}
 		}
 		pr.Unlock()
 	}
 
 	pr.parallelizer.Until(context.Background(), len(allPods), processAffinityPerPod, "processAffinityPerPod")
-	return nodesPods, podsWithAffinities
+
+	if glog.V(3) {
+		glog.Infof("Cluster has %v total pods with All Affinities.", podsWithAllAffinities.Len())
+		glog.Infof("Cluster has %v total pods with node Affinities.", podsWithNodeAffinities.Len())
+		glog.Infof("Cluster has %v pods with pod to pod Affinities/AntiAffinities.", podsWithPodAffinities.Len())
+		glog.Infof("Cluster has %v pods with volumes that specify Node AntiAffinities.", podsWithVolumeAffinities.Len())
+		glog.Infof("Cluster has %v total unique Affinity terms by rule string.", pr.uniqueAffinityTerms.Len())
+		glog.Infof("Cluster has %v total unique AntiAffinity terms by rule string.", pr.uniqueAntiAffinityTerms.Len())
+		glog.Infof("Cluster has %v total unique label key=value pairs on pods.", podLabels.Len())
+		glog.Infof("Cluster has %v total unique label key=value pairs (topologies) on nodes.", nodeLabels.Len())
+	}
+	if glog.V(5) {
+		glog.Infof("Pods with Affinities: \n%v\n", podsWithAllAffinities.UnsortedList())
+		glog.Infof("Pods with node Affinities: \n%v\n", podsWithNodeAffinities.UnsortedList())
+		glog.Infof("Pods with pod to pod Affinities/AntiAffinities: \n%v\n", podsWithPodAffinities.UnsortedList())
+		glog.Infof("Pods with volumes that specify Node AntiAffinities: \n%v\n", podsWithVolumeAffinities.UnsortedList())
+		glog.Infof("Unique Affinity terms by rule string: \n%v\n", pr.uniqueAffinityTerms.UnsortedList())
+		glog.Infof("Unique AntiAffinity terms by rule string: \n%v\n", pr.uniqueAntiAffinityTerms.UnsortedList())
+		glog.Infof("Unique label pairs on pods: \n %v\n", podLabels.UnsortedList())
+		glog.Infof("Unique label pairs (topologies) on nodes: \n %v\n", nodeLabels.UnsortedList())
+	}
+
+	return nodesPods, podsWithSupportedAffinities
 }
 
 func (pr *PodAffinityProcessor) podHasVolumes(qualifiedPodName string) bool {
 	_, exists := pr.podToVolumesMap[qualifiedPodName]
 	return exists
+}
+
+func (pr *PodAffinityProcessor) podsVolumeHasAffinities(qualifiedPodName string) bool {
+	vols, exists := pr.podToVolumesMap[qualifiedPodName]
+	if !exists {
+		return false
+	}
+	for _, vol := range vols {
+		if vol.UsedVolume != nil && vol.UsedVolume.Spec.NodeAffinity != nil &&
+			vol.UsedVolume.Spec.NodeAffinity.Required != nil &&
+			len(vol.UsedVolume.Spec.NodeAffinity.Required.NodeSelectorTerms) > 0 {
+			return true
+		}
+	}
+	return false
 }

@@ -327,7 +327,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 			start := time.Now()
 			namespaceLister, err := podaffinity.NewNamespaceLister(dc.k8sClusterScraper.Clientset, clusterSummary)
 			if err != nil {
-				glog.Errorf("error creating affinity processor: %v", err)
+				glog.Errorf("Error creating affinity processor: %v", err)
 			} else {
 				affinityProcessor, err := podaffinity.New(clusterSummary,
 					podaffinity.NewNodeInfoLister(clusterSummary), namespaceLister)
@@ -338,6 +338,14 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 				}
 				glog.V(2).Infof("Successfully processed affinities.")
 				glog.V(3).Infof("Processing affinities with new algorithm took %s", time.Since(start))
+				if glog.V(3) {
+					nodeCommsTotal := 0
+					for node, pods := range nodesPods {
+						nodeCommsTotal += len(pods)
+						glog.Infof("Node %s will sell %v affinity related commodities.", node, len(pods))
+					}
+					glog.Infof("Total %v affinity related commodities will be sold by all nodes.", nodeCommsTotal)
+				}
 				glog.V(6).Infof("\n\nProcessed affinity result: \n\n %++v \n\n %++v \n\n",
 					nodesPods, podsWithAffinities)
 			}
