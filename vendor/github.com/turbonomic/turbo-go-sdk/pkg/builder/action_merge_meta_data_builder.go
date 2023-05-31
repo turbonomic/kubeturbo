@@ -76,12 +76,12 @@ func (builder *ActionDeDuplicateAndAggregationTargetBuilder) Create() *proto.Cha
 	return chainedMergeTarget
 }
 
-// Resize Merge Policy DTO builder
-type ResizeMergePolicyBuilder struct {
+type MergePolicyBuilder struct {
 	entityType                *proto.EntityDTO_EntityType
 	aggregationTargets        []*ActionAggregationTargetBuilder
 	chainedAggregationTargets []*ActionDeDuplicateAndAggregationTargetBuilder
 	commTypes                 []*CommodityMergeData
+	entityExclusionFilters    []*proto.ActionMergePolicyDTO_EntityFilter
 }
 
 type CommodityMergeData struct {
@@ -89,26 +89,26 @@ type CommodityMergeData struct {
 	changedAttr proto.ActionItemDTO_CommodityAttribute
 }
 
-func NewResizeMergeSpecBuilder() *ResizeMergePolicyBuilder {
-	return &ResizeMergePolicyBuilder{}
+func NewMergePolicyBuilder() *MergePolicyBuilder {
+	return &MergePolicyBuilder{}
 }
 
-func (rb *ResizeMergePolicyBuilder) ForEntityType(entityType proto.EntityDTO_EntityType) *ResizeMergePolicyBuilder {
-	rb.entityType = &entityType
-	return rb
+func (mpb *MergePolicyBuilder) ForEntityType(entityType proto.EntityDTO_EntityType) *MergePolicyBuilder {
+	mpb.entityType = &entityType
+	return mpb
 }
 
-func (rb *ResizeMergePolicyBuilder) AggregateBy(mergeTarget *ActionAggregationTargetBuilder) *ResizeMergePolicyBuilder {
-	rb.aggregationTargets = append(rb.aggregationTargets, mergeTarget)
-	return rb
+func (mpb *MergePolicyBuilder) AggregateBy(mergeTarget *ActionAggregationTargetBuilder) *MergePolicyBuilder {
+	mpb.aggregationTargets = append(mpb.aggregationTargets, mergeTarget)
+	return mpb
 }
 
-func (rb *ResizeMergePolicyBuilder) DeDuplicateAndAggregateBy(mergeTarget *ActionDeDuplicateAndAggregationTargetBuilder) *ResizeMergePolicyBuilder {
-	rb.chainedAggregationTargets = append(rb.chainedAggregationTargets, mergeTarget)
-	return rb
+func (mpb *MergePolicyBuilder) DeDuplicateAndAggregateBy(mergeTarget *ActionDeDuplicateAndAggregationTargetBuilder) *MergePolicyBuilder {
+	mpb.chainedAggregationTargets = append(mpb.chainedAggregationTargets, mergeTarget)
+	return mpb
 }
 
-func (rb *ResizeMergePolicyBuilder) ForCommodity(commType proto.CommodityDTO_CommodityType) *ResizeMergePolicyBuilder {
+func (rb *MergePolicyBuilder) ForCommodity(commType proto.CommodityDTO_CommodityType) *MergePolicyBuilder {
 	comm := &CommodityMergeData{
 		commType: commType,
 	}
@@ -116,18 +116,28 @@ func (rb *ResizeMergePolicyBuilder) ForCommodity(commType proto.CommodityDTO_Com
 	return rb
 }
 
-func (rb *ResizeMergePolicyBuilder) ForCommodityAndAttribute(commType proto.CommodityDTO_CommodityType,
-	changedAttr proto.ActionItemDTO_CommodityAttribute) *ResizeMergePolicyBuilder {
+func (mpb *MergePolicyBuilder) ForCommodityAndAttribute(commType proto.CommodityDTO_CommodityType,
+	changedAttr proto.ActionItemDTO_CommodityAttribute) *MergePolicyBuilder {
 	comm := &CommodityMergeData{
 		commType:    commType,
 		changedAttr: changedAttr,
 	}
-	rb.commTypes = append(rb.commTypes, comm)
-	return rb
+	mpb.commTypes = append(mpb.commTypes, comm)
+	return mpb
+}
+
+func (mpb *MergePolicyBuilder) ForContainerPodDataExclusionFilter(podData *proto.EntityDTO_ContainerPodData) *MergePolicyBuilder {
+	entityFilter := &proto.ActionMergePolicyDTO_EntityFilter{
+		EntityFilterProps: &proto.ActionMergePolicyDTO_EntityFilter_ContainerPodData{
+			ContainerPodData: podData,
+		},
+	}
+	mpb.entityExclusionFilters = append(mpb.entityExclusionFilters, entityFilter)
+	return mpb
 }
 
 // Create the ActionMergePolicyDTO for merging resize actions.
-func (rb *ResizeMergePolicyBuilder) Build() (*proto.ActionMergePolicyDTO, error) {
+func (rb *MergePolicyBuilder) BuildResizeMergePolicy() (*proto.ActionMergePolicyDTO, error) {
 	if rb.entityType == nil {
 		return nil, fmt.Errorf("Entity type required for action merge policy")
 	}
@@ -185,5 +195,74 @@ func (rb *ResizeMergePolicyBuilder) Build() (*proto.ActionMergePolicyDTO, error)
 	}
 
 	mergeSpec.ExecutionTargets = executionTargetList
+	return mergeSpec, nil
+}
+
+// Create the ActionMergePolicyDTO for Horizontal Scale actions.
+func (hsb *MergePolicyBuilder) BuildHorizontalScaleMergePolicy() (*proto.ActionMergePolicyDTO, error) {
+	if hsb.entityType == nil {
+		return nil, fmt.Errorf("Entity type required for horizontal scale merge policy")
+	}
+
+	if len(hsb.aggregationTargets) == 0 {
+		return nil, fmt.Errorf("Target type required for horizontal scale merge merge policy")
+	}
+
+	if len(hsb.commTypes) == 0 {
+		return nil, fmt.Errorf("Commodity types required for horizontal scale merge merge policy")
+	}
+
+	if len(hsb.entityExclusionFilters) == 0 {
+		return nil, fmt.Errorf("Entity flters required for horizontal scale merge merge policy")
+	}
+
+	commMergeDataList := []*proto.HorizontalScaleMergeSpec_CommodityMergeData{}
+	for _, commData := range hsb.commTypes {
+		commMergeData := &proto.HorizontalScaleMergeSpec_CommodityMergeData{
+			CommodityType: &commData.commType,
+			ChangedAttr:   &commData.changedAttr,
+		}
+		commMergeDataList = append(commMergeDataList, commMergeData)
+	}
+	horizontalScaleSpec := &proto.HorizontalScaleMergeSpec{
+		CommodityData: commMergeDataList,
+	}
+
+	mergeSpec := &proto.ActionMergePolicyDTO{
+		EntityType: hsb.entityType,
+
+		ActionSpec: &proto.ActionMergePolicyDTO_HorizontalScaleSpec{
+			HorizontalScaleSpec: horizontalScaleSpec,
+		},
+	}
+
+	var executionTargetList []*proto.ActionMergeExecutionTarget
+	for _, targetData := range hsb.aggregationTargets {
+		executionTarget := &proto.ActionMergeExecutionTarget{
+			ExecutionTarget: &proto.ActionMergeExecutionTarget_MergeTarget{
+				MergeTarget: targetData.Create(),
+			},
+		}
+		executionTargetList = append(executionTargetList, executionTarget)
+	}
+	mergeSpec.ExecutionTargets = executionTargetList
+
+	var filterList []*proto.ActionMergePolicyDTO_EntityFilter
+	for _, filter := range hsb.entityExclusionFilters {
+		podData := filter.GetContainerPodData()
+		if podData == nil {
+			glog.Warningf("Skipping invalid filter with nil ContainerPodData")
+			continue
+		}
+		entityFilter := &proto.ActionMergePolicyDTO_EntityFilter{
+			EntityFilterProps: &proto.ActionMergePolicyDTO_EntityFilter_ContainerPodData{
+				ContainerPodData: podData,
+			},
+		}
+		filterList = append(filterList, entityFilter)
+	}
+
+	mergeSpec.EntityFilters = filterList
+
 	return mergeSpec, nil
 }
