@@ -13,6 +13,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/features"
+	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -638,4 +639,66 @@ func AppendNewLabelCommodityToList(commoditiesList []*proto.CommodityDTO, key st
 	}
 	commoditiesList = append(commoditiesList, labelComm)
 	return commoditiesList, nil
+}
+
+// CreateWorkloadControllerDataByControllerType creates and returns a *proto.EntityDTO_WorkloadControllerData
+// based on the provided controller kind.
+//
+// The supported controller kinds are:
+//   - KindCronJob
+//   - KindDaemonSet
+//   - KindDeployment
+//   - KindJob
+//   - KindReplicaSet
+//   - KindReplicationController
+//   - KindStatefulSet
+//
+// If the provided kind does not match any known controller type, it returns nil.
+func CreateWorkloadControllerDataByControllerType(kind string) *proto.EntityDTO_WorkloadControllerData {
+	switch kind {
+	case commonutil.KindCronJob:
+		return &proto.EntityDTO_WorkloadControllerData{
+			ControllerType: &proto.EntityDTO_WorkloadControllerData_CronJobData{
+				CronJobData: &proto.EntityDTO_CronJobData{},
+			},
+		}
+	case commonutil.KindDaemonSet:
+		return &proto.EntityDTO_WorkloadControllerData{
+			ControllerType: &proto.EntityDTO_WorkloadControllerData_DaemonSetData{
+				DaemonSetData: &proto.EntityDTO_DaemonSetData{},
+			},
+		}
+	case commonutil.KindDeployment:
+		return &proto.EntityDTO_WorkloadControllerData{
+			ControllerType: &proto.EntityDTO_WorkloadControllerData_DeploymentData{
+				DeploymentData: &proto.EntityDTO_DeploymentData{},
+			},
+		}
+	case commonutil.KindJob:
+		return &proto.EntityDTO_WorkloadControllerData{
+			ControllerType: &proto.EntityDTO_WorkloadControllerData_JobData{
+				JobData: &proto.EntityDTO_JobData{},
+			},
+		}
+	case commonutil.KindReplicaSet:
+		return &proto.EntityDTO_WorkloadControllerData{
+			ControllerType: &proto.EntityDTO_WorkloadControllerData_ReplicaSetData{
+				ReplicaSetData: &proto.EntityDTO_ReplicaSetData{},
+			},
+		}
+	case commonutil.KindReplicationController:
+		return &proto.EntityDTO_WorkloadControllerData{
+			ControllerType: &proto.EntityDTO_WorkloadControllerData_ReplicationControllerData{
+				ReplicationControllerData: &proto.EntityDTO_ReplicationControllerData{},
+			},
+		}
+	case commonutil.KindStatefulSet:
+		return &proto.EntityDTO_WorkloadControllerData{
+			ControllerType: &proto.EntityDTO_WorkloadControllerData_StatefulSetData{
+				StatefulSetData: &proto.EntityDTO_StatefulSetData{},
+			},
+		}
+	default:
+		return nil
+	}
 }
