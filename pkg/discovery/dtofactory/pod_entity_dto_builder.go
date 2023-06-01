@@ -76,9 +76,10 @@ type podEntityDTOBuilder struct {
 	pendingPods          []*api.Pod
 	clusterKeyInjected   string
 	mirrorPodToDaemonMap map[string]bool
+	ClusterSummary       *repository.ClusterSummary
 }
 
-func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager) *podEntityDTOBuilder {
+func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager, clusterSummary *repository.ClusterSummary) *podEntityDTOBuilder {
 	return &podEntityDTOBuilder{
 		generalBuilder:       newGeneralBuilder(sink),
 		stitchingManager:     stitchingManager,
@@ -87,6 +88,7 @@ func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *st
 		podToVolumesMap:      make(map[string][]repository.MountedVolume),
 		nodeNameToNodeMap:    make(map[string]*repository.KubeNode),
 		mirrorPodToDaemonMap: make(map[string]bool),
+		ClusterSummary:       clusterSummary,
 	}
 }
 
@@ -597,6 +599,29 @@ func (builder *podEntityDTOBuilder) createContainerPodData(pod *api.Pod) *proto.
 	if util.PodIsReady(pod) && pod.Status.PodIP == "" {
 		glog.Errorf("No IP found for pod %s", fullName)
 	}
+
+	ownerInfo, err := util.GetPodParentInfo(pod)
+	if err != nil || util.IsOwnerInfoEmpty(ownerInfo) {
+		// Pod does not have controller
+		glog.V(3).Infof("Skip adding workload controller data for pod %v/%v: pod has no controller.",
+			pod.Namespace, pod.Name)
+		return podData
+	}
+
+	controller, exists := builder.ClusterSummary.ControllerMap[ownerInfo.Uid]
+	if !exists {
+		// Could be custom controller. We do not bulk process custom controller.
+		glog.V(3).Infof("add cumtomer controller data of controller %v/%v for pod %v/%v: controller not cached.",
+			ownerInfo.Kind, ownerInfo.Name, pod.Namespace, pod.Name)
+	} else {
+		controllerData :=CreateWorkloadControllerDataByControllerType(controller.Kind)
+		if controllerData != nil {
+			podData.
+		}
+
+
+	}
+
 	return podData
 }
 

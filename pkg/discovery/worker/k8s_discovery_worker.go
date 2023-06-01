@@ -427,7 +427,7 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 		return nil, nil, nil, nil
 	}
 	runningPodDTOs, pendingPodDTOs, podsWithVolumes, mirrorPodUids := dtofactory.
-		NewPodEntityDTOBuilder(worker.sink, worker.stitchingManager).
+		NewPodEntityDTOBuilder(worker.sink, worker.stitchingManager, cluster).
 		// Node providers
 		WithNodeNameUIDMap(cluster.NodeNameUIDMap).
 		// Quota providers
