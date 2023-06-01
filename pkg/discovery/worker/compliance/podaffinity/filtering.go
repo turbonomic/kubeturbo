@@ -26,6 +26,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/golang/glog"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -242,6 +244,17 @@ func (pr *PodAffinityProcessor) PreFilter(ctx context.Context, pod *v1.Pod) (*pr
 	s.existingAntiAffinityCounts = pr.getExistingAntiAffinityCounts(ctx, pod, s.namespaceLabels, nodesWithRequiredAntiAffinityPods)
 	s.affinityCounts, s.antiAffinityCounts = pr.getIncomingAffinityAntiAffinityCounts(ctx, s.podInfo, allNodes)
 
+	if glog.V(3) {
+		// We don't want to waste time setting the map up if verbosity < 3
+		defer pr.Unlock()
+		pr.Lock()
+		for _, term := range s.podInfo.ActualAffinityTerms {
+			pr.uniqueAffinityTerms.Insert(term.String())
+		}
+		for _, term := range s.podInfo.ActualAntiAffinityTerms {
+			pr.uniqueAntiAffinityTerms.Insert(term.String())
+		}
+	}
 	return s, nil
 }
 
