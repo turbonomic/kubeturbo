@@ -613,13 +613,14 @@ func (builder *podEntityDTOBuilder) createContainerPodData(pod *api.Pod) *proto.
 		// Could be custom controller. We do not bulk process custom controller.
 		glog.V(3).Infof("add cumtomer controller data of controller %v/%v for pod %v/%v: controller not cached.",
 			ownerInfo.Kind, ownerInfo.Name, pod.Namespace, pod.Name)
-	} else {
-		controllerData :=CreateWorkloadControllerDataByControllerType(controller.Kind)
-		if controllerData != nil {
-			podData.
+		podData.ControllerData = &proto.EntityDTO_WorkloadControllerData{
+			ControllerType: &proto.EntityDTO_WorkloadControllerData_CustomControllerData{
+				CustomControllerData: &proto.EntityDTO_CustomControllerData{},
+			},
 		}
-
-
+	} else {
+		controllerData := CreateWorkloadControllerDataByControllerType(controller.Kind)
+		podData.ControllerData = controllerData
 	}
 
 	return podData
