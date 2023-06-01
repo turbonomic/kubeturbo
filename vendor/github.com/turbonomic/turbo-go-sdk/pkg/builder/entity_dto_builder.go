@@ -226,7 +226,28 @@ func (eb *EntityDTOBuilder) SellsCommodities(commDTOs []*proto.CommodityDTO) *En
 	if eb.err != nil {
 		return eb
 	}
-	eb.commoditiesSold = append(eb.commoditiesSold, commDTOs...)
+
+	newCommoditiesSold := append(eb.commoditiesSold, commDTOs...)
+
+	commoditiesSoldMap := make(map[string]*proto.CommodityDTO)
+	for _, commoditySold := range newCommoditiesSold {
+		mapKey := string(*commoditySold.CommodityType)
+		if commoditySold.Key != nil {
+			mapKey = mapKey + "_" + string(*commoditySold.Key)
+		}
+
+		if _, found := commoditiesSoldMap[mapKey]; !found {
+			commoditiesSoldMap[mapKey] = commoditySold
+		}
+	}
+
+	newCommoditiesSold = []*proto.CommodityDTO{}
+	for _, commoditySold := range commoditiesSoldMap {
+		newCommoditiesSold = append(newCommoditiesSold, commoditySold)
+	}
+
+	eb.commoditiesSold = newCommoditiesSold
+
 	return eb
 }
 
@@ -238,6 +259,23 @@ func (eb *EntityDTOBuilder) SellsCommodity(commDTO *proto.CommodityDTO) *EntityD
 	if eb.commoditiesSold == nil {
 		eb.commoditiesSold = []*proto.CommodityDTO{}
 	}
+
+	newCommodityDTOMapKey := string(*commDTO.CommodityType)
+	if commDTO.Key != nil {
+		newCommodityDTOMapKey = newCommodityDTOMapKey + "_" + string(*commDTO.Key)
+	}
+
+	for _, commoditySold := range eb.commoditiesSold {
+		commoditySoldMapKey := string(*commoditySold.CommodityType)
+		if commoditySold.Key != nil {
+			commoditySoldMapKey = commoditySoldMapKey + "_" + string(*commoditySold.Key)
+		}
+
+		if newCommodityDTOMapKey == commoditySoldMapKey {
+			return eb
+		}
+	}
+
 	eb.commoditiesSold = append(eb.commoditiesSold, commDTO)
 	return eb
 }
