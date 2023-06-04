@@ -57,12 +57,12 @@ func TestAWSVolumeUUIDGetter_GetUUID(t *testing.T) {
 			false,
 		},
 		{
-			args{"vol-0e4eaa3ef79bcb5a9", map[string]string{"topology.kubernetes.io/zone": "us-east-2"}},
+			args{"vol-0e4eaa3ef79bcb5a9", map[string]string{"topology.kubernetes.io/zone": "us-east-2c"}},
 			"aws::us-east-2::VL::vol-0e4eaa3ef79bcb5a9",
 			false,
 		},
 		{
-			args{"vol-0e4eaa3ef79bcb5a9", map[string]string{"topology.kubernetes.io/region": "us-east-2c"}},
+			args{"vol-0e4eaa3ef79bcb5a9", map[string]string{"topology.kubernetes.io/region": "us-east-2"}},
 			"aws::us-east-2::VL::vol-0e4eaa3ef79bcb5a9",
 			false,
 		},

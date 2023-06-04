@@ -227,10 +227,10 @@ func extractAWSVolumeUuid(volID string, vol *api.PersistentVolume) (string, erro
 					zone = labelV
 				}
 			}
-			if region != "" {
-				parts[0] = region
-			} else if zone != "" {
-				parts[0] = zone + "-"
+			if zone != "" {
+				parts[0] = zone
+			} else if region != "" {
+				parts[0] = region + "-"
 			}
 		}
 	}
