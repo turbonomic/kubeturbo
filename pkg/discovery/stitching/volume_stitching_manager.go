@@ -212,26 +212,28 @@ func extractAWSVolumeUuid(volID string, vol *api.PersistentVolume) (string, erro
 
 	parts := strings.Split(suffix, "/")
 	if len(parts) < 2 {
+		// Try to extract the zone information from the volume labels if they exist
+		// "topology.kubernetes.io/region": "us-east-2"
+		// "topology.kubernetes.io/zone": "us-east-2c"
 		if vol.Labels == nil || len(vol.Labels) < 1 {
 			return "", fmt.Errorf("failed to split uuid (%d): %v, for volume %v", len(parts), parts, volName)
-		} else {
-			parts = append(parts, parts[0])
-			parts[0] = ""
-			region := ""
-			zone := ""
-			for labelKey, labelV := range vol.Labels {
-				if strings.HasSuffix(labelKey, "region") {
-					region = labelV
-				}
-				if strings.HasSuffix(labelKey, "zone") {
-					zone = labelV
-				}
+		}
+		parts = append(parts, parts[0])
+		parts[0] = ""
+		region := ""
+		zone := ""
+		for labelKey, labelV := range vol.Labels {
+			if strings.HasSuffix(labelKey, "region") {
+				region = labelV
 			}
-			if zone != "" {
-				parts[0] = zone
-			} else if region != "" {
-				parts[0] = region + "-"
+			if strings.HasSuffix(labelKey, "zone") {
+				zone = labelV
 			}
+		}
+		if zone != "" {
+			parts[0] = zone
+		} else if region != "" {
+			parts[0] = region + "-"
 		}
 	}
 
