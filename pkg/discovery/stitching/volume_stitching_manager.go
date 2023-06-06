@@ -198,16 +198,43 @@ func (aws *awsVolumeUUIDGetter) GetVolumeUUID(vol *api.PersistentVolume) (string
 		return "", fmt.Errorf("not a valid AWS provisioned volume: %v", vol.Name)
 	}
 
-	return extractAWSVolumeUuid(vol.Spec.AWSElasticBlockStore.VolumeID, vol.Name)
+	return extractAWSVolumeUuid(vol.Spec.AWSElasticBlockStore.VolumeID, vol)
 }
 
-func extractAWSVolumeUuid(volID, volName string) (string, error) {
+func extractAWSVolumeUuid(volID string, vol *api.PersistentVolume) (string, error) {
+	volName := vol.Name
 	//1. split the suffix into two parts:
 	// aws://us-east-2c/vol-0e4eaa3ef79bcb5a9 -> [us-east-2c, vol-0e4eaa3ef79bcb5a9]
-	suffix := volID[len(awsVolPrefix):]
+	suffix := volID
+	if strings.HasPrefix(volID, awsVolPrefix) {
+		suffix = volID[len(awsVolPrefix):]
+	}
+
 	parts := strings.Split(suffix, "/")
-	if len(parts) != 2 {
-		return "", fmt.Errorf("failed to split uuid (%d): %v, for volume %v", len(parts), parts, volName)
+	if len(parts) < 2 {
+		// Try to extract the zone information from the volume labels if they exist
+		// "topology.kubernetes.io/region": "us-east-2"
+		// "topology.kubernetes.io/zone": "us-east-2c"
+		if vol.Labels == nil || len(vol.Labels) < 1 {
+			return "", fmt.Errorf("failed to split uuid (%d): %v, for volume %v", len(parts), parts, volName)
+		}
+		parts = append(parts, parts[0])
+		parts[0] = ""
+		region := ""
+		zone := ""
+		for labelKey, labelV := range vol.Labels {
+			if strings.HasSuffix(labelKey, "region") {
+				region = labelV
+			}
+			if strings.HasSuffix(labelKey, "zone") {
+				zone = labelV
+			}
+		}
+		if zone != "" {
+			parts[0] = zone
+		} else if region != "" {
+			parts[0] = region + "-"
+		}
 	}
 
 	//2. get region by removing the zone suffix
@@ -279,7 +306,7 @@ func (csi *csiVolumeUUIDGetter) GetVolumeUUID(vol *api.PersistentVolume) (string
 	// We will need evidence for this name to be something else in some installation.
 	// If we get that then it will become necessary to have this configured with the kuebturbo install.
 	if strings.Contains(driverName, "aws") && strings.Contains(driverName, "csi") {
-		return extractAWSVolumeUuid(volumeHandle, vol.Name)
+		return extractAWSVolumeUuid(volumeHandle, vol)
 	}
 
 	// The csi based volume driver names for azure generally are disk.csi.azure.com.

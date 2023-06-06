@@ -42,26 +42,51 @@ func mockCSIAzureVolume(volID string) *api.PersistentVolume {
 }
 
 func TestAWSVolumeUUIDGetter_GetUUID(t *testing.T) {
-	tests := [][]string{
+	type args struct {
+		volumeID string
+		labels   map[string]string
+	}
+	tests := []struct {
+		args    args
+		want    string
+		wantErr bool
+	}{
 		{
-			"aws://us-east-2c/vol-0e4eaa3ef79bcb5a9",
+			args{"aws://us-east-2c/vol-0e4eaa3ef79bcb5a9", map[string]string{}},
 			"aws::us-east-2::VL::vol-0e4eaa3ef79bcb5a9",
+			false,
+		},
+		{
+			args{"vol-0e4eaa3ef79bcb5a9", map[string]string{"topology.kubernetes.io/zone": "us-east-2c"}},
+			"aws::us-east-2::VL::vol-0e4eaa3ef79bcb5a9",
+			false,
+		},
+		{
+			args{"vol-0e4eaa3ef79bcb5a9", map[string]string{"topology.kubernetes.io/region": "us-east-2"}},
+			"aws::us-east-2::VL::vol-0e4eaa3ef79bcb5a9",
+			false,
+		},
+
+		{
+			args{"vol-0e4eaa3ef79bcb5a9", map[string]string{}},
+			"",
+			true,
 		},
 	}
 
 	getter := &awsVolumeUUIDGetter{}
 
-	for _, pair := range tests {
-		vol := mockAWSVolume(pair[0])
+	for _, test := range tests {
+		vol := mockAWSVolume(test.args.volumeID)
+		vol.Labels = test.args.labels
 		result, err := getter.GetVolumeUUID(vol)
 
-		if err != nil {
+		if (err != nil) != test.wantErr {
 			t.Errorf("Failed to get AWS node UUID: %v", err)
 			continue
 		}
-
-		if strings.Compare(result, pair[1]) != 0 {
-			t.Errorf("Wrong volume stitching UUID %v Vs. %v", result, pair[1])
+		if strings.Compare(result, test.want) != 0 {
+			t.Errorf("Wrong volume stitching UUID %v Vs. %v", result, test.want)
 		}
 	}
 }
