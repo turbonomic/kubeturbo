@@ -54,8 +54,8 @@ sdkProtocolConfig:
 # - Specify a targetType only will register a probe without adding your cluster as a target.
 #   The probe will appear as a Cloud Native probe in the UI with a type Kubernetes-<targetType>.
 #
-#targetConfig:
-#  targetName: Cluster_Name
+targetConfig:
+  targetName: Cluster_Name
 #  targetType: Target_Type
 
 # In kubeturbo 6.4.3+, you can define what nodes should stay high-available based on the node role

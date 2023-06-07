@@ -27,6 +27,8 @@ spec:
   sdkProtocolConfig:
     registrationTimeoutSec: 300
     restartOnRegistrationTimeout: false
+  targetConfig:
+    targetName: Cluster_Name
   roleBinding: turbo-all-binding
   roleName: cluster-admin
   serverMeta:

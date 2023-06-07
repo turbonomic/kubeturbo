@@ -36,8 +36,8 @@ spec:
   #  nodeRoles: "\"master\""
 
   # Supply a targetName for user friendly identification of the k8s cluster
-  #targetConfig:
-  #  targetName: YOUR-CLUSTER-NAME
+  targetConfig:
+    targetName: YOUR-CLUSTER-NAME
 
   # Uncomment next lines to specify a repository and image tag for kubeturbo
   #image:
