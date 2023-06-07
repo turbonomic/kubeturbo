@@ -14,7 +14,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"k8s.io/apiserver/pkg/util/feature"
 )
@@ -576,78 +575,4 @@ func Test_getPodCommoditiesBought_PodAntiAffinity(t *testing.T) {
 	assert.NotEmpty(t, commoditiesBought)
 	assert.Equal(t, 1, len(commoditiesBought))
 	assert.Equal(t, proto.CommodityDTO_LABEL, *commoditiesBought[0].CommodityType)
-}
-
-func TestCreateContainerPodDataByControllerType(t *testing.T) {
-	// Test cases for supported controller kinds
-	testCases := []struct {
-		kind       string
-		assertFunc func(*testing.T, *proto.EntityDTO_WorkloadControllerData)
-	}{
-		{
-			kind: commonutil.KindCronJob,
-			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
-				assert.NotNil(t, data.GetCronJobData())
-				assert.Nil(t, data.GetDaemonSetData())
-			},
-		},
-		{
-			kind: commonutil.KindDaemonSet,
-			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
-				assert.NotNil(t, data.GetDaemonSetData())
-				assert.Nil(t, data.GetCronJobData())
-			},
-		},
-		// Add test cases for other supported controller kinds
-		{
-			kind: commonutil.KindDeployment,
-			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
-				assert.NotNil(t, data.GetDeploymentData())
-				// Add additional assertions if needed
-			},
-		},
-		{
-			kind: commonutil.KindJob,
-			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
-				assert.NotNil(t, data.GetJobData())
-				// Add additional assertions if needed
-			},
-		},
-		{
-			kind: commonutil.KindReplicaSet,
-			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
-				assert.NotNil(t, data.GetReplicaSetData())
-				// Add additional assertions if needed
-			},
-		},
-		{
-			kind: commonutil.KindReplicationController,
-			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
-				assert.NotNil(t, data.GetReplicationControllerData())
-				// Add additional assertions if needed
-			},
-		},
-		{
-			kind: commonutil.KindStatefulSet,
-			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
-				assert.NotNil(t, data.GetStatefulSetData())
-				// Add additional assertions if needed
-			},
-		},
-	}
-
-	// Run test cases
-	for _, tc := range testCases {
-		t.Run(tc.kind, func(t *testing.T) {
-			data := CreateWorkloadControllerDataByControllerType(tc.kind)
-			tc.assertFunc(t, data)
-		})
-	}
-
-	// Test case for unsupported controller kind
-	t.Run("UnsupportedKind", func(t *testing.T) {
-		kind := "UnsupportedKind"
-		data := CreateWorkloadControllerDataByControllerType(kind)
-		assert.Nil(t, data)
-	})
 }

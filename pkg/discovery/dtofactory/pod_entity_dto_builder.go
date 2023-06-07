@@ -7,13 +7,13 @@ import (
 	api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/features"
-	commonutil "github.com/turbonomic/kubeturbo/pkg/util"
 
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
@@ -76,10 +76,10 @@ type podEntityDTOBuilder struct {
 	pendingPods          []*api.Pod
 	clusterKeyInjected   string
 	mirrorPodToDaemonMap map[string]bool
-	ClusterSummary       *repository.ClusterSummary
+	ClusterScraper       *cluster.ClusterScraper
 }
 
-func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager, clusterSummary *repository.ClusterSummary) *podEntityDTOBuilder {
+func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager, clusterScraper *cluster.ClusterScraper) *podEntityDTOBuilder {
 	return &podEntityDTOBuilder{
 		generalBuilder:       newGeneralBuilder(sink),
 		stitchingManager:     stitchingManager,
@@ -88,7 +88,7 @@ func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *st
 		podToVolumesMap:      make(map[string][]repository.MountedVolume),
 		nodeNameToNodeMap:    make(map[string]*repository.KubeNode),
 		mirrorPodToDaemonMap: make(map[string]bool),
-		ClusterSummary:       clusterSummary,
+		ClusterScraper:       clusterScraper,
 	}
 }
 
@@ -600,27 +600,21 @@ func (builder *podEntityDTOBuilder) createContainerPodData(pod *api.Pod) *proto.
 		glog.Errorf("No IP found for pod %s", fullName)
 	}
 
-	ownerInfo, err := util.GetPodParentInfo(pod)
-	if err != nil || util.IsOwnerInfoEmpty(ownerInfo) {
-		// Pod does not have controller
-		glog.V(3).Infof("Skip adding workload controller data for pod %v/%v: pod has no controller.",
-			pod.Namespace, pod.Name)
-		return podData
-	}
-
-	controller, exists := builder.ClusterSummary.ControllerMap[ownerInfo.Uid]
-	if !exists {
-		// Could be custom controller. We do not bulk process custom controller.
-		glog.V(3).Infof("add cumtomer controller data of controller %v/%v for pod %v/%v: controller not cached.",
-			ownerInfo.Kind, ownerInfo.Name, pod.Namespace, pod.Name)
-		podData.ControllerData = &proto.EntityDTO_WorkloadControllerData{
-			ControllerType: &proto.EntityDTO_WorkloadControllerData_CustomControllerData{
-				CustomControllerData: &proto.EntityDTO_CustomControllerData{},
-			},
+	if builder.ClusterScraper != nil {
+		ownerInfo, _, _, err := builder.ClusterScraper.GetPodControllerInfo(pod, true)
+		if err != nil || util.IsOwnerInfoEmpty(ownerInfo) {
+			// The pod does not have a controller
+			glog.V(3).Infof("Skip adding workload controller data for pod %v/%v: pod has no controller.",
+				pod.Namespace, pod.Name)
+			return podData
 		}
-	} else {
-		controllerData := CreateWorkloadControllerDataByControllerType(controller.Kind)
+
+		controllerData := CreateWorkloadControllerDataByControllerType(ownerInfo.Kind)
 		podData.ControllerData = controllerData
+	} else {
+		// ClusterScraper is not initialized
+		glog.V(3).Infof("Skip adding workload controller data for pod %v/%v: ClusterScraper is not initialized.",
+			pod.Namespace, pod.Name)
 	}
 
 	return podData
@@ -665,66 +659,4 @@ func AppendNewLabelCommodityToList(commoditiesList []*proto.CommodityDTO, key st
 	}
 	commoditiesList = append(commoditiesList, labelComm)
 	return commoditiesList, nil
-}
-
-// CreateWorkloadControllerDataByControllerType creates and returns a *proto.EntityDTO_WorkloadControllerData
-// based on the provided controller kind.
-//
-// The supported controller kinds are:
-//   - KindCronJob
-//   - KindDaemonSet
-//   - KindDeployment
-//   - KindJob
-//   - KindReplicaSet
-//   - KindReplicationController
-//   - KindStatefulSet
-//
-// If the provided kind does not match any known controller type, it returns nil.
-func CreateWorkloadControllerDataByControllerType(kind string) *proto.EntityDTO_WorkloadControllerData {
-	switch kind {
-	case commonutil.KindCronJob:
-		return &proto.EntityDTO_WorkloadControllerData{
-			ControllerType: &proto.EntityDTO_WorkloadControllerData_CronJobData{
-				CronJobData: &proto.EntityDTO_CronJobData{},
-			},
-		}
-	case commonutil.KindDaemonSet:
-		return &proto.EntityDTO_WorkloadControllerData{
-			ControllerType: &proto.EntityDTO_WorkloadControllerData_DaemonSetData{
-				DaemonSetData: &proto.EntityDTO_DaemonSetData{},
-			},
-		}
-	case commonutil.KindDeployment:
-		return &proto.EntityDTO_WorkloadControllerData{
-			ControllerType: &proto.EntityDTO_WorkloadControllerData_DeploymentData{
-				DeploymentData: &proto.EntityDTO_DeploymentData{},
-			},
-		}
-	case commonutil.KindJob:
-		return &proto.EntityDTO_WorkloadControllerData{
-			ControllerType: &proto.EntityDTO_WorkloadControllerData_JobData{
-				JobData: &proto.EntityDTO_JobData{},
-			},
-		}
-	case commonutil.KindReplicaSet:
-		return &proto.EntityDTO_WorkloadControllerData{
-			ControllerType: &proto.EntityDTO_WorkloadControllerData_ReplicaSetData{
-				ReplicaSetData: &proto.EntityDTO_ReplicaSetData{},
-			},
-		}
-	case commonutil.KindReplicationController:
-		return &proto.EntityDTO_WorkloadControllerData{
-			ControllerType: &proto.EntityDTO_WorkloadControllerData_ReplicationControllerData{
-				ReplicationControllerData: &proto.EntityDTO_ReplicationControllerData{},
-			},
-		}
-	case commonutil.KindStatefulSet:
-		return &proto.EntityDTO_WorkloadControllerData{
-			ControllerType: &proto.EntityDTO_WorkloadControllerData_StatefulSetData{
-				StatefulSetData: &proto.EntityDTO_StatefulSetData{},
-			},
-		}
-	default:
-		return nil
-	}
 }
