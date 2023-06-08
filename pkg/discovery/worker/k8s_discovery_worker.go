@@ -426,8 +426,9 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 		glog.Errorf("Failed to build pod DTOs: cluster summary object is null for worker %s", worker.id)
 		return nil, nil, nil, nil
 	}
+
 	runningPodDTOs, pendingPodDTOs, podsWithVolumes, mirrorPodUids := dtofactory.
-		NewPodEntityDTOBuilder(worker.sink, worker.stitchingManager).
+		NewPodEntityDTOBuilder(worker.sink, worker.stitchingManager, worker.k8sClusterScraper).
 		// Node providers
 		WithNodeNameUIDMap(cluster.NodeNameUIDMap).
 		// Quota providers

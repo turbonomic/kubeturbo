@@ -7,6 +7,7 @@ import (
 	api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -75,9 +76,10 @@ type podEntityDTOBuilder struct {
 	pendingPods          []*api.Pod
 	clusterKeyInjected   string
 	mirrorPodToDaemonMap map[string]bool
+	ClusterScraper       *cluster.ClusterScraper
 }
 
-func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager) *podEntityDTOBuilder {
+func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager, clusterScraper *cluster.ClusterScraper) *podEntityDTOBuilder {
 	return &podEntityDTOBuilder{
 		generalBuilder:       newGeneralBuilder(sink),
 		stitchingManager:     stitchingManager,
@@ -86,6 +88,7 @@ func NewPodEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *st
 		podToVolumesMap:      make(map[string][]repository.MountedVolume),
 		nodeNameToNodeMap:    make(map[string]*repository.KubeNode),
 		mirrorPodToDaemonMap: make(map[string]bool),
+		ClusterScraper:       clusterScraper,
 	}
 }
 
@@ -596,6 +599,24 @@ func (builder *podEntityDTOBuilder) createContainerPodData(pod *api.Pod) *proto.
 	if util.PodIsReady(pod) && pod.Status.PodIP == "" {
 		glog.Errorf("No IP found for pod %s", fullName)
 	}
+
+	if builder.ClusterScraper != nil {
+		ownerInfo, _, _, err := builder.ClusterScraper.GetPodControllerInfo(pod, true)
+		if err != nil || util.IsOwnerInfoEmpty(ownerInfo) {
+			// The pod does not have a controller
+			glog.V(3).Infof("Skip adding workload controller data for pod %v/%v: pod has no controller.",
+				pod.Namespace, pod.Name)
+			return podData
+		}
+
+		controllerData := CreateWorkloadControllerDataByControllerType(ownerInfo.Kind)
+		podData.ControllerData = controllerData
+	} else {
+		// ClusterScraper is not initialized
+		glog.V(3).Infof("Skip adding workload controller data for pod %v/%v: ClusterScraper is not initialized.",
+			pod.Namespace, pod.Name)
+	}
+
 	return podData
 }
 
