@@ -7,6 +7,7 @@ import (
 
 	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/golang/glog"
+	"github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	sdkprobe "github.com/turbonomic/turbo-go-sdk/pkg/probe"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -298,6 +299,7 @@ func (dc *K8sDiscoveryClient) Discover(
 	discoveryResponse = &proto.DiscoveryResponse{
 		DiscoveredGroup: groupDTOs,
 		EntityDTO:       newDiscoveryResultDTOs,
+		ActionPolicies:  dc.getTargetActionPolicies(),
 	}
 
 	newFrameworkDiscTime := time.Now().Sub(currentTime).Seconds()
@@ -325,7 +327,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 			start := time.Now()
 			namespaceLister, err := podaffinity.NewNamespaceLister(dc.k8sClusterScraper.Clientset, clusterSummary)
 			if err != nil {
-				glog.Errorf("error creating affinity processor: %v", err)
+				glog.Errorf("Error creating affinity processor: %v", err)
 			} else {
 				affinityProcessor, err := podaffinity.New(clusterSummary,
 					podaffinity.NewNodeInfoLister(clusterSummary), namespaceLister)
@@ -336,6 +338,14 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 				}
 				glog.V(2).Infof("Successfully processed affinities.")
 				glog.V(3).Infof("Processing affinities with new algorithm took %s", time.Since(start))
+				if glog.V(3) {
+					nodeCommsTotal := 0
+					for node, pods := range nodesPods {
+						nodeCommsTotal += len(pods)
+						glog.Infof("Node %s will sell %v affinity related commodities.", node, len(pods))
+					}
+					glog.Infof("Total %v affinity related commodities will be sold by all nodes.", nodeCommsTotal)
+				}
 				glog.V(6).Infof("\n\nProcessed affinity result: \n\n %++v \n\n %++v \n\n",
 					nodesPods, podsWithAffinities)
 			}
@@ -483,4 +493,18 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	}
 
 	return result.EntityDTOs, groupDTOs, nil
+}
+
+func (dc *K8sDiscoveryClient) getTargetActionPolicies() []*proto.ActionPolicyDTO {
+	if dc.k8sClusterScraper.IsClusterAPIEnabled() {
+		// Set target level action policy for virtual machine entity type if cluster API is enabled
+		glog.V(2).Info("Cluster API is available. Set node action policy for this cluster.")
+		entityType := proto.EntityDTO_VIRTUAL_MACHINE
+		return builder.NewActionPolicyBuilder().
+			WithEntityActions(entityType, proto.ActionItemDTO_PROVISION, proto.ActionPolicyDTO_SUPPORTED).
+			WithEntityActions(entityType, proto.ActionItemDTO_SUSPEND, proto.ActionPolicyDTO_SUPPORTED).
+			Create()
+	}
+	glog.V(2).Info("Cluster API is not available. Do not set node action policy for this cluster.")
+	return nil
 }

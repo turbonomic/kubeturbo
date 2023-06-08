@@ -20,8 +20,8 @@ github.com/blang/semver
 # github.com/cespare/xxhash/v2 v2.1.2
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
-# github.com/cilium/ebpf v0.6.2
-## explicit; go 1.15
+# github.com/cilium/ebpf v0.7.0
+## explicit; go 1.16
 github.com/cilium/ebpf
 github.com/cilium/ebpf/asm
 github.com/cilium/ebpf/internal
@@ -43,17 +43,17 @@ github.com/davecgh/go-spew/spew
 # github.com/deckarep/golang-set v1.7.1
 ## explicit
 github.com/deckarep/golang-set
-# github.com/docker/distribution v2.8.0+incompatible
+# github.com/docker/distribution v2.8.2+incompatible
 ## explicit
 github.com/docker/distribution/digestset
 github.com/docker/distribution/reference
 # github.com/docker/go-units v0.4.0
 ## explicit
 github.com/docker/go-units
-# github.com/emicklei/go-restful v2.16.0+incompatible
-## explicit
-github.com/emicklei/go-restful
-github.com/emicklei/go-restful/log
+# github.com/emicklei/go-restful/v3 v3.9.0
+## explicit; go 1.13
+github.com/emicklei/go-restful/v3
+github.com/emicklei/go-restful/v3/log
 # github.com/evanphx/json-patch v5.6.0+incompatible
 ## explicit
 github.com/evanphx/json-patch
@@ -63,7 +63,7 @@ github.com/fsnotify/fsnotify
 # github.com/go-logr/logr v1.2.3
 ## explicit; go 1.16
 github.com/go-logr/logr
-# github.com/godbus/dbus/v5 v5.0.4
+# github.com/godbus/dbus/v5 v5.0.6
 ## explicit; go 1.12
 github.com/godbus/dbus/v5
 # github.com/gogo/protobuf v1.3.2
@@ -85,8 +85,8 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
-# github.com/google/cadvisor v0.43.1
-## explicit; go 1.13
+# github.com/google/cadvisor v0.45.0
+## explicit; go 1.16
 github.com/google/cadvisor/info/v1
 # github.com/google/go-cmp v0.5.9
 ## explicit; go 1.13
@@ -251,7 +251,7 @@ github.com/spf13/pflag
 ## explicit; go 1.13
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
-# github.com/turbonomic/orm v0.0.0-20230411145227-4dccb88ccbac
+# github.com/turbonomic/orm v0.0.0-20230515224524-8f968dcc8f2e
 ## explicit; go 1.20
 github.com/turbonomic/orm/api/v1alpha1
 github.com/turbonomic/orm/kubernetes
@@ -264,7 +264,7 @@ github.com/turbonomic/turbo-api/pkg/client
 # github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3
 ## explicit; go 1.19
 github.com/turbonomic/turbo-gitops/api/v1alpha1
-# github.com/turbonomic/turbo-go-sdk v0.0.0-20230307040640-43e100c457e6
+# github.com/turbonomic/turbo-go-sdk v0.0.0-20230607193533-764251e890b8
 ## explicit; go 1.13
 github.com/turbonomic/turbo-go-sdk/pkg
 github.com/turbonomic/turbo-go-sdk/pkg/builder
@@ -281,7 +281,7 @@ github.com/turbonomic/turbo-policy/api/v1alpha1
 # github.com/xanzy/go-gitlab v0.74.0
 ## explicit; go 1.18
 github.com/xanzy/go-gitlab
-# golang.org/x/crypto v0.0.0-20220314234659-1baeb1ce4c0b => golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
+# golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd => golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
 ## explicit; go 1.17
 golang.org/x/crypto/cast5
 golang.org/x/crypto/openpgp
@@ -395,8 +395,8 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# k8s.io/api v0.26.1 => k8s.io/api v0.23.5
-## explicit; go 1.16
+# k8s.io/api v0.26.1 => k8s.io/api v0.25.4
+## explicit; go 1.19
 k8s.io/api/admission/v1
 k8s.io/api/admission/v1beta1
 k8s.io/api/admissionregistration/v1
@@ -430,6 +430,7 @@ k8s.io/api/flowcontrol/v1beta1
 k8s.io/api/flowcontrol/v1beta2
 k8s.io/api/imagepolicy/v1alpha1
 k8s.io/api/networking/v1
+k8s.io/api/networking/v1alpha1
 k8s.io/api/networking/v1beta1
 k8s.io/api/node/v1
 k8s.io/api/node/v1alpha1
@@ -503,15 +504,13 @@ k8s.io/apimachinery/pkg/version
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/apiserver v0.23.5 => k8s.io/apiserver v0.23.5
-## explicit; go 1.16
+# k8s.io/apiserver v0.25.4 => k8s.io/apiserver v0.25.4
+## explicit; go 1.19
 k8s.io/apiserver/pkg/admission
 k8s.io/apiserver/pkg/apis/apiserver
 k8s.io/apiserver/pkg/apis/apiserver/v1
 k8s.io/apiserver/pkg/apis/audit
 k8s.io/apiserver/pkg/apis/audit/v1
-k8s.io/apiserver/pkg/apis/audit/v1alpha1
-k8s.io/apiserver/pkg/apis/audit/v1beta1
 k8s.io/apiserver/pkg/audit
 k8s.io/apiserver/pkg/authentication/user
 k8s.io/apiserver/pkg/authorization/authorizer
@@ -522,6 +521,7 @@ k8s.io/apiserver/pkg/features
 k8s.io/apiserver/pkg/quota/v1
 k8s.io/apiserver/pkg/quota/v1/generic
 k8s.io/apiserver/pkg/server/healthz
+k8s.io/apiserver/pkg/server/httplog
 k8s.io/apiserver/pkg/util/feature
 # k8s.io/client-go v0.26.1 => k8s.io/client-go v0.23.5
 ## explicit; go 1.16
@@ -783,8 +783,8 @@ k8s.io/kube-openapi/pkg/util/proto
 ## explicit; go 1.16
 k8s.io/kubelet/config/v1beta1
 k8s.io/kubelet/pkg/apis/stats/v1alpha1
-# k8s.io/kubernetes v1.23.14
-## explicit; go 1.16
+# k8s.io/kubernetes v1.25.4
+## explicit; go 1.19
 k8s.io/kubernetes/pkg/api/legacyscheme
 k8s.io/kubernetes/pkg/apis/admission
 k8s.io/kubernetes/pkg/apis/admission/install
@@ -850,6 +850,7 @@ k8s.io/kubernetes/pkg/apis/imagepolicy/v1alpha1
 k8s.io/kubernetes/pkg/apis/networking
 k8s.io/kubernetes/pkg/apis/networking/install
 k8s.io/kubernetes/pkg/apis/networking/v1
+k8s.io/kubernetes/pkg/apis/networking/v1alpha1
 k8s.io/kubernetes/pkg/apis/networking/v1beta1
 k8s.io/kubernetes/pkg/apis/node
 k8s.io/kubernetes/pkg/apis/node/install
@@ -955,10 +956,10 @@ sigs.k8s.io/yaml
 # sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20201125052318-b85a18cbf338
 # sigs.k8s.io/cluster-api-provider-azure => github.com/openshift/cluster-api-provider-azure v0.0.0-20210209143830-3442c7a36c1e
 # github.com/go-check/check => github.com/go-check/check v0.0.0-20180628173108-788fd7840127
-# k8s.io/api => k8s.io/api v0.23.5
+# k8s.io/api => k8s.io/api v0.25.4
 # k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.23.5
 # k8s.io/apimachinery => k8s.io/apimachinery v0.23.5
-# k8s.io/apiserver => k8s.io/apiserver v0.23.5
+# k8s.io/apiserver => k8s.io/apiserver v0.25.4
 # k8s.io/cli-runtime => k8s.io/cli-runtime v0.23.5
 # k8s.io/client-go => k8s.io/client-go v0.23.5
 # k8s.io/cloud-provider => k8s.io/cloud-provider v0.23.5

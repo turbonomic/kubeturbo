@@ -15,6 +15,7 @@ import (
 
 	set "github.com/deckarep/golang-set"
 	"github.com/golang/glog"
+	osclient "github.com/openshift/client-go/apps/clientset/versioned"
 	clusterclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
@@ -38,7 +39,6 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
-	"github.com/turbonomic/kubeturbo/pkg/action/executor"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
 	nodeUtil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
@@ -372,6 +372,12 @@ func (s *VMTServer) Run() {
 		glog.Fatalf("Failed to create controller runtime client: %v.", err)
 	}
 
+	// Openshift client for deploymentconfig resize forced rollouts
+	osClient, err := osclient.NewForConfig(kubeConfig)
+	if err != nil {
+		glog.Fatalf("Failed to generate openshift client for kubernetes target: %v", err)
+	}
+
 	// TODO: Replace dynamicClient with runtimeClient
 	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
 	if err != nil {
@@ -450,7 +456,6 @@ func (s *VMTServer) Run() {
 
 	// Interface to discover turbonomic ORM mappings (legacy and v2) for resize actions
 	ormClientManager := resourcemapping.NewORMClientManager(dynamicClient, kubeConfig)
-	clusterAPIEnabled := executor.IsClusterAPIEnabled(caClient, kubeClient)
 
 	// Configuration for creating the Kubeturbo TAP service
 	vmtConfig := kubeturbo.NewVMTConfig2()
@@ -462,6 +467,7 @@ func (s *VMTServer) Run() {
 		WithORMClientManager(ormClientManager).
 		WithKubeletClient(kubeletClient).
 		WithClusterAPIClient(caClient).
+		WithOpenshiftClient(osClient).
 		WithVMPriority(s.VMPriority).
 		WithVMIsBase(s.VMIsBase).
 		UsingUUIDStitch(s.UseUUID).
@@ -478,7 +484,6 @@ func (s *VMTServer) Run() {
 		WithContainerUsageDataAggStrategy(s.containerUsageDataAggStrategy).
 		WithVolumePodMoveConfig(s.FailVolumePodMoves).
 		WithQuotaUpdateConfig(s.UpdateQuotaToAllowMoves).
-		WithClusterAPIEnabled(clusterAPIEnabled).
 		WithReadinessRetryThreshold(s.readinessRetryThreshold).
 		WithClusterKeyInjected(s.ClusterKeyInjected).
 		WithItemsPerListQuery(s.ItemsPerListQuery)
@@ -736,7 +741,7 @@ func GetSCCs(client dynamic.Interface) (sccList *unstructured.UnstructuredList) 
 			var err error
 			sccList, err = client.Resource(res).List(context.TODO(), metav1.ListOptions{})
 			if err != nil {
-				glog.Errorf("Failed to get openshift cluster sccs: %v", err)
+				glog.Warningf("Could not get openshift cluster sccs: %v", err)
 			}
 			return err
 		})

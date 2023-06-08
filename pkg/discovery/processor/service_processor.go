@@ -57,7 +57,7 @@ func (p *ServiceProcessor) ProcessServices() {
 		serviceClusterID := util.GetServiceClusterID(service)
 		serviceEndpoint, found := endpointMap[serviceClusterID]
 		if !found || serviceEndpoint == nil {
-			glog.Errorf("Cannot find endpoint for service %s", serviceClusterID)
+			glog.Warningf("Endpoint for service %s could not be found", serviceClusterID)
 			continue
 		}
 		podClusterIDs := findPodEndpoints(service, serviceEndpoint)

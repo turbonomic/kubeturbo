@@ -54,8 +54,7 @@ func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*Turbo
 		return nil, fmt.Errorf("unsupported action type %v", vmDTO.ActionItems[0].GetActionType())
 	}
 	// Get on with it.
-	controller, key, err := newController(s.cAPINamespace, nodeName, diff, actionType,
-		s.executor.cApiClient, s.executor.clusterScraper.Clientset)
+	controller, key, err := newController(s.cAPINamespace, nodeName, diff, actionType, s.executor.clusterScraper)
 	if err != nil {
 		return nil, err
 	} else if key == nil {

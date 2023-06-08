@@ -162,7 +162,7 @@ func (builder *ServiceEntityDTOBuilder) createCommoditySold(
 		}
 	}
 	if len(controllers) == 0 {
-		glog.Errorf("No controllers are found for any pod that provides to service %v.", serviceName)
+		glog.Warningf("No controllers are found for any pod that provides to service %v.", serviceName)
 		return nil
 	}
 	// The list of pods that provide to the service may belong to multiple controllers
@@ -268,11 +268,11 @@ func getUUIDProperty(uuid string) *proto.EntityDTO_EntityProperty {
 func getIPProperty(pods []*api.Pod, svcUID string) *proto.EntityDTO_EntityProperty {
 	ns := stitching.DefaultPropertyNamespace
 	attr := stitching.AppStitchingAttr
-	ips := []string{}
+	var ips []string
 	for _, pod := range pods {
 		ips = append(ips, servicePrefix+"-"+pod.Status.PodIP)
 		if svcUID != "" {
-			ips = append(ips, servicePrefix+"-"+pod.Status.PodIP+"-"+util.ParseSvcUID(svcUID))
+			ips = append(ips, servicePrefix+"-"+pod.Status.PodIP+"-"+svcUID)
 		}
 	}
 	ip := strings.Join(ips, ",")

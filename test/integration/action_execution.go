@@ -34,6 +34,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/util"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 const (
@@ -78,8 +79,8 @@ var _ = Describe("Action Executor ", func() {
 				framework.Failf("Failed to generate openshift client for kubernetes test cluster: %v", err)
 			}
 
-			actionHandlerConfig := action.NewActionHandlerConfig("", nil, nil,
-				cluster.NewClusterScraper(kubeConfig, kubeClient, dynamicClient, nil, false, nil, ""),
+			actionHandlerConfig := action.NewActionHandlerConfig("", nil,
+				cluster.NewClusterScraper(kubeConfig, kubeClient, dynamicClient, nil, osClient, nil, ""),
 				[]string{"*"}, nil, false, true, 60, gitops.GitConfig{}, "test-cluster-id")
 			actionHandler = action.NewActionHandler(actionHandlerConfig)
 		}
@@ -165,7 +166,7 @@ var _ = Describe("Action Executor ", func() {
 
 			// TODO: The storageclass can be taken as a configurable parameter from commandline
 			// For now this will need to be updated when running against the given cluster
-			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, "", 1, 1, false, true))
+			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, "", 1, 1, false, true), false)
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentConfigsPod(kubeClient, dc.Name, namespace, "")
@@ -198,7 +199,7 @@ var _ = Describe("Action Executor ", func() {
 			// TODO: The storageclass can be taken as a configurable parameter from commandline
 			// For now this will need to be updated when running against the given cluster
 			pvc, err := createVolumeClaim(kubeClient, namespace, "gp2")
-			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, pvc.Name, 1, 1, true, true))
+			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, pvc.Name, 1, 1, true, true), false)
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			pod, err := getDeploymentConfigsPod(kubeClient, dc.Name, namespace, "")
@@ -228,7 +229,7 @@ var _ = Describe("Action Executor ", func() {
 			if !framework.TestContext.IsOpenShiftTest {
 				Skip("Ignoring resize multiple containers for the deploymentconfig.")
 			}
-			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, "", 2, 1, false, false))
+			dc, err := createDCResource(osClient, genDeploymentConfigWithResources(namespace, "", 2, 1, false, false), false)
 			framework.ExpectNoError(err, "Error creating test resources")
 
 			targetSE := newResizeWorkloadControllerTargetSE(dc)
@@ -239,6 +240,43 @@ var _ = Describe("Action Executor ", func() {
 			_, err = waitForWorkloadControllerToUpdateResource(osClient, dc, desiredPodSpec)
 			if err != nil {
 				framework.Failf("Failed to check the change of the resource/request in the new deploymentconfig with multiple containers: %s", err)
+			}
+		})
+	})
+
+	// Deploymentconfig resize action with empty triggers
+	Describe("executing resize action on a deploymentconfig with empty triggers", func() {
+		It("should automatically rollout the updated deploymentconfig if featureflag ForceDeploymentConfigRollout=true", func() {
+			if !framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring resize action on a deploymentconfig with empty triggers.")
+			}
+
+			features := map[string]bool{"ForceDeploymentConfigRollout": true}
+			err := utilfeature.DefaultMutableFeatureGate.SetFromMap(features)
+			framework.ExpectNoError(err, "Could not set Feature Gates")
+
+			dc := genDeploymentConfigWithResources(namespace, "", 1, 1, false, false)
+			// empty triggers should mean no automatic rollout
+			dc.Spec.Triggers = []osv1.DeploymentTriggerPolicy{}
+			dc, err = createDCResource(osClient, dc, true)
+			framework.ExpectNoError(err, "Error creating test resources")
+
+			targetSE := newResizeWorkloadControllerTargetSE(dc)
+			resizeAction, desiredPodSpec := newResizeActionExecutionDTO(targetSE, &dc.Spec.Template.Spec, "test-cont-1")
+			_, err = actionHandler.ExecuteAction(resizeAction, nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Resize action Deploymentconfig with empty triggers failed")
+
+			// action execution updates the deploymentconfig
+			_, err = waitForWorkloadControllerToUpdateResource(osClient, dc, desiredPodSpec)
+			if err != nil {
+				framework.Failf("Failed to check the change of the resource/request in the new deploymentconfig with empty triggers: %s", err)
+			}
+
+			// action execution also rolls out the deploymenconfig
+			// compare the spec of the child pod to match the desired pod
+			err = waitForDCPodWithSpecificSpec(kubeClient, dc.Name, dc.Namespace, desiredPodSpec)
+			if err != nil {
+				framework.Failf("Failed to find the pod resource/request updated for deploymentconfig with empty triggers: %s", err)
 			}
 		})
 	})
@@ -691,10 +729,15 @@ func addGCLabelRS(rs *appsv1.ReplicaSet) {
 	rs.SetLabels(labels)
 }
 
-func createDCResource(client *osclient.Clientset, dc *osv1.DeploymentConfig) (*osv1.DeploymentConfig, error) {
+func createDCResource(client *osclient.Clientset, dc *osv1.DeploymentConfig, rollout bool) (*osv1.DeploymentConfig, error) {
 	newDc, err := createDeploymentConfig(client, dc)
 	if err != nil {
 		return nil, err
+	}
+	if rollout {
+		if err := rolloutDeploymentConfig(client, newDc); err != nil {
+			return nil, err
+		}
 	}
 	return waitForDeploymentConfig(client, newDc.Name, newDc.Namespace)
 }
@@ -1004,6 +1047,38 @@ func waitForWorkloadControllerToUpdateResource(client interface{}, workloadContr
 		return nil, waitErr
 	}
 	return newControllerObj, nil
+}
+
+func rolloutDeploymentConfig(client osclient.Interface, dc *osv1.DeploymentConfig) error {
+	// This will fail if the DC is already paused because of whatever reason
+	name := dc.GetName()
+	ns := dc.GetNamespace()
+	glog.V(3).Infof("Starting (Instantiating) the deploymentconfig %s/%s rollout", ns, name)
+	deployRequest := osv1.DeploymentRequest{Name: name, Latest: true, Force: true}
+	_, err := client.AppsV1().DeploymentConfigs(ns).
+		Instantiate(context.TODO(), name, &deployRequest, metav1.CreateOptions{})
+	if err == nil {
+		glog.V(3).Infof("Rolled out (Instantiated) the deploymentconfig %s/%s", ns, name)
+	}
+
+	return err
+}
+
+func waitForDCPodWithSpecificSpec(kubeClient kubeclientset.Interface, dcName, dcNamespace string, desiredPodSpec *corev1.PodSpec) error {
+	if waitErr := wait.PollImmediate(framework.PollInterval, framework.TestContext.SingleCallTimeout, func() (bool, error) {
+		pod, err := getDeploymentConfigsPod(kubeClient, dcName, dcNamespace, "")
+		if err != nil {
+			glog.Errorf("Unexpected error while getting pod for deploymentspec: %v", err)
+			return false, err
+		}
+		if reflect.DeepEqual(pod.Spec.Containers[0].Resources, desiredPodSpec.Containers[0].Resources) {
+			return true, nil
+		}
+		return false, nil
+	}); waitErr != nil {
+		return waitErr
+	}
+	return nil
 }
 
 func waitForBarePod(client kubeclientset.Interface, podName, namespace string) (*corev1.Pod, error) {

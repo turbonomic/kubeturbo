@@ -73,6 +73,7 @@ func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper,
 		controller: &parentController{
 			clients: kubeClients{
 				typedClient:         clusterScraper.Clientset,
+				osClient:            clusterScraper.OsClient,
 				dynClient:           clusterScraper.DynamicClient,
 				dynNamespacedClient: clusterScraper.DynamicClient.Resource(res).Namespace(namespace),
 			},

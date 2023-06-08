@@ -37,6 +37,10 @@ data:
             "restAPIConfig": {
                 "opsManagerUserName": "<Turbo_username_plaintext>",
                 "opsManagerPassword": "<Turbo_password_plaintext>"
+            },
+            "sdkProtocolConfig": {
+                "registrationTimeoutSec": 300,
+                "restartOnRegistrationTimeout": false
             }
         },
         "targetConfig": {

@@ -82,6 +82,8 @@ type PodInfo struct {
 	Pod                       *v1.Pod
 	RequiredAffinityTerms     []AffinityTerm
 	RequiredAntiAffinityTerms []AffinityTerm
+	ActualAffinityTerms       []v1.PodAffinityTerm
+	ActualAntiAffinityTerms   []v1.PodAffinityTerm
 }
 
 // DeepCopy returns a deep copy of the PodInfo object.
@@ -90,6 +92,8 @@ func (pi *PodInfo) DeepCopy() *PodInfo {
 		Pod:                       pi.Pod.DeepCopy(),
 		RequiredAffinityTerms:     pi.RequiredAffinityTerms,
 		RequiredAntiAffinityTerms: pi.RequiredAntiAffinityTerms,
+		ActualAffinityTerms:       pi.ActualAffinityTerms,
+		ActualAntiAffinityTerms:   pi.ActualAntiAffinityTerms,
 	}
 }
 
@@ -105,12 +109,14 @@ func (pi *PodInfo) Update(pod *v1.Pod) error {
 
 	// Attempt to parse the affinity terms
 	var parseErrs []error
-	requiredAffinityTerms, err := getAffinityTerms(pod, getPodAffinityTerms(pod.Spec.Affinity))
+	actualAffinityTerms := getPodAffinityTerms(pod.Spec.Affinity)
+	requiredAffinityTerms, err := getAffinityTerms(pod, actualAffinityTerms)
 	if err != nil {
 		parseErrs = append(parseErrs, fmt.Errorf("requiredAffinityTerms: %w", err))
 	}
-	requiredAntiAffinityTerms, err := getAffinityTerms(pod,
-		getPodAntiAffinityTerms(pod.Spec.Affinity))
+
+	actualAntiAffinityTerms := getPodAntiAffinityTerms(pod.Spec.Affinity)
+	requiredAntiAffinityTerms, err := getAffinityTerms(pod, actualAntiAffinityTerms)
 	if err != nil {
 		parseErrs = append(parseErrs, fmt.Errorf("requiredAntiAffinityTerms: %w", err))
 	}
@@ -118,6 +124,8 @@ func (pi *PodInfo) Update(pod *v1.Pod) error {
 	pi.Pod = pod
 	pi.RequiredAffinityTerms = requiredAffinityTerms
 	pi.RequiredAntiAffinityTerms = requiredAntiAffinityTerms
+	pi.ActualAffinityTerms = actualAffinityTerms
+	pi.ActualAntiAffinityTerms = actualAntiAffinityTerms
 	return utilerrors.NewAggregate(parseErrs)
 }
 
@@ -316,6 +324,11 @@ func (n *NodeInfo) AddPod(pod *v1.Pod) {
 func podWithPodAffinityAndAntiaffinity(p *v1.Pod) bool {
 	affinity := p.Spec.Affinity
 	return affinity != nil && (affinity.PodAffinity != nil || affinity.PodAntiAffinity != nil)
+}
+
+func podWithNodeAffinity(p *v1.Pod) bool {
+	affinity := p.Spec.Affinity
+	return affinity != nil && (affinity.NodeAffinity != nil)
 }
 
 func podWithAffinity(p *v1.Pod) bool {

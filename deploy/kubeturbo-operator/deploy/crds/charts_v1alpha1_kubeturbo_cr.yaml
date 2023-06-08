@@ -25,14 +25,19 @@ spec:
   #  opsManagerUserName: Turbo_username
   #  opsManagerPassword: Turbo_password
 
+  # Configurations to register probe with Turbo Server
+  #sdkProtocolConfig:
+  #  registrationTimeoutSec: 300
+  #  restartOnRegistrationTimeout: false
+
   # Uncomment out lines to configure HA Node to ESX policies by node role. Default is master
   # Add more roles using format "\"foo\"\,\"bar\""
   #HANodeConfig:
   #  nodeRoles: "\"master\""
 
   # Supply a targetName for user friendly identification of the k8s cluster
-  #targetConfig:
-  #  targetName: YOUR-CLUSTER-NAME
+  targetConfig:
+    targetName: YOUR-CLUSTER-NAME
 
   # Uncomment next lines to specify a repository and image tag for kubeturbo
   #image:

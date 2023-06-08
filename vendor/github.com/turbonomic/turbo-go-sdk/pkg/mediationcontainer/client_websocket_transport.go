@@ -142,11 +142,18 @@ func (wsTransport *ClientWebSocketTransport) closeAndResetWebSocket() {
 	wsTransport.status = Closed
 }
 
+// write sends a WebSocket message with the given type and payload data.
+// It returns an error if the WebSocket connection is unavailable or the write operation fails.
 func (wsTransport *ClientWebSocketTransport) write(mtype int, payload []byte) error {
 	wsTransport.wsMux.Lock()
 	defer wsTransport.wsMux.Unlock()
-	wsTransport.ws.SetWriteDeadline(time.Now().Add(writeWaitTimeout))
-	return wsTransport.ws.WriteMessage(mtype, payload)
+
+	ws := wsTransport.ws
+	if ws == nil {
+		return errors.New("websocket connection unavailable")
+	}
+	ws.SetWriteDeadline(time.Now().Add(writeWaitTimeout))
+	return ws.WriteMessage(mtype, payload)
 }
 
 // keep sending Ping msg to make sure the websocket connection is alive
@@ -227,7 +234,7 @@ func (wsTransport *ClientWebSocketTransport) ListenForMessages() {
 				//notify upper module that this connection is closed
 				wsTransport.connClosedNotificationCh <- true // Note: this will block till the message is received
 
-				glog.V(1).Infof("[ListenForMessages] websocket error notified, stop lisening for messages.")
+				glog.V(1).Infof("[ListenForMessages] websocket error notified, stop listening for messages.")
 				return
 			}
 			// write the message on the channel
