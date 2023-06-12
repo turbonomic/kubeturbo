@@ -255,3 +255,8 @@ func (c *k8sControllerUpdater) suspendPod() error {
 	glog.V(2).Infof("Successfully suspended pod %s/%s", namespace, podName)
 	return nil
 }
+
+// revert the change
+func (c *k8sControllerUpdater) revertChange() error {
+	return c.controller.revert()
+}
