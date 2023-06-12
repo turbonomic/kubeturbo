@@ -25,6 +25,7 @@ rules:
       - daemonsets
       - deploymentconfigs
       - machinesets
+      - resourcequotas
     verbs:
       - get
       - list
@@ -47,7 +48,6 @@ rules:
       - endpoints
       - namespaces
       - limitranges
-      - resourcequotas
       - persistentvolumes
       - persistentvolumeclaims
       - poddisruptionbudget
