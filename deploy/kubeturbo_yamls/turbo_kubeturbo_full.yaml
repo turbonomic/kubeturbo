@@ -100,7 +100,7 @@ spec:
       containers:
       - name: kubeturbo
         # Replace the image with desired version:8.7.6 or latest
-        image: turbonomic/kubeturbo:8.7.6
+        image: icr.io/cpopen/turbonomic/kubeturbo:8.7.6
         env:
           - name: KUBETURBO_NAMESPACE
             valueFrom:
