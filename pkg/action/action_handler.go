@@ -33,7 +33,7 @@ type turboActionType struct {
 }
 
 var (
-	turboActionControllerScale  = turboActionType{proto.ActionItemDTO_SCALE, proto.EntityDTO_WORKLOAD_CONTROLLER}
+	turboActionControllerScale  = turboActionType{proto.ActionItemDTO_HORIZONTAL_SCALE, proto.EntityDTO_WORKLOAD_CONTROLLER}
 	turboActionPodMove          = turboActionType{proto.ActionItemDTO_MOVE, proto.EntityDTO_CONTAINER_POD}
 	turboActionContainerResize  = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_CONTAINER}
 	turboActionMachineProvision = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_VIRTUAL_MACHINE}
