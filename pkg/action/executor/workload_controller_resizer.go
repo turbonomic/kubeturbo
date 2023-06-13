@@ -127,18 +127,17 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 	}, nil
 }
 
-func (r *WorkloadControllerResizer) getWorkloadControllerDetails(actionItem *proto.ActionItemDTO) (string,
-	string, string, *k8sapi.PodSpec, *repository.K8sApp, int64, bool, error) {
-	targetSE := actionItem.GetTargetSE()
+func getControllerInfo(targetSE *proto.EntityDTO) (string, string, string, error) {
 	if targetSE == nil {
-		return "", "", "", nil, nil, 0, false, fmt.Errorf("workload controller action item does not have a valid target entity, %v", actionItem.Uuid)
-	}
-	workloadCntrldata := targetSE.GetWorkloadControllerData()
-	if workloadCntrldata == nil {
-		return "", "", "", nil, nil, 0, false, fmt.Errorf("workload controller action item missing controller data, %v", actionItem.Uuid)
+		return "", "", "", fmt.Errorf("workload controller action item does not have a valid target entity")
 	}
 
-	kind := ""
+	workloadCntrldata := targetSE.GetWorkloadControllerData()
+	if workloadCntrldata == nil {
+		return "", "", "", fmt.Errorf("workload controller action item missing controller data")
+	}
+
+	var kind string
 	cntrlType := workloadCntrldata.GetControllerType()
 	switch cntrlType.(type) {
 	case *proto.EntityDTO_WorkloadControllerData_DaemonSetData:
@@ -156,18 +155,29 @@ func (r *WorkloadControllerResizer) getWorkloadControllerDetails(actionItem *pro
 	case *proto.EntityDTO_WorkloadControllerData_CustomControllerData:
 		kind = workloadCntrldata.GetCustomControllerData().GetCustomControllerType()
 		if kind != util.KindDeploymentConfig {
-			return "", "", "", nil, nil, 0, false, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData, custom controller type is: %s", cntrlType, kind)
+			return "", "", "", fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData, custom controller type is: %s", cntrlType, kind)
 		}
 	default:
-		return "", "", "", nil, nil, 0, false, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData", cntrlType)
+		return "", "", "", fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData", cntrlType)
 	}
 
-	namespace, error := property.GetWorkloadNamespaceFromProperty(targetSE.GetEntityProperties())
-	if error != nil {
-		return "", "", "", nil, nil, 0, false, error
+	namespace, err := property.GetWorkloadNamespaceFromProperty(targetSE.GetEntityProperties())
+	if err != nil {
+		return "", "", "", err
 	}
 
 	controllerName := targetSE.GetDisplayName()
+
+	return namespace, controllerName, kind, nil
+}
+
+func (r *WorkloadControllerResizer) getWorkloadControllerDetails(actionItem *proto.ActionItemDTO) (string,
+	string, string, *k8sapi.PodSpec, *repository.K8sApp, int64, bool, error) {
+	targetSE := actionItem.GetTargetSE()
+	namespace, controllerName, kind, err := getControllerInfo(targetSE)
+	if err != nil {
+		return "", "", "", nil, nil, 0, false, err
+	}
 	podSpec, replicasNum, isOwnerSet, err := r.getWorkloadControllerSpec(kind, namespace, controllerName)
 	if err != nil {
 		return "", "", "", nil, nil, 0, false, err

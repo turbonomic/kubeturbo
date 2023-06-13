@@ -21,7 +21,6 @@ func NewHorizontalScaler(ae TurboK8sActionExecutor) *HorizontalScaler {
 
 func (h *HorizontalScaler) Execute(input *TurboActionExecutorInput) (*TurboActionExecutorOutput, error) {
 	actionItem := input.ActionItems[0]
-	pod := input.Pod
 
 	//1. Get replica diff
 	diff, err := getReplicaDiff(actionItem)
@@ -30,20 +29,25 @@ func (h *HorizontalScaler) Execute(input *TurboActionExecutorInput) (*TurboActio
 		return nil, err
 	}
 	//2. Prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdaterViaPod(h.clusterScraper,
-		pod, h.ormClient, h.gitConfig, h.k8sClusterId)
+	namespace, controllerName, kind, err := getControllerInfo(actionItem.GetTargetSE())
+	if err != nil {
+		glog.Errorf("Failed to get controller information: %v", err)
+		return &TurboActionExecutorOutput{}, err
+	}
+	controllerUpdater, err := newK8sControllerUpdater(h.clusterScraper, h.ormClient, kind, controllerName,
+		"", namespace, h.k8sClusterId, nil, h.gitConfig)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return &TurboActionExecutorOutput{}, err
 	}
 	//3. Execute the action to update replica diff of the controller
+	controllerFullName := util.BuildIdentifier(namespace, controllerName)
 	err = controllerUpdater.updateWithRetry(&controllerSpec{replicasDiff: diff})
 	if err != nil {
-		glog.Errorf("Failed to scale %s: %v", pod.Name, err)
+		glog.Errorf("Failed to scale %s: %v", controllerFullName, err)
 		return &TurboActionExecutorOutput{}, err
 	}
-	podFullName := util.BuildIdentifier(pod.Namespace, pod.Name)
-	glog.V(2).Infof("Action HorizontalScale for pod[%v] succeeded.", podFullName)
+	glog.V(2).Infof("Action HorizontalScale for workload controller[%v] succeeded.", controllerFullName)
 	return &TurboActionExecutorOutput{Succeeded: true}, nil
 }
 
