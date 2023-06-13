@@ -31,8 +31,8 @@ func TestActionHandler_registerActionExecutors(t *testing.T) {
 
 	h.registerActionExecutors()
 
-	supportedActions := [...]turboActionType{turboActionPodProvision, turboActionPodMove,
-		turboActionContainerResize, turboActionPodSuspend, turboActionControllerResize,
+	supportedActions := [...]turboActionType{turboActionControllerScale, turboActionPodMove,
+		turboActionContainerResize, turboActionControllerResize,
 		turboActionMachineProvision, turboActionMachineSuspend}
 	m := h.actionExecutors
 	if len(m) != len(supportedActions) {
