@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/golang/glog"
 
@@ -53,13 +54,39 @@ func (h *HorizontalScaler) Execute(input *TurboActionExecutorInput) (*TurboActio
 
 func getReplicaDiff(action *proto.ActionItemDTO) (int32, error) {
 	atype := action.GetActionType()
-	if atype == proto.ActionItemDTO_PROVISION {
-		// Scale out, increase the replica. diff = 1.
-		return 1, nil
-	} else if atype == proto.ActionItemDTO_SUSPEND {
-		// Scale in, decrease the replica. diff = -1.
-		return -1, nil
-	} else {
-		return 0, fmt.Errorf("action %v is not a scaling action", atype.String())
+	if atype != proto.ActionItemDTO_HORIZONTAL_SCALE {
+		return 0, fmt.Errorf("action %v is not a horizontal scaling action", atype.String())
 	}
+
+	data := action.GetContextData()
+	var oldValue, newValue string
+
+	for _, item := range data {
+		switch *item.ContextKey {
+		case "OLD_REPLICAS":
+			oldValue = *item.ContextValue
+		case "NEW_REPLICAS":
+			newValue = *item.ContextValue
+		}
+	}
+
+	if oldValue == "" {
+		return 0, fmt.Errorf("key 'OLD_REPLICAS' not found in context data")
+	}
+
+	if newValue == "" {
+		return 0, fmt.Errorf("key 'NEW_REPLICAS' not found in context data")
+	}
+
+	oldInt, err := strconv.Atoi(oldValue)
+	if err != nil || oldInt <= 0 {
+		return 0, fmt.Errorf("value of 'OLD_REPLICAS' must be a positive integer")
+	}
+
+	newInt, err := strconv.Atoi(newValue)
+	if err != nil || newInt <= 0 {
+		return 0, fmt.Errorf("value of 'NEW_REPLICAS' must be a positive integer")
+	}
+
+	return int32(newInt - oldInt), nil
 }
