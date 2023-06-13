@@ -128,12 +128,18 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 }
 
 // getControllerInfo retrieves information about a workload controller based on the provided target entity.
-// @param {proto.EntityDTO} targetSE - The target entity for which to retrieve controller information.
-// @returns {string} namespace - The namespace of the workload controller.
-// @returns {string} controllerName - The name of the workload controller.
-// @returns {string} kind - The type of the workload controller.
-// @returns {error} error - An error if any occurred during the retrieval process.
-func getControllerInfo(targetSE *proto.EntityDTO) (string, string, string, error) {
+//
+// Parameters:
+//
+//	targetSE - The target entity for which to retrieve controller information.
+//
+// Returns:
+//
+//	namespace - The namespace of the workload controller.
+//	controllerName - The name of the workload controller.
+//	kind - The type of the workload controller.
+//	error - An error if any occurred during the retrieval process.
+func getWorkloadControllerInfo(targetSE *proto.EntityDTO) (string, string, string, error) {
 	if targetSE == nil {
 		return "", "", "", fmt.Errorf("workload controller action item does not have a valid target entity")
 	}
@@ -177,10 +183,26 @@ func getControllerInfo(targetSE *proto.EntityDTO) (string, string, string, error
 	return namespace, controllerName, kind, nil
 }
 
+// getWorkloadControllerDetails retrieves details about a workload controller for the given action item.
+//
+// Parameters:
+//
+//	actionItem - The action item containing the workload controller details.
+//
+// Returns:
+//
+//	controllerName - The name of the workload controller.
+//	kind - The type of the workload controller.
+//	namespace - The namespace of the workload controller.
+//	podSpec - The Pod specification of the workload controller.
+//	managerApp - The manager application associated with the workload controller.
+//	replicasNum - The number of replicas for the workload controller.
+//	isOwnerSet - Indicates whether the workload controller has an owner set.
+//	error - An error if any occurred during the retrieval process.
 func (r *WorkloadControllerResizer) getWorkloadControllerDetails(actionItem *proto.ActionItemDTO) (string,
 	string, string, *k8sapi.PodSpec, *repository.K8sApp, int64, bool, error) {
 	targetSE := actionItem.GetTargetSE()
-	namespace, controllerName, kind, err := getControllerInfo(targetSE)
+	namespace, controllerName, kind, err := getWorkloadControllerInfo(targetSE)
 	if err != nil {
 		return "", "", "", nil, nil, 0, false, err
 	}

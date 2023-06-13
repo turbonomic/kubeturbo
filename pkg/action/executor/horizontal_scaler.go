@@ -29,7 +29,7 @@ func (h *HorizontalScaler) Execute(input *TurboActionExecutorInput) (*TurboActio
 		return nil, err
 	}
 	//2. Prepare controllerUpdater
-	namespace, controllerName, kind, err := getControllerInfo(actionItem.GetTargetSE())
+	namespace, controllerName, kind, err := getWorkloadControllerInfo(actionItem.GetTargetSE())
 	if err != nil {
 		glog.Errorf("Failed to get controller information: %v", err)
 		return &TurboActionExecutorOutput{}, err
