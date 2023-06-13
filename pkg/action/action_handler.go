@@ -252,7 +252,7 @@ func (h *ActionHandler) getRelatedPod(actionItem *proto.ActionItemDTO) (*api.Pod
 	switch actionType {
 	case turboActionContainerResize:
 		podEntity = actionItem.GetHostedBySE()
-	case turboActionPodMove, turboActionPodProvision, turboActionPodSuspend:
+	case turboActionPodMove:
 		podEntity = actionItem.GetTargetSE()
 	case turboActionPodProvision, turboActionPodSuspend:
 		// pod horizontal scale (provision/suspension) merged into controller. No need for pod information.
