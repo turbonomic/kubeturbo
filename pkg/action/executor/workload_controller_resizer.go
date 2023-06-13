@@ -127,6 +127,12 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 	}, nil
 }
 
+// getControllerInfo retrieves information about a workload controller based on the provided target entity.
+// @param {proto.EntityDTO} targetSE - The target entity for which to retrieve controller information.
+// @returns {string} namespace - The namespace of the workload controller.
+// @returns {string} controllerName - The name of the workload controller.
+// @returns {string} kind - The type of the workload controller.
+// @returns {error} error - An error if any occurred during the retrieval process.
 func getControllerInfo(targetSE *proto.EntityDTO) (string, string, string, error) {
 	if targetSE == nil {
 		return "", "", "", fmt.Errorf("workload controller action item does not have a valid target entity")
