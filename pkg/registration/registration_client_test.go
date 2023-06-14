@@ -11,8 +11,8 @@ import (
 )
 
 func xcheck(expected map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability,
-	elements []*proto.ActionPolicyDTO_ActionPolicyElement) error {
-
+	elements []*proto.ActionPolicyDTO_ActionPolicyElement,
+) error {
 	if len(expected) != len(elements) {
 		return fmt.Errorf("length not equal: %d Vs. %d", len(expected), len(elements))
 	}
@@ -34,7 +34,7 @@ func xcheck(expected map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_Ac
 }
 
 func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
-	conf := NewRegistrationClientConfig(stitching.UUID, 0, true, true)
+	conf := NewRegistrationClientConfig(stitching.UUID, 0, true)
 	targetConf := &configs.K8sTargetConfig{}
 	accountValues := []*proto.AccountValue{}
 	k8sSvcId := "k8s-cluster"
@@ -233,13 +233,13 @@ func TestK8sRegistrationClient_GetActionMergePolicy(t *testing.T) {
 }
 
 func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
-	conf := NewRegistrationClientConfig(stitching.UUID, 0, true, true)
+	conf := NewRegistrationClientConfig(stitching.UUID, 0, true)
 	targetConf := &configs.K8sTargetConfig{}
 	accountValues := []*proto.AccountValue{}
 	k8sSvcId := "k8s-cluster"
 	reg := NewK8sRegistrationClient(conf, targetConf, accountValues, k8sSvcId)
 
-	//1. all the entity types
+	// 1. all the entity types
 	entities := []proto.EntityDTO_EntityType{
 		proto.EntityDTO_NAMESPACE,
 		proto.EntityDTO_WORKLOAD_CONTROLLER,
@@ -259,7 +259,7 @@ func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
 		entitySet[etype] = struct{}{}
 	}
 
-	//2. verify all the entity MetaData
+	// 2. verify all the entity MetaData
 	metaData := reg.GetEntityMetadata()
 	if len(metaData) != len(entitySet) {
 		t.Errorf("EntityMetadata count dis-match: %d vs %d", len(metaData), len(entitySet))
@@ -280,5 +280,4 @@ func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
 			t.Errorf("Property name should be : %v Vs. %v", propertyId, properties[0].GetName())
 		}
 	}
-
 }
