@@ -112,7 +112,11 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 
 	for _, item := range policies {
 		entity := item.GetEntityType()
-		expected := expectedCapability[entity]
+		expected, ok := expectedCapability[entity]
+		if !ok {
+			t.Errorf("Unknown entity type: %v", entity)
+			continue
+		}
 
 		if err := xcheck(expected, item.GetPolicyElement()); err != nil {
 			t.Errorf("Failed action policy check for entity(%v) %v", entity, err)
