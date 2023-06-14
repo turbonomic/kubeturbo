@@ -2,7 +2,6 @@ package executor
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/golang/glog"
 
@@ -58,35 +57,25 @@ func getReplicaDiff(action *proto.ActionItemDTO) (int32, error) {
 		return 0, fmt.Errorf("action %v is not a horizontal scaling action", atype.String())
 	}
 
-	data := action.GetContextData()
-	var oldValue, newValue string
-
-	for _, item := range data {
-		switch *item.ContextKey {
-		case "OLD_REPLICAS":
-			oldValue = *item.ContextValue
-		case "NEW_REPLICAS":
-			newValue = *item.ContextValue
-		}
+	currentCom := action.GetCurrentComm()
+	if currentCom == nil || currentCom.GetCommodityType() != proto.CommodityDTO_NUMBER_REPLICAS {
+		return 0, fmt.Errorf("NUMBER_REPLICAS not found in currentCommodity")
 	}
 
-	if oldValue == "" {
-		return 0, fmt.Errorf("key 'OLD_REPLICAS' not found in context data")
+	newCom := action.GetNewComm()
+	if newCom == nil || newCom.GetCommodityType() != proto.CommodityDTO_NUMBER_REPLICAS {
+		return 0, fmt.Errorf("NUMBER_REPLICAS not found in currentCommodity")
 	}
 
-	if newValue == "" {
-		return 0, fmt.Errorf("key 'NEW_REPLICAS' not found in context data")
+	oldReplicas := currentCom.GetCapacity()
+	if oldReplicas < 0 {
+		return 0, fmt.Errorf("value of old replicas must be a positive number")
 	}
 
-	oldInt, err := strconv.Atoi(oldValue)
-	if err != nil || oldInt <= 0 {
-		return 0, fmt.Errorf("value of 'OLD_REPLICAS' must be a positive integer")
+	newReplicas := newCom.GetCapacity()
+	if newReplicas < 0 {
+		return 0, fmt.Errorf("value of new replicas must be a positive number")
 	}
 
-	newInt, err := strconv.Atoi(newValue)
-	if err != nil || newInt <= 0 {
-		return 0, fmt.Errorf("value of 'NEW_REPLICAS' must be a positive integer")
-	}
-
-	return int32(newInt - oldInt), nil
+	return int32(newReplicas - oldReplicas), nil
 }
