@@ -59,12 +59,12 @@ func getReplicaDiff(action *proto.ActionItemDTO) (int32, error) {
 
 	currentCom := action.GetCurrentComm()
 	if currentCom == nil || currentCom.GetCommodityType() != proto.CommodityDTO_NUMBER_REPLICAS {
-		return 0, fmt.Errorf("NUMBER_REPLICAS not found in currentCommodity")
+		return 0, fmt.Errorf("NUMBER_REPLICAS not found in currentCommodity of action DTO")
 	}
 
 	newCom := action.GetNewComm()
 	if newCom == nil || newCom.GetCommodityType() != proto.CommodityDTO_NUMBER_REPLICAS {
-		return 0, fmt.Errorf("NUMBER_REPLICAS not found in currentCommodity")
+		return 0, fmt.Errorf("NUMBER_REPLICAS not found in currentCommodity of action DTO")
 	}
 
 	oldReplicas := currentCom.GetCapacity()
