@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -124,11 +123,11 @@ func loadOpsMgrCredentialsFromSecret(tapSpec *K8sTAPServiceSpec) error {
 		return nil
 	}
 
-	username, err := ioutil.ReadFile(usernameFilePath)
+	username, err := os.ReadFile(usernameFilePath)
 	if err != nil {
 		return fmt.Errorf("error reading server api credentials from secret: username: %v", err)
 	}
-	password, err := ioutil.ReadFile(passwordFilePath)
+	password, err := os.ReadFile(passwordFilePath)
 	if err != nil {
 		return fmt.Errorf("error reading server api credentials from secret: password: %v", err)
 	}
@@ -151,11 +150,11 @@ func loadClientIdSecretFromSecret(tapSpec *K8sTAPServiceSpec) error {
 		return nil
 	}
 
-	clientId, err := ioutil.ReadFile(clientIdFilePath)
+	clientId, err := os.ReadFile(clientIdFilePath)
 	if err != nil {
 		return fmt.Errorf("error reading secure server credentials from secret: clientId: %v", err)
 	}
-	clientSecret, err := ioutil.ReadFile(clientSecretFilePath)
+	clientSecret, err := os.ReadFile(clientSecretFilePath)
 	if err != nil {
 		return fmt.Errorf("error reading secure server credentials from secret: clientSecret: %v", err)
 	}
@@ -167,7 +166,7 @@ func loadClientIdSecretFromSecret(tapSpec *K8sTAPServiceSpec) error {
 }
 
 func readK8sTAPServiceSpec(path string) (*K8sTAPServiceSpec, error) {
-	file, e := ioutil.ReadFile(path)
+	file, e := os.ReadFile(path)
 	if e != nil {
 		return nil, fmt.Errorf("file error: %v" + e.Error())
 	}
@@ -249,7 +248,7 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 	// TODO: Remove logic that checks ClusterAPI for action policies during probe registration when target level
 	//  action policy is implemented in the server
 	registrationClientConfig := registration.NewRegistrationClientConfig(config.StitchingPropType, config.VMPriority,
-		config.VMIsBase, probeConfig.ClusterScraper.IsClusterAPIEnabled())
+		config.VMIsBase)
 	registrationClient := registration.NewK8sRegistrationClient(registrationClientConfig,
 		config.tapSpec.K8sTargetConfig, targetAccountValues.AccountValues(), k8sSvcId)
 
@@ -291,12 +290,11 @@ func NewKubernetesTAPService(config *Config) (*K8sTAPService, error) {
 		probeBuilder = probeBuilder.WithDiscoveryClient(discoveryClient)
 	}
 
-	tapService, err :=
-		service.NewTAPServiceBuilder().
-			WithCommunicationBindingChannel(k8sSvcId).
-			WithTurboCommunicator(config.tapSpec.TurboCommunicationConfig).
-			WithTurboProbe(probeBuilder). //Turbo Probe is Probe + Target
-			Create()
+	tapService, err := service.NewTAPServiceBuilder().
+		WithCommunicationBindingChannel(k8sSvcId).
+		WithTurboCommunicator(config.tapSpec.TurboCommunicationConfig).
+		WithTurboProbe(probeBuilder). // Turbo Probe is Probe + Target
+		Create()
 	if err != nil {
 		return nil, err
 	}
