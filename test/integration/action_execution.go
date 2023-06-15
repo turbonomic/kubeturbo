@@ -360,7 +360,46 @@ var _ = Describe("Action Executor ", func() {
 		})
 	})
 
-	// Horizontal scale test
+	// Horizontal scale test for unmerged provision and suspension actions
+	Describe("Executing horizontal scale action on a deployment", func() {
+		It("should match the expected replica number", func() {
+			if framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring horizontal scal test against openshift target.")
+			}
+			// create a deployment with 2 replicas
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 2, false, false, false, ""))
+			framework.ExpectNoError(err, "Error creating test resources")
+
+			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
+			framework.ExpectNoError(err, "Error getting deployments pod")
+			// This should not happen. We should ideally get a pod.
+			if pod == nil {
+				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
+			}
+
+			// Test the provision action
+			_, err = actionHandler.ExecuteAction(newActionExecutionDTO(proto.ActionItemDTO_PROVISION,
+				newTargetSEFromPod(pod), nil), nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Failed to execute provision action")
+			// As the current replica is 2, new replica should be 3 after the provision action
+			_, err = waitForDeploymentToUpdateReplica(kubeClient, dep.Name, dep.Namespace, 3)
+			if err != nil {
+				framework.Failf("The replica number is incorrect after executing provision action")
+			}
+
+			// Test the suspend action
+			_, err = actionHandler.ExecuteAction(newActionExecutionDTO(proto.ActionItemDTO_SUSPEND,
+				newTargetSEFromPod(pod), nil), nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Failed to execute suspend action")
+			// As the current replica is 3, new replica should be 2 after the suspend action
+			_, err = waitForDeploymentToUpdateReplica(kubeClient, dep.Name, dep.Namespace, 2)
+			if err != nil {
+				framework.Failf("The replica number is incorrect after executing suspend action")
+			}
+		})
+	})
+
+	// Horizontal scale for merged controller action test
 	Describe("Executing horizontal scale action on a deployment", func() {
 		It("should match the expected replica number", func() {
 			if framework.TestContext.IsOpenShiftTest {
@@ -372,7 +411,7 @@ var _ = Describe("Action Executor ", func() {
 
 			targetSE := newResizeWorkloadControllerTargetSE(dep)
 
-			// Test the provision action
+			// Test the controller scale action
 			aeDTO := newHorizontalScaleActionExecutionDTO(targetSE, 1, 3)
 			_, err = actionHandler.ExecuteAction(aeDTO, nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Failed to execute provision action")
