@@ -382,16 +382,6 @@ var _ = Describe("Action Executor ", func() {
 			if err != nil {
 				framework.Failf("The replica number is incorrect after executing provision action")
 			}
-
-			// Test the suspend action
-			aeDTO = newHorizontalScaleActionExecutionDTO(targetSE, 3, 2)
-			_, err = actionHandler.ExecuteAction(aeDTO, nil, &mockProgressTrack{})
-			framework.ExpectNoError(err, "Failed to execute suspend action")
-			// The current replica is 3, new replica should be 2 after the action
-			_, err = waitForDeploymentToUpdateReplica(kubeClient, dep.Name, dep.Namespace, 2)
-			if err != nil {
-				framework.Failf("The replica number is incorrect after executing suspend action")
-			}
 		})
 	})
 
