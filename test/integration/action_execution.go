@@ -367,32 +367,27 @@ var _ = Describe("Action Executor ", func() {
 				Skip("Ignoring horizontal scal test against openshift target.")
 			}
 			// create a deployment with 2 replicas
-			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 2, false, false, false, ""))
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, ""))
 			framework.ExpectNoError(err, "Error creating test resources")
 
-			pod, err := getPodWithNamePrefix(kubeClient, dep.Name, namespace, "")
-			framework.ExpectNoError(err, "Error getting deployments pod")
-			// This should not happen. We should ideally get a pod.
-			if pod == nil {
-				framework.Failf("Failed to find a pod for deployment: %s", dep.Name)
-			}
+			targetSE := newResizeWorkloadControllerTargetSE(dep)
 
 			// Test the provision action
-			_, err = actionHandler.ExecuteAction(newActionExecutionDTO(proto.ActionItemDTO_PROVISION,
-				newTargetSEFromPod(pod), nil), nil, &mockProgressTrack{})
+			aeDTO := newHorizontalScaleActionExecutionDTO(targetSE, 1, 3)
+			_, err = actionHandler.ExecuteAction(aeDTO, nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Failed to execute provision action")
 
-			// As the current replica is 2, new replica should be 3 after the provision action
+			// The current replica is 1, new replica should be 3 after the action
 			_, err = waitForDeploymentToUpdateReplica(kubeClient, dep.Name, dep.Namespace, 3)
 			if err != nil {
 				framework.Failf("The replica number is incorrect after executing provision action")
 			}
 
 			// Test the suspend action
-			_, err = actionHandler.ExecuteAction(newActionExecutionDTO(proto.ActionItemDTO_SUSPEND,
-				newTargetSEFromPod(pod), nil), nil, &mockProgressTrack{})
+			aeDTO = newHorizontalScaleActionExecutionDTO(targetSE, 3, 2)
+			_, err = actionHandler.ExecuteAction(aeDTO, nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Failed to execute suspend action")
-			// As the current replica is 3, new replica should be 2 after the suspend action
+			// The current replica is 3, new replica should be 2 after the action
 			_, err = waitForDeploymentToUpdateReplica(kubeClient, dep.Name, dep.Namespace, 2)
 			if err != nil {
 				framework.Failf("The replica number is incorrect after executing suspend action")
@@ -1515,4 +1510,12 @@ func validatePodGetsDesiredScc(ns, expectedSccLevel string, pod *corev1.Pod, cli
 	}); err != nil {
 		framework.Failf("Failed to create pod with restricted scc [podName: %s]", pod.GetName())
 	}
+}
+
+func newHorizontalScaleActionExecutionDTO(targetSE *proto.EntityDTO, oldReplicas int64, newReplicas int64) *proto.ActionExecutionDTO {
+	dto := &proto.ActionExecutionDTO{}
+	actionType := proto.ActionItemDTO_HORIZONTAL_SCALE
+	aiOnNumReplicas := newActionItemDTO(actionType, proto.CommodityDTO_NUMBER_REPLICAS, oldReplicas, newReplicas, targetSE, targetSE)
+	dto.ActionItem = append(dto.ActionItem, aiOnNumReplicas)
+	return dto
 }
