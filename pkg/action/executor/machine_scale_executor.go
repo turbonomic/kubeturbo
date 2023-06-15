@@ -52,13 +52,19 @@ func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*Turbo
 		return nil, fmt.Errorf("unsupported action type %v", vmDTO.ActionItems[0].GetActionType())
 	}
 	// Get on with it.
-	glog.V(3).Infof("Starting execution of machine scaling action: %+v on node %v.", actionType, nodeName)
 	controller, key, err := newController(s.cAPINamespace, nodeName, diff, actionType, s.executor.clusterScraper)
 	if err != nil {
 		return nil, err
 	} else if key == nil {
 		return nil, fmt.Errorf("the target machine deployment has no name")
 	}
+	scaleDirection := "up"
+	scaleAmount := diff
+	if diff < 0 {
+		scaleDirection = "down"
+		scaleAmount = -diff
+	}
+	glog.V(2).Infof("Starting to scale %s the machineSet %s by %d replica", scaleDirection, *key, scaleAmount)
 	// See if we already have this.
 	_, ok := s.cache.Get(*key)
 	if ok {
@@ -79,6 +85,6 @@ func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*Turbo
 	if err != nil {
 		return nil, err
 	}
-	glog.V(3).Infof("Completed execution of machine scaling action: %+v on node %v.", actionType, nodeName)
+	glog.V(2).Infof("Completed scaling %s the machineSet %s by %d replica", scaleDirection, *key, scaleAmount)
 	return &TurboActionExecutorOutput{Succeeded: true}, nil
 }
