@@ -45,15 +45,14 @@ func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*Turbo
 	case proto.ActionItemDTO_PROVISION:
 		actionType = ProvisionAction
 		diff = 1
-		break
 	case proto.ActionItemDTO_SUSPEND:
 		actionType = SuspendAction
 		diff = -1
-		break
 	default:
 		return nil, fmt.Errorf("unsupported action type %v", vmDTO.ActionItems[0].GetActionType())
 	}
 	// Get on with it.
+	glog.V(3).Infof("Starting execution of machine scaling action: %+v on node %v.", actionType, nodeName)
 	controller, key, err := newController(s.cAPINamespace, nodeName, diff, actionType, s.executor.clusterScraper)
 	if err != nil {
 		return nil, err
@@ -80,5 +79,6 @@ func (s *MachineActionExecutor) Execute(vmDTO *TurboActionExecutorInput) (*Turbo
 	if err != nil {
 		return nil, err
 	}
+	glog.V(3).Infof("Completed execution of machine scaling action: %+v on node %v.", actionType, nodeName)
 	return &TurboActionExecutorOutput{Succeeded: true}, nil
 }
