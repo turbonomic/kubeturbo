@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/golang/glog"
 	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/machine/v1beta1"
@@ -57,10 +58,10 @@ func (client *k8sClusterApi) identifyManagingMachine(nodeName string) (*machinev
 			return machine, nil
 		}
 
-		return nil, fmt.Errorf("No node or a machine found named %s: %v ", machineName, err)
+		return nil, fmt.Errorf("no node or a machine found named %s: %v ", machineName, err)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Error retrieving node %s: %v", nodeName, err)
+		return nil, fmt.Errorf("error retrieving node %s: %v", nodeName, err)
 	}
 
 	// List all machines and match the node.
@@ -204,7 +205,7 @@ func (controller *machineSetController) identifyDiff(list1, list2 *machinev1beta
 				break
 			}
 		}
-		if found == true {
+		if found {
 			continue
 		} else {
 			return &machine1
@@ -319,6 +320,7 @@ func (controller *machineSetController) waitForMachineDeprovisioning(machine *ma
 
 // waitForState Is the function that allows to wait for a specific state, or until it times out.
 func (controller *machineSetController) waitForState(stateDesc string, f stateCheck, args ...interface{}) error {
+	glog.V(4).Infof("Waiting for state: '%s'", stateDesc)
 	for i := 0; i < operationMaxWaits; i++ {
 		ok, err := f(args...)
 		if err != nil {
@@ -326,6 +328,7 @@ func (controller *machineSetController) waitForState(stateDesc string, f stateCh
 		}
 		// We are done, return
 		if ok {
+			glog.V(4).Infof("Verified desired state: '%s'", stateDesc)
 			return nil
 		}
 		time.Sleep(operationWaitSleepInterval)
@@ -336,7 +339,8 @@ func (controller *machineSetController) waitForState(stateDesc string, f stateCh
 
 // Construct the controller
 func newController(namespace string, nodeName string, diff int32, actionType ActionType,
-	clusterScraper *cluster.ClusterScraper) (Controller, *string, error) {
+	clusterScraper *cluster.ClusterScraper,
+) (Controller, *string, error) {
 	// Check whether Cluster API is enabled.
 	if !clusterScraper.IsClusterAPIEnabled() {
 		return nil, nil, fmt.Errorf("no Cluster API available")
@@ -354,9 +358,10 @@ func newController(namespace string, nodeName string, diff int32, actionType Act
 	// Identify managing machine.
 	machine, err := client.identifyManagingMachine(nodeName)
 	if err != nil {
-		err = fmt.Errorf("cannot identify machine: %v", err)
+		err = fmt.Errorf("cannot identify managing machine: %v", err)
 		return nil, nil, err
 	}
+	glog.V(3).Infof("Identified %s as managing machine for %v", machine.Name, nodeName)
 	ownerInfo, ownerSet := util.GetOwnerInfo(machine.OwnerReferences)
 	if !ownerSet {
 		return nil, nil, fmt.Errorf("ownerRef missing from machine %s which manages %s", machine.Name, nodeName)
@@ -379,6 +384,5 @@ func newController(namespace string, nodeName string, diff int32, actionType Act
 	}
 
 	request := &actionRequest{client, nodeName, diff, actionType}
-	return &machineSetController{request, machineSet, machine, machineList},
-		&ownerInfo.Name, nil
+	return &machineSetController{request, machineSet, machine, machineList}, &ownerInfo.Name, nil
 }
