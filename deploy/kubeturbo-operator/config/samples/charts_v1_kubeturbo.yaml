@@ -29,7 +29,8 @@ spec:
     restartOnRegistrationTimeout: false
   targetConfig:
     targetName: Cluster_Name
-  roleBinding: turbo-all-binding
+  # The name should be unique for Kubeturbo instance  
+  roleBinding: turbo-all-binding-Kubeturbo_name-Kubeturbo_namespace
   roleName: cluster-admin
   serverMeta:
     turboServer: https://Turbo_server_URL
