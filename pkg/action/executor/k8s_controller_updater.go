@@ -231,14 +231,27 @@ func (c *k8sControllerUpdater) suspendOrProvision(current, diff int32) (int32, e
 // suspendPod takes the name of a pod and deletes it
 // The call does not block
 func (c *k8sControllerUpdater) suspendPod() error {
-	podClient := c.client.CoreV1().Pods(c.namespace)
-	if _, err := podClient.Get(context.TODO(), c.podName, metav1.GetOptions{}); err != nil {
-		return fmt.Errorf("failed to get latest pod %s/%s: %v", c.namespace, c.podName, err)
+	namespace := c.namespace
+	podName := c.podName
+	// Check if namespace is empty
+	if namespace == "" {
+		glog.Warningf("namespace value is not specified")
+		return nil
+	}
+
+	// Check if pod name is empty or nil
+	if podName == "" {
+		glog.Warningf("pod name is not specified")
+		return nil
+	}
+	podClient := c.client.CoreV1().Pods(namespace)
+	if _, err := podClient.Get(context.TODO(), podName, metav1.GetOptions{}); err != nil {
+		return fmt.Errorf("failed to get latest pod %s/%s: %v", namespace, podName, err)
 	}
 	// This function does not block
 	if err := podClient.Delete(context.TODO(), c.podName, metav1.DeleteOptions{}); err != nil {
-		return fmt.Errorf("failed to delete pod %s/%s: %v", c.namespace, c.podName, err)
+		return fmt.Errorf("failed to delete pod %s/%s: %v", namespace, podName, err)
 	}
-	glog.V(2).Infof("Successfully suspended pod %s/%s", c.namespace, c.podName)
+	glog.V(2).Infof("Successfully suspended pod %s/%s", namespace, podName)
 	return nil
 }
