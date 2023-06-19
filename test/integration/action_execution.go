@@ -399,13 +399,13 @@ var _ = Describe("Action Executor ", func() {
 		})
 	})
 
-	// Horizontal scale for merged controller action test
+	// Horizontal scale for merged controller action test (provision)
 	Describe("Executing horizontal scale action on a deployment", func() {
 		It("should match the expected replica number", func() {
 			if framework.TestContext.IsOpenShiftTest {
 				Skip("Ignoring horizontal scal test against openshift target.")
 			}
-			// create a deployment with 2 replicas
+			// create a deployment with 1 replicas
 			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 1, false, false, false, ""))
 			framework.ExpectNoError(err, "Error creating test resources")
 
@@ -417,6 +417,31 @@ var _ = Describe("Action Executor ", func() {
 			framework.ExpectNoError(err, "Failed to execute provision action")
 
 			// The current replica is 1, new replica should be 3 after the action
+			_, err = waitForDeploymentToUpdateReplica(kubeClient, dep.Name, dep.Namespace, 3)
+			if err != nil {
+				framework.Failf("The replica number is incorrect after executing provision action")
+			}
+		})
+	})
+
+	// Horizontal scale for merged controller action test (suspension)
+	Describe("Executing horizontal scale action on a deployment", func() {
+		It("should match the expected replica number", func() {
+			if framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring horizontal scal test against openshift target.")
+			}
+			// create a deployment with 2 replicas
+			dep, err := createDeployResource(kubeClient, depSingleContainerWithResources(namespace, "", 2, false, false, false, ""))
+			framework.ExpectNoError(err, "Error creating test resources")
+
+			targetSE := newResizeWorkloadControllerTargetSE(dep)
+
+			// Test the controller scale action
+			aeDTO := newHorizontalScaleActionExecutionDTO(targetSE, 2, 1)
+			_, err = actionHandler.ExecuteAction(aeDTO, nil, &mockProgressTrack{})
+			framework.ExpectNoError(err, "Failed to execute provision action")
+
+			// The current replica is 2, new replica should be 1 after the action
 			_, err = waitForDeploymentToUpdateReplica(kubeClient, dep.Name, dep.Namespace, 3)
 			if err != nil {
 				framework.Failf("The replica number is incorrect after executing provision action")
