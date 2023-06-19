@@ -442,7 +442,7 @@ var _ = Describe("Action Executor ", func() {
 			framework.ExpectNoError(err, "Failed to execute provision action")
 
 			// The current replica is 2, new replica should be 1 after the action
-			_, err = waitForDeploymentToUpdateReplica(kubeClient, dep.Name, dep.Namespace, 3)
+			_, err = waitForDeploymentToUpdateReplica(kubeClient, dep.Name, dep.Namespace, 1)
 			if err != nil {
 				framework.Failf("The replica number is incorrect after executing provision action")
 			}
