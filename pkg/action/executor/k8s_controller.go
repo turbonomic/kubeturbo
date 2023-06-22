@@ -190,9 +190,12 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		}
 
 		if utilfeature.DefaultFeatureGate.Enabled(features.AllowIncreaseNsQuota4Resizing) {
-			err4Waiting := c.waitForAllNewReplicasToBeCreated(c.obj.GetName())
+			err4Waiting := c.waitForAllNewReplicasToBeCreated(c.obj.GetName(), start)
 			if err4Waiting != nil {
 				glog.V(2).Infof("Get error while waiting for the new replicas to be created for the workload controller %s/%s:%v", c.obj.GetNamespace(), c.obj.GetName(), err4Waiting)
+				if strings.Contains(err4Waiting.Error(), "forbidden") {
+					return util.NewSkipRetryError(err4Waiting.Error()) // this will skip the retry in updateWithRetry
+				}
 				if hasWarningEvent, warningInfo := c.getLatestWarningEventsSinceUpdate(c.obj.GetNamespace(), c.obj.GetName(), start); hasWarningEvent {
 					return fmt.Errorf(warningInfo)
 				}
@@ -272,11 +275,19 @@ func (c *parentController) shouldRolloutDeploymentConfig() (bool, *osv1.Deployme
 }
 
 // Wait for all of the new replicas to be created
-func (c *parentController) waitForAllNewReplicasToBeCreated(name string) error {
+func (c *parentController) waitForAllNewReplicasToBeCreated(name string, start time.Time) error {
 	return wait.Poll(DefaultRetrySleepInterval, DefaultWaitReplicaToBeScheduled, func() (bool, error) {
 		obj, errInternal := c.clients.dynNamespacedClient.Get(context.TODO(), name, metav1.GetOptions{})
 		if errInternal != nil {
 			return false, errInternal
+		}
+
+		if hasWarningEvent, warningInfo := c.getLatestWarningEventsSinceUpdate(c.obj.GetNamespace(), c.obj.GetName(), start); hasWarningEvent {
+			if strings.Contains(warningInfo, "forbidden") {
+				// if there is a forbidden error, return a error which will exit the meaningless waiting
+				glog.Errorf("Failed to create new replica for the workload controller %s/%s as there is a forbidden error: %s", c.obj.GetNamespace(), c.obj.GetName(), warningInfo)
+				return false, fmt.Errorf(warningInfo)
+			}
 		}
 
 		var replicas, updatedReplicas int64
