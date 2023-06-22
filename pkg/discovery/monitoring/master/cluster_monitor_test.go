@@ -68,10 +68,10 @@ func genMemQuantity(numKB int64) resource.Quantity {
 }
 
 func buildResource(cores float32, numMB int64) api.ResourceList {
-	resourceList := make(api.ResourceList)
-	resourceList[api.ResourceCPU] = genCPUQuantity(cores)
-	resourceList[api.ResourceMemory] = genMemQuantity(numMB * 1024)
-	return resourceList
+	return api.ResourceList{
+		api.ResourceCPU:    genCPUQuantity(cores),
+		api.ResourceMemory: genMemQuantity(numMB * 1024),
+	}
 }
 
 func mockContainer(name string, requestCores, limitCores float32,
