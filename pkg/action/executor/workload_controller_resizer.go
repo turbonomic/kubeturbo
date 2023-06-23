@@ -74,6 +74,14 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 		resizeSpecs = append(resizeSpecs, spec)
 	}
 
+	// Verify if the desired podSpec viloates the limitrange
+	desiredPod := buildDesiredPod4QuotaEvaluation(namespace, resizeSpecs, *podSpec)
+	limitrangeViolateErr := CheckLimitrangeViolationOnPod(r.clusterScraper.Clientset, namespace, desiredPod)
+	if limitrangeViolateErr != nil {
+		glog.Errorf("Failed to execute action on the workload controller %v/%v due to limitrange violation: %v", namespace, controllerName, limitrangeViolateErr)
+		return &TurboActionExecutorOutput{}, fmt.Errorf("limitrange violation:%v", limitrangeViolateErr)
+	}
+
 	// Temporally increase the NS quota if needed && not Gitops && not orm case
 	if utilfeature.DefaultFeatureGate.Enabled(features.AllowIncreaseNsQuota4Resizing) &&
 		managerApp == nil && !isOwnerSet {
@@ -94,7 +102,6 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 			}
 			defer lockHelper.ReleaseLock()
 
-			desiredPod := buildDesiredPod4QuotaEvaluation(namespace, resizeSpecs, *podSpec)
 			errOnQuota = checkQuotas(quotaAccessor, desiredPod, r.lockMap, replicasNum)
 			if errOnQuota != nil {
 				return &TurboActionExecutorOutput{}, errOnQuota
@@ -266,6 +273,13 @@ func resizeWorkloadController(clusterScraper *cluster.ClusterScraper, ormClient 
 	err = controllerUpdater.updateWithRetry(&controllerSpec{0, specs})
 	if err != nil {
 		glog.Errorf("Failed to resize workload controller %s/%s.", controllerUpdater.namespace, controllerUpdater.name)
+		glog.V(2).Infof("Start to revert the change on the workload controller %s/%s.", controllerUpdater.namespace, controllerUpdater.name)
+		revertErr := controllerUpdater.revertChange()
+		if revertErr != nil {
+			glog.V(2).Infof("Can't revert the change on the workload contoller %s/%s due to:%s", controllerUpdater.namespace, controllerUpdater.name, revertErr)
+		} else {
+			glog.V(2).Infof("Reverting the change on the workload contoller %s/%s is successful.", controllerUpdater.namespace, controllerUpdater.name)
+		}
 		return err
 	}
 	return nil

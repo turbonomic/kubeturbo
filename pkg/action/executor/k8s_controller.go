@@ -3,9 +3,11 @@ package executor
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
@@ -38,6 +40,7 @@ import (
 type k8sController interface {
 	get(name string) (*k8sControllerSpec, error)
 	update(updatedSpec *k8sControllerSpec) error
+	revert() error
 }
 
 // k8sControllerSpec defines a set of objects that we want to update:
@@ -61,6 +64,7 @@ type kubeClients struct {
 type parentController struct {
 	clients               kubeClients
 	obj                   *unstructured.Unstructured
+	backupObj             *unstructured.Unstructured
 	name                  string
 	ormClient             *resourcemapping.ORMClientManager
 	managerApp            *repository.K8sApp
@@ -99,6 +103,7 @@ func (c *parentController) get(name string) (*k8sControllerSpec, error) {
 	}
 
 	c.obj = obj
+	c.backupObj = c.obj.DeepCopy()
 	int32Replicas := int32(replicas)
 	return &k8sControllerSpec{
 		replicas:       &int32Replicas,
@@ -165,6 +170,7 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		}
 		return c.ormClient.UpdateOwners(c.obj, ownerInfo, ownerResources)
 	} else {
+		start := time.Now()
 		_, err = c.clients.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
 		if err != nil {
 			return err
@@ -184,10 +190,13 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		}
 
 		if utilfeature.DefaultFeatureGate.Enabled(features.AllowIncreaseNsQuota4Resizing) {
-			err4Waiting := c.waitForAllNewReplicasToBeCreated(c.obj.GetName())
+			err4Waiting := c.waitForAllNewReplicasToBeCreated(c.obj.GetName(), start)
 			if err4Waiting != nil {
 				glog.V(2).Infof("Get error while waiting for the new replicas to be created for the workload controller %s/%s:%v", c.obj.GetNamespace(), c.obj.GetName(), err4Waiting)
-				if hasWarningEvent, warningInfo := c.getLatestWarningEvents(c.obj.GetNamespace(), c.obj.GetName()); hasWarningEvent {
+				if strings.Contains(err4Waiting.Error(), "forbidden") {
+					return util.NewSkipRetryError(err4Waiting.Error()) // this will skip the retry in updateWithRetry
+				}
+				if hasWarningEvent, warningInfo := c.getLatestWarningEventsSinceUpdate(c.obj.GetNamespace(), c.obj.GetName(), start); hasWarningEvent {
 					return fmt.Errorf(warningInfo)
 				}
 				return err4Waiting
@@ -196,6 +205,32 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		}
 	}
 	return err
+}
+
+func (c *parentController) revert() error {
+	oldPodSpecUnstructured, found, err := unstructured.NestedFieldCopy(c.backupObj.Object, "spec", "template", "spec")
+	if err != nil || !found {
+		return err
+	}
+	currentObj, err := c.clients.dynNamespacedClient.Get(context.TODO(), c.obj.GetName(), metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	currentPodSpecUnstructured, found, err := unstructured.NestedFieldCopy(currentObj.Object, "spec", "template", "spec")
+	if err != nil || !found {
+		return err
+	}
+	if reflect.DeepEqual(oldPodSpecUnstructured, currentPodSpecUnstructured) {
+		glog.V(4).Infof("There is no change between the original pod spec and the current one for the workload controller %s/%s, no need to revert", c.obj.GetNamespace(), c.obj.GetName())
+		return nil
+	}
+	if err := unstructured.SetNestedField(currentObj.Object, oldPodSpecUnstructured, "spec", "template", "spec"); err != nil {
+		return err
+	}
+	if _, err = c.clients.dynNamespacedClient.Update(context.TODO(), currentObj, metav1.UpdateOptions{}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *parentController) rolloutDeploymentConfig(dc *osv1.DeploymentConfig) error {
@@ -240,11 +275,19 @@ func (c *parentController) shouldRolloutDeploymentConfig() (bool, *osv1.Deployme
 }
 
 // Wait for all of the new replicas to be created
-func (c *parentController) waitForAllNewReplicasToBeCreated(name string) error {
+func (c *parentController) waitForAllNewReplicasToBeCreated(name string, start time.Time) error {
 	return wait.Poll(DefaultRetrySleepInterval, DefaultWaitReplicaToBeScheduled, func() (bool, error) {
 		obj, errInternal := c.clients.dynNamespacedClient.Get(context.TODO(), name, metav1.GetOptions{})
 		if errInternal != nil {
 			return false, errInternal
+		}
+
+		if hasWarningEvent, warningInfo := c.getLatestWarningEventsSinceUpdate(c.obj.GetNamespace(), c.obj.GetName(), start); hasWarningEvent {
+			if strings.Contains(warningInfo, "forbidden") {
+				// if there is a forbidden error, return a error which will exit the meaningless waiting
+				glog.Errorf("Failed to create new replica for the workload controller %s/%s as there is a forbidden error: %s", c.obj.GetNamespace(), c.obj.GetName(), warningInfo)
+				return false, fmt.Errorf(warningInfo)
+			}
 		}
 
 		var replicas, updatedReplicas int64
@@ -277,7 +320,7 @@ func (c *parentController) waitForAllNewReplicasToBeCreated(name string) error {
 }
 
 // get the latest warning event for a workload controller
-func (c *parentController) getLatestWarningEvents(namespace, name string) (bool, string) {
+func (c *parentController) getLatestWarningEventsSinceUpdate(namespace, name string, start time.Time) (bool, string) {
 	// Get events that belong to the given workload controller
 	events, err := c.clients.typedClient.CoreV1().Events(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
@@ -286,7 +329,7 @@ func (c *parentController) getLatestWarningEvents(namespace, name string) (bool,
 	var latestEnt apicorev1.Event
 	visited := make(map[string]bool, 0)
 	for _, ent := range events.Items {
-		if ent.Type == apicorev1.EventTypeWarning && strings.HasPrefix(ent.InvolvedObject.Name, name) {
+		if ent.Type == apicorev1.EventTypeWarning && ent.CreationTimestamp.After(start) && strings.HasPrefix(ent.InvolvedObject.Name, name) {
 			if ent.CreationTimestamp.After(latestEnt.CreationTimestamp.Time) {
 				latestEnt = ent
 			}
