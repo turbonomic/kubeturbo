@@ -10,6 +10,7 @@ import (
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
@@ -303,10 +304,9 @@ func Test_getPodCommoditiesBought_NoAffinity(t *testing.T) {
 
 	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, mockPodCommoditiesBoughtTypes)
 
+	// No LABEL commodities for pod with no affinity rule
 	assert.Nil(t, err)
-	assert.NotEmpty(t, commoditiesBought)
-	assert.Equal(t, 1, len(commoditiesBought))
-	assert.Equal(t, proto.CommodityDTO_LABEL, *commoditiesBought[0].CommodityType)
+	assert.Equal(t, 0, len(commoditiesBought))
 }
 
 func Test_getPodCommoditiesBought_NodeAffinityWithNodeSelector(t *testing.T) {
@@ -345,8 +345,15 @@ func Test_getPodCommoditiesBought_NodeAffinityWithNodeSelector(t *testing.T) {
 		},
 	}
 
+	// The affinities are preprocessed and presented as bunch of sets to pod and node dto builders
+	// NodeSelectors are processed in the dto builders
+	// The Affinity field in the test spec above is unused, but left here for representation
+	// The affinity processing and the resulting maps are tested in affinity processing unit test
+	// podsWithAffinities here carries the processed result
+	builder.podsWithAffinities = sets.NewString(mockPod.Namespace + "/" + mockPod.Name)
 	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, mockPodCommoditiesBoughtTypes)
-
+	// Cleanup
+	builder.podsWithAffinities = nil
 	assert.Nil(t, err)
 	assert.NotEmpty(t, commoditiesBought)
 	assert.Equal(t, 2, len(commoditiesBought))
@@ -391,7 +398,15 @@ func Test_getPodCommoditiesBought_NodeAffinity(t *testing.T) {
 		},
 	}
 
+	// The affinities are preprocessed and presented as bunch of sets to pod and node dto builders
+	// NodeSelectors are processed in the dto builders
+	// The Affinity field in the test spec above is unused, but left here for representation
+	// The affinity processing and the resulting maps are tested in affinity processing unit test
+	// podsWithAffinities here carries the processed result
+	builder.podsWithAffinities = sets.NewString(mockPod.Namespace + "/" + mockPod.Name)
 	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, mockPodCommoditiesBoughtTypes)
+	// Cleanup
+	builder.podsWithAffinities = nil
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, commoditiesBought)
@@ -422,70 +437,11 @@ func Test_getPodCommoditiesBought_NodeSelector(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, commoditiesBought)
-	assert.Equal(t, 2, len(commoditiesBought))
+	assert.Equal(t, 1, len(commoditiesBought))
 
 	for _, commodity := range commoditiesBought {
 		assert.Equal(t, proto.CommodityDTO_LABEL, *commodity.CommodityType)
 	}
-}
-
-func Test_getPodCommoditiesBought_PodAffinityToSpread(t *testing.T) {
-	feature.DefaultMutableFeatureGate.Set("NewAffinityProcessing=true")
-
-	mockPod := &api.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-pod-1",
-			Namespace: "test-namespace",
-			UID:       "test-pod-1-UID",
-		},
-		Spec: api.PodSpec{
-			Affinity: &api.Affinity{
-				NodeAffinity: &api.NodeAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: &api.NodeSelector{
-						NodeSelectorTerms: []api.NodeSelectorTerm{
-							{
-								MatchExpressions: []api.NodeSelectorRequirement{
-									{
-										Key:      "kubernetes.io/arch",
-										Operator: api.NodeSelectorOpIn,
-										Values:   []string{"amd64"},
-									},
-								},
-							},
-						},
-					},
-				},
-				PodAffinity: &api.PodAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: []api.PodAffinityTerm{
-						{
-							LabelSelector: &metav1.LabelSelector{
-								MatchExpressions: []metav1.LabelSelectorRequirement{
-									{
-										Key:      "app",
-										Operator: metav1.LabelSelectorOpIn,
-										Values:   []string{"store"},
-									},
-								},
-							},
-							TopologyKey: "kubernetes.io/arch",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, mockPodCommoditiesBoughtTypes)
-
-	assert.Nil(t, err)
-	assert.NotEmpty(t, commoditiesBought)
-	assert.Equal(t, 1, len(commoditiesBought))
-	assert.Equal(t, proto.CommodityDTO_LABEL, *commoditiesBought[0].CommodityType)
 }
 
 func Test_getPodCommoditiesBought_SpreadWithPodAntiAffinity(t *testing.T) {
@@ -524,55 +480,20 @@ func Test_getPodCommoditiesBought_SpreadWithPodAntiAffinity(t *testing.T) {
 		},
 	}
 
+	// The affinities are preprocessed and presented as bunch of sets to pod and node dto builders
+	// NodeSelectors are processed in the dto builders
+	// The Affinity field in the test spec above is unused, but left here for representation
+	// The affinity processing and the resulting maps are tested in affinity processing unit test
+	// hostnameSpreadPods and podsToControllers in this test here carries the processed result
+	builder.hostnameSpreadPods = sets.NewString(mockPod.Namespace + "/" + mockPod.Name)
+	builder.podsToControllers = map[string]string{mockPod.Namespace + "/" + mockPod.Name: "dummy-controller"}
 	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, mockPodCommoditiesBoughtTypes)
+	// Cleanup
+	builder.hostnameSpreadPods = nil
+	builder.podsToControllers = nil
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, commoditiesBought)
 	assert.Equal(t, 1, len(commoditiesBought))
-	assert.Equal(t, proto.CommodityDTO_LABEL, *commoditiesBought[0].CommodityType)
-}
-
-func Test_getPodCommoditiesBought_PodAntiAffinity(t *testing.T) {
-	feature.DefaultMutableFeatureGate.Set("NewAffinityProcessing=true")
-
-	mockPod := &api.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-pod-1",
-			Namespace: "test-namespace",
-			UID:       "test-pod-1-UID",
-		},
-		Spec: api.PodSpec{
-			Affinity: &api.Affinity{
-				PodAntiAffinity: &api.PodAntiAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: []api.PodAffinityTerm{
-						{
-							LabelSelector: &metav1.LabelSelector{
-								MatchExpressions: []metav1.LabelSelectorRequirement{
-									{
-										Key:      "app",
-										Operator: metav1.LabelSelectorOpIn,
-										Values:   []string{"store"},
-									},
-								},
-							},
-							Namespaces:  []string{"default"},
-							TopologyKey: "kubernetes.io/arch",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	commoditiesBought, err := builder.getPodCommoditiesBought(mockPod, mockPodCommoditiesBoughtTypes)
-
-	assert.Nil(t, err)
-	assert.NotEmpty(t, commoditiesBought)
-	assert.Equal(t, 1, len(commoditiesBought))
-	assert.Equal(t, proto.CommodityDTO_LABEL, *commoditiesBought[0].CommodityType)
+	assert.Equal(t, proto.CommodityDTO_SEGMENTATION, *commoditiesBought[0].CommodityType)
 }

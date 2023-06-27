@@ -105,8 +105,11 @@ func GetNamespaceLabelsSnapshot(ns string, nsLister NamespaceLister) (nsLabels l
 	return
 }
 
-// ProcessAffinities returns a map of nodes to list of pods which can be placed on each
-// respective node and a set of pods which have affinities.
+// ProcessAffinities returns
+// nodesPods: a map of nodes to list of pods which can be placed on each respective node
+// podsWithSupportedAffinities:  a set of pods which have affinities (does not include hostnameSpreadWorkloads)
+// hostnameSpreadWorkloads: map of workload ids to its set of pods which are spread workloads based on hostname as topology key
+// otherSpreadPods: other spread workload pods (those which are based on a topology key that is NOT hostname)
 func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string][]string,
 	sets.String, map[string]sets.String, sets.String) {
 	nodeInfos, err := pr.nodeInfoLister.List()
