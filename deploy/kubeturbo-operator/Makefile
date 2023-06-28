@@ -5,6 +5,7 @@
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 DEFAULT_VERSION=8.8.0
 VERSION=$(or $(KUBETURBO_VERSION), $(DEFAULT_VERSION))
+GIT_COMMIT=$(shell git rev-parse HEAD)
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -188,7 +189,7 @@ REPO_NAME ?= icr.io/cpopen
 docker-buildx:
 	docker buildx create --name kubeturbo-operator-builder
 	- docker buildx use kubeturbo-operator-builder
-	- docker buildx build --platform=$(PLATFORMS) --push --tag $(REPO_NAME)/kubeturbo-operator:$(VERSION) --build-arg VERSION=$(VERSION) .
+	- docker buildx build --platform=$(PLATFORMS) --label "git-commit=$(GIT_COMMIT)" --label "git-version=$(VERSION)" --provenance=false --push --tag $(REPO_NAME)/kubeturbo-operator:$(VERSION) --build-arg VERSION=$(VERSION) .
 	docker buildx rm kubeturbo-operator-builder
 
 .PHONY: test
