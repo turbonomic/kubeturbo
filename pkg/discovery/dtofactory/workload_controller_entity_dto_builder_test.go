@@ -48,7 +48,10 @@ var (
 		"controller1-UID", testAllocationResources)
 	testKubeController2 = repository.NewKubeController(testClusterName, testNamespace, "controller2", testCustomControllerType, "controller2-UID")
 
-	testWorkloadControllerDTOBuilder = NewWorkloadControllerDTOBuilder(nil,
+	kubeCluster = repository.KubeCluster{Name: clusterId}
+	kubeClusterSummary = repository.ClusterSummary{KubeCluster: &kubeCluster}
+
+	testWorkloadControllerDTOBuilder = NewWorkloadControllerDTOBuilder(&kubeClusterSummary,
 		map[string]*repository.KubeController{
 			"controller1-UID": testKubeController1,
 			"controller2-UID": testKubeController2,
@@ -59,6 +62,26 @@ var (
 )
 
 func TestBuildDTOs(t *testing.T) {
+	// Mock the cluster summary data from which we retrieve the number of configured replicas on the 
+	// WorkloadController
+	deploymentReplicaCount := int32(1)
+	customControllerReplicaCount := int32(0)
+	kubeCluster.ControllerMap = make(map[string]*repository.K8sController)
+	for _, controller := range testWorkloadControllerDTOBuilder.kubeControllersMap {
+		k8sController := repository.NewK8sController(
+			"WorkloadController", 
+			controller.Name, 
+			controller.Namespace, 
+			controller.UID,
+		)
+		if controller.UID == testKubeController1.UID {
+			k8sController.WithReplicas(int64(deploymentReplicaCount))
+		} else {
+			k8sController.WithReplicas(int64(customControllerReplicaCount))
+		}
+		kubeCluster.ControllerMap[controller.UID] = k8sController
+	}
+
 	entityDTOs, _ := testWorkloadControllerDTOBuilder.BuildDTOs()
 	for _, entityDTO := range entityDTOs {
 		if entityDTO.GetId() == "controller1-UID" {
@@ -80,7 +103,6 @@ func TestBuildDTOs(t *testing.T) {
 			assert.ElementsMatch(t, expectedCommoditiesBought, commoditiesBought.GetBought())
 
 			// Test create WorkloadControllerData with DeploymentData
-			deploymentReplicaCount := int32(1)
 			expectedWorkloadControllerData1 := &proto.EntityDTO_WorkloadControllerData{
 				ControllerType: &proto.EntityDTO_WorkloadControllerData_DeploymentData{
 					DeploymentData: &proto.EntityDTO_DeploymentData{},
@@ -101,7 +123,6 @@ func TestBuildDTOs(t *testing.T) {
 			assert.False(t, actionEligibility.GetSuspendable())
 
 			// Test create WorkloadControllerData with CustomControllerData
-			customControllerReplicaCount := int32(0)
 			expectedWorkloadControllerData2 := &proto.EntityDTO_WorkloadControllerData{
 				ControllerType: &proto.EntityDTO_WorkloadControllerData_CustomControllerData{
 					CustomControllerData: &proto.EntityDTO_CustomControllerData{
