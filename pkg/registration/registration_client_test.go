@@ -11,8 +11,8 @@ import (
 )
 
 func xcheck(expected map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability,
-	elements []*proto.ActionPolicyDTO_ActionPolicyElement) error {
-
+	elements []*proto.ActionPolicyDTO_ActionPolicyElement,
+) error {
 	if len(expected) != len(elements) {
 		return fmt.Errorf("length not equal: %d Vs. %d", len(expected), len(elements))
 	}
@@ -34,7 +34,7 @@ func xcheck(expected map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_Ac
 }
 
 func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
-	conf := NewRegistrationClientConfig(stitching.UUID, 0, true, true)
+	conf := NewRegistrationClientConfig(stitching.UUID, 0, true)
 	targetConf := &configs.K8sTargetConfig{}
 	accountValues := []*proto.AccountValue{}
 	k8sSvcId := "k8s-cluster"
@@ -59,75 +59,61 @@ func TestK8sRegistrationClient_GetActionPolicy(t *testing.T) {
 	suspend := proto.ActionItemDTO_SUSPEND
 	scale := proto.ActionItemDTO_SCALE
 
-	expected_pod := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	expected_pod[move] = supported
-	expected_pod[resize] = notSupported
-	expected_pod[provision] = supported
-	expected_pod[suspend] = supported
-
-	expected_container := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	expected_container[move] = notSupported
-	expected_container[resize] = supported
-	expected_container[provision] = recommend
-	expected_container[suspend] = recommend
-
-	expected_app := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	expected_app[move] = notSupported
-	expected_app[resize] = recommend
-	expected_app[provision] = recommend
-	expected_app[suspend] = recommend
-
-	expected_service := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	expected_service[move] = notSupported
-	expected_service[resize] = notSupported
-	expected_service[provision] = notSupported
-	expected_service[suspend] = notSupported
-
-	expected_node := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	expected_node[resize] = notSupported
-	expected_node[provision] = supported
-	expected_node[suspend] = supported
-	expected_node[scale] = notSupported
-
-	expected_wCtrl := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	expected_wCtrl[resize] = supported
-	expected_wCtrl[scale] = supported
-
-	expected_vol := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	expected_vol[resize] = notSupported
-	expected_vol[provision] = recommend
-	expected_vol[suspend] = notSupported
-	expected_vol[scale] = recommend
-
-	expected_bApp := make(map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability)
-	expected_bApp[resize] = notSupported
-	expected_bApp[provision] = notSupported
-	expected_bApp[suspend] = notSupported
-	expected_bApp[scale] = notSupported
+	expectedCapability := map[proto.EntityDTO_EntityType]map[proto.ActionItemDTO_ActionType]proto.ActionPolicyDTO_ActionCapability{
+		pod: {
+			move:      supported,
+			resize:    notSupported,
+			provision: supported,
+			suspend:   supported,
+		},
+		container: {
+			move:      notSupported,
+			resize:    supported,
+			provision: recommend,
+			suspend:   recommend,
+		},
+		app: {
+			move:      notSupported,
+			resize:    recommend,
+			provision: recommend,
+			suspend:   recommend,
+		},
+		service: {
+			move:      notSupported,
+			resize:    notSupported,
+			provision: notSupported,
+			suspend:   notSupported,
+		},
+		node: {
+			resize:    notSupported,
+			provision: recommend,
+			suspend:   recommend,
+			scale:     notSupported,
+		},
+		wCtrl: {
+			resize: supported,
+			scale:  supported,
+		},
+		vol: {
+			resize:    notSupported,
+			provision: recommend,
+			suspend:   notSupported,
+			scale:     recommend,
+		},
+		bApp: {
+			resize:    notSupported,
+			provision: notSupported,
+			suspend:   notSupported,
+			scale:     notSupported,
+		},
+	}
 
 	policies := reg.GetActionPolicy()
 
 	for _, item := range policies {
 		entity := item.GetEntityType()
-		expected := expected_pod
-
-		if entity == pod {
-			expected = expected_pod
-		} else if entity == container {
-			expected = expected_container
-		} else if entity == app {
-			expected = expected_app
-		} else if entity == node {
-			expected = expected_node
-		} else if entity == service {
-			expected = expected_service
-		} else if entity == wCtrl {
-			expected = expected_wCtrl
-		} else if entity == vol {
-			expected = expected_vol
-		} else if entity == bApp {
-			expected = expected_bApp
-		} else {
+		expected, ok := expectedCapability[entity]
+		if !ok {
 			t.Errorf("Unknown entity type: %v", entity)
 			continue
 		}
@@ -233,13 +219,13 @@ func TestK8sRegistrationClient_GetActionMergePolicy(t *testing.T) {
 }
 
 func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
-	conf := NewRegistrationClientConfig(stitching.UUID, 0, true, true)
+	conf := NewRegistrationClientConfig(stitching.UUID, 0, true)
 	targetConf := &configs.K8sTargetConfig{}
 	accountValues := []*proto.AccountValue{}
 	k8sSvcId := "k8s-cluster"
 	reg := NewK8sRegistrationClient(conf, targetConf, accountValues, k8sSvcId)
 
-	//1. all the entity types
+	// 1. all the entity types
 	entities := []proto.EntityDTO_EntityType{
 		proto.EntityDTO_NAMESPACE,
 		proto.EntityDTO_WORKLOAD_CONTROLLER,
@@ -259,7 +245,7 @@ func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
 		entitySet[etype] = struct{}{}
 	}
 
-	//2. verify all the entity MetaData
+	// 2. verify all the entity MetaData
 	metaData := reg.GetEntityMetadata()
 	if len(metaData) != len(entitySet) {
 		t.Errorf("EntityMetadata count dis-match: %d vs %d", len(metaData), len(entitySet))
@@ -280,5 +266,4 @@ func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
 			t.Errorf("Property name should be : %v Vs. %v", propertyId, properties[0].GetName())
 		}
 	}
-
 }

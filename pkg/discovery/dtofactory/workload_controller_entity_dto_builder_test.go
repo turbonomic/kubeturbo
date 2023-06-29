@@ -2,6 +2,7 @@ package dtofactory
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -215,4 +216,89 @@ func createCommoditiesBought(key string) []*proto.CommodityDTO {
 		commoditiesBought = append(commoditiesBought, commodityDTO)
 	}
 	return commoditiesBought
+}
+
+func TestCreateContainerPodDataByControllerType(t *testing.T) {
+	// Test cases for supported controller kinds
+	testCases := []struct {
+		kind       string
+		assertFunc func(*testing.T, *proto.EntityDTO_WorkloadControllerData)
+	}{
+		{
+			kind: util.KindCronJob,
+			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
+				assert.NotNil(t, data.GetCronJobData())
+				assert.Nil(t, data.GetDaemonSetData())
+			},
+		},
+		{
+			kind: util.KindDaemonSet,
+			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
+				assert.NotNil(t, data.GetDaemonSetData())
+				assert.Nil(t, data.GetCronJobData())
+			},
+		},
+		// Add test cases for other supported controller kinds
+		{
+			kind: util.KindDeployment,
+			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
+				assert.NotNil(t, data.GetDeploymentData())
+				// Add additional assertions if needed
+			},
+		},
+		{
+			kind: util.KindJob,
+			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
+				assert.NotNil(t, data.GetJobData())
+				// Add additional assertions if needed
+			},
+		},
+		{
+			kind: util.KindReplicaSet,
+			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
+				assert.NotNil(t, data.GetReplicaSetData())
+				// Add additional assertions if needed
+			},
+		},
+		{
+			kind: util.KindReplicationController,
+			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
+				assert.NotNil(t, data.GetReplicationControllerData())
+				// Add additional assertions if needed
+			},
+		},
+		{
+			kind: util.KindStatefulSet,
+			assertFunc: func(t *testing.T, data *proto.EntityDTO_WorkloadControllerData) {
+				assert.NotNil(t, data.GetStatefulSetData())
+				// Add additional assertions if needed
+			},
+		},
+	}
+
+	// Run test cases
+	for _, tc := range testCases {
+		t.Run(tc.kind, func(t *testing.T) {
+			data := CreateWorkloadControllerDataByControllerType(tc.kind)
+			tc.assertFunc(t, data)
+		})
+	}
+
+	// Test case for default (unsupported controller kind)
+	t.Run("Default", func(t *testing.T) {
+		kind := "UnsupportedKind"
+		data := CreateWorkloadControllerDataByControllerType(kind)
+
+		expectedData := &proto.EntityDTO_WorkloadControllerData{
+			ControllerType: &proto.EntityDTO_WorkloadControllerData_CustomControllerData{
+				CustomControllerData: &proto.EntityDTO_CustomControllerData{
+					CustomControllerType: &kind,
+				},
+			},
+		}
+
+		if !reflect.DeepEqual(data, expectedData) {
+			t.Errorf("Expected data = %v, but got %v", expectedData, data)
+		}
+	})
 }

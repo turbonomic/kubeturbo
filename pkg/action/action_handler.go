@@ -35,6 +35,7 @@ type turboActionType struct {
 var (
 	turboActionPodProvision     = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_CONTAINER_POD}
 	turboActionPodSuspend       = turboActionType{proto.ActionItemDTO_SUSPEND, proto.EntityDTO_CONTAINER_POD}
+	turboActionControllerScale  = turboActionType{proto.ActionItemDTO_HORIZONTAL_SCALE, proto.EntityDTO_WORKLOAD_CONTROLLER}
 	turboActionPodMove          = turboActionType{proto.ActionItemDTO_MOVE, proto.EntityDTO_CONTAINER_POD}
 	turboActionContainerResize  = turboActionType{proto.ActionItemDTO_RIGHT_SIZE, proto.EntityDTO_CONTAINER}
 	turboActionMachineProvision = turboActionType{proto.ActionItemDTO_PROVISION, proto.EntityDTO_VIRTUAL_MACHINE}
@@ -142,6 +143,7 @@ func (h *ActionHandler) registerActionExecutors() {
 	horizontalScaler := executor.NewHorizontalScaler(ae)
 	h.actionExecutors[turboActionPodProvision] = horizontalScaler
 	h.actionExecutors[turboActionPodSuspend] = horizontalScaler
+	h.actionExecutors[turboActionControllerScale] = horizontalScaler
 
 	containerResizer := executor.NewContainerResizer(ae, c.kubeletClient, c.sccAllowedSet)
 	h.actionExecutors[turboActionContainerResize] = containerResizer
@@ -254,6 +256,9 @@ func (h *ActionHandler) getRelatedPod(actionItem *proto.ActionItemDTO) (*api.Pod
 		podEntity = actionItem.GetHostedBySE()
 	case turboActionPodMove, turboActionPodProvision, turboActionPodSuspend:
 		podEntity = actionItem.GetTargetSE()
+	case turboActionControllerScale:
+		// pod horizontal scale (provision/suspension) action was merged into controller. No need for pod information.
+		return nil, nil
 	case turboActionMachineProvision, turboActionMachineSuspend:
 		// This branch is not called right now. Implement for the sake of completeness.
 		return nil, nil

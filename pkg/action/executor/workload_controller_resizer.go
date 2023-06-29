@@ -74,6 +74,14 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 		resizeSpecs = append(resizeSpecs, spec)
 	}
 
+	// Verify if the desired podSpec viloates the limitrange
+	desiredPod := buildDesiredPod4QuotaEvaluation(namespace, resizeSpecs, *podSpec)
+	limitrangeViolateErr := CheckLimitrangeViolationOnPod(r.clusterScraper.Clientset, namespace, desiredPod)
+	if limitrangeViolateErr != nil {
+		glog.Errorf("Failed to execute action on the workload controller %v/%v due to limitrange violation: %v", namespace, controllerName, limitrangeViolateErr)
+		return &TurboActionExecutorOutput{}, fmt.Errorf("limitrange violation:%v", limitrangeViolateErr)
+	}
+
 	// Temporally increase the NS quota if needed && not Gitops && not orm case
 	if utilfeature.DefaultFeatureGate.Enabled(features.AllowIncreaseNsQuota4Resizing) &&
 		managerApp == nil && !isOwnerSet {
@@ -94,7 +102,6 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 			}
 			defer lockHelper.ReleaseLock()
 
-			desiredPod := buildDesiredPod4QuotaEvaluation(namespace, resizeSpecs, *podSpec)
 			errOnQuota = checkQuotas(quotaAccessor, desiredPod, r.lockMap, replicasNum)
 			if errOnQuota != nil {
 				return &TurboActionExecutorOutput{}, errOnQuota
@@ -127,18 +134,29 @@ func (r *WorkloadControllerResizer) Execute(input *TurboActionExecutorInput) (*T
 	}, nil
 }
 
-func (r *WorkloadControllerResizer) getWorkloadControllerDetails(actionItem *proto.ActionItemDTO) (string,
-	string, string, *k8sapi.PodSpec, *repository.K8sApp, int64, bool, error) {
-	targetSE := actionItem.GetTargetSE()
+// getControllerInfo retrieves information about a workload controller based on the provided target entity.
+//
+// Parameters:
+//
+//	targetSE - The target entity for which to retrieve controller information.
+//
+// Returns:
+//
+//	namespace - The namespace of the workload controller.
+//	controllerName - The name of the workload controller.
+//	kind - The type of the workload controller.
+//	error - An error if any occurred during the retrieval process.
+func getWorkloadControllerInfo(targetSE *proto.EntityDTO) (string, string, string, error) {
 	if targetSE == nil {
-		return "", "", "", nil, nil, 0, false, fmt.Errorf("workload controller action item does not have a valid target entity, %v", actionItem.Uuid)
-	}
-	workloadCntrldata := targetSE.GetWorkloadControllerData()
-	if workloadCntrldata == nil {
-		return "", "", "", nil, nil, 0, false, fmt.Errorf("workload controller action item missing controller data, %v", actionItem.Uuid)
+		return "", "", "", fmt.Errorf("workload controller action item does not have a valid target entity")
 	}
 
-	kind := ""
+	workloadCntrldata := targetSE.GetWorkloadControllerData()
+	if workloadCntrldata == nil {
+		return "", "", "", fmt.Errorf("workload controller action item missing controller data")
+	}
+
+	var kind string
 	cntrlType := workloadCntrldata.GetControllerType()
 	switch cntrlType.(type) {
 	case *proto.EntityDTO_WorkloadControllerData_DaemonSetData:
@@ -156,18 +174,45 @@ func (r *WorkloadControllerResizer) getWorkloadControllerDetails(actionItem *pro
 	case *proto.EntityDTO_WorkloadControllerData_CustomControllerData:
 		kind = workloadCntrldata.GetCustomControllerData().GetCustomControllerType()
 		if kind != util.KindDeploymentConfig {
-			return "", "", "", nil, nil, 0, false, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData, custom controller type is: %s", cntrlType, kind)
+			return "", "", "", fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData, custom controller type is: %s", cntrlType, kind)
 		}
 	default:
-		return "", "", "", nil, nil, 0, false, fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData", cntrlType)
+		return "", "", "", fmt.Errorf("Unexpected ControllerType: %T in EntityDTO_WorkloadControllerData", cntrlType)
 	}
 
-	namespace, error := property.GetWorkloadNamespaceFromProperty(targetSE.GetEntityProperties())
-	if error != nil {
-		return "", "", "", nil, nil, 0, false, error
+	namespace, err := property.GetWorkloadNamespaceFromProperty(targetSE.GetEntityProperties())
+	if err != nil {
+		return "", "", "", err
 	}
 
 	controllerName := targetSE.GetDisplayName()
+
+	return namespace, controllerName, kind, nil
+}
+
+// getWorkloadControllerDetails retrieves details about a workload controller for the given action item.
+//
+// Parameters:
+//
+//	actionItem - The action item containing the workload controller details.
+//
+// Returns:
+//
+//	controllerName - The name of the workload controller.
+//	kind - The type of the workload controller.
+//	namespace - The namespace of the workload controller.
+//	podSpec - The Pod specification of the workload controller.
+//	managerApp - The manager application associated with the workload controller.
+//	replicasNum - The number of replicas for the workload controller.
+//	isOwnerSet - Indicates whether the workload controller has an owner set.
+//	error - An error if any occurred during the retrieval process.
+func (r *WorkloadControllerResizer) getWorkloadControllerDetails(actionItem *proto.ActionItemDTO) (string,
+	string, string, *k8sapi.PodSpec, *repository.K8sApp, int64, bool, error) {
+	targetSE := actionItem.GetTargetSE()
+	namespace, controllerName, kind, err := getWorkloadControllerInfo(targetSE)
+	if err != nil {
+		return "", "", "", nil, nil, 0, false, err
+	}
 	podSpec, replicasNum, isOwnerSet, err := r.getWorkloadControllerSpec(kind, namespace, controllerName)
 	if err != nil {
 		return "", "", "", nil, nil, 0, false, err
@@ -228,6 +273,13 @@ func resizeWorkloadController(clusterScraper *cluster.ClusterScraper, ormClient 
 	err = controllerUpdater.updateWithRetry(&controllerSpec{0, specs})
 	if err != nil {
 		glog.Errorf("Failed to resize workload controller %s/%s.", controllerUpdater.namespace, controllerUpdater.name)
+		glog.V(2).Infof("Start to revert the change on the workload controller %s/%s.", controllerUpdater.namespace, controllerUpdater.name)
+		revertErr := controllerUpdater.revertChange()
+		if revertErr != nil {
+			glog.V(2).Infof("Can't revert the change on the workload contoller %s/%s due to:%s", controllerUpdater.namespace, controllerUpdater.name, revertErr)
+		} else {
+			glog.V(2).Infof("Reverting the change on the workload contoller %s/%s is successful.", controllerUpdater.namespace, controllerUpdater.name)
+		}
 		return err
 	}
 	return nil

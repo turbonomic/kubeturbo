@@ -190,3 +190,7 @@ docker-buildx:
 	- docker buildx use kubeturbo-operator-builder
 	- docker buildx build --platform=$(PLATFORMS) --push --tag $(REPO_NAME)/kubeturbo-operator:$(VERSION) --build-arg VERSION=$(VERSION) .
 	docker buildx rm kubeturbo-operator-builder
+
+.PHONY: test
+test:
+	bash ./test.sh

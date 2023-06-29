@@ -260,7 +260,8 @@ func createRecorder(kubecli *kubernetes.Clientset) record.EventRecorder {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{
-		Interface: v1core.New(kubecli.CoreV1().RESTClient()).Events(apiv1.NamespaceAll)})
+		Interface: v1core.New(kubecli.CoreV1().RESTClient()).Events(apiv1.NamespaceAll),
+	})
 	// this EventRecorder can be used to send events to this EventBroadcaster
 	// with the given event source.
 	return eventBroadcaster.NewRecorder(scheme.Scheme, apiv1.EventSource{Component: "kubeturbo"})
@@ -311,7 +312,8 @@ func (s *VMTServer) ensureBusyboxImageBackwardCompatibility() {
 }
 
 func (s *VMTServer) CreateKubeletClientOrDie(kubeConfig *restclient.Config, fallbackClient *kubernetes.Clientset,
-	cpuFreqGetterImage, imagePullSecret string, cpufreqJobExcludeNodeLabels map[string]set.Set, useProxyEndpoint bool) *kubeclient.KubeletClient {
+	cpuFreqGetterImage, imagePullSecret string, cpufreqJobExcludeNodeLabels map[string]set.Set, useProxyEndpoint bool,
+) *kubeclient.KubeletClient {
 	kubeletClient, err := kubeclient.NewKubeletConfig(kubeConfig).
 		WithPort(s.KubeletPort).
 		EnableHttps(s.EnableKubeletHttps).
@@ -745,7 +747,6 @@ func GetSCCs(client dynamic.Interface) (sccList *unstructured.UnstructuredList) 
 			}
 			return err
 		})
-
 	if err != nil {
 		return nil
 	}
@@ -770,7 +771,6 @@ func createSCCServiceAccount(namespace, sccName string, kubeClient kubernetes.In
 				return err
 			}
 			return nil
-
 		})
 
 	return saName, err
@@ -965,7 +965,6 @@ func deleteSCCClusterRole(namespace string, kubeClient kubernetes.Interface) {
 			}
 			return nil
 		})
-
 	if err != nil {
 		glog.Errorf("Error deleting SCC cluster role. %v", err)
 	}
@@ -985,7 +984,6 @@ func deleteSCCClusterRoleBinding(namespace string, kubeClient kubernetes.Interfa
 			}
 			return nil
 		})
-
 	if err != nil {
 		glog.Errorf("Error deleting SCC cluster role binding. %v", err)
 	}

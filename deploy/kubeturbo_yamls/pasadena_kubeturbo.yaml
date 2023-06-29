@@ -12,7 +12,8 @@ metadata:
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1    
 metadata:
-  name: turbo-all-binding
+  # The name should be unique for Kubeturbo instance
+  name: turbo-all-binding-kubeturbo-iks
   namespace: iks
 subjects:
 - kind: ServiceAccount

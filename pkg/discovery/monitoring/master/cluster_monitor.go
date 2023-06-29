@@ -240,9 +240,8 @@ func (m *ClusterMonitor) genPodMetrics(pod *api.Pod, nodeCPUCapacityMillicore, n
 // Container.Capacity = container.Limit if limit is set, otherwise is Pod.Capacity
 // Application won't sell CPU/Memory, so no need to generate application CPU/Memory Capacity for application
 func (m *ClusterMonitor) genContainerMetrics(pod *api.Pod, podCPUMillicore, podMem float64) (float64, float64) {
-
-	totalCPURequest := float64(0.0)
-	totalMemRequest := float64(0.0)
+	totalCPURequest := 0.0
+	totalMemRequest := 0.0
 	podMId := util.PodMetricIdAPI(pod)
 	podKey := util.PodKeyFunc(pod)
 
@@ -251,22 +250,24 @@ func (m *ClusterMonitor) genContainerMetrics(pod *api.Pod, podCPUMillicore, podM
 		containerMId := util.ContainerMetricId(podMId, container.Name)
 
 		//1. CPU, Memory, CPULimitQuota and MemoryLimitQuota capacity
-		limits := container.Resources.Limits
-		cpuLimit := limits.Cpu().MilliValue()
-		memLimit := limits.Memory().Value()
 		cpuCapacityMillicore := podCPUMillicore
-		memCapacity := podMem
-
-		if cpuLimit > 1 {
+		memCapacityKilobytes := podMem
+		limits := container.Resources.Limits
+		// Quantity.MilliValue() returns the value of ceil(quantity * 1000) as int64.
+		// As a result, the smallest possible cpuLimit in millicore is 1
+		cpuLimit := limits.Cpu().MilliValue()
+		if cpuLimit >= 1 {
 			cpuCapacityMillicore = float64(cpuLimit)
 		}
-
-		if memLimit > 1 {
-			memCapacity = util.Base2BytesToKilobytes(float64(memLimit))
+		// Quantity.Value() returns the unscaled value of quantity rounded up to the nearest integer away from 0.
+		// As a result, the smallest possible memLimit in base2 bytes is 1
+		memLimit := limits.Memory().Value()
+		if memLimit >= 1 {
+			memCapacityKilobytes = util.Base2BytesToKilobytes(float64(memLimit))
 		}
-		m.genCapacityMetrics(metrics.ContainerType, containerMId, cpuCapacityMillicore, memCapacity)
+		m.genCapacityMetrics(metrics.ContainerType, containerMId, cpuCapacityMillicore, memCapacityKilobytes)
 		// Generate resource limit quota metrics with used value as CPU/memory resource capacity
-		m.genLimitQuotaUsedMetrics(metrics.ContainerType, containerMId, cpuCapacityMillicore, memCapacity)
+		m.genLimitQuotaUsedMetrics(metrics.ContainerType, containerMId, cpuCapacityMillicore, memCapacityKilobytes)
 
 		//2. CPURequest, MemoryRequest, CPURequestQuota and MemoryRequestQuota capacity
 		requests := container.Resources.Requests
