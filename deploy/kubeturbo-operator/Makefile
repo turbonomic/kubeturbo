@@ -188,7 +188,12 @@ OPERATOR_BASE_DIR ?= kubeturbo-certified-operator
 OPERATOR_CRD_FILE_PATH ?= deploy/crds/charts_v1alpha1_kubeturbo_crd.yaml
 
 .PHONY: build-certified-operator-bundle
-build-certified-operator-bundle:yq python verify_image_digest_version create_certified_operator_bundle_directory update_image_digest_in_operator_bundle update_operator_version_in_operator_bundle update_olm_skipRange_in_operator_bundle update_cluster_permissions_in_operator_bundle update_release_channel_in_operator_bundle
+build-certified-operator-bundle:yq python verify-operator-release-channel verify_image_digest_version create_certified_operator_bundle_directory update_image_digest_in_operator_bundle update_operator_version_in_operator_bundle update_olm_skipRange_in_operator_bundle update_cluster_permissions_in_operator_bundle update_release_channel_in_operator_bundle
+## verify operator release channel, to allow only valid releases
+verify-operator-release-channel:
+    ifneq ($(filter $(OPERATOR_RELEASE_CHANNEL),stable beta),$(OPERATOR_RELEASE_CHANNEL))
+        $(error Invalid operator release channel parameter - $(OPERATOR_RELEASE_CHANNEL). valid release channels are either "stable" or "beta only".)
+    endif
 ## verify if the version field value is present in the image to proceed, if empty exit the execution
 verify_image_digest_version:
 	@echo "Verify Image Digest version field value"
