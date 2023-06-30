@@ -174,7 +174,7 @@ $(PYTHON):
 			sudo apt update && sudo apt install python3; \
 		fi \
 	fi
-	ln -sf `command -v python3` $(PYTHON_BIN)
+	ln -sf `command -v python3` $(PYTHON)
 
 
 
