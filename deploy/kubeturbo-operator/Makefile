@@ -198,6 +198,7 @@ verify-operator-release-channel:
 ## verify if the version field value is present in the image to proceed, if empty exit the execution
 verify_image_digest_version:
 	@echo "Verify Image Digest version field value"
+	docker pull $(REGISTRY)/$(OPERATOR_NAME)-operator:$(OPERATOR_RELEASE_VERSION)
 	version=$$(docker inspect $(REGISTRY)/$(OPERATOR_NAME)-operator:$(OPERATOR_RELEASE_VERSION) | grep '"version":' | awk '{print $$2}' | tr -d '",'); \
 	if [ -z "$$version" ]; then \
 		echo "Error: Image digest version field is empty, cannot procced with $(OPERATOR_CERTIFIED)-operator bundle release."; \
@@ -217,7 +218,6 @@ create_certified_operator_bundle_directory:
 ## update image digest key
 update_image_digest_in_operator_bundle:
 	@echo "Updating image digest in $(OPERATOR_CERTIFIED)-clusterserviceversion..."
-	docker pull $(REGISTRY)/$(OPERATOR_NAME)-operator:$(OPERATOR_RELEASE_VERSION)
 	digest=$$(docker inspect --format='{{index .RepoDigests 0}}' $(REGISTRY)/$(OPERATOR_NAME)-operator:$(OPERATOR_RELEASE_VERSION) | awk -F@ '{print $$2}'); \
 	$(YQ) eval -i '.spec.install.spec.deployments[0].spec.template.spec.containers[0].image |= sub("sha256:.*", "'$$digest'") | .spec.relatedImages[0].image |= sub("sha256:.*", "'$$digest'")' \
 		$(OPERATOR_BUNDLE_DIR)/manifest/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml
