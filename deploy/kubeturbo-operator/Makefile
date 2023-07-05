@@ -184,9 +184,11 @@ OPERATOR_OLM_INCLUSIVE_RANGE_VERSION ?= 8.7.5
 OPERATOR_OLM_INCLUSIVE_BETA_VERSION ?= beta.1
 OPERATOR_RELEASE_FILTER ?= beta
 OPERATOR_CERTIFIED ?= kubeturbo-certified
-OPERATOR_BUNDLE_DIR ?= kubeturbo-certified-operator-bundle
-OPERATOR_BASE_DIR ?= kubeturbo-certified-operator
+OPERATOR_BUNDLE_DIR ?= certified-operator-bundle
+OPERATOR_BASE_DIR ?= bundle-template
 OPERATOR_CRD_FILE_PATH ?= deploy/crds/charts_v1alpha1_kubeturbo_crd.yaml
+CLUSTER_PERMISSION_ROLE_YAML_FILE_PATH ?= deploy/kubeturbo-operator-cluster-role.yaml
+CERTIFIED_OPERATOR_CLUSTER_SERVICE_VERSION_YAML_FILE_PATH ?= $(OPERATOR_BUNDLE_DIR)/manifest/kubeturbo-certified.clusterserviceversion.yaml
 
 .PHONY: build-certified-operator-bundle
 build-certified-operator-bundle:yq python verify-operator-release-channel verify_image_digest_version create_certified_operator_bundle_directory update_image_digest_in_operator_bundle update_operator_version_in_operator_bundle update_olm_skipRange_in_operator_bundle update_cluster_permissions_in_operator_bundle update_release_channel_in_operator_bundle
@@ -211,9 +213,9 @@ create_certified_operator_bundle_directory:
 	@echo "Creating certified operator bundle files for $(OPERATOR_CERTIFIED) clusterserviceversion..."
 	mkdir -p $(OPERATOR_BUNDLE_DIR)/manifest/
 	cp $(OPERATOR_CRD_FILE_PATH) $(OPERATOR_BUNDLE_DIR)/manifest/kubeturbos.charts.helm.k8s.io.crd.yaml
-	cp $(OPERATOR_BASE_DIR)/bases/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml $(OPERATOR_BUNDLE_DIR)/manifest/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml
+	cp $(OPERATOR_BASE_DIR)/template/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml $(OPERATOR_BUNDLE_DIR)/manifest/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml
 	mkdir -p $(OPERATOR_BUNDLE_DIR)/metadata/
-	cp $(OPERATOR_BASE_DIR)/bases/annotations.yaml $(OPERATOR_BUNDLE_DIR)/metadata/annotations.yaml
+	cp $(OPERATOR_BASE_DIR)/template/annotations.yaml $(OPERATOR_BUNDLE_DIR)/metadata/annotations.yaml
 	@echo "$(OPERATOR_CERTIFIED)-operator bundle directory created successfully."
 ## update image digest key
 update_image_digest_in_operator_bundle:
@@ -239,7 +241,9 @@ update_olm_skipRange_in_operator_bundle:
 ## update cluster permissions roles
 update_cluster_permissions_in_operator_bundle:
 	@echo "Updating cluster permissions roles in $(OPERATOR_CERTIFIED)-clusterserviceversion..."
-	$(PYTHON) $(OPERATOR_BASE_DIR)/cluster_permissions_automation.py
+	$(PYTHON) $(OPERATOR_BASE_DIR)/cluster_permissions_automation.py \
+	$(CLUSTER_PERMISSION_ROLE_YAML_FILE_PATH) \
+	$(CERTIFIED_OPERATOR_CLUSTER_SERVICE_VERSION_YAML_FILE_PATH)
 	@echo "$(OPERATOR_CERTIFIED)-clusterserviceversion cluster permissions roles updated successfully."
 ## update release channel
 update_release_channel_in_operator_bundle:
