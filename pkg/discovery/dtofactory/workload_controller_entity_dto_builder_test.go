@@ -48,7 +48,7 @@ var (
 		"controller1-UID", testAllocationResources)
 	testKubeController2 = repository.NewKubeController(testClusterName, testNamespace, "controller2", testCustomControllerType, "controller2-UID")
 
-	kubeCluster = repository.KubeCluster{Name: clusterId}
+	kubeCluster        = repository.KubeCluster{Name: clusterId}
 	kubeClusterSummary = repository.ClusterSummary{KubeCluster: &kubeCluster}
 
 	testWorkloadControllerDTOBuilder = NewWorkloadControllerDTOBuilder(&kubeClusterSummary,
@@ -62,16 +62,16 @@ var (
 )
 
 func TestBuildDTOs(t *testing.T) {
-	// Mock the cluster summary data from which we retrieve the number of configured replicas on the 
+	// Mock the cluster summary data from which we retrieve the number of configured replicas on the
 	// WorkloadController
 	deploymentReplicaCount := int32(1)
 	customControllerReplicaCount := int32(0)
 	kubeCluster.ControllerMap = make(map[string]*repository.K8sController)
 	for _, controller := range testWorkloadControllerDTOBuilder.kubeControllersMap {
 		k8sController := repository.NewK8sController(
-			"WorkloadController", 
-			controller.Name, 
-			controller.Namespace, 
+			"WorkloadController",
+			controller.Name,
+			controller.Namespace,
 			controller.UID,
 		)
 		if controller.UID == testKubeController1.UID {
