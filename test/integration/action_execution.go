@@ -451,9 +451,9 @@ var _ = Describe("Action Executor ", func() {
 
 	Describe("check scc impersonation support that", func() {
 		BeforeEach(func() {
-			// if !framework.TestContext.IsOpenShiftTest {
-			// 	Skip("Ignoring scc impersonation tests on non openshift target.")
-			// }
+			if !framework.TestContext.IsOpenShiftTest {
+				Skip("Ignoring scc impersonation tests on non openshift target.")
+			}
 		})
 
 		// This test is sequential and will run subsequent specs if one fails
@@ -471,12 +471,12 @@ var _ = Describe("Action Executor ", func() {
 
 		// Check one pod with scc which has lower scc level then default anyuid
 		It("move action on a pod with restricted scc creates the new pod with the same scc level", func() {
-			clientForSccLevel, err := getDesiredUserImpersonationClient(namespace, "restricted", kubeConfig)
+			clientForSccLevel, err := getDesiredUserImpersonationClient(namespace, "restricted-v2", kubeConfig)
 			framework.ExpectNoError(err, "Error getting impersonation client")
 			pod, err := createBarePod(clientForSccLevel, genSimpleBarePodUsingSA(namespace,
 				fmt.Sprintf("%srestricted", util.KubeturboSCCPrefix), false))
 			framework.ExpectNoError(err, "Error creating bare pod")
-			validatePodGetsDesiredScc(namespace, "restricted", pod, kubeClient)
+			validatePodGetsDesiredScc(namespace, "restricted-v2", pod, kubeClient)
 
 			targetNodeName := getTargetSENodeName(f, pod)
 			if targetNodeName == "" {
@@ -488,7 +488,7 @@ var _ = Describe("Action Executor ", func() {
 				newTargetSEFromPod(pod), newHostSEFromNodeName(targetNodeName)), nil, &mockProgressTrack{})
 			framework.ExpectNoError(err, "Bare pod move with scc level failed")
 			newPod := validateMovedPod(kubeClient, pod.Name, "barepod", namespace, targetNodeName)
-			validatePodGetsDesiredScc(namespace, "restricted", newPod, clientForSccLevel)
+			validatePodGetsDesiredScc(namespace, "restricted-v2", newPod, clientForSccLevel)
 		})
 
 		// Check one pod with scc which has higher scc level then default anyuid
