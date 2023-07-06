@@ -451,9 +451,9 @@ var _ = Describe("Action Executor ", func() {
 
 	Describe("check scc impersonation support that", func() {
 		BeforeEach(func() {
-			if !framework.TestContext.IsOpenShiftTest {
-				Skip("Ignoring scc impersonation tests on non openshift target.")
-			}
+			// if !framework.TestContext.IsOpenShiftTest {
+			// 	Skip("Ignoring scc impersonation tests on non openshift target.")
+			// }
 		})
 
 		// This test is sequential and will run subsequent specs if one fails
