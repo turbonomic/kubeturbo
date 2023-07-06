@@ -234,7 +234,7 @@ update_image_digest_in_operator_bundle:
 	    $(YQ) eval -i '.spec.install.spec.deployments[0].spec.template.spec.containers[0].image |= sub("sha256:.*", "'$$digest'") | .spec.relatedImages[0].image |= sub("sha256:.*", "'$$digest'")' \
 		    $(OPERATOR_BUNDLE_DIR)/manifest/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml; \
 	    echo "$(OPERATOR_CERTIFIED)-clusterserviceversion image digest updated."; \
-    fi
+        fi
 
 ## update release version
 update_operator_version_in_operator_bundle:
