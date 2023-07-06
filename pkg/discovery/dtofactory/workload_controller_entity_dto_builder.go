@@ -70,22 +70,25 @@ func (builder *workloadControllerDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, er
 			entityDTOBuilder.Owns(containerSpecId)
 		}
 
-		// Create WorkloadControllerData to store controller type data
-		entityDTOBuilder.WorkloadControllerData(builder.createWorkloadControllerData(kubeController))
-
 		// WorkloadController cannot be provisioned or suspended by Turbonomic analysis
 		entityDTOBuilder.IsProvisionable(false)
 		entityDTOBuilder.IsSuspendable(false)
 
 		entityDTOBuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 		entityDTOBuilder.WithProperty(property.BuildWorkloadControllerNSProperty(kubeController.Namespace))
+
+		var replicas int32
 		if builder.clusterSummary != nil {
 			controller, found := builder.clusterSummary.ControllerMap[workloadControllerId]
 			if found {
 				entityDTOBuilder.WithProperties(property.BuildLabelAnnotationProperties(controller.Labels, controller.Annotations, detectors.AWWorkloadController))
-
+				replicas = int32(*controller.Replicas)
 			}
 		}
+
+		// Create WorkloadControllerData to store controller type data
+		entityDTOBuilder.WorkloadControllerData(builder.createWorkloadControllerData(kubeController, replicas))
+
 		entityDTO, err := entityDTOBuilder.Create()
 		if err != nil {
 			glog.Errorf("failed to build WorkloadController[%s] entityDTO: %v", workloadControllerDisplayName, err)
@@ -249,13 +252,12 @@ func CreateWorkloadControllerDataByControllerType(kind string) *proto.EntityDTO_
 	return data
 }
 
-func (builder *workloadControllerDTOBuilder) createWorkloadControllerData(kubeController *repository.KubeController) *proto.EntityDTO_WorkloadControllerData {
+func (builder *workloadControllerDTOBuilder) createWorkloadControllerData(kubeController *repository.KubeController, replicas int32) *proto.EntityDTO_WorkloadControllerData {
 	controllerType := kubeController.ControllerType
 	data := CreateWorkloadControllerDataByControllerType(controllerType)
 
 	if data != nil {
-		replicaCount := getActiveReplicaCount(kubeController)
-		data.ReplicaCount = &replicaCount
+		data.ReplicaCount = &replicas
 	}
 
 	return data
