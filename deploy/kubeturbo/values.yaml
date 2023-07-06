@@ -89,6 +89,10 @@ HANodeConfig:
 #   GitopsApps: false (default: true)
 #   GoMemLimit: true (default: false)
 
+# Logging level. Changing this value does not require restart of Kubeturbo but takes about 1 minute to take effect
+logging:
+  level: 2
+
 args:
   # logging level
   logginglevel: 2
