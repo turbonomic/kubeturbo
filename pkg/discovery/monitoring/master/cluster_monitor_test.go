@@ -22,13 +22,13 @@ var expectedMetrics = map[string]float64{
 	"Node-mynode-Memory-Capacity":        8.388608e+06,
 	"Node-mynode-CPURequest-Capacity":    1900,
 	"Node-mynode-MemoryRequest-Capacity": 7.340032e+06,
-	"Node-mynode-CPURequest-Used":        260,
+	"Node-mynode-CPURequest-Used":        261,
 	"Node-mynode-MemoryRequest-Used":     262144,
 
 	// Pod metrics
 	"Pod-default/mypod-CPU-Capacity":       2000,
 	"Pod-default/mypod-Memory-Capacity":    8.388608e+06,
-	"Pod-default/mypod-CPURequest-Used":    260,
+	"Pod-default/mypod-CPURequest-Used":    261,
 	"Pod-default/mypod-MemoryRequest-Used": 262144,
 
 	// Container metrics
@@ -48,11 +48,15 @@ var expectedMetrics = map[string]float64{
 	"Container-default/mypod/istio-proxy-CPURequestQuota-Used":           10,
 	"Container-default/mypod/istio-proxy-MemoryLimitQuota-Used":          8.388608e+06,
 	"Container-default/mypod/istio-proxy-MemoryRequestQuota-Used":        0,
+	"Container-default/mypod/filebeat-sidecar-CPULimitQuota-Used":        1,
+	"Container-default/mypod/filebeat-sidecar-CPURequestQuota-Used":      1,
+	"Container-default/mypod/filebeat-sidecar-MemoryLimitQuota-Used":     8.388608e+06,
+	"Container-default/mypod/filebeat-sidecar-MemoryRequestQuota-Used":   0,
 }
 
 func genCPUQuantity(cores float32) resource.Quantity {
-	cpuTime := int(cores * 1000)
-	result, _ := resource.ParseQuantity(fmt.Sprintf("%dm", cpuTime))
+	cpuTime := cores * 1000
+	result, _ := resource.ParseQuantity(fmt.Sprintf("%fm", cpuTime))
 	glog.V(3).Infof("result = %+v", result)
 	return result
 }
@@ -64,10 +68,10 @@ func genMemQuantity(numKB int64) resource.Quantity {
 }
 
 func buildResource(cores float32, numMB int64) api.ResourceList {
-	resource := make(api.ResourceList)
-	resource[api.ResourceCPU] = genCPUQuantity(cores)
-	resource[api.ResourceMemory] = genMemQuantity(numMB * 1024)
-	return resource
+	return api.ResourceList{
+		api.ResourceCPU:    genCPUQuantity(cores),
+		api.ResourceMemory: genMemQuantity(numMB * 1024),
+	}
 }
 
 func mockContainer(name string, requestCores, limitCores float32,
@@ -109,6 +113,8 @@ func mockPod(name string) *api.Pod {
 			Containers: []api.Container{
 				mockContainer("twitter-cass-tweet", 0.25, 0.25, 256, 256),
 				mockContainer("istio-proxy", 0.01, 2.0, 0, 8192),
+				// Test that 0.5 mCore will be rounded up to 1 mCore
+				mockContainer("filebeat-sidecar", 0.0005, 0.0005, 0, 0),
 			},
 		},
 	}
@@ -155,7 +161,7 @@ func TestGenNodeResourceMetrics(t *testing.T) {
 	clusterMonitor.nodePodMap = make(map[string][]*api.Pod)
 	clusterMonitor.nodePodMap["mynode"] = pods
 	// Collect node/pod/container metrics
-	clusterMonitor.findNodeStates()
+	_ = clusterMonitor.findNodeStates()
 	for name, value := range expectedMetrics {
 		metric, err := clusterMonitor.sink.GetMetric(name)
 		if err != nil {
