@@ -14,11 +14,13 @@ import (
 	"time"
 
 	set "github.com/deckarep/golang-set"
+	"github.com/fsnotify/fsnotify"
 	"github.com/golang/glog"
 	osclient "github.com/openshift/client-go/apps/clientset/versioned"
 	clusterclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 	apiv1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1008,4 +1010,48 @@ func reviewSCCAccess(namespace string, kubeClient kubernetes.Interface) bool {
 	}
 
 	return true
+}
+
+func WatchConfigMap() {
+	//Check if the file /etc/kubeturbo/turbo-autoreload.config exists
+	autoReloadConfigFilePath := "/etc/kubeturbo"
+	autoReloadConfigFileName := "turbo-autoreload.config"
+
+	viper.AddConfigPath(autoReloadConfigFilePath)
+	viper.SetConfigType("json")
+	viper.SetConfigName(autoReloadConfigFileName)
+	for {
+		verr := viper.ReadInConfig()
+		if verr == nil {
+			break
+		} else {
+			glog.V(4).Infof("Can't read the autoreload config file %s/%s due to the error: %v, will retry in 3 seconds", autoReloadConfigFilePath, autoReloadConfigFileName, verr)
+			time.Sleep(30 * time.Second)
+		}
+	}
+
+	glog.V(1).Infof("Start watching the autoreload config file %s/%s", autoReloadConfigFilePath, autoReloadConfigFileName)
+	updateConfig := func() {
+		newLoggingLevel := viper.GetString("logging.level")
+		currentLoggingLevel := pflag.Lookup("v").Value.String()
+		if newLoggingLevel != currentLoggingLevel {
+			if newLogVInt, err := strconv.Atoi(newLoggingLevel); err != nil || newLogVInt < 0 {
+				glog.Errorf("Invalid log verbosity %v in the autoreload config file", newLoggingLevel)
+			} else {
+				err := pflag.Lookup("v").Value.Set(newLoggingLevel)
+				if err != nil {
+					glog.Errorf("Can't apply the new logging level setting due to the error:%v", err)
+				} else {
+					glog.V(1).Infof("Logging level is changed from %v to %v", currentLoggingLevel, newLoggingLevel)
+				}
+
+			}
+		}
+	}
+	updateConfig() //update the logging level during startup
+	viper.OnConfigChange(func(in fsnotify.Event) {
+		updateConfig()
+	})
+
+	viper.WatchConfig()
 }
