@@ -286,6 +286,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 		// TODO: This is not an ideal way of doing things, and users should be
 		// encouraged to rather disable move actions on pods which use volumes
 		// via a config either in kubeturbo or driven from server UI.
+		glog.V(4).Infof("Pod using volume. Deleting original pod %s/%s right away", pod.Namespace, pod.Name)
 		if err := podClient.Delete(context.TODO(), pod.Name, metav1.DeleteOptions{}); err != nil {
 			glog.Errorf("Move pod warning: failed to delete original pod: %v", err)
 			return nil, err
@@ -313,6 +314,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 		}
 	}
 	//step 5: wait until podC gets ready
+	glog.V(4).Infof("Now wait for new pod to be ready %s/%s", pod.Namespace, pod.Name)
 	err = podutil.WaitForPodReady(clusterScraper.Clientset, npod.Namespace, npod.Name, nodeName, time.Second*time.Duration(initDelay),
 		failureThreshold, retryInterval)
 	if err != nil {
@@ -322,6 +324,7 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 
 	if !podUsingVolume {
 		// step 4: delete the original pod--podA
+		glog.V(4).Infof("New pod ready. Deleting original pod %s/%s", pod.Namespace, pod.Name)
 		if err := podClient.Delete(context.TODO(), pod.Name, metav1.DeleteOptions{}); err != nil {
 			glog.Errorf("Move pod warning: failed to delete original pod: %v", err)
 			return nil, err
@@ -345,6 +348,8 @@ func movePod(clusterScraper *cluster.ClusterScraper, pod *api.Pod, nodeName, par
 		// a workloads pod would have labels almost always.
 		xpod.Labels = make(map[string]string)
 	}
+
+	glog.V(4).Infof("Updating new pod labels %s/%s", xpod.Namespace, xpod.Name)
 	if _, err := podClient.Update(context.TODO(), xpod, metav1.UpdateOptions{}); err != nil {
 		glog.Errorf("Move pod failed: failed to update labels on the cloned pod: %v", err)
 		return nil, err
@@ -423,20 +428,21 @@ func deleteInvalidPendingPods(parent *unstructured.Unstructured, podClient v1.Po
 
 	// Find the pods which weren't there and if attributed to invalid
 	// turbo-scheduler, delete them.
-	for _, pod := range newPendingInvalidPods(newPodList, podList) {
+	for _, podName := range newPendingInvalidPods(newPodList, podList) {
 		err := commonutil.RetryDuring(DefaultExecutionRetry, DefaultRetryShortTimeout,
 			DefaultRetrySleepInterval, func() error {
-				return podClient.Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
+				glog.V(5).Infof("Deleting pending pod %s", podName)
+				return podClient.Delete(context.TODO(), podName, metav1.DeleteOptions{})
 			})
 		if err != nil {
-			glog.Errorf("Failed to delete pending pod: %s.", pod.Name)
+			glog.Errorf("Failed to delete pending pod: %s.", podName)
 		}
 	}
 
 }
 
-func newPendingInvalidPods(newList, oldList *api.PodList) []*api.Pod {
-	var diffList []*api.Pod
+func newPendingInvalidPods(newList, oldList *api.PodList) []string {
+	var diffList []string
 	if newList == nil {
 		return diffList
 	}
@@ -447,15 +453,17 @@ func newPendingInvalidPods(newList, oldList *api.PodList) []*api.Pod {
 				if pod1.Name == pod2.Name {
 					// pod1 from newList also exists in oldList
 					found = true
+					break
 				}
 			}
 		}
-		if found == true {
+		if found {
 			continue
 		}
 		if pod1.Status.Phase == api.PodPending &&
 			pod1.Spec.SchedulerName == DummyScheduler {
-			diffList = append(diffList, &pod1)
+			diffList = append(diffList, pod1.Name)
+			glog.V(5).Infof("Found pending pod to delete: %++v", pod1.Name)
 		}
 	}
 
