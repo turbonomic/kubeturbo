@@ -257,7 +257,7 @@ github.com/turbonomic/orm/api/v1alpha1
 github.com/turbonomic/orm/kubernetes
 github.com/turbonomic/orm/registry
 github.com/turbonomic/orm/utils
-# github.com/turbonomic/turbo-api v0.0.0-20221010220448-3f35ebf030aa
+# github.com/turbonomic/turbo-api v0.0.0-20230707140005-7608899ba463
 ## explicit
 github.com/turbonomic/turbo-api/pkg/api
 github.com/turbonomic/turbo-api/pkg/client
