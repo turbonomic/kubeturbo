@@ -18,7 +18,7 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/turbonomic/orm v0.0.0-20230515224524-8f968dcc8f2e
 	github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3
-	github.com/turbonomic/turbo-go-sdk v0.0.0-20230607193533-764251e890b8
+	github.com/turbonomic/turbo-go-sdk v0.0.0-20230710083128-36d2c50585d7
 	github.com/turbonomic/turbo-policy v0.0.0-20230328195608-0556e3cbe9b3
 	github.com/xanzy/go-gitlab v0.74.0
 	k8s.io/klog/v2 v2.80.1
@@ -60,7 +60,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
-	github.com/turbonomic/turbo-api v0.0.0-20221010220448-3f35ebf030aa // indirect
+	github.com/turbonomic/turbo-api v0.0.0-20230707140005-7608899ba463 // indirect
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/sys v0.6.0 // indirect

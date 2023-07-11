@@ -257,14 +257,14 @@ github.com/turbonomic/orm/api/v1alpha1
 github.com/turbonomic/orm/kubernetes
 github.com/turbonomic/orm/registry
 github.com/turbonomic/orm/utils
-# github.com/turbonomic/turbo-api v0.0.0-20221010220448-3f35ebf030aa
+# github.com/turbonomic/turbo-api v0.0.0-20230707140005-7608899ba463
 ## explicit
 github.com/turbonomic/turbo-api/pkg/api
 github.com/turbonomic/turbo-api/pkg/client
 # github.com/turbonomic/turbo-gitops v0.0.0-20221208150810-105a2d5244b3
 ## explicit; go 1.19
 github.com/turbonomic/turbo-gitops/api/v1alpha1
-# github.com/turbonomic/turbo-go-sdk v0.0.0-20230607193533-764251e890b8
+# github.com/turbonomic/turbo-go-sdk v0.0.0-20230710083128-36d2c50585d7
 ## explicit; go 1.13
 github.com/turbonomic/turbo-go-sdk/pkg
 github.com/turbonomic/turbo-go-sdk/pkg/builder
