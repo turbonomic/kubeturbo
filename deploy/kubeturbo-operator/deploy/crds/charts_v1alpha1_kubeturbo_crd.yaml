@@ -67,6 +67,9 @@ spec:
             type: object
             x-kubernetes-preserve-unknown-fields: true
             properties:
+              roleName:
+                description: The name of cluster role. Specify custom turbo-cluster-reader or turbo-cluster-admin role instead of the default cluster-admin role
+                type: string
               roleBinding:
                 description: The name of cluster role binding. Default is turbo-all-binding
                 type: string

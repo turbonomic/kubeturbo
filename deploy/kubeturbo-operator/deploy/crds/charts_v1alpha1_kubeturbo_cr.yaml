@@ -58,3 +58,6 @@ spec:
   #  requests:
   #    memory: 512Mi
   #    cpu: "1"
+
+  # Specify custom turbo-cluster-reader or turbo-cluster-admin role instead of the default cluster-admin role
+  roleName: turbo-cluster-admin
