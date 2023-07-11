@@ -31,6 +31,7 @@ spec:
     targetName: Cluster_Name
   # The name should be unique for Kubeturbo instance  
   roleBinding: turbo-all-binding-Kubeturbo_name-Kubeturbo_namespace
+  # Specify custom turbo-cluster-reader or turbo-cluster-admin role instead of the default cluster-admin role
   roleName: cluster-admin
   serverMeta:
     turboServer: https://Turbo_server_URL
