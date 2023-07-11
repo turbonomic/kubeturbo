@@ -39,6 +39,11 @@ spec:
   targetConfig:
     targetName: YOUR-CLUSTER-NAME
 
+  # Uncomment next lines to use dynamic logging level
+  # Changing this value does not require restart of Kubeturbo but takes about 1 minute to take effect
+  # logging:
+  #   level: 2
+
   # Uncomment next lines to specify a repository and image tag for kubeturbo
   #image:
   #  repository: icr.io/cpopen/turbonomic/kubeturbo
