@@ -154,6 +154,13 @@ spec:
                   targetName:
                     description: Optional target name for registration
                     type: string
+              logging:
+                 description: Optional logging level configuration. Changing this value does not require restart of Kubeturbo but takes about 1 minute to take effect
+                 type: object
+                 properties:
+                   level:
+                     description: Define logging level, default is info = 2
+                     type: integer
               args:
                 description: Kubeturbo command line arguments
                 type: object
