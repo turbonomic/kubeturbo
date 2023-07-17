@@ -3,6 +3,8 @@
 SCRIPT_DIR="$(cd "$(dirname $0)" && pwd)"
 ERR_LOG=$(mktemp --suffix _kube.errlog)
 WAIT_FOR_DEPLOYMENT=20
+OPERATOR_IMAGE_VERSION="8.9.5-SNAPSHOT"
+OPERATOR_IMAGE="icr.io\/cpopen\/kubeturbo-operator:${OPERATOR_IMAGE_VERSION}"
 
 # turbonomic is the default namespace that matches the xl setup
 # please change the value according to your set up
@@ -12,16 +14,23 @@ function install_operator {
 	NS=$1
 	[ -z "${NS}" ] && echo -e "Operator namespace not provided" | tee -a ${ERR_LOG} && exit 1
 	kubectl create ns ${NS}
+	kubectl delete -f ${SCRIPT_DIR}/deploy/crds/*crd.yaml
 	kubectl apply -f ${SCRIPT_DIR}/deploy/crds/*crd.yaml
 	kubectl apply -f ${SCRIPT_DIR}/deploy/service_account.yaml -n ${NS}
 	kubectl apply -f ${SCRIPT_DIR}/deploy/role_binding.yaml
-	kubectl apply -f ${SCRIPT_DIR}/deploy/operator.yaml -n ${NS}
+
+	# dynamically apply the image version
+	sed "s/image:.*/image: ${OPERATOR_IMAGE}/g" ${SCRIPT_DIR}/deploy/operator.yaml > ${SCRIPT_DIR}/deploy/updated_operator.yaml
+	kubectl apply -f ${SCRIPT_DIR}/deploy/updated_operator.yaml -n ${NS}
 }
 
 function uninstall_operator {
 	NS=$1
 	[ -z "${NS}" ] && echo -e "Operator namespace not provided" | tee -a ${ERR_LOG} && exit 1
-	kubectl delete -f ${SCRIPT_DIR}/deploy/operator.yaml -n ${NS}
+
+	kubectl delete -f ${SCRIPT_DIR}/deploy/updated_operator.yaml -n ${NS}
+	rm ${SCRIPT_DIR}/deploy/updated_operator.yaml
+
 	kubectl delete -f ${SCRIPT_DIR}/deploy/role_binding.yaml
 	kubectl delete -f ${SCRIPT_DIR}/deploy/service_account.yaml -n ${NS}
 	kubectl delete ns ${NS}
@@ -29,6 +38,7 @@ function uninstall_operator {
 
 function create_cr {
 	CR_SURFIX=$1
+	CLUSTER_ROLE=${2-"cluster-admin"}
 
 	# username and password for the local ops-manager
 	OPS_MANAGER_USERNAME=administrator
@@ -72,6 +82,7 @@ function create_cr {
 	    opsManagerPassword: ${OPS_MANAGER_PASSWORD}
 	  targetConfig:
 	    targetName: ${CR_SURFIX}
+	  roleName: ${CLUSTER_ROLE}
 	EOT
 }
 
@@ -110,14 +121,30 @@ function install_cr {
 		echo -e ">  Deployment ${CR_DEPLOY} log check........PASSED"
 	fi
 
-	# check if the correct cluster role binding get generated
 	CR_DEPLOY_NAME=$(kubectl get ${CR_DEPLOY} -n ${NS} -o jsonpath={.metadata.name})
+
+	# check if the correct cluster role binding get generated
 	TARGET_ROLEBINDING="turbo-all-binding-${CR_DEPLOY_NAME}-${NS}"
-	if [ -z $(kubectl get ClusterRoleBinding -o NAME | grep ${TARGET_ROLEBINDING}) ]; then
+	kubectl get ClusterRoleBinding "${TARGET_ROLEBINDING}" >/dev/null
+	if [ $? -gt 0 ]; then
 		FAILED=$((${FAILED}+1))
 		echo -e ">  ClusterRoleBinding ${TARGET_ROLEBINDING} check........FAILED" | tee -a ${ERR_LOG}
 	else
-		echo -e ">  ClusterRoleBinding check........PASSED"
+		echo -e ">  ClusterRoleBinding ${TARGET_ROLEBINDING} check........PASSED"
+	fi
+
+	TARGET_ROLENAME=$(grep roleName ${CR_FILE} | awk '{print $2}')
+	if [ -z "${TARGET_ROLENAME}" ]; then
+		TARGET_ROLENAME="cluster-admin"
+	elif [ "${TARGET_ROLENAME}" != "cluster-admin" ]; then
+		TARGET_ROLENAME="${TARGET_ROLENAME}-${CR_DEPLOY_NAME}-${NS}"
+	fi
+	kubectl get ClusterRole "${TARGET_ROLENAME}" >/dev/null
+	if [ $? -gt 0 ]; then
+		FAILED=$((${FAILED}+1))
+		echo -e ">  ClusterRole ${TARGET_ROLENAME} check........FAILED" | tee -a ${ERR_LOG}
+	else
+		echo -e ">  ClusterRole ${TARGET_ROLENAME} check........PASSED"
 	fi
 
 	# summarize the deployment test
@@ -152,14 +179,22 @@ function main {
 
 	CR_NS1=testns1
 	CR_NS2=testns2
+	CR_NS3=testns3
+	CR_NS4=testns4
 	CR_FILE1=$(create_cr testcr1)
 	CR_FILE2=$(create_cr testcr2)
+	CR_FILE3=$(create_cr testcr3 "turbo-cluster-reader")
+	CR_FILE4=$(create_cr testcr4 "turbo-cluster-reader")
 	install_cr ${CR_NS1} ${CR_FILE1} "Deploy single kubeturbo test"
 	install_cr ${CR_NS2} ${CR_FILE2} "Deploy multiple kubeturbos test"
+	install_cr ${CR_NS3} ${CR_FILE3} "Deploy single turbo-cluster-reader kubeturbo test"
+	install_cr ${CR_NS4} ${CR_FILE4} "Deploy multiple turbo-cluster-reader kubeturbos test"
 
 	echo -e "> Tearing down kubeturbo tests"
 	uninstall_cr ${CR_NS1} ${CR_FILE1}
 	uninstall_cr ${CR_NS2} ${CR_FILE2}
+	uninstall_cr ${CR_NS3} ${CR_FILE3}
+	uninstall_cr ${CR_NS4} ${CR_FILE4}
 	uninstall_operator ${OPERATOR_NS}
 
 	TEST_RESULT=$(cat ${ERR_LOG})
@@ -171,4 +206,3 @@ function main {
 }
 
 main
-
