@@ -6,6 +6,11 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
+
+	api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
@@ -13,8 +18,6 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/features"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-	api "k8s.io/api/core/v1"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 const (
@@ -68,7 +71,8 @@ func (builder *nodeEntityDTOBuilder) WithClusterKeyInjected(clusterKeyInjected s
 }
 
 // BuildEntityDTOs builds entityDTOs based on the given node list.
-func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPods map[string][]string) ([]*proto.EntityDTO, []string) {
+func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPods map[string][]string,
+	hostnameSpreadWorkloads sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) ([]*proto.EntityDTO, []string) {
 	var result []*proto.EntityDTO
 	var notReadyNodes []string
 
@@ -107,7 +111,8 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPod
 		// affinity commodities sold
 		var affinityCommoditiesSold []*proto.CommodityDTO
 		if utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
-			affinityCommoditiesSold = builder.getAffinityCommoditiesSold(node, nodesPods)
+			affinityCommoditiesSold = builder.getAffinityCommoditiesSold(node, nodesPods,
+				hostnameSpreadWorkloads, otherSpreadPods, podsToControllers)
 			commoditiesSold = append(commoditiesSold, affinityCommoditiesSold...)
 		}
 		entityDTOBuilder.SellsCommodities(commoditiesSold)
@@ -416,17 +421,36 @@ func (builder *nodeEntityDTOBuilder) getAllocationCommoditiesSold(node *api.Node
 	return commoditiesSold, nil
 }
 
-func (builder *nodeEntityDTOBuilder) getAffinityCommoditiesSold(node *api.Node, nodesPods map[string][]string) []*proto.CommodityDTO {
-	var commoditiesSold []*proto.CommodityDTO
+func (builder *nodeEntityDTOBuilder) getAffinityCommoditiesSold(node *api.Node, nodesPods map[string][]string,
+	hostnameSpreadWorkloads sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) []*proto.CommodityDTO {
+	var commoditiesSold []*proto.CommodityDTO = nil
 	// Add label commodities to honor affinities
-	// This simply adds commodities sold for each pod that can
-	// be placed on this node
+	// This adds LABEL commodities sold for each pod that can be placed on this node
+	// This also adds SEGMENTATION commodities for spread workload pods
 	for _, podKey := range nodesPods[node.Name] {
+		key, exists := podsToControllers[podKey]
+		if !exists || otherSpreadPods.Has(podKey) {
+			key = podKey
+		}
 		commodityDTO, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_LABEL).
-			Key(podKey).
+			Key(key).
 			Capacity(accessCommodityDefaultCapacity).
 			Create()
 		if err != nil {
+			glog.Warningf("Error creating LABEL sold commodity for key %s on node %s", key, node.Name)
+			// We ignore a failure and continue to add the rest
+			continue
+		}
+		commoditiesSold = append(commoditiesSold, commodityDTO)
+	}
+
+	for _, workloadKey := range hostnameSpreadWorkloads.UnsortedList() {
+		commodityDTO, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_SEGMENTATION).
+			Key(workloadKey).
+			Capacity(1).
+			Create()
+		if err != nil {
+			glog.Warningf("Error creating SEGMENTATION sold commodity for key %s on node %s", workloadKey, node.Name)
 			// We ignore a failure and continue to add the rest
 			continue
 		}
