@@ -135,8 +135,8 @@ func (d *Dispatcher) RegisterWorker(worker *k8sDiscoveryWorker) {
 
 // Create Task objects for discovery and monitoring for each node, and the pods and containers on that node
 // Dispatch the task to the pool, task will be picked by the k8sDiscoveryWorker
-func (d *Dispatcher) Dispatch(nodes []*api.Node, nodesPods map[string][]string,
-	podsWithAffinities sets.String, cluster *repository.ClusterSummary) int {
+func (d *Dispatcher) Dispatch(nodes []*api.Node, nodesPods map[string][]string, podsWithAffinities,
+	otherSpreadPods sets.String, hostnameSpreadWorkloads map[string]sets.String, cluster *repository.ClusterSummary) int {
 	go func() {
 		for _, node := range nodes {
 			runningPods := cluster.GetRunningPodsOnNode(node)
@@ -147,7 +147,10 @@ func (d *Dispatcher) Dispatch(nodes []*api.Node, nodesPods map[string][]string,
 				WithPendingPods(pendingPods).
 				WithCluster(cluster).
 				WithNodesPods(nodesPods).
-				WithPodsWithAffinities(podsWithAffinities)
+				WithPodsWithAffinities(podsWithAffinities).
+				WithHostnameSpreadWorkloads(hostnameSpreadWorkloads).
+				WithOtherSpreadPods(otherSpreadPods).
+				WithPodsToControllers(cluster.PodToControllerMap)
 			glog.V(2).Infof("Dispatching task %v", currTask)
 			d.assignTask(currTask)
 		}

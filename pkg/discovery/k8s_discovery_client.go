@@ -321,6 +321,8 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	// affinity process with new algorithm
 	var nodesPods map[string][]string
 	var podsWithAffinities sets.String
+	var hostnameSpreadWorkloads map[string]sets.String
+	var otherSpreadPods sets.String
 	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) {
 		if utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
 			glog.V(2).Infof("Begin to process affinity with new algorithm.")
@@ -334,7 +336,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 				if err != nil {
 					glog.Errorf("Failure in processing affinity rules: %s", err)
 				} else {
-					nodesPods, podsWithAffinities = affinityProcessor.ProcessAffinities(clusterSummary.Pods)
+					nodesPods, podsWithAffinities, hostnameSpreadWorkloads, otherSpreadPods = affinityProcessor.ProcessAffinities(clusterSummary.Pods)
 				}
 				glog.V(2).Infof("Successfully processed affinities.")
 				glog.V(3).Infof("Processing affinities with new algorithm took %s", time.Since(start))
@@ -368,7 +370,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	// Discover pods and create DTOs for nodes, namespaces, controllers, pods, containers, application.
 	// Merge collected usage data samples from globalEntityMetricSink into the metric sink of each individual discovery worker.
 	// Collect the kubePod, kubeNamespace metrics, groups and kubeControllers from all the discovery workers.
-	taskCount := dc.dispatcher.Dispatch(nodes, nodesPods, podsWithAffinities, clusterSummary)
+	taskCount := dc.dispatcher.Dispatch(nodes, nodesPods, podsWithAffinities, otherSpreadPods, hostnameSpreadWorkloads, clusterSummary)
 	result := dc.resultCollector.Collect(taskCount)
 	glog.V(3).Infof("Collection and processing of metrics from node kubelets took %s", time.Since(start))
 

@@ -9,6 +9,7 @@ import (
 	"github.com/golang/glog"
 
 	api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
@@ -371,7 +372,8 @@ func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto
 	var entityDTOs []*proto.EntityDTO
 	var notReadyNodes []string
 	// Build entity DTOs for nodes
-	nodeDTOs, notReadyNodes := worker.buildNodeDTOs([]*api.Node{currTask.Node()}, currTask.NodesPods())
+	nodeDTOs, notReadyNodes := worker.buildNodeDTOs([]*api.Node{currTask.Node()}, currTask.NodesPods(),
+		currTask.HostnameSpreadWorkloads(), currTask.OtherSpreadPods(), currTask.PodstoControllers())
 
 	glog.V(3).Infof("Worker %s built %d node DTOs.", worker.id, len(nodeDTOs))
 	if len(nodeDTOs) == 0 {
@@ -401,7 +403,8 @@ func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto
 	return entityDTOs, podEntities, sidecarContainerSpecs, podWithVolumes, notReadyNodes, mirrorPodUids
 }
 
-func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node, nodesPods map[string][]string) ([]*proto.EntityDTO, []string) {
+func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node, nodesPods map[string][]string,
+	hostnameSpreadWorkloads sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) ([]*proto.EntityDTO, []string) {
 	// SetUp nodeName to nodeId mapping
 	stitchingManager := worker.stitchingManager
 	for _, node := range nodes {
@@ -414,7 +417,8 @@ func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node, nodesPods map
 	}
 	// Build entity DTOs for nodes
 	return dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager).
-		WithClusterKeyInjected(worker.config.clusterKeyInjected).BuildEntityDTOs(nodes, nodesPods)
+		WithClusterKeyInjected(worker.config.clusterKeyInjected).
+		BuildEntityDTOs(nodes, nodesPods, hostnameSpreadWorkloads, otherSpreadPods, podsToControllers)
 }
 
 // Build DTOs for running pods
@@ -444,7 +448,11 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 		WithClusterKeyInjected(worker.config.clusterKeyInjected).
 		// map of mirror pods to daemon flags
 		WithMirrorPodToDaemonMap(cluster.MirrorPodToDaemonMap).
-		BuildEntityDTOs(currTask.PodsWithAffinities())
+		WithPodsWithAffinities(currTask.PodsWithAffinities()).
+		WithHostnameSpreadPods(currTask.HostnameSpreadPods()).
+		WithOtherSpreadPods(currTask.OtherSpreadPods()).
+		WithPodsToControllers(currTask.PodstoControllers()).
+		BuildEntityDTOs()
 
 	var podDTOs []*proto.EntityDTO
 	var runningPods []*api.Pod
