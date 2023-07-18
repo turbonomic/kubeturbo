@@ -47,6 +47,7 @@ var (
 	testKubeController1 = createKubeController(testClusterName, testNamespace, "controller1", util.KindDeployment,
 		"controller1-UID", testAllocationResources)
 	testKubeController2 = repository.NewKubeController(testClusterName, testNamespace, "controller2", testCustomControllerType, "controller2-UID")
+	testKubeController3 = repository.NewKubeController(testClusterName, testNamespace, "controller3", util.KindCronJob, "controller3-UID")
 
 	kubeCluster        = repository.KubeCluster{Name: clusterId}
 	kubeClusterSummary = repository.ClusterSummary{KubeCluster: &kubeCluster}
@@ -55,6 +56,7 @@ var (
 		map[string]*repository.KubeController{
 			"controller1-UID": testKubeController1,
 			"controller2-UID": testKubeController2,
+			"controller3-UID": testKubeController3,
 		},
 		map[string]string{
 			testNamespace: testNamespaceUID,
@@ -76,7 +78,7 @@ func TestBuildDTOs(t *testing.T) {
 		)
 		if controller.UID == testKubeController1.UID {
 			k8sController.WithReplicas(int64(deploymentReplicaCount))
-		} else {
+		} else if controller.UID == testKubeController2.UID {
 			k8sController.WithReplicas(int64(customControllerReplicaCount))
 		}
 		kubeCluster.ControllerMap[controller.UID] = k8sController
