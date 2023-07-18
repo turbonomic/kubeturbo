@@ -82,7 +82,9 @@ func (builder *workloadControllerDTOBuilder) BuildDTOs() ([]*proto.EntityDTO, er
 			controller, found := builder.clusterSummary.ControllerMap[workloadControllerId]
 			if found {
 				entityDTOBuilder.WithProperties(property.BuildLabelAnnotationProperties(controller.Labels, controller.Annotations, detectors.AWWorkloadController))
-				replicas = int32(*controller.Replicas)
+				if controller.Replicas != nil {
+					replicas = int32(*controller.Replicas)
+				}
 			}
 		}
 
