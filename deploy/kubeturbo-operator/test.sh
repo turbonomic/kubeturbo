@@ -6,7 +6,7 @@ WAIT_FOR_DEPLOYMENT=30
 OPERATOR_IMAGE_VERSION="8.9.5-SNAPSHOT"
 OPERATOR_IMAGE="icr.io\/cpopen\/kubeturbo-operator:${OPERATOR_IMAGE_VERSION}"
 KUBETURBO_IMAGE_VERSION="8.9.5-SNAPSHOT"
-KUBETURBO_IMAGE_REPO="icr.io/cpopen/kubeturbo"
+KUBETURBO_IMAGE_REPO="icr.io/cpopen/turbonomic/kubeturbo"
 KUBECTL=kubectl
 # username and password for the local ops-manager
 OPS_MANAGER_USERNAME=administrator
@@ -185,7 +185,7 @@ function update_cr_for_logging {
 	CR_FILE1=$2
 	LOGGING_LEVEL=$3
 	echo -e "Updating CR to add logging level..."
-	# old method: adding spec.args.logginglevel causes pod to restart
+	# existing method: adding spec.args.logginglevel causes pod to restart
 	# sed -i -e "$ a\  args:" $CR_FILE1
 	# sed -i -e "$ a\    logginglevel: 4" $CR_FILE1
 	# new method: adding spec.logging.level should not cause a restart
@@ -322,6 +322,4 @@ function main {
 }
 
 
-# uninstall_cr testns1 /tmp/tmp.aa9qujUvuO_kubeturbo_cr_testcr1.yaml && uninstall_operator turbo
 main
-# rediscover_target Kubernetes-testcr1
