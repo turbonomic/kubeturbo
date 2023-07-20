@@ -3,8 +3,10 @@
 SCRIPT_DIR="$(cd "$(dirname $0)" && pwd)"
 ERR_LOG=$(mktemp --suffix _kube.errlog)
 WAIT_FOR_DEPLOYMENT=20
-OPERATOR_IMAGE_VERSION="8.9.5-SNAPSHOT"
-OPERATOR_IMAGE="icr.io\/cpopen\/kubeturbo-operator:${OPERATOR_IMAGE_VERSION}"
+OPERATOR_IMAGE_VERSION=${OPERATOR_IMG_VERSION-"8.9.5-SNAPSHOT"}
+OPERATOR_IMAGE_BASE=${OPERATOR_IMG_BASE-"icr.io/cpopen/kubeturbo-operator"}
+OPERATOR_IMAGE="${OPERATOR_IMAGE_BASE}:${OPERATOR_IMAGE_VERSION}"
+OPERATOR_IMAGE_STR=$(printf '%s\n' "${OPERATOR_IMAGE}" | sed -e 's/[\/&]/\\&/g')
 
 # turbonomic is the default namespace that matches the xl setup
 # please change the value according to your set up
@@ -20,7 +22,7 @@ function install_operator {
 	kubectl apply -f ${SCRIPT_DIR}/deploy/role_binding.yaml
 
 	# dynamically apply the image version
-	sed "s/image:.*/image: ${OPERATOR_IMAGE}/g" ${SCRIPT_DIR}/deploy/operator.yaml > ${SCRIPT_DIR}/deploy/updated_operator.yaml
+	sed "s/image:.*/image: ${OPERATOR_IMAGE_STR}/g" ${SCRIPT_DIR}/deploy/operator.yaml > ${SCRIPT_DIR}/deploy/updated_operator.yaml
 	kubectl apply -f ${SCRIPT_DIR}/deploy/updated_operator.yaml -n ${NS}
 }
 
@@ -83,6 +85,8 @@ function create_cr {
 	  targetConfig:
 	    targetName: ${CR_SURFIX}
 	  roleName: ${CLUSTER_ROLE}
+	  image:
+	    tag: ${XL_VERSION}
 	EOT
 }
 
