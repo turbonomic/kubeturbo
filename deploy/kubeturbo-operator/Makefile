@@ -310,13 +310,29 @@ catalog-push: ## Push a catalog image.
 
 PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 REPO_NAME ?= icr.io/cpopen
+OPERATOR_IMG_BASE ?= $(REPO_NAME)/kubeturbo-operator
 .PHONY: docker-buildx
-docker-buildx:
+docker-buildx: operator-image-test
+	echo "Build and Push Kubeturbo operator image $(VERSION) to $(OPERATOR_IMG_BASE)"
 	docker buildx create --name kubeturbo-operator-builder
 	- docker buildx use kubeturbo-operator-builder
-	- docker buildx build --platform=$(PLATFORMS) --label "git-commit=$(GIT_COMMIT)" --label "git-version=$(VERSION)" --provenance=false --push --tag $(REPO_NAME)/kubeturbo-operator:$(VERSION) --build-arg VERSION=$(VERSION) .
+	- docker buildx build --platform=$(PLATFORMS) --label "git-commit=$(GIT_COMMIT)" --label "git-version=$(VERSION)" --provenance=false --push --tag $(OPERATOR_IMG_BASE):$(VERSION) --build-arg VERSION=$(VERSION) .
 	docker buildx rm kubeturbo-operator-builder
 
-.PHONY: test
-test:
+# build latest Kubeturbo operator image for testing purpose
+TEST_VERSION=tmp
+.PHONY: docker-buildx-test-image
+docker-buildx-test-image:
+	echo "Building test kubeturbo operator image"
+	docker buildx create --name kubeturbo-operator-builder-test
+	- docker buildx use kubeturbo-operator-builder-test
+	- docker buildx build --platform=$(PLATFORMS) --label "git-commit=$(GIT_COMMIT)" --label "git-version=$(TEST_VERSION)" --provenance=false --push --tag $(OPERATOR_IMG_BASE):$(TEST_VERSION) --build-arg VERSION=$(TEST_VERSION) .
+	docker buildx rm kubeturbo-operator-builder-test
+
+# run automation test against the latest-built Kubeturbo operator image
+.PHONY: operator-image-test
+operator-image-test: docker-buildx-test-image
+	echo "Start testing latest Kubeturbo operator image"
+	export OPERATOR_IMG_VERSION=$(TEST_VERSION) && \
+	export OPERATOR_IMG_BASE=$(OPERATOR_IMG_BASE) && \
 	bash ./test.sh
