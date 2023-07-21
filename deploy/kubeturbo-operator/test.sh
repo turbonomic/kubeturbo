@@ -23,7 +23,7 @@ function rediscover_target {
 	response=$(curl -k -s --cookie "JSESSIONID=$cookie"-X GET "https://$ip/vmturbo/rest/targets?q=$DISPLAY_NAME&target_category=Cloud%20Native&order_by=validation_status&ascending=true&query_method=regex" -H "accept: application/json")
     target_uuid=$(echo "$response" | jq '. | .[] | "\(.uuid)"' | tr -d '"')
 	# rediscover
-	result=$(curl -k -s --cookie "JSESSIONID=$cookie"-X POST "https://${ip}/vmturbo/rest/targets/${target_uuid}?rediscover=true" -H "accept: application/json" -d '')
+	curl -k -s --cookie "JSESSIONID=$cookie"-X POST "https://${ip}/vmturbo/rest/targets/${target_uuid}?rediscover=true" -H "accept: application/json" -d '' > /dev/null
 }
 
 function install_operator {
