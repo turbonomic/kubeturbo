@@ -56,7 +56,7 @@ function create_cr {
 	fi
 
 	command -v xl_version &> /dev/null
-	[ $? -gt 0 ] && echo -e "Failed to invoke xl_version from environemnt" | tee -a ${ERR_LOG} && exit 1
+	[ $? -gt 0 ] && echo -e "Failed to invoke xl_version from environment" | tee -a ${ERR_LOG} && exit 1
 	XL_VERSION_DETAIL=$(xl_version)
 
 	# generated testing cr file based on the given input
