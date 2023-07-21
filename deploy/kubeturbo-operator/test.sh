@@ -114,7 +114,8 @@ function install_cr {
 
 	# check if the kubeturbo deployment get generated
 	FAILED=0
-	CR_DEPLOY=$($KUBECTL get deploy -n ${NS} -o NAME)
+	# assumes there is only one deployment in the ns aside from operator deployment
+	CR_DEPLOY=$($KUBECTL get deploy -n ${NS} -o NAME | grep -v operator)
 	if [ -z "${CR_DEPLOY}" ]; then
 		echo -e "> ${TEST_DESC}........FAILED" | tee -a ${ERR_LOG}
 		return
