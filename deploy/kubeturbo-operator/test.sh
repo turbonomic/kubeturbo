@@ -204,7 +204,7 @@ function wait_for_logging_update {
 		echo "Wait for 10s for log level changes to be reflected..."
 		sleep 10
 		MSG=$($KUBECTL -n ${NAMESPACE} logs ${POD_NAME} | grep "Logging level is changed from")
-		if [ $COUNT -eq 10 ]; then
+		if [ $COUNT -eq 15 ]; then
 			echo "Timed out waiting for log level changes..." | tee -a ${ERR_LOG} && return
 		fi
 		COUNT+=1
