@@ -319,4 +319,4 @@ docker-buildx:
 
 .PHONY: test
 test:
-	bash ./test.sh
+	OPERATOR_IMAGE_VERSION=${VERSION} KUBETURBO_IMAGE_VERSION=${VERSION} bash ./test.sh

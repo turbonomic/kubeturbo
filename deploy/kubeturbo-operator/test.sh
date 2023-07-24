@@ -3,9 +3,7 @@
 SCRIPT_DIR="$(cd "$(dirname $0)" && pwd)"
 ERR_LOG=$(mktemp --suffix _kube.errlog)
 WAIT_FOR_DEPLOYMENT=30
-OPERATOR_IMAGE_VERSION="8.9.5-SNAPSHOT"
 OPERATOR_IMAGE="icr.io\/cpopen\/kubeturbo-operator:${OPERATOR_IMAGE_VERSION}"
-KUBETURBO_IMAGE_VERSION="8.9.5-SNAPSHOT"
 KUBETURBO_IMAGE_REPO="icr.io/cpopen/turbonomic/kubeturbo"
 KUBECTL=kubectl
 # username and password for the local ops-manager
@@ -321,6 +319,5 @@ function main {
 	test_dynamic_logging
 	rm ${ERR_LOG}
 }
-
 
 main
