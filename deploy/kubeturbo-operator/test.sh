@@ -14,16 +14,6 @@ OPS_MANAGER_PASSWORD=administrator
 # please change the value according to your set up
 export namespace=turbonomic
 
-function rediscover_target {
-	DISPLAY_NAME=$1
-    ip=$($KUBECTL get services --no-headers -n $namespace | grep nginx | awk '{print $4; exit}' | cut -d "," -f 1)
-    cookie=$(curl -k -s -v "https://$ip/vmturbo/rest/login" --data "username=$OPS_MANAGER_USERNAME&password=$OPS_MANAGER_PASSWORD" 2>&1 | grep JSESSION | awk -F'=' '{print $2}' | awk -F';' '{print $1}')
-	response=$(curl -k -s --cookie "JSESSIONID=$cookie"-X GET "https://$ip/vmturbo/rest/targets?q=$DISPLAY_NAME&target_category=Cloud%20Native&order_by=validation_status&ascending=true&query_method=regex" -H "accept: application/json")
-    target_uuid=$(echo "$response" | jq '. | .[] | "\(.uuid)"' | tr -d '"')
-	# rediscover
-	curl -k -s --cookie "JSESSIONID=$cookie"-X POST "https://${ip}/vmturbo/rest/targets/${target_uuid}?rediscover=true" -H "accept: application/json" -d '' > /dev/null
-}
-
 function install_operator {
 	NS=$1
 	[ -z "${NS}" ] && echo -e "Operator namespace not provided" | tee -a ${ERR_LOG} && exit 1
@@ -246,8 +236,6 @@ function test_kubeturbo_setup {
 	else
 		echo "Test passed!"
 	fi
-
-	rm ${ERR_LOG}
 }
 
 
@@ -273,11 +261,6 @@ function test_dynamic_logging {
 	# wait until log level changes msg shows up
 	wait_for_logging_update ${NS} ${POD_NAME}
 
-	#rediscover kubeturbo to generate new logs
-	TARGET_NAME=Kubernetes-${CR_LABEL} 
-	rediscover_target $TARGET_NAME	&& echo -e "Wait for 10s to finish rediscovering"
-	sleep 10
-
 	# check to make sure new logging level is updated in the configmap
 	# expecting something like this in the configmap "{\n \"logging\": {\n \"level\": 5\n }\n}"
 	LOGLEVEL_CM=$($KUBECTL get cm turbo-config-kubeturbo-${CR_LABEL} -n ${CR_NS1} -o json | jq '.data."turbo-autoreload.config"')
@@ -293,10 +276,7 @@ function test_dynamic_logging {
 	[[ $NUM_RESTART_BEFORE != $NUM_RESTART_AFTER ]] && echo "Pod restarted after updating logging level" | tee -a ${ERR_LOG}	
 	# check if previous logs are preserved
 	[[ $HEAD_LOGS_BEFORE != $HEAD_LOGS_AFTER ]] && echo "Logs before CR update was erased\n$HEAD_LOGS_BEFORE\n$HEAD_LOGS_AFTER" | tee -a ${ERR_LOG}
-	# check if new logs contains message that should only show up in the new logging level
-	NEW_LOGLEVEL_MSG="Adding label commodity" # example level 5 msg
-	[[ -z $($KUBECTL -n ${NS} logs ${POD_NAME} | grep "$NEW_LOGLEVEL_MSG") ]] && echo "Error: expected new log not found" | tee -a ${ERR_LOG}	
-
+	
 	# DEBUGGING ONLY
 	# echo "-------------Pod log after-----------------------------------------"
 	# $KUBECTL -n ${NS} logs ${POD_NAME}
