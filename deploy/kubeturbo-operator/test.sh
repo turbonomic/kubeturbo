@@ -10,13 +10,17 @@ OPERATOR_IMAGE_STR=$(printf '%s\n' "${OPERATOR_IMAGE}" | sed -e 's/[\/&]/\\&/g')
 TURBO_HOST_IP=${TURBO_HOST_IP-"127.0.0.1"}
 KUBETURBO_VERSION=${KUBETURBO_VERSION-"8.9.5-SNAPSHOT"}
 
-function k8s {
-	kubectl $@
-}
-
 # turbonomic is the default namespace that matches the xl setup
 # please change the value according to your set up
 export namespace=turbonomic
+
+function k8s {
+	if [ -z "${KUBE_CONFIG}" ]; then
+		kubectl $@
+	else
+		kubectl --kubeconfig ${KUBE_CONFIG} $@
+	fi
+}
 
 function install_operator {
 	NS=$1
