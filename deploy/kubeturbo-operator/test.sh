@@ -7,8 +7,12 @@ OPERATOR_IMAGE_VERSION=${OPERATOR_IMG_VERSION-"8.9.5-SNAPSHOT"}
 OPERATOR_IMAGE_BASE=${OPERATOR_IMG_BASE-"icr.io/cpopen/kubeturbo-operator"}
 OPERATOR_IMAGE="${OPERATOR_IMAGE_BASE}:${OPERATOR_IMAGE_VERSION}"
 OPERATOR_IMAGE_STR=$(printf '%s\n' "${OPERATOR_IMAGE}" | sed -e 's/[\/&]/\\&/g')
-HOST_IP="127.0.0.1"
+TURBO_HOST_IP=${TURBO_HOST_IP-"127.0.0.1"}
 KUBETURBO_VERSION=${KUBETURBO_VERSION-"8.9.5-SNAPSHOT"}
+
+function k8s {
+	kubectl $@
+}
 
 # turbonomic is the default namespace that matches the xl setup
 # please change the value according to your set up
@@ -17,27 +21,27 @@ export namespace=turbonomic
 function install_operator {
 	NS=$1
 	[ -z "${NS}" ] && echo -e "Operator namespace not provided" | tee -a ${ERR_LOG} && exit 1
-	kubectl create ns ${NS}
-	kubectl delete -f ${SCRIPT_DIR}/deploy/crds/*crd.yaml
-	kubectl apply -f ${SCRIPT_DIR}/deploy/crds/*crd.yaml
-	kubectl apply -f ${SCRIPT_DIR}/deploy/service_account.yaml -n ${NS}
-	kubectl apply -f ${SCRIPT_DIR}/deploy/role_binding.yaml
+	k8s create ns ${NS}
+	k8s delete -f ${SCRIPT_DIR}/deploy/crds/*crd.yaml
+	k8s apply -f ${SCRIPT_DIR}/deploy/crds/*crd.yaml
+	k8s apply -f ${SCRIPT_DIR}/deploy/service_account.yaml -n ${NS}
+	k8s apply -f ${SCRIPT_DIR}/deploy/role_binding.yaml
 
 	# dynamically apply the image version
 	sed "s/image:.*/image: ${OPERATOR_IMAGE_STR}/g" ${SCRIPT_DIR}/deploy/operator.yaml > ${SCRIPT_DIR}/deploy/updated_operator.yaml
-	kubectl apply -f ${SCRIPT_DIR}/deploy/updated_operator.yaml -n ${NS}
+	k8s apply -f ${SCRIPT_DIR}/deploy/updated_operator.yaml -n ${NS}
 }
 
 function uninstall_operator {
 	NS=$1
 	[ -z "${NS}" ] && echo -e "Operator namespace not provided" | tee -a ${ERR_LOG} && exit 1
 
-	kubectl delete -f ${SCRIPT_DIR}/deploy/updated_operator.yaml -n ${NS}
+	k8s delete -f ${SCRIPT_DIR}/deploy/updated_operator.yaml -n ${NS}
 	rm ${SCRIPT_DIR}/deploy/updated_operator.yaml
 
-	kubectl delete -f ${SCRIPT_DIR}/deploy/role_binding.yaml
-	kubectl delete -f ${SCRIPT_DIR}/deploy/service_account.yaml -n ${NS}
-	kubectl delete ns ${NS}
+	k8s delete -f ${SCRIPT_DIR}/deploy/role_binding.yaml
+	k8s delete -f ${SCRIPT_DIR}/deploy/service_account.yaml -n ${NS}
+	k8s delete ns ${NS}
 }
 
 function create_cr {
@@ -62,8 +66,8 @@ function create_cr {
 		# generated testing cr file based on the xl input
 		XL_VERSION_DETAIL=$(xl_version)
 
-		HOST_IP=$(echo -e "${XL_VERSION_DETAIL}" | grep "Server:" | awk '{print $2}')
-		[ -z "${HOST_IP}" ] && echo -e "Failed to get exposed XL IP" | tee -a ${ERR_LOG} && exit 1
+		TURBO_HOST_IP=$(echo -e "${XL_VERSION_DETAIL}" | grep "Server:" | awk '{print $2}')
+		[ -z "${TURBO_HOST_IP}" ] && echo -e "Failed to get exposed XL IP" | tee -a ${ERR_LOG} && exit 1
 
 		KUBETURBO_VERSION=$(echo -e "${XL_VERSION_DETAIL}" | grep "Version:" | awk '{print $2}')
 		[ -z "${KUBETURBO_VERSION}" ] && echo -e "Failed to get exposed XL version" | tee -a ${ERR_LOG} && exit 1
@@ -80,7 +84,7 @@ function create_cr {
 	spec:
 	  serverMeta:
 	    version: ${KUBETURBO_VERSION}
-	    turboServer: https://${HOST_IP}
+	    turboServer: https://${TURBO_HOST_IP}
 	  restAPIConfig:
 	    turbonomicCredentialsSecretName: "turbonomic-credentials"
 	    opsManagerUserName: ${OPS_MANAGER_USERNAME}
@@ -103,17 +107,17 @@ function install_cr {
 	[ ! -f "${CR_FILE}" ] && echo "CR file ${CR_FILE} not provided" | tee -a ${ERR_LOG} && return
 
 	echo -e "> Start testing for ${TEST_DESC}"
-	kubectl create ns ${NS}
-	kubectl apply -f ${CR_FILE} -n ${NS} && echo -e "Wait for ${WAIT_FOR_DEPLOYMENT}s to finish container creation"
+	k8s create ns ${NS}
+	k8s apply -f ${CR_FILE} -n ${NS} && echo -e "Wait for ${WAIT_FOR_DEPLOYMENT}s to finish container creation"
 	sleep ${WAIT_FOR_DEPLOYMENT}
 
 	# check if the kubeturbo deployment get generated
 	FAILED=0
-	CR_DEPLOY=$(kubectl get deploy -n ${NS} -o NAME)
+	CR_DEPLOY=$(k8s get deploy -n ${NS} -o NAME)
 	if [ -z "${CR_DEPLOY}" ]; then
 		echo -e "> ${TEST_DESC}........FAILED" | tee -a ${ERR_LOG}
 		return
-	elif [ -z "$(kubectl rollout status ${CR_DEPLOY} -n ${NS} | grep successfully)" ]; then
+	elif [ -z "$(k8s rollout status ${CR_DEPLOY} -n ${NS} | grep successfully)" ]; then
 		FAILED=$((${FAILED}+1))
 		echo -e ">  Deployment ${CR_DEPLOY} cr check........FAILED" | tee -a ${ERR_LOG}
 	else
@@ -121,18 +125,18 @@ function install_cr {
 	fi
 
 	# check if the cluster log is healthy
-	if [ $(kubectl logs ${CR_DEPLOY} -n ${NS} | grep "Successfully" | wc -l) -lt 2 ]; then
+	if [ $(k8s logs ${CR_DEPLOY} -n ${NS} | grep "Successfully" | wc -l) -lt 2 ]; then
 		FAILED=$((${FAILED}+1))
 		echo -e ">  Deployment ${CR_DEPLOY} log check........FAILED" | tee -a ${ERR_LOG}
 	else
 		echo -e ">  Deployment ${CR_DEPLOY} log check........PASSED"
 	fi
 
-	CR_DEPLOY_NAME=$(kubectl get ${CR_DEPLOY} -n ${NS} -o jsonpath={.metadata.name})
+	CR_DEPLOY_NAME=$(k8s get ${CR_DEPLOY} -n ${NS} -o jsonpath={.metadata.name})
 
 	# check if the correct cluster role binding get generated
 	TARGET_ROLEBINDING="turbo-all-binding-${CR_DEPLOY_NAME}-${NS}"
-	kubectl get ClusterRoleBinding "${TARGET_ROLEBINDING}" >/dev/null
+	k8s get ClusterRoleBinding "${TARGET_ROLEBINDING}" >/dev/null
 	if [ $? -gt 0 ]; then
 		FAILED=$((${FAILED}+1))
 		echo -e ">  ClusterRoleBinding ${TARGET_ROLEBINDING} check........FAILED" | tee -a ${ERR_LOG}
@@ -146,7 +150,7 @@ function install_cr {
 	elif [ "${TARGET_ROLENAME}" != "cluster-admin" ]; then
 		TARGET_ROLENAME="${TARGET_ROLENAME}-${CR_DEPLOY_NAME}-${NS}"
 	fi
-	kubectl get ClusterRole "${TARGET_ROLENAME}" >/dev/null
+	k8s get ClusterRole "${TARGET_ROLENAME}" >/dev/null
 	if [ $? -gt 0 ]; then
 		FAILED=$((${FAILED}+1))
 		echo -e ">  ClusterRole ${TARGET_ROLENAME} check........FAILED" | tee -a ${ERR_LOG}
@@ -168,11 +172,11 @@ function uninstall_cr {
 	CR_FILE=$2
 
 	if [ -f "${CR_FILE}" ] && [ -n "${NS}" ]; then
-		kubectl delete -f ${CR_FILE} -n ${NS}
+		k8s delete -f ${CR_FILE} -n ${NS}
 	fi
 
 	[ -f "${CR_FILE}" ] && rm ${CR_FILE}
-	[ -n "${NS}" ] && kubectl delete ns ${NS}
+	[ -n "${NS}" ] && k8s delete ns ${NS}
 }
 
 
