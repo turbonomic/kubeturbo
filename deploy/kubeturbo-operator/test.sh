@@ -7,6 +7,8 @@ OPERATOR_IMAGE_VERSION=${OPERATOR_IMG_VERSION-"8.9.5-SNAPSHOT"}
 OPERATOR_IMAGE_BASE=${OPERATOR_IMG_BASE-"icr.io/cpopen/kubeturbo-operator"}
 OPERATOR_IMAGE="${OPERATOR_IMAGE_BASE}:${OPERATOR_IMAGE_VERSION}"
 OPERATOR_IMAGE_STR=$(printf '%s\n' "${OPERATOR_IMAGE}" | sed -e 's/[\/&]/\\&/g')
+HOST_IP="127.0.0.1"
+KUBETURBO_VERSION=${KUBETURBO_VERSION-"8.9.5-SNAPSHOT"}
 
 # turbonomic is the default namespace that matches the xl setup
 # please change the value according to your set up
@@ -42,9 +44,6 @@ function create_cr {
 	CR_SURFIX=$1
 	CLUSTER_ROLE=${2-"cluster-admin"}
 
-	HOST_IP="127.0.0.1"
-	XL_VERSION="8.9.5-SNAPSHOT"
-
 	# username and password for the local ops-manager
 	OPS_MANAGER_USERNAME=administrator
 	OPS_MANAGER_PASSWORD=administrator
@@ -66,8 +65,8 @@ function create_cr {
 		HOST_IP=$(echo -e "${XL_VERSION_DETAIL}" | grep "Server:" | awk '{print $2}')
 		[ -z "${HOST_IP}" ] && echo -e "Failed to get exposed XL IP" | tee -a ${ERR_LOG} && exit 1
 
-		XL_VERSION=$(echo -e "${XL_VERSION_DETAIL}" | grep "Version:" | awk '{print $2}')
-		[ -z "${XL_VERSION}" ] && echo -e "Failed to get exposed XL version" | tee -a ${ERR_LOG} && exit 1
+		KUBETURBO_VERSION=$(echo -e "${XL_VERSION_DETAIL}" | grep "Version:" | awk '{print $2}')
+		[ -z "${KUBETURBO_VERSION}" ] && echo -e "Failed to get exposed XL version" | tee -a ${ERR_LOG} && exit 1
   fi
 
 	CR_FILEPATH=$(mktemp "${TMPDIR:-/tmp}/kubeturbo_cr_${CR_SURFIX}_XXXXXXX")
@@ -80,7 +79,7 @@ function create_cr {
 	  name: kubeturbo-${CR_SURFIX}
 	spec:
 	  serverMeta:
-	    version: ${XL_VERSION}
+	    version: ${KUBETURBO_VERSION}
 	    turboServer: https://${HOST_IP}
 	  restAPIConfig:
 	    turbonomicCredentialsSecretName: "turbonomic-credentials"
@@ -90,7 +89,7 @@ function create_cr {
 	    targetName: ${CR_SURFIX}
 	  roleName: ${CLUSTER_ROLE}
 	  image:
-	    tag: ${XL_VERSION}
+	    tag: ${KUBETURBO_VERSION}
 	EOT
 }
 
