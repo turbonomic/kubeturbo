@@ -1,7 +1,7 @@
 #!/bin/env bash
 
 SCRIPT_DIR="$(cd "$(dirname $0)" && pwd)"
-ERR_LOG=$(mktemp --suffix _kube.errlog)
+ERR_LOG=$(mktemp "${TMPDIR:-/tmp}/kube_errlog_XXXXXXX")
 WAIT_FOR_DEPLOYMENT=20
 OPERATOR_IMAGE_VERSION=${OPERATOR_IMG_VERSION-"8.9.5-SNAPSHOT"}
 OPERATOR_IMAGE_BASE=${OPERATOR_IMG_BASE-"icr.io/cpopen/kubeturbo-operator"}
@@ -42,6 +42,9 @@ function create_cr {
 	CR_SURFIX=$1
 	CLUSTER_ROLE=${2-"cluster-admin"}
 
+	HOST_IP="127.0.0.1"
+	XL_VERSION="8.9.5-SNAPSHOT"
+
 	# username and password for the local ops-manager
 	OPS_MANAGER_USERNAME=administrator
 	OPS_MANAGER_PASSWORD=administrator
@@ -56,17 +59,18 @@ function create_cr {
 	fi
 
 	command -v xl_version &> /dev/null
-	[ $? -gt 0 ] && echo -e "Failed to invoke xl_version from environment" | tee -a ${ERR_LOG} && exit 1
-	XL_VERSION_DETAIL=$(xl_version)
+	if [ $? -eq 0 ]; then
+		# generated testing cr file based on the xl input
+		XL_VERSION_DETAIL=$(xl_version)
 
-	# generated testing cr file based on the given input
-	HOST_IP=$(echo -e "${XL_VERSION_DETAIL}" | grep "Server:" | awk '{print $2}')
-	[ -z "${HOST_IP}" ] && echo -e "Failed to get exposed XL IP" | tee -a ${ERR_LOG} && exit 1
+		HOST_IP=$(echo -e "${XL_VERSION_DETAIL}" | grep "Server:" | awk '{print $2}')
+		[ -z "${HOST_IP}" ] && echo -e "Failed to get exposed XL IP" | tee -a ${ERR_LOG} && exit 1
 
-	XL_VERSION=$(echo -e "${XL_VERSION_DETAIL}" | grep "Version:" | awk '{print $2}')
-	[ -z "${XL_VERSION}" ] && echo -e "Failed to get exposed XL version" | tee -a ${ERR_LOG} && exit 1
+		XL_VERSION=$(echo -e "${XL_VERSION_DETAIL}" | grep "Version:" | awk '{print $2}')
+		[ -z "${XL_VERSION}" ] && echo -e "Failed to get exposed XL version" | tee -a ${ERR_LOG} && exit 1
+  fi
 
-	CR_FILEPATH=$(mktemp --suffix _kubeturbo_cr_${CR_SURFIX}.yaml)
+	CR_FILEPATH=$(mktemp "${TMPDIR:-/tmp}/kubeturbo_cr_${CR_SURFIX}_XXXXXXX")
 	echo ${CR_FILEPATH}
 
 	cat > ${CR_FILEPATH} <<- EOT
