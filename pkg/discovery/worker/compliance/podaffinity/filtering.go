@@ -220,7 +220,7 @@ func (pr *PodAffinityProcessor) podAntiAffinityMatchesItsReplica(existingPod *Po
 		case t.Matches(thisPod, nsLabels) && t.TopologyKey != "kubernetes.io/hostname":
 			// In this case we process this pod as rest to get in placement map but
 			// will not use the label commodity key as parent workload
-			pr.addToOtherSpreadPods(thisPod.Namespace + "/" + thisPod.Name)
+			pr.addToOtherSpreadPods(thisPod.Namespace+"/"+thisPod.Name, t.TopologyKey)
 			nonMatchingTerms = append(nonMatchingTerms, t)
 		default:
 			// this caters to all other terms the pod might have
@@ -245,11 +245,20 @@ func (pr *PodAffinityProcessor) addPodToHostnameSpreadWorkloads(podQualifiedName
 	pr.hostnameSpreadWorkloads[parent] = replicas
 }
 
-func (pr *PodAffinityProcessor) addToOtherSpreadPods(podQualifiedName string) {
+func (pr *PodAffinityProcessor) addToOtherSpreadPods(podQualifiedName, topologyKey string) {
 	// TODO: consider using a fine grained locks viz one only for this set
 	pr.Lock()
 	defer pr.Unlock()
 	pr.otherSpreadPods.Insert(podQualifiedName)
+	// build otherSpreadWorkloads
+	parent := pr.podToControllerMap[podQualifiedName]
+	workloads := pr.otherSpreadWorkloads[topologyKey]
+	if workloads.Len() == 0 { // This takes care of nil value and nil set both
+		workloads = sets.NewString(podQualifiedName)
+	} else {
+		workloads.Insert(parent)
+	}
+	pr.otherSpreadWorkloads[topologyKey] = workloads
 }
 
 // finds existing Pods that match affinity terms of the incoming pod's (anti)affinity terms.
@@ -314,6 +323,8 @@ func (pr *PodAffinityProcessor) PreFilter(ctx context.Context, pod *v1.Pod) (*pr
 	}
 
 	for i := range s.podInfo.RequiredAffinityTerms {
+		terms := append(pr.topologyKey2affinityTerm[s.podInfo.RequiredAffinityTerms[i].TopologyKey], s.podInfo.RequiredAffinityTerms[i])
+		pr.topologyKey2affinityTerm[s.podInfo.RequiredAffinityTerms[i].TopologyKey] = terms
 		if err := pr.mergeAffinityTermNamespacesIfNotEmpty(&s.podInfo.RequiredAffinityTerms[i]); err != nil {
 			return nil, err
 		}

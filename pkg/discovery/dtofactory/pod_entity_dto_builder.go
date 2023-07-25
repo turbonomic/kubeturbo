@@ -462,7 +462,7 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod,
 	// Nodes where this pod can be placed will sell this commodity
 	// Also add segmentation commodity for pods which are part of hostname spread workloads
 	if utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
-		affinityComms, err := builder.getAffinityRelatedCommodities(pod.Namespace + "/" + pod.Name)
+		affinityComms, err := builder.getAffinityRelatedCommodities(pod)
 		if err != nil {
 			return nil, err
 		}
@@ -501,8 +501,9 @@ func (builder *podEntityDTOBuilder) getPodCommoditiesBought(pod *api.Pod,
 	return commoditiesBought, nil
 }
 
-func (builder *podEntityDTOBuilder) getAffinityRelatedCommodities(podQualifiedName string) ([]*proto.CommodityDTO, error) {
+func (builder *podEntityDTOBuilder) getAffinityRelatedCommodities(pod *api.Pod) ([]*proto.CommodityDTO, error) {
 	var affinityComms []*proto.CommodityDTO = nil
+	podQualifiedName := pod.Namespace + "/" + pod.Name
 	// A pod could have multiple affinity/anti-affinity rules
 	// resulting in multiple commodities wrt to different rule types
 	if builder.podsWithAffinities.Has(podQualifiedName) {
@@ -539,6 +540,21 @@ func (builder *podEntityDTOBuilder) getAffinityRelatedCommodities(podQualifiedNa
 		}
 		glog.V(5).Infof("Adding affinity segmentation commodity for Pod %s", podQualifiedName)
 		affinityComms = append(affinityComms, comm)
+	}
+
+	if pod.Spec.Affinity != nil && pod.Spec.Affinity.PodAffinity != nil {
+		for _, term := range pod.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution {
+			comm, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_PEER_TO_PEER_AFFINITY).
+				Key(term.LabelSelector.String() + "@" + term.TopologyKey).
+				Used(1).
+				Create()
+			if err != nil {
+				glog.Errorf("Failed to ceate affinity peer_to_peer commodity for pod %s", podQualifiedName)
+				continue
+			}
+			glog.V(5).Infof("Adding affinity peer_to_peer commodity for Pod %s", podQualifiedName)
+			affinityComms = append(affinityComms, comm)
+		}
 	}
 
 	return affinityComms, nil

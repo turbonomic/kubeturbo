@@ -40,15 +40,17 @@ import (
 // PodAffinityProcessor processes inter pod affinities, anti affinities
 // and pod to node affinities
 type PodAffinityProcessor struct {
-	nodeInfoLister          NodeInfoLister
-	nsLister                listersv1.NamespaceLister
-	podToVolumesMap         map[string][]repository.MountedVolume
-	podToControllerMap      map[string]string
-	hostnameSpreadWorkloads map[string]sets.String
-	otherSpreadPods         sets.String
-	uniqueAffinityTerms     sets.String
-	uniqueAntiAffinityTerms sets.String
-	parallelizer            parallelizer.Parallelizer
+	nodeInfoLister           NodeInfoLister
+	nsLister                 listersv1.NamespaceLister
+	podToVolumesMap          map[string][]repository.MountedVolume
+	podToControllerMap       map[string]string
+	hostnameSpreadWorkloads  map[string]sets.String
+	otherSpreadPods          sets.String
+	otherSpreadWorkloads     map[string]sets.String
+	topologyKey2affinityTerm map[string][]AffinityTerm
+	uniqueAffinityTerms      sets.String
+	uniqueAntiAffinityTerms  sets.String
+	parallelizer             parallelizer.Parallelizer
 	sync.Mutex
 }
 
@@ -60,12 +62,14 @@ func New(clusterSummary *repository.ClusterSummary, nodeInfoLister NodeInfoListe
 		podToVolumesMap:    clusterSummary.PodToVolumesMap,
 		podToControllerMap: clusterSummary.PodToControllerMap,
 		// TODO: make the parallelizm configurable
-		parallelizer:            parallelizer.NewParallelizer(parallelizer.DefaultParallelism),
-		nsLister:                namespaceLister,
-		uniqueAffinityTerms:     sets.NewString(),
-		uniqueAntiAffinityTerms: sets.NewString(),
-		hostnameSpreadWorkloads: make(map[string]sets.String),
-		otherSpreadPods:         sets.NewString(),
+		parallelizer:             parallelizer.NewParallelizer(parallelizer.DefaultParallelism),
+		nsLister:                 namespaceLister,
+		uniqueAffinityTerms:      sets.NewString(),
+		uniqueAntiAffinityTerms:  sets.NewString(),
+		hostnameSpreadWorkloads:  make(map[string]sets.String),
+		otherSpreadPods:          sets.NewString(),
+		otherSpreadWorkloads:     make(map[string]sets.String),
+		topologyKey2affinityTerm: make(map[string][]AffinityTerm),
 	}
 
 	return pr, nil
@@ -110,12 +114,14 @@ func GetNamespaceLabelsSnapshot(ns string, nsLister NamespaceLister) (nsLabels l
 // podsWithSupportedAffinities:  a set of pods which have affinities (does not include hostnameSpreadWorkloads)
 // hostnameSpreadWorkloads: map of workload ids to its set of pods which are spread workloads based on hostname as topology key
 // otherSpreadPods: other spread workload pods (those which are based on a topology key that is NOT hostname)
+// otherSpreadWorkloads: map of toplogykey to a set of workloads which are spread workloads based on non-hostname as topology key
+// topologyKey2affinityTerm: map of toplogykey to a set of affinity terms in which each term has this topology key
 func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string][]string,
-	sets.String, map[string]sets.String, sets.String) {
+	sets.String, map[string]sets.String, sets.String, map[string]sets.String, map[string][]AffinityTerm) {
 	nodeInfos, err := pr.nodeInfoLister.List()
 	if err != nil {
 		klog.Errorf("Error retreiving nodeinfos while processing affinities, %V.", err)
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, nil, nil
 	}
 
 	ctx := context.TODO()
@@ -230,7 +236,7 @@ func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string
 		glog.Infof("Unique label pairs (topologies) on nodes: \n %v\n", nodeLabels.UnsortedList())
 	}
 
-	return nodesPods, podsWithSupportedAffinities, pr.hostnameSpreadWorkloads, pr.otherSpreadPods
+	return nodesPods, podsWithSupportedAffinities, pr.hostnameSpreadWorkloads, pr.otherSpreadPods, pr.otherSpreadWorkloads, pr.topologyKey2affinityTerm
 }
 
 func (pr *PodAffinityProcessor) podHasVolumes(qualifiedPodName string) bool {

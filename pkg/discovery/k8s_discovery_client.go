@@ -323,6 +323,8 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 	var podsWithAffinities sets.String
 	var hostnameSpreadWorkloads map[string]sets.String
 	var otherSpreadPods sets.String
+	var otherSpreadWorkloads map[string]sets.String
+	var topologyKey2affinityTerm map[string][]podaffinity.AffinityTerm
 	if !utilfeature.DefaultFeatureGate.Enabled(features.IgnoreAffinities) {
 		if utilfeature.DefaultFeatureGate.Enabled(features.NewAffinityProcessing) {
 			glog.V(2).Infof("Begin to process affinity with new algorithm.")
@@ -336,7 +338,7 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 				if err != nil {
 					glog.Errorf("Failure in processing affinity rules: %s", err)
 				} else {
-					nodesPods, podsWithAffinities, hostnameSpreadWorkloads, otherSpreadPods = affinityProcessor.ProcessAffinities(clusterSummary.Pods)
+					nodesPods, podsWithAffinities, hostnameSpreadWorkloads, otherSpreadPods, otherSpreadWorkloads, topologyKey2affinityTerm = affinityProcessor.ProcessAffinities(clusterSummary.Pods)
 				}
 				glog.V(2).Infof("Successfully processed affinities.")
 				glog.V(3).Infof("Processing affinities with new algorithm took %s", time.Since(start))
@@ -456,6 +458,13 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 		}
 		glog.V(2).Infof("Successfully processed affinity.")
 	}
+
+	// NodeGroup DTOs
+	glog.V(2).Infof("Begin to generate NodeGroup EntityDTOs.")
+	nodeGrpDTOs, _ := dtofactory.
+		NewNodeGroupEntityDTOBuilder(clusterSummary, otherSpreadWorkloads, topologyKey2affinityTerm).BuildEntityDTOs()
+	result.EntityDTOs = append(result.EntityDTOs, nodeGrpDTOs...)
+	glog.V(2).Infof("There are %d NodeGroup entityDTOs.", len(nodeGrpDTOs))
 
 	// Taint-toleration process to create access commodities
 	glog.V(2).Infof("Begin to process taints and tolerations")
