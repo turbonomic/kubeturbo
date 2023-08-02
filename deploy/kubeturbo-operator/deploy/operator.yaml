@@ -29,3 +29,9 @@ spec:
                   fieldPath: metadata.name
             - name: OPERATOR_NAME
               value: "kubeturbo-operator"
+          volumeMount:
+            - mountPath: /tmp
+              name: operator-tmpfs0
+      volumes:
+        - name: operator-tmpfs0
+          emptyDir: {}
