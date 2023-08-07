@@ -191,7 +191,7 @@ CLUSTER_PERMISSION_ROLE_YAML_FILE_PATH ?= deploy/kubeturbo-operator-cluster-role
 CERTIFIED_OPERATOR_CLUSTER_SERVICE_VERSION_YAML_FILE_PATH ?= $(OPERATOR_BUNDLE_DIR)/manifest/kubeturbo-certified.clusterserviceversion.yaml
 GITHUB_REPO_URL := https://api.github.com/repos/turbodeploy/certified-operators/contents/operators/kubeturbo-certified
 ifndef ACCESS_TOKEN
-$(error ACCESS_TOKEN is missing. It is required for validating the release versions from Git. Please provide the ACCESS_TOKEN to proceed with the release of the certified operator bundle.)
+$(error ACCESS_TOKEN is missing. It is required to verify the release versions from Git. Please provide the ACCESS_TOKEN to proceed with the release of the certified operator bundle.)
 endif
 OPERATOR_VERSION_BETA := $(shell \
 	OPERATOR_BETA_RELEASE_MINOR_VERSION=$$(curl -H "Authorization: Bearer $(ACCESS_TOKEN)" -s "$(GITHUB_REPO_URL)" | \
