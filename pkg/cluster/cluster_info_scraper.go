@@ -41,6 +41,14 @@ const (
 	clusterAPIGroupVersion = "machine.openshift.io/v1beta1"
 )
 
+// Exported constants
+const (
+	// default value of the minimum number of nodes allowed in the cluster.
+	DefaultClusterMinNodes = 1
+	// default value of the maximum number of nodes allowed in the cluster.
+	DefaultClusterMaxNodes = 1000
+)
+
 var (
 	labelSelectEverything = labels.Everything().String()
 	fieldSelectEverything = fields.Everything().String()

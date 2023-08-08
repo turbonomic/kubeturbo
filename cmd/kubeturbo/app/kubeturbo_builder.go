@@ -42,6 +42,7 @@ import (
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
 	nodeUtil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
@@ -71,8 +72,6 @@ const (
 	DefaultDiscoverySampleIntervalSec = 60
 	DefaultGCIntervalMin              = 10
 	DefaultReadinessRetryThreshold    = 60
-	DefaultClusterMinNodes            = 1
-	DefaultClusterMaxNodes            = 1000
 )
 
 var (
@@ -1032,8 +1031,8 @@ func WatchConfigMap() {
 		}
 	}
 
-	currentMinNodes := DefaultClusterMinNodes
-	currentMaxNodes := DefaultClusterMaxNodes
+	currentMinNodes := cluster.DefaultClusterMinNodes
+	currentMaxNodes := cluster.DefaultClusterMaxNodes
 
 	glog.V(1).Infof("Start watching the autoreload config file %s/%s", autoReloadConfigFilePath, autoReloadConfigFileName)
 	updateConfigClosure := func() {
@@ -1053,8 +1052,8 @@ func WatchConfigMap() {
 				}
 			}
 		}
-		updateClusterConfig("cluster.minNodes", &currentMinNodes, DefaultClusterMinNodes)
-		updateClusterConfig("cluster.maxNodes", &currentMaxNodes, DefaultClusterMaxNodes)
+		updateClusterConfig("cluster.minNodes", &currentMinNodes, cluster.DefaultClusterMinNodes)
+		updateClusterConfig("cluster.maxNodes", &currentMaxNodes, cluster.DefaultClusterMaxNodes)
 	}
 	updateConfigClosure() //update the logging level during startup
 	viper.OnConfigChange(func(in fsnotify.Event) {
