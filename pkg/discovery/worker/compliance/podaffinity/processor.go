@@ -144,7 +144,7 @@ func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string
 	processAffinityPerPod := func(i int) {
 		pod := allPods[i]
 		qualifiedPodName := pod.Namespace + "/" + pod.Name
-		if !(podWithAffinity(pod) || pr.podHasVolumes(qualifiedPodName)) {
+		if !(podWithAffinity(pod) || pr.podsVolumeHasAffinities(qualifiedPodName)) {
 			return
 		}
 		state, err := pr.PreFilter(ctx, pod)
@@ -158,9 +158,6 @@ func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string
 			return
 		}
 
-		placed := false // this is used to avoid corner cases like those pods which
-		// have volumes but those volumes do not specify node affinities
-		// or those volumes have affinities but do not result into selectors
 		for _, nodeInfo := range nodeInfos {
 			err := pr.Filter(ctx, state, pod, nodeInfo)
 			// Err means a placement was not found on this node
@@ -172,13 +169,10 @@ func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string
 				nodesPods[nodeInfo.node.Name] = []string{}
 			}
 			nodesPods[nodeInfo.node.Name] = append(nodesPods[nodeInfo.node.Name], qualifiedPodName)
-			placed = true
 			pr.Unlock()
 		}
 		pr.Lock()
-		if placed {
-			podsWithSupportedAffinities.Insert(qualifiedPodName)
-		}
+		podsWithSupportedAffinities.Insert(qualifiedPodName)
 		if podWithAffinity(pod) {
 			podsWithAllAffinities.Insert(qualifiedPodName)
 		}
