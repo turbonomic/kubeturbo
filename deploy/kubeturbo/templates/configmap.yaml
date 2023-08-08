@@ -61,4 +61,8 @@ data:
       "logging": {
         "level": {{ .Values.logging.level }}
       }
+      "cluster": {
+        "minNodes": {{ .Values.cluster.minNodes }},
+        "maxNodes": {{ .Values.cluster.maxNodes }}
+      }
     }

@@ -71,6 +71,8 @@ const (
 	DefaultDiscoverySampleIntervalSec = 60
 	DefaultGCIntervalMin              = 10
 	DefaultReadinessRetryThreshold    = 60
+	DefaultClusterMinNodes            = 1
+	DefaultClusterMaxNodes            = 1000
 )
 
 var (
@@ -1030,28 +1032,60 @@ func WatchConfigMap() {
 		}
 	}
 
+	currentMinNodes := DefaultClusterMinNodes
+	currentMaxNodes := DefaultClusterMaxNodes
+
 	glog.V(1).Infof("Start watching the autoreload config file %s/%s", autoReloadConfigFilePath, autoReloadConfigFileName)
-	updateConfig := func() {
+	updateConfigClosure := func() {
 		newLoggingLevel := viper.GetString("logging.level")
 		currentLoggingLevel := pflag.Lookup("v").Value.String()
-		if newLoggingLevel != currentLoggingLevel {
-			if newLogVInt, err := strconv.Atoi(newLoggingLevel); err != nil || newLogVInt < 0 {
-				glog.Errorf("Invalid log verbosity %v in the autoreload config file", newLoggingLevel)
-			} else {
-				err := pflag.Lookup("v").Value.Set(newLoggingLevel)
-				if err != nil {
-					glog.Errorf("Can't apply the new logging level setting due to the error:%v", err)
+		if newLoggingLevel != "" {
+			if newLoggingLevel != currentLoggingLevel {
+				if newLogVInt, err := strconv.Atoi(newLoggingLevel); err != nil || newLogVInt < 0 {
+					glog.Errorf("Invalid log verbosity %v in the autoreload config file", newLoggingLevel)
 				} else {
-					glog.V(1).Infof("Logging level is changed from %v to %v", currentLoggingLevel, newLoggingLevel)
+					err := pflag.Lookup("v").Value.Set(newLoggingLevel)
+					if err != nil {
+						glog.Errorf("Can't apply the new logging level setting due to the error:%v", err)
+					} else {
+						glog.V(1).Infof("Logging level is changed from %v to %v", currentLoggingLevel, newLoggingLevel)
+					}
 				}
-
 			}
 		}
+		updateClusterConfig("cluster.minNodes", &currentMinNodes, DefaultClusterMinNodes)
+		updateClusterConfig("cluster.maxNodes", &currentMaxNodes, DefaultClusterMaxNodes)
 	}
-	updateConfig() //update the logging level during startup
+	updateConfigClosure() //update the logging level during startup
 	viper.OnConfigChange(func(in fsnotify.Event) {
-		updateConfig()
+		updateConfigClosure()
 	})
 
 	viper.WatchConfig()
+}
+
+// updateClusterConfig updates the value of a configuration setting for an integer property.
+// If the configuration value is empty, it uses the provided defaultValue.
+// If the configuration value is not a valid integer or is negative, it uses the defaultValue and logs an error.
+// If the configuration value is different from the currentValue, it updates the currentValue and logs the change.
+func updateClusterConfig(configKey string, currentValue *int, defaultValue int) {
+	glog.V(1).Infof("Cluster %s  current value is %v ", configKey, *currentValue)
+	newValueStr := viper.GetString(configKey)
+
+	if newValueStr == "" {
+		glog.V(1).Infof("Empty value for %s in the configuration, using default value %d", configKey, defaultValue)
+		*currentValue = defaultValue
+		return
+	}
+
+	newValue, err := strconv.Atoi(newValueStr)
+	if err != nil || newValue < 0 {
+		glog.Errorf("Invalid %s value: %v specified, using default value %d", configKey, newValue, defaultValue)
+		return
+	}
+
+	if newValue != *currentValue {
+		glog.V(1).Infof("Cluster %s changed from %v to %v", configKey, *currentValue, newValue)
+		*currentValue = newValue
+	}
 }

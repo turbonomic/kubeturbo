@@ -61,4 +61,8 @@ data:
         "logging": {
            "level": 2
         }
+        "cluster": {
+           "minNodes": 3,
+           "maxNodes": 10
+        }
     }
