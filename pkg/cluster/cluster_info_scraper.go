@@ -47,10 +47,8 @@ const (
 	DefaultClusterMinNodes = 1
 	// default value of the maximum number of nodes allowed in the cluster.
 	DefaultClusterMaxNodes = 1000
-
 	// configuration key for the minimum number of nodes in the cluster in the ConfigMap file turbo-autoreload.config.
 	MinNodesConfigKey = "cluster.minNodes"
-
 	// configuration key for the maximum number of nodes in the cluster in the ConfigMap file turbo-autoreload.config.
 	MaxNodesConfigKey = "cluster.maxNodes"
 )
