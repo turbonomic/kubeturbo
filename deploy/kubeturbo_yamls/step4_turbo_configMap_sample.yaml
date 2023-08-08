@@ -62,7 +62,7 @@ data:
            "level": 2
         }
         "cluster": {
-           "minNodes": 3,
-           "maxNodes": 10
+           "minNodes": 1,
+           "maxNodes": 1000
         }
     }
