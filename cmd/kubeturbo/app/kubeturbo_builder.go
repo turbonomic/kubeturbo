@@ -1052,8 +1052,8 @@ func WatchConfigMap() {
 				}
 			}
 		}
-		updateClusterConfig(cluster.MinNodesConfigKey, &currentMinNodes, cluster.DefaultClusterMinNodes)
-		updateClusterConfig(cluster.MaxNodesConfigKey, &currentMaxNodes, cluster.DefaultClusterMaxNodes)
+		updateClusterConfig(cluster.MinNodesConfigKey, &currentMinNodes, cluster.DefaultClusterMinNodes, viper.GetString)
+		updateClusterConfig(cluster.MaxNodesConfigKey, &currentMaxNodes, cluster.DefaultClusterMaxNodes, viper.GetString)
 	}
 	updateConfigClosure() //update the logging level during startup
 	viper.OnConfigChange(func(in fsnotify.Event) {
@@ -1067,9 +1067,9 @@ func WatchConfigMap() {
 // If the configuration value is empty, it uses the provided defaultValue.
 // If the configuration value is not a valid integer or is negative, it uses the defaultValue and logs an error.
 // If the configuration value is different from the currentValue, it updates the currentValue and logs the change.
-func updateClusterConfig(configKey string, currentValue *int, defaultValue int) {
+func updateClusterConfig(configKey string, currentValue *int, defaultValue int, getKeyStringVal func(string) string) {
 	glog.V(1).Infof("Cluster %s  current value is %v ", configKey, *currentValue)
-	newValueStr := viper.GetString(configKey)
+	newValueStr := getKeyStringVal(configKey)
 
 	if newValueStr == "" {
 		glog.V(1).Infof("Empty value for %s in the configuration, using default value %d", configKey, defaultValue)
@@ -1080,6 +1080,7 @@ func updateClusterConfig(configKey string, currentValue *int, defaultValue int) 
 	newValue, err := strconv.Atoi(newValueStr)
 	if err != nil || newValue < 0 {
 		glog.Errorf("Invalid %s value: %v specified, using default value %d", configKey, newValue, defaultValue)
+		*currentValue = defaultValue
 		return
 	}
 
