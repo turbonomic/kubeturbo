@@ -1052,8 +1052,8 @@ func WatchConfigMap() {
 				}
 			}
 		}
-		updateClusterConfig("cluster.minNodes", &currentMinNodes, cluster.DefaultClusterMinNodes)
-		updateClusterConfig("cluster.maxNodes", &currentMaxNodes, cluster.DefaultClusterMaxNodes)
+		updateClusterConfig(cluster.MinNodesConfigKey, &currentMinNodes, cluster.DefaultClusterMinNodes)
+		updateClusterConfig(cluster.MaxNodesConfigKey, &currentMaxNodes, cluster.DefaultClusterMaxNodes)
 	}
 	updateConfigClosure() //update the logging level during startup
 	viper.OnConfigChange(func(in fsnotify.Event) {
