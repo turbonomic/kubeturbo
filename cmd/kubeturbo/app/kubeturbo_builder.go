@@ -1031,29 +1031,28 @@ func WatchConfigMap() {
 		}
 	}
 
-	currentMinNodes := cluster.DefaultClusterMinNodes
-	currentMaxNodes := cluster.DefaultClusterMaxNodes
+	currentMinNodes := cluster.DefaultMinNodePoolSize
+	currentMaxNodes := cluster.DefaultMaxNodePoolSize
 
 	glog.V(1).Infof("Start watching the autoreload config file %s/%s", autoReloadConfigFilePath, autoReloadConfigFileName)
 	updateConfigClosure := func() {
 		newLoggingLevel := viper.GetString("logging.level")
 		currentLoggingLevel := pflag.Lookup("v").Value.String()
-		if newLoggingLevel != "" {
-			if newLoggingLevel != currentLoggingLevel {
-				if newLogVInt, err := strconv.Atoi(newLoggingLevel); err != nil || newLogVInt < 0 {
-					glog.Errorf("Invalid log verbosity %v in the autoreload config file", newLoggingLevel)
+		if newLoggingLevel != "" && newLoggingLevel != currentLoggingLevel {
+			if newLogVInt, err := strconv.Atoi(newLoggingLevel); err != nil || newLogVInt < 0 {
+				glog.Errorf("Invalid log verbosity %v in the autoreload config file", newLoggingLevel)
+			} else {
+				err := pflag.Lookup("v").Value.Set(newLoggingLevel)
+				if err != nil {
+					glog.Errorf("Can't apply the new logging level setting due to the error:%v", err)
 				} else {
-					err := pflag.Lookup("v").Value.Set(newLoggingLevel)
-					if err != nil {
-						glog.Errorf("Can't apply the new logging level setting due to the error:%v", err)
-					} else {
-						glog.V(1).Infof("Logging level is changed from %v to %v", currentLoggingLevel, newLoggingLevel)
-					}
+					glog.V(1).Infof("Logging level is changed from %v to %v", currentLoggingLevel, newLoggingLevel)
 				}
 			}
 		}
-		updateClusterConfig(cluster.MinNodesConfigKey, &currentMinNodes, cluster.DefaultClusterMinNodes, viper.GetString)
-		updateClusterConfig(cluster.MaxNodesConfigKey, &currentMaxNodes, cluster.DefaultClusterMaxNodes, viper.GetString)
+
+		updateNodePoolConfig(cluster.MinNodesConfigKey, &currentMinNodes, cluster.DefaultMinNodePoolSize, viper.GetString)
+		updateNodePoolConfig(cluster.MaxNodesConfigKey, &currentMaxNodes, cluster.DefaultMaxNodePoolSize, viper.GetString)
 	}
 	updateConfigClosure() //update the logging level during startup
 	viper.OnConfigChange(func(in fsnotify.Event) {
@@ -1063,12 +1062,12 @@ func WatchConfigMap() {
 	viper.WatchConfig()
 }
 
-// updateClusterConfig updates the value of a configuration setting for an integer property.
+// updateNodePoolConfig updates the value of a configuration setting for an integer property.
 // If the configuration value is empty, it uses the provided defaultValue.
 // If the configuration value is not a valid integer or is negative, it uses the defaultValue and logs an error.
 // If the configuration value is different from the currentValue, it updates the currentValue and logs the change.
-func updateClusterConfig(configKey string, currentValue *int, defaultValue int, getKeyStringVal func(string) string) {
-	glog.V(1).Infof("Cluster %s  current value is %v ", configKey, *currentValue)
+func updateNodePoolConfig(configKey string, currentValue *int, defaultValue int, getKeyStringVal func(string) string) {
+	glog.V(1).Infof("Cluster %s current value is %v ", configKey, *currentValue)
 	newValueStr := getKeyStringVal(configKey)
 
 	if newValueStr == "" {

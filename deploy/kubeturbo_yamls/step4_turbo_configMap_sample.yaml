@@ -61,8 +61,8 @@ data:
         "logging": {
            "level": 2
         }
-        "cluster": {
-           "minNodes": 1,
-           "maxNodes": 1000
+        "nodePoolSize": {
+           "min": 1,
+           "max": 1000
         }
     }

@@ -72,7 +72,7 @@ func TestOptionsSet(t *testing.T) {
 	s.AddFlags(pflag.CommandLine)
 }
 
-func TestUpdateClusterConfig(t *testing.T) {
+func TestUpdateNodePoolConfig(t *testing.T) {
 	testCases := []struct {
 		name            string
 		configKey       string
@@ -117,7 +117,7 @@ func TestUpdateClusterConfig(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			updateClusterConfig(tc.configKey, &tc.currentValue, tc.defaultValue, tc.getKeyStringVal)
+			updateNodePoolConfig(tc.configKey, &tc.currentValue, tc.defaultValue, tc.getKeyStringVal)
 
 			if tc.currentValue != tc.expectedValue {
 				t.Errorf("Expected value: %d, got: %d", tc.expectedValue, tc.currentValue)
