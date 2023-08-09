@@ -1036,21 +1036,7 @@ func WatchConfigMap() {
 
 	glog.V(1).Infof("Start watching the autoreload config file %s/%s", autoReloadConfigFilePath, autoReloadConfigFileName)
 	updateConfigClosure := func() {
-		newLoggingLevel := viper.GetString("logging.level")
-		currentLoggingLevel := pflag.Lookup("v").Value.String()
-		if newLoggingLevel != "" && newLoggingLevel != currentLoggingLevel {
-			if newLogVInt, err := strconv.Atoi(newLoggingLevel); err != nil || newLogVInt < 0 {
-				glog.Errorf("Invalid log verbosity %v in the autoreload config file", newLoggingLevel)
-			} else {
-				err := pflag.Lookup("v").Value.Set(newLoggingLevel)
-				if err != nil {
-					glog.Errorf("Can't apply the new logging level setting due to the error:%v", err)
-				} else {
-					glog.V(1).Infof("Logging level is changed from %v to %v", currentLoggingLevel, newLoggingLevel)
-				}
-			}
-		}
-
+		updateLoggingLevel()
 		updateNodePoolConfig(cluster.MinNodesConfigKey, &currentMinNodes, cluster.DefaultMinNodePoolSize, viper.GetString)
 		updateNodePoolConfig(cluster.MaxNodesConfigKey, &currentMaxNodes, cluster.DefaultMaxNodePoolSize, viper.GetString)
 	}
@@ -1062,6 +1048,25 @@ func WatchConfigMap() {
 	viper.WatchConfig()
 }
 
+// updateLoggingLevel updates the logging verbosity level based on configuration.
+func updateLoggingLevel() {
+	newLoggingLevel := viper.GetString("logging.level")
+	currentLoggingLevel := pflag.Lookup("v").Value.String()
+
+	if newLoggingLevel != "" && newLoggingLevel != currentLoggingLevel {
+		if newLogVInt, err := strconv.Atoi(newLoggingLevel); err != nil || newLogVInt < 0 {
+			glog.Errorf("Invalid log verbosity %v in the autoreload config file", newLoggingLevel)
+		} else {
+			err := pflag.Lookup("v").Value.Set(newLoggingLevel)
+			if err != nil {
+				glog.Errorf("Can't apply the new logging level setting due to the error:%v", err)
+			} else {
+				glog.V(1).Infof("Logging level is changed from %v to %v", currentLoggingLevel, newLoggingLevel)
+			}
+		}
+	}
+}
+
 // updateNodePoolConfig updates the value of a configuration setting for an integer property.
 // If the configuration value is empty, it uses the provided defaultValue.
 // If the configuration value is not a valid integer or is negative, it uses the defaultValue and logs an error.
@@ -1071,8 +1076,10 @@ func updateNodePoolConfig(configKey string, currentValue *int, defaultValue int,
 	newValueStr := getKeyStringVal(configKey)
 
 	if newValueStr == "" {
-		glog.V(1).Infof("Empty value for %s in the configuration, using default value %d", configKey, defaultValue)
-		*currentValue = defaultValue
+		if *currentValue != defaultValue {
+			glog.V(1).Infof("Empty value for %s in the configuration, using default value %d", configKey, defaultValue)
+			*currentValue = defaultValue
+		}
 		return
 	}
 
