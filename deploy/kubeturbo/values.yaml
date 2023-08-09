@@ -94,11 +94,11 @@ HANodeConfig:
 logging:
   level: 2
 # Define the default values for your cluster configuration
-# `minNodes`: This parameter defines the minimum number of nodes allowed in the node pool. 
+# `nodePoolSize.min`: This parameter defines the minimum number of nodes allowed in the node pool. 
 #             It ensures that the node pool remains resilient and can continue its normal operations even if some nodes become 
 #             unavailable due to hardware failures or other issues. The minimum number of nodes should be set based on the desired 
 #             level of resiliency and the specific requirements of the applications running in the node pool.
-# `maxNodes`: This parameter defines the maximum number of nodes allowed in the node pool. It prevents the cluster from growing 
+# `nodePoolSize.max`: This parameter defines the maximum number of nodes allowed in the node pool. It prevents the cluster from growing 
 #             uncontrollably and helps manage the available resources efficiently. The maximum number of nodes should be set based 
 #             on the available resources in the environment, such as IP addresses, CPU, memory, storage capacity, and networking bandwidth.
 #             It should also consider the application requirements and performance characteristics of the workloads running on the node pool.
