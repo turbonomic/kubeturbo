@@ -17,6 +17,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -30,7 +31,9 @@ const (
 	defaultCpuFreq        = float64(2600) //MHz
 	// cpufreq job by default is created every 10 mins
 	// if there has been failures, a backoff delay would be added to retrials
-	defaultInitialDelay = 10 * time.Minute
+	defaultInitialDelay   = 10 * time.Minute
+	defaultCpuResQuantity = "10m"
+	defaultMemResQuantity = "50Mi"
 )
 
 var (
@@ -297,6 +300,16 @@ func (n *NodeCpuFrequencyGetter) getCpuFreqJobDefinition(nodeName string) *batch
 							Name:            "cpufreq",
 							Image:           n.cpuFreqGetterImage,
 							ImagePullPolicy: "IfNotPresent",
+							Resources: corev1.ResourceRequirements{
+								Requests: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    resource.MustParse(defaultCpuResQuantity),
+									corev1.ResourceMemory: resource.MustParse(defaultMemResQuantity),
+								},
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    resource.MustParse(defaultCpuResQuantity),
+									corev1.ResourceMemory: resource.MustParse(defaultMemResQuantity),
+								},
+							},
 						},
 					},
 				},
