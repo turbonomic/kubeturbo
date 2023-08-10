@@ -161,6 +161,16 @@ spec:
                    level:
                      description: Define logging level, default is info = 2
                      type: integer
+              nodePoolSize:
+                 description: Optional node pool configuration. Changing this value does not require restart of Kubeturbo but takes about 1 minute to take effect
+                 type: object
+                 properties:
+                   min:
+                     description: minimum number of nodes allowed in the node pool. default is 1
+                     type: integer
+                   max:
+                     description: maximum number of nodes allowed in the node pool, default is 1000
+                     type: integer                    
               args:
                 description: Kubeturbo command line arguments
                 type: object
