@@ -471,6 +471,15 @@ func (dc *K8sDiscoveryClient) DiscoverWithNewFramework(targetID string) ([]*prot
 
 	glog.V(2).Infof("Successfully processed taints and tolerations.")
 
+	// NodeGroup DTOs
+	glog.V(2).Infof("Begin to generate NodeGroup EntityDTOs.")
+	start = time.Now()
+	nodeGrpDTOs, _ := dtofactory.
+		NewNodeGroupEntityDTOBuilder(clusterSummary).BuildEntityDTOs()
+	result.EntityDTOs = append(result.EntityDTOs, nodeGrpDTOs...)
+	glog.V(3).Infof("Creating NodeGroup entityDTOs took %s", time.Since(start))
+	glog.V(2).Infof("There are %d NodeGroup entityDTOs.", len(nodeGrpDTOs))
+
 	// Discovery worker for creating Group DTOs
 	entityGroupDiscoveryWorker := worker.Newk8sEntityGroupDiscoveryWorker(clusterSummary, targetID)
 	groupDTOs, _ := entityGroupDiscoveryWorker.Do(result.EntityGroups, result.SidecarContainerSpecs,
