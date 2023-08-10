@@ -71,3 +71,57 @@ func TestOptionsSet(t *testing.T) {
 	}
 	s.AddFlags(pflag.CommandLine)
 }
+
+func TestUpdateNodePoolConfig(t *testing.T) {
+	testCases := []struct {
+		name            string
+		configKey       string
+		currentValue    int
+		defaultValue    int
+		getKeyStringVal func(string) string
+		expectedValue   int
+	}{
+		{
+			name:            "EmptyValue",
+			configKey:       "SomeKey",
+			currentValue:    42,
+			defaultValue:    100,
+			getKeyStringVal: func(key string) string { return "" },
+			expectedValue:   100,
+		},
+		{
+			name:            "InvalidValue",
+			configKey:       "AnotherKey",
+			currentValue:    42,
+			defaultValue:    100,
+			getKeyStringVal: func(key string) string { return "invalid" },
+			expectedValue:   100,
+		},
+		{
+			name:            "NegativeValue",
+			configKey:       "YetAnotherKey",
+			currentValue:    42,
+			defaultValue:    100,
+			getKeyStringVal: func(key string) string { return "-50" },
+			expectedValue:   100,
+		},
+		{
+			name:            "ValidValue",
+			configKey:       "ValidKey",
+			currentValue:    42,
+			defaultValue:    100,
+			getKeyStringVal: func(key string) string { return "75" },
+			expectedValue:   75,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			updateNodePoolConfig(tc.configKey, &tc.currentValue, tc.defaultValue, tc.getKeyStringVal)
+
+			if tc.currentValue != tc.expectedValue {
+				t.Errorf("Expected value: %d, got: %d", tc.expectedValue, tc.currentValue)
+			}
+		})
+	}
+}
