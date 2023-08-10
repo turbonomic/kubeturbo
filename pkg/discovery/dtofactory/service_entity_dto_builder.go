@@ -81,9 +81,9 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 		splitClusterServiceNameAndNameSpace := strings.Split(serviceName, "/")
 		clusterServiceNamespace, clusterServiceName := splitClusterServiceNameAndNameSpace[0], splitClusterServiceNameAndNameSpace[1]
 		// check the kube-system UID to set as entity property
-		namespaceUID, exists := builder.ClusterSummary.NamespaceUIDMap[kubeSystemPrefix]
+		kubeSystemUID, exists := builder.ClusterSummary.NamespaceUIDMap[kubeSystemPrefix]
 		if exists {
-			ebuilder.WithProperty(getServiceProperty(stitching.NamespaceUIDStitchingAttr, namespaceUID))
+			ebuilder.WithProperty(getServiceProperty(stitching.KubeSystemUIDStitchingAttr, kubeSystemUID))
 		} else {
 			glog.Errorf("Failed to get kube system UID from namespace %s for service %s", clusterServiceNamespace,
 				clusterServiceName)

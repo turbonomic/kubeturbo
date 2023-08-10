@@ -34,7 +34,7 @@ const (
 	// The attribute used for stitching with Dynatrace probes with service
 	ServiceNameStitchingAttr      string = "SERVICE_NAME"
 	ServiceNamespaceStitchingAttr string = "SERVICE_NAMESPACE"
-	NamespaceUIDStitchingAttr     string = "KUBE_SYSTEM_UID"
+	KubeSystemUIDStitchingAttr    string = "KUBE_SYSTEM_UID"
 )
 
 // The property type that is used for stitching. For example "UUID", "IP address".
