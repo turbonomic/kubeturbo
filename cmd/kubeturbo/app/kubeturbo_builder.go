@@ -42,6 +42,7 @@ import (
 
 	kubeturbo "github.com/turbonomic/kubeturbo/pkg"
 	"github.com/turbonomic/kubeturbo/pkg/action/executor/gitops"
+	"github.com/turbonomic/kubeturbo/pkg/cluster"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/processor"
 	nodeUtil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/worker"
@@ -1030,28 +1031,67 @@ func WatchConfigMap() {
 		}
 	}
 
-	glog.V(1).Infof("Start watching the autoreload config file %s/%s", autoReloadConfigFilePath, autoReloadConfigFileName)
-	updateConfig := func() {
-		newLoggingLevel := viper.GetString("logging.level")
-		currentLoggingLevel := pflag.Lookup("v").Value.String()
-		if newLoggingLevel != currentLoggingLevel {
-			if newLogVInt, err := strconv.Atoi(newLoggingLevel); err != nil || newLogVInt < 0 {
-				glog.Errorf("Invalid log verbosity %v in the autoreload config file", newLoggingLevel)
-			} else {
-				err := pflag.Lookup("v").Value.Set(newLoggingLevel)
-				if err != nil {
-					glog.Errorf("Can't apply the new logging level setting due to the error:%v", err)
-				} else {
-					glog.V(1).Infof("Logging level is changed from %v to %v", currentLoggingLevel, newLoggingLevel)
-				}
+	currentMinNodes := cluster.DefaultMinNodePoolSize
+	currentMaxNodes := cluster.DefaultMaxNodePoolSize
 
-			}
-		}
+	glog.V(1).Infof("Start watching the autoreload config file %s/%s", autoReloadConfigFilePath, autoReloadConfigFileName)
+	updateConfigClosure := func() {
+		updateLoggingLevel()
+		updateNodePoolConfig(cluster.MinNodesConfigKey, &currentMinNodes, cluster.DefaultMinNodePoolSize, viper.GetString)
+		updateNodePoolConfig(cluster.MaxNodesConfigKey, &currentMaxNodes, cluster.DefaultMaxNodePoolSize, viper.GetString)
 	}
-	updateConfig() //update the logging level during startup
+	updateConfigClosure() //update the logging level during startup
 	viper.OnConfigChange(func(in fsnotify.Event) {
-		updateConfig()
+		updateConfigClosure()
 	})
 
 	viper.WatchConfig()
+}
+
+// updateLoggingLevel updates the logging verbosity level based on configuration.
+func updateLoggingLevel() {
+	newLoggingLevel := viper.GetString("logging.level")
+	currentLoggingLevel := pflag.Lookup("v").Value.String()
+
+	if newLoggingLevel != "" && newLoggingLevel != currentLoggingLevel {
+		if newLogVInt, err := strconv.Atoi(newLoggingLevel); err != nil || newLogVInt < 0 {
+			glog.Errorf("Invalid log verbosity %v in the autoreload config file", newLoggingLevel)
+		} else {
+			err := pflag.Lookup("v").Value.Set(newLoggingLevel)
+			if err != nil {
+				glog.Errorf("Can't apply the new logging level setting due to the error:%v", err)
+			} else {
+				glog.V(1).Infof("Logging level is changed from %v to %v", currentLoggingLevel, newLoggingLevel)
+			}
+		}
+	}
+}
+
+// updateNodePoolConfig updates the value of a configuration setting for an integer property.
+// If the configuration value is empty, it uses the provided defaultValue.
+// If the configuration value is not a valid integer or is negative, it uses the defaultValue and logs an error.
+// If the configuration value is different from the currentValue, it updates the currentValue and logs the change.
+func updateNodePoolConfig(configKey string, currentValue *int, defaultValue int, getKeyStringVal func(string) string) {
+	glog.V(1).Infof("Cluster %s current value is %v ", configKey, *currentValue)
+	newValueStr := getKeyStringVal(configKey)
+
+	if newValueStr == "" {
+		if *currentValue != defaultValue {
+			glog.V(1).Infof("Empty value for %s in the configuration, using default value %d", configKey, defaultValue)
+			*currentValue = defaultValue
+		}
+		return
+	}
+
+	newValue, err := strconv.Atoi(newValueStr)
+	if err != nil || newValue < 0 {
+		glog.Errorf("Invalid %s value: %v specified, using default value %d", configKey, newValue, defaultValue)
+		*currentValue = defaultValue
+		return
+	}
+
+	if newValue != *currentValue {
+		glog.V(1).Infof("Cluster %s changed from %v to %v", configKey, *currentValue, newValue)
+		*currentValue = newValue
+	}
 }
