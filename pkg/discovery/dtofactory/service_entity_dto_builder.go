@@ -50,6 +50,11 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 	if err != nil {
 		glog.Warningf("Failed to get Kubernetes service ID: %v", err)
 	}
+	//Dynatrace identifies k8s clusters using UID of the 'kube-system' namespace in each cluster.
+	kubeSystemUID, exists := builder.ClusterSummary.NamespaceUIDMap[kubeSystemPrefix]
+	if !exists {
+		glog.Errorf("Failed to retrieve UID for 'kube-system' namespace from NamespaceUIDMap")
+	}
 	for service, podList := range builder.ClusterSummary.Services {
 		serviceName := util.GetServiceClusterID(service)
 		if len(podList) == 0 {
@@ -77,17 +82,6 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 
 		ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_SERVICE, id).
 			DisplayName(displayName)
-			// split service name and namespace to set as entity property
-		splitClusterServiceNameAndNameSpace := strings.Split(serviceName, "/")
-		clusterServiceNamespace, clusterServiceName := splitClusterServiceNameAndNameSpace[0], splitClusterServiceNameAndNameSpace[1]
-		// check the kube-system UID to set as entity property
-		kubeSystemUID, exists := builder.ClusterSummary.NamespaceUIDMap[kubeSystemPrefix]
-		if exists {
-			ebuilder.WithProperty(getServiceProperty(stitching.KubeSystemUIDStitchingAttr, kubeSystemUID))
-		} else {
-			glog.Errorf("Failed to get kube system UID from namespace %s for service %s", clusterServiceNamespace,
-				clusterServiceName)
-		}
 		// commodities sold
 		if err := builder.createCommoditySold(ebuilder, pods, serviceName); err != nil {
 			glog.Warningf("Failed to create commodity sold for service %s: %v", serviceName, err)
@@ -103,10 +97,11 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 		// service data.
 		ebuilder.ServiceData(createServiceData(service))
 
-		// set the ip property, service UID, service namespace & service name property for stitching
+		// set the ip property, service UID, kube-system namepsace UID, service namespace & service name property for stitching
 		ebuilder.WithProperty(getIPProperty(pods, svcUID)).WithProperty(getUUIDProperty(id)).
-			WithProperty(getServiceProperty(stitching.ServiceNamespaceStitchingAttr, clusterServiceNamespace)).
-			WithProperty(getServiceProperty(stitching.ServiceNameStitchingAttr, clusterServiceName))
+			WithProperty(getServiceProperty(stitching.KubeSystemUIDStitchingAttr, kubeSystemUID)).
+			WithProperty(getServiceProperty(stitching.ServiceNamespaceStitchingAttr, service.Namespace)).
+			WithProperty(getServiceProperty(stitching.ServiceNameStitchingAttr, service.Name))
 
 		ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 

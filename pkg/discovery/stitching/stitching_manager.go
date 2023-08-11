@@ -31,7 +31,7 @@ const (
 	// The attribute used for stitching with other probes (e.g., prometurbo) with app and service
 	AppStitchingAttr string = "IP"
 
-	// The attribute used for stitching with Dynatrace probes with service
+	// The attributes used for stitching kubeturbo discovered services with services discovered by the Dynatrace probes.
 	ServiceNameStitchingAttr      string = "SERVICE_NAME"
 	ServiceNamespaceStitchingAttr string = "SERVICE_NAMESPACE"
 	KubeSystemUIDStitchingAttr    string = "KUBE_SYSTEM_UID"
