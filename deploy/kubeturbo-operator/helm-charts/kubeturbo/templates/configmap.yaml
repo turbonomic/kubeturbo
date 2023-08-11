@@ -60,9 +60,9 @@ data:
     {
       "logging": {
         "level": {{ .Values.logging.level }}
-      }
+      },
       "nodePoolSize": {
-           "min": 1,
-           "max": 1000
-        }
+        "min": {{ .Values.nodePoolSize.max }},
+        "max": {{ .Values.nodePoolSize.max }},
+      }
     }
