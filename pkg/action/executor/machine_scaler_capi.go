@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/golang/glog"
@@ -143,11 +144,14 @@ func (controller *machineSetController) checkPreconditions() error {
 
 // Helper function to get int value from viper or use default
 func getIntOrDefault(key string, defaultValue int) int {
-	value := viper.GetInt(key)
-	if value == 0 {
+	stringVal := viper.GetString(key)
+	glog.V(4).Infof("key: '%s' with string value %s", key, stringVal)
+
+	intVal, err := strconv.Atoi(stringVal)
+	if err != nil || intVal < 0 {
 		return defaultValue
 	}
-	return value
+	return intVal
 }
 
 // executeAction scales a MachineSet by modifying its replica count
