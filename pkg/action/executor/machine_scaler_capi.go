@@ -3,7 +3,6 @@ package executor
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/golang/glog"
@@ -129,29 +128,17 @@ func (controller *machineSetController) checkPreconditions() error {
 	resultingReplicas := int(*controller.machineSet.Spec.Replicas) + int(controller.request.diff)
 
 	// Ensure that the resulting replicas do not drop below the minNodes.
-	minNodes := getIntOrDefault(cluster.MinNodesConfigKey, cluster.DefaultMinNodePoolSize)
+	minNodes := cluster.GetNodePoolSizeConfigValue(cluster.MinNodesConfigKey, viper.GetString, cluster.DefaultMinNodePoolSize)
 	if resultingReplicas < minNodes {
 		return fmt.Errorf("machine set replicas can't be brought down below the minimum nodes of %d", minNodes)
 	}
 
 	// Ensure that the resulting replicas do not exceed the maxNodes.
-	maxNodes := getIntOrDefault(cluster.MaxNodesConfigKey, cluster.DefaultMaxNodePoolSize)
+	maxNodes := cluster.GetNodePoolSizeConfigValue(cluster.MaxNodesConfigKey, viper.GetString, cluster.DefaultMaxNodePoolSize)
 	if resultingReplicas > maxNodes {
 		return fmt.Errorf("machine set replicas can't exceed the maximum nodes of %d", maxNodes)
 	}
 	return nil
-}
-
-// Helper function to get int value from viper or use default
-func getIntOrDefault(key string, defaultValue int) int {
-	stringVal := viper.GetString(key)
-	glog.V(4).Infof("key: '%s' with string value %s", key, stringVal)
-
-	intVal, err := strconv.Atoi(stringVal)
-	if err != nil || intVal < 0 {
-		return defaultValue
-	}
-	return intVal
 }
 
 // executeAction scales a MachineSet by modifying its replica count

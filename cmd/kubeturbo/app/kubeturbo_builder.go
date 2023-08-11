@@ -1043,8 +1043,7 @@ func WatchConfigMap() {
 	glog.V(1).Infof("Start watching the autoreload config file %s/%s", autoReloadConfigFilePath, autoReloadConfigFileName)
 	updateConfigClosure := func() {
 		updateLoggingLevel()
-		updateNodePoolConfig(cluster.MinNodesConfigKey, &currentMinNodes, cluster.DefaultMinNodePoolSize, viper.GetString)
-		updateNodePoolConfig(cluster.MaxNodesConfigKey, &currentMaxNodes, cluster.DefaultMaxNodePoolSize, viper.GetString)
+		updateNodePoolConfig(&currentMinNodes, &currentMaxNodes)
 	}
 	updateConfigClosure() //update the logging level during startup
 	viper.OnConfigChange(func(in fsnotify.Event) {
@@ -1073,30 +1072,26 @@ func updateLoggingLevel() {
 	}
 }
 
-// updateNodePoolConfig updates the value of a configuration setting for an integer property.
-// If the configuration value is empty, it uses the provided defaultValue.
-// If the configuration value is not a valid integer or is negative, it uses the defaultValue and logs an error.
-// If the configuration value is different from the currentValue, it updates the currentValue and logs the change.
-func updateNodePoolConfig(configKey string, currentValue *int, defaultValue int, getKeyStringVal func(string) string) {
-	glog.V(1).Infof("Cluster %s current value is %v ", configKey, *currentValue)
-	newValueStr := getKeyStringVal(configKey)
+func updateNodePoolConfig(currentMinNodes *int, currentMaxNodes *int) {
+	newMinNodes := logCurrentValueAndGetValue(cluster.MinNodesConfigKey, *currentMinNodes, cluster.DefaultMinNodePoolSize)
+	newMaxNodes := logCurrentValueAndGetValue(cluster.MaxNodesConfigKey, *currentMaxNodes, cluster.DefaultMaxNodePoolSize)
 
-	if newValueStr == "" {
-		if *currentValue != defaultValue {
-			glog.V(1).Infof("Empty value for %s in the configuration, using default value %d", configKey, defaultValue)
-			*currentValue = defaultValue
-		}
-		return
+	if newMinNodes > newMaxNodes {
+		glog.Errorf("Cannot make cluster node pool size configuration change since %s value: %d is larger than %s value: %d",
+			cluster.MinNodesConfigKey, newMinNodes, cluster.MaxNodesConfigKey, newMaxNodes)
+	} else {
+		updateValueAndLog(cluster.MinNodesConfigKey, currentMinNodes, newMinNodes)
+		updateValueAndLog(cluster.MaxNodesConfigKey, currentMaxNodes, newMaxNodes)
 	}
+}
 
-	newValue, err := strconv.Atoi(newValueStr)
-	if err != nil || newValue < 0 {
-		glog.Errorf("Invalid %s value: %q specified, using default value %d", configKey, newValueStr, defaultValue)
-		*currentValue = defaultValue
-		return
-	}
+func logCurrentValueAndGetValue(configKey string, currentValue int, defaultValue int) int {
+	glog.V(1).Infof("Cluster %s current value is %v", configKey, currentValue)
+	return cluster.GetNodePoolSizeConfigValue(configKey, viper.GetString, defaultValue)
+}
 
-	if newValue != *currentValue {
+func updateValueAndLog(configKey string, currentValue *int, newValue int) {
+	if *currentValue != newValue {
 		glog.V(1).Infof("Cluster %s changed from %v to %v", configKey, *currentValue, newValue)
 		*currentValue = newValue
 	}
