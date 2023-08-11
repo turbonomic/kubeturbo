@@ -1027,6 +1027,8 @@ func WatchConfigMap() {
 		} else {
 			if _, ok := verr.(viper.ConfigFileNotFoundError); !ok {
 				glog.V(1).Infof("Can't read the autoreload config file %s/%s due to the error: %v, will retry in 3 seconds", autoReloadConfigFilePath, autoReloadConfigFileName, verr)
+			} else {
+				glog.V(4).Infof("Autoreload config file %s/%s not found", autoReloadConfigFilePath, autoReloadConfigFileName)
 			}
 			time.Sleep(30 * time.Second)
 		}
@@ -1086,7 +1088,7 @@ func updateNodePoolConfig(configKey string, currentValue *int, defaultValue int,
 
 	newValue, err := strconv.Atoi(newValueStr)
 	if err != nil || newValue < 0 {
-		glog.Errorf("Invalid %s value: %s specified, using default value %d", configKey, newValueStr, defaultValue)
+		glog.Errorf("Invalid %s value: %q specified, using default value %d", configKey, newValueStr, defaultValue)
 		*currentValue = defaultValue
 		return
 	}
