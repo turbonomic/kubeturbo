@@ -1022,11 +1022,12 @@ func WatchConfigMap() {
 	viper.SetConfigType("json")
 	viper.SetConfigName(autoReloadConfigFileName)
 	for {
-		verr := viper.ReadInConfig()
-		if verr == nil {
+		if verr := viper.ReadInConfig(); verr == nil {
 			break
 		} else {
-			glog.V(4).Infof("Can't read the autoreload config file %s/%s due to the error: %v, will retry in 3 seconds", autoReloadConfigFilePath, autoReloadConfigFileName, verr)
+			if _, ok := verr.(viper.ConfigFileNotFoundError); !ok {
+				glog.V(1).Infof("Can't read the autoreload config file %s/%s due to the error: %v, will retry in 3 seconds", autoReloadConfigFilePath, autoReloadConfigFileName, verr)
+			}
 			time.Sleep(30 * time.Second)
 		}
 	}
@@ -1085,7 +1086,7 @@ func updateNodePoolConfig(configKey string, currentValue *int, defaultValue int,
 
 	newValue, err := strconv.Atoi(newValueStr)
 	if err != nil || newValue < 0 {
-		glog.Errorf("Invalid %s value: %v specified, using default value %d", configKey, newValue, defaultValue)
+		glog.Errorf("Invalid %s value: %s specified, using default value %d", configKey, newValueStr, defaultValue)
 		*currentValue = defaultValue
 		return
 	}
