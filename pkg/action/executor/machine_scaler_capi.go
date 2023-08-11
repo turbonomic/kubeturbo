@@ -9,6 +9,7 @@ import (
 	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/machine/v1beta1"
+	"github.com/spf13/viper"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
@@ -123,12 +124,30 @@ func (controller *machineSetController) checkPreconditions() error {
 	if !ok {
 		return fmt.Errorf("machine set is not in the coherent state")
 	}
-	// See that we don't drop below 1.
+
 	resultingReplicas := int(*controller.machineSet.Spec.Replicas) + int(controller.request.diff)
-	if resultingReplicas < 1 {
-		return fmt.Errorf("machine set replicas can't be brought down to 0")
+
+	// Ensure that the resulting replicas do not drop below the minNodes.
+	minNodes := getIntOrDefault(cluster.MinNodesConfigKey, cluster.DefaultMinNodePoolSize)
+	if resultingReplicas < minNodes {
+		return fmt.Errorf("machine set replicas can't be brought down below the minimum nodes of %d", minNodes)
+	}
+
+	// Ensure that the resulting replicas do not exceed the maxNodes.
+	maxNodes := getIntOrDefault(cluster.MaxNodesConfigKey, cluster.DefaultMaxNodePoolSize)
+	if resultingReplicas > maxNodes {
+		return fmt.Errorf("machine set replicas can't exceed the maximum nodes of %d", maxNodes)
 	}
 	return nil
+}
+
+// Helper function to get int value from viper or use default
+func getIntOrDefault(key string, defaultValue int) int {
+	value := viper.GetInt(key)
+	if value == 0 {
+		return defaultValue
+	}
+	return value
 }
 
 // executeAction scales a MachineSet by modifying its replica count
