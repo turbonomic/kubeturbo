@@ -11,16 +11,18 @@ import (
 )
 
 type nodeGroupEntityDTOBuilder struct {
-	clusterSummary *repository.ClusterSummary
+	clusterSummary       *repository.ClusterSummary
+	otherSpreadWorkloads map[string]sets.String
 }
 
 const (
 	affinityCommodityDefaultCapacity = 1e10
 )
 
-func NewNodeGroupEntityDTOBuilder(clusterSummary *repository.ClusterSummary) *nodeGroupEntityDTOBuilder {
+func NewNodeGroupEntityDTOBuilder(clusterSummary *repository.ClusterSummary, otherSpreadWorkloads map[string]sets.String) *nodeGroupEntityDTOBuilder {
 	return &nodeGroupEntityDTOBuilder{
-		clusterSummary: clusterSummary,
+		clusterSummary:       clusterSummary,
+		otherSpreadWorkloads: otherSpreadWorkloads,
 	}
 }
 
@@ -53,8 +55,38 @@ func (builder *nodeGroupEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 			continue
 		}
 
+		// Fill in commodities
+		soldCommodities, _ := builder.getCommoditiesSold(fullLabel)
+		if len(soldCommodities) > 0 {
+			entityDto.CommoditiesSold = soldCommodities
+		}
+
 		result = append(result, entityDto)
 		glog.V(4).Infof("NodeGroup DTO : %+v", entityDto)
 	}
 	return result, nil
+}
+
+func (builder *nodeGroupEntityDTOBuilder) getCommoditiesSold(fullLabel string) ([]*proto.CommodityDTO, error) {
+	var commoditiesSold []*proto.CommodityDTO
+	//Anti-Affinity: segmentation commodity
+	for tpkey, workloads := range builder.otherSpreadWorkloads {
+		labelparts := strings.Split(fullLabel, "=")
+		if len(labelparts) > 0 && labelparts[0] == tpkey {
+			for wlname, _ := range workloads {
+				glog.V(4).Infof("Add segmentation commodity with the key %v for the node_group entity %v", wlname, fullLabel)
+				commSoldBuilder := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_SEGMENTATION)
+				commSoldBuilder.Key(wlname)
+				commSoldBuilder.Capacity(1)
+				commodity, err := commSoldBuilder.Create()
+				if err != nil {
+					glog.Errorf("Failed to build commodity sold %s: %v", proto.CommodityDTO_SEGMENTATION, err)
+					continue
+				}
+				commoditiesSold = append(commoditiesSold, commodity)
+			}
+		}
+	}
+	return commoditiesSold, nil
+
 }

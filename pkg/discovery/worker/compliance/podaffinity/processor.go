@@ -46,6 +46,7 @@ type PodAffinityProcessor struct {
 	podToControllerMap      map[string]string
 	hostnameSpreadWorkloads map[string]sets.String
 	otherSpreadPods         sets.String
+	otherSpreadWorkloads    map[string]sets.String
 	uniqueAffinityTerms     sets.String
 	uniqueAntiAffinityTerms sets.String
 	parallelizer            parallelizer.Parallelizer
@@ -66,6 +67,7 @@ func New(clusterSummary *repository.ClusterSummary, nodeInfoLister NodeInfoListe
 		uniqueAntiAffinityTerms: sets.NewString(),
 		hostnameSpreadWorkloads: make(map[string]sets.String),
 		otherSpreadPods:         sets.NewString(),
+		otherSpreadWorkloads:    make(map[string]sets.String),
 	}
 
 	return pr, nil
@@ -110,12 +112,13 @@ func GetNamespaceLabelsSnapshot(ns string, nsLister NamespaceLister) (nsLabels l
 // podsWithSupportedAffinities:  a set of pods which have affinities (does not include hostnameSpreadWorkloads)
 // hostnameSpreadWorkloads: map of workload ids to its set of pods which are spread workloads based on hostname as topology key
 // otherSpreadPods: other spread workload pods (those which are based on a topology key that is NOT hostname)
+// otherSpreadWorkloads: map of toplogykey to a set of workloads which are spread workloads based on non-hostname as topology key
 func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string][]string,
-	sets.String, map[string]sets.String, sets.String) {
+	sets.String, map[string]sets.String, sets.String, map[string]sets.String) {
 	nodeInfos, err := pr.nodeInfoLister.List()
 	if err != nil {
 		klog.Errorf("Error retreiving nodeinfos while processing affinities, %V.", err)
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 
 	ctx := context.TODO()
@@ -230,7 +233,7 @@ func (pr *PodAffinityProcessor) ProcessAffinities(allPods []*v1.Pod) (map[string
 		glog.Infof("Unique label pairs (topologies) on nodes: \n %v\n", nodeLabels.UnsortedList())
 	}
 
-	return nodesPods, podsWithSupportedAffinities, pr.hostnameSpreadWorkloads, pr.otherSpreadPods
+	return nodesPods, podsWithSupportedAffinities, pr.hostnameSpreadWorkloads, pr.otherSpreadPods, pr.otherSpreadWorkloads
 }
 
 func (pr *PodAffinityProcessor) podHasVolumes(qualifiedPodName string) bool {

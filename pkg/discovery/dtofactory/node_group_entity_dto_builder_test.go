@@ -109,7 +109,7 @@ func TestNodeGroupEntityCreation(t *testing.T) {
 	for _, item := range table {
 		kubeCluster := repository.NewKubeCluster("MyCluster", item.nodes)
 		clusterSummary := repository.CreateClusterSummary(kubeCluster)
-		nodeGroupEntityDTOBuilder := NewNodeGroupEntityDTOBuilder(clusterSummary)
+		nodeGroupEntityDTOBuilder := NewNodeGroupEntityDTOBuilder(clusterSummary, nil)
 		nodeGroupDTOs, _ := nodeGroupEntityDTOBuilder.BuildEntityDTOs()
 		assert.Equal(t, item.expectedEntityNum, len(nodeGroupDTOs))
 	}
