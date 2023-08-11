@@ -1017,6 +1017,7 @@ func WatchConfigMap() {
 	//Check if the file /etc/kubeturbo/turbo-autoreload.config exists
 	autoReloadConfigFilePath := "/etc/kubeturbo"
 	autoReloadConfigFileName := "turbo-autoreload.config"
+	retrySeconds := 30
 
 	viper.AddConfigPath(autoReloadConfigFilePath)
 	viper.SetConfigType("json")
@@ -1025,12 +1026,14 @@ func WatchConfigMap() {
 		if verr := viper.ReadInConfig(); verr == nil {
 			break
 		} else {
-			if _, ok := verr.(viper.ConfigFileNotFoundError); !ok {
-				glog.V(1).Infof("Can't read the autoreload config file %s/%s due to the error: %v, will retry in 3 seconds", autoReloadConfigFilePath, autoReloadConfigFileName, verr)
-			} else {
+			if _, ok := verr.(viper.ConfigFileNotFoundError); ok {
 				glog.V(4).Infof("Autoreload config file %s/%s not found", autoReloadConfigFilePath, autoReloadConfigFileName)
+			} else {
+				glog.V(1).Infof("Can't read the autoreload config file %s/%s due to the error: %v", autoReloadConfigFilePath, autoReloadConfigFileName, verr)
+
 			}
-			time.Sleep(30 * time.Second)
+			glog.V(1).Infof("Viper read autoreload config file will Retry in %d seconds", retrySeconds)
+			time.Sleep(time.Duration(retrySeconds) * time.Second)
 		}
 	}
 
