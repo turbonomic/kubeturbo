@@ -238,6 +238,7 @@ func TestK8sRegistrationClient_GetEntityMetadata(t *testing.T) {
 		proto.EntityDTO_VIRTUAL_VOLUME,
 		proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER,
 		proto.EntityDTO_BUSINESS_APPLICATION,
+		proto.EntityDTO_NODE_GROUP,
 	}
 	entitySet := make(map[proto.EntityDTO_EntityType]struct{})
 

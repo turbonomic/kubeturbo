@@ -346,7 +346,29 @@ func (pr *PodAffinityProcessor) PreFilter(ctx context.Context, pod *v1.Pod) (*pr
 		return s, nil
 	}
 	s.affinityCounts, s.antiAffinityCounts = pr.getIncomingAffinityAntiAffinityCounts(ctx, s.podInfo, allNodes)
-
+	// fill in the map of otherSpreadWorkloads
+	collectOtherSpreadWorkloads := func() {
+		defer pr.Unlock()
+		pr.Lock()
+		podQualifiedName := s.podInfo.Pod.Namespace + "/" + s.podInfo.Pod.Name
+		parent := pr.podToControllerMap[podQualifiedName]
+		for _, antiTerm := range s.podInfo.RequiredAntiAffinityTerms {
+			if antiTerm.TopologyKey == "kubernetes.io/hostname" {
+				continue
+			}
+			if !antiTerm.Matches(s.podInfo.Pod, nil) {
+				continue
+			}
+			workloads := pr.otherSpreadWorkloads[antiTerm.TopologyKey]
+			if workloads.Len() == 0 { // This takes care of nil value and nil set both
+				workloads = sets.NewString(parent)
+			} else {
+				workloads.Insert(parent)
+			}
+			pr.otherSpreadWorkloads[antiTerm.TopologyKey] = workloads
+		}
+	}
+	collectOtherSpreadWorkloads()
 	collectAffinitiesForLogs()
 	return s, nil
 }
