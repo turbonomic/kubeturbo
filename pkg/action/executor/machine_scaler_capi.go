@@ -125,16 +125,21 @@ func (controller *machineSetController) checkPreconditions() error {
 		return fmt.Errorf("machine set is not in the coherent state")
 	}
 
-	resultingReplicas := int(*controller.machineSet.Spec.Replicas) + int(controller.request.diff)
+	currentReplicas := int(*controller.machineSet.Spec.Replicas)
+	diff := int(controller.request.diff)
+	resultingReplicas := currentReplicas + diff
+	glog.V(4).Infof("Current Replicas: %d, Request Diff: %d and Resulting Replicas: %d", currentReplicas, diff, resultingReplicas)
 
 	// Ensure that the resulting replicas do not drop below the minNodes.
 	minNodes := cluster.GetNodePoolSizeConfigValue(cluster.MinNodesConfigKey, viper.GetString, cluster.DefaultMinNodePoolSize)
+	glog.V(4).Infof("%s: %d\n", cluster.MinNodesConfigKey, minNodes)
 	if resultingReplicas < minNodes {
 		return fmt.Errorf("machine set replicas can't be brought down below the minimum nodes of %d", minNodes)
 	}
 
 	// Ensure that the resulting replicas do not exceed the maxNodes.
 	maxNodes := cluster.GetNodePoolSizeConfigValue(cluster.MaxNodesConfigKey, viper.GetString, cluster.DefaultMaxNodePoolSize)
+	glog.V(4).Infof("%s: %d\n", cluster.MaxNodesConfigKey, minNodes)
 	if resultingReplicas > maxNodes {
 		return fmt.Errorf("machine set replicas can't exceed the maximum nodes of %d", maxNodes)
 	}
