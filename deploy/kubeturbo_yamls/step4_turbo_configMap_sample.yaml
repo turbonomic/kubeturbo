@@ -60,7 +60,7 @@ data:
     {
         "logging": {
            "level": 2
-        }
+        },
         "nodePoolSize": {
            "min": 1,
            "max": 1000
