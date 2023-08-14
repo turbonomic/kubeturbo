@@ -30,6 +30,7 @@ var (
 	numberReplicasType     = proto.CommodityDTO_NUMBER_REPLICAS
 	taintType              = proto.CommodityDTO_TAINT
 	labelType              = proto.CommodityDTO_LABEL
+	segmentationType       = proto.CommodityDTO_SEGMENTATION
 
 	fakeKey = "fake"
 
@@ -69,11 +70,12 @@ var (
 	vMemRequestQuotaTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vMemRequestQuotaType}
 	storageAmountTemplateCommWithKey    = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &storageAmountType}
 	// Access commodities
-	vmpmAccessTemplateComm         = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
-	applicationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
-	clusterTemplateCommWithKey     = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
-	taintTemplateCommWithKey       = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &taintType}
-	labelTemplateCommWithKey       = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &labelType}
+	vmpmAccessTemplateComm          = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vmPMAccessType}
+	applicationTemplateCommWithKey  = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &appCommType}
+	clusterTemplateCommWithKey      = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &clusterType}
+	taintTemplateCommWithKey        = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &taintType}
+	labelTemplateCommWithKey        = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &labelType}
+	segmentationTemplateCommWithKey = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &segmentationType}
 
 	// Resold TemplateCommodity with key
 	vCpuLimitQuotaTemplateCommWithKeyResold   = &proto.TemplateCommodity{Key: &fakeKey, CommodityType: &vCpuLimitQuotaType, IsResold: &commIsResold}
@@ -223,7 +225,7 @@ func (f *SupplyChainFactory) createSupplyChain() ([]*proto.TemplateDTO, error) {
 
 // Stitching metadata required for stitching with XL
 func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntityMetadata, error) {
-	fieldsCapactiy := map[string][]string{
+	fieldsCapacity := map[string][]string{
 		builder.PropertyCapacity: {},
 	}
 	fieldsUsedCapacity := map[string][]string{
@@ -260,10 +262,10 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 	boughtCommTypes := []proto.CommodityDTO_CommodityType{proto.CommodityDTO_CLUSTER}
 
 	return mergedEntityMetadataBuilder.
-		PatchSoldMetadata(proto.CommodityDTO_CLUSTER, fieldsCapactiy).
-		PatchSoldMetadata(proto.CommodityDTO_VMPM_ACCESS, fieldsCapactiy).
-		PatchSoldMetadata(proto.CommodityDTO_TAINT, fieldsCapactiy).
-		PatchSoldMetadata(proto.CommodityDTO_LABEL, fieldsCapactiy).
+		PatchSoldMetadata(proto.CommodityDTO_CLUSTER, fieldsCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_VMPM_ACCESS, fieldsCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_TAINT, fieldsCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_LABEL, fieldsCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_VCPU, fieldsUsedCapacityPeak).
 		PatchSoldMetadata(proto.CommodityDTO_VMEM, fieldsUsedCapacityPeak).
 		PatchSoldMetadata(proto.CommodityDTO_VCPU_REQUEST, fieldsUsedCapacity).
@@ -274,6 +276,7 @@ func (f *SupplyChainFactory) buildNodeMergedEntityMetadata() (*proto.MergedEntit
 		PatchSoldMetadata(proto.CommodityDTO_VMEM_REQUEST_QUOTA, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_NUMBER_CONSUMERS, fieldsUsedCapacity).
 		PatchSoldMetadata(proto.CommodityDTO_VSTORAGE, fieldsUsedCapacity).
+		PatchSoldMetadata(proto.CommodityDTO_SEGMENTATION, fieldsCapacity).
 		PatchBoughtList(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, boughtCommTypes).
 		Build()
 }
@@ -293,6 +296,7 @@ func (f *SupplyChainFactory) buildNodeSupplyBuilder() (*proto.TemplateDTO, error
 		Sells(vStorageTemplateComm).           // sells to Pods
 		Sells(taintTemplateCommWithKey).
 		Sells(labelTemplateCommWithKey).
+		Sells(segmentationTemplateCommWithKey).
 		Provider(proto.EntityDTO_CONTAINER_PLATFORM_CLUSTER, proto.Provider_HOSTING).
 		Buys(clusterTemplateCommWithKey) // buys from cluster
 	// also sells Cluster to Pods
@@ -372,6 +376,7 @@ func (f *SupplyChainFactory) buildPodSupplyBuilder() (*proto.TemplateDTO, error)
 		Buys(vStorageTemplateComm).
 		Buys(taintTemplateCommWithKey).
 		Buys(labelTemplateCommWithKey).
+		Buys(segmentationTemplateCommWithKey).
 		ProviderOpt(proto.EntityDTO_WORKLOAD_CONTROLLER, proto.Provider_HOSTING, &isProviderOptional).
 		Buys(vCpuLimitQuotaTemplateCommWithKey).
 		Buys(vMemLimitQuotaTemplateCommWithKey).
