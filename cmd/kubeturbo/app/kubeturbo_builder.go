@@ -1029,10 +1029,9 @@ func WatchConfigMap() {
 			if _, ok := verr.(viper.ConfigFileNotFoundError); ok {
 				glog.V(4).Infof("Autoreload config file %s/%s not found", autoReloadConfigFilePath, autoReloadConfigFileName)
 			} else {
-				glog.V(1).Infof("Can't read the autoreload config file %s/%s due to the error: %v", autoReloadConfigFilePath, autoReloadConfigFileName, verr)
-
+				glog.Warningf("Invalid configuration: error %s reading autoreload config %s/%s. Retry in %d seconds.",
+					verr, autoReloadConfigFilePath, autoReloadConfigFileName, retrySeconds)
 			}
-			glog.V(1).Infof("Viper read autoreload config file will Retry in %d seconds", retrySeconds)
 			time.Sleep(time.Duration(retrySeconds) * time.Second)
 		}
 	}
