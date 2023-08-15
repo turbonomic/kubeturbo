@@ -123,12 +123,6 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPod
 			glog.Errorf("Failed to get node properties: %s", err)
 			nodeActive = false
 		}
-		disableSuspendProvision, nodeType := getSuspendProvisionSettingByNodeType(properties)
-		if disableSuspendProvision {
-			glog.V(2).Infof("Suspend and provision is disabled for node %s, it is a %s", node.GetName(), nodeType)
-			entityDTOBuilder.IsProvisionable(false)
-			entityDTOBuilder.IsSuspendable(false)
-		}
 		entityDTOBuilder = entityDTOBuilder.WithProperties(properties)
 
 		// reconciliation meta data
@@ -157,6 +151,13 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPod
 		// Allow suspend for all nodes except those marked as HA via kubeturbo config
 		isHANode := util.DetectHARole(node)
 		entityDTOBuilder.IsSuspendable(!isHANode)
+
+		disableSuspendProvision, nodeType := getSuspendProvisionSettingByNodeType(properties)
+		if disableSuspendProvision {
+			glog.V(2).Infof("Suspend and provision is disabled for node %s, it is a %s", node.GetName(), nodeType)
+			entityDTOBuilder.IsProvisionable(false)
+			entityDTOBuilder.IsSuspendable(false)
+		}
 
 		if !nodeActive {
 			glog.Warningf("Node %s has NotReady status or has issues accessing kubelet.", node.GetName())
