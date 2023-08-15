@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -639,4 +640,33 @@ func (s *ClusterScraper) IsClusterAPIEnabled() bool {
 		return false
 	}
 	return true
+}
+
+// helper function getNodePoolSizeConfigValue retrieves the node pool size configuration value based on the provided configuration key.
+// The function uses the provided `getKeyStringVal` function to obtain the configuration value as a string.
+// If the retrieved value is a valid non-negative integer, it is returned. Otherwise, the `defaultValue` is returned.
+//
+// Parameters:
+// - configKey: The key for which the configuration value needs to be retrieved.
+// - getKeyStringVal: A function that takes a configuration key and returns a string representation of the value.
+// - defaultValue: The default value to be used if the retrieved value is invalid or unavailable.
+//
+// Returns:
+// An integer representing the retrieved configuration value or the default value if the value is invalid or missing.
+func GetNodePoolSizeConfigValue(configKey string, getKeyStringVal func(string) string, defaultValue int) int {
+	valStr := getKeyStringVal(configKey)
+	glog.V(4).Infof("key: '%s' with string value %q", configKey, valStr)
+
+	if valStr == "" {
+		glog.V(4).Infof("Empty value for %s in the configuration, using default value %d", configKey, defaultValue)
+		return defaultValue
+	}
+
+	valInt, err := strconv.Atoi(valStr)
+	if err != nil || valInt < 0 {
+		glog.Errorf("Invalid %s value: %q specified, using default value %d", configKey, valStr, defaultValue)
+		return defaultValue
+	}
+
+	return valInt
 }
