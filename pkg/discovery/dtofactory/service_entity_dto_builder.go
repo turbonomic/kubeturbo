@@ -53,7 +53,7 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 	//Dynatrace identifies k8s clusters using UID of the 'kube-system' namespace in each cluster.
 	kubeSystemUID, exists := builder.ClusterSummary.NamespaceUIDMap[kubeSystemPrefix]
 	if !exists {
-		glog.Errorf("Failed to retrieve UID for 'kube-system' namespace from NamespaceUIDMap")
+		glog.Errorf("Failed to retrieve UID for 'kube-system' namespace.")
 	}
 	for service, podList := range builder.ClusterSummary.Services {
 		serviceName := util.GetServiceClusterID(service)
@@ -97,11 +97,15 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 		// service data.
 		ebuilder.ServiceData(createServiceData(service))
 
+		//Dynatrace service identifier to append kube-system namespace UID, service namespace and service name for stitching
+		dynaTraceServiceIdentifier := kubeSystemUID + "-" + service.Namespace + "-" + service.Name
+
 		// set the ip property, service UID, kube-system namepsace UID, service namespace & service name property for stitching
 		ebuilder.WithProperty(getIPProperty(pods, svcUID)).WithProperty(getUUIDProperty(id)).
 			WithProperty(getServiceProperty(stitching.KubeSystemUIDStitchingAttr, kubeSystemUID)).
 			WithProperty(getServiceProperty(stitching.ServiceNamespaceStitchingAttr, service.Namespace)).
-			WithProperty(getServiceProperty(stitching.ServiceNameStitchingAttr, service.Name))
+			WithProperty(getServiceProperty(stitching.ServiceNameStitchingAttr, service.Name)).
+			WithProperty(getServiceProperty(stitching.DynaTraceServiceStitichingAttr, dynaTraceServiceIdentifier))
 
 		ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
@@ -293,7 +297,7 @@ func getIPProperty(pods []*api.Pod, svcUID string) *proto.EntityDTO_EntityProper
 	return ipProperty
 }
 
-// Get the service properties of the service for stitching purpose
+// Get the service properties for Dynatrace stitching purposes
 func getServiceProperty(attr string, value string) *proto.EntityDTO_EntityProperty {
 	ns := stitching.DefaultPropertyNamespace
 	return &proto.EntityDTO_EntityProperty{

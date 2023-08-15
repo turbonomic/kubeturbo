@@ -32,9 +32,10 @@ const (
 	AppStitchingAttr string = "IP"
 
 	// The attributes used for stitching kubeturbo discovered services with services discovered by the Dynatrace probes.
-	ServiceNameStitchingAttr      string = "SERVICE_NAME"
-	ServiceNamespaceStitchingAttr string = "SERVICE_NAMESPACE"
-	KubeSystemUIDStitchingAttr    string = "KUBE_SYSTEM_UID"
+	ServiceNameStitchingAttr       string = "SERVICE_NAME"
+	ServiceNamespaceStitchingAttr  string = "SERVICE_NAMESPACE"
+	KubeSystemUIDStitchingAttr     string = "KUBE_SYSTEM_UID"
+	DynaTraceServiceStitichingAttr string = "DYNATRACE_SERVICE_ID"
 )
 
 // The property type that is used for stitching. For example "UUID", "IP address".
