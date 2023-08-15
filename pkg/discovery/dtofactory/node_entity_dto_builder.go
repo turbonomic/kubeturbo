@@ -124,18 +124,10 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPod
 			nodeActive = false
 		}
 		for _, property := range properties{
-			var nodeType string
 			spot := strings.Contains(property.GetName(), util.EKSCapacityType) && property.GetValue() == util.EKSSpot
 			windows := strings.Contains(property.GetName(), util.NodeLabelOS) && property.GetValue() == util.WindowsOS
 			if spot || windows {
-				if spot{
-					nodeType = util.EKSSpot
-				} else if windows {
-					nodeType = util.WindowsOS
-				} else {
-					nodeType = "unknown"
-				}
- 				glog.Warningf("Node %s is a %s type, setting to not provisionable and not suspendable.", node.GetName(), nodeType)
+ 				glog.V(2).Infof("Suspend and provision is disabled for node that is either AWS EC2 spot instance or node with Windows OS.")
 				entityDTOBuilder.IsProvisionable(false)
 				entityDTOBuilder.IsSuspendable(false)
 			}
