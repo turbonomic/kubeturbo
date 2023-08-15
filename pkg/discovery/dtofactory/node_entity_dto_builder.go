@@ -123,6 +123,23 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPod
 			glog.Errorf("Failed to get node properties: %s", err)
 			nodeActive = false
 		}
+		for _, property := range properties{
+			var nodeType string
+			spot := strings.Contains(property.GetName(), util.EKSCapacityType) && property.GetValue() == util.EKSSpot
+			windows := strings.Contains(property.GetName(), util.NodeLabelOS) && property.GetValue() == util.WindowsOS
+			if spot || windows {
+				if spot{
+					nodeType = util.EKSSpot
+				} else if windows {
+					nodeType = util.WindowsOS
+				} else {
+					nodeType = "unknown"
+				}
+ 				glog.Warningf("Node %s is a %s type, setting to not provisionable and not suspendable.", node.GetName(), nodeType)
+				entityDTOBuilder.IsProvisionable(false)
+				entityDTOBuilder.IsSuspendable(false)
+			}
+		}
 		entityDTOBuilder = entityDTOBuilder.WithProperties(properties)
 
 		// reconciliation meta data

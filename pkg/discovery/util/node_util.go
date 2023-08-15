@@ -37,6 +37,10 @@ const (
 	NodePoolGKE = "cloud.google.com/gke-nodepool"
 	// EKS Node pool label
 	NodePoolEKSIdentifier = "/nodegroup" //alpha.eksctl.io/nodegroup-name or eks.amazonaws.com/nodegroup
+
+	EKSCapacityType = "eks.amazonaws.com/capacityType"
+	EKSSpot = "SPOT"
+	WindowsOS= "windows"
 )
 
 func GetNodeIPForMonitor(node *api.Node, source types.MonitoringSource) (string, error) {
