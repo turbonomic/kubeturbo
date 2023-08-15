@@ -283,8 +283,7 @@ func Test_getAffinityCommoditiesSold(t *testing.T) {
 
 func Test_getSuspendProvisionSettingByNodeType(t *testing.T) {
 	node1 := mockNode()
-	labels1 := make(map[string]string)
-	labels1["[k8s label] beta.kubernetes.io/os"] = "windows"
+	labels1 := map[string]string{"[k8s label] beta.kubernetes.io/os": "windows"}
 	node1.SetLabels(labels1)
 	stitchingManager1 := stitching.NewStitchingManager(stitching.UUID)
 	stitchingManager1.StoreStitchingValue(node1)
@@ -292,8 +291,7 @@ func Test_getSuspendProvisionSettingByNodeType(t *testing.T) {
 	properties1, _ := nodeEntityDTOBuilder1.getNodeProperties(node1)
 
 	node2 := mockNode()
-	labels2 := make(map[string]string)
-	labels2["[k8s label] eks.amazonaws.com/capacityType"] = "SPOT"
+	labels2 := map[string]string{"[k8s label] eks.amazonaws.com/capacityType": "SPOT"}
 	node2.SetLabels(labels2)
 	stitchingManager2 := stitching.NewStitchingManager(stitching.UUID)
 	stitchingManager2.StoreStitchingValue(node2)
