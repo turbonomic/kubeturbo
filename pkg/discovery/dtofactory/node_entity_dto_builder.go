@@ -497,7 +497,7 @@ func getNodeIPs(node *api.Node) []string {
 
 func getSuspendProvisionSettingByNodeType(properties []*proto.EntityDTO_EntityProperty) (disableSuspendProvision bool, nodeType string) {
 	disableSuspendProvision = false
-	for _, property := range properties{
+	for _, property := range properties {
 		spot := strings.Contains(property.GetName(), util.EKSCapacityType) && property.GetValue() == util.EKSSpot
 		windows := strings.Contains(property.GetName(), util.NodeLabelOS) && property.GetValue() == util.WindowsOS
 		if spot || windows {
