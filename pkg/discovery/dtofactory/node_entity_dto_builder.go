@@ -502,9 +502,9 @@ func getSuspendProvisionSettingByNodeType(properties []*proto.EntityDTO_EntityPr
 		windows := strings.Contains(property.GetName(), util.NodeLabelOS) && property.GetValue() == util.WindowsOS
 		if spot || windows {
 			if spot {
-				nodeType = "AWS EC2 spot instance"
+				nodeType = "AWS EC2 spot instance "
 			} else if windows {
-				nodeType = "node with Windows OS"
+				nodeType = "node with Windows OS "
 			}
 			disableSuspendProvision = true
 			return
