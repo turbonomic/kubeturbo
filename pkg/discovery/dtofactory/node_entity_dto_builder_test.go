@@ -4,16 +4,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
-	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
-
+	"github.com/golang/glog"
 	"github.com/stretchr/testify/assert"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
-
-	"github.com/golang/glog"
-
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -282,4 +279,74 @@ func Test_getAffinityCommoditiesSold(t *testing.T) {
 	assert.Equal(t, 1, len(commodities))
 	assert.Equal(t, proto.CommodityDTO_LABEL, *commodities[0].CommodityType)
 	assert.Equal(t, pod, *commodities[0].Key)
+}
+
+func Test_getSuspendProvisionSettingByNodeType(t *testing.T) {
+	node1 := mockNode()
+	labels1 := map[string]string{"[k8s label] beta.kubernetes.io/os": "windows"}
+	node1.SetLabels(labels1)
+	stitchingManager1 := stitching.NewStitchingManager(stitching.UUID)
+	stitchingManager1.StoreStitchingValue(node1)
+	nodeEntityDTOBuilder1 := NewNodeEntityDTOBuilder(metricsSink, stitchingManager1)
+	properties1, _ := nodeEntityDTOBuilder1.getNodeProperties(node1)
+
+	node2 := mockNode()
+	labels2 := map[string]string{"[k8s label] eks.amazonaws.com/capacityType": "SPOT"}
+	node2.SetLabels(labels2)
+	stitchingManager2 := stitching.NewStitchingManager(stitching.UUID)
+	stitchingManager2.StoreStitchingValue(node2)
+	nodeEntityDTOBuilder2 := NewNodeEntityDTOBuilder(metricsSink, stitchingManager2)
+	properties2, _ := nodeEntityDTOBuilder2.getNodeProperties(node2)
+
+	node3 := mockNode()
+	stitchingManager3 := stitching.NewStitchingManager(stitching.UUID)
+	stitchingManager2.StoreStitchingValue(node3)
+	nodeEntityDTOBuilder3 := NewNodeEntityDTOBuilder(metricsSink, stitchingManager3)
+	properties3, _ := nodeEntityDTOBuilder3.getNodeProperties(node3)
+
+	type args struct {
+		properties []*proto.EntityDTO_EntityProperty
+	}
+	tests := []struct {
+		name                        string
+		args                        args
+		wantDisableSuspendProvision bool
+		wantNodeType                string
+	}{
+		{
+			name: "test-with-windows-node",
+			args: args{
+				properties: properties1,
+			},
+			wantDisableSuspendProvision: true,
+			wantNodeType:                "node with Windows OS",
+		},
+		{
+			name: "test-with-spot-node",
+			args: args{
+				properties: properties2,
+			},
+			wantDisableSuspendProvision: true,
+			wantNodeType:                "AWS EC2 spot instance",
+		},
+		{
+			name: "test-with-node",
+			args: args{
+				properties: properties3,
+			},
+			wantDisableSuspendProvision: false,
+			wantNodeType:                "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotDisableSuspendProvision, gotNodeType := getSuspendProvisionSettingByNodeType(tt.args.properties)
+			if gotDisableSuspendProvision != tt.wantDisableSuspendProvision {
+				t.Errorf("getSuspendProvisionSettingByNodeType() gotDisableSuspendProvision = %v, want %v", gotDisableSuspendProvision, tt.wantDisableSuspendProvision)
+			}
+			if gotNodeType != tt.wantNodeType {
+				t.Errorf("getSuspendProvisionSettingByNodeType() gotNodeType = %v, want %v", gotNodeType, tt.wantNodeType)
+			}
+		})
+	}
 }

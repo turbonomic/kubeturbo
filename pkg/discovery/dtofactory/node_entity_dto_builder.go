@@ -152,6 +152,13 @@ func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPod
 		isHANode := util.DetectHARole(node)
 		entityDTOBuilder.IsSuspendable(!isHANode)
 
+		disableSuspendProvision, nodeType := getSuspendProvisionSettingByNodeType(properties)
+		if disableSuspendProvision {
+			glog.V(2).Infof("Suspend and provision is disabled for node %s, it is a %s", node.GetName(), nodeType)
+			entityDTOBuilder.IsProvisionable(false)
+			entityDTOBuilder.IsSuspendable(false)
+		}
+
 		if !nodeActive {
 			glog.Warningf("Node %s has NotReady status or has issues accessing kubelet.", node.GetName())
 			notReadyNodes = append(notReadyNodes, nodeID)
@@ -487,4 +494,22 @@ func getNodeIPs(node *api.Node) []string {
 		result = append(result, addrs[i].Address)
 	}
 	return result
+}
+
+func getSuspendProvisionSettingByNodeType(properties []*proto.EntityDTO_EntityProperty) (disableSuspendProvision bool, nodeType string) {
+	disableSuspendProvision = false
+	for _, property := range properties {
+		spot := strings.Contains(property.GetName(), util.EKSCapacityType) && property.GetValue() == util.EKSSpot
+		windows := strings.Contains(property.GetName(), util.NodeLabelOS) && property.GetValue() == util.WindowsOS
+		if spot || windows {
+			if spot {
+				nodeType = "AWS EC2 spot instance"
+			} else if windows {
+				nodeType = "node with Windows OS"
+			}
+			disableSuspendProvision = true
+			return
+		}
+	}
+	return
 }
