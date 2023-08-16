@@ -189,7 +189,7 @@ OPERATOR_BUNDLE_TEMPLATE_DIR ?= bundle-template
 OPERATOR_CRD_FILE_PATH ?= deploy/crds/charts_v1alpha1_kubeturbo_crd.yaml
 CLUSTER_PERMISSION_ROLE_YAML_FILE_PATH ?= deploy/kubeturbo-operator-cluster-role.yaml
 CERTIFIED_OPERATOR_CLUSTER_SERVICE_VERSION_YAML_FILE_PATH ?= $(OPERATOR_BUNDLE_DIR)/manifest/kubeturbo-certified.clusterserviceversion.yaml
-GITHUB_REPO_URL := https://api.github.com/repos/turbodeploy/certified-operators/contents/operators/kubeturbo-certified
+GITHUB_REPO_URL := https://api.github.com/repos/turbonomic/certified-operators/contents/operators/kubeturbo-certified
 OPERATOR_VERSION_BETA := $(shell \
 	OPERATOR_BETA_RELEASE_MINOR_VERSION=$$(curl -s "$(GITHUB_REPO_URL)" | \
 	jq -r 'map(select(.type == "dir")) | .[].name | match("$(OPERATOR_RELEASE_VERSION)-beta\\.[0-9]+") | try .string catch "0"' | \
@@ -272,7 +272,7 @@ update_olm_skipRange_in_operator_bundle:
 	$(eval OLMRANGE_LOWER_BOUND := $(if $(filter $(OPERATOR_BETA_RELEASE_FILTER),$(OPERATOR_RELEASE_CHANNEL)),$(OPERATOR_OLM_INCLUSIVE_RANGE_VERSION)-$(OPERATOR_OLM_INCLUSIVE_BETA_VERSION),$(OPERATOR_OLM_INCLUSIVE_RANGE_VERSION)))
 	$(eval OLMRANGE_UPPER_BOUND := $(if $(filter $(OPERATOR_BETA_RELEASE_FILTER),$(OPERATOR_RELEASE_CHANNEL)),$(OPERATOR_RELEASE_VERSION)-$(OPERATOR_VERSION_BETA),$(OPERATOR_RELEASE_VERSION)))
 	$(YQ) eval -i '.metadata.annotations."olm.skipRange" |= sub(">=[^<]+", ">=$(OLMRANGE_LOWER_BOUND)") | .metadata.annotations."olm.skipRange" |= sub("<[^<]+", " <$(OLMRANGE_UPPER_BOUND)")' \
-	    $(OPERATOR_BUNDLE_DIR)/manifest/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml
+	$(OPERATOR_BUNDLE_DIR)/manifest/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml
 	@echo "$(OPERATOR_CERTIFIED)-clusterserviceversion olm.skipRange updated successfully."
 
 ## update cluster permissions roles
