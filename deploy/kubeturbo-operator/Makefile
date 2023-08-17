@@ -188,7 +188,7 @@ OPERATOR_BUNDLE_DIR ?= certified-operator-bundle
 OPERATOR_BUNDLE_TEMPLATE_DIR ?= bundle-template
 OPERATOR_CRD_FILE_PATH ?= deploy/crds/charts_v1alpha1_kubeturbo_crd.yaml
 CLUSTER_PERMISSION_ROLE_YAML_FILE_PATH ?= deploy/kubeturbo-operator-cluster-role.yaml
-CERTIFIED_OPERATOR_CLUSTER_SERVICE_VERSION_YAML_FILE_PATH ?= $(OPERATOR_BUNDLE_DIR)/manifest/kubeturbo-certified.clusterserviceversion.yaml
+CERTIFIED_OPERATOR_CLUSTER_SERVICE_VERSION_YAML_FILE_PATH ?= $(OPERATOR_BUNDLE_DIR)/manifests/kubeturbo-certified.clusterserviceversion.yaml
 GITHUB_REPO_URL := https://api.github.com/repos/turbonomic/certified-operators/contents/operators/kubeturbo-certified
 OPERATOR_VERSION_BETA := $(shell \
 	OPERATOR_BETA_RELEASE_MINOR_VERSION=$$(curl -s "$(GITHUB_REPO_URL)" | \
@@ -237,9 +237,9 @@ verify_image_digest_version:
 ## create certified operator bundle dir and copy the base files to update the clusterserviceversion and metadata contents as required for releasing
 create_certified_operator_bundle_directory:
 	@echo "Creating certified operator bundle files for $(OPERATOR_CERTIFIED) clusterserviceversion..."
-	mkdir -p $(OPERATOR_BUNDLE_DIR)/manifest/
-	cp $(OPERATOR_CRD_FILE_PATH) $(OPERATOR_BUNDLE_DIR)/manifest/kubeturbos.charts.helm.k8s.io.crd.yaml
-	cp $(OPERATOR_BUNDLE_TEMPLATE_DIR)/template/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml $(OPERATOR_BUNDLE_DIR)/manifest/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml
+	mkdir -p $(OPERATOR_BUNDLE_DIR)/manifests/
+	cp $(OPERATOR_CRD_FILE_PATH) $(OPERATOR_BUNDLE_DIR)/manifests/kubeturbos.charts.helm.k8s.io.crd.yaml
+	cp $(OPERATOR_BUNDLE_TEMPLATE_DIR)/template/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml $(OPERATOR_BUNDLE_DIR)/manifests/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml
 	mkdir -p $(OPERATOR_BUNDLE_DIR)/metadata/
 	cp $(OPERATOR_BUNDLE_TEMPLATE_DIR)/template/annotations.yaml $(OPERATOR_BUNDLE_DIR)/metadata/annotations.yaml
 	@echo "$(OPERATOR_CERTIFIED)-operator bundle directory created successfully."
@@ -254,7 +254,7 @@ update_image_digest_in_operator_bundle:
 		exit 1; \
 	else \
 	    $(YQ) eval -i '.spec.install.spec.deployments[0].spec.template.spec.containers[0].image |= sub("sha256:.*", "'$$digest'") | .spec.relatedImages[0].image |= sub("sha256:.*", "'$$digest'")' \
-		    $(OPERATOR_BUNDLE_DIR)/manifest/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml; \
+		$(OPERATOR_BUNDLE_DIR)/manifests/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml; \
 	    echo "$(OPERATOR_CERTIFIED)-clusterserviceversion image digest updated."; \
     fi
 
@@ -263,7 +263,7 @@ update_operator_version_in_operator_bundle:
 	@echo "Updating release versions in $(OPERATOR_CERTIFIED)-clusterserviceversion..."
 	$(eval OPERATOR_RELEASE_CHANNEL_VERSION := $(if $(filter $(OPERATOR_BETA_RELEASE_FILTER),$(OPERATOR_RELEASE_CHANNEL)),$(OPERATOR_RELEASE_VERSION)-$(OPERATOR_VERSION_BETA),$(OPERATOR_RELEASE_VERSION)))
 	$(YQ) eval -i '.metadata.name |= sub("kubeturbo-operator.v.*", "kubeturbo-operator.v$(OPERATOR_RELEASE_CHANNEL_VERSION)") | .spec.version = "$(OPERATOR_RELEASE_CHANNEL_VERSION)"' \
-	$(OPERATOR_BUNDLE_DIR)/manifest/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml
+	$(OPERATOR_BUNDLE_DIR)/manifests/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml
 	@echo "$(OPERATOR_CERTIFIED)-clusterserviceversion release versions updated successfully."
 
 ## update skipRange based on inclusive and exclusive release versions set
@@ -272,7 +272,7 @@ update_olm_skipRange_in_operator_bundle:
 	$(eval OLMRANGE_LOWER_BOUND := $(if $(filter $(OPERATOR_BETA_RELEASE_FILTER),$(OPERATOR_RELEASE_CHANNEL)),$(OPERATOR_OLM_INCLUSIVE_RANGE_VERSION)-$(OPERATOR_OLM_INCLUSIVE_BETA_VERSION),$(OPERATOR_OLM_INCLUSIVE_RANGE_VERSION)))
 	$(eval OLMRANGE_UPPER_BOUND := $(if $(filter $(OPERATOR_BETA_RELEASE_FILTER),$(OPERATOR_RELEASE_CHANNEL)),$(OPERATOR_RELEASE_VERSION)-$(OPERATOR_VERSION_BETA),$(OPERATOR_RELEASE_VERSION)))
 	$(YQ) eval -i '.metadata.annotations."olm.skipRange" |= sub(">=[^<]+", ">=$(OLMRANGE_LOWER_BOUND)") | .metadata.annotations."olm.skipRange" |= sub("<[^<]+", " <$(OLMRANGE_UPPER_BOUND)")' \
-	$(OPERATOR_BUNDLE_DIR)/manifest/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml
+	$(OPERATOR_BUNDLE_DIR)/manifests/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml
 	@echo "$(OPERATOR_CERTIFIED)-clusterserviceversion olm.skipRange updated successfully."
 
 ## update cluster permissions roles
