@@ -263,7 +263,7 @@ update_operator_version_in_operator_bundle:
 	@echo "Updating release versions in $(OPERATOR_CERTIFIED)-clusterserviceversion..."
 	$(eval OPERATOR_RELEASE_CHANNEL_VERSION := $(if $(filter $(OPERATOR_BETA_RELEASE_FILTER),$(OPERATOR_RELEASE_CHANNEL)),$(OPERATOR_RELEASE_VERSION)-$(OPERATOR_VERSION_BETA),$(OPERATOR_RELEASE_VERSION)))
 	$(YQ) eval -i '.metadata.name |= sub("kubeturbo-operator.v.*", "kubeturbo-operator.v$(OPERATOR_RELEASE_CHANNEL_VERSION)") | .spec.version = "$(OPERATOR_RELEASE_CHANNEL_VERSION)"' \
-		$(OPERATOR_BUNDLE_DIR)/manifest/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml
+	$(OPERATOR_BUNDLE_DIR)/manifest/$(OPERATOR_CERTIFIED).clusterserviceversion.yaml
 	@echo "$(OPERATOR_CERTIFIED)-clusterserviceversion release versions updated successfully."
 
 ## update skipRange based on inclusive and exclusive release versions set
@@ -287,7 +287,7 @@ update_cluster_permissions_in_operator_bundle:
 update_release_channel_in_operator_bundle:
 	@echo "Updating release channel in  $(OPERATOR_CERTIFIED)-annotations..."
 	$(YQ) eval -i '.annotations."operators.operatorframework.io.bundle.channels.v1" = "$(OPERATOR_RELEASE_CHANNEL)"' \
-		$(OPERATOR_BUNDLE_DIR)/metadata/annotations.yaml
+	$(OPERATOR_BUNDLE_DIR)/metadata/annotations.yaml
 	@echo "$(OPERATOR_CERTIFIED)-annotations release channel updated successfully."
 
 
