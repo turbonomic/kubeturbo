@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	servicePrefix string = "Service"
+	servicePrefix    string = "Service"
+	kubeSystemPrefix string = "kube-system"
 )
 
 var (
@@ -49,6 +50,11 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 	if err != nil {
 		glog.Warningf("Failed to get Kubernetes service ID: %v", err)
 	}
+	//Dynatrace identifies k8s clusters using UID of the 'kube-system' namespace in each cluster.
+	kubeSystemUID, exists := builder.ClusterSummary.NamespaceUIDMap[kubeSystemPrefix]
+	if !exists {
+		glog.Errorf("Failed to retrieve UID for 'kube-system' namespace.")
+	}
 	for service, podList := range builder.ClusterSummary.Services {
 		serviceName := util.GetServiceClusterID(service)
 		if len(podList) == 0 {
@@ -76,7 +82,6 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 
 		ebuilder := sdkbuilder.NewEntityDTOBuilder(proto.EntityDTO_SERVICE, id).
 			DisplayName(displayName)
-
 		// commodities sold
 		if err := builder.createCommoditySold(ebuilder, pods, serviceName); err != nil {
 			glog.Warningf("Failed to create commodity sold for service %s: %v", serviceName, err)
@@ -92,8 +97,15 @@ func (builder *ServiceEntityDTOBuilder) BuildDTOs() []*proto.EntityDTO {
 		// service data.
 		ebuilder.ServiceData(createServiceData(service))
 
-		// set the ip property for stitching
-		ebuilder.WithProperty(getIPProperty(pods, svcUID)).WithProperty(getUUIDProperty(id))
+		//Dynatrace service identifier to append kube-system namespace UID, service namespace and service name for stitching
+		dynaTraceServiceIdentifier := kubeSystemUID + "-" + service.Namespace + "-" + service.Name
+
+		// set the ip property, service UID, kube-system namepsace UID, service namespace & service name property for stitching
+		ebuilder.WithProperty(getIPProperty(pods, svcUID)).WithProperty(getUUIDProperty(id)).
+			WithProperty(getServiceProperty(stitching.KubeSystemUIDStitchingAttr, kubeSystemUID)).
+			WithProperty(getServiceProperty(stitching.ServiceNamespaceStitchingAttr, service.Namespace)).
+			WithProperty(getServiceProperty(stitching.ServiceNameStitchingAttr, service.Name)).
+			WithProperty(getServiceProperty(stitching.DynaTraceServiceStitichingAttr, dynaTraceServiceIdentifier))
 
 		ebuilder.WithPowerState(proto.EntityDTO_POWERED_ON)
 
@@ -283,4 +295,14 @@ func getIPProperty(pods []*api.Pod, svcUID string) *proto.EntityDTO_EntityProper
 	}
 
 	return ipProperty
+}
+
+// Get the service properties for Dynatrace stitching purposes
+func getServiceProperty(attr string, value string) *proto.EntityDTO_EntityProperty {
+	ns := stitching.DefaultPropertyNamespace
+	return &proto.EntityDTO_EntityProperty{
+		Namespace: &ns,
+		Name:      &attr,
+		Value:     &value,
+	}
 }
