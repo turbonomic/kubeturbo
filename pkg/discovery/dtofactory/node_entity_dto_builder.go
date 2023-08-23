@@ -381,10 +381,8 @@ func (builder *nodeEntityDTOBuilder) getNodeStorageCommoditiesSold(nodeName stri
 			// if either of the values cross threshold.
 			if threshold.Avg > previousThreshold {
 				prevResourceCommoditySold := resourceCommoditiesSold[len(resourceCommoditiesSold)-1]
-				resourceCommoditiesSold = resourceCommoditiesSold[:len(resourceCommoditiesSold)-1] // Pop old obj
 				utilThreshold := 100 - threshold.Avg
 				prevResourceCommoditySold.UtilizationThresholdPct = &utilThreshold
-				resourceCommoditiesSold = append(resourceCommoditiesSold, prevResourceCommoditySold)
 			} else {
 				continue
 			}
