@@ -300,6 +300,7 @@ func (builder *nodeEntityDTOBuilder) getNodeStorageCommoditiesSold(nodeName stri
 	resourceType := metrics.VStorage
 	protoCommodityType := proto.CommodityDTO_VSTORAGE
 	isAvailableForPlacement := true
+	previousThreshold := float64(0)
 
 	for _, resource := range vstorageResources {
 		entityID := nodeName
@@ -354,6 +355,9 @@ func (builder *nodeEntityDTOBuilder) getNodeStorageCommoditiesSold(nodeName stri
 		} else {
 
 			if threshold.Avg > 0 && threshold.Avg <= 100 {
+				if resource == "rootfs" {
+					previousThreshold = threshold.Avg
+				}
 				isAvailableAboveThreshold := availableBytes.Avg > threshold.Avg*capacityBytes.Avg/100
 				isAvailableForPlacement = isAvailableAboveThreshold
 				utilizationThreshold := 100 - threshold.Avg
@@ -375,10 +379,16 @@ func (builder *nodeEntityDTOBuilder) getNodeStorageCommoditiesSold(nodeName stri
 			// which can be different compared to rootfs, even when the partitions are same.
 			// isAvailableForPlacement is still calculated for both above and would be set to false
 			// if either of the values cross threshold.
-			continue
+			if threshold.Avg > previousThreshold {
+				prevResourceCommoditySold := resourceCommoditiesSold[len(resourceCommoditiesSold)-1]
+				utilThreshold := 100 - threshold.Avg
+				prevResourceCommoditySold.UtilizationThresholdPct = &utilThreshold
+			} else {
+				continue
+			}
+		} else {
+			resourceCommoditiesSold = append(resourceCommoditiesSold, resourceCommoditySold)
 		}
-
-		resourceCommoditiesSold = append(resourceCommoditiesSold, resourceCommoditySold)
 	}
 
 	return resourceCommoditiesSold, isAvailableForPlacement

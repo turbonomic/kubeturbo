@@ -202,7 +202,7 @@ func TestGetNodeIPs(t *testing.T) {
 	}
 }
 
-func TestNodeEntityDTO(t *testing.T) {
+func Test_NodeEntityDTO(t *testing.T) {
 	feature.DefaultMutableFeatureGate.Set("NewAffinityProcessing=true")
 
 	node := mockNode()
@@ -210,6 +210,22 @@ func TestNodeEntityDTO(t *testing.T) {
 	metricsSink = metrics.NewEntityMetricSink()
 	cpuCapMetric := metrics.NewEntityResourceMetric(metrics.NodeType, nodeKey, metrics.CPU, metrics.Capacity, float64(10000))
 	metricsSink.AddNewMetricEntries(cpuCapMetric)
+
+	cpuFrequency := metrics.NewEntityStateMetric(metrics.NodeType, nodeKey, metrics.CpuFrequency, float64(2048))
+	metricsSink.AddNewMetricEntries(cpuFrequency)
+
+	vstorageAvailableRootfs := metrics.NewEntityResourceMetric(metrics.NodeType, nodeKey, metrics.VStorage, metrics.Available, float64(2048000))
+	vstorageThresholdRootfs := metrics.NewEntityResourceMetric(metrics.NodeType, nodeKey, metrics.VStorage, metrics.Threshold, float64(15))
+	vstorageCapacityRootfs := metrics.NewEntityResourceMetric(metrics.NodeType, nodeKey, metrics.VStorage, metrics.Capacity, float64(4096000))
+
+	nodeKeyImagefs := nodeKey + "-imagefs"
+	vstorageAvailableImagefs := metrics.NewEntityResourceMetric(metrics.NodeType, nodeKeyImagefs, metrics.VStorage, metrics.Available, float64(2048000))
+	vstorageThresholdImagefs := metrics.NewEntityResourceMetric(metrics.NodeType, nodeKeyImagefs, metrics.VStorage, metrics.Threshold, float64(18))
+	vstorageCapacityImagefs := metrics.NewEntityResourceMetric(metrics.NodeType, nodeKeyImagefs, metrics.VStorage, metrics.Capacity, float64(4096000))
+
+	metricsSink.AddNewMetricEntries(vstorageAvailableRootfs, vstorageCapacityRootfs, vstorageThresholdRootfs)
+	metricsSink.AddNewMetricEntries(vstorageAvailableImagefs, vstorageCapacityImagefs, vstorageThresholdImagefs)
+
 	kubernetesSvcID := "abcdef"
 	clusterInfo := metrics.NewEntityStateMetric(metrics.ClusterType, "", metrics.Cluster, kubernetesSvcID)
 	metricsSink.AddNewMetricEntries(clusterInfo)
@@ -261,6 +277,20 @@ func TestNodeEntityDTO(t *testing.T) {
 		if !commodityFound {
 			assert.Fail(t, fmt.Sprintf("Failed to find commodity sold for pod %s", pod))
 		}
+	}
+
+	// Confirm that if imagefs/rootfs on same partition, that the lowest threshold is selected
+	vstorageResourceExists := false
+	for _, commodity := range nodeEntityDTOs[0].CommoditiesSold {
+		if *commodity.Key == "k8s-node-rootfs" {
+			vstorageResourceExists = true
+			if *commodity.UtilizationThresholdPct != float64(82) {
+				assert.Fail(t, fmt.Sprintf("Utilization Threshold is %.2f, should be 82", *commodity.UtilizationThresholdPct))
+			}
+		}
+	}
+	if !vstorageResourceExists {
+		assert.Fail(t, "Failed to find VStorage Resource Commodity [rootfs]")
 	}
 }
 
