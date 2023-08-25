@@ -8,7 +8,6 @@ RUN make multi-archs
 
 
 FROM registry.access.redhat.com/ubi8
-MAINTAINER Turbonomic <turbodeploy@turbonomic.com>
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
 
