@@ -36,6 +36,7 @@ rules:
       - persistentvolumes
       - persistentvolumeclaims
       - poddisruptionbudget
+      - secrets
   - verbs:
       - get
     apiGroups:
