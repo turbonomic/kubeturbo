@@ -13,9 +13,14 @@ rules:
       - nodes
       - pods
       - configmaps
+      - endpoints
+      - events
       - deployments
+      - persistentvolumeclaims
       - replicasets
       - replicationcontrollers
+      - services
+      - secrets
       - serviceaccounts
   - verbs:
       - get
@@ -27,16 +32,16 @@ rules:
       - extensions
       - policy
     resources:
-      - services
-      - endpoints
-      - namespaces
-      - limitranges
-      - resourcequotas
       - daemonsets
+      - endpoints
+      - limitranges
+      - namespaces
       - persistentvolumes
       - persistentvolumeclaims
       - poddisruptionbudget
-      - secrets
+      - resourcequotas
+      - services
+      - statefulsets
   - verbs:
       - get
     apiGroups:
