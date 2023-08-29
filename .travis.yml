@@ -31,7 +31,7 @@ script:
   - make integration
   - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=kind-kind -docker-username=${DOCKER_USERNAME} -docker-password=${DOCKER_PASSWORD}
   - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=kind-kind -istio-enabled=true -ginkgo.focus=Istio -ginkgo.focus=teardown -docker-username=${DOCKER_USERNAME} -docker-password=${DOCKER_PASSWORD}
-  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=rosa -openshift-tests=true -docker-name=${DOCKER_USERNAME} -docker-password=${DOCKER_PASSWORD}
+  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=rosa -openshift-tests=true -docker-username=${DOCKER_USERNAME} -docker-password=${DOCKER_PASSWORD}
   
 
 after_success:
