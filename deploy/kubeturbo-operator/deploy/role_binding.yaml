@@ -5,8 +5,9 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: kubeturbo-operator
+  # Make sure that it matches your namespace
   namespace: turbo
 roleRef:
   kind: ClusterRole
-  name: cluster-admin
+  name: kubeturbo-operator
   apiGroup: rbac.authorization.k8s.io
