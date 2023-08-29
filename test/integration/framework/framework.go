@@ -39,8 +39,8 @@ func NewTestFramework(baseName string) *TestFramework {
 	f := &TestFramework{
 		BaseName: baseName,
 	}
-	//AfterEach(f.AfterEach)
-	//BeforeEach(f.BeforeEach)
+	// AfterEach(f.AfterEach)
+	// BeforeEach(f.BeforeEach)
 	return f
 }
 
@@ -186,7 +186,11 @@ func waitForNamespaceDeletion(client kubeclientset.Interface, namespace string) 
 func (f *TestFramework) GenerateCustomImagePullSecret(nsName string) error {
 	if TestContext.DockerUserName != "" && TestContext.DockerUserPwd != "" {
 		client := f.GetKubeClient(fmt.Sprintf("%s-create-namespace", f.BaseName))
-		_, err := client.CoreV1().Secrets(nsName).Create(context.TODO(), dockerConfigSecret(DockerImagePullSecretName, nsName, TestContext.DockerUserName, TestContext.DockerUserPwd), metav1.CreateOptions{})
+		_, err := client.CoreV1().Secrets(nsName).Create(
+			context.TODO(),
+			dockerConfigSecret(DockerImagePullSecretName, nsName, TestContext.DockerRegistry, TestContext.DockerUserName, TestContext.DockerUserPwd),
+			metav1.CreateOptions{},
+		)
 		if err != nil {
 			Logf("Failed to create secret in the namespace <%s>: %v", nsName, err)
 			return err
@@ -195,8 +199,8 @@ func (f *TestFramework) GenerateCustomImagePullSecret(nsName string) error {
 	return nil
 }
 
-func dockerConfigSecret(secName, nsName, dockerUserName, dockerUserPassword string) *corev1.Secret {
-	dockerConfig := fmt.Sprintf(`{"auths":{"docker.io":{"username":"%s","password":"%s"}}}`, dockerUserName, dockerUserPassword)
+func dockerConfigSecret(secName, nsName, dockerRegistry, dockerUserName, dockerUserPassword string) *corev1.Secret {
+	dockerConfig := fmt.Sprintf(`{"auths":{"%s":{"username":"%s","password":"%s"}}}`, dockerRegistry, dockerUserName, dockerUserPassword)
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secName,

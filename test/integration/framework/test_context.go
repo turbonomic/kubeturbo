@@ -17,6 +17,7 @@ type TestContextType struct {
 	TestNamespace     string
 	SingleCallTimeout time.Duration
 	IsOpenShiftTest   bool
+	DockerRegistry    string
 	DockerUserName    string
 	DockerUserPwd     string
 	IsIstioEnabled    bool
@@ -35,9 +36,11 @@ func registerFlags(t *TestContextType) {
 		fmt.Sprintf("The maximum duration of a single call.  If unset, will default to %v", DefaultSingleCallTimeout))
 	flag.BoolVar(&t.IsOpenShiftTest, "openshift-tests", false,
 		"If set, the test will only run the Openshift case. By default, it's set to false, only the non-Openshift cases get run")
-	flag.StringVar(&t.DockerUserName, "docker-user-name", "",
+	flag.StringVar(&t.DockerRegistry, "docker-registry", "docker.io",
+		"Docker registry. default is 'docker.io'")
+	flag.StringVar(&t.DockerUserName, "docker-username", "",
 		"The docker user name used to generate the pull secret.")
-	flag.StringVar(&t.DockerUserPwd, "docker-user-password", "",
+	flag.StringVar(&t.DockerUserPwd, "docker-password", "",
 		"The docker user password used to generate the pull secret.")
 	flag.BoolVar(&t.IsIstioEnabled, "istio-enabled", false,
 		"If set, the namespace will be patched with label [istio-injection: enabled]. By default, it's set to false.")

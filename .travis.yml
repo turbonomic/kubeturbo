@@ -5,6 +5,8 @@ env:
     - DOCKER_IMAGE_NAME=$TRAVIS_REPO_SLUG
     - PLATFORM_OS_ARCH_LIST="linux/amd64,linux/arm64,linux/ppc64le,linux/s390x"
     - KUBETURBO_VERSION=$TRAVIS_TAG
+    - DOCKER_IMAGE_PATH=${PRIVATE_REGISTRY}/hyc-turbo-build-poc-team-primary-docker-virtual/turbonomic/kubeturbo
+    - TEAM_TAG=8.Adina-SNAPSHOT
 
 services:
   - docker
@@ -27,15 +29,16 @@ script:
   - ./hack/deploy_istio.sh
   - ./hack/generate_ocp_context.sh
   - make integration
-  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=kind-kind -docker-user-name=${DOCKER_USERNAME} -docker-user-password=${DOCKER_PASSWORD}
-  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=kind-kind -istio-enabled=true -ginkgo.focus=Istio -ginkgo.focus=teardown -docker-user-name=${DOCKER_USERNAME} -docker-user-password=${DOCKER_PASSWORD}
-  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=rosa -openshift-tests=true -docker-user-name=${DOCKER_USERNAME} -docker-user-password=${DOCKER_PASSWORD}
-  - make product
+  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=kind-kind -docker-username=${DOCKER_USERNAME} -docker-password=${DOCKER_PASSWORD}
+  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=kind-kind -istio-enabled=true -ginkgo.focus=Istio -ginkgo.focus=teardown -docker-username=${DOCKER_USERNAME} -docker-password=${DOCKER_PASSWORD}
+  - ./build/integration.test -k8s-kubeconfig=$HOME/.kube/config -k8s-context=rosa -openshift-tests=true -docker-name=${DOCKER_USERNAME} -docker-password=${DOCKER_PASSWORD}
+  
 
 after_success:
   - |
     if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
-      if [ "$TRAVIS_BRANCH" == "master" ]; then
+      if [ "$TRAVIS_BRANCH" == "team/cloud-native-a" ]; then
+        make product
         # Update docker
         sudo rm -rf /var/lib/apt/lists/*
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
@@ -48,12 +51,11 @@ after_success:
         curl --silent -L "https://github.com/docker/buildx/releases/download/v0.6.0/buildx-v0.6.0.linux-amd64" > ~/.docker/cli-plugins/docker-buildx
         chmod a+x ~/.docker/cli-plugins/docker-buildx
         # Login to docker
-        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        echo "$PRIVATE_REGISTRY_PASSWORD" | docker login -u "$PRIVATE_REGISTRY_USERNAME" --password-stdin ${PRIVATE_REGISTRY}
         # Create and set a new buildx builder instance
         docker buildx create --use
         # Build and push the image
-        cd build
-        # Push the latest image built from master branch
-        docker buildx build --platform $PLATFORM_OS_ARCH_LIST --label "git-version=$TRAVIS_COMMIT" .
+        # Push the latest image built from team branch
+        docker buildx build -f build/Dockerfile --platform $PLATFORM_OS_ARCH_LIST --label "git-version=$TRAVIS_COMMIT" --tag ${DOCKER_IMAGE_PATH}:${TEAM_TAG} --push .
       fi
     fi
