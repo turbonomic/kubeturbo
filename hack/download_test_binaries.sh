@@ -33,8 +33,8 @@ cp istio-${istio_version}/bin/istioctl ${istioctl_path}
 chmod +x ${istioctl_path}
 
 echo -n "#   kind:           "; "${kind_path}" version
-echo -n "#   kubectl:        "; "${kubectl_path}" version --client --short
-echo -n "#   oc:             "; "${oc_path}" version --client --short
+echo -n "#   kubectl:        "; "${kubectl_path}" version --client
+echo -n "#   oc:             "; "${oc_path}" version --client
 echo -n "#   istioctl:       "; "${istioctl_path}" version --short
 
 
