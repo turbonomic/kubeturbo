@@ -97,8 +97,12 @@ func (r *GitManager) Update(replicas int64, podSpec map[string]interface{}) (Wai
 	}
 
 	switch {
-	case url.Host == "github.com":
-		handler = NewGitHubHandler(gitHandler, getClient(ctx, token))
+	case strings.HasPrefix(url.Host, "github."):
+		if url.Host == "github.com" {
+			handler = NewGitHubHandler(gitHandler, getClient(ctx, token, ""))
+		} else {
+			handler = NewGitHubHandler(gitHandler, getClient(ctx, token, url.Scheme+"://"+url.Host))
+		}
 	case strings.HasPrefix(url.Host, "git."):
 		client, err := gitlab.NewClient(token, gitlab.WithBaseURL(url.Scheme+"://"+url.Host))
 		if err != nil {
@@ -191,10 +195,16 @@ func (r *GitManager) String() string {
 	return fmt.Sprintf("%s/%s", r.obj.GetNamespace(), r.obj.GetName())
 }
 
-func getClient(ctx context.Context, token string) *github.Client {
+func getClient(ctx context.Context, token, baseUrl string) *github.Client {
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
 	tc := oauth2.NewClient(ctx, ts)
+	if baseUrl != "" {
+		// We ignore error because we already parse the url before passing it on
+		// the only errors expected here are the url parse errors
+		client, _ := github.NewEnterpriseClient(baseUrl, baseUrl, tc)
+		return client
+	}
 	return github.NewClient(tc)
 }
