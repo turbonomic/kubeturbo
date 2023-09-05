@@ -97,12 +97,10 @@ func (r *GitManager) Update(replicas int64, podSpec map[string]interface{}) (Wai
 	}
 
 	switch {
-	case strings.HasPrefix(url.Host, "github."):
-		if url.Host == "github.com" {
-			handler = NewGitHubHandler(gitHandler, getClient(ctx, token, ""))
-		} else {
-			handler = NewGitHubHandler(gitHandler, getClient(ctx, token, url.Scheme+"://"+url.Host))
-		}
+	case url.Host == "github.com": // Public GitHub
+		handler = NewGitHubHandler(gitHandler, getClient(ctx, token, ""))
+	case strings.HasPrefix(url.Host, "github."): // Enterprise GitHub
+		handler = NewGitHubHandler(gitHandler, getClient(ctx, token, url.Scheme+"://"+url.Host))
 	case strings.HasPrefix(url.Host, "git."):
 		client, err := gitlab.NewClient(token, gitlab.WithBaseURL(url.Scheme+"://"+url.Host))
 		if err != nil {
