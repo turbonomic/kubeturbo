@@ -43,7 +43,7 @@ func (builder *nodeGroupEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 		}
 	}
 	// start building the NodeGroup entity dto
-	for fullLabel, _ := range nodeGrp2nodes {
+	for fullLabel, nodeLst := range nodeGrp2nodes {
 		labelparts := strings.Split(fullLabel, "=")
 		if len(labelparts) > 0 && labelparts[0] == "kubernetes.io/hostname" {
 			continue //no need to create entity for hostname label
@@ -53,6 +53,16 @@ func (builder *nodeGroupEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 		if err != nil {
 			glog.Errorf("Failed to build NodeGroup entityDTO: %s", err)
 			continue
+		}
+
+		// Filling in ConnectedEntity field to reflect the mapping between the nodegroup and node
+		for nodeUID := range nodeLst {
+			connectedEntityID := nodeUID
+			connectedEntityType := proto.ConnectedEntity_NORMAL_CONNECTION
+			entityDto.ConnectedEntities = append(entityDto.ConnectedEntities, &proto.ConnectedEntity{
+				ConnectedEntityId: &connectedEntityID,
+				ConnectionType:    &connectedEntityType,
+			})
 		}
 
 		// Fill in commodities
