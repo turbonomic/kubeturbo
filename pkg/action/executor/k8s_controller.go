@@ -10,10 +10,9 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
-
 	osv1 "github.com/openshift/api/apps/v1"
 	osclient "github.com/openshift/client-go/apps/clientset/versioned"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	apicorev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -28,6 +27,7 @@ import (
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	discoveryutil "github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/features"
+	"github.com/turbonomic/kubeturbo/pkg/resourcemapping"
 	"github.com/turbonomic/kubeturbo/pkg/util"
 	gitopsv1alpha1 "github.com/turbonomic/turbo-gitops/api/v1alpha1"
 )
@@ -73,10 +73,38 @@ type parentController struct {
 	KubeCluster           *repository.KubeCluster
 	gitOpsConfigCache     map[string][]*gitopsv1alpha1.Configuration
 	gitOpsConfigCacheLock *sync.Mutex
+	actionType            proto.ActionItemDTO_ActionType
 }
 
-func (c *parentController) get(name string) (*k8sControllerSpec, error) {
-	obj, err := c.clients.dynNamespacedClient.Get(context.TODO(), name, metav1.GetOptions{})
+type pathTemplate string
+
+// The resource paths to the bottom-level controller for different actions
+const (
+	ControllerHorizontalScalePathTemplate pathTemplate = ".spec.replicas"
+	ControllerRightSizePathTemplate       pathTemplate = ".spec.template.spec.containers[?(@.name==" + "\"%v\"" + ")].resources"
+)
+
+// A predefined mapping from controller type and action type to the corresponding resource path
+type actionTypeToPathTemplate map[proto.ActionItemDTO_ActionType]pathTemplate
+
+var (
+	controllerTypeToPathTemplate = map[string]actionTypeToPathTemplate{
+		util.KindDeployment: {
+			proto.ActionItemDTO_RIGHT_SIZE:       ControllerRightSizePathTemplate,
+			proto.ActionItemDTO_HORIZONTAL_SCALE: ControllerHorizontalScalePathTemplate,
+		},
+		util.KindDaemonSet: {
+			proto.ActionItemDTO_RIGHT_SIZE: ControllerRightSizePathTemplate,
+		},
+		util.KindStatefulSet: {
+			proto.ActionItemDTO_RIGHT_SIZE:       ControllerRightSizePathTemplate,
+			proto.ActionItemDTO_HORIZONTAL_SCALE: ControllerHorizontalScalePathTemplate,
+		},
+	}
+)
+
+func (pc *parentController) get(name string) (*k8sControllerSpec, error) {
+	obj, err := pc.clients.dynNamespacedClient.Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +130,8 @@ func (c *parentController) get(name string) (*k8sControllerSpec, error) {
 		return nil, fmt.Errorf("error converting unstructured pod spec to typed pod spec for %s %s: %v", kind, objName, err)
 	}
 
-	c.obj = obj
-	c.backupObj = c.obj.DeepCopy()
+	pc.obj = obj
+	pc.backupObj = pc.obj.DeepCopy()
 	int32Replicas := int32(replicas)
 	return &k8sControllerSpec{
 		replicas:       &int32Replicas,
@@ -112,9 +140,9 @@ func (c *parentController) get(name string) (*k8sControllerSpec, error) {
 	}, nil
 }
 
-func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
-	objName := fmt.Sprintf("%s/%s", c.obj.GetNamespace(), c.obj.GetName())
-	kind := c.obj.GetKind()
+func (pc *parentController) update(updatedSpec *k8sControllerSpec) error {
+	objName := fmt.Sprintf("%s/%s", pc.obj.GetNamespace(), pc.obj.GetName())
+	kind := pc.obj.GetKind()
 
 	replicaVal := int64(*updatedSpec.replicas)
 	podSpecUnstructured, err := runtime.DefaultUnstructuredConverter.ToUnstructured(updatedSpec.podSpec)
@@ -122,28 +150,28 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		return fmt.Errorf("error converting pod spec to unstructured pod spec for %s %s: %v", kind, objName, err)
 	}
 	if kind != util.KindDaemonSet { // daemonsets do not have replica field
-		if err := unstructured.SetNestedField(c.obj.Object, replicaVal, "spec", "replicas"); err != nil {
+		if err := unstructured.SetNestedField(pc.obj.Object, replicaVal, "spec", "replicas"); err != nil {
 			return fmt.Errorf("error setting replicas into unstructured %s %s: %v", kind, objName, err)
 		}
 	}
-	if err := unstructured.SetNestedField(c.obj.Object, podSpecUnstructured, "spec", "template", "spec"); err != nil {
+	if err := unstructured.SetNestedField(pc.obj.Object, podSpecUnstructured, "spec", "template", "spec"); err != nil {
 		return fmt.Errorf("error setting podSpec into unstructured %s %s: %v", kind, objName, err)
 	}
 
-	if c.managerApp != nil &&
-		c.managerApp.Type != repository.AppTypeK8s &&
+	if pc.managerApp != nil &&
+		pc.managerApp.Type != repository.AppTypeK8s &&
 		utilfeature.DefaultFeatureGate.Enabled(features.GitopsApps) {
 		var manager gitops.GitopsManager
-		switch c.managerApp.Type {
+		switch pc.managerApp.Type {
 		case repository.AppTypeArgoCD:
-			gitOpsConfig := c.GetGitOpsConfig(c.obj)
+			gitOpsConfig := pc.GetGitOpsConfig(pc.obj)
 			// The workload is managed by a pipeline controller (argoCD) which replicates
 			// it from a source of truth
-			manager = gitops.NewGitManager(gitOpsConfig, c.clients.typedClient,
-				c.clients.dynClient, c.obj, c.managerApp, c.k8sClusterId)
+			manager = gitops.NewGitManager(gitOpsConfig, pc.clients.typedClient,
+				pc.clients.dynClient, pc.obj, pc.managerApp, pc.k8sClusterId)
 			glog.Infof("Gitops pipeline detected.")
 		default:
-			return fmt.Errorf("unsupported gitops manager type: %v", c.managerApp.Type)
+			return fmt.Errorf("unsupported gitops manager type: %v", pc.managerApp.Type)
 		}
 
 		completionFn, completionData, err := manager.Update(int64(*updatedSpec.replicas), podSpecUnstructured)
@@ -153,36 +181,40 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		return manager.WaitForActionCompletion(completionFn, completionData)
 	}
 
-	ownerInfo, isOwnerSet := discoveryutil.GetOwnerInfo(c.obj.GetOwnerReferences())
-	if !c.shouldSkipOperator(c.obj) && isOwnerSet {
+	ownerInfo, isOwnerSet := discoveryutil.GetOwnerInfo(pc.obj.GetOwnerReferences())
+	if !pc.shouldSkipOperator(pc.obj) && isOwnerSet {
 		// If k8s controller is controlled by custom controller, update the CR using OperatorResourceMapping
 		// if SkipOperatorLabel is not set or not true.
-		if c.ormClient == nil {
+		glog.Infof("Updating %v %v via operator for %v action ...", kind, objName, pc.actionType)
+		if pc.ormClient == nil {
 			return fmt.Errorf("failed to execute action with nil ORMClient")
 		}
-		resourcePaths, err := getResourcePath(kind, updatedSpec)
+		ownedResourcePaths, err := pc.getOwnedResourcePaths(kind, updatedSpec)
 		if err != nil {
 			return fmt.Errorf("unable to get resource paths: %v", err)
 		}
-		ownerResources, err := c.ormClient.GetOwnerResourcesForSource(c.obj, ownerInfo, resourcePaths)
+		glog.V(2).Infof("Detected owned resource paths %v for action %v.",
+			strings.Join(ownedResourcePaths, ", "), pc.actionType)
+		ownerResources, err := pc.ormClient.GetOwnerResourcesForOwnedResources(pc.obj, ownerInfo, ownedResourcePaths)
 		if err != nil {
 			return fmt.Errorf("unable to get owner resources: %v", err)
 		}
-		return c.ormClient.UpdateOwners(c.obj, ownerInfo, ownerResources)
+		glog.V(2).Info("Detected top level owner resources.")
+		return pc.ormClient.UpdateOwners(pc.obj, ownerInfo, ownerResources)
 	} else {
 		start := time.Now()
-		_, err = c.clients.dynNamespacedClient.Update(context.TODO(), c.obj, metav1.UpdateOptions{})
+		_, err = pc.clients.dynNamespacedClient.Update(context.TODO(), pc.obj, metav1.UpdateOptions{})
 		if err != nil {
 			return err
 		}
 
 		if utilfeature.DefaultFeatureGate.Enabled(features.ForceDeploymentConfigRollout) {
-			needsRollout, typedDC, err := c.shouldRolloutDeploymentConfig()
+			needsRollout, _, err := pc.shouldRolloutDeploymentConfig()
 			if err != nil {
 				return err
 			}
 			if needsRollout {
-				err = c.rolloutDeploymentConfig(typedDC)
+				err = pc.rolloutDeploymentConfig()
 				if err != nil {
 					return err
 				}
@@ -190,29 +222,29 @@ func (c *parentController) update(updatedSpec *k8sControllerSpec) error {
 		}
 
 		if utilfeature.DefaultFeatureGate.Enabled(features.AllowIncreaseNsQuota4Resizing) {
-			err4Waiting := c.waitForAllNewReplicasToBeCreated(c.obj.GetName(), start)
+			err4Waiting := pc.waitForAllNewReplicasToBeCreated(pc.obj.GetName(), start)
 			if err4Waiting != nil {
-				glog.V(2).Infof("Get error while waiting for the new replicas to be created for the workload controller %s/%s:%v", c.obj.GetNamespace(), c.obj.GetName(), err4Waiting)
+				glog.V(2).Infof("Get error while waiting for the new replicas to be created for the workload controller %s/%s:%v", pc.obj.GetNamespace(), pc.obj.GetName(), err4Waiting)
 				if strings.Contains(err4Waiting.Error(), "forbidden") {
 					return util.NewSkipRetryError(err4Waiting.Error()) // this will skip the retry in updateWithRetry
 				}
-				if hasWarningEvent, warningInfo := c.getLatestWarningEventsSinceUpdate(c.obj.GetNamespace(), c.obj.GetName(), start); hasWarningEvent {
+				if hasWarningEvent, warningInfo := pc.getLatestWarningEventsSinceUpdate(pc.obj.GetNamespace(), pc.obj.GetName(), start); hasWarningEvent {
 					return fmt.Errorf(warningInfo)
 				}
 				return err4Waiting
 			}
-			glog.V(2).Infof("All of the new replicasets get created for the workload controller %s/%s", c.obj.GetNamespace(), c.obj.GetName())
+			glog.V(2).Infof("All of the new replicasets get created for the workload controller %s/%s", pc.obj.GetNamespace(), pc.obj.GetName())
 		}
 	}
 	return err
 }
 
-func (c *parentController) revert() error {
-	oldPodSpecUnstructured, found, err := unstructured.NestedFieldCopy(c.backupObj.Object, "spec", "template", "spec")
+func (pc *parentController) revert() error {
+	oldPodSpecUnstructured, found, err := unstructured.NestedFieldCopy(pc.backupObj.Object, "spec", "template", "spec")
 	if err != nil || !found {
 		return err
 	}
-	currentObj, err := c.clients.dynNamespacedClient.Get(context.TODO(), c.obj.GetName(), metav1.GetOptions{})
+	currentObj, err := pc.clients.dynNamespacedClient.Get(context.TODO(), pc.obj.GetName(), metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -221,25 +253,25 @@ func (c *parentController) revert() error {
 		return err
 	}
 	if reflect.DeepEqual(oldPodSpecUnstructured, currentPodSpecUnstructured) {
-		glog.V(4).Infof("There is no change between the original pod spec and the current one for the workload controller %s/%s, no need to revert", c.obj.GetNamespace(), c.obj.GetName())
+		glog.V(4).Infof("There is no change between the original pod spec and the current one for the workload controller %s/%s, no need to revert", pc.obj.GetNamespace(), pc.obj.GetName())
 		return nil
 	}
 	if err := unstructured.SetNestedField(currentObj.Object, oldPodSpecUnstructured, "spec", "template", "spec"); err != nil {
 		return err
 	}
-	if _, err = c.clients.dynNamespacedClient.Update(context.TODO(), currentObj, metav1.UpdateOptions{}); err != nil {
+	if _, err = pc.clients.dynNamespacedClient.Update(context.TODO(), currentObj, metav1.UpdateOptions{}); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *parentController) rolloutDeploymentConfig(dc *osv1.DeploymentConfig) error {
+func (pc *parentController) rolloutDeploymentConfig() error {
 	// This will fail if the DC is already paused because of whatever reason
-	name := c.obj.GetName()
-	ns := c.obj.GetNamespace()
+	name := pc.obj.GetName()
+	ns := pc.obj.GetNamespace()
 	glog.V(3).Infof("Starting (Instantiating) the deploymentconfig %s/%s rollout", ns, name)
 	deployRequest := osv1.DeploymentRequest{Name: name, Latest: true, Force: true}
-	_, err := c.clients.osClient.AppsV1().DeploymentConfigs(ns).
+	_, err := pc.clients.osClient.AppsV1().DeploymentConfigs(ns).
 		Instantiate(context.TODO(), name, &deployRequest, metav1.CreateOptions{})
 	if err == nil {
 		glog.V(3).Infof("Rolled out (Instantiated) the deploymentconfig %s/%s", ns, name)
@@ -248,15 +280,15 @@ func (c *parentController) rolloutDeploymentConfig(dc *osv1.DeploymentConfig) er
 	return err
 }
 
-func (c *parentController) shouldRolloutDeploymentConfig() (bool, *osv1.DeploymentConfig, error) {
-	objName := c.obj.GetNamespace() + "/" + c.obj.GetName()
-	objKind := c.obj.GetKind()
+func (pc *parentController) shouldRolloutDeploymentConfig() (bool, *osv1.DeploymentConfig, error) {
+	objName := pc.obj.GetNamespace() + "/" + pc.obj.GetName()
+	objKind := pc.obj.GetKind()
 	if objKind != util.KindDeploymentConfig {
 		return false, nil, nil
 	}
 
 	typedDC := osv1.DeploymentConfig{}
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(c.obj.Object, &typedDC); err != nil {
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(pc.obj.Object, &typedDC); err != nil {
 		return false, nil, fmt.Errorf("error converting unstructured %s %s to typed %s: %v", objKind, objName, objKind, err)
 	}
 
@@ -274,18 +306,18 @@ func (c *parentController) shouldRolloutDeploymentConfig() (bool, *osv1.Deployme
 	return shouldRollout, &typedDC, nil
 }
 
-// Wait for all of the new replicas to be created
-func (c *parentController) waitForAllNewReplicasToBeCreated(name string, start time.Time) error {
+// Wait for all the new replicas to be created
+func (pc *parentController) waitForAllNewReplicasToBeCreated(name string, start time.Time) error {
 	return wait.Poll(DefaultRetrySleepInterval, DefaultWaitReplicaToBeScheduled, func() (bool, error) {
-		obj, errInternal := c.clients.dynNamespacedClient.Get(context.TODO(), name, metav1.GetOptions{})
+		obj, errInternal := pc.clients.dynNamespacedClient.Get(context.TODO(), name, metav1.GetOptions{})
 		if errInternal != nil {
 			return false, errInternal
 		}
 
-		if hasWarningEvent, warningInfo := c.getLatestWarningEventsSinceUpdate(c.obj.GetNamespace(), c.obj.GetName(), start); hasWarningEvent {
+		if hasWarningEvent, warningInfo := pc.getLatestWarningEventsSinceUpdate(pc.obj.GetNamespace(), pc.obj.GetName(), start); hasWarningEvent {
 			if strings.Contains(warningInfo, "forbidden") {
-				// if there is a forbidden error, return a error which will exit the meaningless waiting
-				glog.Errorf("Failed to create new replica for the workload controller %s/%s as there is a forbidden error: %s", c.obj.GetNamespace(), c.obj.GetName(), warningInfo)
+				// if there is a forbidden error, return an error which will exit the meaningless waiting
+				glog.Errorf("Failed to create new replica for the workload controller %s/%s as there is a forbidden error: %s", pc.obj.GetNamespace(), pc.obj.GetName(), warningInfo)
 				return false, fmt.Errorf(warningInfo)
 			}
 		}
@@ -320,9 +352,9 @@ func (c *parentController) waitForAllNewReplicasToBeCreated(name string, start t
 }
 
 // get the latest warning event for a workload controller
-func (c *parentController) getLatestWarningEventsSinceUpdate(namespace, name string, start time.Time) (bool, string) {
+func (pc *parentController) getLatestWarningEventsSinceUpdate(namespace, name string, start time.Time) (bool, string) {
 	// Get events that belong to the given workload controller
-	events, err := c.clients.typedClient.CoreV1().Events(namespace).List(context.TODO(), metav1.ListOptions{})
+	events, err := pc.clients.typedClient.CoreV1().Events(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return false, ""
 	}
@@ -348,25 +380,50 @@ func (c *parentController) getLatestWarningEventsSinceUpdate(namespace, name str
 	return false, ""
 }
 
-// Whether Operator controller should be skipped when executing a resize action on a K8s controller
-// based on the label. If the SkipOperatorLabel is set to true on a K8s controller, resize action
-// will directly update this controller regardless of upper Operator controller.
-func (c *parentController) shouldSkipOperator(controller *unstructured.Unstructured) bool {
+// shouldSkipOperator checks whether Operator controller should be skipped when executing an action on a K8s controller
+// based on the label. If the SkipOperatorLabel is set to true on a K8s controller, action will directly update this
+// controller regardless of upper Operator controller.
+func (pc *parentController) shouldSkipOperator(controller *unstructured.Unstructured) bool {
 	labels := controller.GetLabels()
 	if labels == nil {
 		return false
 	}
 	labelVal, exists := labels[actionutil.SkipOperatorLabel]
 	if exists && strings.EqualFold(labelVal, "true") {
-		glog.Infof("Directly updating '%s %s/%s' regardless of Operator controller because '%s' label is set to true.",
+		glog.Infof("Directly updating '%s %s/%s' regardless of Operator because '%s' label is set to true.",
 			controller.GetKind(), controller.GetNamespace(), controller.GetName(), actionutil.SkipOperatorLabel)
 		return true
 	}
 	return false
 }
 
-func (rc *parentController) String() string {
-	return rc.name
+// getOwnedResourcePaths gets all the resource paths for the containers from the controller spec for the supported
+// controller types. The resource paths are predefined based on controller type and action type.
+func (pc *parentController) getOwnedResourcePaths(controllerType string, k8sSpec *k8sControllerSpec) ([]string, error) {
+	pathTemplatesByActionType, supported := controllerTypeToPathTemplate[controllerType]
+	if !supported {
+		// TODO: we don't support any custom controllers currently, since when building podspec it resolves
+		//   in unexpected controller type.
+		return nil, fmt.Errorf("unsupported controller %v", controllerType)
+	}
+	template, ok := pathTemplatesByActionType[pc.actionType]
+	if !ok {
+		return nil, fmt.Errorf("unsupported action %v for controller %v", pc.actionType, controllerType)
+	}
+	if pc.actionType == proto.ActionItemDTO_RIGHT_SIZE {
+		// For right size actions, there could be multiple containers in a podSpec
+		var resourcePaths []string
+		for _, container := range k8sSpec.podSpec.Containers {
+			resourcePath := fmt.Sprintf(string(template), container.Name)
+			resourcePaths = append(resourcePaths, resourcePath)
+		}
+		return resourcePaths, nil
+	}
+	return []string{string(template)}, nil
+}
+
+func (pc *parentController) String() string {
+	return pc.name
 }
 
 // Returns a flag indicating if the supplied application matches the selector of a GitOps configuration override
@@ -413,19 +470,19 @@ func getGitOpsCredentials(overrideConfig *gitopsv1alpha1.Configuration, defaultC
 		defaultConfig.GitSecretNamespace
 }
 
-// Returns the GitOps configuration for the supplied application. If an override exists, it will return it. Otherwise,
+// GetGitOpsConfig returns the GitOps configuration for the supplied application. If an override exists, it will return it. Otherwise,
 // it will return the default configuration supplied that was supplied as a runtime parameter.
-func (c *parentController) GetGitOpsConfig(obj *unstructured.Unstructured) gitops.GitConfig {
-	appName := c.managerApp.Name
+func (pc *parentController) GetGitOpsConfig(obj *unstructured.Unstructured) gitops.GitConfig {
+	appName := pc.managerApp.Name
 	glog.V(3).Infof("Checking for GitOps configuration override for %v...", appName)
 	// Lock the cache to ensure the discovery process doesn't overwrite the configs while processing the overrides
-	c.gitOpsConfigCacheLock.Lock()
-	defer c.gitOpsConfigCacheLock.Unlock()
-	namespaceConfigOverrides := c.gitOpsConfigCache[obj.GetNamespace()]
+	pc.gitOpsConfigCacheLock.Lock()
+	defer pc.gitOpsConfigCacheLock.Unlock()
+	namespaceConfigOverrides := pc.gitOpsConfigCache[obj.GetNamespace()]
 	for _, configOverride := range namespaceConfigOverrides {
 		if isGitOpsConfigOverridden(configOverride, appName) {
 			glog.V(3).Infof("Found GitOps configuration override for [%v].", appName)
-			email, username, secretName, secretNamespace := getGitOpsCredentials(configOverride, c.gitConfig)
+			email, username, secretName, secretNamespace := getGitOpsCredentials(configOverride, pc.gitConfig)
 			return gitops.GitConfig{
 				GitSecretNamespace: secretNamespace,
 				GitSecretName:      secretName,
@@ -437,23 +494,5 @@ func (c *parentController) GetGitOpsConfig(obj *unstructured.Unstructured) gitop
 	}
 	// No override was found. Return the default config.
 	glog.V(3).Infof("No GitOps configuration override found for [%v]. Using default configuration.", appName)
-	return c.gitConfig
-}
-
-// This gets all the resource paths for the containers from the controller spec for the supported controller types
-// resourcePath is similar for Deployment, StatefulSet and DaemonSet - "spec.template.spec.containers[?(@.name==“xxx”)].resources"
-func getResourcePath(controllerType string, k8sSpec *k8sControllerSpec) ([]string, error) {
-	var resourcePaths []string
-	switch controllerType {
-	case util.KindDeployment, util.KindDaemonSet, util.KindStatefulSet:
-		for _, container := range k8sSpec.podSpec.Containers {
-			resourcePath := ".spec.template.spec.containers[?(@.name==" + "\"" + container.Name + "\"" + ")].resources"
-			resourcePaths = append(resourcePaths, resourcePath)
-		}
-		glog.V(4).Infof("found resource paths for supported controller type: %v", controllerType)
-		return resourcePaths, nil
-		// TODO: we don't support any custom controllers currently, since when building podspec it resolves in unexpected controller type.
-		// default resource path for custome custroller - ".spec.containers[?(@.name=="xxxx")].resources"
-	}
-	return resourcePaths, fmt.Errorf("unsupported controller type: %v", controllerType)
+	return pc.gitConfig
 }

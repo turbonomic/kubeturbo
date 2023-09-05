@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"math"
 
 	"github.com/golang/glog"
@@ -184,7 +185,8 @@ func resizeControllerContainer(clusterScraper *cluster.ClusterScraper, pod *k8sa
 	ormClientManager *resourcemapping.ORMClientManager,
 	gitConfig gitops.GitConfig, clusterId string) error {
 	// prepare controllerUpdater
-	controllerUpdater, err := newK8sControllerUpdaterViaPod(clusterScraper, pod, ormClientManager, gitConfig, clusterId)
+	controllerUpdater, err := newK8sControllerUpdaterViaPod(
+		clusterScraper, pod, ormClientManager, gitConfig, clusterId, proto.ActionItemDTO_RIGHT_SIZE)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return err
