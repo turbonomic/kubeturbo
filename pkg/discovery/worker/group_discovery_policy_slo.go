@@ -165,7 +165,7 @@ func validateReplicas(minReplicas *int32, maxReplicas *int32) (*int32, *int32, e
 	return minReplicas, maxReplicas, nil
 }
 
-// isWithinValidRange check if the number of replicas is within the valid range of 1 to 10000
+// isWithinValidRange check if the number of replicas is within the valid range
 func isWithinValidRange(replicas int32) bool {
 	return replicas >= defaultMinReplicas && replicas <= defaultMaxReplicas
 }
