@@ -6,10 +6,16 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/turbo-go-sdk/pkg/builder/group"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"github.com/turbonomic/turbo-policy/api/v1alpha1"
+)
+
+const (
+	defaultMinReplicas int32 = 1
+	defaultMaxReplicas int32 = 10000
 )
 
 func buildSLOHorizontalScalePolicy(
@@ -148,15 +154,18 @@ func validateReplicas(minReplicas *int32, maxReplicas *int32) (*int32, *int32, e
 		return nil, nil, fmt.Errorf("invalid maxReplicas %v. Must be between 1 and 10000 inclusive", *maxReplicas)
 	}
 	if minReplicas != nil && maxReplicas != nil && *minReplicas > *maxReplicas {
-		return nil, nil, fmt.Errorf("minReplicas %v is larger than maxReplicas %v", *minReplicas, *maxReplicas)
+		glog.Warningf("invalid SLOHorizontalScale: minReplicas (%v) must be less than or equal to maxReplicas (%v) -- using default min (%v) and max (%v) values",
+			*minReplicas, *maxReplicas, defaultMinReplicas, defaultMaxReplicas)
+		// Can't get the address of a constant so need to store it into a variable first
+		min := defaultMinReplicas
+		max := defaultMaxReplicas
+		minReplicas = &min
+		maxReplicas = &max
 	}
 	return minReplicas, maxReplicas, nil
 }
 
-// isWithinValidRange check if the number of replicas is within the valid range of 1 to 10000
+// isWithinValidRange check if the number of replicas is within the valid range
 func isWithinValidRange(replicas int32) bool {
-	if replicas >= 1 && replicas <= 10000 {
-		return true
-	}
-	return false
+	return replicas >= defaultMinReplicas && replicas <= defaultMaxReplicas
 }
