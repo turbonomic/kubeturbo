@@ -361,7 +361,7 @@ func TestConvertTurboPolicyWithInvalidReplicas(t *testing.T) {
 		svc1: {},
 	}
 	groupDTOs := groupDiscoveryWorker.BuildTurboPolicyDTOsFromPolicyBindings()
-	assert.Equal(t, 0, len(groupDTOs))
+	assert.Equal(t, 1, len(groupDTOs))
 	kubeCluster.TurboPolicyBindings = nil
 }
 
