@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"strconv"
 	"time"
 
@@ -41,7 +42,8 @@ type controllerSpec struct {
 
 // newK8sControllerUpdaterViaPod returns a k8sControllerUpdater based on the parent kind of a pod
 func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *api.Pod,
-	ormClient *resourcemapping.ORMClientManager, gitConfig gitops.GitConfig, clusterId string) (*k8sControllerUpdater, error) {
+	ormClient *resourcemapping.ORMClientManager, gitConfig gitops.GitConfig, clusterId string,
+	actionType proto.ActionItemDTO_ActionType) (*k8sControllerUpdater, error) {
 	// Find parent kind of the pod
 	ownerInfo, _, _, err := clusterScraper.GetPodControllerInfo(pod, true)
 	if err != nil {
@@ -57,13 +59,14 @@ func newK8sControllerUpdaterViaPod(clusterScraper *cluster.ClusterScraper, pod *
 	// by a specific argoCD app. (or find a better way of doing this)
 	// As of now scale up and down actions wont work with argoCD.
 	return newK8sControllerUpdater(clusterScraper, ormClient, ownerInfo.Kind, ownerInfo.Name,
-		pod.Name, pod.Namespace, clusterId, nil, gitConfig)
+		pod.Name, pod.Namespace, clusterId, nil, gitConfig, actionType)
 }
 
 // newK8sControllerUpdater returns a k8sControllerUpdater based on the controller kind
 func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper,
-	ormClient *resourcemapping.ORMClientManager, kind,
-	controllerName, podName, namespace, clusterId string, managerApp *repository.K8sApp, gitConfig gitops.GitConfig) (*k8sControllerUpdater, error) {
+	ormClient *resourcemapping.ORMClientManager, kind, controllerName, podName, namespace, clusterId string,
+	managerApp *repository.K8sApp, gitConfig gitops.GitConfig,
+	actionType proto.ActionItemDTO_ActionType) (*k8sControllerUpdater, error) {
 	res, err := GetSupportedResUsingKind(kind, namespace, controllerName)
 	if err != nil {
 		return nil, err
@@ -84,6 +87,7 @@ func newK8sControllerUpdater(clusterScraper *cluster.ClusterScraper,
 			k8sClusterId:          clusterId,
 			gitOpsConfigCache:     clusterScraper.GitOpsConfigCache,
 			gitOpsConfigCacheLock: &clusterScraper.GitOpsConfigCacheLock,
+			actionType:            actionType,
 		},
 		client:    clusterScraper.Clientset,
 		name:      controllerName,
@@ -149,7 +153,7 @@ func (c *k8sControllerUpdater) updateWithRetry(ctlrSpec *controllerSpec) error {
 //     update the current specification in place if the changes are valid
 //   - Update the controller object with the server after a successful reconciliation
 func (c *k8sControllerUpdater) update(desired *controllerSpec) error {
-	glog.V(4).Infof("Begin to update %v %s/%s",
+	glog.V(2).Infof("Begin to update %v %s/%s ...",
 		c.controller, c.namespace, c.name)
 	current, err := c.controller.get(c.name)
 	if err != nil {
@@ -160,14 +164,14 @@ func (c *k8sControllerUpdater) update(desired *controllerSpec) error {
 		return err
 	}
 	if !updated {
-		glog.V(2).Infof("%v %s/%s has already been updated to the desired specification",
+		glog.V(2).Infof("%v %s/%s has already been updated to the desired specification.",
 			c.controller, c.namespace, c.name)
 		return nil
 	}
 	if err := c.controller.update(current); err != nil {
 		return err
 	}
-	glog.V(2).Infof("Successfully updated %v %s/%s",
+	glog.V(2).Infof("Successfully updated %v %s/%s.",
 		c.controller, c.namespace, c.name)
 	return nil
 }
@@ -184,7 +188,7 @@ func (c *k8sControllerUpdater) reconcile(current *k8sControllerSpec, desired *co
 			return false, err
 		}
 		// Update the replicas of the controller
-		glog.V(2).Infof("Try to update replicas of %v %s/%s from %d to %d",
+		glog.V(2).Infof("Try to update replicas of %v %s/%s from %d to %d.",
 			c.controller, c.namespace, c.name, *current.replicas, num)
 		*current.replicas = num
 		return true, nil
@@ -199,7 +203,7 @@ func (c *k8sControllerUpdater) reconcile(current *k8sControllerSpec, desired *co
 			indexes = indexes + strconv.Itoa(spec.Index) + ","
 		}
 	}
-	glog.V(4).Infof("Try to update resources for container indexes: %s in pod template spec of %v %s/%s .",
+	glog.V(2).Infof("Try to update resources for container indexes: %s in pod template spec of %v %s/%s .",
 		indexes, c.controller, c.namespace, c.name)
 	updated, err := updateResourceAmount(current.podSpec, desired.resizeSpecs, fmt.Sprintf("%s/%s", c.namespace, c.name))
 	if err != nil {

@@ -263,7 +263,7 @@ func resizeWorkloadController(clusterScraper *cluster.ClusterScraper, ormClient 
 	gitConfig gitops.GitConfig) error {
 	// prepare controllerUpdater
 	controllerUpdater, err := newK8sControllerUpdater(clusterScraper, ormClient, kind, controllerName,
-		"", namespace, clusterId, managerApp, gitConfig)
+		"", namespace, clusterId, managerApp, gitConfig, proto.ActionItemDTO_RIGHT_SIZE)
 	if err != nil {
 		glog.Errorf("Failed to create controllerUpdater: %v", err)
 		return err
