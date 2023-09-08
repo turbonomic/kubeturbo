@@ -38,7 +38,7 @@ func (h *HorizontalScaler) Execute(input *TurboActionExecutorInput) (*TurboActio
 	if pod != nil && actionType != proto.ActionItemDTO_HORIZONTAL_SCALE {
 		targetFullName = util.BuildIdentifier(pod.Namespace, pod.Name)
 		controllerUpdater, updaterErr = newK8sControllerUpdaterViaPod(h.clusterScraper,
-			pod, h.ormClient, h.gitConfig, h.k8sClusterId)
+			pod, h.ormClient, h.gitConfig, h.k8sClusterId, proto.ActionItemDTO_HORIZONTAL_SCALE)
 	} else {
 		namespace, controllerName, kind, err := getWorkloadControllerInfo(actionItem.GetTargetSE())
 		if err != nil {
@@ -47,7 +47,7 @@ func (h *HorizontalScaler) Execute(input *TurboActionExecutorInput) (*TurboActio
 		}
 		targetFullName = util.BuildIdentifier(namespace, controllerName)
 		controllerUpdater, updaterErr = newK8sControllerUpdater(h.clusterScraper, h.ormClient, kind, controllerName,
-			"", namespace, h.k8sClusterId, nil, h.gitConfig)
+			"", namespace, h.k8sClusterId, nil, h.gitConfig, proto.ActionItemDTO_HORIZONTAL_SCALE)
 	}
 
 	if updaterErr != nil {
