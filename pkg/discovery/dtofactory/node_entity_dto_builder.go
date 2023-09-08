@@ -13,6 +13,7 @@ import (
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/metrics"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/stitching"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	"github.com/turbonomic/kubeturbo/pkg/features"
@@ -56,6 +57,7 @@ type nodeEntityDTOBuilder struct {
 	generalBuilder
 	stitchingManager   *stitching.StitchingManager
 	clusterKeyInjected string
+	clusterSummary     *repository.ClusterSummary
 }
 
 func NewNodeEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager) *nodeEntityDTOBuilder {
@@ -72,7 +74,7 @@ func (builder *nodeEntityDTOBuilder) WithClusterKeyInjected(clusterKeyInjected s
 
 // BuildEntityDTOs builds entityDTOs based on the given node list.
 func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPods map[string][]string,
-	hostnameSpreadWorkloads sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) ([]*proto.EntityDTO, []string) {
+	hostnameSpreadWorkloads map[string]sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) ([]*proto.EntityDTO, []string) {
 	var result []*proto.EntityDTO
 	var notReadyNodes []string
 
@@ -422,7 +424,7 @@ func (builder *nodeEntityDTOBuilder) getAllocationCommoditiesSold(node *api.Node
 }
 
 func (builder *nodeEntityDTOBuilder) getAffinityCommoditiesSold(node *api.Node, nodesPods map[string][]string,
-	hostnameSpreadWorkloads sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) []*proto.CommodityDTO {
+	hostnameSpreadWorkloads map[string]sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) []*proto.CommodityDTO {
 	var commoditiesSold []*proto.CommodityDTO = nil
 	// Add label commodities to honor affinities
 	// This adds LABEL commodities sold for each pod that can be placed on this node
@@ -444,10 +446,27 @@ func (builder *nodeEntityDTOBuilder) getAffinityCommoditiesSold(node *api.Node, 
 		commoditiesSold = append(commoditiesSold, commodityDTO)
 	}
 
-	for _, workloadKey := range hostnameSpreadWorkloads.UnsortedList() {
+	var podQualifiedNames sets.String
+	if len(hostnameSpreadWorkloads) > 0 {
+		// Concatenate runningPods and pendingPods into a single slice and extract pod name
+		allPods := append(builder.clusterSummary.GetPendingPodsOnNode(node), builder.clusterSummary.GetRunningPodsOnNode(node)...)
+		for _, pod := range allPods {
+			podQualifiedNames.Insert(fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+		}
+	}
+
+	var used float64
+	for workloadKey := range hostnameSpreadWorkloads {
+		workloadKeyPods := hostnameSpreadWorkloads[workloadKey]
+		if workloadKeyPods.HasAny(podQualifiedNames.List()...) {
+			used = 1
+		} else {
+			used = 0
+		}
 		commodityDTO, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_SEGMENTATION).
 			Key(workloadKey).
 			Capacity(1).
+			Used(used).
 			Create()
 		if err != nil {
 			glog.Warningf("Error creating SEGMENTATION sold commodity for key %s on node %s", workloadKey, node.Name)
