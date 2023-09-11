@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/util/sets"
-
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
@@ -223,8 +221,7 @@ func TestNodeEntityDTO(t *testing.T) {
 	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitchingManager)
 	pods := []string{"pod1", "pod2"}
 	nodePods := map[string][]string{node.Name: pods}
-	hostnameSpreadWorkloads := make(map[string]sets.String)
-	nodeEntityDTOs, _ := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node}, nodePods, hostnameSpreadWorkloads, nil, nil)
+	nodeEntityDTOs, _ := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node}, nodePods, nil, nil, nil)
 	vmData := nodeEntityDTOs[0].GetVirtualMachineData()
 	// The capacity metric is set in millicores but numcpus is set in cores
 	assert.EqualValues(t, 10, vmData.GetNumCpus())

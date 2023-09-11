@@ -29,7 +29,8 @@ type Task struct {
 	cluster                 *repository.ClusterSummary
 	nodesPods               map[string][]string
 	podsWithAffinities      sets.String
-	hostnameSpreadWorkloads map[string]sets.String
+	hostnameSpreadPods      sets.String
+	hostnameSpreadWorkloads sets.String
 	otherSpreadPods         sets.String
 	podsToControllers       map[string]string
 }
@@ -101,7 +102,12 @@ func (t *Task) WithPodsWithAffinities(podsWithAffinities sets.String) *Task {
 // Assign pods and workloads which have hostname based anti affinities to self,
 // we will add segmentation commodities for these.
 func (t *Task) WithHostnameSpreadWorkloads(hostnameSpreadWorkloads map[string]sets.String) *Task {
-	t.hostnameSpreadWorkloads = hostnameSpreadWorkloads
+	t.hostnameSpreadWorkloads = sets.NewString()
+	t.hostnameSpreadPods = sets.NewString()
+	for w, pods := range hostnameSpreadWorkloads {
+		t.hostnameSpreadWorkloads.Insert(w)
+		t.hostnameSpreadPods.Insert(pods.UnsortedList()...)
+	}
 	return t
 }
 
@@ -158,27 +164,12 @@ func (t *Task) PodsWithAffinities() sets.String {
 	return t.podsWithAffinities
 }
 
-func (t *Task) HostnameSpreadPods() map[string]sets.String {
-	if t.hostnameSpreadWorkloads != nil {
-		return t.hostnameSpreadWorkloads
-	}
-	return make(map[string]sets.String)
+func (t *Task) HostnameSpreadPods() sets.String {
+	return t.hostnameSpreadPods
 }
 
-func (t *Task) HostnameSpreadWorkloadKeys() sets.String {
-	keys := sets.NewString()
-	for key := range t.hostnameSpreadWorkloads {
-		keys.Insert(key)
-	}
-	return keys
-}
-
-func (t *Task) HostnameSpreadPodNames() sets.String {
-	allPods := sets.NewString()
-	for _, podSet := range t.hostnameSpreadWorkloads {
-		allPods = allPods.Union(podSet)
-	}
-	return allPods
+func (t *Task) HostnameSpreadWorkloads() sets.String {
+	return t.hostnameSpreadWorkloads
 }
 
 func (t *Task) OtherSpreadPods() sets.String {

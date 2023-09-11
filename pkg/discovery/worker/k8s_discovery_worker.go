@@ -373,7 +373,7 @@ func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto
 	var notReadyNodes []string
 	// Build entity DTOs for nodes
 	nodeDTOs, notReadyNodes := worker.buildNodeDTOs([]*api.Node{currTask.Node()}, currTask.NodesPods(),
-		currTask.HostnameSpreadPods(), currTask.OtherSpreadPods(), currTask.PodstoControllers())
+		currTask.HostnameSpreadWorkloads(), currTask.OtherSpreadPods(), currTask.PodstoControllers())
 
 	glog.V(3).Infof("Worker %s built %d node DTOs.", worker.id, len(nodeDTOs))
 	if len(nodeDTOs) == 0 {
@@ -404,7 +404,7 @@ func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto
 }
 
 func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node, nodesPods map[string][]string,
-	hostnameSpreadWorkloads map[string]sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) ([]*proto.EntityDTO, []string) {
+	hostnameSpreadWorkloads sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) ([]*proto.EntityDTO, []string) {
 	// SetUp nodeName to nodeId mapping
 	stitchingManager := worker.stitchingManager
 	for _, node := range nodes {
@@ -449,7 +449,7 @@ func (worker *k8sDiscoveryWorker) buildPodDTOs(currTask *task.Task) ([]*proto.En
 		// map of mirror pods to daemon flags
 		WithMirrorPodToDaemonMap(cluster.MirrorPodToDaemonMap).
 		WithPodsWithAffinities(currTask.PodsWithAffinities()).
-		WithHostnameSpreadPods(currTask.HostnameSpreadPodNames()).
+		WithHostnameSpreadPods(currTask.HostnameSpreadPods()).
 		WithOtherSpreadPods(currTask.OtherSpreadPods()).
 		WithPodsToControllers(currTask.PodstoControllers()).
 		BuildEntityDTOs()

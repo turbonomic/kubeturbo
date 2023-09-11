@@ -74,7 +74,7 @@ func (builder *nodeEntityDTOBuilder) WithClusterKeyInjected(clusterKeyInjected s
 
 // BuildEntityDTOs builds entityDTOs based on the given node list.
 func (builder *nodeEntityDTOBuilder) BuildEntityDTOs(nodes []*api.Node, nodesPods map[string][]string,
-	hostnameSpreadWorkloads map[string]sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) ([]*proto.EntityDTO, []string) {
+	hostnameSpreadWorkloads sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) ([]*proto.EntityDTO, []string) {
 	var result []*proto.EntityDTO
 	var notReadyNodes []string
 
@@ -424,7 +424,7 @@ func (builder *nodeEntityDTOBuilder) getAllocationCommoditiesSold(node *api.Node
 }
 
 func (builder *nodeEntityDTOBuilder) getAffinityCommoditiesSold(node *api.Node, nodesPods map[string][]string,
-	hostnameSpreadWorkloads map[string]sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) []*proto.CommodityDTO {
+	hostnameSpreadWorkloads sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) []*proto.CommodityDTO {
 	var commoditiesSold []*proto.CommodityDTO = nil
 	// Add label commodities to honor affinities
 	// This adds LABEL commodities sold for each pod that can be placed on this node
@@ -446,19 +446,20 @@ func (builder *nodeEntityDTOBuilder) getAffinityCommoditiesSold(node *api.Node, 
 		commoditiesSold = append(commoditiesSold, commodityDTO)
 	}
 
-	var podQualifiedNames sets.String
+	var allNodePodWorkloads sets.String
 	if len(hostnameSpreadWorkloads) > 0 {
 		// Concatenate runningPods and pendingPods into a single slice and extract pod name
 		allPods := append(builder.clusterSummary.GetPendingPodsOnNode(node), builder.clusterSummary.GetRunningPodsOnNode(node)...)
 		for _, pod := range allPods {
-			podQualifiedNames.Insert(fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+			podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+			if ctrlName, exists := builder.clusterSummary.PodToControllerMap[podQualifiedName]; exists {
+				allNodePodWorkloads.Insert(ctrlName)
+			}
 		}
 	}
-
-	for workloadKey := range hostnameSpreadWorkloads {
-		workloadKeyPods := hostnameSpreadWorkloads[workloadKey]
+	for _, workloadKey := range hostnameSpreadWorkloads.UnsortedList() {
 		used := 0.0
-		if workloadKeyPods.HasAny(podQualifiedNames.List()...) {
+		if allNodePodWorkloads.Has(workloadKey) {
 			used = 1.0
 		}
 		commodityDTO, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_SEGMENTATION).

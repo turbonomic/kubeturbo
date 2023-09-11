@@ -1,11 +1,11 @@
 package dtofactory
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/golang/glog"
 	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
-	"github.com/turbonomic/kubeturbo/pkg/discovery/util"
 	sdkbuilder "github.com/turbonomic/turbo-go-sdk/pkg/builder"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -48,8 +48,10 @@ func (builder *nodeGroupEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 			}
 
 			for _, pod := range allPods {
-				podControllerInfoKey := util.PodControllerInfoKey(pod)
-				nodeGrp2nodes[fullLabel].Insert(podControllerInfoKey)
+				podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+				if ctrlName, exists := builder.clusterSummary.PodToControllerMap[podQualifiedName]; exists {
+					nodeGrp2nodes[fullLabel].Insert(ctrlName)
+				}
 			}
 		}
 	}
