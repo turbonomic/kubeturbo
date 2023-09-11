@@ -455,13 +455,11 @@ func (builder *nodeEntityDTOBuilder) getAffinityCommoditiesSold(node *api.Node, 
 		}
 	}
 
-	var used float64
 	for workloadKey := range hostnameSpreadWorkloads {
 		workloadKeyPods := hostnameSpreadWorkloads[workloadKey]
+		used := 0.0
 		if workloadKeyPods.HasAny(podQualifiedNames.List()...) {
-			used = 1
-		} else {
-			used = 0
+			used = 1.0
 		}
 		commodityDTO, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_SEGMENTATION).
 			Key(workloadKey).
