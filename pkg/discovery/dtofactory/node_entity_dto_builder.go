@@ -60,10 +60,11 @@ type nodeEntityDTOBuilder struct {
 	clusterSummary     *repository.ClusterSummary
 }
 
-func NewNodeEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager) *nodeEntityDTOBuilder {
+func NewNodeEntityDTOBuilder(sink *metrics.EntityMetricSink, stitchingManager *stitching.StitchingManager, clusterSummary *repository.ClusterSummary) *nodeEntityDTOBuilder {
 	return &nodeEntityDTOBuilder{
 		generalBuilder:   newGeneralBuilder(sink),
 		stitchingManager: stitchingManager,
+		clusterSummary:   clusterSummary,
 	}
 }
 

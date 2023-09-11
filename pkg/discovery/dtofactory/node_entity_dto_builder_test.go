@@ -218,7 +218,7 @@ func TestNodeEntityDTO(t *testing.T) {
 	metricsSink.AddNewMetricEntries(clusterInfo)
 	stitchingManager := stitching.NewStitchingManager(stitching.UUID)
 	stitchingManager.StoreStitchingValue(node)
-	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitchingManager)
+	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitchingManager, nil)
 	pods := []string{"pod1", "pod2"}
 	nodePods := map[string][]string{node.Name: pods}
 	nodeEntityDTOs, _ := nodeEntityDTOBuilder.BuildEntityDTOs([]*api.Node{node}, nodePods, nil, nil, nil)
@@ -271,7 +271,7 @@ func Test_getAffinityCommoditiesSold(t *testing.T) {
 	node := mockNode()
 	stitchingManager := stitching.NewStitchingManager(stitching.UUID)
 	stitchingManager.StoreStitchingValue(node)
-	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitchingManager)
+	nodeEntityDTOBuilder := NewNodeEntityDTOBuilder(metricsSink, stitchingManager, nil)
 	pod := "test"
 	mockNodesPods := make(map[string][]string)
 	mockNodesPods[node.Name] = append(mockNodesPods[node.Name], pod)

@@ -373,7 +373,7 @@ func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto
 	var notReadyNodes []string
 	// Build entity DTOs for nodes
 	nodeDTOs, notReadyNodes := worker.buildNodeDTOs([]*api.Node{currTask.Node()}, currTask.NodesPods(),
-		currTask.HostnameSpreadWorkloads(), currTask.OtherSpreadPods(), currTask.PodstoControllers())
+		currTask.HostnameSpreadWorkloads(), currTask.OtherSpreadPods(), currTask.PodstoControllers(), currTask.Cluster())
 
 	glog.V(3).Infof("Worker %s built %d node DTOs.", worker.id, len(nodeDTOs))
 	if len(nodeDTOs) == 0 {
@@ -404,7 +404,7 @@ func (worker *k8sDiscoveryWorker) buildEntityDTOs(currTask *task.Task) ([]*proto
 }
 
 func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node, nodesPods map[string][]string,
-	hostnameSpreadWorkloads sets.String, otherSpreadPods sets.String, podsToControllers map[string]string) ([]*proto.EntityDTO, []string) {
+	hostnameSpreadWorkloads sets.String, otherSpreadPods sets.String, podsToControllers map[string]string, clusterSummary *repository.ClusterSummary) ([]*proto.EntityDTO, []string) {
 	// SetUp nodeName to nodeId mapping
 	stitchingManager := worker.stitchingManager
 	for _, node := range nodes {
@@ -416,7 +416,7 @@ func (worker *k8sDiscoveryWorker) buildNodeDTOs(nodes []*api.Node, nodesPods map
 		}
 	}
 	// Build entity DTOs for nodes
-	return dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager).
+	return dtofactory.NewNodeEntityDTOBuilder(worker.sink, stitchingManager, clusterSummary).
 		WithClusterKeyInjected(worker.config.clusterKeyInjected).
 		BuildEntityDTOs(nodes, nodesPods, hostnameSpreadWorkloads, otherSpreadPods, podsToControllers)
 }
