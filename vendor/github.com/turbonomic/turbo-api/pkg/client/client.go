@@ -17,7 +17,7 @@ var (
 	AUTH                  = "auth"
 	APIPath               = "/vmturbo/rest/"
 	TopologyProcessorPath = "/"
-	HydraPath             = "/vmturbo/hydra/"
+	HydraPath             = "/oauth2/"
 	AuthPath              = "/vmturbo/auth/"
 
 	defaultRESTAPIEndpoints = map[string]string{
