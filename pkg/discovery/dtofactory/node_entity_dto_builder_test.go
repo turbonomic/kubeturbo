@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/turbonomic/kubeturbo/pkg/discovery/dtofactory/property"
+	"github.com/turbonomic/kubeturbo/pkg/discovery/repository"
 	"github.com/turbonomic/turbo-go-sdk/pkg/proto"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +18,8 @@ import (
 	api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/util/feature"
 )
 
@@ -282,4 +285,78 @@ func Test_getAffinityCommoditiesSold(t *testing.T) {
 	assert.Equal(t, 1, len(commodities))
 	assert.Equal(t, proto.CommodityDTO_LABEL, *commodities[0].CommodityType)
 	assert.Equal(t, pod, *commodities[0].Key)
+}
+
+func Test_getAllWorkloadsOnNode(t *testing.T) {
+	node1Name := "node1"
+	node1 := &api.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: node1Name,
+			UID:  types.UID(node1Name),
+		},
+	}
+
+	node2Name := "node2"
+	node2 := &api.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: node2Name,
+			UID:  types.UID(node2Name),
+		},
+	}
+
+	namespace = "test_namespace"
+	pod1 := &api.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "pod1",
+		},
+		Spec: api.PodSpec{
+			NodeName: node1Name,
+		},
+	}
+	pod2 := &api.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "pod2",
+		},
+		Spec: api.PodSpec{
+			NodeName: node1Name,
+		},
+	}
+	pod3 := &api.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "pod3",
+		},
+		Spec: api.PodSpec{
+			NodeName: node2Name,
+		},
+	}
+	pod4 := &api.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "pod4",
+		},
+		Spec: api.PodSpec{
+			NodeName: node1Name,
+		},
+	}
+
+	clusterName := "Test_getAllWorkloadsOnNode"
+	kubeCluster := repository.NewKubeCluster(clusterName, []*api.Node{node1, node2})
+
+	clusterSummary := repository.CreateClusterSummary(kubeCluster)
+	clusterSummary.NodeToRunningPods[node1.Name] = []*api.Pod{pod1, pod2}
+	clusterSummary.NodeToRunningPods[node2.Name] = []*api.Pod{pod3}
+	clusterSummary.NodeToPendingPods[node1.Name] = []*api.Pod{pod4}
+
+	clusterSummary.PodToControllerMap = make(map[string]string)
+	clusterSummary.PodToControllerMap[namespace+"/pod1"] = "controller1"
+	clusterSummary.PodToControllerMap[namespace+"/pod2"] = "controller2"
+	clusterSummary.PodToControllerMap[namespace+"/pod3"] = "controller3"
+	clusterSummary.PodToControllerMap[namespace+"/pod4"] = "controller4"
+
+	workloads := getAllWorkloadsOnNode(node1, clusterSummary)
+	expected := sets.NewString("controller1", "controller2", "controller4")
+	assert.Equal(t, expected, workloads)
 }

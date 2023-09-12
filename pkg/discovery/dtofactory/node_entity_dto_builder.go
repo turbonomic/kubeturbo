@@ -504,7 +504,7 @@ func getNodeIPs(node *api.Node) []string {
 // getAllWorkloadsOnNode retrieves the controller names for all pods on a node.
 // It takes a node and a ClusterSummary as input and returns a set of controller names.
 func getAllWorkloadsOnNode(node *api.Node, clusterSummary *repository.ClusterSummary) sets.String {
-	var controllerNames sets.String
+	controllerNames := sets.NewString()
 	allPods := append(clusterSummary.GetPendingPodsOnNode(node), clusterSummary.GetRunningPodsOnNode(node)...)
 
 	for _, pod := range allPods {
