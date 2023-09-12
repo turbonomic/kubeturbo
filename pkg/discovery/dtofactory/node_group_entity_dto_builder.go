@@ -42,7 +42,6 @@ func (builder *nodeGroupEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 			}
 			nodeGrp2nodes[fullLabel].Insert(string(node.UID))
 
-			//add code for nodeGrp2workload
 			if _, exists := nodeGrp2workloads[fullLabel]; !exists {
 				nodeGrp2workloads[fullLabel] = sets.NewString()
 			}
@@ -50,7 +49,7 @@ func (builder *nodeGroupEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 			for _, pod := range allPods {
 				podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 				if ctrlName, exists := builder.clusterSummary.PodToControllerMap[podQualifiedName]; exists {
-					nodeGrp2nodes[fullLabel].Insert(ctrlName)
+					nodeGrp2workloads[fullLabel].Insert(ctrlName)
 				}
 			}
 		}
