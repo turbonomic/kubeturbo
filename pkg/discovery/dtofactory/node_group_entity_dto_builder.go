@@ -1,7 +1,6 @@
 package dtofactory
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/golang/glog"
@@ -33,7 +32,6 @@ func (builder *nodeGroupEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 	nodeGrp2nodes := make(map[string]sets.String)     // Map of nodeGroup ---> nodes
 	nodeGrp2workloads := make(map[string]sets.String) // Map of nodeGroup ---> workloads of all pods on each node of the nodegroup
 	for _, node := range builder.clusterSummary.Nodes {
-		allPods := append(builder.clusterSummary.GetPendingPodsOnNode(node), builder.clusterSummary.GetRunningPodsOnNode(node)...)
 		for key, value := range node.ObjectMeta.Labels {
 			fullLabel := key + "=" + value
 
@@ -46,12 +44,8 @@ func (builder *nodeGroupEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 				nodeGrp2workloads[fullLabel] = sets.NewString()
 			}
 
-			for _, pod := range allPods {
-				podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
-				if ctrlName, exists := builder.clusterSummary.PodToControllerMap[podQualifiedName]; exists {
-					nodeGrp2workloads[fullLabel].Insert(ctrlName)
-				}
-			}
+			allWorkloadsOnNode := getAllWorkloadsOnNode(node, builder.clusterSummary)
+			nodeGrp2workloads[fullLabel].Insert(allWorkloadsOnNode.List()...)
 		}
 	}
 	// start building the NodeGroup entity dto

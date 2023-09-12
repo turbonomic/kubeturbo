@@ -447,20 +447,13 @@ func (builder *nodeEntityDTOBuilder) getAffinityCommoditiesSold(node *api.Node, 
 		commoditiesSold = append(commoditiesSold, commodityDTO)
 	}
 
-	var allNodePodWorkloads sets.String
+	var workloadsOnNode sets.String
 	if len(hostnameSpreadWorkloads) > 0 {
-		// Concatenate runningPods and pendingPods into a single slice and extract pod name
-		allPods := append(builder.clusterSummary.GetPendingPodsOnNode(node), builder.clusterSummary.GetRunningPodsOnNode(node)...)
-		for _, pod := range allPods {
-			podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
-			if ctrlName, exists := builder.clusterSummary.PodToControllerMap[podQualifiedName]; exists {
-				allNodePodWorkloads.Insert(ctrlName)
-			}
-		}
+		workloadsOnNode = getAllWorkloadsOnNode(node, builder.clusterSummary)
 	}
 	for _, workloadKey := range hostnameSpreadWorkloads.UnsortedList() {
 		used := 0.0
-		if allNodePodWorkloads.Has(workloadKey) {
+		if workloadsOnNode.Has(workloadKey) {
 			used = 1.0
 		}
 		commodityDTO, err := sdkbuilder.NewCommodityDTOBuilder(proto.CommodityDTO_SEGMENTATION).
@@ -506,4 +499,19 @@ func getNodeIPs(node *api.Node) []string {
 		result = append(result, addrs[i].Address)
 	}
 	return result
+}
+
+// getAllWorkloadsOnNode retrieves the controller names for all pods on a node.
+// It takes a node and a ClusterSummary as input and returns a set of controller names.
+func getAllWorkloadsOnNode(node *api.Node, clusterSummary *repository.ClusterSummary) sets.String {
+	var controllerNames sets.String
+	allPods := append(clusterSummary.GetPendingPodsOnNode(node), clusterSummary.GetRunningPodsOnNode(node)...)
+
+	for _, pod := range allPods {
+		podQualifiedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		if ctrlName, exists := clusterSummary.PodToControllerMap[podQualifiedName]; exists {
+			controllerNames.Insert(ctrlName)
+		}
+	}
+	return controllerNames
 }
