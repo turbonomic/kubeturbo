@@ -32,6 +32,7 @@ func (builder *nodeGroupEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 	nodeGrp2nodes := make(map[string]sets.String)     // Map of nodeGroup ---> nodes
 	nodeGrp2workloads := make(map[string]sets.String) // Map of nodeGroup ---> workloads of all pods on each node of the nodegroup
 	for _, node := range builder.clusterSummary.Nodes {
+		allWorkloadsOnNode := getAllWorkloadsOnNode(node, builder.clusterSummary)
 		for key, value := range node.ObjectMeta.Labels {
 			fullLabel := key + "=" + value
 
@@ -43,8 +44,6 @@ func (builder *nodeGroupEntityDTOBuilder) BuildEntityDTOs() ([]*proto.EntityDTO,
 			if _, exists := nodeGrp2workloads[fullLabel]; !exists {
 				nodeGrp2workloads[fullLabel] = sets.NewString()
 			}
-
-			allWorkloadsOnNode := getAllWorkloadsOnNode(node, builder.clusterSummary)
 			nodeGrp2workloads[fullLabel].Insert(allWorkloadsOnNode.List()...)
 		}
 	}
