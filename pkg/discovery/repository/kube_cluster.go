@@ -533,6 +533,22 @@ func (kubeNamespace *KubeNamespace) ReconcileQuotas(quotas []*v1.ResourceQuota) 
 	// Quota resources by collecting resources from the list of resource quota objects
 	var quotaNames []string
 	for _, item := range quotas {
+		//  Ignore the resourcequotas with a Terminating scope
+		ignore := false
+		if len(item.Spec.Scopes) > 0 || item.Spec.ScopeSelector != nil {
+			glog.V(2).Infof("Found a resourcequota %v in the namespace %v with the scopes(%v) or scopeSelector(%v)", item.Name, item.Namespace, item.Spec.Scopes, item.Spec.ScopeSelector)
+		}
+		for _, scope := range item.Spec.Scopes {
+			if scope == v1.ResourceQuotaScopeTerminating {
+				ignore = true
+				break
+			}
+		}
+		if ignore {
+			glog.V(2).Infof("Ignore the resourcequota %v in the namespace %v as it has a Terminating scope", item.Name, item.Namespace)
+			continue
+		}
+
 		//quotaListStr = quotaListStr + item.Name + ","
 		quotaNames = append(quotaNames, item.Name)
 		// Resources in each quota
