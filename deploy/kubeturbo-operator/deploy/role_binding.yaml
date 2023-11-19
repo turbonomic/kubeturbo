@@ -1,0 +1,13 @@
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kubeturbo-operator
+subjects:
+- kind: ServiceAccount
+  name: kubeturbo-operator
+  # Make sure that it matches your namespace
+  namespace: turbo
+roleRef:
+  kind: ClusterRole
+  name: kubeturbo-operator
+  apiGroup: rbac.authorization.k8s.io

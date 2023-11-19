@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: turbo-config-{{ .Release.Name }}
+data:
+  turbo.config: |-
+    {
+      "communicationConfig": {
+        "serverMeta": {
+        {{- if .Values.serverMeta.proxy }}
+          "proxy": "{{ .Values.serverMeta.proxy }}",
+        {{- end }}
+          "version": "{{ .Values.serverMeta.version }}",
+          "turboServer": "{{ .Values.serverMeta.turboServer }}"
+        },
+        "restAPIConfig": {
+          "opsManagerUserName": "{{ .Values.restAPIConfig.opsManagerUserName }}",
+          "opsManagerPassword": "{{ .Values.restAPIConfig.opsManagerPassword }}"
+        },
+        "sdkProtocolConfig": {
+           "registrationTimeoutSec": {{ .Values.sdkProtocolConfig.registrationTimeoutSec }},
+           "restartOnRegistrationTimeout": {{ .Values.sdkProtocolConfig.restartOnRegistrationTimeout }}
+        }
+      },
+      {{- if .Values.featureGates }}
+      "featureGates": {{ .Values.featureGates | toJson }},
+      {{- end }}
+      "HANodeConfig": {
+        "nodeRoles": [{{ .Values.HANodeConfig.nodeRoles }}]
+      {{- if .Values.targetConfig }}
+        {{- if or .Values.targetConfig.targetName .Values.targetConfig.targetType }}
+      },
+      "targetConfig": {
+          {{- if and .Values.targetConfig.targetName .Values.targetConfig.targetType }}
+        "targetName": "{{ .Values.targetConfig.targetName }}",
+        "targetType": "{{ .Values.targetConfig.targetType }}"
+          {{- else if .Values.targetConfig.targetName }}
+        "targetName": "{{ .Values.targetConfig.targetName }}"
+          {{- else }}
+        "targetType": "{{ .Values.targetConfig.targetType }}"
+          {{- end}}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.daemonPodDetectors }}
+      },
+      "daemonPodDetectors": {
+        "namespaces": ["{{ .Values.daemonPodDetectors.daemonPodNamespaces1 }}", "{{ .Values.daemonPodDetectors.daemonPodNamespaces2 }}"],
+        "podNamePatterns": ["{{ .Values.daemonPodDetectors.daemonPodNamePatterns }}"]
+      {{- end }}
+      {{- if .Values.annotationWhitelist }}
+      }, 
+      "annotationWhitelist": {
+        "containerSpec": "{{ default "" .Values.annotationWhitelist.containerSpec }}",
+        "namespace": "{{ default "" .Values.annotationWhitelist.namespace }}",
+        "workloadController": "{{ default "" .Values.annotationWhitelist.workloadController }}"
+      {{- end }}
+      }
+    }
+  turbo-autoreload.config: |-
+    {
+      "logging": {
+        "level": {{ .Values.logging.level }}
+      },
+      "nodePoolSize": {
+        "min": {{ .Values.nodePoolSize.min }},
+        "max": {{ .Values.nodePoolSize.max }}
+      }
+    }

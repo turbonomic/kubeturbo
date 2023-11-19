@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # use this yaml to deploy the kubeturbo pod 
+  # Provide a value for the deploy/pod name: and update namespace if needed
+  name: kubeturbo
+  namespace: turbo
+spec:
+  replicas: 1
+  selector:
+     matchLabels:
+       app.kubernetes.io/name: kubeturbo
+  template:
+    metadata:
+      annotations:
+        kubeturbo.io/monitored: "false"
+      labels:
+        app.kubernetes.io/name: kubeturbo
+    spec:
+      # Update serviceAccount if needed
+      serviceAccountName: turbo-user
+      containers:
+      - name: kubeturbo
+        # Replace the image with desired version:8.7.6 or snapshot version:8.7.6-SNAPSHOT from icr.io
+        image: icr.io/cpopen/turbonomic/kubeturbo:8.7.6
+        env:
+          - name: KUBETURBO_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+        args:
+          - --turboconfig=/etc/kubeturbo/turbo.config
+          - --v=2
+          # Comment out the following two args if running in k8s 1.10 or older, or
+          # change to https=false and port=10255 if unsecure kubelet read only is configured
+          - --kubelet-https=true
+          - --kubelet-port=10250
+          # Uncomment for pod moves in OpenShift
+          #- --scc-support=*
+          # Uncomment for pod moves with pvs
+          #- --fail-volume-pod-moves=false
+          # Uncomment to override default, and specify your own location
+          #- --busybox-image=docker.io/busybox
+          # or uncomment below to pull from RHCC
+          #- --busybox-image=registry.access.redhat.com/ubi8/ubi-minimal
+          # Uncomment to specify the secret name which holds the credentials to busybox image
+          #- --busybox-image-pull-secret=<secret-name>
+          # Specify nodes to exclude from cpu frequency getter job.
+          # Note kubernetes.io/os=windows and/or beta.kubernetes.io/os=windows labels will be automatically excluded by default.
+          # If specified all the labels will be used to select the node ignoring the default.
+          #- --cpufreq-job-exclude-node-labels=kubernetes.io/key=value
+          # The complete cpufreqgetter image uri used for fallback node cpu frequency getter job.
+          #- --cpufreqgetter-image=icr.io/cpopen/turbonomic/cpufreqgetter
+          # The name of the secret that stores the image pull credentials for cpufreqgetter image.
+          #- --cpufreqgetter-image-pull-secret=<secret-name>
+          # Uncomment to stitch using IP, or if using Openstack, Hyper-V/VMM
+          #- --stitch-uuid=false
+          # Uncomment to customize readiness retry threshold. Kubeturbo will try readiness-retry-threshold times before giving up. Default is 60. The retry interval is 10s.
+          #- --readiness-retry-threshold=60
+          # Uncomment to disable the cleanup of the resources which are created by kubeturbo for the scc impersonation
+          #- --cleanup-scc-impersonation-resources=false
+          # [ArgoCD integration] The email to be used to push changes to git
+          #- --git-email=""
+          # [ArgoCD integration] The username to be used to push changes to git
+          #- --git-username=""
+          # [ArgoCD integration] The name of the secret which holds the git credentials
+          #- --git-secret-name""
+          # [ArgoCD integration] The namespace of the secret which holds the git credentials
+          #- --git-secret-namespace=""
+          # [ArgoCD integration] The commit mode that should be used for git action executions. One of {request|direct}. Defaults to direct
+          #- --git-commit-mode=""
+        volumeMounts:
+          # volume will be created, any name will work and must match below
+          - name: turbo-volume
+            mountPath: /etc/kubeturbo
+            readOnly: true
+          - name: turbonomic-credentials-volume
+            mountPath: /etc/turbonomic-credentials
+            readOnly: true
+          - name: varlog
+            mountPath: /var/log
+      volumes:
+      - name: turbo-volume
+        configMap:
+         # Update configMap name if needed
+          name: turbo-config
+      - name: turbonomic-credentials-volume
+        secret:
+          defaultMode: 420
+          optional: true
+          # Update secret name if needed
+          secretName: turbonomic-credentials
+      - name: varlog
+        emptyDir: {}
+      restartPolicy: Always

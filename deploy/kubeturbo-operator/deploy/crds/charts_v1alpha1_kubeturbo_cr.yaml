@@ -1,0 +1,82 @@
+apiVersion: charts.helm.k8s.io/v1
+kind: Kubeturbo
+metadata:
+  name: kubeturbo-release
+spec:
+  # Default values copied from <project_dir>/helm-charts/kubeturbo/values.yaml
+  
+  # Default values for kubeturbo.
+  # This is a YAML-formatted file.
+  # Declare variables to be passed into your templates.
+
+  # Turbo server version and address
+  serverMeta:
+    version: "8.10.3"
+    turboServer: https://Turbo_server_URL
+
+  # URL format for Authenticated and Non-Authenticated
+  #   proxy: "http://username:password@proxyserver:proxyport or http://proxyserver:proxyport"  
+
+  # Turbo server user and password can be provided via an opaque type secret created separately 
+  # or optionally specify username and password below
+  # The opsManagerUserName requires Turbo administrator or site administrator role
+  restAPIConfig:
+  #  turbonomicCredentialsSecretName: "turbonomic-credentials"
+    opsManagerUserName: Turbo_username
+    opsManagerPassword: Turbo_password
+
+  # Configurations to register probe with Turbo Server
+  #sdkProtocolConfig:
+  #  registrationTimeoutSec: 300
+  #  restartOnRegistrationTimeout: false
+
+  # Uncomment out lines to configure HA Node to ESX policies by node role. Default is master
+  # Add more roles using format "\"foo\"\,\"bar\""
+  #HANodeConfig:
+  #  nodeRoles: "\"master\""
+
+  # Supply a targetName for user friendly identification of the k8s cluster
+  targetConfig:
+    targetName: Target_name
+
+  # Uncomment next lines to use dynamic logging level
+  # Changing this value does not require restart of Kubeturbo but takes about 1 minute to take effect
+  # logging:
+  #   level: 2
+  # nodePoolSize:
+  #   min: 1
+  #   max: 1000
+
+  # Uncomment next lines to specify a repository and image tag for kubeturbo
+  #image:
+  #  repository: icr.io/cpopen/turbonomic/kubeturbo
+  #  tag: 8.10.3
+  # Uncomment to use an image from RHCC for cpu-frequency getter job - predefined in OCP Operator Hub version
+  #  busyboxRepository: registry.access.redhat.com/ubi8/ubi-minimal
+
+  # Uncomment out to allow execution in OCP environments
+  #args:
+  #  sccsupport: "*"
+
+  # Uncomment out to specify kubeturbo container specifications when needed (quotas set on ns)
+  #resources:
+  #  limits:
+  #    memory: 4Gi
+  #    cpu: "2"
+  #  requests:
+  #    memory: 512Mi
+  #    cpu: "1"
+
+  # Specify custom turbo-cluster-reader or turbo-cluster-admin role instead of the default cluster-admin role
+  #roleName: turbo-cluster-admin
+
+  # Cluster Role rules for ORM owners.
+  # It's required when using ORM with ClusterRole 'turbo-cluster-admin'.
+  # It's recommended to use ORM with ClusterRole 'cluster-admin'.
+  ormOwners: 
+    apiGroup:
+      # - redis.redis.opstreelabs.in
+      # - charts.helm.k8s.io
+    resources:
+      # - redis
+      # - xls

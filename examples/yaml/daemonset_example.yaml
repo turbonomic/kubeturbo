@@ -1,0 +1,21 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: nginx-daemonset
+  labels:
+    name: nginx-daemonset
+spec:
+  template:
+    metadata:
+      labels:
+        name: nginx-daemonset
+    spec:
+      containers:
+      - name: nginx-daemonset
+        image: nginx
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "0.1"
+            memory: "100Mi"

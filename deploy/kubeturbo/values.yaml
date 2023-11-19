@@ -1,0 +1,135 @@
+# Default values for kubeturbo.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+# Replace the image with desired version
+image:
+  repository: icr.io/cpopen/turbonomic/kubeturbo
+  tag: 8.10.3
+  pullPolicy: IfNotPresent
+#  busyboxRepository: busybox
+#  imagePullSecret: ""
+#  cpufreqgetterRepository: icr.io/cpopen/turbonomic/cpufreqgetter
+
+annotations:
+  kubeturbo.io/controllable: "false"
+
+#nameOverride: ""
+#fullnameOverride: ""
+
+# Specify custom turbo-cluster-reader or turbo-cluster-admin role instead of the default cluster-admin role
+roleName: "cluster-admin"
+
+# Specify the name of clusterrolebinding
+roleBinding: "turbo-all-binding"
+
+# Specify the name of the serviceaccount
+serviceAccountName: "turbo-user"
+
+# Turbo server version and address
+serverMeta:
+  version: "8.10.3"
+  turboServer: https://Turbo_server_URL
+#  proxy: http://username:password@proxyserver:proxyport or http://proxyserver:proxyport
+
+# Turbo server api user and password stored in a secret or optionally specified as username and password
+# The opsManagerUserName requires Turbo administrator role
+restAPIConfig:
+  turbonomicCredentialsSecretName: "turbonomic-credentials"
+  opsManagerUserName: Turbo_username
+  opsManagerPassword: Turbo_password
+
+# Turbo server registration process configuration
+sdkProtocolConfig:
+  registrationTimeoutSec: 300
+  restartOnRegistrationTimeout: false
+
+# For targetConfig, targetName provides better group naming to identify k8s clusters in UI
+# - If no targetConfig is specified, a default targetName will be created from the apiserver URL in
+#   the kubeconfig.
+# - Specify a targetName only will register a probe with type Kubernetes-<targetName>, as well as
+#   adding your cluster as a target with the name Kubernetes-<targetName>.
+# - Specify a targetType only will register a probe without adding your cluster as a target.
+#   The probe will appear as a Cloud Native probe in the UI with a type Kubernetes-<targetType>.
+#
+targetConfig:
+  targetName: Cluster_Name
+#  targetType: Target_Type
+
+# In kubeturbo 6.4.3+, you can define what nodes should stay high-available based on the node role
+# Master nodes are by default populated by --set HANodeConfig.nodeRoles="\"foo\"\,\"bar\""
+HANodeConfig:
+  nodeRoles: "\"master\""
+
+# In kubeturbo 6.3+, you can define how daemon pods are identified. Use either or both
+# Note if you do not enable daemonPodDetectors, the default is to identify all pods running as kind = daemonSet
+# Any entry for daemonPodDetectors would overwrite default. Recommend you do not use this parameter.
+#daemonPodDetectors:
+#   daemonPodNamespaces1: kube-system
+#   daemonPodNamespaces2: OpenShift
+#   daemonPodNamePatterns: .*ignorePod.*
+
+# The annotationWhitelist allows users to define regular expressions to allow kubeturbo to collect
+# matching annotations for the specified entity type. By default, no annotations are collected. 
+# These regular expressions accept the RE2 syntax (except for \C) as defined here: https://github.com/google/re2/wiki/Syntax
+# annotationWhitelist:
+#   containerSpec: ""
+#   namespace: ""
+#   workloadController: ""
+
+# The featureGates property defines a map of string-to-boolean values that provides users with a mechanism 
+# to enable/disable features. For a list of supported feature gates, see 
+# https://github.com/turbonomic/kubeturbo/blob/master/pkg/features/features.go
+# featureGates:
+#   PersistentVolumes: true (default: true)
+#   ThrottlingMetrics: false (default: true)
+#   HonorAzLabelPvAffinity: true (default: false)
+#   GitopsApps: false (default: true)
+#   GoMemLimit: true (default: false)
+
+# Dynamic configuration Changing this value does not require restart of Kubeturbo but takes about 1 minute to take effect
+# logging level
+logging:
+  level: 2
+# Define the default values for your cluster configuration
+# `nodePoolSize.min`: This parameter defines the minimum number of nodes allowed in the node pool. 
+#             It ensures that the node pool remains resilient and can continue its normal operations even if some nodes become 
+#             unavailable due to hardware failures or other issues. The minimum number of nodes should be set based on the desired 
+#             level of resiliency and the specific requirements of the applications running in the node pool.
+# `nodePoolSize.max`: This parameter defines the maximum number of nodes allowed in the node pool. It prevents the cluster from growing 
+#             uncontrollably and helps manage the available resources efficiently. The maximum number of nodes should be set based 
+#             on the available resources in the environment, such as IP addresses, CPU, memory, storage capacity, and networking bandwidth.
+#             It should also consider the application requirements and performance characteristics of the workloads running on the node pool.
+nodePoolSize:
+  min: 1
+  max: 1000
+
+# Cluster Role rules for ORM owners.
+# It's required when using ORM with ClusterRole 'turbo-cluster-admin'.
+# It's recommended to use ORM with ClusterRole 'cluster-admin'.
+ormOwners: 
+  apiGroup:
+    # - redis.redis.opstreelabs.in
+    # - charts.helm.k8s.io
+  resources:
+    # - redis
+    # - xls
+
+args:
+  # logging level
+  logginglevel: 2
+  # If running on k8s 1.10.x or older, set https to false and change port 10255 for kubelet
+  kubelethttps: true
+  kubeletport: 10250
+  # set to false if using IP for stitching
+  stitchuuid: true
+  # if Kubernetes version is older than 1.6, then add another arg for move/resize action
+  pre16k8sVersion: false
+  # cleanup the resources for scc impersonation by deault
+  cleanupSccImpersonationResources: true
+  # required for OCP cluster
+  # sccsupport: "*"
+
+resources: {}

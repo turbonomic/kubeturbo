@@ -1,0 +1,93 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: turbo-cluster-admin
+rules:
+  - apiGroups:
+      - ""
+      - batch
+    resources:
+      - pods
+      - jobs
+    verbs:
+      - '*'
+  - apiGroups:
+      - ""
+      - apps
+      - apps.openshift.io
+      - extensions
+      - machine.openshift.io
+      - turbonomic.com          # Need it for backward compatibility with ORM v1
+      - devops.turbonomic.io
+      # API groups for ORM owners
+      # It's required when using ORM with ClusterRole 'turbo-cluster-admin'.
+      # It's recommended to use ORM with ClusterRole 'cluster-admin'.
+      # - redis.redis.opstreelabs.in
+      # - charts.helm.k8s.io
+    resources:
+      - deployments
+      - replicasets
+      - replicationcontrollers
+      - statefulsets
+      - daemonsets
+      - deploymentconfigs
+      - machinesets
+      - resourcequotas
+      - operatorresourcemappings
+      # Resources for ORM owners
+      # It's required when using ORM with ClusterRole 'turbo-cluster-admin'.
+      # It's recommended to use ORM with ClusterRole 'cluster-admin'.
+      # - redis
+      # - xls
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+  - apiGroups:
+      - ""
+      - apps
+      - batch
+      - extensions
+      - policy
+      - app.k8s.io
+      - argoproj.io
+      - machine.openshift.io
+      - apiextensions.k8s.io
+    resources:
+      - nodes
+      - machines
+      - services
+      - endpoints
+      - namespaces
+      - limitranges
+      - persistentvolumes
+      - persistentvolumeclaims
+      - poddisruptionbudget
+      - cronjobs
+      - applications
+      - customresourcedefinitions
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - nodes/spec
+      - nodes/stats
+      - nodes/metrics
+      - nodes/proxy
+      - pods/log
+    verbs:
+      - get
+  - apiGroups:
+      - policy.turbonomic.io
+    resources:
+      - slohorizontalscales
+      - policybindings
+    verbs:
+      - get
+      - list
+      - watch

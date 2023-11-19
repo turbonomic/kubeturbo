@@ -1,0 +1,41 @@
+apiVersion: charts.helm.k8s.io/v1
+kind: Kubeturbo
+metadata:
+  name: kubeturbo-sample
+spec:
+  # Default values copied from <project_dir>/helm-charts/kubeturbo/values.yaml
+  HANodeConfig:
+    nodeRoles: '"master"'
+  annotations:
+    kubeturbo.io/controllable: "false"
+  args:
+    kubelethttps: true
+    kubeletport: 10250
+    logginglevel: 2
+    pre16k8sVersion: false
+    stitchuuid: true
+  image:
+    pullPolicy: IfNotPresent
+    repository: turbonomic/kubeturbo
+    tag: 8.4.0
+  replicaCount: 1
+  resources: {}
+  restAPIConfig:
+    opsManagerPassword: Turbo_password
+    opsManagerUserName: Turbo_username
+    turbonomicCredentialsSecretName: turbonomic-credentials
+  sdkProtocolConfig:
+    registrationTimeoutSec: 300
+    restartOnRegistrationTimeout: false
+  targetConfig:
+    targetName: Cluster_Name
+  # The name should be unique for Kubeturbo instance  
+  roleBinding: turbo-all-binding-Kubeturbo_name-Kubeturbo_namespace
+  # Specify custom turbo-cluster-reader or turbo-cluster-admin role instead of the default cluster-admin role
+  roleName: cluster-admin
+  serverMeta:
+    turboServer: https://Turbo_server_URL
+    version: "8.0"
+  serviceAccountName: turbo-user
+  
+  

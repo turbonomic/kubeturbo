@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: iks
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: turbo-user
+  namespace: iks
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1    
+metadata:
+  # The name should be unique for Kubeturbo instance
+  name: turbo-all-binding-kubeturbo-iks
+  namespace: iks
+subjects:
+- kind: ServiceAccount
+  name: turbo-user
+  namespace: iks
+roleRef:
+  kind: ClusterRole
+# for other limited cluster admin roles, see samples provided
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: turbo-config
+  namespace: iks
+data:
+  turbo.config: |-
+    {
+        "communicationConfig": {
+            "serverMeta": {
+                "version": "8.0",
+                "turboServer": "http://topology-processor:8080",
+                "proxy": "http://localhost:9004"
+            },
+            "restAPIConfig": {
+                "opsManagerUserName": "username",
+                "opsManagerPassword": "password"
+            }
+        },
+        "targetConfig": {
+            "targetName":"iks-cluster"
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubeturbo
+  namespace: iks
+spec:
+  replicas: 1
+  selector:
+     matchLabels:
+       app.kubernetes.io/name: kubeturbo
+  template:
+    metadata:
+      annotations:
+        kubeturbo.io/monitored: "false"
+      labels:
+        app.kubernetes.io/name: kubeturbo
+    spec:
+      serviceAccountName: turbo-user
+      containers:
+      - name: kubeturbo
+        # Replace the image with desired version:8.7.5 or snapshot version:8.7.5-SNAPSHOT from icr.io
+        image: icr.io/cpopen/turbonomic/kubeturbo:8.7.5
+        args:
+          - --turboconfig=/etc/kubeturbo/turbo.config
+          - --v=2
+          # Comment out the following two args if running in k8s 1.10 or older, or
+          # change to https=false and port=10255 if unsecure kubelet read only is configured
+          - --kubelet-https=true
+          - --kubelet-port=10250
+          # Uncomment to stitch using IP, or if using Openstack, Hyper-V/VMM
+          #- --stitch-uuid=false
+        volumeMounts:
+          - name: turbo-volume
+            mountPath: /etc/kubeturbo
+            readOnly: true
+          - name: varlog
+            mountPath: /var/log
+      - name: iks-device-connector
+        image:  dockerhub.cisco.com/cspg-docker/andromeda/pasadena:latest
+        volumeMounts:
+          - name: varlog
+            mountPath: /cisco/pasadena/logs
+      volumes:
+      - name: turbo-volume
+        configMap:
+          name: turbo-config
+      - name: varlog
+        emptyDir: {}
+      restartPolicy: Always
