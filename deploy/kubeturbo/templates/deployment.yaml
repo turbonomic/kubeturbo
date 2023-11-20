@@ -19,6 +19,7 @@ spec:
       {{- with .Values.annotations }}
       {{- toYaml . | nindent 8 }}
       {{- end }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         app.kubernetes.io/name: {{ include "kubeturbo.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
