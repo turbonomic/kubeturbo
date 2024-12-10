@@ -1,0 +1,20 @@
+# permissions for end users to view kubeturboes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubeturbo-viewer-role
+rules:
+- apiGroups:
+  - charts.helm.k8s.io
+  resources:
+  - kubeturboes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - charts.helm.k8s.io
+  resources:
+  - kubeturboes/status
+  verbs:
+  - get
