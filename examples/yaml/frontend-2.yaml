@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: frontend2
+  labels:
+    name: frontend2
+spec:
+  replicas: 4
+  selector:
+    app: guestbook
+  template:
+    metadata:
+      labels:
+        name: frontend
+        app: guestbook
+    spec:
+      containers:
+      - name: php-redis
+        image: gcr.io/google_containers/example-guestbook-php-redis:v3
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "0.1"
+            memory: "100Mi"
