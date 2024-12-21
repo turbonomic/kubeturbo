@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memory-load-2g
+  labels:
+    purpose: memory-usage-test
+    app: memory-load
+spec:
+  containers:
+  - name: memory-load-x
+    image: beekman9527/memoryload:latest
+    env:
+    - name: RUN_TYPE
+      value: "memory"
+    - name: MEMORY_NUM
+      value: "2048"
