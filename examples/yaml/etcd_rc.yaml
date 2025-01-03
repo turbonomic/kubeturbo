@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: etcd-standalone
+  labels:
+    k8s-app: etcd-standalone
+spec:
+  replicas: 1
+  selector:
+    k8s-app: etcd-standalone
+  template:
+    metadata:
+      labels:
+        k8s-app: etcd-standalone
+    spec:
+      containers:
+      - name: etcd
+        image: gcr.io/google_containers/etcd:2.0.9
+        resources:
+          limits:
+            cpu: 100m
+            memory: 50Mi
+        command:
+        - /usr/local/bin/etcd
+        - -data-dir
+        - /var/etcd/data
+        - -listen-client-urls
+        - http://127.0.0.1:2379,http://127.0.0.1:4001
+        - -advertise-client-urls
+        - http://127.0.0.1:2379,http://127.0.0.1:4001
+        - -initial-cluster-token
+        - etcd-standalone
+        volumeMounts:
+        - name: etcd-storage
+          mountPath: /var/etcd/data
+      volumes:
+      - name: etcd-storage
+        emptyDir: {}
+      dnsPolicy: Default  # Don't use cluster DNS.
