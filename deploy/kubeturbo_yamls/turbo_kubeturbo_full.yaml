@@ -1,0 +1,239 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  # turbo is default value used in the samples provided
+  name: turbo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  # Update the namespace value if required
+  name: turbo-user
+  namespace: turbo
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1    
+metadata:
+  # use this yaml to create a binding that will assign cluster-admin to your turbo ServiceAccount 
+  # Provide a value for the binding name: and update namespace if needed
+  # The name should be unique for Kubeturbo instance
+  name: turbo-all-binding-kubeturbo-turbo
+  namespace: turbo
+subjects:
+- kind: ServiceAccount
+  # Provide the correct value for service account name: and namespace if needed
+  name: turbo-user
+  namespace: turbo
+roleRef:
+  # User creating this resource must have permissions to add this policy to the SA
+  kind: ClusterRole
+# for other limited cluster admin roles, see samples provided
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # use this yaml to provide details kubeturbo will use to connect to the Turbo Server
+  # requires Turbo Server and kubeturbo pod 6.4.3 and higher 
+  # Provide a value for the config name: and update namespace if needed
+  name: turbo-config
+  namespace: turbo
+data:
+  # Update the values for version, turboServer, opsManagerUserName, opsManagerPassword
+  # For version, use Turbo Server Version, even when running CWOM
+  # The opsManagerUserName requires Turbo administrator role
+  #
+  # For targetConfig, targetName provides better group naming to identify k8s clusters in UI
+  # - If no targetConfig is specified, a default targetName will be created from the apiserver URL in
+  #   the kubeconfig.
+  # - Specify a targetName only will register a probe with type Kubernetes-<targetName>, as well as
+  #   adding your cluster as a target with the name Kubernetes-<targetName>.
+  # - Specify a targetType only will register a probe without adding your cluster as a target.
+  #   The probe will appear as a Cloud Native probe in the UI with a type Kubernetes-<targetType>.
+  #
+  # Define node groups by node role, and automatically enable placement policies to limit to 1 per host
+  # DaemonSets are identified by default. Use daemonPodDetectors to identify by name patterns using regex or by namespace.
+  #
+  # serverMeta.proxy format for authenticated and non-authenticated "http://username:password@proxyserver:proxyport or http://proxyserver:proxyport"
+  turbo-autoreload.config: |-
+    {
+      "logging": {
+        "level": 2
+      },
+      "nodePoolSize": {
+        "min": 1,
+        "max": 1000
+      },
+      "systemWorkloadDetectors": {
+        "namespacePatterns": ["kube-.*","openshift-.*","cattle.*"]
+      },
+      "exclusionDetectors": {
+        "operatorControlledWorkloadsPatterns": [],
+        "operatorControlledNamespacePatterns": []
+      },
+      "daemonPodDetectors": {
+          "namespaces": [],
+          "podNamePatterns": []
+      },
+      "discovery": {
+          "chunkSendDelayMillis": 0,
+          "numObjectsPerChunk": 5000
+      }
+    }  
+  turbo.config: |-
+    {
+        "communicationConfig": {
+            "serverMeta": {
+                "turboServer": "<https://Turbo_Server_URL_or_IP_address>"
+            },
+            "restAPIConfig": {
+                "opsManagerUserName": "<Turbo_username>",
+                "opsManagerPassword": "<Turbo_password>"
+            }
+        },
+        "targetConfig": {
+            "targetName":"<Your_Cluster_Name>"
+        },
+        "HANodeConfig": {
+            "nodeRoles": [ "master"]
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # use this yaml to deploy the kubeturbo pod 
+  # Provide a value for the deploy/pod name: and update namespace if needed
+  name: kubeturbo
+  namespace: turbo
+spec:
+  replicas: 1
+  selector:
+     matchLabels:
+       app.kubernetes.io/name: kubeturbo
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kubeturbo.io/monitored: "false"
+      labels:
+        app.kubernetes.io/name: kubeturbo
+    spec:
+      # Update serviceAccount if needed
+      serviceAccount: turbo-user
+      # Assigning Kubeturbo to node, see 
+      # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ 
+      #
+      # nodeSelector:
+      #   kubernetes.io/hostname: worker0
+      #
+      # Or, use affinity:
+      #
+      # affinity:
+      #   nodeAffinity:
+      #       requiredDuringSchedulingIgnoredDuringExecution:
+      #         nodeSelectorTerms:
+      #         - matchExpressions:
+      #           - key: kubernetes.io/hostname
+      #             operator: In
+      #             values:
+      #             - worker1
+      #
+      # Or, use taints and tolerations
+      #
+      # tolerations:
+      # - key: "key1"
+      #   operator: "Equal"
+      #   value: "mytaint"
+      #   effect: "NoSchedule"
+      containers:
+      - name: kubeturbo
+        # Replace the image version with matching Turbo Server version such as 8.11.1
+        image: icr.io/cpopen/turbonomic/kubeturbo:<Turbo_version>
+        env:
+          - name: KUBETURBO_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+        args:
+          - --turboconfig=/etc/kubeturbo/turbo.config
+          - --v=2
+          # Comment out the following two args if running in k8s 1.10 or older, or
+          # change to https=false and port=10255 if unsecure kubelet read only is configured
+          - --kubelet-https=true
+          - --kubelet-port=10250
+          # Uncomment for pod moves in OpenShift
+          #- --scc-support=*
+          # Uncomment for pod moves with pvs
+          #- --fail-volume-pod-moves=false
+          # Uncomment to override default, and specify your own location
+          #- --busybox-image=docker.io/busybox
+          # or uncomment below to pull from RHCC
+          #- --busybox-image=registry.access.redhat.com/ubi9/ubi-minimal
+          # Uncomment to specify the secret name which holds the credentials to busybox image
+          #- --busybox-image-pull-secret=<secret-name>
+          # Specify nodes to exclude from cpu frequency getter job.
+          # Note kubernetes.io/os=windows and/or beta.kubernetes.io/os=windows labels will be automatically excluded by default.
+          # If specified all the labels will be used to select the node ignoring the default.
+          #- --cpufreq-job-exclude-node-labels=kubernetes.io/key=value
+          # The complete cpufreqgetter image uri used for fallback node cpu frequency getter job.
+          #- --cpufreqgetter-image=icr.io/cpopen/turbonomic/cpufreqgetter
+          # The name of the secret that stores the image pull credentials for cpufreqgetter image.
+          #- --cpufreqgetter-image-pull-secret=<secret-name>
+          # Uncomment to stitch using IP, or if using Openstack, Hyper-V/VMM
+          #- --stitch-uuid=false
+          # Uncomment to customize readiness retry threshold. Kubeturbo will try readiness-retry-threshold times before giving up. Default is 60. The retry interval is 10s.
+          #- --readiness-retry-threshold=60
+          # Uncomment to disable the cleanup of the resources which are created by kubeturbo for the scc impersonation.
+          #- --cleanup-scc-impersonation-resources=false
+          # Uncomment to skip creating the resources the scc impersonation
+          #- --skip-creating-scc-impersonation-resources=true
+          # [ArgoCD integration] The email to be used to push changes to git
+          #- --git-email=""
+          # [ArgoCD integration] The username to be used to push changes to git
+          #- --git-username=""
+          # [ArgoCD integration] The name of the secret which holds the git credentials
+          #- --git-secret-name""
+          # [ArgoCD integration] The namespace of the secret which holds the git credentials
+          #- --git-secret-namespace=""
+          # [ArgoCD integration] The commit mode that should be used for git action executions. One of {request|direct}. Defaults to direct
+          #- --git-commit-mode=""
+        volumeMounts:
+          # volume will be created, any name will work and must match below
+          - name: turbo-volume
+            mountPath: /etc/kubeturbo
+            readOnly: true
+          - name: turbonomic-credentials-volume
+            # This mount path cannot be changed
+            mountPath: /etc/turbonomic-credentials
+            readOnly: true
+          - name: varlog
+            mountPath: /var/log
+      volumes:
+      - name: turbo-volume
+        configMap:
+         # Update configMap name if needed
+          name: turbo-config
+      - name: turbonomic-credentials-volume
+        secret:
+          defaultMode: 420
+          optional: true
+          # Update secret name if needed
+          secretName: turbonomic-credentials
+      - name: varlog
+        emptyDir: {}
+      restartPolicy: Always
+---
+#option to use secret for Turbo credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: turbonomic-credentials
+  namespace: turbo
+type: Opaque
+data:
+  username: BASE64encodedValue
+  password: BASE64encodedValue
+---

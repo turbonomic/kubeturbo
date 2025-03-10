@@ -1,0 +1,15 @@
+{
+    "communicationConfig": {
+        "serverMeta": {
+            "turboServer": "https://127.1.1.1:9444"
+        },
+        "restAPIConfig": {
+            "opsManagerUserName": "foo",
+            "opsManagerPassword": "bar"
+        }
+    },
+    "targetConfig": {
+        "targetName":"RedHatOpenShift-1",
+        "targetType":"RedHatOpenShift"
+    }
+}

@@ -1,0 +1,255 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  # use this yaml to create a namespace where you will deploy kubeturbo.
+  # Provide a value for name:
+  # turbo is default value used in the samples provided
+  name: turbo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubeturbo-operator
+  namespace: turbo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubeturbo-operator
+rules:
+  - verbs:
+      - '*'
+    apiGroups:
+      - ''
+      - apps
+      - extensions
+    resources:
+      - nodes
+      - pods
+      - configmaps
+      - endpoints
+      - events
+      - deployments
+      - persistentvolumeclaims
+      - replicasets
+      - replicationcontrollers
+      - services
+      - secrets
+      - serviceaccounts
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - ''
+      - apps
+      - extensions
+      - policy
+    resources:
+      - daemonsets
+      - endpoints
+      - limitranges
+      - namespaces
+      - persistentvolumes
+      - persistentvolumeclaims
+      - poddisruptionbudget
+      - resourcequotas
+      - services
+      - statefulsets
+  - verbs:
+      - get
+    apiGroups:
+      - ''
+    resources:
+      - nodes/spec
+      - nodes/stats
+  - verbs:
+      - '*'
+    apiGroups:
+      - charts.helm.k8s.io
+    resources:
+      - '*'
+  - verbs:
+      - '*'
+    apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterroles
+      - clusterrolebindings
+  - verbs:
+      - create
+      - get
+      - list
+      - update
+    apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kubeturbo-operator
+subjects:
+- kind: ServiceAccount
+  name: kubeturbo-operator
+  # Make sure that it matches your namespace
+  namespace: turbo
+roleRef:
+  kind: ClusterRole
+  name: kubeturbo-operator
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubeturbo-operator
+  namespace: turbo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: kubeturbo-operator
+  template:
+    metadata:
+      labels:
+        name: kubeturbo-operator
+    spec:
+      serviceAccountName: kubeturbo-operator
+      containers:
+        - name: kubeturbo-operator
+          # Replace this with the same version:8.11.3 as Turbonomic server
+          image: icr.io/cpopen/kubeturbo-operator:<Turbo_version>
+          imagePullPolicy: Always
+          env:
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "kubeturbo-operator"
+          volumeMounts:
+            - mountPath: /tmp
+              name: operator-tmpfs0
+      volumes:
+        - name: operator-tmpfs0
+          emptyDir: {}
+---
+apiVersion: charts.helm.k8s.io/v1
+kind: Kubeturbo
+metadata:
+  name: kubeturbo-release
+  namespace: turbo
+  annotations:
+    helm.sdk.operatorframework.io/rollback-force: "false"
+spec:
+  # Default values copied from <project_dir>/helm-charts/kubeturbo/values.yaml
+  
+  # Default values for kubeturbo.
+  # This is a YAML-formatted file.
+  # Declare variables to be passed into your templates.
+
+  # Turbo server address
+  serverMeta:
+    turboServer: https://Turbo_server_URL_or_IP_Address
+
+  # URL format for Authenticated and Non-Authenticated
+  #   proxy: "http://username:password@proxyserver:proxyport or http://proxyserver:proxyport"  
+
+  # Turbo server user and password can be provided via an opaque type secret created separately 
+  # or optionally specify username and password below
+  # The opsManagerUserName requires Turbo administrator or site administrator role
+  restAPIConfig:
+  #  turbonomicCredentialsSecretName: "turbonomic-credentials"
+    opsManagerUserName: Turbo_username
+    opsManagerPassword: Turbo_password
+
+  # Configurations to register probe with Turbo Server
+  #sdkProtocolConfig:
+  #  registrationTimeoutSec: 300
+  #  restartOnRegistrationTimeout: true
+
+  # Uncomment out lines to configure HA Node to ESX policies by node role. Default is master
+  # Add more roles using format "\"foo\"\,\"bar\""
+  #HANodeConfig:
+  #  nodeRoles: "\"master\""
+
+  # Supply a targetName for user friendly identification of the k8s cluster
+  targetConfig:
+    targetName: Your_Cluster_name
+
+  # Uncomment next lines to use dynamic logging level
+  # Changing this value does not require restart of Kubeturbo but takes about 1 minute to take effect
+  # logging:
+  #   level: 2
+  # nodePoolSize:
+  #   min: 1
+  #   max: 1000
+
+  # Uncomment next lines to specify a repository and image tag for kubeturbo
+  #image:
+  #  repository: icr.io/cpopen/turbonomic/kubeturbo
+  #  tag: 8.10.3
+  # Uncomment to use an image from RHCC for cpu-frequency getter job - predefined in OCP Operator Hub version
+  #  busyboxRepository: registry.access.redhat.com/ubi9/ubi-minimal
+
+  # Uncomment out to allow execution in OCP environments
+  #args:
+  #  sccsupport: "*"
+
+  # Uncomment out to specify kubeturbo container specifications when needed (quotas set on ns)
+  #resources:
+  #  limits:
+  #    memory: 4Gi
+  #    cpu: "2"
+  #  requests:
+  #    memory: 512Mi
+  #    cpu: "1"
+
+  # Specify custom turbo-cluster-reader or turbo-cluster-admin role instead of the default cluster-admin role
+  #roleName: turbo-cluster-admin
+  # Cluster Role rules for ORM owners.
+  # It's required when using ORM with ClusterRole 'turbo-cluster-admin'.
+  # It's recommended to use ORM with ClusterRole 'cluster-admin'.
+  ormOwners: 
+    apiGroup:
+      # - redis.redis.opstreelabs.in
+      # - charts.helm.k8s.io
+    resources:
+      # - redis
+      # - xls
+  # Flag system workloads such as those defined in kube-system, openshift-system, etc.
+  # Kubeturbo will not generate actions for workloads that match the supplied patterns.
+  systemWorkloadDetectors:
+    # A list of regular expressions that match the namespace names for system workloads.
+    namespacePatterns: 
+    - kube-.*
+    - openshift-.*
+    - cattle.*
+  # List operator-controlled workloads by name or namespace (using regular expressions)
+  # that should be excluded from the operator-controlled WorkloadController resize policy. 
+  # By default, matching workloads will generate actions that are not in Recommend mode.
+  # exclusionDetectors:
+    # A list of regular expressions representing operator-controlled Workload Controllers.
+    # operatorControlledNamespacePatterns: 
+    # - example-.*
+    # - .*-example
+    # A list of regular expressions representing namespaces containing operator-controlled 
+    # Workload Controllers. 
+    # operatorControlledWorkloadsPatterns:
+    # - .*-example.*
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: turbonomic-credentials
+  namespace: turbo
+type: Opaque
+data:
+  username: #####<replace with base64 encoded value>
+  password: #####<replace with base64 encoded value>
+---

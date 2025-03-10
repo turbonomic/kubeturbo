@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kubeturbo.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "kubeturbo.name" . }}
+    helm.sh/chart: {{ include "kubeturbo.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "kubeturbo.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+      {{- with .Values.annotations }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app.kubernetes.io/name: {{ include "kubeturbo.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName }}
+{{- if .Values.image.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.image.imagePullSecret }}
+{{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          env:
+          - name: KUBETURBO_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+          - --turboconfig=/etc/kubeturbo/turbo.config
+          - --v={{ .Values.args.logginglevel }}
+          {{- if .Values.args.kubelethttps }}
+          - --kubelet-https={{ .Values.args.kubelethttps }}
+          - --kubelet-port={{ .Values.args.kubeletport }}
+          {{- end }}
+          {{- if .Values.args.discoveryIntervalSec }}
+          - --discovery-interval-sec={{ .Values.args.discoveryIntervalSec }}
+          {{- end }}
+          {{- if .Values.args.discoverySampleIntervalSec }}
+          - --discovery-sample-interval={{ .Values.args.discoverySampleIntervalSec }}
+          {{- end }}
+          {{- if .Values.args.discoverySamples }}
+          - --discovery-samples={{ .Values.args.discoverySamples }}
+          {{- end }}
+          {{- if .Values.args.discoveryTimeoutSec }}
+          - --discovery-timeout-sec={{ .Values.args.discoveryTimeoutSec }}
+          {{- end }}
+          {{- if .Values.args.garbageCollectionIntervalMin }}
+          - --garbage-collection-interval={{ .Values.args.garbageCollectionIntervalMin }}
+          {{- end }}
+          {{- if .Values.args.discoveryWorkers }}
+          - --discovery-workers={{ .Values.args.discoveryWorkers }}
+          {{- end }}
+          {{- if .Values.args.sccsupport }}
+          - --scc-support={{ .Values.args.sccsupport }}
+          {{- end }}
+          {{- if .Values.args.readinessRetryThreshold }}
+          - --readiness-retry-threshold={{ .Values.args.readinessRetryThreshold }}
+          {{- end }}
+          {{- if .Values.args.failVolumePodMoves }}
+          - --fail-volume-pod-moves={{ .Values.args.failVolumePodMoves }}
+          {{- end }}
+          {{- if .Values.image.busyboxRepository }}
+          - --busybox-image={{ .Values.image.busyboxRepository }}
+          {{- end }}
+          {{- if .Values.image.imagePullSecret }}
+          - --busybox-image-pull-secret={{ .Values.image.imagePullSecret }}
+          - --cpufreqgetter-image-pull-secret={{ .Values.image.imagePullSecret }}
+          {{- end }}
+          {{- if .Values.image.cpufreqgetterRepository }}
+          - --cpufreqgetter-image={{ .Values.image.cpufreqgetterRepository }}
+          {{- end }}
+          {{- if .Values.args.busyboxExcludeNodeLabels }}
+          - --cpufreq-job-exclude-node-labels={{ .Values.args.busyboxExcludeNodeLabels }}
+          {{- end }}
+          {{- if not .Values.args.stitchuuid }}
+          - --stitch-uuid={{ .Values.args.stitchuuid }}
+          {{- end }}
+          {{- if .Values.args.pre16k8sVersion }}
+          - --k8sVersion=1.5
+          {{- end }}
+          {{- if not .Values.args.cleanupSccImpersonationResources }}
+          - --cleanup-scc-impersonation-resources={{ .Values.args.cleanupSccImpersonationResources }}
+          {{- end }}
+          {{- if .Values.args.skipCreatingSccImpersonationResources }}
+          - --skip-creating-scc-impersonation-resources={{ .Values.args.skipCreatingSccImpersonationResources }}
+          {{- end }}
+          {{- if .Values.args.satelliteLocationProvider }}
+          - --satellite-location-provider={{ .Values.args.satelliteLocationProvider }}
+          {{- end }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          volumeMounts:
+          - name: turbo-volume
+            mountPath: /etc/kubeturbo
+            readOnly: true
+          - name: turbonomic-credentials-volume
+            mountPath: /etc/turbonomic-credentials
+            readOnly: true
+          - name: varlog
+            mountPath: /var/log
+      volumes:
+      - name: turbo-volume
+        configMap:
+          name: turbo-config-{{ .Release.Name }}
+      - name: turbonomic-credentials-volume
+        secret:
+          defaultMode: 420
+          optional: true
+          secretName: {{ .Values.restAPIConfig.turbonomicCredentialsSecretName | default "turbonomic-credentials" | quote }}
+      - name: varlog
+        emptyDir: {}
+      restartPolicy: Always
